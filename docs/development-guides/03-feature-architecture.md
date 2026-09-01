@@ -211,7 +211,7 @@ func executeCapture() {
 | Reusable components              | Descriptive noun                                          | `CaptureFlashButton`, `ScanThumbnail`                      |
 | View modifiers                   | Modifier suffix                                           | `CropSheetModifier`, `ScansSheetPresentationModifier`      |
 | Local feature models             | No suffix                                                 | `ImageFileWrapper`, `SearchableScan`                       |
-| Utility helpers                  | Manager/Processor suffix                                  | `InsightMediaExportManager`, `ImageCropProcessor`          |
+| Utility helpers                  | Service/Processor suffix                                  | `MediaExportService`, `ImageCropProcessor`                 |
 
 ---
 

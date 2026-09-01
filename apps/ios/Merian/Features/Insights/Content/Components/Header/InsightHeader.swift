@@ -18,6 +18,8 @@ struct InsightHeader: View {
     /// Called when the user taps the alternative names line to open the name picker.
     var onAlternativeNamesTap: (() -> Void)?
     var onRevealFeedback: () -> Void = {}
+    var modelTierBadgePresentation: ModelTierBadgePresentation?
+    var onModelTierUpgrade: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
@@ -33,7 +35,7 @@ struct InsightHeader: View {
 
             // MARK: - Subtitle and Title
             VStack(alignment: .center, spacing: 8) {
-                
+
                 // MARK: - Scientific Name
                 if !subtitle.isEmpty && subtitle.lowercased() != title.lowercased() && subtitle != "Taxonomy Unavailable" {
                     Text(subtitle.strippingCultivarNotation().replacingOccurrences(of: "\n", with: " "))
@@ -108,13 +110,16 @@ struct InsightHeader: View {
         }
 
         // MARK: - Model Tier Badge
-        ModelTierBadge(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
+        ModelTierBadge(
+            presentation: modelTierBadgePresentation,
+            onUpgrade: onModelTierUpgrade
+        )
     }
 
     private func styledParagraph(text: String, scientificName: String) -> AttributedString {
         let cleanText = text.replacingOccurrences(of: "*", with: "").replacingOccurrences(of: "_", with: "")
         var result = AttributedString(cleanText)
-        
+
         if !scientificName.isEmpty {
             var searchRange = result.startIndex..<result.endIndex
             while let range = result[searchRange].range(of: scientificName, options: .caseInsensitive) {
@@ -123,7 +128,7 @@ struct InsightHeader: View {
                 searchRange = range.upperBound..<result.endIndex
             }
         }
-        
+
         return result
     }
 }

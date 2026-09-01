@@ -68,8 +68,8 @@ struct ExploreAudioBoostTests {
     }
 
     @Test func preparationFeedbackRequiresExplicitActionToken() {
-        #expect(!ExploreAudioBoostFeedbackPolicy.shouldPresent(actionToken: nil))
-        #expect(ExploreAudioBoostFeedbackPolicy.shouldPresent(actionToken: UUID()))
+        #expect(!AudioBoostFeedbackPolicy.shouldPresent(actionToken: nil))
+        #expect(AudioBoostFeedbackPolicy.shouldPresent(actionToken: UUID()))
     }
 
     @Test func feedBoostPillPresentsShortcutUntilBoostedAudioIsReady() {

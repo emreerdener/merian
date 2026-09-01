@@ -6,7 +6,7 @@ struct SpeciesDictionaryContentQualityCard: View {
     var body: some View {
         if quality != .complete {
             VStack(alignment: .leading, spacing: 12) {
-                InsightCardHeader(systemImage: iconName, title: title)
+                MerianCardHeader(systemImage: iconName, title: title)
 
                 Text(message)
                     .font(.subheadline)
@@ -68,7 +68,7 @@ struct SpeciesDictionaryStatusCard: View {
     var body: some View {
         if let normalizedHazard {
             VStack(alignment: .leading, spacing: 14) {
-                InsightCardHeader(systemImage: "exclamationmark.triangle", title: "Caution")
+                MerianCardHeader(systemImage: "exclamationmark.triangle", title: "Caution")
 
                 KeyValueRow(
                     title: "HAZARD",

@@ -350,9 +350,14 @@ private struct ComplimentaryScansDeveloperPreview: View {
 
                 previewSection("Results") {
                     ModelTierBadge(
-                        confidenceScore: 0.92,
-                        inferenceTier: "pro",
-                        complimentaryDisplayOverride: scenario.displayState
+                        presentation: ModelTierBadgePresentation(
+                            text: scenario.rawValue == 1
+                                ? "1 Pro scan remains"
+                                : scenario.rawValue > 1
+                                    ? "\(scenario.rawValue) Pro scans remain"
+                                    : "Upgrade for advanced analysis"
+                        ),
+                        onUpgrade: { showPaywall = true }
                     )
                 }
 

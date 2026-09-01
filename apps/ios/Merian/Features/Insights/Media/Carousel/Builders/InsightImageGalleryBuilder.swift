@@ -4,25 +4,25 @@ struct InsightImageGalleryBuilder {
     static func buildItems(
         for activeMedia: ActiveScanMedia,
         referenceWikipediaUrl: String?
-    ) -> [InsightImageGalleryItem] {
-        var items: [InsightImageGalleryItem] = []
+    ) -> [MediaGalleryItem] {
+        var items: [MediaGalleryItem] = []
 
         for item in activeMedia.items {
             switch item {
             case .liveImage(let data):
-                items.append(InsightImageGalleryItem(
+                items.append(MediaGalleryItem(
                     id: "liveImage-\(data.hashValue)",
                     source: .liveImage(data),
                     referenceAttributionLabel: nil
                 ))
             case .image(let path):
-                items.append(InsightImageGalleryItem(
+                items.append(MediaGalleryItem(
                     id: "image-\(path)",
                     source: .imagePath(path),
                     referenceAttributionLabel: nil
                 ))
             case .video(let path, _):
-                items.append(InsightImageGalleryItem(
+                items.append(MediaGalleryItem(
                     id: "video-\(path)",
                     source: .videoPath(path),
                     referenceAttributionLabel: nil
@@ -39,7 +39,7 @@ struct InsightImageGalleryBuilder {
                     wikipediaURL: referenceWikipediaUrl,
                     index: index
                 )
-                items.append(InsightImageGalleryItem(
+                items.append(MediaGalleryItem(
                     id: "reference-\(urlString)",
                     source: .referenceURL(urlString),
                     referenceAttributionLabel: label
@@ -51,17 +51,17 @@ struct InsightImageGalleryBuilder {
     }
 
     static func presentation(
-        items: [InsightImageGalleryItem],
+        items: [MediaGalleryItem],
         selectedCarouselPageID: String?,
         isVideoMuted: Bool = true
-    ) -> InsightImageGalleryPresentation? {
+    ) -> MediaGalleryPresentation? {
         guard let selectedCarouselPageID,
               let selectedIndex = items.firstIndex(where: {
                   $0.id == selectedCarouselPageID
               }) else {
             return nil
         }
-        return InsightImageGalleryPresentation(
+        return MediaGalleryPresentation(
             items: items,
             initialSelectedIndex: selectedIndex,
             initialVideoMuted: isVideoMuted
@@ -74,7 +74,7 @@ struct InsightImageGalleryBuilder {
         selectedCarouselPageID: String?,
         orderedCarouselPageIDs: [String]? = nil,
         isVideoMuted: Bool = true
-    ) -> InsightImageGalleryPresentation? {
+    ) -> MediaGalleryPresentation? {
         guard let selectedCarouselPageID else { return nil }
 
         let allItems = buildItems(

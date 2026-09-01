@@ -138,16 +138,21 @@ the retained playback clip and is not deleted by the successful capture path.
 
 ## Single and Batch Downloads
 
-`InsightMediaExportManager` converts UI- and SwiftData-bound records into a
-`Sendable` `SaveMediaPayload` before work crosses into `ExportProcessingActor`.
-The payload keeps media classes explicit:
+Core `MediaExportService` accepts Sendable requests rather than UI or SwiftData
+objects. Insight maps the active scan snapshot into `MediaSaveRequest`; Scans
+maps selected `LocalScanRecord` values into requests on the main actor before
+the first suspension. The request keeps media classes explicit:
 
 ```swift
-localImageURLs
-approvedRemotePhotoURLs
-localVideoURLs
-approvedRemoteVideoURLs
+liveImageData
+photoSources: [MediaExportSource]
+videoSources: [MediaExportSource]
 ```
+
+Each source is either `.local(URL)` or `.approvedRemote(URL)`. The service's
+private actor owns one isolated URL session, sequential batch processing, and
+cancellation checks between items. No SwiftData model, UIKit image, or feature
+presentation state enters that actor.
 
 Single and batch Download actions may save:
 
@@ -175,12 +180,26 @@ Values with a non-file URL scheme are never interpreted as local paths.
 Remote download is restricted to HTTPS URLs whose exact normalized host is
 `media.merian.app`. Subdomains, suffix lookalikes, and external reference hosts
 are skipped. This preserves the existing rule that Wikipedia, GBIF, and other
-third-party reference URLs are not fetched as arbitrary export resources.
+third-party reference URLs are not fetched as arbitrary export resources. The
+ephemeral, cookie-free session refuses a cross-host redirect before following
+it. The processor also validates both the requested URL and final response URL
+before using any bytes, so manually constructed request values and redirect
+chains are rejected by the service boundary too.
 
 `URLSession.download` writes each approved response to a temporary file. The
-actor passes that file URL directly to `PhotoLibraryManager`, awaits the
+service actor passes that file URL directly to `PhotoLibraryManager`, awaits the
 PhotoKit transaction, and removes the download file in `defer` on success, HTTP
 failure, or PhotoKit failure. Remote videos are never materialized as `Data`.
+
+Single and batch shares use `DiscoveryShareRequest` and
+`BatchDiscoveryShareRequest`. Image candidates preserve the order
+`live → primary capture → approved reference`, including approved remote primary
+captures. Remote previews use temporary download files and ImageIO instead of
+buffering the complete response as `Data`. Single shares downsample to at most
+2,048 px; batch shares downsample to 1,024 px and retain at most the existing
+20-item Scans selection cap. Core returns text plus immutable `SendableCGImage`
+values; the feature adapter converts them to UIKit and presents the share sheet
+on the main actor.
 
 ## Results and User Feedback
 
@@ -204,6 +223,11 @@ Feedback is derived from the successful photo/video counts:
 The Insight action uses an alert; batch library downloads use the existing
 toast. Both clear their loading state after completion.
 
+Insight retains separate save and share-preparation tasks. Operation UUID, scan
+ID, and sheet generation must still match before feedback or UIKit presentation
+is committed. Every dismissal clears those owners, so an uncooperative late
+dependency cannot affect the next Insight.
+
 ## Ownership and Cleanup
 
 | File                                                 | Owner before save               | Cleanup rule                                                                                             |
@@ -211,7 +235,7 @@ toast. Both clear their loading state after completion.
 | Original camera video                                | Capture task                    | Await automatic PhotoKit import before deleting; retain when it is the playback fallback                 |
 | Unaccepted generated WAV or compressed playback clip | `CaptureScanTemporaryFileLease` | Delete on cancellation, timeout, validation failure, supersession, or release without staging acceptance |
 | Retained playback video                              | Scan staging/persistence        | Never delete as part of a manual Photos export                                                           |
-| Approved remote download                             | Export actor                    | Delete after the awaited PhotoKit write returns                                                          |
+| Approved remote download                             | Media export service actor      | Delete after the awaited PhotoKit write returns                                                          |
 | Scrubbed temporary photo                             | `PhotoLibraryManager`           | Delete after the awaited PhotoKit write returns                                                          |
 
 PhotoKit failure never grants an export path permission to delete a retained
@@ -240,8 +264,12 @@ Focused coverage lives in:
 - `CaptureScanTemporaryFileLeaseTests.swift` and `DetachedWorkTests.swift` for
   unaccepted-artifact cleanup, explicit ownership transfer, and propagation of
   parent cancellation into detached media work;
-- `InsightMediaExportManagerTests.swift` for local/approved remote image/video
-  payloads, unapproved-host filtering, and mixed/partial result copy; and
+- `MediaExportServiceTests.swift` for local/approved remote image/video
+  requests, redirect and unapproved-host filtering, single/batch share sizing
+  and ordering, a real oversized image constrained to the batch bound, and
+  mixed/partial result copy;
+- `InsightMediaExportLifecycleTests.swift` for dismissal cancellation and
+  operation/generation fencing; and
 - `services/supabase/scripts/documentation_contract_test.ts` for maintained
   documentation links and current media-export entry-point names.
 
@@ -253,7 +281,8 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/PhotoLibraryManagerTests \
   -only-testing:merianTests/CaptureScanTemporaryFileLeaseTests \
   -only-testing:merianTests/DetachedWorkTests \
-  -only-testing:merianTests/InsightMediaExportManagerTests test
+  -only-testing:merianTests/MediaExportServiceTests \
+  -only-testing:merianTests/InsightMediaExportLifecycleTests test
 
 deno test --config services/supabase/functions/deno.json --frozen \
   --allow-read=. \

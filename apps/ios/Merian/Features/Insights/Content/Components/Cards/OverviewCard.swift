@@ -4,7 +4,7 @@ struct OverviewCard: View {
     @Environment(InferenceEngine.self) var inferenceEngine
     @Binding var isSafariPresented: Bool
     @Binding var selectedWikiURL: URL?
-    
+
     // Fallback dictionary for capitalizing known values if needed
     func capitalizeFirstLetter(_ string: String) -> String {
         guard let first = string.first else { return "" }
@@ -21,12 +21,12 @@ struct OverviewCard: View {
         guard let trimmed = nonEmpty(region) else { return "Region unavailable" }
         return trimmed.caseInsensitiveCompare("Unavailable") == .orderedSame ? "Region unavailable" : trimmed
     }
-    
+
     private var iucnStatus: (text: String, isGood: Bool?)? {
         guard let rawStatus = inferenceEngine.speciesData?.iucnRedListStatus?.lowercased() else { return nil }
         if rawStatus == "not applicable" || rawStatus.isEmpty || rawStatus == "data deficient" { return nil }
         let normalizedStatus = rawStatus.replacingOccurrences(of: "_", with: " ")
-        
+
         switch normalizedStatus {
         case _ where normalizedStatus.contains("not evaluated"): return ("Not evaluated", nil)
         case _ where normalizedStatus.contains("least concern"): return ("Not at risk", true)
@@ -39,12 +39,12 @@ struct OverviewCard: View {
         default: return (capitalizeFirstLetter(normalizedStatus), true)
         }
     }
-    
+
     var body: some View {
         if let data = inferenceEngine.speciesData {
             let wikiExtract = data.wikipediaOverview
             let hasWiki = (wikiExtract?.count ?? 0) >= 60
-            
+
             let size = data.estimatedSizeCm.map { String(format: "%.1f cm", $0) }
             let invasive = data.isInvasive ? "Invasive" : "Not invasive"
             let invasiveRationale = nonEmpty(data.invasiveRationale)
@@ -81,26 +81,26 @@ struct OverviewCard: View {
                 }
                 return capitalizeFirstLetter(trimmed)
             }()
-            
+
             let hasOriginalImage = inferenceEngine.activeMedia.hasUserImage
-            
+
             let colors: String? = {
                 guard hasOriginalImage, let raw = data.colors, !raw.isEmpty else { return nil }
                 return raw.joined(separator: ", ").capitalized
             }()
-            
+
             let interactions: String? = {
                 guard hasOriginalImage, let raw = data.ecologicalInteractions, !raw.isEmpty else { return nil }
                 return raw.map { capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }.joined(separator: ", ")
             }()
-            
+
             let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || sex != nil || sexEvidence != nil || interactions != nil || data.isInvasive || invasiveRegionDetail != nil || invasiveConfidence != nil || invasiveRationale != nil || iucnStatus != nil
-            
+
             if hasAnyMetadata {
                 VStack(alignment: .leading, spacing: 16) {
-                    
-                    InsightCardHeader(systemImage: "book", title: "Overview")
-                    
+
+                    MerianCardHeader(systemImage: "book", title: "Overview")
+
                     VStack(alignment: .leading, spacing: 8) {
                         if let val = size {
                             KeyValueRow(title: "EST. SIZE", value: val)
@@ -164,7 +164,7 @@ struct OverviewCard: View {
                                 default: return nil
                                 }
                             }()
-                            
+
                             KeyValueRow(
                                 title: "CONSERVATION",
                                 value: status.text,
@@ -183,7 +183,7 @@ struct OverviewCard: View {
                                     .fontWeight(.bold)
                                     .tracking(1)
                                     .foregroundColor(.secondary)
-                                
+
                                 Text(val)
                                     .font(.system(.body))
                                     .multilineTextAlignment(.leading)
@@ -194,11 +194,11 @@ struct OverviewCard: View {
                             .padding(.top, 4)
                         }
                     }
-                    
+
                     if hasWiki, let extract = wikiExtract {
                         WikipediaSummarySection(text: extract)
                     }
-                    
+
                     if hasWiki,
                        let wikiUrl = SecureTransportPolicy.httpsURL(
                            from: data.wikipediaUrl

@@ -470,6 +470,26 @@ production domain-to-milestone handoff (DEBUG Settings previews are deliberate
 visual fixtures), preserving the boundary between durable domain state and
 ephemeral SwiftUI feedback.
 
+## Insight Presentation Session Lifetime
+
+`InsightSheetViewModel` begins one explicit presentation session after each
+appearance reset. The Shell-provided dismissal boundary ends it before modal
+close, programmatic deletion dismissal, or refinement handoff. A transition of
+the external `isPresented` binding to false provides the idempotent fallback.
+Embedded navigation also reports a completed interactive pop through
+`EmbeddedNavigationSwipeBackEnabler`; a canceled swipe does not invalidate the
+still-mounted Insight.
+
+Ending the session cancels retained media save/share tasks, clears their
+operation IDs, advances `scanBoundActionGeneration`, and invalidates delayed
+onboarding, sharing, and Field-trip contribution work. Each async commit must
+still own its operation UUID, exact scan ID, and captured generation. This is
+stronger than task cancellation alone: a dependency that returns after ignoring
+cancellation cannot present feedback or a share sheet over the replacement
+Insight. Do not replace this boundary with broad `onDisappear` invalidation,
+which would also fire for nested sheets and navigation destinations that do not
+end the root presentation.
+
 ## Media Notification Lifetime
 
 `MediaPlaybackObservation` is the owner-scoped bridge for `AVPlayer` KVO,

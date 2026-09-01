@@ -1,5 +1,4 @@
 import SwiftData
-import SwiftUI
 
 extension InsightSheetViewModel {
     // MARK: - SwiftData Operations
@@ -17,34 +16,38 @@ extension InsightSheetViewModel {
         return (try? modelContext.fetch(descriptor))?.first
     }
 
+    @discardableResult
     func eradicateCurrentScan(
         expectedScanId: String,
         expectedGeneration: UInt64,
         modelContext: ModelContext,
-        inferenceEngine: InferenceEngine,
-        dismiss: DismissAction
-    ) {
+        inferenceEngine: InferenceEngine
+    ) -> Bool {
         guard let targetId = inferenceEngine.speciesData?.scanId,
               targetId.caseInsensitiveCompare(expectedScanId) == .orderedSame,
               isPresentingLocalRecord(
                   scanId: expectedScanId,
                   generation: expectedGeneration
               ) else {
-            return
+            return false
         }
 
-        if let record = fetchLocalRecord(scanId: expectedScanId, modelContext: modelContext),
-           record.id.caseInsensitiveCompare(targetId) == .orderedSame {
-            dependencies.errorFeedback()
-            activeLocalRecord = nil
-            activeLocalRecordId = nil
-            toolbarRecordSnapshot = nil
-            state.showBottomBarTools = false
-            state.showDeleteConfirmation = false
-            state.showNewCollectionAlert = false
-            dependencies.eradicateScan(record, modelContext)
-            dismiss()
+        guard let record = fetchLocalRecord(
+            scanId: expectedScanId,
+            modelContext: modelContext
+        ), record.id.caseInsensitiveCompare(targetId) == .orderedSame else {
+            return false
         }
+
+        dependencies.errorFeedback()
+        activeLocalRecord = nil
+        activeLocalRecordId = nil
+        toolbarRecordSnapshot = nil
+        state.showBottomBarTools = false
+        state.showDeleteConfirmation = false
+        state.showNewCollectionAlert = false
+        dependencies.eradicateScan(record, modelContext)
+        return true
     }
 
     func toggleScanInCollection(
@@ -303,10 +306,8 @@ extension InsightSheetViewModel {
     }
 
     private func invalidateScanBoundPresentationState() {
-        cancelDelayedExploreOnboardingPresentation()
-        scanBoundActionGeneration &+= 1
-        sharingOperations.invalidate()
-        invalidateFieldTripScanContributions()
+        invalidateScanBoundActions()
+        clearFieldTripScanContributionPresentation()
         activeLocalRecord = nil
         activeLocalRecordId = nil
         toolbarRecordSnapshot = nil

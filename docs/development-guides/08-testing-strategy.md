@@ -1220,10 +1220,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   Utilities owns `FieldNotesRepositoryTests`. Media owns
   `InsightMediaAvailabilityTests`, `InsightMediaGalleryTests`,
   `InsightMediaSuppressionTests`, `InsightMediaFocusPresentationTests`,
-  `InsightAudioPlaybackPresentationTests`, and
-  `InsightMediaCarouselArchitectureTests` in Media. Sharing owns
-  `InsightSharingPresentationTests`, `InsightSharePresentationModelTests`,
-  `InsightSharingOperationStateTests`,
+  `InsightAudioBoostPolicyTests`, `InsightMediaExportLifecycleTests`, and
+  `InsightMediaCarouselArchitectureTests` in Media. Core Media owns
+  `AudioPlaybackPresentationTests`, `AudioBoostRequestStateTests`, and
+  `MediaExportServiceTests`; Core UI owns `ModelTierBadgePresentationTests`.
+  `InsightsIntegrationArchitectureTests` spans the complete feature boundary.
+  Sharing owns `InsightSharingPresentationTests`,
+  `InsightSharePresentationModelTests`, `InsightSharingOperationStateTests`,
   `CommunityIdentificationRequestViewModelTests`,
   `InsightExploreSharingViewModelTests`, `InsightSharingCacheRefreshTests`, and
   `InsightSharingArchitectureTests`.
@@ -1235,21 +1238,24 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   scan clears stale scan-bound state and that Explore cannot combine mismatched
   engine, local-record, and toolbar-snapshot IDs. A direct record switch proves
   the prior action generation and all scan-bound busy/editor state—including
-  exact post/request, Safari, candidate, and delayed-toolbar presentation
-  targets—is invalidated. Queued presentation regressions prove a delayed scan-A
-  poll cannot replace scan B's context and promotion requires the exact queued
-  subject before releasing queued routing. The mounted view additionally exits a
-  canceled completion delay rather than continuing the poll. The delayed
-  Explore-onboarding regression proves the retained timer is bound to scan ID
-  plus presentation generation and is cancelled by reset. Field Notes tests
-  cover the same ID-plus-generation boundary while preserving editing for
-  queued/offline scans. The focused editor suite additionally locks no-op and
-  failed saves, disappearance during an active save, effective visibility,
-  stable-baseline transcription, late-result rejection after automatic
-  termination, pending-start cancellation, serialized replacement startup, and
-  ownership-safe stop. Its architecture suite requires the final folder tree,
-  platform-neutral Models, Services-only live effects, no networking in Views or
-  Components, retired aggregate paths, and the 600-line ceiling.
+  media exports, the exact post/request, Safari, candidate, and delayed-toolbar
+  presentation targets—is invalidated. Completed-scan deletion is
+  identity-bound, returns only an accepted mutation result from the view model,
+  and leaves the session-aware dismissal action with the Shell view. Queued
+  presentation regressions prove a delayed scan-A poll cannot replace scan B's
+  context and promotion requires the exact queued subject before releasing
+  queued routing. The mounted view additionally exits a canceled completion
+  delay rather than continuing the poll. The delayed Explore-onboarding
+  regression proves the retained timer is bound to scan ID plus presentation
+  generation and is cancelled by reset. Field Notes tests cover the same
+  ID-plus-generation boundary while preserving editing for queued/offline scans.
+  The focused editor suite additionally locks no-op and failed saves,
+  disappearance during an active save, effective visibility, stable-baseline
+  transcription, late-result rejection after automatic termination,
+  pending-start cancellation, serialized replacement startup, and ownership-safe
+  stop. Its architecture suite requires the final folder tree, platform-neutral
+  Models, Services-only live effects, no networking in Views or Components,
+  retired aggregate paths, and the 600-line ceiling.
 
   Sharing tests separately lock exact Share copy/action projection,
   dependency-routed publication, cache/event/feedback commits, stale
@@ -1267,9 +1273,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   Models, live resolution in Services, absence of direct networking in
   views/view models, aggregate removal, and the 600-line ceiling. The Media
   architecture suite independently locks Carousel folder ownership,
-  platform-neutral Models, live effect resolution in Services, private
-  co-located playback state, extracted root composition, absence of
-  SwiftUI-backed page types from Models, and the same file-size ceiling.
+  platform-neutral Models, feature-only effect adaptation in Services, private
+  co-located playback state, Core gallery/audio/video ownership, extracted root
+  composition, absence of SwiftUI-backed page types from Models, and the same
+  file-size ceiling. The integration architecture suite adds the top-level
+  ownership inventory, cross-feature owner locations, session-fenced export
+  dependency boundary, Shared/Toolbars live-service ban, and complete Insights
+  file ceiling.
 - **Insights focused feature tests**: Mirrored
   `Features/Insights/IdentificationReview` suites cover candidate visibility,
   skip/reject/confirm/restart/exhausted transitions, scan/generation-owned modal
@@ -1280,9 +1290,9 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   Candidate/Confidence/Shared ownership, platform-neutral Models, Services-only
   live effects, retired component locations, absence of unchecked sendability,
   and the 600-line production-file ceiling. The mirrored
-  `Features/Insights/SpeciesReference/SpeciesObservationStatsReducerTests.swift`
-  suite covers projected SwiftData aggregation, reducer normalization,
-  empty-bucket behavior, and seasonality presentation.
+  `Features/SpeciesReference/SpeciesObservationStatsReducerTests.swift` suite
+  covers projected SwiftData aggregation, reducer normalization, empty-bucket
+  behavior, and seasonality presentation.
   `SpeciesObservationStatsViewModelTests.swift` covers injected local/public
   adapters, failure independence, identity normalization, missing-public-ID
   behavior, cross-species presentation reset, pre-entry cancellation,
@@ -1998,10 +2008,17 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   Photos authorization, photos map to `.photo`, videos map to `.video`, video
   processing preserves the source file, and photo processing still removes GPS
   metadata.
-- **`InsightMediaExportManagerTests.swift`**: Validates local image/video URL
-  resolution, exact-host approval for HTTPS `media.merian.app` resources,
-  rejection of unapproved remote video hosts, and separate mixed-media
-  attempted/saved counts with partial-failure copy.
+- **`Core/Media/MediaExportServiceTests.swift`**: Validates absolute, file-URL,
+  and Documents-relative resolution; exact-host approval for HTTPS
+  `media.merian.app` resources; rejection of cross-host redirects and unapproved
+  remote hosts; the 2,048 px single/1,024 px batch policies; real
+  oversized-image output constrained to the batch bound; primary/fallback order
+  for single and batch shares; and separate mixed-media attempted/saved counts
+  with partial-failure copy.
+- **`Features/Insights/Media/InsightMediaExportLifecycleTests.swift`**: Holds
+  save/share dependencies past cancellation and proves dismissal prevents stale
+  feedback, alert, task ownership, or UIKit presentation. It also locks
+  idempotent presentation-session invalidation.
 
 PhotoKit completion, recorded-video audio, source-file lifetime during an actual
 import, and permission-denial UI require the physical-device checklist in
@@ -2403,15 +2420,16 @@ Backend focused coverage:
 - `flag-issue/db_test.ts` covers the atomic owner-RPC adapter, exact old-client
   Community fingerprint, one-request resolution, exact post/scan matching, and
   fail-closed database/projection errors.
-- `_tests/flagIssueMigrationContract.test.ts` locks the owner check, scan row
-  lock, all-or-nothing review/scan mutation, empty search path, and service-only
+- `_tests/flagIssueMigrationContract.test.ts` locks the owner check, row-count
+  insert detection without a review-table SELECT grant, scan row lock,
+  all-or-nothing review/scan mutation, empty search path, and service-only
   execution grant. `_tests/jsonEndpointSecurityCoverage.test.ts` independently
   rejects sequential Edge scan/review writes and requires the compatibility post
   upsert to follow both owner and Community-visibility decisions.
 - `tests/flag_issue_submission_security.sql` proves the service-only invocation
-  ACL, owner/non-owner/tombstone outcomes, internal review grouping, scan notes,
-  and transaction rollback under a forced scan-update failure on the fully
-  migrated disposable database.
+  ACL, INSERT-only review-table access, owner/non-owner/tombstone outcomes,
+  internal review grouping, scan notes, and transaction rollback under a forced
+  scan-update failure on the fully migrated disposable database.
 
 The PostgreSQL suite may explicitly return early when no test database is
 available. That is discovery/compile evidence only. Production acceptance still
@@ -2509,8 +2527,8 @@ occurrence `5938154750`. iOS coverage must prove:
 
 These assertions live in `LocalImageLoaderTests.swift`,
 `SpeciesDataTests.swift`, `SpeciesDictionaryTests.swift`, and
-`Features/Insights/SpeciesReference/SimilarSpeciesImageFetcherTests.swift`. Do
-not replace them with a brittle assertion that merely skips array index zero.
+`Features/SpeciesReference/SimilarSpeciesImageFetcherTests.swift`. Do not
+replace them with a brittle assertion that merely skips array index zero.
 
 ### Backwards-compat accessor
 
@@ -4511,9 +4529,13 @@ production owner, update XcodeGen source grouping, and do not change visible
 copy, accessibility, image-loading, playback, or navigation behavior.
 
 iOS audio playback policy coverage is split by production owner.
-`MerianTests/Features/Insights/Media/InsightAudioPlaybackPresentationTests.swift`
-owns Insight pill, presentation, source-handoff, recovery, seeking,
-accessibility, and injected side-effect routing coverage.
+`MerianTests/Core/Media/AudioPlaybackPresentationTests.swift` owns shared pill,
+presentation, source-handoff, recovery, seeking, accessibility, feedback
+namespace, and injected side-effect routing coverage.
+`MerianTests/Core/Media/AudioBoostRequestStateTests.swift` locks
+stale-completion rejection for overlapping on/off/on requests.
+`MerianTests/Features/Insights/Media/InsightAudioBoostPolicyTests.swift` owns
+the Insight-only preference and persisted-media eligibility rules.
 `MerianTests/Features/Explore/ExploreAudioBoostTests.swift` owns Explore
 preferences, pill presentation, video-mute reset, and the shared processor
 integration exercised by Explore.
@@ -4521,15 +4543,15 @@ integration exercised by Explore.
 loader handoff for the cross-feature image renderer, while the Carousel
 architecture suite prevents that renderer or its live singleton lookup from
 returning to Insights. The same architecture suite requires the native pager,
-page identity value, zoom host, pagination dots, and hero scroll-edge treatment
-shared by Insight and Field Trips to remain in
+page/gallery values, zoom host, pagination dots, hero scroll-edge treatment,
+fullscreen gallery, audio page, and reusable video chrome to remain in
 `Core/UI/Components/MediaCarousel` without feature-owned duplicate files. The
 `InsightMediaGalleryTests` suite proves the Core page defaults to ID-only reuse,
 Insight projects its existing image-origin/source-index/focus identity, and a
 changed reuse key resets the native data-source cache rather than retaining a
 stale neighbor. `InsightMediaAvailabilityTests` keeps selection fallback behind
 the platform-neutral `CarouselSelectionCandidate` contract. The
-`insightAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback` and
+`playheadUsesLivePlayerTimeOnlyDuringPlayback` and
 `exploreAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback` tests require live
 player time only when UI intent and the concrete player are both playing, and
 require stored progress while paused, waiting, or seeking. The same suite passes
@@ -4549,11 +4571,16 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/ExploreAudioBoostTests \
   -only-testing:merianTests/FieldTripFeaturedMediaTests \
   -only-testing:merianTests/AsyncLocalImageDependenciesTests \
+  -only-testing:merianTests/AudioPlaybackPresentationTests \
+  -only-testing:merianTests/AudioBoostRequestStateTests \
+  -only-testing:merianTests/InsightAudioBoostPolicyTests \
   -only-testing:merianTests/InsightMediaAvailabilityTests \
   -only-testing:merianTests/InsightMediaGalleryTests \
-  -only-testing:merianTests/InsightAudioPlaybackPresentationTests \
   -only-testing:merianTests/InsightMediaFocusPresentationTests \
-  -only-testing:merianTests/InsightMediaCarouselArchitectureTests test
+  -only-testing:merianTests/InsightMediaExportLifecycleTests \
+  -only-testing:merianTests/MediaExportServiceTests \
+  -only-testing:merianTests/InsightMediaCarouselArchitectureTests \
+  -only-testing:merianTests/InsightsIntegrationArchitectureTests test
 ```
 
 Device QA must cold-open an audio-backed Insight with boost enabled and play the

@@ -9,13 +9,13 @@ struct ImagesCarousel: View {
     /// Triggers exclusively when tapping the interactive textual subcomponent.
     let onDescriptionTap: (() -> Void)?
     /// Triggers when the selected page can enter the full-screen visual gallery.
-    let onVisualImageTap: ((InsightImageGalleryPresentation) -> Void)?
+    let onVisualImageTap: ((MediaGalleryPresentation) -> Void)?
     @Binding var focusOverlayInteractionState: FocusOverlayInteractionState
     @Binding var isAudioBoostEnabled: Bool
     let audioBoostActionToken: UUID?
     let onAudioBoostActionFinished: ((UUID) -> Void)?
     let onAudioBoostToggleRequested: (() -> Void)?
-    let dependencies: InsightCarouselDependencies
+    let dependencies: MediaPlaybackDependencies
 
     @State private var selectedIndex = 0
     @State private var isVideoMuted = true
@@ -33,13 +33,13 @@ struct ImagesCarousel: View {
         referenceWikipediaUrl: String?,
         isProcessing: Bool,
         onDescriptionTap: (() -> Void)?,
-        onVisualImageTap: ((InsightImageGalleryPresentation) -> Void)?,
+        onVisualImageTap: ((MediaGalleryPresentation) -> Void)?,
         focusOverlayInteractionState: Binding<FocusOverlayInteractionState>,
         isAudioBoostEnabled: Binding<Bool>,
         audioBoostActionToken: UUID?,
         onAudioBoostActionFinished: ((UUID) -> Void)?,
         onAudioBoostToggleRequested: (() -> Void)?,
-        dependencies: InsightCarouselDependencies? = nil
+        dependencies: MediaPlaybackDependencies? = nil
     ) {
         self.scanId = scanId
         self.activeMedia = activeMedia
@@ -52,7 +52,7 @@ struct ImagesCarousel: View {
         self.audioBoostActionToken = audioBoostActionToken
         self.onAudioBoostActionFinished = onAudioBoostActionFinished
         self.onAudioBoostToggleRequested = onAudioBoostToggleRequested
-        self.dependencies = dependencies ?? .live
+        self.dependencies = dependencies ?? .insightLive
     }
 
     var body: some View {
@@ -269,7 +269,7 @@ struct ImagesCarousel: View {
         at location: CGPoint,
         containerSize: CGSize
     ) {
-        guard !InsightCarouselMediaInteractionPolicy.isCenterPlaybackTap(
+        guard !MediaCarouselInteractionPolicy.isCenterPlaybackTap(
             location: location,
             containerSize: containerSize,
             mediaKind: selectedMediaKind
@@ -290,7 +290,7 @@ struct ImagesCarousel: View {
         }
 
         guard let presentation = InsightImageGalleryBuilder.presentation(
-            items: pages.compactMap { page -> InsightImageGalleryItem? in
+            items: pages.compactMap { page -> MediaGalleryItem? in
                 if let identifier = page.imageIdentifier,
                    unavailableImageIdentifiers.contains(identifier) {
                     return nil

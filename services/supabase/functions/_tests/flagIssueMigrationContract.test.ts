@@ -1,7 +1,11 @@
 import { assert, assertStringIncludes } from "@std/assert";
 
-const migrationUrl = new URL(
+const initialMigrationUrl = new URL(
   "../../migrations/20260831120000_submit_owned_flag_issue_atomically.sql",
+  import.meta.url,
+);
+const repairMigrationUrl = new URL(
+  "../../migrations/20260901032158_repair_owned_flag_issue_insert_detection.sql",
   import.meta.url,
 );
 
@@ -10,14 +14,21 @@ function compact(source: string): string {
 }
 
 Deno.test("owned flag issue is atomic, lock-ordered, and service-only", async () => {
-  const sql = compact(await Deno.readTextFile(migrationUrl));
+  const initialSql = compact(await Deno.readTextFile(initialMigrationUrl));
+  const sql = compact(await Deno.readTextFile(repairMigrationUrl));
+
+  assertStringIncludes(
+    initialSql,
+    "CREATE OR REPLACE FUNCTION public.submit_owned_flag_issue( p_scan_id UUID, p_reporter_user_id UUID, p_flag_reason TEXT, p_user_suggestion TEXT )",
+  );
 
   for (
     const fragment of [
       "CREATE OR REPLACE FUNCTION public.submit_owned_flag_issue( p_scan_id UUID, p_reporter_user_id UUID, p_flag_reason TEXT, p_user_suggestion TEXT )",
       "SECURITY INVOKER SET search_path = ''",
       "INSERT INTO public.flagged_reviews",
-      "FROM public.scans AS scan WHERE scan.id = p_scan_id AND scan.user_id = p_reporter_user_id AND scan.is_tombstoned IS FALSE RETURNING id INTO flagged_review_id",
+      "FROM public.scans AS scan WHERE scan.id = p_scan_id AND scan.user_id = p_reporter_user_id AND scan.is_tombstoned IS FALSE; GET DIAGNOSTICS inserted_review_count = ROW_COUNT",
+      "IF inserted_review_count = 0 THEN",
       "IF NOT FOUND OR scan_is_tombstoned THEN RETURN 'not_found'",
       "RETURN 'not_owner'",
       "FROM public.scans AS scan WHERE scan.id = p_scan_id FOR UPDATE OF scan",
@@ -37,12 +48,22 @@ Deno.test("owned flag issue is atomic, lock-ordered, and service-only", async ()
     "AND scan.user_id = p_reporter_user_id",
     reviewInsert,
   );
-  const scanLock = sql.indexOf("FOR UPDATE OF scan", ownerPredicate);
+  const insertedCount = sql.indexOf(
+    "GET DIAGNOSTICS inserted_review_count = ROW_COUNT",
+    ownerPredicate,
+  );
+  const scanLock = sql.indexOf("FOR UPDATE OF scan", insertedCount);
   const scanUpdate = sql.indexOf("UPDATE public.scans AS scan");
   assert(
     reviewInsert >= 0 && ownerPredicate > reviewInsert &&
-      scanLock > ownerPredicate && scanUpdate > scanLock,
+      insertedCount > ownerPredicate && scanLock > insertedCount &&
+      scanUpdate > scanLock,
     "The transaction must conditionally insert by owner, let the review trigger run, then lock and update the scan.",
+  );
+  assert(
+    !sql.includes("RETURNING id INTO flagged_review_id") &&
+      !sql.includes("GRANT SELECT"),
+    "The invoker must detect the conditional insert without flagged-review read access.",
   );
   assert(
     !sql.includes(

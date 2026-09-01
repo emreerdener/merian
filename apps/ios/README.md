@@ -281,6 +281,16 @@ replacement may enter the shared manager, avoiding concurrent configuration and
 teardown. Focused tests mirror these boundaries and enforce the 600-line
 production-file guard.
 
+## Insights Integration Ownership
+
+[Insights](Merian/Features/Insights/README.md) defines the top-level result
+boundary and its cross-feature extraction rules. Insight owns scan-bound
+composition and presentation lifetime; Core owns reusable media export,
+playback, gallery, card, toolbar, and feedback primitives; Species Reference
+owns species-level reference presentation; and Field Chat owns shared private
+conversation UI. The integration architecture suite locks that inventory and the
+feature-wide 600-line ceiling.
+
 ## Insight Shell Ownership
 
 [Insight Shell](Merian/Features/Insights/Shell/README.md) owns the root result
@@ -397,16 +407,16 @@ explicitly compose `.live`. Mirrored Identification Review tests lock those
 lifecycles, presentation copy, Services-only live resolution, platform-neutral
 Models, retired paths, and the 600-line production-file ceiling.
 
-## Insight Species Reference Ownership
+## Species Reference Ownership
 
-[Insight Species Reference](Merian/Features/Insights/SpeciesReference/README.md)
-owns the reusable observation charts, habitat and GBIF map, taxonomy,
-lookalikes, and fallback reference imagery presented by Insight, Species
-Dictionary, Explore detail, and identification review. Its platform-neutral
-Models contain chart and heatmap presentation policy; Services alone resolve
-SwiftData, network, image-loader, haptic, and enrichment effects; generation-
-fenced ViewModels publish asynchronous state; the chart composition root lives
-in Views; and domain-grouped Components retain rendering and UI-only timing.
+[Species Reference](Merian/Features/SpeciesReference/README.md) owns the
+reusable observation charts, habitat and GBIF map, taxonomy, lookalikes, and
+fallback reference imagery presented by Insight, Species Dictionary, Explore
+detail, and identification review. Its platform-neutral Models contain chart and
+heatmap presentation policy; Services alone resolve SwiftData, network,
+image-loader, haptic, and enrichment effects; generation-fenced ViewModels
+publish asynchronous state; the chart composition root lives in Views; and
+domain-grouped Components retain rendering and UI-only timing.
 
 Changing or clearing a species or taxon identity invalidates older work, while
 an already-cancelled valid load cannot claim generation ownership or clear valid

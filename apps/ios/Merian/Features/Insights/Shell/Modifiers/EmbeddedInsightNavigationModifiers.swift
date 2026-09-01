@@ -66,8 +66,10 @@ struct EmbeddedInsightBackSwipeModifier: ViewModifier {
 }
 
 struct EmbeddedNavigationSwipeBackEnabler: UIViewControllerRepresentable {
+    var onNavigationPop: () -> Void = {}
+
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(onNavigationPop: onNavigationPop)
     }
 
     func makeUIViewController(context: Context) -> Controller {
@@ -75,6 +77,7 @@ struct EmbeddedNavigationSwipeBackEnabler: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: Controller, context: Context) {
+        context.coordinator.onNavigationPop = onNavigationPop
         controller.enableSwipeBack()
     }
 
@@ -110,6 +113,12 @@ struct EmbeddedNavigationSwipeBackEnabler: UIViewControllerRepresentable {
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         private weak var navigationController: UINavigationController?
         private weak var previousDelegate: UIGestureRecognizerDelegate?
+        private var mountedNavigationDepth: Int?
+        var onNavigationPop: () -> Void
+
+        init(onNavigationPop: @escaping () -> Void) {
+            self.onNavigationPop = onNavigationPop
+        }
 
         func attach(to navigationController: UINavigationController) {
             guard self.navigationController !== navigationController else {
@@ -119,7 +128,12 @@ struct EmbeddedNavigationSwipeBackEnabler: UIViewControllerRepresentable {
 
             restorePreviousDelegate()
             self.navigationController = navigationController
+            mountedNavigationDepth = navigationController.viewControllers.count
             previousDelegate = navigationController.interactivePopGestureRecognizer?.delegate
+            navigationController.interactivePopGestureRecognizer?.addTarget(
+                self,
+                action: #selector(handleInteractivePopGesture(_:))
+            )
             enableGesture()
         }
 
@@ -133,12 +147,38 @@ struct EmbeddedNavigationSwipeBackEnabler: UIViewControllerRepresentable {
         }
 
         private func restorePreviousDelegate() {
-            guard
-                let gesture = navigationController?.interactivePopGestureRecognizer,
-                gesture.delegate === self
-            else { return }
+            guard let gesture = navigationController?
+                .interactivePopGestureRecognizer else { return }
+            gesture.removeTarget(
+                self,
+                action: #selector(handleInteractivePopGesture(_:))
+            )
+            if gesture.delegate === self {
+                gesture.delegate = previousDelegate
+            }
+        }
 
-            gesture.delegate = previousDelegate
+        @objc
+        private func handleInteractivePopGesture(
+            _ gesture: UIGestureRecognizer
+        ) {
+            guard gesture.state == .ended,
+                  let mountedNavigationDepth,
+                  let navigationController,
+                  let transitionCoordinator = navigationController
+                    .transitionCoordinator else { return }
+            let onNavigationPop = onNavigationPop
+            transitionCoordinator.animate(
+                alongsideTransition: nil
+            ) { [weak navigationController] context in
+                guard !context.isCancelled,
+                      let navigationController,
+                      navigationController.viewControllers.count
+                        < mountedNavigationDepth else {
+                    return
+                }
+                onNavigationPop()
+            }
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {

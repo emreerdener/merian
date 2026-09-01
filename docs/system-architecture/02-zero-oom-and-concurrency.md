@@ -20,7 +20,7 @@ AVFoundation startup where mediaserverd IPC must not block the main actor, and
 pure CPU / file transforms over `Sendable` snapshots. High-level feature flows
 route those escapes through `DetachedWork`, while long-lived workflows are
 pushed into actors (`SearchFilterActor`, `FileIOActor`,
-`InferenceProcessingActor`, `ExportProcessingActor`, `AudioSessionCoordinator`)
+`InferenceProcessingActor`, `MediaExportProcessor`, `AudioSessionCoordinator`)
 so cancellation, serialization, and ownership stay explicit.
 
 ### ImageIO, CoreVideo, & UIImage Autoreleasepool Memory Leaks
@@ -39,18 +39,19 @@ This identical RAM ceiling violation exists during Apple Vision AI inferences,
 detached image decoding, manual cropping, and metadata scrubbing. Executing
 `VNImageRequestHandler` classifications (e.g., `InferenceEngine.swift` and
 `SizeEstimator.swift`), decoding live/fullscreen carousel blobs in
-`Media/Carousel/Pages/LiveCapturePageView.swift` and
-`Media/Carousel/Components/FullscreenLiveImageView.swift`, or actively parsing
-EXIF properties during GPS stripping (`PhotoLibraryManager.swift`'s
-`executePhotoLibraryWrite`) inside detached closures can leave enormous
-multi-megabyte allocations cached until the CPU rotates out the detached
-context. Merian routes the carousel decode owners through `DetachedWork`, wraps
-their ImageIO blocks in `autoreleasepool { ... }`, and explicitly deprecates raw
-`UIImage(data:)` inflations in favor of constrained
-`ImageDownsampler.downsample(data:maxSize:)` extractions. This guarantees that
-unmanaged ImageIO formats immediately relinquish memory back to the system,
-dropping transient spikes and averting JetSam OOM kills during rapid captures,
-exports, or swipes.
+`apps/ios/Merian/Features/Insights/Media/Carousel/Pages/LiveCapturePageView.swift`
+and
+`apps/ios/Merian/Core/UI/Components/MediaCarousel/Gallery/FullscreenMediaLiveImageView.swift`,
+or actively parsing EXIF properties during GPS stripping
+(`PhotoLibraryManager.swift`'s `executePhotoLibraryWrite`) inside detached
+closures can leave enormous multi-megabyte allocations cached until the CPU
+rotates out the detached context. Merian routes the carousel decode owners
+through `DetachedWork`, wraps their ImageIO blocks in `autoreleasepool { ... }`,
+and explicitly deprecates raw `UIImage(data:)` inflations in favor of
+constrained `ImageDownsampler.downsample(data:maxSize:)` extractions. This
+guarantees that unmanaged ImageIO formats immediately relinquish memory back to
+the system, dropping transient spikes and averting JetSam OOM kills during rapid
+captures, exports, or swipes.
 
 The candidate-review "original capture" expansion follows the same rule.
 `OriginalCaptureExpandedView` must not call `UIImage(data:)` on
@@ -1184,11 +1185,11 @@ and guaranteeing smooth insight carousel rendering.
 
 Executing local `FileManager` disk sweeps and `URLSession` network downloads on
 the `@MainActor` thread blocks the 120Hz UI refresh rate during heavy
-operations. `InsightMediaExportManager` now routes remote downloads,
-downsampling, and photo-save work through a bounded export actor pipeline, while
-cache-clearance flows in Settings use `DetachedWork` only as a narrow Sendable
-bridge before actor/file-system work takes over. The main thread is only
-re-entered to flip UI state or trigger `HapticManager` responses.
+operations. Core `MediaExportService` routes remote downloads, downsampling, and
+photo-save work through its private actor-owned pipeline, while cache-clearance
+flows in Settings use `DetachedWork` only as a narrow Sendable bridge before
+actor/file-system work takes over. The main thread is only re-entered to convert
+the prepared share payload, present UIKit, or commit session-fenced UI feedback.
 
 ### OOM-Safe Bulk Deletion (`NonBiologicalScanService`)
 
@@ -1216,7 +1217,7 @@ toast, and pending-deletion sync in order. A database failure restores
 interaction and emits only error feedback; it does not delete files, publish a
 commit event, or enqueue sync.
 
-### Bulk Export OOM Exhaustion (`InsightMediaExportManager` & `PhotoLibraryManager`)
+### Bulk Export OOM Exhaustion (`MediaExportService` & `PhotoLibraryManager`)
 
 When executing `saveUserMedia()` across the historical file cache and external
 Cloudflare URLs, loading via `Data(contentsOf: url)` placed multi-megabyte
@@ -1236,6 +1237,12 @@ finishes; approved cloud Downloads use `URLSession.download` and delete the
 temporary file only after the awaited import returns. See
 [Camera Roll and Captured-Media Export](../features-and-hardware/27-camera-roll-media-export.md).
 
+Remote share previews use the same file-backed download boundary rather than
+buffering a complete response in `Data`. The export actor's ephemeral,
+cookie-free session refuses redirects away from the exact `media.merian.app`
+host and revalidates the final response URL before ImageIO or PhotoKit consumes
+the temporary file.
+
 This OOM boundary also affected `ScansSheetView` multi-select. Allowing "Select
 All" on 2,000 entries would map entirely uncompressed `UIImage` data into the
 `UIActivityViewController` sharing array, immediately exceeding available
@@ -1244,12 +1251,20 @@ memory. To prevent this, selections are capped at 20
 `searchManager.filteredScans.prefix(20)`, and manual taps beyond the limit
 trigger an `ErrorThump` alert.
 
-### Swift 6 Sendable Violation Crash & Media Export RAM Spikes (`InsightMediaExportManager`)
+### Swift 6 Sendable Media Export Boundary (`MediaExportService`)
 
-When executing `batchSaveUserMedia` and `batchShareDiscovery` iteratively,
-passing an array of `[LocalScanRecord]` (`@Model` / `@MainActor` bound) directly
-into a `Task.detached` closure violated Swift 6 Sendable boundaries, causing
-`EXC_BAD_ACCESS` crashes under high load.
+Scans maps `[LocalScanRecord]` into immutable `MediaSaveRequest` or
+`BatchDiscoveryShareRequest` values on the main actor before the first
+suspension. No SwiftData model enters the export actor. The actor processes
+requests sequentially, checks cancellation between items, and transfers only
+counts, text, URLs, `Data`, and immutable `SendableCGImage` values. UIKit image
+conversion remains main-actor-only at the injected presentation edge.
+
+Insight retains one save task and one share-preparation task. Operation UUID,
+scan ID, and presentation generation must all still match before feedback or a
+share sheet is published. Every dismissal invalidates the IDs even if a
+dependency ignores task cancellation, preventing a late export from presenting
+over a replacement scan.
 
 ## 2. Serverless Edge Token Exhaustion & Race Conditions
 
@@ -1297,19 +1312,19 @@ warehousing operations.
 
 **The Refactor**: The processing boundary decouples the `@MainActor` SQLite
 arrays. `.map` executes on the UI Thread to create lightweight, `Sendable`
-structs (`SaveMediaPayload` and `SharePayload`). These pure primitive payloads
-then flow through `ExportProcessingActor` and the bounded media pipeline rather
+requests (`MediaSaveRequest` and `BatchDiscoveryShareRequest`). These primitive
+values then flow through the private actor behind `MediaExportService` rather
 than ad hoc raw detached closures, resolving thread violations and eliminating
 crashes.
 
-Loading local file bytes sequentially via `Data(contentsOf:)` and binding
-`UIImage(data:)` in batch share arrays bloated uncompressed files into active
-RAM. Loading 20 concurrent captures crushed iOS memory limits during
-`UIActivityViewController` presentation. Merian replaces this entirely with
-`ImageDownsampler.downsample(url: maxSize: 2048)` and
-`ImageDownsampler.downsample(data: maxSize: 2048)`, fetching bounded `CGImage`
-thumbnails that constrain the memory footprint and enable smooth sheet rendering
-wrapped perfectly inside `autoreleasepool`.
+Loading local file bytes via `Data(contentsOf:)`, buffering complete remote
+responses, and binding `UIImage(data:)` in batch share arrays bloated active
+RAM. Loading 20 captures at the single-share resolution could likewise exceed
+the activity controller's practical budget. Merian keeps local and remote
+previews file-backed through ImageIO, downsamples a single share to at most
+2,048 px, and uses a 1,024 px maximum for each item in the existing 20-item
+batch cap. Only the bounded immutable `CGImage` results remain in the activity
+payload.
 
 ### Non-Biological Correction Presentation Boundary
 

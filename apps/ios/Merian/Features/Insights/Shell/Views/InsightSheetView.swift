@@ -165,7 +165,12 @@ struct InsightSheetView: View {
             chatViewModel.updateConnectivity(isOnline: isOnline)
         }
         .onChange(of: isPresented) { _, isNowPresented in
-            guard isNowPresented else { return }
+            guard isNowPresented else {
+                viewModel.endPresentationSession()
+                activeShellPresentation = nil
+                pendingShellPresentation = nil
+                return
+            }
             presentedScanId = initialScanId
             selectedInsightChatScanId = nil
             selectedInsightChatGeneration = nil
@@ -201,15 +206,14 @@ struct InsightSheetView: View {
                 if let queued = viewModel.queuedContext,
                    queued.id.caseInsensitiveCompare(targetScanId) == .orderedSame {
                     Task { await offlineQueueManager.deleteQueuedScan(scanId: queued.id) }
-                    dismiss()
-                } else {
-                    viewModel.eradicateCurrentScan(
-                        expectedScanId: targetScanId,
-                        expectedGeneration: targetGeneration,
-                        modelContext: modelContext,
-                        inferenceEngine: inferenceEngine,
-                        dismiss: dismiss
-                    )
+                    dismissInsightPresentation()
+                } else if viewModel.eradicateCurrentScan(
+                    expectedScanId: targetScanId,
+                    expectedGeneration: targetGeneration,
+                    modelContext: modelContext,
+                    inferenceEngine: inferenceEngine
+                ) {
+                    dismissInsightPresentation()
                 }
             }
             Button("Cancel", role: .cancel) {

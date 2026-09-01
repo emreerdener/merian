@@ -733,7 +733,7 @@ assert_file_contains \
   "let firstRequestDeadline = ContinuousClock.now.advanced(by: .seconds(5))"
 assert_file_contains \
   "$network_client_test_source" \
-  "while probe.count == 0 && ContinuousClock.now < firstRequestDeadline"
+  "while probe.isEmpty && ContinuousClock.now < firstRequestDeadline"
 assert_file_contains \
   "$network_client_test_source" \
   "try await Task.sleep(for: .milliseconds(10))"

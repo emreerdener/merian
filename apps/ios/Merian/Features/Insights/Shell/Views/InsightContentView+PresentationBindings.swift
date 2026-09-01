@@ -81,7 +81,7 @@ extension InsightContentView {
     }
 
     var fullscreenGalleryPresentedBinding:
-        Binding<InsightImageGalleryPresentation?> {
+        Binding<MediaGalleryPresentation?> {
         let expectedPresentation = fullscreenGalleryPresentation
         let expectedScanId = fullscreenGalleryPresentationScanId
         let expectedGeneration = fullscreenGalleryPresentationGeneration

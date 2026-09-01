@@ -190,11 +190,11 @@ extracts (`wikipediaOverview`), alongside a suite of dynamic biological
   limit to avoid walls of text, terminating gracefully into a "Read more on
   Wikipedia" pill that relies on injected parent `$isSafariPresented` bindings.
 - **Shared card chrome**: `OverviewCard` and `ExploreOverviewCard` keep separate
-  data sourcing and visibility gates, but both render through focused helpers
-  under `Features/Insights/Shared/Cards/Chrome/`: `InsightCardHeader.swift`,
-  `WikipediaSummarySection.swift`, and `WikipediaReadMoreButton.swift`. Future
-  Explore/Insights cards should reuse these presentational helpers instead of
-  copying header typography or Wikipedia button styling.
+  data sourcing and visibility gates. Both use the domain-neutral
+  `Core/UI/Components/Cards/MerianCardHeader.swift`; Wikipedia presentation
+  lives in `Features/SpeciesReference/Components/Wikipedia/`. Future cards
+  should reuse these owners instead of copying header typography or Wikipedia
+  button styling.
 
 ## 9. Staggered Entrance: `CardEntranceModifier`
 
@@ -217,12 +217,13 @@ on first appearance. Applied via the `.cardEntrance(index:)` view extension.
   enough to feel alive without overshooting on dense content stacks.
 - **Current usage**: `BiologicalView` applies indices 0–10 across
   `InsightHeader` (0), `ToxicityBanner` (1), conditional `CandidatesCard` (2),
-  `FieldNotesCard` (3), `OverviewCard` (4), `HabitatAndDistributionCard` (5),
-  `SpeciesObservationChartsCard` (6), `TaxonomyCard` (7),
-  `SimilarSpeciesGallery` or its skeleton (8), `ScanInformationCard` (9), and
-  `UserTagsCard` (10), giving a ~770ms full-stack cascade at nominal hardware.
-  Conditional cards intentionally leave small stagger gaps when hidden; the
-  remaining card indices stay stable.
+  Field-trip progress or its skeleton (3), `FieldNotesCard` (4), `OverviewCard`
+  (5), `HabitatAndDistributionCard` (5), `SpeciesObservationChartsCard` (6),
+  `TaxonomyCard` (7), `SimilarSpeciesGallery` or its skeleton (8),
+  `ScanInformationCard` (9), and `UserTagsCard` (10), giving a 700 ms maximum
+  nominal delay. Overview and habitat intentionally share one phase, and hidden
+  conditional cards leave small stagger gaps without reindexing the remaining
+  stack.
 
 ## 10. Circular Control Chrome: `CircularMaterialControlModifier`
 
@@ -244,7 +245,7 @@ disabled state, accessibility labels, and action semantics.
 ## 11. Habitat Map: `HabitatAndDistributionCard`
 
 **Location**:
-`Features/Insights/SpeciesReference/Components/Habitat/HabitatAndDistributionCard.swift`
+`Features/SpeciesReference/Components/Habitat/HabitatAndDistributionCard.swift`
 
 An edge-to-edge structural presentation component for the `gbifTaxonKey` density
 map and LLM `habitatDescription`.
@@ -256,9 +257,10 @@ map and LLM `habitatDescription`.
 - **Shared map/text chrome**: `HabitatAndDistributionCard` and
   `ExploreHabitatDistributionCard` both use `.gbifHeatmapCardChrome()` from
   `GBIFHeatmapCardChrome.swift` for the 260 pt rounded map frame, shadow, and
-  border treatment, and `InsightScientificNameStyler.highlightedText(...)` from
-  `InsightScientificNameStyler.swift` for monospaced scientific-name
-  highlighting. The cards still own their own loading/visibility behavior.
+  border treatment, and `ScientificNameStyler.highlightedText(...)` from
+  `Core/UI/Components/Cards/ScientificNameStyler.swift` for monospaced
+  scientific-name highlighting. The cards still own their own loading/visibility
+  behavior.
 - **Loading continuity**: While habitat copy is still hydrating, the card keeps
   the same map chrome mounted and renders a compact pulsing text placeholder
   below the header. The retry loop stays local to `HabitatAndDistributionCard`;
@@ -278,7 +280,7 @@ map and LLM `habitatDescription`.
 ## 12. Observation Charts: `SpeciesObservationChartsCard`
 
 **Location**:
-`Features/Insights/SpeciesReference/Views/SpeciesObservationChartsCard.swift`
+`Features/SpeciesReference/Views/SpeciesObservationChartsCard.swift`
 
 A reusable Swift Charts card for species-level observation patterns.
 
@@ -358,7 +360,7 @@ mutation orchestration; SwiftUI retains animation and sheet timing.
 ## 14. Similar Species Gallery: `SimilarSpeciesGallery`
 
 **Location**:
-`Features/Insights/SpeciesReference/Components/Lookalikes/SimilarSpeciesGallery.swift`
+`Features/SpeciesReference/Components/Lookalikes/SimilarSpeciesGallery.swift`
 
 A horizontally scrolling carousel of ecologically similar lookalike species,
 rendered in `BiologicalView` at card entrance index 4. Sourced from
@@ -408,7 +410,7 @@ rendered in `BiologicalView` at card entrance index 4. Sourced from
 - **Fixed geometry**: Cards are locked to `width: 200, height: 260`. This
   prevents extreme image aspect ratios from breaking the horizontal row layout.
 - **Label**: Always "Similar species" — no confidence-gated label switching.
-- **Header chrome**: The live gallery and skeleton both use `InsightCardHeader`,
+- **Header chrome**: The live gallery and skeleton both use `MerianCardHeader`,
   matching the same title/icon treatment as Overview, Taxonomy, Scan, Tags,
   Field Notes, Did You Know, and Explore detail cards.
 - **Skeleton**: `SimilarSpeciesGallery.Skeleton` renders three placeholder cards
@@ -779,7 +781,7 @@ Dictionary component reuse is release-held until the
 [canonical candidate blockers](16-species-dictionary.md#candidate-release-status)
 are fixed and proven; this guide does not override that status.
 
-## 21. Shared Feedback Surfaces: `ToastBanner` and `MilestoneToastBanner`
+## 21. Shared Feedback Surfaces: `ToastBanner`, `ToxicityBanner`, and `MilestoneToastBanner`
 
 **Location**: `Core/UI/Feedback/`
 
@@ -799,6 +801,12 @@ scoped to the overlay, not the surrounding feature root. Feature producers
 assign payload/action state directly and must not wrap those assignments in
 `withAnimation`; the shared modifier is the sole owner of toast insertion and
 removal motion.
+
+`ToxicityBanner` receives one caller-prepared hazard type. It normalizes that
+display value, renders the established severe-versus-irritant treatment, and
+collapses completely for `none`. The Core component reads no Insight or
+inference state, resolves no live service, and disables hit testing; each host
+remains responsible for deriving whether the hazard is eligible for display.
 
 `MilestoneToastBanner` is the active surface for the bounded FIFO
 `MilestoneToastPresenter` owned by `AppDIContainer`. The stacked

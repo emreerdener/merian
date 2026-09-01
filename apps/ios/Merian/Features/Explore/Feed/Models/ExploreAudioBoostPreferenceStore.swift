@@ -1,11 +1,5 @@
 import Foundation
 
-enum ExploreAudioBoostFeedbackPolicy {
-    static func shouldPresent(actionToken: UUID?) -> Bool {
-        actionToken != nil
-    }
-}
-
 struct ExploreAudioBoostPreferenceStore {
     private struct Entry: Codable {
         let postId: String

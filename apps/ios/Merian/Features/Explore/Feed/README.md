@@ -341,8 +341,10 @@ Focused tests mirror their production owners:
 - `MerianTests/Features/Explore/ExploreAudioBoostTests.swift` remains one level
   higher because it exercises Explore preferences and playback policy together
   with the shared Core boost/seeking implementation. Insight-specific pill,
-  source-handoff, live-playhead, and injected-effect coverage lives with
-  `MerianTests/Features/Insights/Media/InsightAudioPlaybackPresentationTests.swift`.
+  source-handoff, live-playhead, and injected-effect coverage lives in
+  `MerianTests/Core/Media/AudioPlaybackPresentationTests.swift`; the
+  Insight-only preference and availability rules remain in
+  `MerianTests/Features/Insights/Media/InsightAudioBoostPolicyTests.swift`.
 
 After building the test bundle, run the focused XCTest suites with the canonical
 simulator destination:

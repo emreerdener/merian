@@ -6,7 +6,7 @@ struct InsightCandidateSwipeDismissalRequest: Equatable {
 }
 
 enum InsightContentPresentation: Identifiable, Equatable {
-    case gallery(InsightImageGalleryPresentation, scanId: String, generation: UInt64)
+    case gallery(MediaGalleryPresentation, scanId: String, generation: UInt64)
     case candidate(scanId: String, generation: UInt64, engineGeneration: UInt64)
     case community(scanId: String, generation: UInt64, requestId: String?)
     case composer(scanId: String, generation: UInt64, postId: String)

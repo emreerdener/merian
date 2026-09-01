@@ -197,4 +197,53 @@ struct InsightShellRecordTests {
         #expect(viewModel.state.showExploreSheet == false)
     }
 
+    @Test func completedDeletionIsIdentityBoundAndPresentationNeutral() throws {
+        let context = try InsightSheetTestSupport.createIsolatedContext()
+        let record = LocalScanRecord(
+            speciesId: "deletion_ownership_species",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch"
+        )
+        context.insert(record)
+        try context.save()
+
+        var eradicatedScanIDs: [String] = []
+        let dependencies = InsightShellDependencies(
+            eradicateScan: { record, _ in
+                eradicatedScanIDs.append(record.id)
+            }
+        )
+        let engine = InsightSheetTestSupport.biologicalEngine(
+            scanId: record.id
+        )
+        let viewModel = InsightSheetViewModel(
+            inferenceEngine: engine,
+            dependencies: dependencies
+        )
+        #expect(viewModel.fetchLocalRecord(
+            for: record.id,
+            modelContext: context
+        ))
+        let generation = viewModel.scanBoundActionGeneration
+
+        #expect(!viewModel.eradicateCurrentScan(
+            expectedScanId: record.id,
+            expectedGeneration: generation &+ 1,
+            modelContext: context,
+            inferenceEngine: engine
+        ))
+        #expect(eradicatedScanIDs.isEmpty)
+        #expect(viewModel.activeLocalRecordId == record.id)
+
+        #expect(viewModel.eradicateCurrentScan(
+            expectedScanId: record.id,
+            expectedGeneration: generation,
+            modelContext: context,
+            inferenceEngine: engine
+        ))
+        #expect(eradicatedScanIDs == [record.id])
+        #expect(viewModel.activeLocalRecord == nil)
+        #expect(viewModel.activeLocalRecordId == nil)
+    }
+
 }

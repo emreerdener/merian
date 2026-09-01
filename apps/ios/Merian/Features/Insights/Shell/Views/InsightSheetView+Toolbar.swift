@@ -27,6 +27,7 @@ extension InsightSheetView {
         TopToolbar(
             commonName: viewModel.resolvedHeaderTitle,
             isCommonNameScrolledPast: viewModel.state.isCommonNameScrolledPast,
+            onDismiss: dismissInsightPresentation,
             isSavingMedia: $viewModel.state.isSavingMedia,
             showDeleteConfirmation: toolbarDeleteBinding,
             hasUserMedia: viewModel.hasUserMedia,
@@ -181,6 +182,13 @@ extension InsightSheetView {
                     return
                 }
                 viewModel.state.audioBoostActionToken = UUID()
+            },
+            onAudioBoostChanged: { isEnabled in
+                if isEnabled {
+                    dependencies.audioBoostEnabledFeedback()
+                } else {
+                    dependencies.audioBoostDisabledFeedback()
+                }
             },
             showsQueuedDeleteAction: toolbarQueuedScanId != nil,
             isAnalyzing: viewModel.isProcessing,

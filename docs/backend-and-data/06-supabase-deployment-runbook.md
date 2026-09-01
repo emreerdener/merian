@@ -1135,17 +1135,17 @@ supabase --workdir services test db --local \
 
 xcrun swiftc -frontend -parse \
   apps/ios/Merian/Core/Network/MerianNetworkClient.swift \
-  apps/ios/Merian/Features/Insights/SpeciesReference/Models/*.swift \
-  apps/ios/Merian/Features/Insights/SpeciesReference/Services/*.swift \
-  apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/*.swift \
-  apps/ios/Merian/Features/Insights/SpeciesReference/Views/*.swift \
-  apps/ios/Merian/Features/Insights/SpeciesReference/Components/Charts/*.swift \
-  apps/ios/MerianTests/Features/Insights/SpeciesReference/*.swift \
+  apps/ios/Merian/Features/SpeciesReference/Models/*.swift \
+  apps/ios/Merian/Features/SpeciesReference/Services/*.swift \
+  apps/ios/Merian/Features/SpeciesReference/ViewModels/*.swift \
+  apps/ios/Merian/Features/SpeciesReference/Views/*.swift \
+  apps/ios/Merian/Features/SpeciesReference/Components/Charts/*.swift \
+  apps/ios/MerianTests/Features/SpeciesReference/*.swift \
   apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift
 swiftlint lint --strict \
   apps/ios/Merian/Core/Network/MerianNetworkClient.swift \
-  apps/ios/Merian/Features/Insights/SpeciesReference \
-  apps/ios/MerianTests/Features/Insights/SpeciesReference \
+  apps/ios/Merian/Features/SpeciesReference \
+  apps/ios/MerianTests/Features/SpeciesReference \
   apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift
 ```
 
@@ -6812,9 +6812,12 @@ exercising the Apple OAuth flow.
 ### Flag-issue compatibility release order
 
 The changed `/flag-issue` bundle depends on
-`20260831120000_submit_owned_flag_issue_atomically.sql`. Apply and verify that
-migration before deploying the Function; deploying the caller first would turn
-legacy owner disputes into an unavailable-RPC failure. Current iOS Community
+`20260831120000_submit_owned_flag_issue_atomically.sql` and the final
+`20260901032158_repair_owned_flag_issue_insert_detection.sql` routine
+definition. Apply and verify both migrations before deploying the Function;
+deploying the caller first would turn legacy owner disputes into an
+unavailable-RPC failure, while omitting the repair would leave the INSERT-only
+invoker unable to execute its first owner submission. Current iOS Community
 reporting is independent of this order because it already calls
 `/report-explore-post` with the exact post ID.
 
@@ -6822,9 +6825,10 @@ Candidate evidence must include the static migration contract, Deno database
 adapter and security coverage, and a non-skipped
 `tests/flag_issue_submission_security.sql` run against the fully migrated
 disposable catalog. The catalog case must prove service-only execution,
-owner/non-owner/tombstone outcomes, review-case grouping, scan context, and
-rollback of the review plus case when the scan update fails. Do not treat a
-database-test skip or source-only pass as release evidence.
+INSERT-only `flagged_reviews` access, owner/non-owner/tombstone outcomes,
+review-case grouping, scan context, and rollback of the review plus case when
+the scan update fails. Do not treat a database-test skip or source-only pass as
+release evidence.
 
 After the migration and Function are both present on a controlled target, use
 disposable records to prove three routes: an owner dispute commits the review,

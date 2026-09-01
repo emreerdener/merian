@@ -39,15 +39,15 @@ Primary files:
 
 - `apps/ios/Merian/Core/Network/SpeciesObservationStatsAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Models/SpeciesObservationLocalStats.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Models/SpeciesObservationChartPresentation.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Models/SpeciesObservationStatsReducer.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Services/SpeciesObservationStatsDatabaseActor.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Services/SpeciesObservationStatsDependencies.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Views/SpeciesObservationChartsCard.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Components/Charts/SpeciesObservationChartContent.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Components/Charts/SpeciesObservationSeasonalityHeatmapView.swift`
+- `apps/ios/Merian/Features/SpeciesReference/Models/SpeciesObservationLocalStats.swift`
+- `apps/ios/Merian/Features/SpeciesReference/Models/SpeciesObservationChartPresentation.swift`
+- `apps/ios/Merian/Features/SpeciesReference/Models/SpeciesObservationStatsReducer.swift`
+- `apps/ios/Merian/Features/SpeciesReference/Services/SpeciesObservationStatsDatabaseActor.swift`
+- `apps/ios/Merian/Features/SpeciesReference/Services/SpeciesObservationStatsDependencies.swift`
+- `apps/ios/Merian/Features/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift`
+- `apps/ios/Merian/Features/SpeciesReference/Views/SpeciesObservationChartsCard.swift`
+- `apps/ios/Merian/Features/SpeciesReference/Components/Charts/SpeciesObservationChartContent.swift`
+- `apps/ios/Merian/Features/SpeciesReference/Components/Charts/SpeciesObservationSeasonalityHeatmapView.swift`
 - `apps/ios/Merian/Features/Insights/Content/Views/BiologicalView.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
 

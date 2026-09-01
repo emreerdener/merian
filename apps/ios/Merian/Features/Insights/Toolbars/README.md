@@ -10,6 +10,18 @@ dismiss the sheet, trigger a share, open the field chat, or save field notes. It
 separates the persistent interaction chrome from the scrollable biological
 content.
 
+`TopToolbar` and `InsightBottomToolbar` own only Insight action composition.
+`FieldChatToolbarButton` lives with the cross-feature conversation experience in
+`Features/FieldChat/Components/Toolbar`; `ScrollAwareToolbarTitleBadge` lives in
+`Core/UI/Components/Toolbars`. Toolbar controls receive feedback and dismissal
+closures from Insight Shell and do not resolve haptic, entitlement, navigation,
+or media services directly.
+
+The leading close/back action calls the shell-provided dismissal boundary when
+available. That boundary ends the presentation session before dismissing, so
+save/share tasks and every scan-generation-bound action are invalidated for
+button dismissal, programmatic dismissal, and completed interactive back swipes.
+
 ## Leading-control accessibility contract
 
 `TopToolbar.LeadingControl` keeps its user-facing VoiceOver labels (`Close` and

@@ -5,7 +5,7 @@ struct AnalyzingMediaOverlay: View {
     let focusRegion: NormalizedImageFocusRegion?
     let focusInteractionIdentity: FocusInteractionIdentity
     let animationStartedAt: Date
-    let dependencies: InsightCarouselDependencies
+    let dependencies: MediaPlaybackDependencies
     @Binding var committedFocusRect: NormalizedFocusOverlayRect?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

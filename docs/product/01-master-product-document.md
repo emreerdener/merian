@@ -1551,7 +1551,7 @@ repository-relative.
 - `apps/ios/Merian/Core/Data/Images/PhotoLibraryManager.swift`
 - `apps/ios/Merian/Core/Analytics/UsageManager.swift`
 - `apps/ios/Merian/Core/Data/OfflineSync/`
-- `apps/ios/Merian/Features/Insights/Media/Utilities/InsightMediaExportManager.swift`
+- `apps/ios/Merian/Core/Media/MediaExportService.swift`
 
 ## Product surfaces
 

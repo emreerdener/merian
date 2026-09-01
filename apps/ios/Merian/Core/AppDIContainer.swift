@@ -60,6 +60,7 @@ import SwiftUI
     // MARK: - Dependencies (Analytics & Security)
     var consentManager = ConsentManager.shared
     var revenueCatManager = RevenueCatManager.shared
+    var entitlementManager = EntitlementManager.shared
     var scanAdmissionManager = ScanAdmissionManager.shared
     var usageManager = UsageManager.shared
     var gamificationManager = GamificationManager.shared
@@ -139,6 +140,7 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.supabaseManager)
             .environment(container.consentManager)
             .environment(container.revenueCatManager)
+            .environment(container.entitlementManager)
             .environment(container.usageManager)
             .environment(container.gamificationManager)
             .environment(container.circuitBreakerManager)

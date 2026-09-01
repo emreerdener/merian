@@ -24,7 +24,7 @@ struct FieldTripTemplateDetailView: View {
     @State private var defaultGuideSelectionKey: String?
     @State private var lifecycleConfirmation: FieldTripLifecycleConfirmation?
     @State private var unavailableFeaturedMediaSourceIdentifiers: Set<String> = []
-    @State private var featuredMediaGalleryPresentation: InsightImageGalleryPresentation?
+    @State private var featuredMediaGalleryPresentation: MediaGalleryPresentation?
     @State private var isFeaturedHeroTopScrollEdgeEffectHidden = true
     @State private var detailLocationLabel: String?
 
@@ -147,7 +147,7 @@ struct FieldTripTemplateDetailView: View {
                 }
             }
             .fullScreenCover(item: $featuredMediaGalleryPresentation) { presentation in
-                InsightFullscreenImageCarousel(presentation: presentation)
+                FullscreenMediaGallery(presentation: presentation)
             }
             .alert(item: $lifecycleConfirmation) { confirmation in
                 lifecycleAlert(for: confirmation)

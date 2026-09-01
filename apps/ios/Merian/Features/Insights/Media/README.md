@@ -15,38 +15,34 @@ The canonical behavior and product contract remains
 
 ## Ownership
 
-`Carousel/ImagesCarousel.swift` and
-`Carousel/InsightFullscreenImageCarousel.swift` are stable composition entry
-points. Their collaborators are organized by responsibility:
+`Carousel/ImagesCarousel.swift` is the Insight composition entry. Its
+collaborators are organized by responsibility:
 
-- `Carousel/Models/` owns deterministic gallery, media-interaction, focus,
-  selection, audio-control, and presentation values. The model-owned
-  `CarouselSelectionCandidate` contract lets selection policy consume only IDs,
-  image identifiers, and source families rather than the SwiftUI-backed page
-  value. Models do not import SwiftUI or UIKit or name view-backed page types.
+- `Carousel/Models/` owns deterministic Insight focus, selection, image-origin,
+  and availability values. The model-owned `CarouselSelectionCandidate` contract
+  lets selection policy consume only IDs, image identifiers, and source families
+  rather than the SwiftUI-backed page value. Models do not import SwiftUI or
+  UIKit or name view-backed page types.
 - `Carousel/Builders/` converts `ActiveScanMedia` into ordered inline and
   fullscreen page values and applies transient availability policy.
-- `Carousel/Services/` is the only carousel owner that resolves live audio
-  sessions, audio boost processing, telemetry, or haptic feedback. The small
-  `InsightCarouselDependencies` closure bundle is initializer-injected; views
-  and components do not resolve those collaborators directly.
-- `Carousel/Playback/` owns AVPlayer surfaces, observation lifetimes, playback
-  coordination, and the contained playback-control cancellation task.
-- `Carousel/Pages/` owns individual audio, image, description, and live-capture
-  pages. Mutable player, pending-source, seek, boost, and observer state remains
-  private and co-located with its mounted playback page. The render-only audio
-  spectrogram receives a live progress provider, so each timeline tick reads
-  current player time without taking ownership of the player.
+- `Carousel/Services/InsightMediaPlaybackDependencies.swift` adds only the
+  Insight feedback namespace and audio-boost telemetry adapter to the shared
+  `MediaPlaybackDependencies` value.
+- `Carousel/Playback/` owns the Insight inline-video surface and the stable
+  coordinator that pauses it before fullscreen presentation.
+- `Carousel/Pages/` owns Insight description and live-capture pages.
 - `Carousel/Components/` owns render-only chrome, controls, analysis overlays,
   and focus gestures. `Carousel/Animation/` owns the time-derived analysis
   session and sweep policy.
 
-The domain-neutral pager, page value, zoom host, pagination dots, and hero
-scroll-edge treatment shared with Field Trips live in
-`Core/UI/Components/MediaCarousel`. `CarouselPageItem` remains Insight-owned and
-projects its existing image-origin, still-source, and focus identity into the
-Core page reuse key. Presentation-only view changes keep the mounted controller;
-an image-origin, source-index, or focus-identity change remounts that page and
+The domain-neutral pager, page value, zoom host, pagination dots, hero
+scroll-edge treatment, fullscreen gallery, audio page, and reusable video chrome
+live in `Core/UI/Components/MediaCarousel`. Audio-session restoration, the
+main-actor audio delegate, shared playback dependencies, and bounded export
+processing live in `Core/Media`. `CarouselPageItem` remains Insight-owned and
+projects its image-origin, still-source, and focus identity into the Core page
+reuse key. Presentation-only view changes keep the mounted controller; an
+image-origin, source-index, or focus-identity change remounts that page and
 forces the native pager to discard cached neighbors.
 
 The carousel performs no networking. Remote reference images continue through
@@ -62,13 +58,32 @@ stays at or below the 600-line review guard.
 fallback. `InsightMediaGalleryTests` owns mixed-media/fullscreen mapping, the
 Insight reuse-key projection, the Core page's ID-only default, and data-source
 reset when a reuse key changes. `InsightMediaFocusPresentationTests` owns focus
-and animation policy; `InsightAudioPlaybackPresentationTests` owns audio
-presentation, source handoff, live-playhead, and injected-effect routing; and
-`InsightMediaCarouselArchitectureTests` locks the directory boundary, private
-playback state, Core UI extraction, and 600-line ceiling. Pair those suites with
+and animation policy; `InsightAudioBoostPolicyTests` owns the Insight-specific
+availability and preference rules. Core `AudioPlaybackPresentationTests`,
+`AudioBoostRequestStateTests`, and `MediaExportServiceTests` own shared
+playback, overlap fencing, source mapping, and export request behavior.
+`InsightMediaExportLifecycleTests` proves an uncooperative save/share completion
+cannot publish after dismissal, while `InsightMediaCarouselArchitectureTests`
+and `InsightsIntegrationArchitectureTests` lock the folder boundary, private
+playback state, Core extraction, and 600-line ceiling. Pair those suites with
 `FieldTripFeaturedMediaTests` whenever the shared pager or reuse contract
 changes. `AsyncLocalImageDependenciesTests` remains under Core UI because it
 tests the cross-feature loader seam rather than Insight behavior.
+
+## Export and presentation lifetime
+
+`Media/Utilities/InsightSheetViewModel+MediaExport.swift` maps the active scan
+to Core `MediaSaveRequest` and `DiscoveryShareRequest` values. It owns one save
+task and one share-preparation task, each fenced by operation UUID, scan ID, and
+the sheet's presentation generation. Every dismissal path ends the presentation
+session, cancels those tasks, and clears their operation IDs before navigation
+continues. A dependency that ignores cancellation therefore cannot show stale
+feedback or a share sheet over the next Insight.
+
+Photo-library work, approved `media.merian.app` downloads, bounded image
+downsampling, and batch request processing belong to `MediaExportService` in
+Core. The feature view model performs no PhotoKit, URLSession, share-sheet, or
+singleton work.
 
 External reference URLs are normalized through
 `ExternalReferenceImagePolicy.allowedURLStrings(from:)` before carousel pages

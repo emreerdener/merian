@@ -206,27 +206,22 @@ Implemented Species Dictionary slices:
 
 Implemented Insights slices:
 
-- `Insights/Media/Carousel` now separates platform-neutral gallery, focus,
-  selection, interaction, animation, and audio-presentation Models; ordered page
-  and transient availability Builders; narrow live audio-session, boost,
-  telemetry, and haptic Services; contained AVPlayer playback/observation
-  owners; render-only Components; and focused Pages. The two root carousel views
-  remain stable composition entries, direct live resolution is Services-only,
-  mutable playback/seek/observer state remains private and co-located, and no
-  carousel view performs networking. Focus, animation, gallery, availability,
-  audio-policy, dependency-routing, and architecture tests now mirror the Media
-  owner. Every production Carousel Swift file stays below the pass's 600-line
-  guard. Cross-feature `AsyncLocalImageView` moved from the Carousel to
-  `Core/UI/Components`; its live loader resolution now belongs to a narrow
-  `Core/UI/Services` dependency adapter. The pager, domain-neutral page value,
-  zoom host, pagination dots, and hero scroll-edge treatment used by Insights
-  and Field Trips moved to `Core/UI/Components/MediaCarousel`; each feature
-  retains its own ordering and reuse-key projection. The platform-neutral
-  selection resolver consumes a model-owned candidate contract rather than the
-  SwiftUI-backed Insight page value. The shared pager preserves controllers for
-  equal ID/reuse keys and invalidates the native data-source cache for sequence
-  or key changes; the extracted audio render surface reads live player progress
-  through a closure without widening player ownership.
+- `Insights/Media/Carousel` now retains only Insight-specific focus, selection,
+  image-origin, availability, page assembly, analysis motion, live-capture and
+  description pages, inline-video coordination, and playback-effect adaptation.
+  `ImagesCarousel` remains the stable composition entry, no carousel view
+  performs networking or direct live resolution, and mutable mounted playback
+  state stays private to its owning surface. Cross-feature `AsyncLocalImageView`
+  and its narrow live-loader adapter live in `Core/UI`. The pager, normalized
+  gallery values, zoom host, pagination dots, hero scroll-edge treatment,
+  fullscreen gallery, audio page, and reusable video chrome live in
+  `Core/UI/Components/MediaCarousel`; audio-session restoration, the main-actor
+  delegate, shared playback effects, exact-token observation, and bounded media
+  export live in `Core/Media`. Insight retains its own ordering,
+  controller-reuse-key projection, boost policy, telemetry namespace, and
+  scan-to-export request mapping. Core and mirrored Media tests lock playback
+  overlap, gallery reuse, export behavior/lifetime, Services-only live
+  resolution, private state, and the 600-line ceiling.
 - `Insights/Sharing` now separates platform-neutral Share presentation values,
   Services-only publication, Community, detail, cache, event, repository, and
   feedback adapters; focused root-view-model extensions; a contained share-state
@@ -484,6 +479,21 @@ Implemented Profile slice:
   task cancellation. `InsightSheetView+Content.swift` now names its mixed
   root-content responsibility accurately; the largest production Shell file is
   524 lines.
+- The Insights-wide integration audit reconciled Shell, Content, Media,
+  Toolbars, Shared, Field Notes, Identification Review, and Sharing after their
+  individual slices. Cross-feature card, toolbar, feedback, gallery, audio, and
+  video presentation now has neutral Core UI ownership; reusable playback and
+  export processing lives in Core Media; species-level charts, habitat, maps,
+  taxonomy, lookalikes, and fallback imagery live in
+  `Features/SpeciesReference`; and private conversation UI lives in
+  `Features/FieldChat`. Insight export commits remain operation-, scan-, and
+  presentation-generation-fenced. The shared export actor restores the existing
+  1,024 px batch-image bound under Scans' 20-item cap, keeps remote previews
+  file-backed, and rejects cross-host redirects through its exact-host,
+  ephemeral session. `InsightsIntegrationArchitectureTests` locks the final
+  inventory, service boundaries, extracted owners, export fencing, and
+  feature-wide 600-line ceiling; the complete `merianTests` target covers the
+  cross-feature consumers.
 
 ### Completed Scans Collections Persistence Repair
 
@@ -520,8 +530,12 @@ After the large files are split, move code to clearer long-term homes:
   `apps/ios/Merian/Features/Explore/Shared/Network/` when reused across multiple
   Explore areas. Only move them outside Explore when another feature depends on
   the same contract.
-- Insight-specific export, carousel, and result-rendering helpers should stay
-  under `apps/ios/Merian/Features/Insights/`.
+- Insight-only media ordering, scan-to-export mapping, focus, analysis motion,
+  and result composition should stay under `apps/ios/Merian/Features/Insights/`.
+  Reusable export/playback processing belongs in `Core/Media`, reusable
+  gallery/audio/video/card/toolbar/feedback presentation belongs in `Core/UI`,
+  species-level reference presentation belongs in `Features/SpeciesReference`,
+  and shared private conversation UI belongs in `Features/FieldChat`.
 - Capture modality code should stay under
   `apps/ios/Merian/Features/Capture/<Scan|Record|Describe>/`.
 - `Core/UI` should contain reusable primitives only; one-off feature chrome

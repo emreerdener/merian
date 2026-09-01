@@ -354,18 +354,18 @@ struct InsightMediaGalleryTests {
         let containerSize = CGSize(width: 390, height: 440)
         let center = CGPoint(x: containerSize.width / 2, y: containerSize.height / 2)
 
-        #expect(InsightCarouselMediaInteractionPolicy.centerPlaybackHitSize == 96)
-        #expect(InsightCarouselMediaInteractionPolicy.isCenterPlaybackTap(
+        #expect(MediaCarouselInteractionPolicy.centerPlaybackHitSize == 96)
+        #expect(MediaCarouselInteractionPolicy.isCenterPlaybackTap(
             location: center,
             containerSize: containerSize,
             mediaKind: .video
         ))
-        #expect(!InsightCarouselMediaInteractionPolicy.isCenterPlaybackTap(
+        #expect(!MediaCarouselInteractionPolicy.isCenterPlaybackTap(
             location: CGPoint(x: 24, y: 24),
             containerSize: containerSize,
             mediaKind: .video
         ))
-        #expect(!InsightCarouselMediaInteractionPolicy.isCenterPlaybackTap(
+        #expect(!MediaCarouselInteractionPolicy.isCenterPlaybackTap(
             location: center,
             containerSize: containerSize,
             mediaKind: .visual
@@ -373,9 +373,9 @@ struct InsightMediaGalleryTests {
     }
 
     @Test func testInsightVideoPlaybackAvailabilityMapsPlayerItemStatus() {
-        #expect(InsightVideoPlaybackAvailability(itemStatus: .unknown) == .loading)
-        #expect(InsightVideoPlaybackAvailability(itemStatus: .readyToPlay) == .ready)
-        #expect(InsightVideoPlaybackAvailability(itemStatus: .failed) == .unavailable)
+        #expect(VideoPlaybackAvailability(itemStatus: .unknown) == .loading)
+        #expect(VideoPlaybackAvailability(itemStatus: .readyToPlay) == .ready)
+        #expect(VideoPlaybackAvailability(itemStatus: .failed) == .unavailable)
     }
 
     @Test func testInsightVideoPlaybackCoordinatorPausesBeforeFullscreenPresentation() {

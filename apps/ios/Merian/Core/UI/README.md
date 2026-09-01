@@ -121,6 +121,12 @@ entitlement lookup, quota admission, persistence, or RevenueCat behavior.
 Production callers derive it from their established entitlement owner; the
 Settings DEBUG gallery may inject a deterministic override for visual QA.
 
+`Components/ModelTierBadge.swift` renders an optional prepared
+`ModelTierBadgePresentation` and delegates upgrade handling to its caller. It
+does not resolve RevenueCat or entitlement singletons and does not own paywall
+presentation. Insight derives live presentation in `BiologicalView`; Settings
+provides deterministic preview values.
+
 ## Shared image editing
 
 `Components/ImageCropperView.swift` owns the square crop interaction shared by
@@ -145,20 +151,38 @@ effects in their own feature owners.
 
 ## Shared media carousel presentation
 
-`Components/MediaCarousel/` owns the domain-neutral native pager used by
-Insights and the Field Trips featured-media hero. `NativePageCarouselPage`
-contains only stable page identity, a controller-reuse key that defaults to the
-page ID, and rendered SwiftUI content. A stable ID/reuse-key pair updates the
-mounted controller's root view without discarding its state. A changed ordered
-page sequence or reuse key invalidates `UIPageViewController`'s cached data
-source before the selected controller is reinstalled, preventing a stale
-neighbor from surviving a feature-owned source-family change.
-`NativePageCarousel` and its coordinator otherwise own eager mounting and
-selection synchronization; `ZoomPageViewController` owns pinch, pan, and
-snap-back behavior. The same Core UI directory owns the shared pagination dots
-and iOS 26 top scroll-edge treatment. Feature owners remain responsible for
+`Components/MediaCarousel/` owns the domain-neutral native pager, fullscreen
+gallery, audio playback page, and reusable video chrome used by Insights,
+Capture, Field Trips, and Species Dictionary. `NativePageCarouselPage` contains
+only stable page identity, a controller-reuse key that defaults to the page ID,
+and rendered SwiftUI content. A stable ID/reuse-key pair updates the mounted
+controller's root view without discarding its state. A changed ordered page
+sequence or reuse key invalidates `UIPageViewController`'s cached data source
+before the selected controller is reinstalled, preventing a stale neighbor from
+surviving a feature-owned source-family change. `NativePageCarousel` and its
+coordinator otherwise own eager mounting and selection synchronization;
+`ZoomPageViewController` owns pinch, pan, and snap-back behavior.
+`MediaGalleryPresentation` and `MediaGalleryItem` provide the normalized
+cross-feature gallery input. The same directory owns shared pagination dots and
+the iOS 26 top scroll-edge treatment. Feature owners remain responsible for
 media ordering, source and attribution policy, availability state, navigation,
 and their reuse-key projection.
+
+Audio playback keeps player, pending replacement, boost request, seek, and
+observer state private to its mounted page. `AudioBoostRequestState` gives each
+toggle generation ownership so an older completion cannot clear or publish over
+a newer on/off/on request. Shared side effects arrive through
+`Core/Media/MediaPlaybackDependencies`; Core UI contains no feature telemetry
+owner or live-service lookup.
+
+## Shared cards and feedback
+
+`Components/Cards` owns the domain-neutral card modifier, key/value row,
+`MerianCardHeader`, and scientific-name styling used by Insights, Explore,
+Species Dictionary, and Field Trips. `Feedback/ToastBanner.swift` and
+`Feedback/ToxicityBanner.swift` likewise contain render-only cross-feature
+presentation. Hazard classification remains with the caller; the toxicity banner
+requires an explicit hazard type and does not read inference state.
 
 ## Shared local and remote image presentation
 

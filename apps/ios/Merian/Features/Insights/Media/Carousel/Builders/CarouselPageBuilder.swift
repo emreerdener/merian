@@ -8,7 +8,7 @@ struct CarouselPageBuilder {
         selectedIndex: Binding<Int> = .constant(0),
         isVideoMuted: Binding<Bool> = .constant(true),
         videoPlaybackCoordinator: InsightCarouselVideoPlaybackCoordinator? = nil,
-        dependencies: InsightCarouselDependencies? = nil,
+        dependencies: MediaPlaybackDependencies? = nil,
         onVideoAvailabilityChange: @escaping (String, Bool) -> Void = { _, _ in },
         isAudioBoostEnabled: Binding<Bool> = .constant(false),
         audioBoostActionToken: UUID? = nil,
@@ -34,7 +34,7 @@ struct CarouselPageBuilder {
                     mediaKind: .visual,
                     view: AnyView(LiveCapturePageView(data: data)),
                     imageOrigin: .user,
-                    galleryItem: InsightImageGalleryItem(
+                    galleryItem: MediaGalleryItem(
                         id: pageID,
                         source: .liveImage(data),
                         referenceAttributionLabel: nil
@@ -61,7 +61,7 @@ struct CarouselPageBuilder {
                     ),
                     imageIdentifier: path,
                     imageOrigin: .user,
-                    galleryItem: InsightImageGalleryItem(
+                    galleryItem: MediaGalleryItem(
                         id: pageID,
                         source: .imagePath(path),
                         referenceAttributionLabel: nil
@@ -109,7 +109,7 @@ struct CarouselPageBuilder {
                         }
                     )),
                     imageOrigin: .user,
-                    galleryItem: InsightImageGalleryItem(
+                    galleryItem: MediaGalleryItem(
                         id: pageID,
                         source: .videoPath(resolvedPath),
                         referenceAttributionLabel: nil
@@ -163,7 +163,7 @@ struct CarouselPageBuilder {
                     imageIdentifier: urlString,
                     imageOrigin: .reference,
                     referenceAttributionLabel: label,
-                    galleryItem: InsightImageGalleryItem(
+                    galleryItem: MediaGalleryItem(
                         id: pageID,
                         source: .referenceURL(urlString),
                         referenceAttributionLabel: label

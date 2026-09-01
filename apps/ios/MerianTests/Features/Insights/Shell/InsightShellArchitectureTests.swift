@@ -127,6 +127,40 @@ final class InsightShellArchitectureTests: XCTestCase {
         }
     }
 
+    func testDeletionPresentationOwnershipStaysInTheView() throws {
+        let root = try shellSourceRoot()
+        let records = try String(
+            contentsOf: root.appendingPathComponent(
+                "ViewModels/InsightSheetViewModel+Records.swift"
+            ),
+            encoding: .utf8
+        )
+        let sheet = try String(
+            contentsOf: root.appendingPathComponent(
+                "Views/InsightSheetView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(records.contains("DismissAction"))
+        XCTAssertFalse(records.contains("dismiss()"))
+        XCTAssertFalse(records.contains("import SwiftUI"))
+        XCTAssertTrue(records.contains("func eradicateCurrentScan("))
+        let deletionStart = try XCTUnwrap(
+            sheet.range(of: "else if viewModel.eradicateCurrentScan(")?
+                .lowerBound
+        )
+        let cancellationStart = try XCTUnwrap(
+            sheet.range(
+                of: "Button(\"Cancel\"",
+                range: deletionStart..<sheet.endIndex
+            )?.lowerBound
+        )
+        let deletionHandler = sheet[deletionStart..<cancellationStart]
+        XCTAssertTrue(deletionHandler.contains("dismissInsightPresentation()"))
+        XCTAssertFalse(deletionHandler.contains("dismiss()"))
+    }
+
     private func shellSourceRoot() throws -> URL {
         let root = try repositoryRoot().appendingPathComponent(
             "apps/ios/Merian/Features/Insights/Shell"

@@ -41,6 +41,13 @@ struct InsightShellDependencies {
     let completionFeedback: @MainActor () -> Void
     let audioBoostEnabledFeedback: @MainActor () -> Void
     let audioBoostDisabledFeedback: @MainActor () -> Void
+    let saveMedia: @MainActor (
+        _ request: MediaSaveRequest
+    ) async -> MediaSaveResult
+    let prepareMediaShare: @MainActor (
+        _ request: DiscoveryShareRequest
+    ) async -> MediaSharePayload
+    let presentMediaShare: @MainActor (_ payload: MediaSharePayload) -> Void
 
     init(
         appEvents: AnyPublisher<AppEvent, Never> = Empty().eraseToAnyPublisher(),
@@ -83,7 +90,18 @@ struct InsightShellDependencies {
         sheetFeedback: @escaping @MainActor () -> Void = {},
         completionFeedback: @escaping @MainActor () -> Void = {},
         audioBoostEnabledFeedback: @escaping @MainActor () -> Void = {},
-        audioBoostDisabledFeedback: @escaping @MainActor () -> Void = {}
+        audioBoostDisabledFeedback: @escaping @MainActor () -> Void = {},
+        saveMedia: @escaping @MainActor (
+            _ request: MediaSaveRequest
+        ) async -> MediaSaveResult = { _ in MediaSaveResult() },
+        prepareMediaShare: @escaping @MainActor (
+            _ request: DiscoveryShareRequest
+        ) async -> MediaSharePayload = { _ in
+            MediaSharePayload(items: [])
+        },
+        presentMediaShare: @escaping @MainActor (
+            _ payload: MediaSharePayload
+        ) -> Void = { _ in }
     ) {
         self.appEvents = appEvents
         self.authenticationSnapshot = authenticationSnapshot
@@ -107,11 +125,15 @@ struct InsightShellDependencies {
         self.completionFeedback = completionFeedback
         self.audioBoostEnabledFeedback = audioBoostEnabledFeedback
         self.audioBoostDisabledFeedback = audioBoostDisabledFeedback
+        self.saveMedia = saveMedia
+        self.prepareMediaShare = prepareMediaShare
+        self.presentMediaShare = presentMediaShare
     }
 
     static var live: Self {
         let container = AppDIContainer.shared
         let hapticManager = container.hapticManager
+        let mediaExportService = MediaExportService.live
         return Self(
             appEvents: container.appEventPublisher.publisher,
             authenticationSnapshot: {
@@ -198,6 +220,15 @@ struct InsightShellDependencies {
                     intensity: 0.5,
                     source: "media.insight.audioBoost.disabled"
                 )
+            },
+            saveMedia: { request in
+                await mediaExportService.save(request)
+            },
+            prepareMediaShare: { request in
+                await mediaExportService.prepareShare(request)
+            },
+            presentMediaShare: { payload in
+                ShareSheetUtility.present(items: payload.activityItems)
             }
         )
     }

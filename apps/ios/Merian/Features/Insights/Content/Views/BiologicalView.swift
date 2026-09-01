@@ -4,6 +4,8 @@ import SwiftUI
 struct BiologicalView: View {
     // MARK: - Dependencies
     @Environment(InferenceEngine.self) var inferenceEngine
+    @Environment(RevenueCatManager.self) private var revenueCatManager
+    @Environment(EntitlementManager.self) private var entitlementManager
     @Bindable var viewModel: InsightSheetViewModel
     @Binding var isSafariPresented: Bool
     @Binding var selectedWikiURL: URL?
@@ -37,6 +39,7 @@ struct BiologicalView: View {
                 expectedGeneration: generation,
                 modelContext: modelContext
             ) {
+                viewModel.endPresentationSession()
                 dismiss()
             }
         }
@@ -90,7 +93,15 @@ struct BiologicalView: View {
                     namePickerGeneration = fieldNotesGeneration
                     viewModel.state.isNamePickerPresented = true
                 },
-                onRevealFeedback: viewModel.performContentHeaderRevealFeedback
+                onRevealFeedback: viewModel.performContentHeaderRevealFeedback,
+                modelTierBadgePresentation: modelTierBadgePresentation,
+                onModelTierUpgrade: {
+                    guard fieldNotesGeneration ==
+                            viewModel.scanBoundActionGeneration else {
+                        return
+                    }
+                    viewModel.state.showPaywall = true
+                }
             )
             .cardEntrance(index: 0)
             .sheet(isPresented: namePickerPresentedBinding) {
@@ -145,7 +156,7 @@ struct BiologicalView: View {
             }
 
             // MARK: - Toxicity Banner
-            ToxicityBanner()
+            ToxicityBanner(hazardType: viewModel.hazardType)
                 .cardEntrance(index: 1)
 
             // MARK: - Layout Guards
@@ -271,7 +282,7 @@ struct BiologicalView: View {
                     )
                     .cardEntrance(index: 6)
                 }
-    
+
                 // MARK: - Biological Classification
                 if !isUnknownSubject {
                     TaxonomyCard(
@@ -280,7 +291,7 @@ struct BiologicalView: View {
                     )
                     .cardEntrance(index: 7)
                 }
-    
+
                 // MARK: - Similar Species Gallery
                 if !isUnknownSubject {
                     Group {
@@ -300,7 +311,7 @@ struct BiologicalView: View {
                     .animation(.easeInOut, value: inferenceEngine.isLookalikesLoading)
                     .cardEntrance(index: 8)
                 }
-    
+
                 // MARK: - Spatiotemporal Context
                 ScanInformationCard(
                     speciesData: inferenceEngine.speciesData,
@@ -320,6 +331,21 @@ struct BiologicalView: View {
             }
         }
         .padding(.horizontal)
+    }
+
+    private var modelTierBadgePresentation: ModelTierBadgePresentation? {
+        ModelTierBadgePresentation.resolve(
+            confidenceScore: inferenceEngine.speciesData?
+                .presentationConfidenceScore,
+            inferenceTier: inferenceEngine.speciesData?.inferenceTier,
+            isSubscribed: revenueCatManager.isSubscribed,
+            isProActive: revenueCatManager.isProActive,
+            hasComplimentaryAccess: entitlementManager
+                .hasVerifiedComplimentaryAccess,
+            complimentaryScansRemaining: entitlementManager.scansRemaining,
+            isComplimentaryExhausted: entitlementManager
+                .isComplimentaryExhausted
+        )
     }
 
     private func safariPresentedBinding(

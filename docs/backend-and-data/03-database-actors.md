@@ -368,7 +368,7 @@ await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifica
 
 ---
 
-### `SpeciesObservationStatsDatabaseActor` (`Features/Insights/SpeciesReference/Services/SpeciesObservationStatsDatabaseActor.swift`, reducer in `Features/Insights/SpeciesReference/Models/SpeciesObservationStatsReducer.swift`)
+### `SpeciesObservationStatsDatabaseActor` (`Features/SpeciesReference/Services/SpeciesObservationStatsDatabaseActor.swift`, reducer in `Features/SpeciesReference/Models/SpeciesObservationStatsReducer.swift`)
 
 **Declaration**: `@ModelActor actor SpeciesObservationStatsDatabaseActor`
 

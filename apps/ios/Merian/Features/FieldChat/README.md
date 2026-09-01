@@ -17,8 +17,10 @@ experience used by Insights, Explore posts, and Species Dictionary pages.
   subject boundary.
 - `Views/` composes the shared sheet and retains UI-only focus, scrolling,
   keyboard/composer, confirmation, and dismissal timing.
-- `Components/` owns focused conversation, feedback, notes, and shared visual
-  pieces. Components issue no endpoint calls.
+- `Components/` owns focused conversation, feedback, notes, shared visual
+  pieces, and `Toolbar/FieldChatToolbarButton.swift`, which is reused by
+  Insight, Explore, and Species Dictionary hosts. Components issue no endpoint
+  calls.
 
 The three host features remain responsible for their own eligibility,
 entitlement, navigation, and mutually exclusive presentation slots. Core Network

@@ -84,7 +84,7 @@ struct ExploreOverviewCard: View {
     var body: some View {
         if normalizedIucnStatus != nil || trimmedWikipediaOverview != nil {
             VStack(alignment: .leading, spacing: 16) {
-                InsightCardHeader(systemImage: "book", title: "Overview")
+                MerianCardHeader(systemImage: "book", title: "Overview")
 
                 if let status = normalizedIucnStatus {
                     let iconName: String? = {

@@ -539,8 +539,11 @@ never be deleted as part of incident cleanup. Full incident procedures are in
 - `is_flagged` (BOOLEAN) — Set with the identification-review insert by the
   atomic `/flag-issue` owner transaction. Managed via
   `00005_flagged_reviews.sql` and
-  `20260831120000_submit_owned_flag_issue_atomically.sql`. Explore post reports,
-  including the old Community-client compatibility bridge, never set it.
+  `20260831120000_submit_owned_flag_issue_atomically.sql`, with the final
+  routine definition in
+  `20260901032158_repair_owned_flag_issue_insert_detection.sql`. Explore post
+  reports, including the old Community-client compatibility bridge, never set
+  it.
 - `is_tombstoned` (BOOLEAN) — Account-deletion and visibility marker. Detaches
   account metadata while preserving the row as a scientific observation.
   Initially introduced by `00006_apply_user_tombstone.sql`; the durable state

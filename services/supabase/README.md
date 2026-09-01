@@ -1419,8 +1419,10 @@ service-only `public.submit_owned_flag_issue` transaction and an exact
 old-Community-client compatibility signature that is rerouted to the canonical
 post-report helper. The owner path atomically creates `public.flagged_reviews`,
 lets its trigger attach the private review case, and updates `public.scans`; the
-compatibility path never changes scan review state. The source, ACL, rollback,
-and bridge contracts are locked by `functions/flag-issue/db_test.ts`,
+final invoker detects that conditional insert through `ROW_COUNT` and retains
+INSERT-only access to `flagged_reviews`. The compatibility path never changes
+scan review state. The source, ACL, rollback, and bridge contracts are locked by
+`functions/flag-issue/db_test.ts`,
 `functions/_tests/flagIssueMigrationContract.test.ts`,
 `functions/_tests/jsonEndpointSecurityCoverage.test.ts`, and
 `tests/flag_issue_submission_security.sql`.

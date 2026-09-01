@@ -13,13 +13,13 @@ struct InlineVideoPlaybackCarouselPage: View {
     @Binding var selectedIndex: Int
     @Binding var isMuted: Bool
     let playbackCoordinator: InsightCarouselVideoPlaybackCoordinator?
-    let dependencies: InsightCarouselDependencies
+    let dependencies: MediaPlaybackDependencies
     let onAvailabilityChange: (Bool) -> Void
 
     @State private var player: AVPlayer?
     @State private var hasAutoplayed = false
     @State private var isPlaying = false
-    @State private var availability = InsightVideoPlaybackAvailability.loading
+    @State private var availability = VideoPlaybackAvailability.loading
     @State private var playbackObservation = MediaPlaybackObservation()
 
     private var isSelected: Bool {
@@ -31,7 +31,7 @@ struct InlineVideoPlaybackCarouselPage: View {
             Color.black
 
             if let player, availability != .unavailable {
-                InsightCoverVideoPlayer(player: player)
+                MediaCoverVideoPlayer(player: player)
                     .ignoresSafeArea()
             }
 
@@ -40,12 +40,12 @@ struct InlineVideoPlaybackCarouselPage: View {
                 ProgressView()
                     .tint(.white)
             case .ready:
-                InsightCenterVideoPlaybackControl(
+                CenterVideoPlaybackControl(
                     isPlaying: isPlaying,
                     action: togglePlayback
                 )
             case .unavailable:
-                InsightUnavailableVideoView()
+                UnavailableVideoView()
             }
         }
         .task(id: path) {
@@ -226,7 +226,7 @@ struct InlineVideoPlaybackCarouselPage: View {
         observedPlayer: AVPlayer
     ) {
         guard player === observedPlayer else { return }
-        let nextAvailability = InsightVideoPlaybackAvailability(
+        let nextAvailability = VideoPlaybackAvailability(
             itemStatus: status
         )
         availability = nextAvailability

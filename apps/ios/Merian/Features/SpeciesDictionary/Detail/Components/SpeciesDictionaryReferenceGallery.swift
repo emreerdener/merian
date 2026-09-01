@@ -11,7 +11,7 @@ struct SpeciesDictionaryReferenceGallery: View {
     let images: [SpeciesDictionaryReferenceImage]
     let onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)?
     let onHeroBottomChange: ((CGFloat) -> Void)?
-    let onImageTap: ((InsightImageGalleryPresentation) -> Void)?
+    let onImageTap: ((MediaGalleryPresentation) -> Void)?
     let onAuthorTap: ((SpeciesDictionaryReferenceImage) -> Void)?
 
     @State private var selectedImageId: String?
@@ -22,7 +22,7 @@ struct SpeciesDictionaryReferenceGallery: View {
         images: [SpeciesDictionaryReferenceImage],
         onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)? = nil,
         onHeroBottomChange: ((CGFloat) -> Void)? = nil,
-        onImageTap: ((InsightImageGalleryPresentation) -> Void)? = nil,
+        onImageTap: ((MediaGalleryPresentation) -> Void)? = nil,
         onAuthorTap: ((SpeciesDictionaryReferenceImage) -> Void)? = nil
     ) {
         self.scientificName = scientificName
@@ -241,9 +241,9 @@ struct SpeciesDictionaryImageGalleryBuilder {
         images.filter { ExternalReferenceImagePolicy.isAllowed($0.url) }
     }
 
-    static func buildItems(for images: [SpeciesDictionaryReferenceImage]) -> [InsightImageGalleryItem] {
+    static func buildItems(for images: [SpeciesDictionaryReferenceImage]) -> [MediaGalleryItem] {
         allowedImages(from: images).map { image in
-            InsightImageGalleryItem(
+            MediaGalleryItem(
                 id: "species-reference-\(image.id)",
                 source: .referenceURL(image.url),
                 referenceAttributionLabel: image.fullscreenAttributionLabel
@@ -254,7 +254,7 @@ struct SpeciesDictionaryImageGalleryBuilder {
     static func presentation(
         for images: [SpeciesDictionaryReferenceImage],
         selectedImageID: String?
-    ) -> InsightImageGalleryPresentation? {
+    ) -> MediaGalleryPresentation? {
         let allowedImages = allowedImages(from: images)
         let items = buildItems(for: allowedImages)
         guard !items.isEmpty else { return nil }
@@ -263,7 +263,7 @@ struct SpeciesDictionaryImageGalleryBuilder {
             image.id == selectedImageID
         } ?? 0
 
-        return InsightImageGalleryPresentation(
+        return MediaGalleryPresentation(
             items: items,
             initialSelectedIndex: selectedIndex
         )

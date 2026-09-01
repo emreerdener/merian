@@ -6,7 +6,7 @@ struct FieldTripProgressCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            InsightCardHeader(systemImage: "map", title: "Field trips")
+            MerianCardHeader(systemImage: "map", title: "Field trips")
 
             VStack(spacing: 22) {
                 ForEach(contributions) { contribution in
@@ -33,7 +33,7 @@ struct FieldTripProgressCard: View {
 struct FieldTripProgressCardSkeleton: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            InsightCardHeader(systemImage: "map", title: "Field trips")
+            MerianCardHeader(systemImage: "map", title: "Field trips")
             FieldTripProgressContributionRowSkeleton()
         }
         .card()

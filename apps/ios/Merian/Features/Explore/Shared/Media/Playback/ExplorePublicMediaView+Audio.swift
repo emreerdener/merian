@@ -122,7 +122,7 @@ extension ExplorePublicMediaView {
         if audioBoostEnabled {
             let actionToken = audioBoostActionToken
             playbackState.beginAudioBoostPreparation(
-                showsStatus: ExploreAudioBoostFeedbackPolicy.shouldPresent(
+                showsStatus: AudioBoostFeedbackPolicy.shouldPresent(
                     actionToken: actionToken
                 )
             )
@@ -144,7 +144,7 @@ extension ExplorePublicMediaView {
             } catch {
                 guard !Task.isCancelled else { return }
                 playbackState.setBoostedAudioURL(nil)
-                let shouldPresentFailure = ExploreAudioBoostFeedbackPolicy.shouldPresent(
+                let shouldPresentFailure = AudioBoostFeedbackPolicy.shouldPresent(
                     actionToken: actionToken
                 )
                 playbackState.setAudioBoostPreparationFailed(shouldPresentFailure)

@@ -40,7 +40,9 @@ extension InsightSheetView {
             ))
             .background {
                 if presentationStyle.isEmbedded {
-                    EmbeddedNavigationSwipeBackEnabler()
+                    EmbeddedNavigationSwipeBackEnabler(
+                        onNavigationPop: viewModel.endPresentationSession
+                    )
                         .frame(width: 0, height: 0)
                 }
             }
@@ -263,6 +265,7 @@ extension InsightSheetView {
     private func handleAppearance() {
         // Reset stale @State properties from previous presentations natively.
         viewModel.reset()
+        viewModel.beginPresentationSession()
 
         // Seed both references immediately so viewModel computed properties
         // resolve on the first frame rather than waiting for
@@ -442,6 +445,11 @@ extension InsightSheetView {
     }
 
     private func dismissEmbeddedInsight() {
+        dismissInsightPresentation()
+    }
+
+    func dismissInsightPresentation() {
+        viewModel.endPresentationSession()
         isPresented = false
         dismiss()
     }

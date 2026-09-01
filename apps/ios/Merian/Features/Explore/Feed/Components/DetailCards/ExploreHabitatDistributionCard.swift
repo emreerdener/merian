@@ -19,11 +19,11 @@ struct ExploreHabitatDistributionCard: View {
                     .padding(.horizontal, 16)
 
                 VStack(alignment: .leading, spacing: 16) {
-                    InsightCardHeader(systemImage: "globe", title: "Habitat & distribution")
+                    MerianCardHeader(systemImage: "globe", title: "Habitat & distribution")
 
                     if let trimmedHabitatDescription {
                         Text(
-                            InsightScientificNameStyler.highlightedText(
+                            ScientificNameStyler.highlightedText(
                                 trimmedHabitatDescription,
                                 scientificName: scientificName
                             )

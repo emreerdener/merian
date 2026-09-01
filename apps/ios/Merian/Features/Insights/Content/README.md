@@ -63,9 +63,9 @@ the view model has server-backed contribution rows. The card shows every
 credited outing/Event under the visible **Field trips** header. While eligible
 contribution rows are loading, the same position is reserved by a card-shaped,
 motion-aware skeleton so later content does not jump when the server response
-arrives; empty and failed responses still hide silently. The heading reuses
-`InsightCardHeader`; its undivided rows use an uppercase **GOAL COMPLETE**
-eyebrow, headline-sized goal name, enlarged goal artwork/check badge,
+arrives; empty and failed responses still hide silently. The heading reuses the
+Core-owned `MerianCardHeader`; its undivided rows use an uppercase **GOAL
+COMPLETE** eyebrow, headline-sized goal name, enlarged goal artwork/check badge,
 experience-only subtitle, and a prominent trailing `GoalProgressRing`. The full
 row is tappable without a redundant chevron and forwards a card-specific
 overview destination that deliberately omits Capture's checklist-item focus. The

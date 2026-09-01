@@ -23,24 +23,44 @@ struct ScansLibraryDependencies {
     ) -> Self {
         let container = AppDIContainer.shared
         let events = (eventStream ?? container.appEventPublisher).publisher
+        let mediaExportService = MediaExportService.live
 
         return Self(
             events: events,
             sharedPostID: sharedPostID,
             batchShare: { scans in
-                await withCheckedContinuation { continuation in
-                    InsightMediaExportManager.shared.batchShareDiscovery(records: scans) { items in
-                        ShareSheetUtility.present(items: items)
-                        continuation.resume()
+                let request = BatchDiscoveryShareRequest(
+                    discoveries: scans.map { scan in
+                        let petLabel = scan.petIdentification?.label
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        return BatchDiscoveryShareRequest.Discovery(
+                            commonName: petLabel?.isEmpty == false
+                                ? petLabel ?? scan.commonName
+                                : scan.commonName,
+                            scientificName: scan.scientificName,
+                            primaryImageReference: scan.capturedMediaSnapshot
+                                .primaryImagePath,
+                            fallbackImageReference: scan.referenceImageUrl
+                        )
                     }
-                }
+                )
+                let payload = await mediaExportService.prepareBatchShare(
+                    request
+                )
+                guard !Task.isCancelled else { return }
+                ShareSheetUtility.present(items: payload.activityItems)
             },
             batchSaveMedia: { scans in
-                await withCheckedContinuation { continuation in
-                    InsightMediaExportManager.shared.batchSaveUserMedia(records: scans) { result in
-                        continuation.resume(returning: result)
-                    }
+                let requests = scans.map { scan in
+                    let media = scan.capturedMediaSnapshot.activeScanMedia
+                    return MediaSaveRequest.make(
+                        liveImageData: nil,
+                        imagePaths: media.imagePathsForUpload,
+                        videoPaths: media.videoPaths,
+                        referenceImageURL: scan.referenceImageUrl
+                    )
                 }
+                return await mediaExportService.batchSave(requests)
             },
             shareToExplore: { scan in
                 try await MerianNetworkClient.shared.shareScanToExplore(scan: scan).postId

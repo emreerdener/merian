@@ -61,8 +61,13 @@ at most one Community request.
   scan/review writes.
 - `../report-explore-post/db.ts` remains the only Edge owner of post
   reportability validation and `explore_post_reports` upserts.
-- `20260831120000_submit_owned_flag_issue_atomically.sql` owns row locking, scan
-  ownership validation, and the atomic identification-review mutation.
+- `20260831120000_submit_owned_flag_issue_atomically.sql` introduces row
+  locking, scan ownership validation, and the atomic identification-review
+  mutation.
+- `20260901032158_repair_owned_flag_issue_insert_detection.sql` installs the
+  final routine definition. It detects the conditional insert through
+  `ROW_COUNT`, preserving `service_role`'s INSERT-only access to
+  `flagged_reviews`.
 
 ## Verification
 
@@ -81,8 +86,8 @@ at most one Community request.
 
 ## Release order
 
-Apply and verify `20260831120000_submit_owned_flag_issue_atomically.sql` before
-deploying the changed Function bundle. A source-only or database-skipped test
-run is not release evidence. The controlled-target smoke and rollback contract
-lives in the
+Apply and verify `20260831120000_submit_owned_flag_issue_atomically.sql` and
+`20260901032158_repair_owned_flag_issue_insert_detection.sql` before deploying
+the changed Function bundle. A source-only or database-skipped test run is not
+release evidence. The controlled-target smoke and rollback contract lives in the
 [Supabase deployment runbook](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#flag-issue-compatibility-release-order).

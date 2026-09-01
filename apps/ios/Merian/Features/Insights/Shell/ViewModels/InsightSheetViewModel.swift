@@ -57,10 +57,8 @@ final class InsightSheetViewModel {
 
     /// Wipes all memory-retained states that persist across SwiftUI sheet presentations since `activeSheet == .insight` evaluates to identical IDs natively.
     func reset() {
-        cancelDelayedExploreOnboardingPresentation()
-        scanBoundActionGeneration &+= 1
-        sharingOperations.invalidate()
-        fieldTripContributionRequestToken &+= 1
+        presentationSessionIsActive = false
+        invalidateScanBoundActions()
         boundFieldNotesScanId = nil
         state = UIState()
         toastAction = nil
@@ -70,8 +68,36 @@ final class InsightSheetViewModel {
         queuedContext = nil
         cachedActiveMedia = nil
         focusOverlayInteractionState = FocusOverlayInteractionState()
-        fieldTripScanContributions = []
-        isLoadingFieldTripScanContributions = false
+        clearFieldTripScanContributionPresentation()
+    }
+
+    func beginPresentationSession() {
+        presentationSessionIsActive = true
+    }
+
+    func endPresentationSession() {
+        guard presentationSessionIsActive else { return }
+        presentationSessionIsActive = false
+        invalidateScanBoundActions()
+        state.isSavingMedia = false
+        state.showMediaSaveAlert = false
+    }
+
+    func invalidateScanBoundActions() {
+        cancelDelayedExploreOnboardingPresentation()
+        cancelMediaExportOperations()
+        scanBoundActionGeneration &+= 1
+        sharingOperations.invalidate()
+        fieldTripContributionRequestToken &+= 1
+    }
+
+    func cancelMediaExportOperations() {
+        mediaSaveTask?.cancel()
+        mediaSaveTask = nil
+        mediaSaveTaskID = nil
+        mediaShareTask?.cancel()
+        mediaShareTask = nil
+        mediaShareTaskID = nil
     }
 
     // MARK: - Internal Cached State
@@ -84,6 +110,7 @@ final class InsightSheetViewModel {
     /// generations and is cleared when the sheet view model resets.
     var focusOverlayInteractionState = FocusOverlayInteractionState()
     @ObservationIgnored var scanBoundActionGeneration: UInt64 = 0
+    @ObservationIgnored private(set) var presentationSessionIsActive = false
     @ObservationIgnored let sharingOperations = InsightSharingOperationState()
     @ObservationIgnored var boundFieldNotesScanId: String?
     @ObservationIgnored var fieldTripContributionRequestToken: UInt64 = 0
@@ -91,6 +118,10 @@ final class InsightSheetViewModel {
     @ObservationIgnored var exploreOnboardingPresentationTaskID: UUID?
     @ObservationIgnored var exploreOnboardingPresentationScanID: String?
     @ObservationIgnored var exploreOnboardingPresentationGeneration: UInt64?
+    @ObservationIgnored var mediaSaveTask: Task<Void, Never>?
+    @ObservationIgnored var mediaSaveTaskID: UUID?
+    @ObservationIgnored var mediaShareTask: Task<Void, Never>?
+    @ObservationIgnored var mediaShareTaskID: UUID?
     @ObservationIgnored var appSettings: AppSettings
     @ObservationIgnored let dependencies: InsightShellDependencies
     @ObservationIgnored let sharingDependencies: InsightSharingDependencies
@@ -167,6 +198,10 @@ final class InsightSheetViewModel {
 
     func invalidateFieldTripScanContributions() {
         fieldTripContributionRequestToken &+= 1
+        clearFieldTripScanContributionPresentation()
+    }
+
+    func clearFieldTripScanContributionPresentation() {
         fieldTripScanContributions = []
         isLoadingFieldTripScanContributions = false
     }

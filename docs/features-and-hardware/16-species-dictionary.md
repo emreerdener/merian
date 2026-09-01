@@ -77,9 +77,9 @@ Primary files:
 - `apps/ios/Merian/App/MerianApp.swift`
 - `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+Routing.swift`
 - `apps/ios/Merian/Features/Explore/Shell/Views/ExploreView.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Views/SpeciesObservationChartsCard.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Services/SpeciesObservationStatsDependencies.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift`
+- `apps/ios/Merian/Features/SpeciesReference/Views/SpeciesObservationChartsCard.swift`
+- `apps/ios/Merian/Features/SpeciesReference/Services/SpeciesObservationStatsDependencies.swift`
+- `apps/ios/Merian/Features/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesDictionaryPageViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesCommunitySightingsViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
@@ -89,8 +89,8 @@ Primary files:
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryReferenceGallery.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryCards.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesCommunitySightings.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Components/Lookalikes/SimilarSpeciesGallery.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Services/SimilarSpeciesImageDependencies.swift`
+- `apps/ios/Merian/Features/SpeciesReference/Components/Lookalikes/SimilarSpeciesGallery.swift`
+- `apps/ios/Merian/Features/SpeciesReference/Services/SimilarSpeciesImageDependencies.swift`
 - `apps/ios/Merian/Features/Insights/Content/Views/BiologicalView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift`
 - `apps/ios/messages/ScanSharing/Shared/MessageScanShareCache.swift`

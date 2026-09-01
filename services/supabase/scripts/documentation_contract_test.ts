@@ -332,8 +332,16 @@ Deno.test("moderation documentation preserves post and identification routing", 
     "Any other non-owner request returns `HTTP 404`.",
   );
   assertStringIncludes(
+    flagReadme,
+    "detects the conditional insert through `ROW_COUNT`, preserving `service_role`'s INSERT-only access",
+  );
+  assertStringIncludes(
     deployment,
-    "Apply and verify that migration before deploying the Function",
+    "Apply and verify both migrations before deploying the Function",
+  );
+  assertStringIncludes(
+    deployment,
+    "INSERT-only `flagged_reviews` access",
   );
   assertStringIncludes(
     admin,
@@ -771,7 +779,7 @@ Deno.test("complimentary scan documentation preserves the audited contract", asy
     read("apps/ios/AppStore/ReleaseNotes/1.0.3.md"),
     read("apps/ios/Merian/Resources/Changelog/changelog.json"),
     read(
-      "apps/ios/Merian/Features/Insights/Shared/Badges/ModelTierBadge.swift",
+      "apps/ios/Merian/Core/UI/Components/ModelTierBadge.swift",
     ),
     read(
       "apps/ios/Merian/Features/Profile/Settings/Plan/Components/PlanCard.swift",
@@ -835,7 +843,13 @@ Deno.test("complimentary scan documentation preserves the audited contract", asy
   assertEquals(terms.includes("Trials may convert to paid access"), false);
   assertStringIncludes(compact(changelog), "Three Pro Scans Included");
   assertStringIncludes(resultsBadgeSource, '"1 Pro scan remains"');
-  assertStringIncludes(resultsBadgeSource, "paywallButton(text: label)");
+  assertStringIncludes(
+    compact(resultsBadgeSource),
+    "if !isSubscribed, isComplimentaryExhausted { return Self(text: label) }",
+  );
+  assertStringIncludes(resultsBadgeSource, "let onUpgrade: () -> Void");
+  assertEquals(resultsBadgeSource.includes("RevenueCatManager.shared"), false);
+  assertEquals(resultsBadgeSource.includes("EntitlementManager.shared"), false);
   assertEquals(resultsBadgeSource.includes("All 3 Pro scans used"), false);
   assertStringIncludes(planCardSource, '"PRO SCANS"');
   assertStringIncludes(
@@ -2005,7 +2019,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(recordBindingImplementationSource),
-    "scanBoundActionGeneration &+= 1",
+    "invalidateScanBoundActions()",
   );
   assertStringIncludes(
     compact(exploreSharingImplementationSource),

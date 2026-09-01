@@ -32,26 +32,39 @@ extension InsightSheetViewModel {
         let imagePaths = exportMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
         let videoPaths = exportMedia.items.compactMap { if case .video(let path, _) = $0 { return path } else { return nil } }
 
-        InsightMediaExportManager.shared.saveUserMedia(
-            liveData: liveData,
+        let request = MediaSaveRequest.make(
+            liveImageData: liveData,
             imagePaths: imagePaths,
             videoPaths: videoPaths,
-            referenceImageUrl: exportReferenceImageUrl(for: inferenceEngine)
-        ) { result in
-            guard self.isPresentingLocalRecord(
-                scanId: expectedScanId,
-                generation: expectedGeneration
-            ) else {
+            referenceImageURL: exportReferenceImageUrl(for: inferenceEngine)
+        )
+        let taskID = UUID()
+        let saveMedia = dependencies.saveMedia
+        mediaSaveTask?.cancel()
+        mediaSaveTaskID = taskID
+        mediaSaveTask = Task { @MainActor [weak self] in
+            let result = await saveMedia(request)
+            guard !Task.isCancelled,
+                  let self,
+                  self.mediaSaveTaskID == taskID,
+                  self.isPresentingLocalRecord(
+                      scanId: expectedScanId,
+                      generation: expectedGeneration
+                  ) else {
                 return
             }
+            self.mediaSaveTask = nil
+            self.mediaSaveTaskID = nil
             self.state.isSavingMedia = false
             self.state.lastMediaSaveResult = result
             if result.totalSaved > 0 {
-                HapticManager.shared.triggerSuccessPulse()
+                self.dependencies.successFeedback()
                 self.state.showMediaSaveAlert = true
             } else {
-                HapticManager.shared.triggerErrorThump()
-                self.state.toastMessage = .error("No photos or videos could be saved")
+                self.dependencies.errorFeedback()
+                self.state.toastMessage = .error(
+                    "No photos or videos could be saved"
+                )
             }
         }
     }
@@ -76,21 +89,33 @@ extension InsightSheetViewModel {
         let historicPath = exportMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }.first
             ?? toolbarRecordSnapshot?.coverImagePath
 
-        InsightMediaExportManager.shared.shareDiscovery(
+        let request = DiscoveryShareRequest.make(
             commonName: commonName,
             scientificName: scientificName,
-            liveData: liveData,
-            historicPath: historicPath,
-            referenceImageUrl: exportReferenceImageUrl(for: inferenceEngine),
-            presentShareSheet: { items in
-                guard self.isPresentingLocalRecord(
-                    scanId: expectedScanId,
-                    generation: expectedGeneration
-                ) else {
-                    return
-                }
-                ShareSheetUtility.present(items: items)
-            }
+            liveImageData: liveData,
+            primaryImageReference: historicPath,
+            fallbackImageReference: exportReferenceImageUrl(
+                for: inferenceEngine
+            )
         )
+        let taskID = UUID()
+        let prepareMediaShare = dependencies.prepareMediaShare
+        mediaShareTask?.cancel()
+        mediaShareTaskID = taskID
+        mediaShareTask = Task { @MainActor [weak self] in
+            let payload = await prepareMediaShare(request)
+            guard !Task.isCancelled,
+                  let self,
+                  self.mediaShareTaskID == taskID,
+                  self.isPresentingLocalRecord(
+                      scanId: expectedScanId,
+                      generation: expectedGeneration
+                  ) else {
+                return
+            }
+            self.mediaShareTask = nil
+            self.mediaShareTaskID = nil
+            self.dependencies.presentMediaShare(payload)
+        }
     }
 }

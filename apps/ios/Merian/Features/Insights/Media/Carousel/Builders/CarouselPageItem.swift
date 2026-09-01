@@ -5,15 +5,15 @@ struct CarouselVideoFallback: Equatable {
     let view: AnyView
     let imageIdentifier: String?
 
-    func galleryItem(pageID: String) -> InsightImageGalleryItem {
-        let gallerySource: InsightImageGalleryItem.Source
+    func galleryItem(pageID: String) -> MediaGalleryItem {
+        let gallerySource: MediaGalleryItem.Source
         switch source {
         case .liveImage(let data):
             gallerySource = .liveImage(data)
         case .imagePath(let path):
             gallerySource = .imagePath(path)
         }
-        return InsightImageGalleryItem(
+        return MediaGalleryItem(
             id: pageID,
             source: gallerySource,
             referenceAttributionLabel: nil
@@ -48,7 +48,7 @@ struct CarouselPageItem:
     let imageIdentifier: String?
     let imageOrigin: CarouselImageOrigin?
     let referenceAttributionLabel: String?
-    let galleryItem: InsightImageGalleryItem?
+    let galleryItem: MediaGalleryItem?
     let videoFallback: CarouselVideoFallback?
     let isUserMediaZeroState: Bool
     let stillImageSourceIndex: Int?
@@ -61,7 +61,7 @@ struct CarouselPageItem:
         imageIdentifier: String? = nil,
         imageOrigin: CarouselImageOrigin? = nil,
         referenceAttributionLabel: String? = nil,
-        galleryItem: InsightImageGalleryItem? = nil,
+        galleryItem: MediaGalleryItem? = nil,
         videoFallback: CarouselVideoFallback? = nil,
         isUserMediaZeroState: Bool = false,
         stillImageSourceIndex: Int? = nil,

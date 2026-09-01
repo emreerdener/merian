@@ -107,7 +107,7 @@ struct ExploreObservationContextCard: View {
 
     private var cardContent: some View {
         VStack(alignment: .leading, spacing: 16) {
-            InsightCardHeader(systemImage: "viewfinder", title: "Observation")
+            MerianCardHeader(systemImage: "viewfinder", title: "Observation")
 
             VStack(spacing: 12) {
                 ForEach(rows) { row in

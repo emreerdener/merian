@@ -7,7 +7,7 @@ struct ScanInformationCard: View {
     let speciesData: SpeciesData?
     var timestamp: Date?
     var imageCount: Int = 1
-    
+
     // Optional rendering fallbacks when speciesData is unvailable during live analysis
     var fallbackLocationName: String?
     var fallbackTemperature: Double?
@@ -15,7 +15,7 @@ struct ScanInformationCard: View {
     var fallbackElevation: Double?
     var fallbackLatitude: Double?
     var fallbackLongitude: Double?
-    
+
     var body: some View {
         let rawName: String? = speciesData?.locationName ?? fallbackLocationName
         let temp: Double? = speciesData?.weatherTemperatureF ?? fallbackTemperature
@@ -43,37 +43,37 @@ struct ScanInformationCard: View {
 
         if hasVisibleData {
             VStack(alignment: .leading, spacing: 16) {
-                InsightCardHeader(systemImage: "viewfinder", title: "Scan")
-                
+                MerianCardHeader(systemImage: "viewfinder", title: "Scan")
+
                 VStack(spacing: 12) {
                     // Location
                     if let validName = displayLocationName,
                        !validName.trimmingCharacters(in: .whitespaces).isEmpty {
                         KeyValueRow(title: "LOCATION", value: validName)
                     }
-                    
+
                     // Elevation
                     if let elev = displayElevation, elev != 0 {
                         KeyValueRow(title: "ELEVATION", value: "\(Int(elev))m")
                     }
-                    
+
                     // Weather
                     if let validTemp = displayTemperature,
                        let validCondition = displayCondition {
                         KeyValueRow(
-                            title: "WEATHER", 
+                            title: "WEATHER",
                             value: "\(Int(validTemp))°F \(validCondition.capitalized)",
                             valueIcon: weatherIcon(for: validCondition)
                         )
                     }
-                    
+
                     // Date & Time
                     if let ts = timestamp {
                         KeyValueRow(
                             title: "DATE",
                             value: ts.formatted(date: .abbreviated, time: .omitted)
                         )
-                        
+
                         KeyValueRow(
                             title: "TIME",
                             value: ts.formatted(date: .omitted, time: .shortened)
@@ -89,11 +89,11 @@ struct ScanInformationCard: View {
                     if let z = zoom {
                         KeyValueRow(title: "CAMERA ZOOM", value: String(format: "%.1f×", z))
                     }
-                    
+
                     // Map
                     if let coord = mapCoordinate {
                         let span = isObscured ? MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2) : MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-                        
+
                         Map(initialPosition: .region(MKCoordinateRegion(center: coord, span: span))) {
                             if isObscured {
                                 MapCircle(center: coord, radius: CLLocationDistance(10000))
@@ -118,7 +118,7 @@ struct ScanInformationCard: View {
             .card()
         }
     }
-    
+
 // Removed featureRow since KeyValueRow was extracted
 
     private func hasVisibleScanData(
@@ -172,7 +172,7 @@ struct ScanInformationCard: View {
     private func roundedPublicCoordinate(_ value: Double) -> Double {
         (value * 10).rounded() / 10
     }
-    
+
     private func weatherIcon(for condition: String) -> String {
         let lower = condition.lowercased()
         if lower.contains("sun") || lower.contains("clear") { return "sun.max.fill" }

@@ -8,7 +8,7 @@ private struct ImageFocusOverlayResizeInteraction: Equatable {
 struct LensFocusOverlay: View {
     let region: NormalizedImageFocusRegion
     let scanProgress: CGFloat
-    let dependencies: InsightCarouselDependencies
+    let dependencies: MediaPlaybackDependencies
     @Binding var committedFocusRect: NormalizedFocusOverlayRect?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

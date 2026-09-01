@@ -249,7 +249,10 @@ extension InsightContentView {
                 scanId: scanId,
                 generation: generation
             ) {
-                InsightFullscreenImageCarousel(presentation: gallery)
+                FullscreenMediaGallery(
+                    presentation: gallery,
+                    dependencies: .insightLive
+                )
             }
         case .candidate, .community, .composer, .fieldNotes,
              .safari, .observation:

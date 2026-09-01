@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 
 BEGIN;
-SELECT extensions.plan(16);
+SELECT extensions.plan(17);
 
 INSERT INTO auth.users (
     instance_id,
@@ -119,6 +119,15 @@ SELECT extensions.ok(
         'INSERT'
     ),
     'the invoker transaction has its explicit flagged-review insert privilege'
+);
+SELECT extensions.ok(
+    NOT pg_catalog.HAS_COLUMN_PRIVILEGE(
+        'service_role',
+        'public.flagged_reviews',
+        'id',
+        'SELECT'
+    ),
+    'the invoker transaction does not require flagged-review read access'
 );
 
 SET LOCAL ROLE service_role;

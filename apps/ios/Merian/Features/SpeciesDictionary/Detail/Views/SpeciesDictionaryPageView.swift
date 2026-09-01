@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum SpeciesDictionaryPresentation: Identifiable, Equatable {
-    case gallery(InsightImageGalleryPresentation)
+    case gallery(MediaGalleryPresentation)
     case author(ExploreAuthorProfileRoute)
     case fieldChat(SpeciesDictionaryChatPresentation)
     case paywall
@@ -279,7 +279,7 @@ struct SpeciesDictionaryPageContentView: View {
     ) -> some View {
         switch presentation {
         case .gallery(let gallery):
-            InsightFullscreenImageCarousel(presentation: gallery)
+            FullscreenMediaGallery(presentation: gallery)
         case .author, .fieldChat, .paywall:
             EmptyView()
         }

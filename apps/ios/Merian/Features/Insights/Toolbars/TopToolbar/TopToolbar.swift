@@ -86,9 +86,10 @@ struct TopToolbar: ToolbarContent {
     }
 
     @Environment(\.dismiss) var dismiss
-    
+
     let commonName: String
     let isCommonNameScrolledPast: Bool
+    let onDismiss: (() -> Void)?
     @Binding var isSavingMedia: Bool
     @Binding var showDeleteConfirmation: Bool
     let hasUserMedia: Bool
@@ -114,6 +115,7 @@ struct TopToolbar: ToolbarContent {
     var onViewCommunityRequest: (() -> Void)?
     var audioBoostEnabled: Binding<Bool>?
     var onAudioBoostEnableRequested: (() -> Void)?
+    var onAudioBoostChanged: ((Bool) -> Void)?
     let showsQueuedDeleteAction: Bool
     let isAnalyzing: Bool
     let isProActive: Bool
@@ -121,6 +123,7 @@ struct TopToolbar: ToolbarContent {
     init(
         commonName: String,
         isCommonNameScrolledPast: Bool,
+        onDismiss: (() -> Void)? = nil,
         isSavingMedia: Binding<Bool>,
         showDeleteConfirmation: Binding<Bool>,
         hasUserMedia: Bool,
@@ -146,12 +149,14 @@ struct TopToolbar: ToolbarContent {
         onViewCommunityRequest: (() -> Void)? = nil,
         audioBoostEnabled: Binding<Bool>? = nil,
         onAudioBoostEnableRequested: (() -> Void)? = nil,
+        onAudioBoostChanged: ((Bool) -> Void)? = nil,
         showsQueuedDeleteAction: Bool = false,
         isAnalyzing: Bool,
         isProActive: Bool
     ) {
         self.commonName = commonName
         self.isCommonNameScrolledPast = isCommonNameScrolledPast
+        self.onDismiss = onDismiss
         self._isSavingMedia = isSavingMedia
         self._showDeleteConfirmation = showDeleteConfirmation
         self.hasUserMedia = hasUserMedia
@@ -177,14 +182,21 @@ struct TopToolbar: ToolbarContent {
         self.onViewCommunityRequest = onViewCommunityRequest
         self.audioBoostEnabled = audioBoostEnabled
         self.onAudioBoostEnableRequested = onAudioBoostEnableRequested
+        self.onAudioBoostChanged = onAudioBoostChanged
         self.showsQueuedDeleteAction = showsQueuedDeleteAction
         self.isAnalyzing = isAnalyzing
         self.isProActive = isProActive
     }
-    
+
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button(action: { dismiss() }) {
+            Button {
+                if let onDismiss {
+                    onDismiss()
+                } else {
+                    dismiss()
+                }
+            } label: {
                 toolbarIcon(leadingControl.systemImage)
                     .imageOverlayToolbarIconChrome(isFallbackActive: shouldUseContainedToolbarChrome)
             }
@@ -192,14 +204,14 @@ struct TopToolbar: ToolbarContent {
             .accessibilityIdentifier(leadingControl.accessibilityIdentifier)
             .imageOverlayToolbarButtonChrome(isFallbackActive: shouldUseContainedToolbarChrome)
         }
-        
+
         ToolbarItem(placement: .principal) {
             ScrollAwareToolbarTitleBadge(
                 title: commonName,
                 isVisible: isCommonNameScrolledPast
             )
         }
-        
+
         trailingToolbarItem
     }
 
@@ -314,14 +326,7 @@ struct TopToolbar: ToolbarContent {
                 audioBoostEnabled.wrappedValue.toggle()
                 let isEnabled = audioBoostEnabled.wrappedValue
                 guard isEnabled != wasEnabled else { return }
-                if isEnabled {
-                    HapticManager.shared.triggerMediumPulse(source: "media.insight.audioBoost.enabled")
-                } else {
-                    HapticManager.shared.triggerLightImpact(
-                        intensity: 0.5,
-                        source: "media.insight.audioBoost.disabled"
-                    )
-                }
+                onAudioBoostChanged?(isEnabled)
             } label: {
                 Label(
                     audioBoostEnabled.wrappedValue ? "Turn off audio boost" : "Boost audio",
@@ -371,7 +376,7 @@ struct TopToolbar: ToolbarContent {
                 }
             }
         }
-        
+
         Section("Identification") {
             if let onConfirmIdentification = onConfirmIdentification {
                 Button(action: onConfirmIdentification) {
@@ -405,41 +410,6 @@ struct TopToolbar: ToolbarContent {
                 }
             }
         }
-        
-    }
-}
 
-// MARK: - Isolated Header Component
-struct ScrollAwareToolbarTitleBadge: View {
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-    let title: String
-    let isVisible: Bool
-
-    private var maximumWidth: CGFloat {
-        horizontalSizeClass == .regular ? 320 : 200
-    }
-    
-    var body: some View {
-        ZStack {
-            if !title.isEmpty {
-                Text(title)
-                    .font(.system(.subheadline, weight: .bold))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .frame(maxWidth: maximumWidth)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1))
-                    .accessibilityLabel(title)
-            }
-        }
-        .opacity(isVisible ? 1 : 0)
-        .scaleEffect(isVisible ? 1 : 0.85)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isVisible)
-        .accessibilityHidden(!isVisible || title.isEmpty)
     }
 }

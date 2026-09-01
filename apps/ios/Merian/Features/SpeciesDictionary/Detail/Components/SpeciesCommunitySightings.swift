@@ -41,7 +41,7 @@ struct SpeciesCommunitySightingsSection: View {
 
     private var sightingsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            InsightCardHeader(systemImage: "person.3", title: "Community sightings") {
+            MerianCardHeader(systemImage: "person.3", title: "Community sightings") {
                 Spacer()
 
                 if viewModel.hasMore {
@@ -88,7 +88,7 @@ struct SpeciesCommunitySightingsSection: View {
 
     private var loadingSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            InsightCardHeader(systemImage: "person.3", title: "Community sightings")
+            MerianCardHeader(systemImage: "person.3", title: "Community sightings")
                 .accessibilityAddTraits(.isHeader)
 
             LazyVGrid(columns: columns, spacing: 2) {

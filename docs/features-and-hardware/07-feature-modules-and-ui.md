@@ -712,10 +712,11 @@ production Shell and Library file remains below the 600-line review guard.
   stats. Similar species render after habitat/distribution and tap through to
   the standalone `SpeciesDictionaryPageView`; feed cards, map previews, widgets,
   and profile preview thumbnails do not render this section. Shared presentation
-  stays in focused helpers under `Features/Insights/Shared/Cards/Chrome/`
-  (`InsightCardHeader`, Wikipedia summary/read-more chrome, heatmap chrome,
-  scientific-name text highlighting); domain-specific data gates stay inside
-  each Explore, Dictionary, or Insight card.
+  is split by reuse boundary: domain-neutral `MerianCardHeader`, card styling,
+  and scientific-name text highlighting live in `Core/UI/Components/Cards`;
+  Wikipedia and heatmap chrome live with `Features/SpeciesReference`.
+  Domain-specific data gates stay inside each Explore, Dictionary, or Insight
+  card.
 - **Public Telemetry**: The detail page surfaces only coarse/public-safe
   telemetry, such as general location, broad time context (`Morning`, `April`),
   weather, and shared date. Exact coordinates and raw scan telemetry never
@@ -861,16 +862,18 @@ an Edge API response or opened offline via the Scans library.
   analysis, and their shared scanning composition. Content Models own retry and
   phrase policy, Services alone resolve live effects, ViewModels own mutation
   and operation state, and Views/Components perform no networking; `Media/` owns
-  the carousel, fullscreen gallery, and photo/video export utilities;
+  Insight carousel assembly, focus/availability/continuity policy, inline video,
+  and session-fenced export request mapping, while Core owns the reusable
+  fullscreen gallery, audio/video playback primitives, and export service;
   `IdentificationReview/` owns candidates, swipe review, and confidence
   explanation through platform-neutral Models, Services-only live effects,
   scan/generation-fenced observable ViewModels, composition Views, and
-  interaction-grouped Components; and `SpeciesReference/` owns the reusable
-  observation charts, habitat/GBIF map, taxonomy, lookalikes, and fallback
-  reference imagery shared with Species Dictionary, Explore detail, and
-  identification review. Species Reference separates platform-neutral Models,
-  Services-only live effects, generation-fenced ViewModels, chart composition
-  Views, and domain-grouped render Components.
+  interaction-grouped Components; and top-level `Features/SpeciesReference/`
+  owns the reusable observation charts, habitat/GBIF map, taxonomy, lookalikes,
+  and fallback reference imagery shared with Species Dictionary, Explore detail,
+  and identification review. Species Reference separates platform-neutral
+  Models, Services-only live effects, generation-fenced ViewModels, chart
+  composition Views, and domain-grouped render Components.
   - Foreground and queued processing use one visible scanning contract: dynamic
     status pill, `DidYouKnowCard`, Field notes, and `ScanInformationCard`.
     Foreground text comes from `InferenceEngine.scanningPhaseText`; queued text
@@ -881,11 +884,11 @@ an Edge API response or opened offline via the Scans library.
     **Retry now**; a local action such as **View plans** may remain available.
     The UI does not show a separate queued heading, sync explainer, media-kind
     summary, or approximate file size.
-  - `Shared/Cards/Chrome/` owns lightweight card chrome helpers shared by
-    Insights and Explore detail cards: `CardModifier.swift`,
-    `InsightCardHeader.swift`, `WikipediaSummarySection.swift`,
-    `WikipediaReadMoreButton.swift`, `GBIFHeatmapCardChrome.swift`, and
-    `InsightScientificNameStyler.swift`. These are presentation-only helpers;
+  - `Core/UI/Components/Cards/` owns `CardModifier.swift`,
+    `MerianCardHeader.swift`, and `ScientificNameStyler.swift` because Insights,
+    Explore, Field Trips, and Species Dictionary consume them.
+    `Features/SpeciesReference/Components/Wikipedia/` and `Chrome/` own the
+    Wikipedia and heatmap treatments. These are presentation-only helpers;
     `OverviewCard`, `ExploreOverviewCard`, `HabitatAndDistributionCard`, and
     `ExploreHabitatDistributionCard` still keep their own data sourcing,
     online/loading behavior, and privacy gates.
@@ -976,13 +979,13 @@ an Edge API response or opened offline via the Scans library.
     public species dictionary page in the current navigation stack by
     `speciesId` when available or scientific name as the compatibility fallback.
   - Structural sub-elements sit with their owning product areas:
-    `ImagesCarousel` in `Media/Carousel/`, `ToxicityBanner` in
-    `Shared/Banners/`, specialized confidence/status UI in
-    `IdentificationReview/Confidence/`. Cross-feature milestone notification
-    chrome and scan-completion coordination live in `Core/UI/Feedback/` so Field
-    trip progress, achievement unlocks, and dictionary-contribution milestones
-    share one queue and visual system. UIKit SDK wrappers (like the
-    `SFSafariViewController` bridge) are moved to
+    `ImagesCarousel` in `Features/Insights/Media/Carousel/`, render-only
+    `ToxicityBanner` in `Core/UI/Feedback/`, and specialized confidence/status
+    UI in `Features/Insights/IdentificationReview/Confidence/`. Cross-feature
+    milestone notification chrome and scan-completion coordination also live in
+    `Core/UI/Feedback/` so Field trip progress, achievement unlocks, and
+    dictionary-contribution milestones share one queue and visual system. UIKit
+    SDK wrappers (like the `SFSafariViewController` bridge) are moved to
     `Core/UI/Components/SafariView.swift`.
 - **Adaptive Dark Mode & System Materials**: All hardcoded dark-mode overrides
   were removed. The sheet maps to Apple's adaptive `.ultraThinMaterial`
@@ -997,10 +1000,11 @@ an Edge API response or opened offline via the Scans library.
   rendering a Continuous Spectrum Timeline using `Rectangle` scaling with a
   connecting gradient pipeline. An AI Acknowledgment Banner is integrated
   beneath the Spectrum Timeline.
-- **Safety Block**: `ToxicityBanner` parses
-  `speciesData?.insightData.isPoisonous` and displays yellow cautionary ribbons
-  above the fold when needed. The `else` logic block has been stripped — the
-  banner defaults to an `EmptyView()` when a subject is non-toxic, preserving
+- **Safety Block**: `BiologicalView` derives the current normalized hazard value
+  from its Insight state and passes it explicitly to the Core-owned
+  `ToxicityBanner`. The render-only banner performs no `InferenceEngine` or
+  singleton lookup. It displays hazard-specific severe or cautionary treatment
+  above the fold and emits no view when the supplied value is `none`, preserving
   zero vertical footprint.
 - **Ecological Validations & Legacy Hydration**: Binds fallback indicators for
   "Not biological" or "Not a live capture" cases, routing edge failures into a

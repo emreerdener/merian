@@ -3,11 +3,11 @@ import SwiftUI
 
 struct UserTagsCard: View {
     let scanId: String
-    
+
     @Environment(\.modelContext) private var modelContext
     @Query private var records: [LocalScanRecord]
     @State private var viewModel: UserTagsViewModel
-    
+
     @State private var showingAddTagAlert = false
     @State private var newTagText = ""
     init(
@@ -20,11 +20,11 @@ struct UserTagsCard: View {
             initialValue: UserTagsViewModel(dependencies: dependencies)
         )
     }
-    
+
     var record: LocalScanRecord? {
         records.first
     }
-    
+
     var body: some View {
         if let record = record {
             UserTagsCardContent(
@@ -60,7 +60,7 @@ struct UserTagsCard: View {
             modelContext: modelContext
         )
     }
-    
+
     private func removeTag(_ tag: String, from record: LocalScanRecord) {
         viewModel.removeTag(
             tag,
@@ -78,7 +78,7 @@ private struct UserTagsCardContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            InsightCardHeader(systemImage: "tag", title: "Tags") {
+            MerianCardHeader(systemImage: "tag", title: "Tags") {
                 Spacer()
 
                 Button(action: onAddTapped) {

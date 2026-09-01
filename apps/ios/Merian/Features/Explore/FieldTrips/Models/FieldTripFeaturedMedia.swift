@@ -51,7 +51,7 @@ enum FieldTripFeaturedMediaSource: Equatable {
         isReference ? posterPath : nil
     }
 
-    var gallerySource: InsightImageGalleryItem.Source {
+    var gallerySource: MediaGalleryItem.Source {
         switch self {
         case .userImage(let path):
             .imagePath(path)
@@ -105,8 +105,8 @@ struct FieldTripFeaturedMediaItem: Identifiable, Equatable {
         return parts.joined(separator: ", ")
     }
 
-    var galleryItem: InsightImageGalleryItem {
-        InsightImageGalleryItem(
+    var galleryItem: MediaGalleryItem {
+        MediaGalleryItem(
             id: id,
             source: source.gallerySource,
             referenceAttributionLabel: source.fullscreenAttributionLabel,
@@ -292,10 +292,10 @@ enum FieldTripFeaturedMediaPresentation {
     static func galleryPresentation(
         for items: [FieldTripFeaturedMediaItem],
         selectedItemId: String?
-    ) -> InsightImageGalleryPresentation? {
+    ) -> MediaGalleryPresentation? {
         guard !items.isEmpty else { return nil }
         let selectedIndex = items.firstIndex(where: { $0.id == selectedItemId }) ?? 0
-        return InsightImageGalleryPresentation(
+        return MediaGalleryPresentation(
             items: items.map(\.galleryItem),
             initialSelectedIndex: selectedIndex,
             initialVideoMuted: true

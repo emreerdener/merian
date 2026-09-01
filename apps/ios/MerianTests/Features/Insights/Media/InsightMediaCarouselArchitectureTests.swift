@@ -93,44 +93,51 @@ final class InsightMediaCarouselArchitectureTests: XCTestCase {
 
     func testRootViewsDoNotRegainExtractedDeclarations() throws {
         let root = try carouselSourceRoot()
-        let rootFiles = ["ImagesCarousel.swift", "InsightFullscreenImageCarousel.swift"]
+        let sourceFiles = [
+            root.appendingPathComponent("ImagesCarousel.swift"),
+            try coreMediaCarouselSourceRoot().appendingPathComponent(
+                "Gallery/FullscreenMediaGallery.swift"
+            )
+        ]
         let forbiddenDeclarations = [
             "struct CarouselPageBuilder",
             "struct LensFocusOverlay",
             "struct ImageFocusOverlayLayout",
             "struct InlineVideoPlaybackCarouselPage",
-            "struct FullscreenVideoPlaybackView"
+            "struct FullscreenMediaVideoPlaybackView"
         ]
 
-        for fileName in rootFiles {
-            let contents = try String(
-                contentsOf: root.appendingPathComponent(fileName),
-                encoding: .utf8
-            )
+        for file in sourceFiles {
+            let contents = try String(contentsOf: file, encoding: .utf8)
             for declaration in forbiddenDeclarations {
                 XCTAssertFalse(
                     contents.contains(declaration),
-                    "\(fileName) regained \(declaration)"
+                    "\(file.lastPathComponent) regained \(declaration)"
                 )
             }
         }
     }
 
     func testPlaybackStateRemainsPrivateAndColocated() throws {
-        let root = try carouselSourceRoot()
+        let insightRoot = try carouselSourceRoot()
+        let coreRoot = try coreMediaCarouselSourceRoot()
         let audio = try contents(
-            of: root.appendingPathComponent(
-                "Pages/AudioPlaybackCarouselPage.swift"
+            of: coreRoot.appendingPathComponent(
+                "AudioPlayback/AudioPlaybackCarouselPage.swift"
             )
         )
         XCTAssertTrue(audio.contains("@State private var player: AVAudioPlayer?"))
         XCTAssertTrue(audio.contains("@State private var pendingPlayer:"))
 
-        for path in [
-            "Playback/InlineVideoPlaybackCarouselPage.swift",
-            "Playback/FullscreenVideoPlaybackView.swift"
+        for file in [
+            insightRoot.appendingPathComponent(
+                "Playback/InlineVideoPlaybackCarouselPage.swift"
+            ),
+            coreRoot.appendingPathComponent(
+                "Gallery/FullscreenMediaVideoPlaybackView.swift"
+            )
         ] {
-            let playback = try contents(of: root.appendingPathComponent(path))
+            let playback = try contents(of: file)
             XCTAssertTrue(playback.contains("@State private var player: AVPlayer?"))
             XCTAssertTrue(
                 playback.contains("@State private var playbackObservation")
@@ -205,9 +212,82 @@ final class InsightMediaCarouselArchitectureTests: XCTestCase {
         XCTAssertFalse(fieldTripCarousel.contains("CarouselPageItem"))
     }
 
+    func testCrossFeaturePlaybackAndGalleryOwnersLiveInCore() throws {
+        let repositoryRoot = try repositoryRoot()
+        let insightRoot = try carouselSourceRoot()
+        let coreRoot = try coreMediaCarouselSourceRoot()
+        let movedFiles = [
+            "AudioPlayback/AudioPlaybackCarouselPage.swift",
+            "AudioPlayback/AudioPlaybackPresentation.swift",
+            "Gallery/FullscreenMediaGallery.swift",
+            "Gallery/FullscreenMediaLiveImageView.swift",
+            "Gallery/FullscreenMediaVideoPlaybackView.swift",
+            "MediaGalleryModels.swift",
+            "Video/MediaVideoPlayerView.swift",
+            "Video/VideoPlaybackAvailability.swift",
+            "Video/VideoPlaybackControls.swift"
+        ]
+
+        for relativePath in movedFiles {
+            XCTAssertTrue(
+                FileManager.default.fileExists(
+                    atPath: coreRoot.appendingPathComponent(relativePath).path
+                ),
+                "Core UI is missing \(relativePath)"
+            )
+        }
+
+        for legacyPath in [
+            "InsightFullscreenImageCarousel.swift",
+            "Pages/AudioPlaybackCarouselPage.swift",
+            "Playback/FullscreenVideoPlaybackView.swift",
+            "Playback/InsightVideoPlayerView.swift"
+        ] {
+            XCTAssertFalse(
+                FileManager.default.fileExists(
+                    atPath: insightRoot.appendingPathComponent(legacyPath).path
+                ),
+                "Insights still owns \(legacyPath)"
+            )
+        }
+
+        for file in try swiftFiles(in: coreRoot) {
+            let source = try contents(of: file)
+            let lineCount = source.split(
+                separator: "\n",
+                omittingEmptySubsequences: false
+            ).count
+            XCTAssertLessThanOrEqual(
+                lineCount,
+                600,
+                "\(file.lastPathComponent) has \(lineCount) lines"
+            )
+            XCTAssertFalse(
+                source.contains("media.insight"),
+                "\(file.lastPathComponent) embeds an Insight feedback owner"
+            )
+        }
+
+        let delegate = try contents(
+            of: repositoryRoot.appendingPathComponent(
+                "apps/ios/Merian/Core/Media/AudioPlayerDelegate.swift"
+            )
+        )
+        XCTAssertFalse(delegate.contains("@unchecked Sendable"))
+        XCTAssertTrue(delegate.contains("nonisolated"))
+    }
+
     private func carouselSourceRoot() throws -> URL {
         let root = try repositoryRoot().appendingPathComponent(
             "apps/ios/Merian/Features/Insights/Media/Carousel"
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.path))
+        return root
+    }
+
+    private func coreMediaCarouselSourceRoot() throws -> URL {
+        let root = try repositoryRoot().appendingPathComponent(
+            "apps/ios/Merian/Core/UI/Components/MediaCarousel"
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.path))
         return root

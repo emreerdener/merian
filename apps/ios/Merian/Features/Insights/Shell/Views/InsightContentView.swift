@@ -19,7 +19,7 @@ struct InsightContentView: View {
     @State var isObservationSheetPresented = false
     @State var observationPresentationScanId: String?
     @State var observationPresentationGeneration: UInt64?
-    @State var fullscreenGalleryPresentation: InsightImageGalleryPresentation?
+    @State var fullscreenGalleryPresentation: MediaGalleryPresentation?
     @State var fullscreenGalleryPresentationScanId: String?
     @State var fullscreenGalleryPresentationGeneration: UInt64?
     @State var pendingCandidateSwipeDismissalRequest:

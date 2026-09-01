@@ -1317,12 +1317,16 @@ consults that Keychain entry.
   `httpShouldSetCookies = false`, `urlCache = nil`. TLS pinning via
   `MerianTLSDelegate` is applied to `*.supabase.co` only. **Media and external
   API calls use their own isolated sessions** (never `URLSession.shared`):
-  `LocalImageLoader`, `ArchiveManager`, and
-  `InsightMediaExportManager`/`ExportProcessingActor` each declare a
-  `private static let mediaSession` (30 s / 300 s timeouts);
-  `SimilarSpeciesImageService`, `InferenceEngine`, and `GBIFHeatmapTileService`
-  declare isolated external sessions (10 s / 30 s timeouts) for Wikipedia/GBIF
-  best-effort enrichment fetches. Their SwiftUI consumers own no `URLSession`.
+  `LocalImageLoader`, `ArchiveManager`, and the private actor behind
+  `MediaExportService` each own an isolated media session. The export session is
+  ephemeral and cookie-free, uses 30 s / 300 s timeouts, accepts remote media
+  only from exact-host HTTPS `media.merian.app`, refuses a redirect away from
+  that host before following it, and revalidates the final response URL. Remote
+  preview downsampling remains file-backed through `URLSession.download` and
+  ImageIO. `SimilarSpeciesImageService`, `InferenceEngine`, and
+  `GBIFHeatmapTileService` declare isolated external sessions (10 s / 30 s
+  timeouts) for Wikipedia/GBIF best-effort enrichment fetches. Their SwiftUI
+  consumers own no `URLSession`.
 - **TLS certificate pinning (`MerianTLSDelegate`)**: A private
   `URLSessionDelegate` validates the server certificate chain for
   `*.supabase.co`. The check walks the full chain (leaf → intermediate → root):
@@ -1692,6 +1696,10 @@ consults that Keychain entry.
 - Lives at `Core/Security/EntitlementManager.swift`. Owns the authenticated
   current-launch result of private `get_my_entitlement()`; no complimentary-only
   mode unlocks offline from a prior launch.
+- `AppDIContainer` distributes the manager through `DIContainerModifier` so
+  reactive presentation owners such as `BiologicalView` observe it from the
+  environment. Render-only Core UI such as `ModelTierBadge` receives prepared
+  values and never resolves this singleton directly.
 - Exposes `currentPlan`, `currentTier`, paid status, total scans remaining,
   unheld scans available to start, in-flight holds, and the monotonic
   entitlement version.

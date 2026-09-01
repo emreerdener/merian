@@ -1331,8 +1331,9 @@ The transaction log for every successful identification.
   display-image set for a video scan.
 - `is_flagged` (Boolean): Identification-review state only. Owner disputes set
   it atomically with a `flagged_reviews` insert through
-  `20260831120000_submit_owned_flag_issue_atomically.sql`; Explore post-content
-  reports never change it.
+  `20260831120000_submit_owned_flag_issue_atomically.sql` and its final
+  `20260901032158_repair_owned_flag_issue_insert_detection.sql` routine
+  definition; Explore post-content reports never change it.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` and
   the ownerless forward migrations for account deletion. Retained rows have no
   owner and clear media, semantic/public location labels, device context, custom
@@ -1752,14 +1753,17 @@ against its fully migrated disposable PostgreSQL catalog.
 Captures user feedback disputing an identification or inference. It is not the
 moderation queue for reports about public Explore post content.
 
-`20260831120000_submit_owned_flag_issue_atomically.sql` installs the
-service-only `submit_owned_flag_issue` transaction. It conditionally admits the
-authenticated owner of a non-tombstoned row, lets the review trigger retain the
-Admin-compatible review-case-before-scan lock order, then revalidates ownership
-under the scan row lock. The review insert and updates to `scans.is_flagged`
-plus `human_intervention_notes` commit together. Current Community-detail
-**Report post** actions use `explore_post_reports`; the `/flag-issue` old-client
-bridge also writes that post queue and never creates an identification flag.
+`20260831120000_submit_owned_flag_issue_atomically.sql` introduces the
+service-only `submit_owned_flag_issue` transaction, and
+`20260901032158_repair_owned_flag_issue_insert_detection.sql` installs its final
+definition without requiring `flagged_reviews` read access. It conditionally
+admits the authenticated owner of a non-tombstoned row, detects the inserted row
+through `ROW_COUNT`, lets the review trigger retain the Admin-compatible
+review-case-before-scan lock order, then revalidates ownership under the scan
+row lock. The review insert and updates to `scans.is_flagged` plus
+`human_intervention_notes` commit together. Current Community-detail **Report
+post** actions use `explore_post_reports`; the `/flag-issue` old-client bridge
+also writes that post queue and never creates an identification flag.
 
 - `id` (UUID): Primary key.
 - `scan_id` (UUID - Foreign Key): References `scans`.

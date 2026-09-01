@@ -19,7 +19,7 @@ struct DidYouKnowCard: View {
         VStack(alignment: .leading, spacing: 16) {
 
             // Header
-            InsightCardHeader(systemImage: "info.circle", title: "Did you know?")
+            MerianCardHeader(systemImage: "info.circle", title: "Did you know?")
 
             // Rotating fact
             ZStack(alignment: .topLeading) {
@@ -73,7 +73,7 @@ struct DidYouKnowCard: View {
         .gesture(
             DragGesture(minimumDistance: 30)
                 .onEnded { value in
-                    // Horizontal swipe to change facts 
+                    // Horizontal swipe to change facts
                     if value.translation.width < -20 {
                         advance()
                     } else if value.translation.width > 20 {
@@ -85,11 +85,11 @@ struct DidYouKnowCard: View {
             // Defer decoding and deck preparation until the first layout has
             // completed.
             await factManager.prepareIfNeeded()
-            
+
             // Modern iOS clock API prevents runaway ms loops
             try? await Task.sleep(for: .seconds(8.5))
             guard !Task.isCancelled else { return }
-            
+
             advance()
         }
     }
