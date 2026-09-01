@@ -35,28 +35,12 @@ write_summary() {
     }' > "$summary_path"
 }
 
-reported_case_name() {
-  case "$1" in
-    testSubmitFlagRejectsChangedScanIdentity)
-      printf '%s\n' "Submit Flag Rejects Changed Scan Identity"
-      ;;
-    testSubmitFlagRejectsStaleSameScanCompletion)
-      printf '%s\n' "Submit Flag Rejects Stale Same-Scan Completion"
-      ;;
-    *)
-      printf '%s\n' "$1"
-      ;;
-  esac
-}
-
 write_test_tree() {
   local omitted_suite="${1:-}"
   local omitted_case="${2:-}"
-  local omitted_reported_case
-  omitted_reported_case="$(reported_case_name "$omitted_case")"
   jq -n \
     --arg omitted_suite "$omitted_suite" \
-    --arg omitted_case "$omitted_reported_case" \
+    --arg omitted_case "$omitted_case" \
     '
       def test_case($name):
         {
@@ -234,10 +218,6 @@ write_test_tree() {
             suite("FieldChatPresentationPreparationTests"; [
               "testConcurrentPresentationRequestsSharePreparationResult",
               "testFieldChatReplacesPreparationForChangedSubject"
-            ]),
-            suite("ReportInsightViewModel Tests"; [
-              "display:Submit Flag Rejects Changed Scan Identity",
-              "display:Submit Flag Rejects Stale Same-Scan Completion"
             ])
           ]
           | map(select(.name != $omitted_suite))
@@ -421,8 +401,6 @@ required_cases=(
   "testConcurrentPresentationRequestsSharePreparationResult"
   "testFieldChatRejectsStaleSubjectCompletion"
   "testFieldChatReplacesPreparationForChangedSubject"
-  "testSubmitFlagRejectsChangedScanIdentity"
-  "testSubmitFlagRejectsStaleSameScanCompletion"
 )
 
 for omitted_case in "${required_cases[@]}"; do
@@ -432,9 +410,8 @@ done
 
 for skipped_case in "${required_cases[@]}"; do
   write_test_tree
-  skipped_reported_case="$(reported_case_name "$skipped_case")"
   jq \
-    --arg skipped_case "$skipped_reported_case" \
+    --arg skipped_case "$skipped_case" \
     '
       (
         ..

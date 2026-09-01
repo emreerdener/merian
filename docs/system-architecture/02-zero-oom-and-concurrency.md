@@ -91,9 +91,9 @@ zombies.
 ### DRY SwiftData Boilerplate Abstraction (`BackgroundDatabaseActor`)
 
 Repeating `FetchDescriptor` and localized `try? modelContext.save()` blocks
-across different inference override endpoints (`updateScanWithOverride`,
-`updateScanAsFlagged`) injected unnecessary SQLite boilerplate and compilation
-overhead. These endpoints are consolidated efficiently via a shared
+across different inference review mutations (`updateScanWithOverride`,
+`updateScanAsUnflagged`) injected unnecessary SQLite boilerplate and compilation
+overhead. These mutations are consolidated efficiently via a shared
 `private func mutateScan(id: String, mutation: (LocalScanRecord) -> Void)`. By
 stripping repeated fetches and saves, localized data mutations are isolated
 within primitive Swift closures, protecting background threads and streamlining
@@ -1384,6 +1384,37 @@ parent toast. The shared system-toast and milestone overlays occupy distinct
 presentation states so only one bottom feedback layer mounts at a time. Feature
 animation sleeps that perform no teardown may still use cancellation-tolerant
 behavior where explicitly appropriate.
+
+### Species Dictionary Catalog Selection and Request Generations
+
+The Explore Identify/Index catalog can receive overlapping work from its initial
+`.task`, search-driven `.task(id:)`, pull-to-refresh, and near-end pagination.
+Task cancellation alone is insufficient because an endpoint adapter may finish
+after cancellation, and a normalized selection can follow an A → B → A sequence
+that makes value-only checks ambiguous.
+
+`SpeciesDictionaryCatalogView` therefore records the normalized
+`SpeciesDictionaryCatalogSelection` before the 300-millisecond search debounce.
+`SpeciesDictionaryCatalogViewModel` increments a request generation at that
+boundary, tracks requested, loaded, and active-initial selections separately,
+and commits a first page only when cancellation, generation, requested
+selection, and active-initial selection all still agree. Identical root tasks
+share one active initial load. Pagination is admitted only when the requested
+selection still equals the loaded selection, so retained rows cannot request a
+page under a replacement selection that has not loaded or has failed.
+
+Refresh deliberately starts a new generation and supersedes active pagination.
+Failures for the currently loaded selection preserve its usable rows and cursor;
+stale success or failure completions publish nothing. Overview and region-map
+owners use their own latest-request-wins generations. The map owner clears
+`isLoading` in a generation-checked `defer`, including cancellation, so leaving
+the surface cannot strand the next presentation in a loading state.
+
+The focused Catalog view-model tests cover search replacement, A → B → A
+reversion, refresh/pagination overlap, failed replacement pagination
+suppression, overview/map stale completion, and map cancellation. Architecture
+tests also lock the pre-debounce selection update so moving it below the sleep
+cannot silently reopen the race.
 
 ### Owner-Scoped Media Observation
 

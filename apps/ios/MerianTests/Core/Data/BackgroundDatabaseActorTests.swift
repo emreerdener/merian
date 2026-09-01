@@ -1764,8 +1764,6 @@ struct BackgroundDatabaseActorTests {
         #expect(fetched?.userReviewStateRaw == "ai_confirmed", "userReviewStateRaw must be 'ai_confirmed'")
     }
 
-    // MARK: - updateScanAsFlagged / updateScanAsUnflagged: V31 moderation review persistence
-
     // MARK: - fetchPendingScans: non-pending exclusion (V33)
 
     @Test func testFetchPendingScansExcludesNonPendingScans() async throws {
@@ -1924,29 +1922,7 @@ struct BackgroundDatabaseActorTests {
         #expect(stateById[attentionEmpty.id]?.0 == .pending)
     }
 
-    // MARK: - updateScanAsFlagged / updateScanAsUnflagged: V31 moderation review persistence
-
-    @Test func testUpdateScanAsFlaggedSetsFlag() async throws {
-        let container = try createIsolatedContainer()
-        let context = ModelContext(container)
-
-        let record = LocalScanRecord(
-            speciesId: "flag-actor-test",
-            scientificName: "Aedes aegypti",
-            commonName: "Yellow Fever Mosquito",
-            isFlagged: false
-        )
-        context.insert(record)
-        try context.save()
-        let scanId = record.id
-
-        let actor = BackgroundDatabaseActor(modelContainer: container)
-        await actor.updateScanAsFlagged(scanId: scanId)
-
-        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-        let fetched = try context.fetch(descriptor).first
-        #expect(fetched?.isFlagged == true, "updateScanAsFlagged must persist isFlagged=true")
-    }
+    // MARK: - updateScanAsUnflagged: legacy moderation state cleanup
 
     @Test func testUpdateScanAsUnflaggedRemovesFlag() async throws {
         let container = try createIsolatedContainer()

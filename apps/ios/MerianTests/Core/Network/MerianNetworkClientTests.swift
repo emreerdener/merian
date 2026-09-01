@@ -2,6 +2,10 @@ import Foundation
 @testable import Merian
 import Testing
 
+private extension String {
+    var utf8Data: Data { Data(utf8) }
+}
+
 /// Intercepts network requests for MerianNetworkClient testing
 class MockURLProtocol: URLProtocol {
     static var mockEndpoints: [String: ((URLRequest) throws -> (HTTPURLResponse, Data))] = [:]
@@ -100,11 +104,11 @@ final class ScopedMockURLProtocol: URLProtocol {
     fileprivate static let scopeHeader = "X-Merian-Test-Scope"
     private static let registry = Registry()
 
-    override class func canInit(with _: URLRequest) -> Bool {
+    override static func canInit(with _: URLRequest) -> Bool {
         true
     }
 
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
         request
     }
 
@@ -210,6 +214,12 @@ private final class NetworkRequestProbe: @unchecked Sendable {
         return requestCount
     }
 
+    var isEmpty: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return requestCount == 0
+    }
+
     var recordedIdempotencyKeys: [String?] {
         lock.lock()
         defer { lock.unlock() }
@@ -262,8 +272,8 @@ struct MerianNetworkClientTests {
         let (firstData, _) = try await firstResult
         let (secondData, _) = try await secondResult
 
-        #expect(String(decoding: firstData, as: UTF8.self) == "first")
-        #expect(String(decoding: secondData, as: UTF8.self) == "second")
+        #expect(String(bytes: firstData, encoding: .utf8) == "first")
+        #expect(String(bytes: secondData, encoding: .utf8) == "second")
     }
 
     @Test func testUnauthorizedRecoveryOnlyRegeneratesAuthoritativelyMissingGuestSessions() {
@@ -645,7 +655,7 @@ struct MerianNetworkClientTests {
                 "common_name": "Raccoon"
             }
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         
         MockURLProtocol.mockEndpoints["/identify"] = { request in
@@ -754,7 +764,7 @@ struct MerianNetworkClientTests {
                 ]
             }
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         
         let scanID = "a1849d51-7a55-4bb0-931f-a49d880f69c7"
@@ -1051,7 +1061,7 @@ struct MerianNetworkClientTests {
         // bounded monotonic deadline for the observable transport boundary
         // this test intends to cancel.
         let firstRequestDeadline = ContinuousClock.now.advanced(by: .seconds(5))
-        while probe.count == 0 && ContinuousClock.now < firstRequestDeadline {
+        while probe.isEmpty && ContinuousClock.now < firstRequestDeadline {
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(probe.count == 1)
@@ -1286,7 +1296,7 @@ struct MerianNetworkClientTests {
             "ai_request_already_completed",
             "ai_request_in_progress",
             "scan_already_complete",
-            "scan_already_finalized",
+            "scan_already_finalized"
         ]
 
         for code in recoverableCodes {
@@ -3115,7 +3125,7 @@ struct MerianNetworkClientTests {
                 "wikipedia_overview": null
             }
         }
-        """.data(using: .utf8)!
+        """.utf8Data
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -3205,7 +3215,7 @@ struct MerianNetworkClientTests {
                 "wikipedia_overview": null
             }
         }
-        """.data(using: .utf8)!
+        """.utf8Data
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -3256,7 +3266,7 @@ struct MerianNetworkClientTests {
                 ]
             }
         }
-        """.data(using: .utf8)!
+        """.utf8Data
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -3308,7 +3318,7 @@ struct MerianNetworkClientTests {
                 ]
             }
         }
-        """.data(using: .utf8)!
+        """.utf8Data
 
         let audioOnlyResponse = try decoder.decode(ExplorePostResponse.self, from: audioOnlyData)
 
@@ -3383,7 +3393,7 @@ struct MerianNetworkClientTests {
                 "ranking_value": null
             }
         }
-        """.data(using: .utf8)!
+        """.utf8Data
 
         let legacyResponse = try decoder.decode(ExplorePostResponse.self, from: legacyData)
 
@@ -3645,7 +3655,7 @@ struct MerianNetworkClientTests {
                 }
             ]
         }
-        """.data(using: .utf8)!
+        """.utf8Data
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -3736,7 +3746,7 @@ struct MerianNetworkClientTests {
                 }
             ]
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
 
         MockURLProtocol.mockEndpoints["/get-explore-feed"] = { request in
@@ -3794,7 +3804,7 @@ struct MerianNetworkClientTests {
                 }
             ]
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
 
         MockURLProtocol.mockEndpoints["/get-explore-feed"] = { request in
@@ -3868,7 +3878,7 @@ struct MerianNetworkClientTests {
         {
             "data": []
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
 
         MockURLProtocol.mockEndpoints["/get-explore-feed"] = { request in
@@ -3922,7 +3932,7 @@ struct MerianNetworkClientTests {
                 }
             ]
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
 
         MockURLProtocol.mockEndpoints["/get-community-identification-feed"] = { request in
@@ -4036,7 +4046,7 @@ struct MerianNetworkClientTests {
                 "updated_at": "2026-06-20T23:58:00.000Z"
             }
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
 
         MockURLProtocol.mockEndpoints["/update-community-identification-request"] = { request in
@@ -4132,7 +4142,7 @@ struct MerianNetworkClientTests {
                 ]
             }
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
 
         MockURLProtocol.mockEndpoints["/get-explore-author-profile"] = { request in
@@ -4200,7 +4210,7 @@ struct MerianNetworkClientTests {
                 "before_post_id": "post-author-page-123"
             }
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
 
         MockURLProtocol.mockEndpoints["/get-explore-author-posts"] = { request in
@@ -4347,7 +4357,7 @@ struct MerianNetworkClientTests {
             "following_count": 4,
             "viewer_is_following": true
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
 
         MockURLProtocol.mockEndpoints["/set-user-follow"] = { request in
@@ -4398,7 +4408,7 @@ struct MerianNetworkClientTests {
                 }
             ]
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
 
         MockURLProtocol.mockEndpoints["/get-explore-comments"] = { request in
@@ -4442,7 +4452,7 @@ struct MerianNetworkClientTests {
                 }
             ]
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
 
         MockURLProtocol.mockEndpoints["/get-explore-comment-replies"] = { request in
@@ -4482,7 +4492,7 @@ struct MerianNetworkClientTests {
             },
             "comment_count": 3
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
 
         MockURLProtocol.mockEndpoints["/create-explore-comment"] = { request in
@@ -4523,7 +4533,7 @@ struct MerianNetworkClientTests {
                 }
             ]
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         
         MockURLProtocol.mockEndpoints["/generate-upload-urls"] = { request in
@@ -4590,7 +4600,7 @@ struct MerianNetworkClientTests {
                 }
             ]
         }
-        """.data(using: .utf8)!
+        """.utf8Data
         let mockResponse = HTTPURLResponse(
             url: URL(string: "https://example.com")!,
             statusCode: 200,
@@ -5270,19 +5280,27 @@ struct MerianNetworkClientTests {
         )
     }
     
-    @Test func testSubmitFlagIssue() async throws {
+    @Test func testReportExplorePost() async throws {
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-        MockURLProtocol.mockEndpoints["/flag-issue"] = { request in
-            #expect(request.url?.path.hasSuffix("/flag-issue") == true)
+        MockURLProtocol.mockEndpoints["/report-explore-post"] = { request in
+            #expect(request.url?.path.hasSuffix("/report-explore-post") == true)
             #expect(request.httpMethod == "POST")
+
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            #expect(payload.count == 3)
+            #expect(payload["post_id"] as? String == "00000000-0000-4000-8000-000000000101")
+            #expect(payload["reason"] as? String == "Inappropriate content")
+            #expect(payload["details"] as? String == "Reported from Community request")
             return (mockResponse, Data())
         }
         
-        try await MerianNetworkClient.shared.submitFlagIssue(
-            scanId: "scan_123",
-            flagReason: "incorrect_species",
-            userSuggestion: "It's a cat not a dog.",
-            userId: "user_456"
+        try await MerianNetworkClient.shared.reportExplorePost(
+            postId: "00000000-0000-4000-8000-000000000101",
+            reason: "Inappropriate content",
+            details: "Reported from Community request"
         )
     }
 
@@ -5379,7 +5397,7 @@ struct MerianNetworkClientTests {
     @Test func testTLSChainWalkingAcceptsIntermediateCertWhenLeafIsUnknown() {
         let pinnedHashes: Set<String> = [
             "known_leaf_hash_abc123==",
-            "known_intermediate_hash_xyz==",
+            "known_intermediate_hash_xyz=="
         ]
 
         // Simulate a cert chain where the leaf has ROTATED (new hash) but the
@@ -5403,7 +5421,7 @@ struct MerianNetworkClientTests {
     @Test func testTLSChainWalkingRejectsUnknownChain() {
         let pinnedHashes: Set<String> = [
             "pinned_leaf_hash==",
-            "pinned_intermediate_hash==",
+            "pinned_intermediate_hash=="
         ]
 
         let unknownChain = ["unknown_leaf==", "unknown_intermediate==", "unknown_root=="]
@@ -5875,7 +5893,7 @@ struct MerianNetworkClientTests {
             {
               "avatar_url": "https://media.merian.app/avatars/user/avatar.webp"
             }
-            """.data(using: .utf8)!
+            """.utf8Data
             return (mockResponse, data)
         }
 
@@ -5907,7 +5925,7 @@ struct MerianNetworkClientTests {
             {
               "display_name": "River Wren"
             }
-            """.data(using: .utf8)!
+            """.utf8Data
             return (mockResponse, data)
         }
 

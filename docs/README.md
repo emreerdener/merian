@@ -377,15 +377,19 @@ as their permanent engineering identity.
   normalized/durable playback metadata proves an audio companion. A nested
   captured-media audio reference is accepted only as historical compatibility
   evidence; strict Captured Media Wire V1 writes do not retain one.
-- **Moderation routing contract**: Native Explore post-content reports write the
-  service-only `explore_post_reports` queue through `/report-explore-post`.
-  Identification disputes alone use `/flag-issue`, `flagged_reviews`, and
-  `scans.is_flagged`. Visible non-self author reports use `/report-user` and
-  `user_reports` without automatically blocking the target. Identification,
-  post, comment, and user sources are grouped into private review cases;
-  hide/restore remains separate from explicit resolution. Anonymous public-web
-  reports remain support emails with the immutable post id rather than
-  authenticated database writes.
+- **Moderation routing contract**: Native Explore post-content reports,
+  including **Report post** on a Community Identification detail, write the
+  service-only `explore_post_reports` queue through `/report-explore-post`. The
+  backward-compatible owner-only identification-dispute path uses `/flag-issue`,
+  `flagged_reviews`, and `scans.is_flagged`; its review-row insert and scan
+  update are one locked database transaction. Current iOS has no such call site.
+  The exact signature emitted by older Community clients is bridged to
+  `explore_post_reports` without changing scan review state. Visible non-self
+  author reports use `/report-user` and `user_reports` without automatically
+  blocking the target. Identification, post, comment, and user sources are
+  grouped into private review cases; hide/restore remains separate from explicit
+  resolution. Anonymous public-web reports remain support emails with the
+  immutable post id rather than authenticated database writes.
 
 ## Directory Structure
 

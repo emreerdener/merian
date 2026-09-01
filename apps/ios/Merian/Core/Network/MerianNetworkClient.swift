@@ -5263,20 +5263,6 @@ final class MerianNetworkClient {
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
     }
 
-    // MARK: - Moderation
-
-    func submitFlagIssue(scanId: String, flagReason: String, userSuggestion: String, userId: String) async throws {
-        let functionUrl = try endpointURL("flag-issue")
-        let payload: [String: Any] = [
-            "scanId": scanId,
-            "userId": userId,
-            "flagReason": flagReason,
-            "userSuggestion": userSuggestion
-        ]
-        let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-    }
-
     func blockUser(targetUserId: String) async throws {
         let functionUrl = try endpointURL("block-user")
         let bodyData = try JSONSerialization.data(withJSONObject: ["blocked_id": targetUserId])

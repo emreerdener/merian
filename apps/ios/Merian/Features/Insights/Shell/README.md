@@ -175,7 +175,7 @@ subject-fenced state live under `Features/FieldChat`; the retained
 `InsightChat...` names are compatibility names rather than Shell ownership.
 
 `InsightContentView` enforces that rule with one resolved
-`InsightContentPresentation` value. Safari, report, Community, Explore composer,
+`InsightContentPresentation` value. Safari, Community, Explore composer,
 candidate review, Field Notes, and description share one item-based sheet host;
 the gallery's full-screen binding is mutually exclusive with the same value.
 Destination-specific state remains scan/generation fenced, but it never creates

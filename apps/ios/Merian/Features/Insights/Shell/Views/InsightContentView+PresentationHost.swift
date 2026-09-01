@@ -49,13 +49,6 @@ extension InsightContentView {
            let url = viewModel.state.selectedWikiURL {
             return .safari(scanId: scanId, generation: generation, url: url)
         }
-        if viewModel.state.isFlagIssuePresented,
-           let scanId = inferenceEngine.speciesData?.scanId {
-            return .report(
-                scanId: scanId,
-                engineGeneration: inferenceEngine.scanPresentationGeneration
-            )
-        }
         if observationPresentedBinding.wrappedValue,
            let scanId = observationPresentationScanId,
            let generation = observationPresentationGeneration {
@@ -110,15 +103,6 @@ extension InsightContentView {
             ), viewModel.state.selectedWikiURL == url {
                 SafariView(url: url)
                     .ignoresSafeArea()
-            }
-
-        case .report(let scanId, let engineGeneration):
-            if inferenceEngine.scanPresentationGeneration == engineGeneration,
-               inferenceEngine.speciesData?.scanId?
-                .caseInsensitiveCompare(scanId) == .orderedSame {
-                ReportInsightView(scanId: scanId) {
-                    viewModel.state.toastMessage = .success("Report submitted. Thanks!")
-                }
             }
 
         case .community(let scanId, let communityGeneration, let requestId):
@@ -268,7 +252,7 @@ extension InsightContentView {
                 InsightFullscreenImageCarousel(presentation: gallery)
             }
         case .candidate, .community, .composer, .fieldNotes,
-             .safari, .report, .observation:
+             .safari, .observation:
             EmptyView()
         }
     }
@@ -290,8 +274,6 @@ extension InsightContentView {
             fieldNotesPresentedBinding.wrappedValue = false
         case .safari:
             safariPresentedBinding.wrappedValue = false
-        case .report:
-            viewModel.state.isFlagIssuePresented = false
         case .observation:
             observationPresentedBinding.wrappedValue = false
         }

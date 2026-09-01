@@ -1,12 +1,29 @@
 # Species Dictionary Catalog
 
 The `Catalog` directory contains the browsing interfaces for the complete
-Species Dictionary. In Explore, these surfaces appear directly as
-Identify's **Index** mode; Index is not a bottom-navigation item.
+Species Dictionary. In Explore, these surfaces appear directly as Identify's
+**Index** mode; Index is not a bottom-navigation item.
+
+The canonical behavior and backend contract remain the
+[Species Dictionary product contract](../../../../../../docs/features-and-hardware/16-species-dictionary.md#overview-and-catalog-modes).
 
 ## Structure
 
-- **Views**: Main catalog grids and list views displaying known species.
+- `Models/` owns the typed category route, normalized browse selection and page
+  request, country-flag policy, overview filtering, stable category routing, and
+  group-row layout values. These are presentation models, not wire DTOs.
+- `Services/` is the only Catalog layer that resolves live endpoint, image
+  loader, geocoder, and MapKit snapshot implementations. Dependencies stay
+  narrow closure values rather than a feature-wide protocol or singleton.
+- `ViewModels/` owns `@MainActor @Observable` catalog, overview, and region-map
+  loading state. Request generations fence stale search, refresh, pagination,
+  and map completions.
+- `Views/` owns the three root compositions: catalog results, overview, and the
+  complete regions list. Search bindings, debounce tasks, pull-to-refresh,
+  navigation, and other UI-only timing remain here.
+- `Components/Catalog`, `Components/Overview`, and `Components/Regions` own
+  their respective rows and cards. `Components/Shared` owns Catalog-only image,
+  skeleton, style, and view-modifier rendering.
 
 ## Purpose
 
@@ -15,13 +32,60 @@ personal observations. `SpeciesDictionaryOverviewView` is the Identify/Index
 root, while catalog, group, region, and species pages push onto Explore's shared
 navigation stack and hide root tab/mode chrome.
 
-Regional browsing is country-based. Overview payloads provide an English
-display title plus an ISO country code backed by normalized GBIF occurrence
-facets. iOS sends the code to catalog mode for exact matching. The personal map
-card remains visible but non-interactive with `Coverage updating` when a valid
-device country has not been hydrated yet; occurrence evidence is described as
-"recorded in" and must not be presented as native range.
+Regional browsing is country-based. Overview payloads provide an English display
+title plus an ISO country code backed by normalized GBIF occurrence facets. iOS
+sends the code to catalog mode for exact matching. The personal map card remains
+visible but non-interactive with `Coverage updating` when a valid device country
+has not been hydrated yet; occurrence evidence is described as "recorded in" and
+must not be presented as native range.
 
 Species deep links must select Explore Identify/Index before pushing species
 detail. The taxonomy Tree/galaxy map has no MVP entry point; its preserved code
 and API contract remain owned by the sibling `Tree` area.
+
+## Boundaries
+
+- `Core/Network/SpeciesDictionaryAPIModels.swift` remains the owner of Codable
+  DTOs and JSON compatibility. `MerianNetworkClient` remains the transport and
+  endpoint owner; Catalog Services only adapt those calls for observable state.
+- Explore Shell owns the shared `NavigationPath`, Identify/Index selection, and
+  route destination registration. Catalog owns the category route value and
+  emits species-detail routes without creating another navigation stack.
+- Catalog Views and Components do not resolve endpoints, `LocalImageLoader`,
+  geocoding, or map snapshots directly. The remote-image component preserves the
+  existing leaf placeholders while the Service adapter uses the shared cached
+  image loader.
+- A search/category selection change is recorded before the view's debounce, so
+  it immediately invalidates in-flight refresh or pagination work. Older
+  completions cannot publish, and retained rows cannot paginate under a
+  different selection after a replacement request fails. A failed refresh of the
+  current selection still leaves its last usable rows visible. Overview and
+  region-map requests use the same latest-request-wins rule, and map
+  cancellation always releases its loading state. The corresponding
+  [concurrency contract](../../../../../../docs/system-architecture/02-zero-oom-and-concurrency.md#species-dictionary-catalog-selection-and-request-generations)
+  explains why task cancellation is paired with identity and generation checks.
+- Every production Swift file in this directory must remain at or below the
+  600-line review ceiling.
+
+## Tests
+
+Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Catalog/`:
+
+- `SpeciesDictionaryCatalogContractTests` owns the relocated overview/catalog
+  decoding and endpoint-payload tests.
+- `SpeciesDictionaryCatalogPresentationTests` owns country flags, region
+  visibility, category routes/order, and group-row policy.
+- `SpeciesDictionaryCatalogViewModelTests` owns normalization, initial-load
+  de-duplication, pagination, refresh/search/reverted-selection overlap fencing,
+  retained-content errors, and stale-page suppression.
+- `SpeciesDictionaryOverviewViewModelTests` owns normalized region loading,
+  retained-content errors, and stale overview completion.
+- `SpeciesDictionaryRegionMapViewModelTests` owns stale snapshot completion and
+  cancellation cleanup.
+- `SpeciesDictionaryCatalogArchitectureTests` enforces directory ownership,
+  Services-only live resolution, platform-neutral Models, root-view separation,
+  pre-debounce selection fencing, Core-owned wire DTOs, and the 600-line
+  ceiling.
+
+The sibling `SpeciesDictionaryTests` suite continues to own detail-page, Tree,
+share-route, cache, and other non-Catalog behavior.

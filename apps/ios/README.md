@@ -161,6 +161,30 @@ Observable state owners coordinate lifecycle operations, while leaf views retain
 navigation and other UI-only timing. A feature test enforces this boundary and a
 600-line production-file ceiling.
 
+## Species Dictionary Ownership
+
+Species Dictionary is split into three product areas:
+
+- [Catalog](Merian/Features/SpeciesDictionary/Catalog/README.md) owns Explore
+  Identify/Index overview, category search, pagination, and region browsing.
+- [Detail](Merian/Features/SpeciesDictionary/Detail/README.md) owns the public
+  species reference page, reference gallery, share action, and Community
+  sightings.
+- `SpeciesDictionary/Tree` owns the preserved default-off taxonomy canvas and
+  graph presentation.
+
+Within Catalog, Models own normalized browse selections and page requests plus
+typed routes, Services alone resolve the live endpoint, cached image loader,
+geocoder, and map snapshotter, and generation-fenced ViewModels own
+catalog/overview/map loading. Views retain search, refresh, navigation, and
+presentation timing while recording a changed selection before the search
+debounce; grouped Components render without direct networking or concrete
+singleton lookup. Codable wire DTOs remain in
+`Core/Network/SpeciesDictionaryAPIModels.swift`, while Explore Shell remains the
+navigation-stack and Identify/Index selection owner. Mirrored feature tests
+enforce those boundaries, cross-selection race handling, and a 600-line
+production-file ceiling.
+
 ## Capture Ownership
 
 [Capture Shell](Merian/Features/Capture/Shell/README.md) owns the ordered

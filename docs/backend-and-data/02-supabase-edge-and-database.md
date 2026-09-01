@@ -2167,18 +2167,29 @@ durable prefixes.
 
 ## Internal Review, Feedback, and Admin Boundary
 
-Users can flag incorrect taxonomy results from `InsightSheetView`:
+Current Community Identification details report their public post through
+`/report-explore-post`. Legacy owner clients may still dispute their own scan
+without Community context:
 
 - **`flag-issue`**: Accepts authenticated POST requests with `scanId`,
-  `flagReason`, and `userSuggestion`. Validates `scanId` as a well-formed UUID —
-  a non-UUID string is rejected with `HTTP 400` before any database access.
-  Validates `flagReason` against the enum
+  `flagReason`, and optional `userSuggestion`; legacy `userId` and `requestId`
+  properties are accepted as untrusted extra fields and ignored. It validates
+  `scanId` as a UUID and `flagReason` against
   `["Incorrect species", "Inappropriate content", "Bad image quality", "Other"]`
-  — values outside this set are also rejected with `HTTP 400`. Evaluates a
-  preemptive DB boundary check, securely hooking into PostgreSQL foreign-key
-  constraint violations (`23503`) implicitly converting missing offline
-  references into a clean `HTTP 404` rejection stream to properly shield
-  downstream logs from transient offline sync race-condition 500 alerts.
+  before database access. The service-only `submit_owned_flag_issue` transaction
+  conditionally admits the exact JWT owner, follows the existing
+  review-case-before-scan lock order, revalidates ownership under the scan row
+  lock, and commits the review insert and scan update together. Missing and
+  tombstoned scans, plus non-owner identification disputes, return `HTTP 404`.
+- **Old Community-client bridge**: A non-owner request can proceed only when it
+  exactly matches the old **Report post** signature (`Inappropriate content` /
+  `Reported from Community request`). The handler resolves the scan's single
+  possible active Community request, applies the viewer-visible detail
+  projection, confirms the exact request/post/scan relationship, revalidates the
+  post, and upserts `explore_post_reports`. This path never writes an
+  identification-review row or changes scan review state. The one-candidate
+  invariant follows from unique `explore_posts.scan_id` and
+  `explore_community_requests.post_id` constraints.
 - **`flagged_reviews` table** (`00005_flagged_reviews.sql`): Stores
   identification review requests tied to the reviewing `user_id`, defaulting to
   `PENDING_REVIEW`. Explore post-content reports do not use this table.

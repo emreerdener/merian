@@ -108,7 +108,6 @@ final class InsightSheetViewModel {
         var isFieldNotesSheetPresented = false
         var fieldNotesPresentationScanId: String?
         var fieldNotesPresentationGeneration: UInt64?
-        var isFlagIssuePresented = false
         var showDeleteConfirmation = false
         var showMediaSaveAlert = false
         var lastMediaSaveResult = MediaSaveResult()

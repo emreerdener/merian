@@ -899,10 +899,10 @@ an Edge API response or opened offline via the Scans library.
     preserves value-type toolbar data across SwiftData deletion/dismissal
     boundaries, and share feedback/candidate-review state is kept out of SwiftUI
     view bodies.
-  - `InsightContentView` resolves Safari, report, Community request, Explore
-    composer, candidate review, Field Notes, observation description, and media
-    gallery through one typed presentation value. One item-based sheet owns the
-    modal cases; a mutually exclusive full-screen binding owns the gallery. No
+  - `InsightContentView` resolves Safari, Community request, Explore composer,
+    candidate review, Field Notes, observation description, and media gallery
+    through one typed presentation value. One item-based sheet owns the modal
+    cases; a mutually exclusive full-screen binding owns the gallery. No
     destination adds a sibling sheet host to the same Insight content root.
   - `InsightSheetViewModel` keeps stored state, initialization, and reset in its
     Shell root. Named Shell extensions own lifecycle, local records,
@@ -978,14 +978,12 @@ an Edge API response or opened offline via the Scans library.
   - Structural sub-elements sit with their owning product areas:
     `ImagesCarousel` in `Media/Carousel/`, `ToxicityBanner` in
     `Shared/Banners/`, specialized confidence/status UI in
-    `IdentificationReview/Confidence/`, and report issue UI in `Reporting/`.
-    Cross-feature milestone notification chrome and scan-completion coordination
-    live in `Core/UI/Feedback/` so Field trip progress, achievement unlocks, and
-    dictionary-contribution milestones share one queue and visual system. UIKit
-    SDK wrappers (like the `SFSafariViewController` bridge) are moved to
-    `Core/UI/Components/SafariView.swift`. `ReportInsightView` keeps API `Task`
-    network closures in `Reporting/ViewModels/ReportInsightViewModel.swift`
-    following `@MainActor` MVVM.
+    `IdentificationReview/Confidence/`. Cross-feature milestone notification
+    chrome and scan-completion coordination live in `Core/UI/Feedback/` so Field
+    trip progress, achievement unlocks, and dictionary-contribution milestones
+    share one queue and visual system. UIKit SDK wrappers (like the
+    `SFSafariViewController` bridge) are moved to
+    `Core/UI/Components/SafariView.swift`.
 - **Adaptive Dark Mode & System Materials**: All hardcoded dark-mode overrides
   were removed. The sheet maps to Apple's adaptive `.ultraThinMaterial`
   backgrounds, responding to the user's system appearance and maintaining

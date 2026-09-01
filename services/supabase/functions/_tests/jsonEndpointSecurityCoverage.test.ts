@@ -8,6 +8,8 @@ const revenueCatHandlerUrl = new URL(
   "../revenuecat-webhook/handler.ts",
   import.meta.url,
 );
+const flagIssueIndexUrl = new URL("../flag-issue/index.ts", import.meta.url);
+const flagIssueDbUrl = new URL("../flag-issue/db.ts", import.meta.url);
 const waitlistRouteUrl = new URL(
   "../../../../apps/web/app/api/waitlist/route.ts",
   import.meta.url,
@@ -155,6 +157,45 @@ Deno.test("shared body and error boundaries retain their security invariants", a
   assert(
     !revenueCat.includes("async function readBoundedBody"),
     "Signed webhooks must reuse the canonical raw byte reader.",
+  );
+});
+
+Deno.test("flag-issue keeps owner flags separate from legacy post reports", async () => {
+  const [indexSource, dbSource] = await Promise.all([
+    Deno.readTextFile(flagIssueIndexUrl),
+    Deno.readTextFile(flagIssueDbUrl),
+  ]);
+
+  const ownerSubmission = indexSource.indexOf("await submitOwnedFlagIssue(");
+  const legacyResolution = indexSource.indexOf(
+    "await resolveLegacyCommunityPostReport(",
+  );
+  const postReport = indexSource.indexOf("await upsertExplorePostReport(");
+  assert(
+    ownerSubmission >= 0 && legacyResolution > ownerSubmission &&
+      postReport > legacyResolution,
+    "flag-issue must try the atomic owner path before its legacy post-report bridge.",
+  );
+  for (
+    const fragment of [
+      'supabaseAdmin.rpc("submit_owned_flag_issue"',
+      'flagReason === "Inappropriate content"',
+      'userSuggestion === "Reported from Community request"',
+      '.from("explore_community_requests")',
+      '.select("id,post_id")',
+      ".maybeSingle()",
+      '"get_community_identification_detail"',
+      "target_request_id: request.id",
+      "detail.scan_id.toLowerCase() !== scanId.toLowerCase()",
+      "detail.post_id.toLowerCase() !== request.post_id.toLowerCase()",
+    ]
+  ) {
+    assertStringIncludes(dbSource, fragment);
+  }
+  assert(
+    !dbSource.includes('.from("flagged_reviews")') &&
+      !dbSource.includes('.from("scans")'),
+    "flag-issue must not recreate the atomic owner mutation as sequential Edge writes.",
   );
 });
 

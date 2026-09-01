@@ -1037,9 +1037,9 @@ done < <(
     }
   ' "$critical_results_check"
 )
-[[ "$protected_case_count" == "100" ]] \
+[[ "$protected_case_count" == "98" ]] \
   || fail \
-    "Expected 100 exact protected iOS test cases; found $protected_case_count."
+    "Expected 98 exact protected iOS test cases; found $protected_case_count."
 
 for exact_scan_regression in \
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual" \

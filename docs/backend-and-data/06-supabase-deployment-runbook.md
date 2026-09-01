@@ -6809,6 +6809,32 @@ supplies or overwrites the hosted Apple credential. For local schema-only work,
 a placeholder is sufficient. Use a real development credential only when
 exercising the Apple OAuth flow.
 
+### Flag-issue compatibility release order
+
+The changed `/flag-issue` bundle depends on
+`20260831120000_submit_owned_flag_issue_atomically.sql`. Apply and verify that
+migration before deploying the Function; deploying the caller first would turn
+legacy owner disputes into an unavailable-RPC failure. Current iOS Community
+reporting is independent of this order because it already calls
+`/report-explore-post` with the exact post ID.
+
+Candidate evidence must include the static migration contract, Deno database
+adapter and security coverage, and a non-skipped
+`tests/flag_issue_submission_security.sql` run against the fully migrated
+disposable catalog. The catalog case must prove service-only execution,
+owner/non-owner/tombstone outcomes, review-case grouping, scan context, and
+rollback of the review plus case when the scan update fails. Do not treat a
+database-test skip or source-only pass as release evidence.
+
+After the migration and Function are both present on a controlled target, use
+disposable records to prove three routes: an owner dispute commits the review,
+case, scan flag, and context together; an arbitrary non-owner dispute returns
+`404`; and the exact older Community signature writes only
+`explore_post_reports` for a viewer-visible request. Never include real report
+text, account identity, scan coordinates, or response bodies in retained
+evidence. Preserve the additive service-only routine during rollback and ship a
+forward correction if its database contract must change.
+
 ## Internal Admin Release
 
 The private admin system has a strict dependency order because the browser must

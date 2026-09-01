@@ -1328,13 +1328,19 @@ Blocking:
 Reporting:
 
 - V1 should support reporting both posts and comments for safety review.
-- After a successful report, the client should locally hide the reported post or
-  comment for that reporting user immediately rather than waiting for a full
-  feed refresh.
+- After a successful report, feed/card owners should locally hide the reported
+  post or comment for that reporting user instead of waiting for a full feed
+  refresh. A standalone Community Identification detail preserves its current
+  screen and confirms the write with feedback.
 - Native post reports use `/report-explore-post` and the service-only
   `explore_post_reports` queue. They must not call `/flag-issue`, create a
   `flagged_reviews` row, or change `scans.is_flagged`; those belong only to
   identification review.
+- The Community Identification detail's **Report post** action is a native post
+  report and sends its exact `postId` through the same endpoint. The
+  `/flag-issue` server retains only an old-client bridge for its exact
+  historical Community report signature; that bridge writes
+  `explore_post_reports` and never changes identification-review state.
 - One native post-report row is retained per `(post_id, reporter_user_id)`.
   Repeat submissions may refresh the report context but must preserve an
   existing `DISMISSED` or `ACTIONED` moderation status.

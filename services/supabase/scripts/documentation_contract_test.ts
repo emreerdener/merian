@@ -277,6 +277,101 @@ Deno.test("database documentation preserves migration, RLS, and index safety", a
   );
 });
 
+Deno.test("moderation documentation preserves post and identification routing", async () => {
+  const [
+    apiSource,
+    safetySource,
+    identifyReadmeSource,
+    flagReadmeSource,
+    deploymentSource,
+    adminSource,
+    backendSource,
+    codebaseMapSource,
+    identifyDependenciesSource,
+    networkClientSource,
+    insightFeatureSource,
+  ] = await Promise.all([
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("docs/development-guides/10-safety-and-moderation.md"),
+    read("apps/ios/Merian/Features/Explore/Identify/README.md"),
+    read("services/supabase/functions/flag-issue/README.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("docs/backend-and-data/10-internal-admin.md"),
+    read("services/supabase/README.md"),
+    read("docs/codebase-map.md"),
+    read(
+      "apps/ios/Merian/Features/Explore/Identify/Services/CommunityIdentificationViewModelDependencies.swift",
+    ),
+    read("apps/ios/Merian/Core/Network/MerianNetworkClient.swift"),
+    read("docs/features-and-hardware/05-insight-sheet.md"),
+  ]);
+
+  const api = compact(apiSource);
+  const safety = compact(safetySource);
+  const identifyReadme = compact(identifyReadmeSource);
+  const flagReadme = compact(flagReadmeSource);
+  const deployment = compact(deploymentSource);
+  const admin = compact(adminSource);
+  const backend = compact(backendSource);
+  const identifyDependencies = compact(identifyDependenciesSource);
+
+  assertStringIncludes(
+    api,
+    "Current iOS does not call this endpoint. The Community Identification detail's **Report post** action",
+  );
+  assertStringIncludes(
+    safety,
+    "Every current native **Report post** action—including Community Identification detail—sends the exact post ID to `/report-explore-post`.",
+  );
+  assertStringIncludes(
+    identifyReadme,
+    "Identify Services adapter with the detail's exact `postId`",
+  );
+  assertStringIncludes(
+    flagReadme,
+    "Any other non-owner request returns `HTTP 404`.",
+  );
+  assertStringIncludes(
+    deployment,
+    "Apply and verify that migration before deploying the Function",
+  );
+  assertStringIncludes(
+    admin,
+    "commits the review, case, scan flag, and review context together",
+  );
+  assertStringIncludes(
+    backend,
+    "`functions/flag-issue/` has no current iOS caller",
+  );
+  assertStringIncludes(
+    identifyDependencies,
+    'MerianNetworkClient.shared.reportExplorePost( postId: request.postId, reason: "Inappropriate content", details: "Reported from Community request"',
+  );
+  assert(
+    !networkClientSource.includes("submitFlagIssue"),
+    "The retired iOS /flag-issue client path returned.",
+  );
+  assert(
+    !insightFeatureSource.includes("ReportInsight"),
+    "The retired Insight reporting surface returned to feature documentation.",
+  );
+
+  const exploreHeadingIndex = codebaseMapSource.indexOf("Explore and social:");
+  const flagEntryMatches = [
+    ...codebaseMapSource.matchAll(/^- `flag-issue`/gm),
+  ];
+  const dataLifecycleHeadingIndex = codebaseMapSource.indexOf(
+    "Data lifecycle, identity, and exports:",
+  );
+  assert(exploreHeadingIndex >= 0, "Missing Explore and social inventory.");
+  assertEquals(flagEntryMatches.length, 1);
+  assert(
+    flagEntryMatches[0].index > exploreHeadingIndex &&
+      flagEntryMatches[0].index < dataLifecycleHeadingIndex,
+    "flag-issue must remain in the Explore/social inventory.",
+  );
+});
+
 Deno.test("operator documentation preserves destructive-queue and evidence rules", async () => {
   const [
     canonicalSource,
@@ -1221,7 +1316,6 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     collectionAlertModifierImplementationSource,
     candidateCardImplementationSource,
     namePreferencesImplementationSource,
-    reportInsightImplementationSource,
     inferenceEngineImplementationSource,
     insightContentImplementationSource,
     candidateSwipeImplementationSource,
@@ -1332,9 +1426,6 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     ]),
     read(
       "apps/ios/Merian/Features/Insights/Content/ViewModels/InsightSheetViewModel+NamePreferences.swift",
-    ),
-    read(
-      "apps/ios/Merian/Features/Insights/Reporting/ViewModels/ReportInsightViewModel.swift",
     ),
     read("apps/ios/Merian/Core/AI/InferenceEngine.swift"),
     Promise.all([
@@ -2188,10 +2279,6 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   assertStringIncludes(
     compact(namePreferencesImplementationSource),
     "generation: expectedGeneration",
-  );
-  assertStringIncludes(
-    compact(reportInsightImplementationSource),
-    "engine.scanPresentationGeneration == presentationGeneration",
   );
   assertStringIncludes(
     compact(reliabilitySource),

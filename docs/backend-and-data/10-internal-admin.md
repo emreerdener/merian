@@ -253,6 +253,18 @@ New intake rows are attached by trigger:
 | `explore_comment_reports` | `explore_comment_report` | Comment ID       |
 | `user_reports`            | `user_report`            | Reported user ID |
 
+The intake route determines which source family is created. Current native
+**Report post** actions, including Community Identification detail, call
+`/report-explore-post` with the exact post ID and create only
+`explore_post_reports`. The backward-compatible `/flag-issue` route creates a
+`flagged_reviews` source only for a JWT-authenticated owner disputing their own
+non-tombstoned scan. Its service-only `submit_owned_flag_issue` transaction lets
+the review trigger attach the case before taking the scan row lock, revalidates
+ownership under that lock, and commits the review, case, scan flag, and review
+context together. The exact signature emitted by older Community clients is
+instead routed to `explore_post_reports`; it never creates an identification
+case or changes `scans.is_flagged`.
+
 Grouping uses a transaction advisory lock per case. The first report from an
 independent reporter increments `report_count`; a new independent reporter
 reopens a resolved/dismissed case and clears terminal resolution state. Another

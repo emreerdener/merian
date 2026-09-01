@@ -623,17 +623,4 @@ assert_suite_has_passed_test_case \
   "FieldChatPresentationPreparationTests" \
   "Field Chat Presentation Preparation Tests" \
   "testFieldChatReplacesPreparationForChangedSubject"
-assert_suite_has_passed_test_case \
-  "Issue-reporting presented-scan identity fence" \
-  "ReportInsightViewModelTests" \
-  "ReportInsightViewModel Tests" \
-  "testSubmitFlagRejectsChangedScanIdentity" \
-  "Submit Flag Rejects Changed Scan Identity"
-assert_suite_has_passed_test_case \
-  "Issue-reporting same-scan presentation-generation fence" \
-  "ReportInsightViewModelTests" \
-  "ReportInsightViewModel Tests" \
-  "testSubmitFlagRejectsStaleSameScanCompletion" \
-  "Submit Flag Rejects Stale Same-Scan Completion"
-
 echo "Critical iOS suites and exact scan-flow regressions reported passed test cases."

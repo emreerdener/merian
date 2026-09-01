@@ -321,7 +321,6 @@ extension InsightSheetViewModel {
         state.isFieldNotesSheetPresented = false
         state.fieldNotesPresentationScanId = nil
         state.fieldNotesPresentationGeneration = nil
-        state.isFlagIssuePresented = false
         state.isInsightChatSheetPresented = false
         state.isCandidateSwipePresented = false
         state.candidateSwipePresentationSource = .standard

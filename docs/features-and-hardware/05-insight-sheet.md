@@ -534,12 +534,12 @@ requested request UUID; a mismatch preserves the current draft and follows the
 normal invalid-response feedback path.
 
 `InsightContentView` maps its independently-owned destination state into one
-typed `InsightContentPresentation`. Safari, report, Community request, Explore
-composer, candidate review, Field Notes, and observation description share one
-item-based sheet host; the media gallery uses a full-screen binding filtered
-from that same mutually exclusive value. Destination callbacks keep their
-existing scan and generation fences, but no destination may add a sibling sheet
-modifier to the Insight content root.
+typed `InsightContentPresentation`. Safari, Community request, Explore composer,
+candidate review, Field Notes, and observation description share one item-based
+sheet host; the media gallery uses a full-screen binding filtered from that same
+mutually exclusive value. Destination callbacks keep their existing scan and
+generation fences, but no destination may add a sibling sheet modifier to the
+Insight content root.
 
 The outer `InsightSheetView` has a separate single typed slot for paywall,
 Field-trip author, Field Chat, Explore onboarding, and Explore. It retains at
@@ -550,14 +550,7 @@ stale, replaced, or disallowed requests are cleared instead of creating a second
 presenter. `SwipeableCandidateCard` follows the same local rule for its original
 capture, candidate gallery, and distinguishing-feature sheets.
 
-The delete alert captures its target when opened. `ReportInsightViewModel`
-rejects issue submission unless its supplied scan still matches the engine
-result, before either the remote report or local flag can mutate. Its completion
-also requires the captured engine presentation generation, so an A → B → A cycle
-cannot dismiss or confirm the newer report sheet. A callback from an older
-render can therefore neither mutate the prior observation accidentally nor apply
-its state to the new presentation, including an A → B → A switch where the same
-UUID returns under a newer presentation.
+The delete alert captures its target when opened.
 
 Identification hydration and persistence carry the original scan, scientific
 name, presentation generation, and latest review-action generation through

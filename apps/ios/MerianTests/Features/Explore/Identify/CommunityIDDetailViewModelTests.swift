@@ -12,7 +12,7 @@ struct CommunityIDDetailViewModelTests {
         let taxon = CommunityIdentificationTestFixtures.taxon()
         var loadCount = 0
         var updates: [CommunityIdentificationUpdateRequest] = []
-        var reports: [CommunityIdentificationReportRequest] = []
+        var postReports: [CommunityIdentificationPostReportRequest] = []
         var submissions: [CommunityIdentificationSubmissionRequest] = []
         var withdrawnIds: [String] = []
         var restoredIds: [String] = []
@@ -29,12 +29,11 @@ struct CommunityIDDetailViewModelTests {
                     return detail
                 },
                 updateRequest: { updates.append($0) },
-                reportRequest: { reports.append($0) },
+                reportPost: { postReports.append($0) },
                 submitIdentification: { submissions.append($0) },
                 withdrawIdentification: { withdrawnIds.append($0) },
                 restoreIdentification: { restoredIds.append($0) },
                 currentUserId: { "author-1" },
-                reportUserId: { "reporter-1" },
                 requestDidChange: { changedRequestIds.append($0) },
                 successFeedback: { successFeedbackCount += 1 },
                 selectionFeedback: { selectionFeedbackCount += 1 },
@@ -69,8 +68,7 @@ struct CommunityIDDetailViewModelTests {
         #expect(updates.first?.requestId == "request-1")
         #expect(updates.first?.note == "Updated note")
         #expect(updates.first?.locationSharing == .privateLocation)
-        #expect(reports.first?.scanId == detail.scanId)
-        #expect(reports.first?.userId == "reporter-1")
+        #expect(postReports.first?.postId == detail.postId)
         #expect(submissions.first?.requestId == "request-1")
         #expect(submissions.first?.taxonId == taxon.taxonId)
         #expect(submissions.first?.disagreementMode == .maverick)
@@ -94,14 +92,13 @@ struct CommunityIDDetailViewModelTests {
             dependencies: CommunityIdentificationDetailViewModel.Dependencies(
                 loadDetail: { _ in try CommunityIdentificationTestFixtures.detail() },
                 updateRequest: { _ in },
-                reportRequest: { _ in },
+                reportPost: { _ in },
                 submitIdentification: { _ in
                     throw CommunityIdentificationTestError.expected
                 },
                 withdrawIdentification: { _ in },
                 restoreIdentification: { _ in },
                 currentUserId: { nil },
-                reportUserId: { "reporter-1" },
                 requestDidChange: { changedRequestIds.append($0) },
                 successFeedback: {},
                 selectionFeedback: {},
@@ -124,6 +121,40 @@ struct CommunityIDDetailViewModelTests {
         #expect(errorFeedbackCount == 1)
     }
 
+    @Test func failedPostReportRestoresInteractionState() async throws {
+        let detail = try CommunityIdentificationTestFixtures.detail()
+        var reportedPostIds: [String] = []
+        var errorFeedbackCount = 0
+
+        let viewModel = CommunityIdentificationDetailViewModel(
+            requestId: detail.requestId,
+            dependencies: CommunityIdentificationDetailViewModel.Dependencies(
+                loadDetail: { _ in detail },
+                updateRequest: { _ in },
+                reportPost: { request in
+                    reportedPostIds.append(request.postId)
+                    throw CommunityIdentificationTestError.expected
+                },
+                submitIdentification: { _ in },
+                withdrawIdentification: { _ in },
+                restoreIdentification: { _ in },
+                currentUserId: { nil },
+                requestDidChange: { _ in },
+                successFeedback: {},
+                selectionFeedback: {},
+                errorFeedback: { errorFeedbackCount += 1 },
+                errorMessage: { _ in "expected error" }
+            )
+        )
+
+        await viewModel.report(detail)
+
+        #expect(reportedPostIds == [detail.postId])
+        #expect(!viewModel.isReporting)
+        #expect(viewModel.toastMessage != nil)
+        #expect(errorFeedbackCount == 1)
+    }
+
     @Test func presentationCallbacksRetainMutationSuccessOrdering() async throws {
         let detail = try CommunityIdentificationTestFixtures.detail()
         let taxon = CommunityIdentificationTestFixtures.taxon()
@@ -137,12 +168,11 @@ struct CommunityIDDetailViewModelTests {
                     return detail
                 },
                 updateRequest: { _ in events.append("update") },
-                reportRequest: { _ in },
+                reportPost: { _ in },
                 submitIdentification: { _ in events.append("submit") },
                 withdrawIdentification: { _ in },
                 restoreIdentification: { _ in },
                 currentUserId: { nil },
-                reportUserId: { "reporter-1" },
                 requestDidChange: { _ in events.append("event") },
                 successFeedback: { events.append("success") },
                 selectionFeedback: {},

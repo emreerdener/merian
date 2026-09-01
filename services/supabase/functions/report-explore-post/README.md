@@ -4,9 +4,17 @@ Authenticated moderation ingress for reports about public Explore post content.
 This pipeline is deliberately separate from identification review:
 
 - Post-content reports write `public.explore_post_reports`.
-- Identification disputes write `public.flagged_reviews` through `/flag-issue`.
+- Backward-compatible owner identification disputes write
+  `public.flagged_reviews` through `/flag-issue`; current iOS has no dispute
+  call site.
 - Reporting a post never changes `scans.is_flagged` or
   `scans.human_intervention_notes`.
+
+The current iOS Explore feed, post detail, and Community Identification detail
+all use this endpoint for a visible **Report post** action. The Community detail
+adapter submits its exact `postId`; it does not submit the backing scan or
+request identifier. `/flag-issue` reuses these database helpers only to preserve
+the semantics of the exact report signature emitted by older Community clients.
 
 ## Request
 
@@ -40,8 +48,9 @@ expose the service-role key to either iOS or the public web client.
 
 ## Client behavior
 
-- Native Explore calls this endpoint and locally removes the reported post after
-  a successful response.
+- Native Explore calls this endpoint. Feed/card owners locally remove reported
+  content where they already own that collection; Community detail preserves its
+  existing screen and confirms success with feedback.
 - The anonymous public web detail page does not call this endpoint. Its centered
   **Report this post** action opens a support email containing the immutable
   public post id.

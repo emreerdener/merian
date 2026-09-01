@@ -65,12 +65,11 @@ extension CommunityIdentificationDetailViewModel.Dependencies {
                 locationSharing: request.locationSharing
             )
         },
-        reportRequest: { request in
-            try await MerianNetworkClient.shared.submitFlagIssue(
-                scanId: request.scanId,
-                flagReason: "Inappropriate content",
-                userSuggestion: "Reported from Community request",
-                userId: request.userId
+        reportPost: { request in
+            try await MerianNetworkClient.shared.reportExplorePost(
+                postId: request.postId,
+                reason: "Inappropriate content",
+                details: "Reported from Community request"
             )
         },
         submitIdentification: { request in
@@ -93,10 +92,6 @@ extension CommunityIdentificationDetailViewModel.Dependencies {
             )
         },
         currentUserId: { SupabaseManager.shared.currentUser?.id.uuidString },
-        reportUserId: {
-            SupabaseManager.shared.currentUser?.id.uuidString
-                ?? DeviceIdentityManager.shared.deviceId
-        },
         requestDidChange: {
             AppDIContainer.shared.appEventPublisher.send(
                 .communityIdentificationRequestChanged(requestId: $0)

@@ -1,15 +1,15 @@
 # Internal Admin Operations Runbook
 
-This runbook covers local development, project configuration, deployment,
-access administration, pricing maintenance, incident response, and verification
-for `admin.naturebook.earth`. Read the architecture and security contract in
+This runbook covers local development, project configuration, deployment, access
+administration, pricing maintenance, incident response, and verification for
+`admin.naturebook.earth`. Read the architecture and security contract in
 [`10-internal-admin.md`](./10-internal-admin.md) first.
 
 ## Ownership and change control
 
-The production admin app is a high-sensitivity surface. Changes to authentication,
-authorization, admin RPCs, report visibility, AI pricing, audit behavior, or
-moderation projections require:
+The production admin app is a high-sensitivity surface. Changes to
+authentication, authorization, admin RPCs, report visibility, AI pricing, audit
+behavior, or moderation projections require:
 
 1. Review by a current owner or designated security reviewer.
 2. A fresh migration reset and both admin pgTAP suites.
@@ -17,18 +17,18 @@ moderation projections require:
    type-check, and production build.
 4. Public-web and relevant iOS verification when public projections or reporting
    contracts change.
-5. A recorded rollout and rollback decision. Never solve an incident by adding
-   a service-role key to the admin deployment.
+5. A recorded rollout and rollback decision. Never solve an incident by adding a
+   service-role key to the admin deployment.
 
 ## Required configuration
 
 The admin deployment has exactly three application variables:
 
-| Variable | Local example | Production value |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Local Supabase API URL | Project URL from Supabase |
+| Variable                        | Local example              | Production value                       |
+| ------------------------------- | -------------------------- | -------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Local Supabase API URL     | Project URL from Supabase              |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Local anon/publishable key | Project publishable or legacy anon key |
-| `NEXT_PUBLIC_ADMIN_ORIGIN` | `http://localhost:3000` | `https://admin.naturebook.earth` |
+| `NEXT_PUBLIC_ADMIN_ORIGIN`      | `http://localhost:3000`    | `https://admin.naturebook.earth`       |
 
 All three are public browser configuration. Do not add
 `SUPABASE_SERVICE_ROLE_KEY`, a secret API key, direct database credentials,
@@ -66,10 +66,10 @@ npm ci
 npm run dev
 ```
 
-Use the URL/key printed by `supabase --workdir services status` in
-`.env.local`. Set `NEXT_PUBLIC_ADMIN_ORIGIN=http://localhost:3000`. If port 3000
-is occupied, use a deliberate alternate port and add its exact callback URL to
-the local Auth redirect allowlist.
+Use the URL/key printed by `supabase --workdir services status` in `.env.local`.
+Set `NEXT_PUBLIC_ADMIN_ORIGIN=http://localhost:3000`. If port 3000 is occupied,
+use a deliberate alternate port and add its exact callback URL to the local Auth
+redirect allowlist.
 
 For local Google OAuth, the provider must be configured for the local Supabase
 Auth callback as well as the admin application's callback. Do not test the admin
@@ -161,18 +161,17 @@ npm run typecheck
 npm run build
 ```
 
-The same ordered application gate runs in
-`.github/workflows/admin-quality.yml` for every pull request and every affected
-push to `main`. Pull requests are intentionally not path-filtered so the
-required check always reports. Do not deploy from a commit whose admin-quality
-job was skipped, cancelled, or failed. The registry-backed audit is
-intentionally blocking: high/critical findings and an unavailable audit
-registry both stop the admin release. `lib/dependency-security.test.ts`
-independently checks the frozen Next.js, PostCSS, and Sharp versions and
-protects the workflow sequence from silent drift.
+The same ordered application gate runs in `.github/workflows/admin-quality.yml`
+for every pull request and every affected push to `main`. Pull requests are
+intentionally not path-filtered so the required check always reports. Do not
+deploy from a commit whose admin-quality job was skipped, cancelled, or failed.
+The registry-backed audit is intentionally blocking: high/critical findings and
+an unavailable audit registry both stop the admin release.
+`lib/dependency-security.test.ts` independently checks the frozen Next.js,
+PostCSS, and Sharp versions and protects the workflow sequence from silent
+drift.
 
-In the GitHub repository ruleset, require
-`Naturebook Admin Quality / test` as a
+In the GitHub repository ruleset, require `Naturebook Admin Quality / test` as a
 [status check](https://docs.github.com/en/pull-requests/reference/status-checks)
 before a pull request can merge. In the separate admin Vercel project's
 [Deployment Checks](https://vercel.com/docs/deployment-checks) settings, add
@@ -198,15 +197,15 @@ For a dependency update, change the manifest and committed lockfile together,
 review all resolved and optional-native package changes, and run the complete
 registry-backed gate. Keep the PostCSS/Sharp overrides until a reviewed stable
 Next.js release declares equal or newer dependencies. A high/critical finding
-may not be bypassed by changing the audit threshold, deleting the floor test,
-or using Vercel Force Promote. Any exceptional waiver needs an owner/security
-review, documented reachability and compensating controls, an expiry date, and
-a follow-up issue before production promotion.
+may not be bypassed by changing the audit threshold, deleting the floor test, or
+using Vercel Force Promote. Any exceptional waiver needs an owner/security
+review, documented reachability and compensating controls, an expiry date, and a
+follow-up issue before production promotion.
 
 If public Explore projections or `/report-user` changed, also run the public-web
-test/typecheck/build and the relevant iOS network test plus an unsigned simulator
-build. Do not waive a new advisor finding without documenting why it is
-unrelated or a known repository-wide finding.
+test/typecheck/build and the relevant iOS network test plus an unsigned
+simulator build. Do not waive a new advisor finding without documenting why it
+is unrelated or a known repository-wide finding.
 
 ## Deployment order
 
@@ -233,7 +232,8 @@ Use the normal CI deployment workflow when possible. The required order is:
 9. Run the production smoke tests below before announcing availability.
 
 For a manual emergency database/function deployment, use the established
-commands in [`06-supabase-deployment-runbook.md`](./06-supabase-deployment-runbook.md).
+commands in
+[`06-supabase-deployment-runbook.md`](./06-supabase-deployment-runbook.md).
 Never run a partial shared-helper deployment without its transitive consumers.
 
 ## Production smoke tests
@@ -288,6 +288,14 @@ third-party analytics request occurs in browser network tools.
 
 - Create reports from two independent disposable users and confirm one grouped
   case with `report_count = 2`.
+- From a disposable Community Identification detail, use **Report post** and
+  confirm the exact post creates an `explore_post_reports` source without a
+  `flagged_reviews` row, `scans.is_flagged` change, or intervention-note change.
+- Against a disposable owned, non-tombstoned scan, exercise `/flag-issue` and
+  confirm the `flagged_reviews` source, attached identification case, scan flag,
+  and review context appear together. An arbitrary non-owner request must return
+  `404`; the exact old-Community-client signature may succeed only for a
+  viewer-visible request and must still create only an Explore post report.
 - Resolve it, submit new evidence from the same reporter, and confirm it stays
   terminal; submit from a new reporter and confirm it reopens.
 - Hide and restore a disposable post/comment. Confirm hide does not resolve the
@@ -322,8 +330,9 @@ third-party analytics request occurs in browser network tools.
 Pricing is historical data. Never update an existing price row in place after
 events have used it.
 
-1. Check the official [Gemini pricing table](https://ai.google.dev/gemini-api/docs/pricing)
-   and record the review date/source in the change description.
+1. Check the official
+   [Gemini pricing table](https://ai.google.dev/gemini-api/docs/pricing) and
+   record the review date/source in the change description.
 2. Determine the exact model, modality, service tier, prompt-size tier, and
    effective instant. The current estimator supports one Standard price per
    model/modality and does not model long-context or grounding charges.
@@ -337,7 +346,8 @@ events have used it.
 
 When a model introduces pricing the schema cannot represent, extend the schema
 and tests before using that model in production. Do not force a long-context,
-batch, flex, priority, grounding, or media-output price into the current columns.
+batch, flex, priority, grounding, or media-output price into the current
+columns.
 
 ## Audit and privacy operations
 
@@ -347,11 +357,12 @@ batch, flex, priority, grounding, or media-output price into the current columns
 - Keep review/feedback notes to 1,000 characters or fewer. The note table allows
   4,000, but current mutation RPCs also record the note in the audit reason,
   whose bound is 1,000.
-- Raw report/feedback/chat data must be handled only in the admin UI. Do not paste
-  it into tickets or chat systems unless the separate system is approved for that
-  data class.
-- Account deletion clears AI account linkage but retains aggregate usage/cost. It
-  does not delete immutable staff audit records whose actor is still referenced.
+- Raw report/feedback/chat data must be handled only in the admin UI. Do not
+  paste it into tickets or chat systems unless the separate system is approved
+  for that data class.
+- Account deletion clears AI account linkage but retains aggregate usage/cost.
+  It does not delete immutable staff audit records whose actor is still
+  referenced.
 - V1 has no export. Do not add an ad hoc SQL/CSV export without a separate
   authorization, privacy, retention, and audit design.
 
@@ -359,8 +370,8 @@ batch, flex, priority, grounding, or media-output price into the current columns
 
 ### Suspected admin-account compromise
 
-1. An unaffected owner revokes every visible session for the account and disables
-   its membership.
+1. An unaffected owner revokes every visible session for the account and
+   disables its membership.
 2. A Supabase project operator checks Auth sessions/identities and performs the
    provider/account recovery procedure.
 3. Review audit events by actor, target, action, request ID, and time. Preserve
@@ -386,9 +397,9 @@ batch, flex, priority, grounding, or media-output price into the current columns
 
 Primary scan/message trigger failures are transactional and should be treated as
 write-path incidents. Independent best-effort failures emit structured
-`ai_usage_ledger_write_failed` logging and create a known coverage gap. Record the
-affected operation/time window, repair only from durable token metadata, use the
-idempotent source key, and keep the repaired rows labeled accurately.
+`ai_usage_ledger_write_failed` logging and create a known coverage gap. Record
+the affected operation/time window, repair only from durable token metadata, use
+the idempotent source key, and keep the repaired rows labeled accurately.
 
 ### Complimentary hold or settlement incident
 
@@ -438,8 +449,7 @@ manual moderation:
 5. verify profile visible count, preview, and paginated grid agree on the
    canonical projection;
 6. verify the owner incident queue and publication/recovery summary remain
-   available and post/engagement rows
-   remain intact;
+   available and post/engagement rows remain intact;
 7. restore only from a strongly matched owner file or reviewed recovery source;
    and
 8. let a healthy result clear system quarantine automatically, while preserving
@@ -469,27 +479,28 @@ criteria are in the
   fail new provider work closed and repair forward. Reverting the global mode
   would also reactivate legacy trial and obsolete-client behavior and requires
   separate explicit product/security incident authority.
-- Do not down-migrate by dropping `internal`, audit rows, notes, review grouping,
-  moderation columns, or usage events. These contain durable operational history.
+- Do not down-migrate by dropping `internal`, audit rows, notes, review
+  grouping, moderation columns, or usage events. These contain durable
+  operational history.
 - If a public projection regression occurs, remove access to the admin frontend,
   restore the last known-good projection functions through a forward migration,
   and verify hidden content remains fail-closed.
 
 ## Troubleshooting
 
-| Symptom | Check |
-|---|---|
-| OAuth returns to login | Exact redirect allowlist, Google provider config, callback `code`, public URL/key, and valid origin-only `NEXT_PUBLIC_ADMIN_ORIGIN` |
+| Symptom                                                    | Check                                                                                                                                                                 |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OAuth returns to login                                     | Exact redirect allowlist, Google provider config, callback `code`, public URL/key, and valid origin-only `NEXT_PUBLIC_ADMIN_ORIGIN`                                   |
 | Repeated anonymous `admin_get_access_state` 401/42501 logs | Confirm the deployed admin includes the server-side `auth.getUser()` preflight and that middleware/routes use `getAccessState()` rather than calling the RPC directly |
-| Member sees “not authorized” | Exact Auth UUID, active membership, confirmed email, non-anonymous account, Google identity |
-| User loops through MFA | Factor status, `currentLevel`, fresh token after verify, browser cookie domain |
-| “Start a new Google session” | Internal session is idle/expired/revoked; sign out and begin a new OAuth session |
-| Mutation says invalid origin | `NEXT_PUBLIC_ADMIN_ORIGIN`, reverse-proxy `Host`/`X-Forwarded-Host`, browser `Origin` |
-| Dependency audit cannot reach registry | Expected fail-closed release stop; restore registry/network availability and rerun the same commit |
-| Dependency floor test fails | Review the resolved lockfile graph and restore/upgrade the explicit Next.js, PostCSS, or Sharp pin/override; never weaken the floor |
-| Vercel build is ready but domain is not promoted | Confirm the exact commit's required `Naturebook Admin Quality / test` Deployment Check is present and successful |
-| Direct table read fails | Expected; use an authorized RPC, never add browser table grants |
-| Aggregate appears stale | Five-minute authorized cache; use the Refresh control |
-| Queue appears stale | Queue is uncached; check filters/cursor and the 30-second refresh |
-| Estimated cost is null/low | Missing exact model/modality effective price, partial history, or unreported tokens |
-| User report returns 404 | Target profile is not visible to that viewer under the author-profile contract |
+| Member sees “not authorized”                               | Exact Auth UUID, active membership, confirmed email, non-anonymous account, Google identity                                                                           |
+| User loops through MFA                                     | Factor status, `currentLevel`, fresh token after verify, browser cookie domain                                                                                        |
+| “Start a new Google session”                               | Internal session is idle/expired/revoked; sign out and begin a new OAuth session                                                                                      |
+| Mutation says invalid origin                               | `NEXT_PUBLIC_ADMIN_ORIGIN`, reverse-proxy `Host`/`X-Forwarded-Host`, browser `Origin`                                                                                 |
+| Dependency audit cannot reach registry                     | Expected fail-closed release stop; restore registry/network availability and rerun the same commit                                                                    |
+| Dependency floor test fails                                | Review the resolved lockfile graph and restore/upgrade the explicit Next.js, PostCSS, or Sharp pin/override; never weaken the floor                                   |
+| Vercel build is ready but domain is not promoted           | Confirm the exact commit's required `Naturebook Admin Quality / test` Deployment Check is present and successful                                                      |
+| Direct table read fails                                    | Expected; use an authorized RPC, never add browser table grants                                                                                                       |
+| Aggregate appears stale                                    | Five-minute authorized cache; use the Refresh control                                                                                                                 |
+| Queue appears stale                                        | Queue is uncached; check filters/cursor and the 30-second refresh                                                                                                     |
+| Estimated cost is null/low                                 | Missing exact model/modality effective price, partial history, or unreported tokens                                                                                   |
+| User report returns 404                                    | Target profile is not visible to that viewer under the author-profile contract                                                                                        |

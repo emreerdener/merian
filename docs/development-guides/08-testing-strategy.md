@@ -1129,11 +1129,8 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   - **Inference tier**: Validates Flash vs Pro confidence band thresholds via
     `MerianConfig.confidenceBands(forInferenceTier:)`. Asserts nil tier resolves
     to Flash for safety.
-  - **Moderation Flagging**: Asserts `flagAIIdentification` seamlessly mutates
-    the offline tracking property `isFlagged` purely natively ahead of
-    networking attempts (`testFlagAIIdentificationMutatesLocalState`), and
-    strictly restores from `LocalScanRecord` on cold boot
-    (`testLoadFromRecordPopulatesIsFlagged`).
+  - **Legacy moderation state**: Asserts `isFlagged` restores from
+    `LocalScanRecord` on cold boot (`testLoadFromRecordPopulatesIsFlagged`).
 - **`SpeciesDictionaryTests.swift`**: Validates the public dictionary response
   decoder, additive `content_quality`, legacy no-`schema_version` compatibility,
   client-side quality fallback for old payloads, species-ID-preferred request
@@ -1145,6 +1142,21 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   policy coverage also rejects a cancelled Field Chat preflight or one that
   completes while another Dictionary destination owns the slot, while accepting
   case-insensitive identity for the same canonical UUID.
+- **`Features/SpeciesDictionary/Catalog/`**: Mirrors Catalog production
+  ownership. `SpeciesDictionaryCatalogContractTests` owns relocated overview and
+  catalog decoding plus exact endpoint-payload coverage;
+  `SpeciesDictionaryCatalogPresentationTests` owns country flags, visible
+  regions, category routing/order, and group-row policy;
+  `SpeciesDictionaryCatalogViewModelTests` owns normalized initial loading,
+  duplicate-task suppression, pagination, refresh/search/reverted-selection
+  overlap fencing, failed-replacement page suppression, and retained-content
+  failures; `SpeciesDictionaryOverviewViewModelTests` owns normalized loading,
+  retained-content failure, and stale completion;
+  `SpeciesDictionaryRegionMapViewModelTests` owns stale completion and
+  cancellation cleanup; and `SpeciesDictionaryCatalogArchitectureTests` enforces
+  Services-only live resolution, platform-neutral Models, Core-owned wire DTOs,
+  separated root views, pre-debounce selection fencing, and the 600-line
+  production-file ceiling.
 - **`Features/Explore/Feed/ExplorePostFieldChatPresentationPolicyTests.swift`**:
   Locks the post-detail async commit gate: the post identity must remain
   current, cancellation must be false, and the typed modal slot must be empty.
@@ -1188,8 +1200,8 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   five states (`.pending`, `.uploading`, `.staged`, `.inferencing`, `.failed`)
   and asserts `fetchPendingScans` returns only the `.pending` record — directly
   validating the V33 `scanStateRaw == 0` predicate that prevents re-dispatching
-  in-flight or tombstoned scans. Also covers `updateScanWithOverride`,
-  `updateScanAsFlagged`, and `updateScanAsUnflagged` persistence paths.
+  in-flight or tombstoned scans. Also covers `updateScanWithOverride` and the
+  legacy-state cleanup path in `updateScanAsUnflagged`.
 - **`FileIOActorTests.swift`**: Covers the audio persistence resolver across the
   current supported path shapes: bare Documents filename, bare temp filename,
   and absolute temp path. This is the regression suite for "audio disappears
@@ -2353,18 +2365,22 @@ iOS focused coverage:
 - `Features/Explore/Identify/CommunityIDDetailViewModelTests.swift`,
   `CommunityTaxonomySearchViewModelTests.swift`, and
   `CommunityFeedbackViewModelTests.swift` verify detail ownership and mutation
-  adapters, typed request-change events, mutation-state restoration and success
-  ordering, pinned-version search, debounce-independent search outcomes,
-  4,000-character feedback validation, trimming, success, and failure
-  restoration.
+  adapters, exact `postId` routing for **Report post**, typed request-change
+  events, mutation-state restoration and success ordering, pinned-version
+  search, debounce-independent search outcomes, 4,000-character feedback
+  validation, trimming, success, and failure restoration.
 - `Features/Explore/Shell/ExploreShellNavigationPolicyTests.swift` locks the
   exact three root tabs plus species-to-Index and request-to-Requests deep-link
   policy. Identify presentation and asynchronous state tests remain with
-  Identify, while dictionary decoding and detail behavior remain in
+  Identify. Catalog decoding, presentation, asynchronous state, and architecture
+  tests live in `Features/SpeciesDictionary/Catalog/`; detail, Tree, share, and
+  memoization behavior remains in
   `Features/SpeciesDictionary/SpeciesDictionaryTests.swift`.
 - `Core/Network/MerianNetworkClientTests.swift` decodes all Activity item fields
   and verifies `limit`, shared scope/group filters, plus paired
-  `(before_activity_at, before_activity_id)` payload construction.
+  `(before_activity_at, before_activity_id)` payload construction. It also locks
+  the Community detail's post-report payload to `/report-explore-post` and
+  prevents scan/request identifiers from re-entering that client path.
 - `Core/Utilities/MerianConfigTests.swift` verifies a temporary service failure
   uses Recent activity-specific copy rather than the generic Explore outage
   message.
@@ -2384,6 +2400,18 @@ Backend focused coverage:
   consensus changes, separate resolutions, owner/group filters, equal-time
   cursor stability, blocking, shadowban, tombstone, unshare, quarantine, missing
   media, and reopened request generations.
+- `flag-issue/db_test.ts` covers the atomic owner-RPC adapter, exact old-client
+  Community fingerprint, one-request resolution, exact post/scan matching, and
+  fail-closed database/projection errors.
+- `_tests/flagIssueMigrationContract.test.ts` locks the owner check, scan row
+  lock, all-or-nothing review/scan mutation, empty search path, and service-only
+  execution grant. `_tests/jsonEndpointSecurityCoverage.test.ts` independently
+  rejects sequential Edge scan/review writes and requires the compatibility post
+  upsert to follow both owner and Community-visibility decisions.
+- `tests/flag_issue_submission_security.sql` proves the service-only invocation
+  ACL, owner/non-owner/tombstone outcomes, internal review grouping, scan notes,
+  and transaction rollback under a forced scan-update failure on the fully
+  migrated disposable database.
 
 The PostgreSQL suite may explicitly return early when no test database is
 available. That is discovery/compile evidence only. Production acceptance still
@@ -2394,15 +2422,24 @@ Manual root-UI acceptance requires:
 
 1. Exactly Observations, Field trips, and Identify in bottom navigation.
 2. Requests/Index at the Identify root and no Tree/galaxy entry point.
-3. **Identify requests**, banner, 12-card cap, larger section gap, then **Recent
+3. Index overview, catalog, and regions navigation retaining their established
+   loading, empty, error, search, refresh, pagination, VoiceOver, and large
+   Dynamic Type presentation.
+4. Rapid catalog search replacement, selection reversion, refresh/pagination
+   overlap, and map navigation never publishing stale content or leaving a
+   loading state stuck; a current-selection refresh failure retains usable rows.
+5. **Identify requests**, banner, 12-card cap, larger section gap, then **Recent
    activity** with 10-row cap.
-4. Shared filter behavior across both previews and independent outage/Retry
+6. Shared filter behavior across both previews and independent outage/Retry
    presentation.
-5. **See all requests** and **See all activity** preserving the filter and
+7. **See all requests** and **See all activity** preserving the filter and
    opening **Identify requests** / **Identify activity** stack titles.
-6. Root tab/mode chrome hidden on pushed feeds, with native Back returning to
+8. Root tab/mode chrome hidden on pushed feeds, with native Back returning to
    the dashboard.
-7. Activity rows opening existing request detail.
+9. Activity rows opening existing request detail.
+10. **Report post** on a non-owned Community detail submitting successfully
+    while leaving the detail visible and never changing the backing scan's
+    identification-review presentation.
 
 ## Testing the Species Lookalike Pipeline
 

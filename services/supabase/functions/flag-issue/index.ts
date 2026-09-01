@@ -1,7 +1,18 @@
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { parseJsonBody, requireParams } from "../_shared/http.ts";
-
-import { insertFlagRecord, markScanAsFlagged } from "./db.ts";
+import {
+  parseJsonBody,
+  publicHttpError,
+  requireParams,
+} from "../_shared/http.ts";
+import {
+  fetchReportablePost,
+  upsertExplorePostReport,
+} from "../report-explore-post/db.ts";
+import {
+  isLegacyCommunityPostReport,
+  resolveLegacyCommunityPostReport,
+  submitOwnedFlagIssue,
+} from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -49,22 +60,45 @@ Deno.serve((req: Request) =>
       );
     }
 
-    // 1. Insert a moderation queue record
-    await insertFlagRecord(
+    const result = await submitOwnedFlagIssue(
       scanId,
       user.id,
       flagReason,
-      userSuggestion,
+      userSuggestion as string | undefined,
       supabaseAdmin,
     );
+    if (result === "not_found") {
+      throw publicHttpError(404, "Scan is not available for reporting.");
+    }
 
-    // 2. Mark the scan as flagged natively
-    await markScanAsFlagged(
-      scanId,
-      flagReason,
-      userSuggestion,
-      supabaseAdmin,
-    );
+    if (result === "not_owner") {
+      if (
+        !isLegacyCommunityPostReport(
+          flagReason,
+          userSuggestion as string | undefined,
+        )
+      ) {
+        throw publicHttpError(404, "Scan is not available for reporting.");
+      }
+
+      const target = await resolveLegacyCommunityPostReport(
+        scanId,
+        user.id,
+        supabaseAdmin,
+      );
+      const post = await fetchReportablePost(
+        target.postId,
+        user.id,
+        supabaseAdmin,
+      );
+      await upsertExplorePostReport({
+        postId: target.postId,
+        reporterUserId: user.id,
+        postAuthorUserId: post.postAuthorUserId,
+        reason: flagReason,
+        details: userSuggestion as string,
+      }, supabaseAdmin);
+    }
 
     return jsonResponse(
       { success: true, message: "Report submitted for moderation." },

@@ -12,7 +12,6 @@ enum InsightContentPresentation: Identifiable, Equatable {
     case composer(scanId: String, generation: UInt64, postId: String)
     case fieldNotes(scanId: String, generation: UInt64)
     case safari(scanId: String, generation: UInt64, url: URL)
-    case report(scanId: String, engineGeneration: UInt64)
     case observation(scanId: String, generation: UInt64)
 
     var id: String {
@@ -29,8 +28,6 @@ enum InsightContentPresentation: Identifiable, Equatable {
             "field-notes-\(scanId)-\(generation)"
         case .safari(let scanId, let generation, let url):
             "safari-\(scanId)-\(generation)-\(url.absoluteString)"
-        case .report(let scanId, let engineGeneration):
-            "report-\(scanId)-\(engineGeneration)"
         case .observation(let scanId, let generation):
             "observation-\(scanId)-\(generation)"
         }

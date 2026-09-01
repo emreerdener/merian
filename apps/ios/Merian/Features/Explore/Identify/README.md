@@ -12,7 +12,10 @@ This area lets explorers ask for help with an observation, review recent
 identification activity, open complete request/activity feeds, suggest a taxon,
 and follow community consensus to resolution. The existing Species Dictionary
 overview is rendered as Identify's `Index` mode, although its implementation
-continues to live under `Features/SpeciesDictionary/Catalog`.
+continues to live under
+[`Features/SpeciesDictionary/Catalog`](../../SpeciesDictionary/Catalog/README.md).
+Identify owns the mode switch; Catalog owns Index loading, presentation, and
+typed category routes.
 
 ## Root surfaces
 
@@ -101,6 +104,15 @@ Requests call `/get-community-identification-feed`; Activity calls
 `group` filters. The dashboard limits are exactly 12 Requests and 10 Activity
 groups; backend defaults are not used for previews.
 
+**Report post** on a Community detail calls `/report-explore-post` through the
+Identify Services adapter with the detail's exact `postId`, the fixed
+`Inappropriate content` reason, and `Reported from Community request` context.
+The client does not send reporter identity: the Edge Function derives it from
+the verified JWT, rejects self-reports and unavailable posts, and writes only
+the public-content moderation queue. It never sets identification-review state
+on the backing scan. `/flag-issue` has no current iOS call site; its Edge module
+retains a narrow bridge for older Community clients.
+
 The Activity Edge Function requires a user JWT through the repository's custom
 `withEdgeHandler` authentication boundary, even though platform
 `verify_jwt = false` is configured for that route. It invokes the database RPC
@@ -156,8 +168,12 @@ navigation, visible copy, accessibility, loading states, or interaction timing.
 
 Backend ownership:
 
+- `services/supabase/functions/report-explore-post/`
+- `services/supabase/functions/flag-issue/` (old-client compatibility only)
 - `services/supabase/functions/get-community-identification-activity/`
+- `services/supabase/migrations/20260831120000_submit_owned_flag_issue_atomically.sql`
 - `services/supabase/migrations/20260731050009_add_community_identification_activity.sql`
+- `services/supabase/functions/_tests/flagIssueMigrationContract.test.ts`
 - `services/supabase/functions/_tests/communityIdentificationActivityDb.test.ts`
 - `services/supabase/functions/_tests/communityIdentificationActivityMigrationContract.test.ts`
 
@@ -180,12 +196,17 @@ stable pagination. See:
 
 - `apps/ios/MerianTests/Features/Explore/Identify/`
 - `apps/ios/MerianTests/Features/Explore/Shell/ExploreShellNavigationPolicyTests.swift`
+- `apps/ios/MerianTests/Features/SpeciesDictionary/Catalog/`
 - `apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift`
 - `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift`
 - `apps/ios/MerianTests/Core/Utilities/MerianConfigTests.swift`
 - `services/supabase/functions/get-community-identification-activity/db_test.ts`
+- `services/supabase/functions/flag-issue/db_test.ts`
+- `services/supabase/functions/_tests/flagIssueMigrationContract.test.ts`
+- `services/supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts`
 - `services/supabase/functions/_tests/communityIdentificationActivityDb.test.ts`
 - `services/supabase/functions/_tests/communityIdentificationActivityMigrationContract.test.ts`
+- `services/supabase/tests/flag_issue_submission_security.sql`
 
 Run the focused iOS suites with:
 
@@ -200,6 +221,12 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/CommunityFeedbackViewModelTests \
   -only-testing:merianTests/CommunityIdentificationModelsTests \
   -only-testing:merianTests/ExploreShellNavigationPolicyTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogContractTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogPresentationTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogViewModelTests \
+  -only-testing:merianTests/SpeciesDictionaryOverviewViewModelTests \
+  -only-testing:merianTests/SpeciesDictionaryRegionMapViewModelTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogArchitectureTests \
   -only-testing:merianTests/SpeciesDictionaryTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/MerianConfigTests test

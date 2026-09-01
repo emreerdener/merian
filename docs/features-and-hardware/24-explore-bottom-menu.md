@@ -83,7 +83,12 @@ seen.
   Recently Added row opens the full newest-species list. Pushed category and
   group pages use `SpeciesDictionaryCatalogView`, a searchable and paginated
   catalog powered by the public `species_dictionary` table through the existing
-  `/species-dictionary` Edge Function.
+  `/species-dictionary` Edge Function. Catalog Services adapt that endpoint;
+  selection- and generation-fenced Catalog ViewModels own overview, search,
+  refresh, pagination, and region-map loading. The View records a changed
+  selection before its debounce so superseded refresh/page work cannot publish,
+  while Views and Components remain free of direct endpoint or platform-service
+  lookup.
 - **Tree/galaxy map** is deferred beyond MVP. Its code, `mode: "tree"` API
   support, and default-off `.speciesDictionaryTree` feature flag remain intact
   for future work, but no production or simulator Explore navigation entry
@@ -191,8 +196,15 @@ for the surface they are changing:
 - `apps/ios/Merian/Features/Explore/Shared/` is reserved for Explore helpers
   that are used by more than one product area.
 - `apps/ios/Merian/Features/SpeciesDictionary/Catalog/` owns the Explore Index
-  catalog and overview surfaces, while
-  `apps/ios/Merian/Features/SpeciesDictionary/Tree/` owns the Tree canvas.
+  catalog, overview, and regions surfaces. Its Models own the category route and
+  deterministic presentation policy; Services alone resolve endpoint, cached
+  image, geocoding, and map-snapshot work; and ViewModels fence asynchronous
+  browse state by normalized selection and request generation. Explore Shell
+  continues to own Index selection and the shared `NavigationPath`, while
+  `apps/ios/Merian/Features/SpeciesDictionary/Tree/` owns the Tree canvas. See
+  the feature-local
+  [`Catalog` README](../../apps/ios/Merian/Features/SpeciesDictionary/Catalog/README.md)
+  for its source and test boundaries.
 
 The bottom menu and root segmented control are intentionally root-scoped. They
 are hidden on the complete Identify Requests and Activity feeds, pushed post

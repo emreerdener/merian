@@ -1410,6 +1410,21 @@ the explicitly granted authenticated RPCs.
 best-effort ledger writes. Database authorization and behavior coverage lives in
 `tests/admin_foundation_security.sql` and `tests/admin_review_ai.sql`.
 
+Public-content and identification intake remain separate. Current native
+**Report post** actions, including Community Identification detail, call
+`functions/report-explore-post/` with the exact post ID and write only
+`public.explore_post_reports`. `functions/flag-issue/` has no current iOS
+caller; it retains an owner-only identification-dispute path backed by the
+service-only `public.submit_owned_flag_issue` transaction and an exact
+old-Community-client compatibility signature that is rerouted to the canonical
+post-report helper. The owner path atomically creates `public.flagged_reviews`,
+lets its trigger attach the private review case, and updates `public.scans`; the
+compatibility path never changes scan review state. The source, ACL, rollback,
+and bridge contracts are locked by `functions/flag-issue/db_test.ts`,
+`functions/_tests/flagIssueMigrationContract.test.ts`,
+`functions/_tests/jsonEndpointSecurityCoverage.test.ts`, and
+`tests/flag_issue_submission_security.sql`.
+
 See
 [`docs/backend-and-data/10-internal-admin.md`](../../docs/backend-and-data/10-internal-admin.md)
 and the

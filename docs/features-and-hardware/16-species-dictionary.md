@@ -613,6 +613,47 @@ data for list cards, then route into `SpeciesDictionaryPageContentView` for full
 reference imagery, overview, habitat, observation charts, and similar-species
 content.
 
+#### iOS Catalog ownership and request lifecycle
+
+`apps/ios/Merian/Features/SpeciesDictionary/Catalog/` owns the Explore
+Identify/Index browse experience. Its existing root interfaces remain
+`SpeciesDictionaryOverviewView(userRegion:)`,
+`SpeciesDictionaryCatalogView(...)`, and
+`SpeciesDictionaryRegionsView(userRegion:)`; Explore Shell registers the typed
+destinations and owns the shared navigation stack. The feature-local
+[`Catalog` README](../../apps/ios/Merian/Features/SpeciesDictionary/Catalog/README.md)
+is the concise source map for contributors.
+
+Catalog implementation ownership is:
+
+- `Models/` owns the normalized browse selection and page request, category
+  route, country-flag rendering policy, overview filtering/order, and
+  category-to-route mapping. Codable overview/catalog records and cursor
+  contracts remain in `Core/Network/SpeciesDictionaryAPIModels.swift`.
+- `Services/` adapts the live `MerianNetworkClient` calls and owns the live
+  cached-image, geocoder, and MapKit snapshot implementations. Views and
+  components invoke only the injected boundaries, not those concrete
+  implementations.
+- `ViewModels/` owns `@MainActor @Observable` catalog, overview, and
+  map-snapshot state. A normalized selection prevents the two root SwiftUI tasks
+  from issuing duplicate first-page calls. The view records selection changes
+  before its debounce; request generations then make that selection or a refresh
+  supersede older initial and pagination work. A reverted selection cannot be
+  overwritten by the superseded request, and retained rows cannot paginate
+  beneath a failed replacement selection. Failed refreshes of the current
+  selection retain the last usable catalog or overview content. Cancelled map
+  work releases its loading state.
+- `Views/` retains search bindings, the 300-millisecond debounce, refresh tasks,
+  navigation, and presentation timing. Grouped Catalog, Overview, Regions, and
+  Shared components retain rendering and leaf placeholders.
+
+The mirrored Catalog test suites cover wire/payload compatibility, presentation
+policy, request normalization, initial-load de-duplication, pagination,
+refresh/search/reverted-selection overlap, failed-replacement page suppression,
+stale overview/map completion, map cancellation, ownership boundaries, and the
+600-line production-file ceiling. Detail, Tree, share, and memoization coverage
+remains in the broader `SpeciesDictionaryTests` suite.
+
 ### Tree Mode
 
 The Tree of Life/galaxy visualization is deferred beyond MVP. Its canvas,
@@ -976,6 +1017,12 @@ xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<booted sim
   -only-testing:merianTests/SpeciesReferenceArchitectureTests \
   -only-testing:merianTests/LocalImageLoaderTests \
   -only-testing:merianTests/SpeciesDataTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogContractTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogPresentationTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogViewModelTests \
+  -only-testing:merianTests/SpeciesDictionaryOverviewViewModelTests \
+  -only-testing:merianTests/SpeciesDictionaryRegionMapViewModelTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogArchitectureTests \
   -only-testing:merianTests/SpeciesDictionaryTests \
   -only-testing:merianTests/ExploreShellNavigationPolicyTests
 ```
@@ -991,6 +1038,19 @@ npm run build
 
 Manual acceptance:
 
+- Switch Identify repeatedly between Requests and Index. Confirm Index preserves
+  the existing overview layout, Recently Added and organism-group order, local
+  region treatment, loading skeletons, empty/error copy, and pushed-navigation
+  chrome.
+- Search a catalog, clear and re-enter the same query while results are loading,
+  pull to refresh while the next page is loading, and retry a failed replacement
+  query. Confirm only the current normalized selection publishes, no stale page
+  appends, and the last usable rows remain visible when their own refresh fails.
+- Open the full regions list and navigate away while the personal map snapshot
+  is loading. On return, confirm the map can load again and does not remain
+  stuck in a loading state.
+- Recheck the overview, catalog rows, regions list, skeletons, search, and error
+  actions with VoiceOver and the largest accessibility Dynamic Type sizes.
 - Open a biological Insight scan with similar species.
 - Tap a similar-species card.
 - Confirm the large species page sheet opens and loads the tapped scientific

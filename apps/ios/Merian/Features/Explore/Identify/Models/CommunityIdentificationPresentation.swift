@@ -192,7 +192,6 @@ struct CommunityIdentificationSubmissionRequest {
     let isGenusBestPossible: Bool
 }
 
-struct CommunityIdentificationReportRequest {
-    let scanId: String
-    let userId: String
+struct CommunityIdentificationPostReportRequest {
+    let postId: String
 }

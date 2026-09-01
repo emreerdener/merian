@@ -424,26 +424,41 @@ than giving action instructions.
 
 ## Identification Flags and Explore Content Reports
 
-Separate from automated publication moderation, users can dispute a scan's
-identification via the flag flow in `BiologicalView`. This writes a row to the
-`flagged_reviews` table via the `/flag-issue` Edge Function:
+Separate from automated publication moderation, a legacy owner client can
+dispute the inference on its own non-tombstoned scan through `/flag-issue`. The
+service-only `submit_owned_flag_issue` transaction conditionally admits the JWT
+owner, preserves the review-case-before-scan lock order, revalidates ownership
+under the scan row lock, and writes a row to `flagged_reviews`:
 
 - `scan_id` — The scan being reported
 - `user_id` — The reporting user
-- `flag_reason` — e.g. "Incorrect Species" or "Inappropriate Content"
+- `flag_reason` — e.g. "Incorrect species" or "Inappropriate content"
 - `user_suggestion` — Optional free-text from the user
 - `status` — Defaults to `PENDING_REVIEW`
 
 Flagged reviews require human review and do not trigger automatic action. The
 automated abuse strike system and the flagged review system are entirely
-independent pipelines.
+independent pipelines. The database transaction inserts the review and updates
+`scans.is_flagged` plus `human_intervention_notes` in one commit. The function
+derives the reporter from the JWT; legacy body `userId` and `requestId` values
+are ignored.
 
-Reporting a public Explore post is a different pipeline. The authenticated
-`/report-explore-post` function validates that the post is visible and not owned
-by the reporter, then upserts `explore_post_reports`. Repeat reports from the
-same reporter update one row without reopening a report that moderators already
-dismissed or actioned. Post reporting must never call `/flag-issue`, set
-`scans.is_flagged`, or create an identification-review record.
+Reporting a public Explore post is a different pipeline. Every current native
+**Report post** action—including Community Identification detail—sends the exact
+post ID to `/report-explore-post`. The function validates that the post is
+visible and not owned by the reporter, then upserts `explore_post_reports`.
+Repeat reports from the same reporter update one row without reopening a report
+that moderators already dismissed or actioned. Post reporting must never set
+`scans.is_flagged` or create an identification-review record.
+
+Older Community clients used `/flag-issue` with the exact reason/context pair
+`Inappropriate content` / `Reported from Community request`. For a non-owner,
+only that fingerprint enters a compatibility bridge: the server resolves the
+scan's single possible active Community request, applies the canonical
+viewer-visibility projection, confirms the exact post/scan relationship, and
+upserts the same `explore_post_reports` queue. It never changes identification
+review state. Other non-owner `/flag-issue` requests fail closed with
+`HTTP 404`.
 
 User-profile reports follow the same separation rule. `/report-user` accepts
 only a visible non-self author profile and writes `user_reports`; it does not
@@ -521,9 +536,11 @@ never be deleted as part of incident cleanup. Full incident procedures are in
 
 ### `scans` table
 
-- `is_flagged` (BOOLEAN) — Set by the `/flag-issue` Edge Function when a
-  user-reported flag reaches a review threshold. Managed via
-  `00005_flagged_reviews.sql`.
+- `is_flagged` (BOOLEAN) — Set with the identification-review insert by the
+  atomic `/flag-issue` owner transaction. Managed via
+  `00005_flagged_reviews.sql` and
+  `20260831120000_submit_owned_flag_issue_atomically.sql`. Explore post reports,
+  including the old Community-client compatibility bridge, never set it.
 - `is_tombstoned` (BOOLEAN) — Account-deletion and visibility marker. Detaches
   account metadata while preserving the row as a scientific observation.
   Initially introduced by `00006_apply_user_tombstone.sql`; the durable state

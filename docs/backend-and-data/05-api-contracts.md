@@ -5012,6 +5012,10 @@ changing the underlying identification review state.
 - Optional body field: `details` (trimmed and capped at 500 characters)
 - Allowed reasons: `Spam`, `Harassment`, `Inappropriate content`, `Other`
 - Users cannot report their own or an unavailable post.
+- Current iOS feed, post-detail, and Community Identification detail report
+  actions use this endpoint. The Community adapter sends the detail's exact
+  `postId`, fixed `Inappropriate content` reason, and
+  `Reported from Community request` context.
 - Duplicate reports collapse on `(post_id, reporter_user_id)` and preserve an
   existing moderation status rather than reopening dismissed or actioned work.
 - Writes only `explore_post_reports`; it never calls `/flag-issue`, inserts an
@@ -8535,19 +8539,27 @@ user's Discovery Feed via `SocialGuardManager`.
 
 ## Deno `/flag-issue` Edge Node
 
-Requests human review of an AI inference from `ReportInsightView`, inserting a
-row into the `flagged_reviews` table created by `00005_flagged_reviews.sql`.
-This endpoint is not the Explore post-content reporting API.
+Backward-compatible identification-review ingress for an authenticated owner
+disputing their own scan inference. Current iOS does not call this endpoint. The
+Community Identification detail's **Report post** action is owned by
+`Features/Explore/Identify/Services/CommunityIdentificationViewModelDependencies.swift`
+and calls `/report-explore-post` with the exact `postId`.
+
+`/flag-issue` derives the reviewer from the verified JWT. Legacy `userId` and
+`requestId` properties, when present, are ignored for identity, authorization,
+and target selection.
 
 ### Request Payload
 
 ```json
 {
   "scanId": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
-  "flagReason": "Incorrect Species",
+  "flagReason": "Incorrect species",
   "userSuggestion": "Optional taxonomy string provided by the user manually"
 }
 ```
+
+`scanId` and `flagReason` are required. `userSuggestion` is optional.
 
 ### Authentication Enforcement
 
@@ -8558,14 +8570,27 @@ This endpoint is not the Explore post-content reporting API.
   `["Incorrect species", "Inappropriate content", "Bad image quality", "Other"]`.
   Values outside this set are rejected with `HTTP 400` before any database
   access.
-- Inserts a row tracking the review request into `public.flagged_reviews`.
-- Automatically overrides the underlying `public.scans` row, configuring
-  `is_flagged = true` and dynamically stamping the `flagReason` and
-  `userSuggestion` into the `human_intervention_notes` column to prompt Admin
-  Dashboard review.
+- Calls the service-only `submit_owned_flag_issue` database transaction. It
+  conditionally admits the exact owner, preserves the Admin-compatible
+  review-case-before-scan lock order, and revalidates ownership under the scan
+  row lock. It atomically inserts `public.flagged_reviews` and sets
+  `scans.is_flagged` plus `human_intervention_notes`; a failed mutation rolls
+  back both writes.
+- Returns `HTTP 404` for unavailable scans and non-owner identification
+  disputes, without revealing which ownership check failed.
+- Preserves the exact old Community-client **Report post** signature only:
+  `flagReason = "Inappropriate content"` and
+  `userSuggestion = "Reported from Community request"`. For a non-owner, that
+  signature resolves the scan's single possible active Community request,
+  requires its canonical detail to be viewer-visible, verifies the exact post
+  and scan relation, revalidates the post, and upserts
+  `public.explore_post_reports`. Unique `explore_posts.scan_id` and
+  `explore_community_requests.post_id` constraints guarantee at most one
+  candidate.
+- The compatibility path never inserts `flagged_reviews`, sets
+  `scans.is_flagged`, or writes `human_intervention_notes`.
 - Returns `HTTP 200` on success.
-- Explore post-content reports use `/report-explore-post` instead and never
-  change `scans.is_flagged` or `human_intervention_notes`.
+- All current Explore post-content reports use `/report-explore-post` directly.
 
 ---
 

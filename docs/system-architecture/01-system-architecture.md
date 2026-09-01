@@ -417,11 +417,14 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/block-user`: Removes blocked-user content and interactions from the
     requesting user's Explore surfaces.
   - `/report-explore-post`: Authenticated public-content moderation ingress. It
-    writes `explore_post_reports` and never changes the underlying scan's
+    serves feed, post-detail, and Community-detail **Report post** actions,
+    writes `explore_post_reports`, and never changes the underlying scan's
     identification-review state.
   - `/flag-issue`: Identification-review ingress for disputed scan inference. It
-    writes `flagged_reviews` and sets `scans.is_flagged`; it is not used for
-    reports about Explore post content.
+    requires JWT-backed scan ownership and atomically writes `flagged_reviews`
+    plus `scans.is_flagged`. Its exact old-Community-client signature is
+    compatibility-rerouted to the post-report queue rather than identification
+    review; current iOS does not call this endpoint.
 - **Revenue Integration**
   - Merian's only generated RevenueCat App User ID is the uppercase Supabase
     UUID. RevenueCat's customer GET is case-sensitive and get-or-create, so

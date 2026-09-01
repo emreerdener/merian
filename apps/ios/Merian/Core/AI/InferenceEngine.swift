@@ -3398,62 +3398,6 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         }
     }
 
-    /// Called when the user flags an identification for manual review because no models matched.
-    /// Mutates the local display state and persists the flag local-only via the `isFlagged` column.
-    func flagAIIdentification(
-        expectedScanId: String? = nil,
-        modelContext: ModelContext?
-    ) async {
-        guard let scanId = speciesData?.scanId,
-              expectedScanId == nil ||
-                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
-            return
-        }
-        let flagActionGeneration = beginIdentificationFlagAction(scanId: scanId)
-
-        speciesData?.isFlagged = true
-        speciesData?.alternativesExhausted = false
-
-        if let context = modelContext {
-            let container = context.container
-            enqueueIdentificationReviewWrite(
-                scanId: scanId,
-                actionGeneration: flagActionGeneration,
-                channel: .legacyFlag
-            ) {
-                let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.updateScanAsFlagged(scanId: scanId)
-            }
-        }
-    }
-
-    /// Removes the manual review flag from an identification.
-    func unflagAIIdentification(
-        expectedScanId: String? = nil,
-        modelContext: ModelContext?
-    ) async {
-        guard let scanId = speciesData?.scanId,
-              expectedScanId == nil ||
-                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
-            return
-        }
-        let flagActionGeneration = beginIdentificationFlagAction(scanId: scanId)
-
-        speciesData?.isFlagged = false
-
-        if let context = modelContext {
-            let container = context.container
-            enqueueIdentificationReviewWrite(
-                scanId: scanId,
-                actionGeneration: flagActionGeneration,
-                channel: .legacyFlag
-            ) {
-                let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.updateScanAsUnflagged(scanId: scanId)
-            }
-        }
-    }
-
     /// Resets all identification review state, reverting the scan back to the AI's original
     /// identification. Called by Undo (from `.overridden`) and Change (from `.confirmed`).
     /// Clears both `userIdentificationOverride` and `userConfirmedIdentification` locally,

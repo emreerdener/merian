@@ -6,12 +6,11 @@ final class CommunityIdentificationDetailViewModel {
     struct Dependencies {
         let loadDetail: @MainActor (String) async throws -> CommunityIdentificationDetail
         let updateRequest: @MainActor (CommunityIdentificationUpdateRequest) async throws -> Void
-        let reportRequest: @MainActor (CommunityIdentificationReportRequest) async throws -> Void
+        let reportPost: @MainActor (CommunityIdentificationPostReportRequest) async throws -> Void
         let submitIdentification: @MainActor (CommunityIdentificationSubmissionRequest) async throws -> Void
         let withdrawIdentification: @MainActor (String) async throws -> Void
         let restoreIdentification: @MainActor (String) async throws -> Void
         let currentUserId: @MainActor () -> String?
-        let reportUserId: @MainActor () -> String
         let requestDidChange: @MainActor (String) -> Void
         let successFeedback: @MainActor () -> Void
         let selectionFeedback: @MainActor () -> Void
@@ -91,10 +90,9 @@ final class CommunityIdentificationDetailViewModel {
         defer { isReporting = false }
 
         do {
-            try await dependencies.reportRequest(
-                CommunityIdentificationReportRequest(
-                    scanId: detail.scanId,
-                    userId: dependencies.reportUserId()
+            try await dependencies.reportPost(
+                CommunityIdentificationPostReportRequest(
+                    postId: detail.postId
                 )
             )
             dependencies.successFeedback()

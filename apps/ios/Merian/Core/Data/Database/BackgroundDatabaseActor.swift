@@ -3061,12 +3061,7 @@ actor BackgroundDatabaseActor {
         }
     }
 
-    /// Persists the user's manual review flag to the local SwiftData store.
-    func updateScanAsFlagged(scanId: String) {
-        mutateScan(id: scanId) { $0.isFlagged = true }
-    }
-
-    /// Removes the user's manual review flag from the local SwiftData store.
+    /// Clears legacy manual-review state when an identification is changed or reset.
     func updateScanAsUnflagged(scanId: String) {
         mutateScan(id: scanId) { $0.isFlagged = false }
     }

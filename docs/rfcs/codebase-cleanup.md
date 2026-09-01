@@ -188,6 +188,22 @@ Implemented Explore slices:
   pass's 600-line guard. Cross-surface Field-trip route values moved unchanged
   to `Explore/FieldTrips/Models`.
 
+Implemented Species Dictionary slices:
+
+- `SpeciesDictionary/Catalog` now separates normalized browse selection/request,
+  typed route, flag, and overview presentation Models; narrow live endpoint,
+  cached-image, geocoder, and MapKit snapshot Services; generation-fenced
+  catalog, overview, and region-map ViewModels; three stable root Views; and
+  grouped Catalog, Overview, Regions, and Shared Components. Views and
+  Components perform no direct networking or concrete singleton lookup.
+  Selection changes fence work before the search debounce, refresh supersedes
+  pagination, reverted identities discard stale results, retained rows cannot
+  page beneath a failed replacement, failed current-selection refreshes retain
+  usable content, and duplicate initial SwiftUI tasks share one first-page load.
+  Catalog wire/payload, presentation, asynchronous-state, and architecture tests
+  now mirror that owner, while Core Network retains Codable DTOs and transport.
+  Every production Catalog Swift file stays below the pass's 600-line guard.
+
 Implemented Insights slices:
 
 - `Insights/Media/Carousel` now separates platform-neutral gallery, focus,

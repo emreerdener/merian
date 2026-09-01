@@ -1329,8 +1329,10 @@ The transaction log for every successful identification.
   missing manifest; iOS then hydrates from the durable URL/context fallback
   columns. The compatibility image array is therefore not itself the canonical
   display-image set for a video scan.
-- `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
-  human-reported moderation flags.
+- `is_flagged` (Boolean): Identification-review state only. Owner disputes set
+  it atomically with a `flagged_reviews` insert through
+  `20260831120000_submit_owned_flag_issue_atomically.sql`; Explore post-content
+  reports never change it.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` and
   the ownerless forward migrations for account deletion. Retained rows have no
   owner and clear media, semantic/public location labels, device context, custom
@@ -1750,11 +1752,20 @@ against its fully migrated disposable PostgreSQL catalog.
 Captures user feedback disputing an identification or inference. It is not the
 moderation queue for reports about public Explore post content.
 
+`20260831120000_submit_owned_flag_issue_atomically.sql` installs the
+service-only `submit_owned_flag_issue` transaction. It conditionally admits the
+authenticated owner of a non-tombstoned row, lets the review trigger retain the
+Admin-compatible review-case-before-scan lock order, then revalidates ownership
+under the scan row lock. The review insert and updates to `scans.is_flagged`
+plus `human_intervention_notes` commit together. Current Community-detail
+**Report post** actions use `explore_post_reports`; the `/flag-issue` old-client
+bridge also writes that post queue and never creates an identification flag.
+
 - `id` (UUID): Primary key.
 - `scan_id` (UUID - Foreign Key): References `scans`.
 - `user_id` (UUID - Foreign Key): References `public.users(id)` for the user
   requesting identification review.
-- `flag_reason` (Text): e.g. "Incorrect Species" or "Inappropriate Content".
+- `flag_reason` (Text): e.g. "Incorrect species" or "Inappropriate content".
 - `user_suggestion` (Text): Optional custom text feedback.
 - `status` (Text): Defaults to `PENDING_REVIEW`.
 
