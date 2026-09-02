@@ -22,6 +22,7 @@ private actor CollectionSyncFenceRecorder {
 }
 
 @MainActor
+@Suite(.sharedProcessState(.offlineQueueManager))
 struct BackgroundDatabaseActorTests {
 
     private enum ExpectedSerializedMedia {

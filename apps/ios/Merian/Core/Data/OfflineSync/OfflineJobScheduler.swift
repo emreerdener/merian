@@ -6,9 +6,30 @@ import SwiftData
 final class OfflineJobScheduler {
     static let shared = OfflineJobScheduler()
 
+    /// The six existing drain effects, separated from scheduling policy so
+    /// tests can exercise their ordering without starting live queue work.
+    struct DrainOperations {
+        let reconcileFunding: @MainActor (OfflineQueueManager) async -> Void
+        let syncPendingScans: @MainActor (OfflineQueueManager) -> Void
+        let replayInference: @MainActor (OfflineQueueManager) -> Void
+        let replayFieldTripProgress: @MainActor (OfflineQueueManager) async -> Void
+        let syncPendingDeletions: @MainActor (OfflineQueueManager) async -> Void
+        let syncCollections: @MainActor (OfflineQueueManager) -> Void
+
+        fileprivate static let live = DrainOperations(
+            reconcileFunding: { await $0.reconcileDeferredFundingReservations() },
+            syncPendingScans: { $0.syncPendingScans() },
+            replayInference: { $0.replayInferenceForUploadedScans() },
+            replayFieldTripProgress: { await $0.replayPendingFieldTripProgress() },
+            syncPendingDeletions: { await $0.syncPendingDeletions() },
+            syncCollections: { $0.syncCollectionsIfPending() }
+        )
+    }
+
     private static let minimumWakeDelay: TimeInterval = 1
     private static let databaseReadRetryDelay: TimeInterval = 5
 
+    private let drainOperations: DrainOperations
     private weak var scheduledManager: OfflineQueueManager?
     private var scheduledSourceDate: Date?
     private var scheduledWakeToken: UUID?
@@ -18,7 +39,13 @@ final class OfflineJobScheduler {
     /// a persisted future retry was restored instead of merely displayed.
     private(set) var scheduledWakeDate: Date?
 
-    private init() {}
+    private init() {
+        drainOperations = .live
+    }
+
+    init(drainOperations: DrainOperations) {
+        self.drainOperations = drainOperations
+    }
 
     func drainRunnableJobs(using manager: OfflineQueueManager) async {
         guard manager.isOnline,
@@ -31,12 +58,12 @@ final class OfflineJobScheduler {
         // deletion backlog, for example, must not delay a scan retry that
         // becomes eligible while that drain is still in flight.
         scheduleNextPersistedWake(using: manager)
-        await manager.reconcileDeferredFundingReservations()
-        manager.syncPendingScans()
-        manager.replayInferenceForUploadedScans()
-        await manager.replayPendingFieldTripProgress()
-        await manager.syncPendingDeletions()
-        manager.syncCollectionsIfPending()
+        await drainOperations.reconcileFunding(manager)
+        drainOperations.syncPendingScans(manager)
+        drainOperations.replayInference(manager)
+        await drainOperations.replayFieldTripProgress(manager)
+        await drainOperations.syncPendingDeletions(manager)
+        drainOperations.syncCollections(manager)
 
         // The upload and inference drains intentionally dispatch their network
         // work without blocking this coordinator. Yield once so their atomic

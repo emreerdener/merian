@@ -120,7 +120,7 @@ private final class InferencePaywallRequestRecorder {
 @Suite(
     "Inference Engine Tests",
     .serialized,
-    .sharedProcessState(.networkClientOverrides)
+    .sharedProcessState(.networkClientOverrides, .offlineQueueManager)
 )
 struct InferenceEngineTests {
     actor CounterBox {

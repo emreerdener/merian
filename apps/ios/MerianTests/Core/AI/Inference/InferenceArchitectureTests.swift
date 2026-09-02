@@ -15,7 +15,11 @@ struct InferenceArchitectureTests {
             "LocalAnalysis/LocalVisualTraitExtraction.swift",
             "LocalAnalysis/FoundationVisualCues.swift",
             "LocalAnalysis/ScanningPhraseCoordinator.swift",
-            "Request/InferenceLiveRequestService.swift"
+            "Request/InferenceLiveRequestService.swift",
+            "Result/InferenceLiveResultService.swift",
+            "Result/InferenceScanReplacement.swift",
+            "Recovery/InferenceLiveFailurePolicy.swift",
+            "Recovery/InferenceFailurePresentation.swift"
         ] {
             let file = try sourceRoot().appendingPathComponent(relativePath)
             #expect(
@@ -44,6 +48,7 @@ struct InferenceArchitectureTests {
         #expect(source.contains("private let writeCoordinator"))
         #expect(source.contains("private let localAnalysisCoordinator:"))
         #expect(source.contains("private let liveRequestService:"))
+        #expect(source.contains("private let liveResultService:"))
         #expect(source.contains("resetEnrichmentRateLimit()"))
         #expect(source.contains("replaceAndAwaitTask("))
         #expect(source.contains("in: .review"))
@@ -75,12 +80,51 @@ struct InferenceArchitectureTests {
             "private var scanningPhraseCoordinator",
             "observationContextJSONStrings(",
             "identifyMultiModal(",
-            "uploadStagedVideoFiles("
+            "uploadStagedVideoFiles(",
+            "InferenceProcessingActor.shared",
+            "parseAndSave(",
+            "skipImageRequirement:",
+            "private static let networkTimeoutRecoveryReason",
+            "makeErrorSpeciesData(",
+            "MerianNetworkClient.stableEdgeErrorCode(",
+            "MerianNetworkClient.isRecoverableInferenceConflict("
         ] {
             #expect(
                 !source.contains(retiredToken),
                 "InferenceEngine reclaimed \(retiredToken)"
             )
+        }
+    }
+
+    @Test func sharedQueueFixturesKeepTheirCrossFrameworkLease() throws {
+        let testRoot = try repositoryRoot().appendingPathComponent("apps/ios/MerianTests")
+        for path in [
+            "Core/AI/InferenceEngineTests.swift",
+            "Core/AI/Inference/InferenceIntegrationAuditTests.swift",
+            "Core/Data/OfflineQueueManagerTests.swift",
+            "Core/Data/OfflineSync/OfflineQueuedScanDeletionTests.swift",
+            "Core/Data/OfflineSync/OfflineJobSchedulerTests.swift",
+            "Core/Data/BackgroundDatabaseActorTests.swift",
+            "Core/Data/ScanRepositoryTests.swift",
+            "Core/Data/OfflineSync/ProfileActorCacheTests.swift",
+            "Core/Hardware/HardwareOrchestratorTests.swift",
+            "Core/Utilities/AppLifecycleManagerTests.swift",
+            "Features/Capture/Shell/CaptureWorkspaceStagingTests.swift"
+        ] {
+            let source = try contents(of: testRoot.appendingPathComponent(path))
+            #expect(source.contains(".sharedProcessState("), "Missing process lease in \(path)")
+            #expect(source.contains(".offlineQueueManager"), "Missing queue resource in \(path)")
+        }
+        let capture = try contents(of: testRoot.appendingPathComponent(
+            "Features/Capture/Shell/CaptureWorkspaceTestCase.swift"
+        ))
+        #expect(capture.contains("CaptureWorkspaceViewModelRefinementTests: OfflineQueueTestCase"))
+        for path in [
+            "Features/Insights/Shell/InsightSheetTestSupport.swift",
+            "Core/Data/ScanRepositoryTests.swift"
+        ] {
+            let source = try contents(of: testRoot.appendingPathComponent(path))
+            #expect(!source.contains("ScanRepository.shared.configure("))
         }
     }
 
@@ -119,6 +163,102 @@ struct InferenceArchitectureTests {
         )
         #expect(appDISource.contains("liveInferenceRequestService"))
         #expect(appDISource.contains("liveRequestService:"))
+    }
+
+    @Test func liveResultServiceOwnsPersistenceMappingWithoutEngineEffects() throws {
+        let resultSource = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Result/InferenceLiveResultService.swift"
+            )
+        )
+        for requiredToken in [
+            "private let dependencies:",
+            "enum Media: Sendable",
+            "enum Outcome",
+            "case persisted(CompletedResult)",
+            "case completedWithoutRecord(CompletedResult)",
+            "case persistenceRejected",
+            "InferenceProcessingActor.shared.parseAndSave(",
+            "guard parsed.didCompletePersistence",
+            "private func persistenceRequest(",
+            "try validateAttempt()"
+        ] {
+            #expect(resultSource.contains(requiredToken))
+        }
+        for forbiddenToken in [
+            "@unchecked Sendable", "Task {", "Task.detached",
+            "MerianNetworkClient", "OfflineQueueManager", "GamificationManager",
+            "PushNotificationManager", "AppDIContainer", "HapticManager",
+            "AppTelemetry", "CircuitBreakerManager"
+        ] {
+            #expect(!resultSource.contains(forbiddenToken))
+        }
+        let appDISource = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/Merian/Core/AppDIContainer.swift"
+            )
+        )
+        #expect(appDISource.contains("liveInferenceResultService"))
+        #expect(appDISource.contains("liveResultService:"))
+    }
+
+    @Test func recoveryPoliciesRemainStatelessAndEffectFree() throws {
+        for path in [
+            "Recovery/InferenceLiveFailurePolicy.swift",
+            "Recovery/InferenceFailurePresentation.swift"
+        ] {
+            let source = try contents(of: sourceRoot().appendingPathComponent(path))
+            for token in [
+                ".shared", "Task {", "Task.detached", "await ",
+                "@unchecked Sendable", "import SwiftUI", "import SwiftData",
+                "AppTelemetry", "HapticManager", "CircuitBreakerManager",
+                "OfflineQueueManager", "AppDIContainer", "ModelContext"
+            ] {
+                #expect(!source.contains(token), "\(path) must not own \(token)")
+            }
+        }
+        let policy = try contents(of: sourceRoot().appendingPathComponent(
+            "Recovery/InferenceLiveFailurePolicy.swift"
+        ))
+        #expect(policy.contains("private static func providerPolicyFailure("))
+        #expect(policy.contains("ScanConnectivityFailurePolicy.isDurableRecoveryFailure(error)"))
+    }
+
+    @Test func liveFailureCommitKeepsOneSynchronousExactOwner() throws {
+        let source = try contents(of: repositoryRoot().appendingPathComponent(
+            "apps/ios/Merian/Core/AI/InferenceEngine.swift"
+        ))
+        // Two call sites and one private declaration; no second failure owner.
+        #expect(source.components(separatedBy: "handleLiveInferenceFailure(").count == 4)
+        let handlerStart = try #require(source.range(of: "private func handleLiveInferenceFailure("))
+        let publishStart = try #require(source.range(of: "private func publishLiveInferenceFailure("))
+        let logStart = try #require(source.range(of: "private func logLiveInferenceFailure("))
+        let handler = source[handlerStart.lowerBound..<publishStart.lowerBound]
+        let publication = source[publishStart.lowerBound..<logStart.lowerBound]
+        for body in [handler, publication] {
+            #expect(!body.contains("await "))
+            #expect(!body.contains("Task {"))
+            #expect(!body.contains("Task.detached"))
+        }
+
+        let snapshot = try #require(handler.range(of: "let stillOwnsAttempt ="))
+        let interruption = try #require(handler.range(of: "InferenceLiveFailurePolicy.interruption("))
+        let retiredHandoff = try #require(handler.range(of: "publishQueuedRetiredOwnershipHandoffIfNeeded("))
+        let connectivity = try #require(handler.range(of: "InferenceLiveFailurePolicy.isConnectivityFailure(error)"))
+        let ownerGuard = try #require(handler.range(of: "guard stillOwnsAttempt else { return }"))
+        let retirement = try #require(handler.range(of: "reason: mode.failureReason"))
+        let classification = try #require(handler.range(of: "InferenceLiveFailurePolicy.failure(for: error, mode: mode)"))
+        let publicationCall = try #require(handler.range(of: "publishLiveInferenceFailure("))
+        #expect(snapshot.lowerBound < interruption.lowerBound)
+        #expect(retiredHandoff.lowerBound < connectivity.lowerBound)
+        #expect(connectivity.lowerBound < ownerGuard.lowerBound)
+        #expect(ownerGuard.lowerBound < retirement.lowerBound)
+        #expect(retirement.lowerBound < classification.lowerBound)
+        #expect(classification.lowerBound < publicationCall.lowerBound)
+        #expect(publication.components(separatedBy: "recordFailure()").count == 2)
+        #expect(publication.contains("failure.recordsCircuitFailure"))
+        #expect(publication.contains("failure.triggersErrorFeedback"))
+        #expect(publication.contains("presentation.speciesData(telemetry: telemetry)"))
     }
 
     @Test func coordinatorKeepsItsMutableTaskStatePrivate() throws {

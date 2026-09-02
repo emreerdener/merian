@@ -4,6 +4,7 @@ import Testing
 /// Process-wide mutable resources that require exclusive ownership in tests.
 enum SharedProcessStateResource: Hashable, Sendable {
     case networkClientOverrides
+    case offlineQueueManager
 }
 
 /// Serializes only tests that mutate the same process-wide resource.
@@ -12,7 +13,7 @@ enum SharedProcessStateResource: Hashable, Sendable {
 /// but separate suites may still run concurrently. Apply this trait to every
 /// suite or test that temporarily owns one of the resources above.
 struct SharedProcessStateTestTrait: SuiteTrait, TestTrait, TestScoping {
-    let resource: SharedProcessStateResource
+    let resources: Set<SharedProcessStateResource>
 
     var isRecursive: Bool { true }
 
@@ -28,54 +29,20 @@ struct SharedProcessStateTestTrait: SuiteTrait, TestTrait, TestScoping {
             return
         }
 
-        await SharedProcessStateGate.shared.acquire(resource)
-        do {
-            try await function()
-            await SharedProcessStateGate.shared.release(resource)
-        } catch {
-            await SharedProcessStateGate.shared.release(resource)
-            throw error
+        try await SharedProcessStateGate.shared.withResources(resources) {
+            if resources.contains(.offlineQueueManager) {
+                try await OfflineQueueTestState.withState(performing: function)
+            } else {
+                try await function()
+            }
         }
     }
 }
 
 extension Trait where Self == SharedProcessStateTestTrait {
     static func sharedProcessState(
-        _ resource: SharedProcessStateResource
+        _ resources: SharedProcessStateResource...
     ) -> Self {
-        SharedProcessStateTestTrait(resource: resource)
-    }
-}
-
-private actor SharedProcessStateGate {
-    static let shared = SharedProcessStateGate()
-
-    private var heldResources: Set<SharedProcessStateResource> = []
-    private var waiters: [
-        SharedProcessStateResource: [CheckedContinuation<Void, Never>]
-    ] = [:]
-
-    func acquire(_ resource: SharedProcessStateResource) async {
-        guard heldResources.contains(resource) else {
-            heldResources.insert(resource)
-            return
-        }
-
-        await withCheckedContinuation { continuation in
-            waiters[resource, default: []].append(continuation)
-        }
-    }
-
-    func release(_ resource: SharedProcessStateResource) {
-        guard var resourceWaiters = waiters[resource],
-              !resourceWaiters.isEmpty else {
-            heldResources.remove(resource)
-            waiters[resource] = nil
-            return
-        }
-
-        let next = resourceWaiters.removeFirst()
-        waiters[resource] = resourceWaiters.isEmpty ? nil : resourceWaiters
-        next.resume()
+        SharedProcessStateTestTrait(resources: Set(resources))
     }
 }

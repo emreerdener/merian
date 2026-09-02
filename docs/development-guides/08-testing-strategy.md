@@ -741,15 +741,35 @@ that are absent in a unit test.
 Swift Testing's `.serialized` trait serializes descendants within one suite; it
 does not prevent a different suite from mutating the same process-wide resource
 at the same time. Tests that temporarily own shared network-client overrides
-must also use `.sharedProcessState(.networkClientOverrides)` from
-`MerianTests/Support/SharedProcessStateTestTrait.swift`. Apply the trait at
-suite scope when setup initializes the shared resource for every case, and at
-test scope when only individual cases claim it. The resource-keyed actor gate
-preserves parallel execution between unrelated tests while preventing
-cross-suite reset and assertion races. The trait does not restore global state;
-each owner must still capture and restore every override it changes. Route and
-paywall tests instead inject private request sinks; they must not observe app
-host singletons that active views can consume or clear.
+must use `.sharedProcessState(.networkClientOverrides)`; queue fixtures use
+`.sharedProcessState(.offlineQueueManager)`. The recursive trait lives in
+`MerianTests/Support/SharedProcessStateTestTrait.swift`. Claim both resources in
+one `.sharedProcessState(.networkClientOverrides, .offlineQueueManager)` when
+needed; never nest overlapping traits or acquire the resources separately. Apply
+the trait at suite scope when every case uses the resource, or only on
+individual tests otherwise. `SharedProcessStateGate` admits whole resource sets
+atomically, preserves FIFO among overlapping requests, removes cancelled
+waiters, and rejects stale/double releases. Disjoint resource sets may execute
+concurrently. `SharedProcessStateGateTests` covers those contracts.
+
+Capture's XCTest fixture inherits `Support/OfflineQueueTestCase.swift`, which
+holds the same two-resource lease from async setup through synchronous teardown
+and async cleanup. `OfflineQueueTestState` restores the prior model context
+before releasing either framework's queue lease; it is not a complete manager
+reset. Each test must restore other fields it changes and await only the work it
+started. Do not cancel or drain app-host tasks as fixture cleanup. Queue enqueue
+fixtures use `startSyncImmediately: false` and the `onQueued` continuation
+instead of sleeping while a live upload starts. Generic Insight context fixtures
+return an explicit context without configuring shared repositories or launching
+startup tasks. Lifecycle admission tests inject inert consent/maintenance
+actions; the live scheduler route remains source-guarded. The mirrored
+`OfflineJobSchedulerTests` exercises the actual drain ordering with inert
+operations, suspends each async effect in turn, and checks future-wake admission
+and offline cancellation on a fresh scheduler. Its structured child and
+cancellation-aware streams finish before queue state is restored. This is
+dispatch-policy coverage, not a durable staged claim or provider replay; those
+remain separate queue concerns. Route and paywall tests inject private request
+sinks rather than observing app-host presentation singletons.
 
 Scan-bound Insight fixtures must reproduce the production identity topology: the
 inference engine's completed `SpeciesData.scanId`, `activeLocalRecord`,
@@ -1176,6 +1196,78 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   audio/timeline forwarding, staged-video upload order, request-body callback
   forwarding, empty-encode short circuiting, and exact-attempt revalidation
   after image encoding, video upload, and provider return.
+- **`Core/AI/Inference/InferenceLiveResultServiceTests.swift`**: Executes the
+  injected response/persistence boundary with a recording parser and explicit
+  continuation gates. It locks image requirements, empty-display forwarding for
+  the actor-owned fallback, canonical media order, original observation-context
+  JSON, model-context identity, exact persistence-fence forwarding, typed
+  completion/rejection, missing mapped results, stale/cancelled actor returns,
+  and error propagation. Live-adapter tests execute the unchanged actor for
+  matching/mismatched confidence-zero scan IDs, positive confidence without
+  persistence, and malformed responses without networking or durable stores.
+- **`Core/AI/Inference/InferenceLiveResultIntegrationTests.swift`**: Exercises
+  both queue-less engine pipelines with injected request/result services. It
+  proves confidence-zero presentation, exact engine-to-service media timeline
+  and ordered context-JSON forwarding, persisted-result media ordering, withheld
+  rejected results, and uncancelled persistence returns losing to replacement
+  local attempts. Fixtures deliberately omit a response scan ID, so durable
+  queue transitions, notifications, milestones, and reference-network effects
+  remain outside this suite. Persisted outcomes are injected parser results, not
+  a substitute for the database actor's durable-save tests. The service suite
+  separately checks exact fence forwarding and revalidates an injected same-scan
+  replacement identity. Shared global engine setup uses the existing
+  process-state serialization trait without replacing queue-manager state.
+- **`Core/AI/Inference/InferenceLiveFailurePolicyTests.swift`**: Locks
+  Swift-task cancellation precedence, logical-versus-transport interruption,
+  stable status/code pairs, malformed/unknown-code fallback, shared connectivity
+  security vetoes, modality-specific retirement reasons, and telemetry, circuit,
+  and feedback decisions. Visual decoding remains a special non-circuit failure;
+  audio and Describe retain their existing generic path.
+- **`Core/AI/Inference/InferenceFailurePresentationTests.swift`**: Locks exact
+  recovery copy, saved-versus-direct fallback, the absence of a quota
+  placeholder, and `.inferenceError`/telemetry mapping independently of titles.
+- **`Core/AI/Inference/InferenceLiveRecoveryIntegrationTests.swift`**: Uses
+  injected result failures after request preparation, not a consent-preflight
+  shortcut. Both queue-less engine paths cover known 409 restoration,
+  non-cooperative failures losing to task cancellation or a replacement attempt,
+  logical/transport cancellation, and injected quota paywall requests. Decoding
+  tests separately exercise visual, audio, and Describe presentation and the
+  three-failure circuit threshold. Pure policy tests assert telemetry/feedback
+  decisions; these integration cases do not assert live telemetry or haptic
+  delivery, durable queue handoff, or recovery saves.
+- **`Core/AI/Inference/InferenceLiveEngineTestSupport.swift`**: Owns injected
+  result/recovery fixtures and the single-operation `InferenceOperationGate`,
+  not a standalone test suite. The original queue-less integration suites claim
+  `.sharedProcessState(.networkClientOverrides)`; `InferenceEngineTests` and
+  `InferenceIntegrationAuditTests` claim that and the queue resource together
+  before the helper sets the lookalikes-reset UserDefaults value and resets
+  `CircuitBreakerManager.shared`. Teardown restores the previous defaults value
+  and resets the circuit; it never swaps global queue state. Suite-local
+  `.serialized` cannot coordinate peer suites or XCTest. The circuit-breaker
+  XCTest suite uses a fresh manager per case, so it does not reset the shared
+  inference fixture's state.
+- **`Core/AI/Inference/InferenceScanReplacementTests.swift`**: Uses isolated
+  current-schema stores to prove persisted-outcome admission, missing/blank/same
+  IDs, pending-only replacement rejection, durable tags/collections/notes,
+  retained replacement notes, fresh review state, and save-failure restoration
+  without discarding unrelated pending user edits.
+- **`Core/AI/Inference/InferenceIntegrationAuditTests.swift`**: Exercises
+  visual, audio, and Describe pipelines. It covers original-scan preservation
+  after confidence-zero or missing-ID results, Auth quiescence with a
+  cancellation- ignoring live parser returning success or failure, closed Auth
+  admission, and suspended queue-backed positive-confidence results losing to
+  cancellation or a new exact generation. It asserts retained durable queue
+  rows, no foreground completion event, no published result/hydration, exact
+  retirement, and intact replacement ownership. Parser success is injected, so
+  these overlap cases do not replace database-actor persistence tests or device
+  feedback verification.
+- **`Core/Data/OfflineSync/OfflineJobSchedulerTests.swift`**: Executes the six
+  ordered scheduler effects, including inference replay, through inert injected
+  operations. Each async boundary is suspended independently to prove later work
+  cannot overtake it and a persisted future wake is already armed. An offline
+  drain cancels the fixture-owned wake and invokes no effect. The queue-resource
+  lease protects context/online-state setup; the tests neither cancel the shared
+  scheduler's task nor launch live Auth/network work.
 - **`Core/SpeciesReference/SpeciesReferenceHydrationServiceTests.swift`**:
   Injects a deterministic data loader and locks Wikipedia/GBIF URLs, timeouts,
   User-Agent policy, HTML/entity normalization, missing-description media
@@ -1187,9 +1279,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   write, hydration, or local-analysis registries, live provider
   payload/dispatch, and shared reference wire state from drifting back into
   `InferenceEngine`; requires private coordinator state and AppDI-owned live
-  request injection; keeps request-format helpers file-private; rejects the
-  retired `LocalVisualAnalysis.swift` aggregate; and keeps every extracted owner
-  and split local-analysis policy file below 600 lines. The Species Reference
+  request/result injection; prevents direct parse/save adaptation or engine side
+  effects from crossing the result boundary; keeps request-format and
+  result-mapping helpers file-private; requires stateless recovery policies and
+  one private synchronous engine failure handler with handoff-before-stale-guard
+  and release-before-publication ordering; rejects the retired
+  `LocalVisualAnalysis.swift` aggregate; and keeps every extracted owner and
+  split local-analysis policy file below 600 lines. The Species Reference
   architecture suite applies the same ceiling to the shared transport owner.
 - **`SpeciesDictionaryTests.swift`**: Validates the public dictionary response
   decoder, additive `content_quality`, strict `schema_version = 1`, canonical
@@ -1802,6 +1898,82 @@ Dynamic Type; and light/dark appearance.
 - **`ImageCacheTests.swift`**: Ensures the Swift RAM cache does not exceed
   maximum system allocation limits.
 
+### Live inference request/result verification
+
+After changes to `Inference/Request`, `Inference/Result`, `Inference/Recovery`,
+their AppDI wiring, either engine call site, reanalysis replacement safety,
+foreground lifecycle/scheduler dispatch, or the shared inference/queue test
+fixtures, run `make xcodegen`, `make validate-ios-project`,
+`bash scripts/test-ios-project-source-membership.sh`,
+`make validate-ios-event-routing`, and `make test-ios-event-routing`. Follow
+with the generic iOS Simulator build and `build-for-testing`, with code signing
+disabled, described in the [compiled iOS gate](#compiled-ios-ci-gate).
+
+After a successful `build-for-testing`, run this focused matrix from the
+repository root. Replace the derived-data placeholder with that build's output
+directory; do not reuse products built before the candidate changes.
+
+```bash
+inference_test_destination="$(bash scripts/select-ios-simulator-destination.sh)"
+xcodebuild test-without-building \
+  -scheme Merian \
+  -project merian.xcodeproj \
+  -derivedDataPath '<build-for-testing-derived-data>' \
+  -destination "$inference_test_destination" \
+  -parallel-testing-enabled NO \
+  -only-testing:merianTests/InferenceLiveRequestServiceTests \
+  -only-testing:merianTests/InferenceLiveResultServiceTests \
+  -only-testing:merianTests/InferenceLiveResultIntegrationTests \
+  -only-testing:merianTests/InferenceLiveFailurePolicyTests \
+  -only-testing:merianTests/InferenceFailurePresentationTests \
+  -only-testing:merianTests/InferenceLiveRecoveryIntegrationTests \
+  -only-testing:merianTests/InferenceScanReplacementTests \
+  -only-testing:merianTests/InferenceIntegrationAuditTests \
+  -only-testing:merianTests/SharedProcessStateGateTests \
+  -only-testing:merianTests/InferenceHydrationCoordinatorTests \
+  -only-testing:merianTests/InferenceWriteCoordinatorTests \
+  -only-testing:merianTests/LocalVisualAnalysisTests \
+  -only-testing:merianTests/SpeciesReferenceHydrationServiceTests \
+  -only-testing:merianTests/InferenceArchitectureTests \
+  -only-testing:merianTests/InferenceEngineTests \
+  -only-testing:merianTests/CircuitBreakerManagerTests \
+  -only-testing:merianTests/BackgroundDatabaseActorTests \
+  -only-testing:merianTests/OfflineQueueManagerTests \
+  -only-testing:merianTests/OfflineQueuedScanDeletionTests \
+  -only-testing:merianTests/OfflineJobSchedulerTests \
+  -only-testing:merianTests/ScanRepositoryTests \
+  -only-testing:merianTests/ProfileActorCacheTests \
+  -only-testing:merianTests/HardwareOrchestratorTests \
+  -only-testing:merianTests/AppLifecycleManagerTests \
+  -only-testing:merianTests/FieldNotesRepositoryTests \
+  -only-testing:merianTests/InsightToolbarRecordSnapshotTests \
+  -only-testing:merianTests/CaptureWorkspaceStagingTests \
+  -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests \
+  -only-testing:merianTests/MerianNetworkClientTests
+```
+
+Then repeat against the same products with the individual suite selectors
+replaced by `-only-testing:merianTests`. This includes the existing offline
+queue, capture, and persistence suites; the queue-less result integration suite
+cannot substitute for their durable-owner or post-result-effect coverage.
+Disabling Xcode runner parallelism does not serialize Swift Testing peer suites
+that mutate a shared singleton. New global queue fixtures must join the shared
+lease described above, restore non-context state, and await their own work
+before allowing the next test to replace the context.
+
+Keep parsing, isolated typechecking, lint, project guards, and executed
+simulator tests distinct in validation evidence. Focused frontend typechecking
+with primary test files verifies those test bodies against available
+declarations; it does not compile every engine/dependency body or link the app.
+Cached modules and successful simulator discovery do not replace a
+current-source build, and a build blocked during package resolution does not
+execute the focused matrix. Dated local results and outstanding checks belong in
+the
+[cleanup plan](../rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits).
+Run strict SwiftLint on affected production sources when SourceKitten is
+functional, format changed Markdown with `deno fmt`, and finish with
+`make validate-markdown-format` and `git diff --check`.
+
 ### Hardware & Ecosystem Integrations
 
 - **`CameraManagerTests.swift`**: Validates camera state routing, target-FPS
@@ -2158,8 +2330,12 @@ import, and permission-denial UI require the physical-device checklist in
   suppresses only the warning when
   `MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1`. It also verifies that
   non-production projects and non-simulator/release contexts do not warn.
-- **`SocialGuardManagerTests.swift`, `CircuitBreakerManagerTests.swift`**:
-  Asserts offline logic ensuring blocked users do not re-populate the feed.
+- **`SocialGuardManagerTests.swift`**: Asserts offline logic ensuring blocked
+  users do not re-populate the feed.
+- **`CircuitBreakerManagerTests.swift`**: Covers the failure threshold and reset
+  policy using a fresh manager per XCTest case. It does not reset the production
+  singleton shared by inference suites, whose Swift Testing process-state gate
+  cannot serialize XCTest cases.
 
 ### UI & Utilities
 

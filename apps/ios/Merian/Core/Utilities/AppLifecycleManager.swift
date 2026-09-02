@@ -8,23 +8,26 @@ import SwiftUI
 final class AppLifecycleManager {
 
     private let container: AppDIContainer
+    private let synchronizeConsent: @MainActor () async -> Void
     private let retryPurchaseIdentityReadiness: @MainActor () async -> Void
-
-    init(container: AppDIContainer) {
-        self.container = container
-        let supabaseManager = container.supabaseManager
-        self.retryPurchaseIdentityReadiness = { [weak supabaseManager] in
-            _ = await supabaseManager?
-                .retryPurchaseIdentityReadinessIfNeeded()
-        }
-    }
+    private let authorizedForegroundWork: (@MainActor () -> Void)?
 
     init(
         container: AppDIContainer,
-        retryPurchaseIdentityReadiness: @escaping @MainActor () async -> Void
+        retryPurchaseIdentityReadiness: (@MainActor () async -> Void)? = nil,
+        synchronizeConsent: (@MainActor () async -> Void)? = nil,
+        authorizedForegroundWork: (@MainActor () -> Void)? = nil
     ) {
         self.container = container
-        self.retryPurchaseIdentityReadiness = retryPurchaseIdentityReadiness
+        let supabaseManager = container.supabaseManager
+        self.retryPurchaseIdentityReadiness = retryPurchaseIdentityReadiness ?? { [weak supabaseManager] in
+            _ = await supabaseManager?
+                .retryPurchaseIdentityReadinessIfNeeded()
+        }
+        self.synchronizeConsent = synchronizeConsent ?? {
+            try? await container.consentManager.synchronizeWithCurrentSession()
+        }
+        self.authorizedForegroundWork = authorizedForegroundWork
     }
 
     /// Handles application transition to active foreground.
@@ -35,7 +38,7 @@ final class AppLifecycleManager {
         // closed. That lets an offline withdrawal retry and lets returning beta
         // users discover account evidence without repeating onboarding.
         Task {
-            try? await container.consentManager.synchronizeWithCurrentSession()
+            await synchronizeConsent()
         }
 
         // Auth listeners normally resolve billing identity. A transient server,
@@ -50,6 +53,14 @@ final class AppLifecycleManager {
         // adult, Terms, and third-party AI evidence is complete.
         guard container.consentManager.hasCurrentRequiredConsent else { return }
 
+        if let authorizedForegroundWork {
+            authorizedForegroundWork()
+        } else {
+            performAuthorizedForegroundWork()
+        }
+    }
+
+    private func performAuthorizedForegroundWork() {
         container.usageManager.evaluateDailyRefresh()
         container.pushNotificationManager.setupDelegate()
         container.pushNotificationManager.syncPermissionState()

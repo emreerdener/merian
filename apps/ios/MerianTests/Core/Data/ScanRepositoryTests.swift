@@ -5,6 +5,7 @@ import Supabase
 @testable import Merian
 
 @MainActor
+@Suite(.sharedProcessState(.offlineQueueManager))
 struct ScanRepositoryTests {
 
     private struct HistoricalMediaPayload: Encodable {
@@ -24,7 +25,6 @@ struct ScanRepositoryTests {
         let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
         let context = ModelContext(container)
-        ScanRepository.shared.configure(with: context)
         return context
     }
 
@@ -35,7 +35,6 @@ struct ScanRepositoryTests {
         let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
         let context = ModelContext(container)
-        ScanRepository.shared.configure(with: context)
         return context
     }
 
@@ -1015,9 +1014,11 @@ struct ScanRepositoryTests {
         let offlineQueue = OfflineQueueManager.shared
         let originalOnline = offlineQueue.isOnline
         defer { offlineQueue.isOnline = originalOnline }
+        offlineQueue.modelContext = ctx
         offlineQueue.isOnline = false
 
-        ScanRepository.shared.eradicateScan(record: record, modelContext: ctx)
+        let cleanup = ScanRepository.shared.eradicateScan(record: record, modelContext: ctx)
+        await cleanup?.value
 
         let recordId = record.id
         let recordDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == recordId })
@@ -1043,9 +1044,11 @@ struct ScanRepositoryTests {
         let offlineQueue = OfflineQueueManager.shared
         let originalOnline = offlineQueue.isOnline
         defer { offlineQueue.isOnline = originalOnline }
+        offlineQueue.modelContext = ctx
         offlineQueue.isOnline = false
 
-        ScanRepository.shared.eradicateScan(record: record, modelContext: ctx)
+        let cleanup = ScanRepository.shared.eradicateScan(record: record, modelContext: ctx)
+        await cleanup?.value
 
         let recordId = record.id
         let recordDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == recordId })

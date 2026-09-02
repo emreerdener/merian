@@ -401,7 +401,10 @@ final class ScanRepository {
     /// can never leave the database in an inconsistent state. The cloud deletion
     /// (`delete-scan` Edge function) is attempted immediately and retried on subsequent
     /// connectivity cycles via `PendingCloudDeletionTask`.
-    func eradicateScan(record: LocalScanRecord, modelContext: ModelContext) {
+    /// The optional handle completes this deletion's file cleanup and cloud
+    /// attempt. Callers need not await it for local deletion to be durable.
+    @discardableResult
+    func eradicateScan(record: LocalScanRecord, modelContext: ModelContext) -> Task<Void, Never>? {
         ExploreShareStateStore.setSharedPostId(nil, for: record.id)
 
         // Collect image paths before deleting the record.
@@ -433,23 +436,28 @@ final class ScanRepository {
             MerianLog.data.error("🚨 eradicateScan: modelContext save failed — aborting file deletion to preserve consistency: \(error, privacy: .private)")
             // Do not proceed to file deletion; the record still exists and the queue task
             // was not persisted, so state remains consistent.
-            return
+            return nil
         }
 
-        // 3. Purge local image files through the dedicated I/O actor — only after DB commit succeeds.
+        // 3. File cleanup and the immediate cloud attempt share a completion
+        // handle without delaying the already-committed local deletion.
         let localPaths = imagesToErase.filter { !$0.starts(with: "http") }
-        if !localPaths.isEmpty {
-            Task {
-                await FileIOActor.shared.deleteImages(at: localPaths)
+        let cleanupTask = Task { [offlineQueue] in
+            await withTaskGroup(of: Void.self) { group in
+                if !localPaths.isEmpty {
+                    group.addTask {
+                        await FileIOActor.shared.deleteImages(at: localPaths)
+                    }
+                }
+                group.addTask {
+                    await offlineQueue.syncPendingDeletions()
+                }
+                await group.waitForAll()
             }
-        }
-
-        // 4. Push the cloud deletion immediately.
-        Task {
-            await offlineQueue.syncPendingDeletions()
         }
         
         AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
+        return cleanupTask
     }
 
     /// Completely eradicates all local database caches and queued data. Use only for full account deletion or hard resets.

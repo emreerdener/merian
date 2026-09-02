@@ -24,6 +24,8 @@ import SwiftUI
     let foundationVisualCueEligibilityChecker: any FoundationVisualCueEligibilityChecking
     @ObservationIgnored
     let liveInferenceRequestService: InferenceLiveRequestService
+    @ObservationIgnored
+    let liveInferenceResultService: InferenceLiveResultService
     var inferenceEngine: InferenceEngine
     var viewfinderIntelligence = ViewfinderIntelligence.shared
     var speechManager = SpeechManager()
@@ -79,6 +81,7 @@ import SwiftUI
         let foundationVisualCueEligibilityChecker =
             SystemFoundationCueEligibility()
         let liveInferenceRequestService = InferenceLiveRequestService.live
+        let liveInferenceResultService = InferenceLiveResultService.live
         let appEventPublisher = AppEventPublisher()
         let milestoneToastClock = ContinuousMilestoneToastClock()
         let milestoneToastPresenter = MilestoneToastPresenter()
@@ -88,6 +91,7 @@ import SwiftUI
         self.foundationVisualCueEligibilityChecker =
             foundationVisualCueEligibilityChecker
         self.liveInferenceRequestService = liveInferenceRequestService
+        self.liveInferenceResultService = liveInferenceResultService
         self.appEventPublisher = appEventPublisher
         self.inferenceEngine = InferenceEngine(
             visionSubjectClassifier: visionSubjectClassifier,
@@ -98,7 +102,8 @@ import SwiftUI
             localAnalysisStartFeedback: {
                 HapticManager.shared.triggerLightImpact(intensity: 0.3)
             },
-            liveRequestService: liveInferenceRequestService
+            liveRequestService: liveInferenceRequestService,
+            liveResultService: liveInferenceResultService
         )
         self.milestoneToastClock = milestoneToastClock
         self.milestoneToastPresenter = milestoneToastPresenter

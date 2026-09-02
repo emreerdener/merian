@@ -1,9 +1,12 @@
 # App Lifecycle Management
 
-Merian centralizes all iOS phase-transition logic inside `AppLifecycleManager`
-(`Core/Utilities/AppLifecycleManager.swift`), a `@MainActor` class injected by
-`AppDIContainer`. This decouples lifecycle routing from the DI container itself
-and from individual ViewModels.
+`MerianApp` constructs the `@MainActor` `AppLifecycleManager`
+(`Core/Utilities/AppLifecycleManager.swift`) with its `AppDIContainer` and
+forwards scene phases to it. The manager owns app-wide admission and
+maintenance; Capture-specific interruption and queue-claim release remain with
+`CaptureWorkspaceViewModel.handleScenePhaseChange`. The app also forwards
+activity changes directly to `InferenceEngine` for its ephemeral local-analysis
+and phrase-cadence lifecycle.
 
 ## Phase Contract
 
@@ -11,11 +14,13 @@ and from individual ViewModels.
 `AppSettings.hasCompletedOnboarding`. If onboarding has not been completed, they
 return immediately. After that legacy routing gate, the active handler always
 schedules `ConsentManager.synchronizeWithCurrentSession()` so a closed required
-gate can hydrate account evidence or retry an offline withdrawal. All hardware,
-notification, usage, and queued provider work remains guarded by current adult,
-Terms, and Gemini consent. The inactive handler stops the camera after the
-onboarding guard. `handleBackgroundPhase()` is intentionally minimal and always
-records the background timestamp for later timeout evaluation.
+gate can hydrate account evidence or retry an offline withdrawal. The separate
+purchase-identity-readiness retry also runs after onboarding even while required
+consent is closed. All ordinary hardware, notification, usage, and queued
+provider work remains guarded by current adult, Terms, and Gemini consent. The
+inactive handler stops the camera after the onboarding guard.
+`handleBackgroundPhase()` is intentionally minimal and always records the
+background timestamp for later timeout evaluation.
 
 The account-switch synchronization, Realtime retry ownership, OAuth analytics
 suppression, and adjacent consent test defects are closed in source. Hosted
@@ -238,21 +243,33 @@ continue to use `AppEventPublisher`. See
    `ConsentManager.synchronizeWithCurrentSession()` reconciles local and account
    evidence. It must remain session-bound after every suspension point and must
    push target-owned pending rows in the same synchronization pass.
-2. After the guard, `AppIconBadgeCoordinator` refreshes the Explore unread count
+2. Also before that guard, a separate task retries purchase-identity readiness
+   through the container's existing manager. It repairs the same identity after
+   a transient failure; it does not require a new Auth event or open the consent
+   gate.
+3. After the guard, `AppIconBadgeCoordinator` refreshes the Explore unread count
    and `PushNotificationManager.syncRemotePushRegistrationIfPossible` reconciles
    APNs state.
-3. `OfflineQueueManager.purgeSoftDeletedRecords()` removes safe local records.
-4. When a model context exists, preferred-name sync, expired non-biological
+4. `OfflineQueueManager.purgeSoftDeletedRecords()` removes safe local records.
+5. When a model context exists, preferred-name sync, expired non-biological
    purge, and throttled historical scan download run. Historical sync stamps the
    15-minute throttle before starting to prevent concurrent foreground handlers.
-5. `OfflineJobScheduler.drainRunnableJobs(using:)` drains work and recreates the
+6. `OfflineJobScheduler.drainRunnableJobs(using:)` drains work and recreates the
    next process-local wake from durable retry dates. This scheduler owns pending
    upload and interrupted-inference replay; the lifecycle manager no longer
    calls `syncPendingScans()` or `replayInferenceForUploadedScans()` directly.
 
-Lifecycle tests must provide current required consent before expecting any work
-after item 1. The old onboarding-complete flag alone now intentionally returns
-before queue replay.
+Lifecycle tests inject inert consent-sync, identity-retry, and authorized-work
+callbacks to exercise all onboarding/consent combinations without launching live
+maintenance. Required consent is necessary for items 3–6, not for the two repair
+tasks. A source guard checks the live scheduler route; the separate
+`OfflineJobSchedulerTests` exercises the scheduler's ordered dispatch and
+future-wake behavior with injected inert operations. Neither test boundary
+proves a real durable staged claim or provider replay. Background-phase fixtures
+restore their standard-preference timestamp, and queue fixtures await their own
+work before restoring shared state. Use the
+[focused inference matrix](08-testing-strategy.md#live-inference-requestresult-verification)
+and full unit target for the combined regression gate.
 
 ---
 
@@ -378,11 +395,14 @@ analysis.
 
 ## Phase Ordering & Critical Rules
 
-| Phase      | Camera Session  | Offline Queue                                                                                        | Inference                                                                                            |
-| ---------- | --------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Active     | Start           | Drain (quota-gated for free)                                                                         | Normal live path                                                                                     |
-| Inactive   | Stop            | Untouched                                                                                            | Untouched — scan already queued                                                                      |
-| Background | Already stopped | No-op — the durable queue already owns the scan; existing background transport or recovery continues | Live `inferenceTask` may still be running; background URLSession owns delivery if it completes first |
+This table includes both app-wide handlers and Capture's separate scene-phase
+work; it is not an inventory of effects inside `AppLifecycleManager` alone.
+
+| Phase      | Camera Session                                                     | Offline Queue                                                                                               | Inference                                                                                              |
+| ---------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Active     | Capture starts only when visual mode and presentation state permit | Consent-gated scheduler drain and persisted wake restoration                                                | Resume eligible local phrase cadence; normal live/recovery ownership remains fenced                    |
+| Inactive   | Stop                                                               | No queue rescue or claim release                                                                            | Pause local analysis/cadence, not the durable provider/persistence pipeline                            |
+| Background | Already stopped                                                    | Capture releases live-upload suppression and foreground claims; the already-durable row remains recoverable | No rescue enqueue or Free/Pro cancellation split; stale completions cannot acquire a replacement claim |
 
 **Rules AI agents must follow:**
 

@@ -31,7 +31,8 @@ struct InsightToolbarRecordSnapshotTests {
         let recordId = record.id
         let collectionId = collection.id
         let snapshot = InsightToolbarRecordSnapshot(record: record)
-        ScanRepository.shared.eradicateScan(record: record, modelContext: ctx)
+        ctx.delete(record)
+        try ctx.save()
 
         #expect(snapshot.scanId == recordId)
         #expect(snapshot.coverImagePath == "scan.webp")

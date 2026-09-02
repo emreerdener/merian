@@ -3,7 +3,7 @@ import Testing
 
 @testable import Merian
 
-@Suite(.serialized)
+@Suite(.serialized, .sharedProcessState(.offlineQueueManager))
 @MainActor
 struct ProfileActorCacheTests {
     @Test func cacheTracksModelContainerIdentity() throws {

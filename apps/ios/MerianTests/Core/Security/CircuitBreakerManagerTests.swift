@@ -4,12 +4,12 @@ import XCTest
 @MainActor
 final class CircuitBreakerManagerTests: XCTestCase {
 
-    var circuitBreaker: CircuitBreakerManager!
+    private var circuitBreaker: CircuitBreakerManager!
 
     override func setUp() async throws {
-        circuitBreaker = CircuitBreakerManager.shared
-        // Reset state explicitly
-        circuitBreaker.recordSuccess()
+        // XCTest does not participate in the Swift Testing process-state gate.
+        // These unit tests exercise circuit policy, not singleton ownership.
+        circuitBreaker = CircuitBreakerManager()
     }
 
     override func tearDown() async throws {

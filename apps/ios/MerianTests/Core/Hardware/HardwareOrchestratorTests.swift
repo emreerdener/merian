@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .sharedProcessState(.offlineQueueManager))
 struct HardwareOrchestratorTests {
     
     init() {

@@ -22,10 +22,10 @@ struct FieldNotesRepositoryTests {
         FieldNotesStore.setFieldNotes(bridgedNote, for: recordID)
         defer { FieldNotesStore.setFieldNotes(nil, for: recordID) }
 
-        ScanRepository.shared.eradicateScan(
-            record: record,
-            modelContext: context
-        )
+        // This suite owns note fallback after a local deletion, not the
+        // repository's upload tombstone or cloud-deletion workers.
+        context.delete(record)
+        try context.save()
 
         let resolvedNotes = FieldNotesRepository.fieldNotes(
             for: recordID,

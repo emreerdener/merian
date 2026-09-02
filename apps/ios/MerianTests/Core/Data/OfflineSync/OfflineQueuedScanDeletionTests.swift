@@ -4,6 +4,7 @@ import Foundation
 @testable import Merian
 
 @MainActor
+@Suite(.sharedProcessState(.offlineQueueManager))
 struct OfflineQueuedScanDeletionTests {
     
     private func createIsolatedContext() throws -> ModelContext {
@@ -90,6 +91,8 @@ struct OfflineQueuedScanDeletionTests {
         try ctx.save()
         
         let queueManager = OfflineQueueManager.shared
+        let previousContext = queueManager.modelContext
+        defer { queueManager.modelContext = previousContext }
         queueManager.modelContext = ctx
         
         // Ensure standard state counts

@@ -496,7 +496,14 @@ triggering excessive SwiftUI view rebuilds.
   notification delivery, and reference URL normalization. The helpers stay
   inside `InferenceEngine` so they preserve `@MainActor` state ordering and the
   `AppDIContainer` singleton boundaries while removing duplicated success-path
-  logic.
+  logic. The synchronous `InferenceScanReplacement` helper now requires a typed
+  persisted result and a distinct store-visible replacement, then saves user
+  metadata before authorizing repository deletion. No-record results, missing
+  records, or failed metadata saves preserve the original. Its rollback restores
+  only staged replacement fields, not unrelated pending edits. Repository
+  deletion returns an optional completion handle for post-commit file/cloud
+  cleanup; ordinary UI/engine callers keep the existing non-blocking behavior,
+  while tests await their own cleanup before restoring queue fixtures.
 - **Non-biological correction reanalysis**: Correction from the Non-biological
   collection is a scoped refinement entry point, not a record mutation. The old
   non-biological record stays unchanged until a replacement result succeeds.
@@ -570,8 +577,27 @@ triggering excessive SwiftUI view rebuilds.
   injected visual/nonvisual provider boundary. It owns base64 filtering, MIME
   detection, observation-context JSON, descriptor forwarding, staged-video
   upload, and one Identify invocation. The engine supplies exact-attempt
-  validation after each suspension boundary and retains queue, presentation,
-  parsing, persistence, and recovery decisions.
+  validation after each suspension boundary and retains queue, presentation, and
+  recovery effect execution.
+- `Inference/Result/InferenceLiveResultService.swift` — the injected live
+  result/persistence adapter. It normalizes modality-specific actor inputs,
+  preserves the canonical media and exact persistence fence, and maps the
+  actor's completion proof into persisted, confidence-zero completed-without-
+  record, or rejected outcomes. The engine validates its attempt before and
+  after the actor call and retains discovery feedback, observable publication,
+  queue cleanup, and post-result effect ordering. Its synchronous
+  `Inference/Result/InferenceScanReplacement.swift` helper verifies the durable
+  replacement and saves transferred metadata before the engine may request
+  repository-owned deletion; no-record outcomes and failed saves keep the
+  original.
+- `Inference/Recovery/` — stateless failure classification and presentation.
+  `InferenceLiveFailurePolicy` preserves interruption precedence, exact provider
+  status/code matching, modality-specific retirement reasons, and
+  telemetry/circuit/feedback decisions. `InferenceFailurePresentation` creates
+  unchanged typed error placeholders. Both catch paths use one private
+  synchronous engine handler; queue ownership, paywall and disposition actions,
+  logging, and observable commits remain there without a new suspension or task
+  owner.
 - `Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift` — the
   shared injected public Wikipedia/GBIF request, wire DTO, and off-main parsing
   boundary used by Inference and scan-thumbnail recovery. It performs no engine,
@@ -581,16 +607,20 @@ triggering excessive SwiftUI view rebuilds.
   access to `InferenceEngine`'s private state. It exposes two methods:
   `encodeBase64(compressedDatas:)` and `parseAndSave(...)`. `parseAndSave`
   returns a `ParseAndSaveResult` struct with `mappedData: SpeciesData?`,
-  `isNewDiscovery: Bool`, and `savedPaths: [String]`, but the longer-term media
-  source of truth is the ordered timeline exposed through
-  `CapturedMediaSnapshot`. Persistence writes both the scalar
-  `capturedMediaJSON` and the V41 `capturedMediaEntries` relationship; snapshot
-  reads prefer the JSON mirror first so insight-sheet layout does not fault
-  relationship rows on the main actor. Video entries are serialized as
-  `StoredVideoMediaReference(video:, thumbnail:)`, keeping the playable `.mp4`
-  and poster thumbnail together. The relationship mirror remains a fallback for
-  older data and may only preserve the video path; the scalar JSON carries the
-  richer poster metadata used by current UI and Explore sharing.
+  `isNewDiscovery: Bool`, `savedPaths: [String]`, `planUsed: String?`, and
+  `didCompletePersistence: Bool`. The result service requires the actor's
+  completion proof and mapped value; confidence alone cannot prove a durable
+  terminal outcome. Confidence-zero completion is completed-without-record, not
+  a saved replacement record. The longer-term media source of truth is the
+  ordered timeline exposed through `CapturedMediaSnapshot`. Persistence writes
+  both the scalar `capturedMediaJSON` and the V41 `capturedMediaEntries`
+  relationship; snapshot reads prefer the JSON mirror first so insight-sheet
+  layout does not fault relationship rows on the main actor. Video entries are
+  serialized as `StoredVideoMediaReference(video:, thumbnail:)`, keeping the
+  playable `.mp4` and poster thumbnail together. The relationship mirror remains
+  a fallback for older data and may only preserve the video path; the scalar
+  JSON carries the richer poster metadata used by current UI and Explore
+  sharing.
 - `InferenceEdgeDTOs.swift` — contains hand-written `APIError` and enrichment
   DTOs plus the marked, generated `EdgeResponseWrapper`, `EdgeResponse`,
   taxonomy, insight, quality, candidate, and pet response graph. The Identify
@@ -631,19 +661,24 @@ triggering excessive SwiftUI view rebuilds.
 - **Durable job control plane**: `OfflineJobScheduler` is the reconnect facade.
   It delegates existing scan upload/replay execution back to
   `OfflineQueueManager` while scheduling cloud deletion and collection sync
-  through `OfflineJobRecord` rows. `OfflineQueuedScan.queue*` fields and bounded
-  `OfflineQueueEvent` rows replace the old process-local retry authority, so app
-  relaunch preserves attempts, next retry time, last server stage, and
-  user-attention state. A persisted deadline is not itself a timer:
-  `OfflineJobScheduler` selects the earliest active scan/job deadline and owns
-  one token-fenced wake, rebuilt after retry persistence, foreground activation,
-  connectivity restoration, or queued-Insight presentation. Connectivity loss
-  cancels the ephemeral task but not its durable source date. Stale dates use a
-  bounded one-second wake; needs-attention rows are excluded; an atomic claim
-  clears both scan and job deadlines. Automatic scan upload, inference, cloud
-  deletion, and collection-sync retries all share
-  `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`; after that ceiling
-  the job moves to `needsAttention` instead of rescheduling.
+  through `OfflineJobRecord` rows. Its initializer-injected `DrainOperations`
+  keeps the six live manager effects separate from wake and ordering policy;
+  scheduler tests use inert effects and a private timer owner, while production
+  retains the shared scheduler and unchanged manager calls.
+  `OfflineQueuedScan.queue*` fields and bounded `OfflineQueueEvent` rows replace
+  the old process-local retry authority, so app relaunch preserves attempts,
+  next retry time, last server stage, and user-attention state. A persisted
+  deadline is not itself a timer: `OfflineJobScheduler` selects the earliest
+  active scan/job deadline and owns one token-fenced wake, rebuilt after retry
+  persistence, foreground activation, connectivity restoration, or
+  queued-Insight presentation. Connectivity loss cancels the ephemeral task but
+  not its durable source date. Stale dates use a bounded one-second wake;
+  needs-attention rows are excluded; an atomic claim clears both scan and job
+  deadlines. Automatic scan analysis observes
+  `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`; after that ceiling it
+  requires attention instead of rescheduling. Cloud-deletion maintenance does
+  not expire: it retains its outbox until explicit remote-erasure success, with
+  maintenance backoff capped at 15 minutes.
 - **Mixed-Media Persistence**: Persists one canonical ordered media timeline
   across images, videos, audio clips, and descriptions. Images, video clips, and
   video poster thumbnails are written to `.documentsDirectory` via
@@ -1573,6 +1608,12 @@ consults that Keychain entry.
     The retry is bound to the exact current Auth generation and durable Keychain
     capability/handoff; it cannot rotate Auth or create a replacement RevenueCat
     customer. Paid readiness reopens only after server entitlement verification.
+    Initializer-injected consent-sync and authorized-foreground-work callbacks
+    let lifecycle tests verify onboarding/consent admission without starting
+    live maintenance. The default path retains the existing hardware,
+    notification, history, and durable-scheduler ordering. The scheduler's
+    separate test suite executes ordered dispatch and async-await boundaries
+    with inert operations; the lifecycle source guard proves only its route.
 
 ### `DetachedWork`
 
@@ -1797,7 +1838,7 @@ consults that Keychain entry.
 - Grants 1 free daily scan via `UserDefaults` keyed against
   `DeviceIdentityManager.shared.deviceId`. Resets limits at calendar day
   boundaries via `evaluateDailyRefresh()`, called from
-  `AppDIContainer.handleActivePhase()` on foreground transitions.
+  `AppLifecycleManager.handleActivePhase()` on foreground transitions.
 - **Debug override**: `FeatureFlag.unlimitedFreeScans.defaultValue` is `false`.
   DEBUG Settings/environment overrides bypass only this local meter;
   Release/TestFlight ignores them and all builds remain subject to server quota.

@@ -510,24 +510,38 @@ feedback. `Inference/Request/InferenceLiveRequestService.swift` is the injected
 visual/nonvisual request boundary. It owns base64 filtering, MIME selection,
 observation-context JSON, descriptor forwarding, staged-video upload, and the
 single provider invocation, while the engine supplies exact-attempt validation
-and retains queue callbacks, presentation, parsing, persistence, and recovery.
-`AppDIContainer` owns the production live service. The current toolchain derives
-five image-specific observations covering dominant colors, color saturation,
-lighting, light contrast, and surface detail. They render as plain visible
-descriptions such as **Reviewing softly colored areas** and **Observing light
-and shadow areas**, not `Kind: detail` labels or internal statistical buckets
-such as “moderate” and “balanced.” Active visual live-to-queue handoff preserves
-the ephemeral contextual deck and in-memory carousel media only for an exact
-scan-and-attempt owner. Prepared visual work transfers generic copy without
-media; audio and Describe are typed nonvisual owners. That exact handoff also
-retains the canonical scan ID, selected carousel page, focus state, and
-time-derived analysis sweep through pending, uploading, staged, and inferencing
-queue states while none requires attention; ordinary queued scans animate only
-while inferencing. The trailing Insight toolbar slot stays mounted and fades in
-its queued delete action only after the durable ID is bound. The same visual
-cursor survives save and connectivity changes, while dismissal or Auth removes
-contextual phrase/media exposure without blocking durable result recovery.
-Generative multimodal cues remain the stable-Xcode-27 milestone.
+and retains queue callbacks, presentation, and recovery.
+`Inference/Result/InferenceLiveResultService.swift` normalizes visual/nonvisual
+inputs for the existing parse/save actor, forwards the exact persistence fence,
+and returns typed persisted, confidence-zero no-record, or rejected outcomes.
+The engine supplies attempt validation before and after persistence and keeps
+discovery feedback, queue completion, and follow-up ordering. It delegates
+reanalysis metadata safety to `Inference/Result/InferenceScanReplacement.swift`:
+a replacement must be visible in a fresh store context and its metadata save
+must succeed before repository-owned deletion of the original. No-record results
+and failed saves keep the original. `AppDIContainer` owns both production
+service values. `Inference/Recovery` contains stateless interruption/failure
+classification and recovery presentation, including the existing
+visual/nonvisual decoding and telemetry differences. One private synchronous
+engine handler retains exact ownership checks, queue retirement/handoff, paywall
+and terminal-disposition actions, feedback, and publication order. The current
+toolchain derives five image-specific observations covering dominant colors,
+color saturation, lighting, light contrast, and surface detail. They render as
+plain visible descriptions such as **Reviewing softly colored areas** and
+**Observing light and shadow areas**, not `Kind: detail` labels or internal
+statistical buckets such as “moderate” and “balanced.” Active visual
+live-to-queue handoff preserves the ephemeral contextual deck and in-memory
+carousel media only for an exact scan-and-attempt owner. Prepared visual work
+transfers generic copy without media; audio and Describe are typed nonvisual
+owners. That exact handoff also retains the canonical scan ID, selected carousel
+page, focus state, and time-derived analysis sweep through pending, uploading,
+staged, and inferencing queue states while none requires attention; ordinary
+queued scans animate only while inferencing. The trailing Insight toolbar slot
+stays mounted and fades in its queued delete action only after the durable ID is
+bound. The same visual cursor survives save and connectivity changes, while
+dismissal or Auth removes contextual phrase/media exposure without blocking
+durable result recovery. Generative multimodal cues remain the stable-Xcode-27
+milestone.
 
 Gemini remains the sole authority for identification and completed Insight
 content. Local classifications and cue text are never persisted, logged,
@@ -577,8 +591,17 @@ temporary `MerianNetworkClient` or shared request-interceptor ownership. Inject
 a private `AppRouteCoordinator` through the available route-request closure when
 testing notification routing; do not drain the app-host process singleton. Apply
 a keyed gate at suite scope when every case owns the resource and at test scope
-for isolated cases, then continue restoring the original process state during
-teardown.
+for isolated cases. Queue fixtures claim `.offlineQueueManager`; cases needing
+both resources claim them together in one trait. The underlying
+`SharedProcessStateGate` leases complete resource sets atomically and handles
+cancelled waiters. Capture's `OfflineQueueTestCase` base joins the same gate
+across XCTest setup/teardown. Queue scopes restore the previous model context;
+tests still restore other mutated fields and await their own work. Do not nest
+overlapping traits or cancel app-host tasks during fixture cleanup. Generic
+Insight contexts no longer configure the shared queue. Lifecycle admission tests
+inject inert foreground actions instead of launching production maintenance; the
+Core Data scheduler suite separately exercises ordered drain dispatch and
+fixture-owned wake cancellation through its narrow injected operations.
 
 ## Assets
 

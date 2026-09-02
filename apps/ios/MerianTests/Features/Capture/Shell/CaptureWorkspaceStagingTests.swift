@@ -4,7 +4,7 @@ import UIKit
 
 @testable import Merian
 
-@Suite("Capture workspace staging", .serialized)
+@Suite("Capture workspace staging", .serialized, .sharedProcessState(.offlineQueueManager))
 struct CaptureWorkspaceStagingTests {
     @Test func exhaustedImageImportAdmissionBlocksBeforePickerAndCrop() async {
         await Task { @MainActor in

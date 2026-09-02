@@ -333,7 +333,8 @@ base64 encoding to `InferenceProcessingActor` and retains no encoded request
 buffer after dispatch; durability is fully owned by the offline queue.
 `displayDatas.first` is assigned to `activeImageData: Data?` and wrapped into
 `activeMedia` as a single-frame preview used by the insight sheet carousel
-during the inference window. The full `displayDatas` array is forwarded to
+during the inference window. The full `displayDatas` array is forwarded through
+`InferenceLiveResultService` to
 `InferenceProcessingActor.parseAndSave(displayDatas:)` and written to disk via
 `FileIOActor.writeTemporaryImages`; once saved, the persisted user timeline is
 rebuilt into `activeMedia` and the carousel switches from the live preview to

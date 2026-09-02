@@ -8,7 +8,7 @@ import XCTest
 @testable import Merian
 
 @MainActor
-final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
+final class CaptureWorkspaceViewModelRefinementTests: OfflineQueueTestCase {
     static let entitlementTestUserID = UUID(
         uuidString: "00000000-0000-4000-8000-000000000778"
     )!

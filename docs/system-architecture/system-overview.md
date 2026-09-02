@@ -34,24 +34,33 @@ begins this pipeline:
    background upload so it does not compete with the inline request.
 3. **Biological Inference (`InferenceEngine.swift` and `Inference/Request/`)**:
    `InferenceEngine` owns the exact live attempt, queue callbacks, presentation,
-   parsing, persistence, and recovery policy. Its AppDI-injected
-   `InferenceLiveRequestService` maps all current still, gallery, audio,
-   Describe, mixed-media, and video submissions and invokes the pinned network
-   client once for `/identify-multimodal`, keeping `GEMINI_PAID_API_KEY` off the
-   client. The eligible live-camera still path first gives shutter-prefetched
-   environmental context at most 150 ms. That grace bounds context waiting, not
-   all telemetry preparation or total dispatch latency. Request-body completion
-   then releases its durable queue source for R2/background recovery. Late
-   context is applied through `/update-scan-context` without a second model
-   call; a branch with no live foreground owner cancels an unconsumed lookup.
+   and synchronous recovery effects. Stateless `Inference/Recovery` policies
+   classify failures and prepare presentation without owning live state. Its
+   AppDI-injected `InferenceLiveRequestService` maps all current still, gallery,
+   audio, Describe, mixed-media, and video submissions and invokes the pinned
+   network client once for `/identify-multimodal`, keeping `GEMINI_PAID_API_KEY`
+   off the client. The eligible live-camera still path first gives
+   shutter-prefetched environmental context at most 150 ms. That grace bounds
+   context waiting, not all telemetry preparation or total dispatch latency.
+   Request-body completion then releases its durable queue source for
+   R2/background recovery. Late context is applied through
+   `/update-scan-context` without a second model call; a branch with no live
+   foreground owner cancels an unconsumed lookup.
 4. **Durable First Result**: The Edge route verifies cached ES256 claims,
    performs one atomic ingestion-setup RPC, calls the unchanged tier model once,
    and uses at most one combined cached dictionary-hydration RPC for eligible
    biological results. It then awaits moderation, required media promotion,
    primary cache-miss species resolution, scan creation, and authenticated-owner
-   read-back before `200`. iOS persists and renders `speciesData` only after
-   that durable success. Analytics, group tags, candidate enrichment, awards,
-   and Field trips remain secondary work.
+   read-back before `200`. On iOS, the injected `InferenceLiveResultService`
+   forwards canonical media and the exact attempt fence to the existing
+   parsing/persistence actor. Typed persisted or confidence-zero no-record
+   completion may then reach the engine's result publication and queue cleanup;
+   rejected or stale results remain recoverable. Reanalysis additionally passes
+   through `InferenceScanReplacement`, which proves the replacement is durable
+   and saves the original's tags, collections, and notes before repository-owned
+   deletion. No-record results or failed metadata saves preserve the original.
+   Analytics, group tags, candidate enrichment, awards, and Field trips remain
+   secondary work.
 5. **Offline Resilience**: If a user is off-grid, capture first makes a
    serialized account/scan funding claim, then writes media to
    `.documentDirectory` and inserts a `SwiftData` row with `scanStateRaw = 0`
@@ -183,7 +192,7 @@ architectural engines. All complex business logic is bound using `@Observable`
 macros and `@Environment()` injection to keep the `View` lifecycle free from
 recursive updates or `EXC_BAD_ACCESS` warnings.
 
-Everything is wired in `AppDIContainer.swift`:
+`AppDIContainer.swift` wires the shared dependency graph:
 
 - A global singleton providing protocol-free dependency injection.
 - Owns the typed `AppEventPublisher` and bounded `AppRouteCoordinator`, plus the
@@ -191,20 +200,25 @@ Everything is wired in `AppDIContainer.swift`:
   `ScanMilestoneCoordinator`. Ordinary feedback remains a view-owned
   `ToastPayload`; application code never uses `NotificationCenter` as an event
   bus or creates a second root sheet.
-- Centralizes `.handleActivePhase()`, `.handleInactivePhase()`, and
-  `.handleBackgroundPhase()` lifecycle handlers to manage hardware state,
-  historical sync, non-biological cleanup, and queue recovery. It also manages
-  the background inference race: `CaptureWorkspaceViewModel` observes the
-  inactive phase to reset view state but does not nil out active ML payloads —
-  that is reserved for `handleBackgroundPhase()`. When the app backgrounds
-  mid-inference, Pro users have their capture enqueued to `OfflineQueueManager`
-  (resuming via background URLSession) and the live request is cancelled. Free
-  users have their in-flight request left running within iOS's ~30-second
-  background window; on completion, `InferenceEngine.analyze()` dispatches a
-  push notification.
-- App backgrounding also releases any process-local live-upload suppression so
-  the already-durable queue row becomes eligible for background recovery. App
-  termination cannot strand a row because the suppression set is not persisted.
+- `MerianApp` constructs `AppLifecycleManager` with the container and forwards
+  scene phases to it. After onboarding, active-phase consent synchronization and
+  purchase-identity retry run even when required consent is closed; ordinary
+  hardware, notification, and maintenance work requires current consent. The
+  live maintenance path delegates queue recovery and persisted retry-wake
+  reconstruction to `OfflineJobScheduler`. Inactive stops the camera without
+  dismissing sheets; background records only the session-timeout timestamp.
+- `CaptureWorkspaceViewModel.handleScenePhaseChange` owns capture interruption,
+  recording pause, and background release of process-local upload suppression
+  and durable foreground inference claims. Admitted captures are already durable
+  before live inference for every tier; there is no separate Free/Pro rescue
+  enqueue on backgrounding. Exact-attempt fencing governs which live or replay
+  result may commit. Process-local upload suppression does not survive
+  termination and cannot strand the durable row.
+- `MerianApp` separately forwards activity changes to `InferenceEngine` for its
+  ephemeral local-analysis/cadence lifecycle. That work does not own provider
+  networking, persistence, or queue recovery. See the
+  [app lifecycle contract](../development-guides/02-app-lifecycle.md) for phase
+  ordering and test boundaries.
 
 ## SwiftData & Data Layer
 

@@ -130,6 +130,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         InferenceLocalAnalysisCoordinator
     @ObservationIgnored private let liveRequestService:
         InferenceLiveRequestService
+    @ObservationIgnored private let liveResultService:
+        InferenceLiveResultService
     @ObservationIgnored private let requestPaywall: @MainActor () -> Void
     @ObservationIgnored private let speciesReferenceService:
         SpeciesReferenceHydrationService
@@ -150,6 +152,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         scanningPhraseSleeper: any ScanningPhraseSleeping = ContinuousScanningPhraseSleeper(),
         localAnalysisStartFeedback: @escaping @MainActor () -> Void = {},
         liveRequestService: InferenceLiveRequestService = .live,
+        liveResultService: InferenceLiveResultService = .live,
         speciesReferenceService: SpeciesReferenceHydrationService = .live,
         hydrationCoordinator: InferenceHydrationCoordinator? = nil,
         requestPaywall: @escaping @MainActor () -> Void = {
@@ -168,6 +171,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             )
         )
         self.liveRequestService = liveRequestService
+        self.liveResultService = liveResultService
         self.speciesReferenceService = speciesReferenceService
         self.hydrationCoordinator = hydrationCoordinator
             ?? InferenceHydrationCoordinator()
@@ -557,38 +561,15 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
     private func transferReplacementMetadataIfNeeded(
         from oldScanId: String?,
-        to newScanId: String?,
+        after outcome: InferenceLiveResultService.Outcome,
         modelContext: ModelContext?
     ) {
-        guard let oldScanId else { return }
-        guard let context = modelContext else {
-            assertionFailure("targetEradicationScanId provided but modelContext is nil")
-            return
-        }
-        var oldDescriptor = FetchDescriptor<LocalScanRecord>(
-            predicate: #Predicate { $0.id == oldScanId }
-        )
-        oldDescriptor.fetchLimit = 1
-        guard let oldRecord = try? context.fetch(oldDescriptor).first else { return }
-
-        // Transfer user-generated metadata to the new scan before the old record is deleted.
-        // Review state intentionally resets because this is a fresh analysis.
-        if let newScanId {
-            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == newScanId })
-            if let newRecord = try? context.fetch(descriptor).first {
-                newRecord.customTags = oldRecord.customTags
-                if let oldCollections = oldRecord.collections, !oldCollections.isEmpty {
-                    newRecord.collections = oldCollections
-                }
-                let newRecordHasFieldNotes = !(newRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-                if let oldFieldNotes = oldRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !oldFieldNotes.isEmpty,
-                   !newRecordHasFieldNotes {
-                    newRecord.fieldNotes = oldRecord.fieldNotes
-                }
-            }
-        }
-
+        guard let context = modelContext,
+              let oldRecord = InferenceScanReplacement.transferMetadata(
+                  from: oldScanId,
+                  after: outcome,
+                  modelContext: context
+              ) else { return }
         ScanRepository.shared.eradicateScan(record: oldRecord, modelContext: context)
     }
 
@@ -1300,45 +1281,42 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     )
                     return
                 }
-                let resultData = requestResponse.resultData
-                let observationContextsJSON =
-                    requestResponse.observationContextsJSON
                 let responseReceivedAt = requestResponse.receivedAt
                 self.cancelLocalVisualAnalysis(resetPhraseCoordinator: false)
 
                 // --- Step 3: Response Parsing & Local Persistence ---
                 
                 let postFlightStart = CFAbsoluteTimeGetCurrent()
-                let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
-                    resultData: resultData,
-                    telemetry: telemetry,
-                    modelContext: modelContext,
-                    compressedDatas: compressedDatas,
-                    displayDatas: capturedDisplayDatas,
-                    observationContextsJSON: observationContextsJSON,
-                    audioFilePaths: submissionProjection.audioFilePaths.isEmpty
-                        ? nil
-                        : submissionProjection.audioFilePaths,
-                    videoFilePaths: submissionProjection.videoFilePaths.isEmpty
-                        ? nil
-                        : submissionProjection.videoFilePaths,
-                    mediaTimeline: resolvedMediaTimeline,
-                    persistenceFence: ownedScanId.flatMap { scanId in
-                        ownedForegroundInferenceGeneration.map { generation in
-                            LiveInferencePersistenceFence(
-                                scanId: scanId,
-                                generation: generation
-                            )
+                let resultOutcome = try await self.liveResultService.process(
+                    InferenceLiveResultService.Request(
+                        response: requestResponse,
+                        telemetry: telemetry,
+                        media: .visual(
+                            compressedImages: compressedDatas,
+                            displayImages: capturedDisplayDatas
+                        ),
+                        mediaTimeline: resolvedMediaTimeline,
+                        submissionProjection: submissionProjection,
+                        modelContext: modelContext,
+                        persistenceFence: ownedScanId.flatMap { scanId in
+                            ownedForegroundInferenceGeneration.map { generation in
+                                LiveInferencePersistenceFence(
+                                    scanId: scanId,
+                                    generation: generation
+                                )
+                            }
                         }
+                    ),
+                    validateAttempt: {
+                        try self.checkLiveInferenceAttempt(
+                            scanId: ownedScanId,
+                            attemptGeneration: attemptGeneration,
+                            foregroundInferenceGeneration:
+                                ownedForegroundInferenceGeneration
+                        )
                     }
                 )
-                try self.checkLiveInferenceAttempt(
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration
-                )
-                guard parseResult.didCompletePersistence else {
+                guard let completedResult = resultOutcome.completedResult else {
                     self.retireForegroundInferenceIfCurrent(
                         scanId: ownedScanId,
                         attemptGeneration: attemptGeneration,
@@ -1349,257 +1327,99 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     )
                     return
                 }
-                let finalMappedData = parseResult.mappedData
-                let isNewDisc = parseResult.isNewDiscovery
-                let savedImagePaths = parseResult.savedPaths
+                let savedImagePaths = completedResult.savedImagePaths
 
                 // --- Step 4: UI State Updates & Gamification ---
                 
-                if var mappedData = finalMappedData {
-                    applyNewDiscoveryIfNeeded(isNewDisc, to: &mappedData)
-                    transferReplacementMetadataIfNeeded(
-                        from: targetEradicationScanId,
-                        to: mappedData.scanId,
-                        modelContext: modelContext
-                    )
+                var mappedData = completedResult.speciesData
+                applyNewDiscoveryIfNeeded(completedResult.isNewDiscovery, to: &mappedData)
+                transferReplacementMetadataIfNeeded(
+                    from: targetEradicationScanId,
+                    after: resultOutcome,
+                    modelContext: modelContext
+                )
 
-                    CircuitBreakerManager.shared.recordSuccess()
-                    AppTelemetry.trackScan(
-                        isPro: RevenueCatManager.shared.isProActive,
-                        isSubscribed: RevenueCatManager.shared.isSubscribed,
-                        inferenceTier: mappedData.inferenceTier,
-                        planUsed: parseResult.planUsed
-                    )
-                    let didCommitResult = self.commitSuccessfulResult(
-                        for: ownedScanId,
-                        attemptGeneration: attemptGeneration,
-                        foregroundInferenceGeneration:
-                            ownedForegroundInferenceGeneration,
-                        speciesData: mappedData,
-                        persistedMediaItems: self.mediaItems(
-                            from: resolvedMediaTimeline,
-                            liveImageDatas: nil,
-                            persistedImagePaths: savedImagePaths
-                        )
-                    )
-                    let stateCommittedAt = CFAbsoluteTimeGetCurrent()
-                    MerianLog.general.debug(
-                        "[⏱ BENCH] Response to first-result state: \(String(format: "%.3f", stateCommittedAt - responseReceivedAt), privacy: .public)s"
-                    )
-                    var didFinalizeQueue = true
-                    if didCommitResult {
-                        didFinalizeQueue =
-                            await completeQueuedLiveInferenceIfNeeded(
-                                scanId: scanId,
-                                attemptGeneration: attemptGeneration,
-                                foregroundInferenceGeneration:
-                                    ownedForegroundInferenceGeneration,
-                                mediaPathsToKeep:
-                                    (mappedData.audioFilePaths ?? []) +
-                                    (mappedData.videoFilePaths ?? [])
-                            )
-                    }
-                    let stillOwnsPresentation =
-                        self.isLocalLiveInferenceAttemptCurrent(
-                            scanId: ownedScanId,
-                            attemptGeneration: attemptGeneration
-                        )
-                    if didCommitResult,
-                       didFinalizeQueue,
-                       stillOwnsPresentation {
-                        sendInferenceCompleteNotificationIfEnabled(
-                            for: mappedData
-                        )
-                    }
-
-                    MerianLog.general.debug("[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - postFlightStart), privacy: .public)s")
-                    MerianLog.general.debug("[⏱ BENCH] Total pipeline: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
-
-                    // --- Step 5: Post-Inference Background Hydration ---
-                    if didCommitResult,
-                       didFinalizeQueue,
-                       stillOwnsPresentation {
-                        schedulePostInferenceHydrationIfNeeded(
-                            for: mappedData,
-                            modelContext: modelContext,
-                            referencePolicy: .showLoadingWhenReferenceMissing
-                        )
-                        Task { [mappedData] in
-                            guard let scanId = mappedData.scanId else { return }
-                            await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
-                                scanId: scanId,
-                                speciesData: mappedData,
-                                modelContainer: modelContext?.container
-                            )
-                        }
-                    }
-                }
-            } catch {
-                // --- Step 6: Failure Handling & Error State ---
-                let stillOwnsAttempt =
-                    self.isLiveInferenceAttemptCurrent(
-                        scanId: ownedScanId,
-                        attemptGeneration: attemptGeneration,
-                        foregroundInferenceGeneration:
-                            ownedForegroundInferenceGeneration
-                    )
-
-                // Cancellation: the task was cancelled (e.g., user started a new scan via
-                // prepareForNewScan). The scan is already durably in the offline queue, so
-                // the background upload path will complete it — no credit refund needed.
-                if Task.isCancelled {
-                    if stillOwnsAttempt {
-                        self.releaseQueueBackedLiveInferenceForRecovery(
-                            scanId: ownedScanId,
-                            attemptGeneration: attemptGeneration,
-                            foregroundInferenceGeneration:
-                                ownedForegroundInferenceGeneration,
-                            reason: "live_request_cancelled"
-                        )
-                    }
-                    return
-                }
-
-                // Ownership checks also throw CancellationError when the queue
-                // retires this provider generation without cancelling the Swift
-                // task. Preserve the exact still-current sheet in that case.
-                if error is CancellationError {
-                    if publishQueuedRetiredOwnershipHandoffIfNeeded(
-                        scanId: ownedScanId,
-                        attemptGeneration: attemptGeneration,
-                        foregroundInferenceGeneration:
-                            ownedForegroundInferenceGeneration
-                    ) {
-                        return
-                    }
-                    if stillOwnsAttempt {
-                        self.releaseQueueBackedLiveInferenceForRecovery(
-                            scanId: ownedScanId,
-                            attemptGeneration: attemptGeneration,
-                            foregroundInferenceGeneration:
-                                ownedForegroundInferenceGeneration,
-                            reason: "live_request_cancelled"
-                        )
-                    }
-                    return
-                }
-
-                if (error as? URLError)?.code == .cancelled {
-                    _ = publishQueuedRecoveryHandoffIfNeeded(
-                        scanId: ownedScanId,
-                        attemptGeneration: attemptGeneration,
-                        foregroundInferenceGeneration:
-                            ownedForegroundInferenceGeneration,
-                        telemetryEvent:
-                            "InferenceQueuedForTransportCancellation",
-                        reason: "live_transport_cancelled"
-                    )
-                    return
-                }
-
-                // Connectivity monitoring may have retired the durable foreground
-                // generation before URLSession reports the matching failure. The
-                // still-current local presentation remains authorized to acknowledge
-                // that exact queue handoff, but it cannot publish provider results or
-                // generic error state.
-                if publishQueuedConnectivityFailureIfNeeded(
-                    error,
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration
-                ) {
-                    return
-                }
-
-                guard stillOwnsAttempt else { return }
-                self.releaseQueueBackedLiveInferenceForRecovery(
-                    scanId: ownedScanId,
+                CircuitBreakerManager.shared.recordSuccess()
+                AppTelemetry.trackScan(
+                    isPro: RevenueCatManager.shared.isProActive,
+                    isSubscribed: RevenueCatManager.shared.isSubscribed,
+                    inferenceTier: mappedData.inferenceTier,
+                    planUsed: completedResult.planUsed
+                )
+                let didCommitResult = self.commitSuccessfulResult(
+                    for: ownedScanId,
                     attemptGeneration: attemptGeneration,
                     foregroundInferenceGeneration:
                         ownedForegroundInferenceGeneration,
-                    reason: "live_request_failed"
+                    speciesData: mappedData,
+                    persistedMediaItems: self.mediaItems(
+                        from: resolvedMediaTimeline,
+                        liveImageDatas: nil,
+                        persistedImagePaths: savedImagePaths
+                    )
                 )
-                if ownedScanId != nil {
-                    self.recoverablePresentationScanId = resolvedClientScanId
-                }
-
-                if publishRecoverableInferenceConflictIfNeeded(
-                    error,
-                    scanId: resolvedClientScanId,
-                    telemetry: telemetry
-                ) {
-                    return
-                }
-
-                if publishConsentRequiredIfNeeded(
-                    error,
-                    telemetry: telemetry
-                ) {
-                    return
-                }
-
-                if publishProviderAdmissionFailureIfNeeded(
-                    error,
-                    telemetry: telemetry
-                ) {
-                    return
-                }
-
-                if publishTerminalObservationRejectionIfNeeded(
-                    error,
-                    scanId: resolvedClientScanId,
-                    telemetry: telemetry
-                ) {
-                    return
-                }
-
-                if let apiError = error as? MerianError, apiError == .decodingFailed {
-                    AppTelemetry.trackError("APIDecodingFailure")
-                    // No refund: the scan is already durably in the offline queue and will be
-                    // retried by the background upload path. Refunding here would give the user
-                    // a free extra scan against a quota that was already consumed.
-                    if stillOwnsAttempt {
-                        HapticManager.shared.triggerErrorThump()
-                        self.speciesData = makeErrorSpeciesData(
-                            title: "Analysis Failed",
-                            subtitle: "Data Unreadable",
-                            reasoning: "The AI failed to understand the image or produced an unreadable schema.",
-                            telemetry: telemetry
+                let stateCommittedAt = CFAbsoluteTimeGetCurrent()
+                MerianLog.general.debug(
+                    "[⏱ BENCH] Response to first-result state: \(String(format: "%.3f", stateCommittedAt - responseReceivedAt), privacy: .public)s"
+                )
+                var didFinalizeQueue = true
+                if didCommitResult {
+                    didFinalizeQueue =
+                        await completeQueuedLiveInferenceIfNeeded(
+                            scanId: scanId,
+                            attemptGeneration: attemptGeneration,
+                            foregroundInferenceGeneration:
+                                ownedForegroundInferenceGeneration,
+                            mediaPathsToKeep:
+                                (mappedData.audioFilePaths ?? []) +
+                                (mappedData.videoFilePaths ?? [])
                         )
-                    }
-                    return
                 }
-
-                // Remaining failures are not assumed to be connectivity loss. A
-                // queue-backed transport failure already returned through the dedicated
-                // queued presentation above; server and client-contract failures keep
-                // distinct copy while the durable background owner continues recovery.
-                let isConnectivityFailure = Self.isConnectivityFailure(error)
-                AppTelemetry.trackError(
-                    isConnectivityFailure
-                        ? "InferenceNetworkFailure"
-                        : "InferenceServiceFailure"
-                )
-                CircuitBreakerManager.shared.recordFailure()
-                MerianLog.general.debug("Inference failure: \(error.localizedDescription, privacy: .private)")
-                if stillOwnsAttempt {
-                    HapticManager.shared.triggerErrorThump()
-                    self.speciesData = makeErrorSpeciesData(
-                        title: isConnectivityFailure
-                            ? "Network timeout"
-                            : "Analysis delayed",
-                        subtitle: ownedScanId == nil
-                            ? "Please try again"
-                            : "Scan saved",
-                        reasoning: isConnectivityFailure
-                            ? Self.networkTimeoutRecoveryReason
-                            : (ownedScanId == nil
-                                ? Self.serviceFailureReason
-                                : Self.savedServiceFailureReason),
-                        telemetry: telemetry
+                let stillOwnsPresentation =
+                    self.isLocalLiveInferenceAttemptCurrent(
+                        scanId: ownedScanId,
+                        attemptGeneration: attemptGeneration
+                    )
+                if didCommitResult,
+                   didFinalizeQueue,
+                   stillOwnsPresentation {
+                    sendInferenceCompleteNotificationIfEnabled(
+                        for: mappedData
                     )
                 }
+
+                MerianLog.general.debug("[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - postFlightStart), privacy: .public)s")
+                MerianLog.general.debug("[⏱ BENCH] Total pipeline: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
+
+                // --- Step 5: Post-Inference Background Hydration ---
+                if didCommitResult,
+                   didFinalizeQueue,
+                   stillOwnsPresentation {
+                    schedulePostInferenceHydrationIfNeeded(
+                        for: mappedData,
+                        modelContext: modelContext,
+                        referencePolicy: .showLoadingWhenReferenceMissing
+                    )
+                    Task { [mappedData] in
+                        guard let scanId = mappedData.scanId else { return }
+                        await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
+                            scanId: scanId,
+                            speciesData: mappedData,
+                            modelContainer: modelContext?.container
+                        )
+                    }
+                }
+            } catch {
+                handleLiveInferenceFailure(
+                    error,
+                    mode: .visual,
+                    scanId: ownedScanId,
+                    resolvedClientScanId: resolvedClientScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration,
+                    telemetry: telemetry
+                )
             }
         }
     }
@@ -1789,43 +1609,36 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                             )
                         }
                     )
-                let resultData = requestResponse.resultData
-                let observationContextsJSON =
-                    requestResponse.observationContextsJSON
                 let responseReceivedAt = requestResponse.receivedAt
                 let postFlightStart = CFAbsoluteTimeGetCurrent()
 
-                let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
-                    resultData: resultData,
-                    telemetry: telemetry,
-                    modelContext: modelContext,
-                    compressedDatas: [],
-                    displayDatas: [],
-                    skipImageRequirement: true,
-                    observationContextsJSON: observationContextsJSON,
-                    audioFilePaths: submissionProjection.audioFilePaths.isEmpty
-                        ? nil
-                        : submissionProjection.audioFilePaths,
-                    videoFilePaths: submissionProjection.videoFilePaths.isEmpty
-                        ? nil
-                        : submissionProjection.videoFilePaths,
-                    mediaTimeline: resolvedMediaTimeline,
-                    persistenceFence: ownedScanId.flatMap { scanId in
-                        ownedForegroundInferenceGeneration.map { generation in
-                            LiveInferencePersistenceFence(
-                                scanId: scanId,
-                                generation: generation
-                            )
+                let resultOutcome = try await self.liveResultService.process(
+                    InferenceLiveResultService.Request(
+                        response: requestResponse,
+                        telemetry: telemetry,
+                        media: .nonVisual,
+                        mediaTimeline: resolvedMediaTimeline,
+                        submissionProjection: submissionProjection,
+                        modelContext: modelContext,
+                        persistenceFence: ownedScanId.flatMap { scanId in
+                            ownedForegroundInferenceGeneration.map { generation in
+                                LiveInferencePersistenceFence(
+                                    scanId: scanId,
+                                    generation: generation
+                                )
+                            }
                         }
+                    ),
+                    validateAttempt: {
+                        try self.checkLiveInferenceAttempt(
+                            scanId: ownedScanId,
+                            attemptGeneration: attemptGeneration,
+                            foregroundInferenceGeneration:
+                                ownedForegroundInferenceGeneration
+                        )
                     }
                 )
-                try self.checkLiveInferenceAttempt(
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration
-                )
-                guard parseResult.didCompletePersistence else {
+                guard let completedResult = resultOutcome.completedResult else {
                     self.retireForegroundInferenceIfCurrent(
                         scanId: ownedScanId,
                         attemptGeneration: attemptGeneration,
@@ -1836,251 +1649,282 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     )
                     return
                 }
-                let finalMappedData = parseResult.mappedData
-                let isNewDisc = parseResult.isNewDiscovery
+                var mappedData = completedResult.speciesData
+                applyNewDiscoveryIfNeeded(completedResult.isNewDiscovery, to: &mappedData)
+                transferReplacementMetadataIfNeeded(
+                    from: targetEradicationScanId,
+                    after: resultOutcome,
+                    modelContext: modelContext
+                )
 
-                if var mappedData = finalMappedData {
-                    applyNewDiscoveryIfNeeded(isNewDisc, to: &mappedData)
-                    transferReplacementMetadataIfNeeded(
-                        from: targetEradicationScanId,
-                        to: mappedData.scanId,
-                        modelContext: modelContext
-                    )
+                CircuitBreakerManager.shared.recordSuccess()
+                AppTelemetry.trackScan(
+                    isPro: RevenueCatManager.shared.isProActive,
+                    isSubscribed: RevenueCatManager.shared.isSubscribed,
+                    inferenceTier: mappedData.inferenceTier,
+                    planUsed: completedResult.planUsed
+                )
 
-                    CircuitBreakerManager.shared.recordSuccess()
-                    AppTelemetry.trackScan(
-                        isPro: RevenueCatManager.shared.isProActive,
-                        isSubscribed: RevenueCatManager.shared.isSubscribed,
-                        inferenceTier: mappedData.inferenceTier,
-                        planUsed: parseResult.planUsed
-                    )
-
-                    let didCommitResult = self.commitSuccessfulResult(
-                        for: ownedScanId,
-                        attemptGeneration: attemptGeneration,
-                        foregroundInferenceGeneration:
-                            ownedForegroundInferenceGeneration,
-                        speciesData: mappedData
-                    )
-                    let stateCommittedAt = CFAbsoluteTimeGetCurrent()
-                    MerianLog.general.debug(
-                        "[⏱ BENCH] Response to first-result state: \(String(format: "%.3f", stateCommittedAt - responseReceivedAt), privacy: .public)s"
-                    )
-                    MerianLog.general.debug(
-                        "[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", stateCommittedAt - postFlightStart), privacy: .public)s"
-                    )
-                    MerianLog.general.debug(
-                        "[⏱ BENCH] Total pipeline: \(String(format: "%.3f", stateCommittedAt - pipelineStart), privacy: .public)s"
-                    )
-                    var didFinalizeQueue = true
-                    if didCommitResult, shouldFlushQueuedScan {
-                        didFinalizeQueue =
-                            await self.completeQueuedLiveInferenceIfNeeded(
-                                scanId: ownedScanId,
-                                attemptGeneration: attemptGeneration,
-                                foregroundInferenceGeneration:
-                                    ownedForegroundInferenceGeneration,
-                                mediaPathsToKeep:
-                                    (mappedData.audioFilePaths ?? []) +
-                                    (mappedData.videoFilePaths ?? [])
-                            )
-                    }
-                    let stillOwnsPresentation =
-                        self.isLocalLiveInferenceAttemptCurrent(
-                            scanId: ownedScanId,
-                            attemptGeneration: attemptGeneration
-                        )
-                    if didCommitResult,
-                       didFinalizeQueue,
-                       stillOwnsPresentation {
-                        Task { [mappedData] in
-                            guard let scanId = mappedData.scanId else { return }
-                            await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
-                                scanId: scanId,
-                                speciesData: mappedData,
-                                modelContainer: modelContext?.container
-                            )
-                        }
-                        self.sendInferenceCompleteNotificationIfEnabled(
-                            for: mappedData
-                        )
-                        schedulePostInferenceHydrationIfNeeded(
-                            for: mappedData,
-                            modelContext: modelContext,
-                            referencePolicy: .none
-                        )
-                    }
-                }
-            } catch {
-                let stillOwnsAttempt =
-                    self.isLiveInferenceAttemptCurrent(
-                        scanId: ownedScanId,
-                        attemptGeneration: attemptGeneration,
-                        foregroundInferenceGeneration:
-                            ownedForegroundInferenceGeneration
-                    )
-                if Task.isCancelled {
-                    if stillOwnsAttempt {
-                        self.releaseQueueBackedLiveInferenceForRecovery(
-                            scanId: ownedScanId,
-                            attemptGeneration: attemptGeneration,
-                            foregroundInferenceGeneration:
-                                ownedForegroundInferenceGeneration,
-                            reason: "live_nonvisual_cancelled"
-                        )
-                    }
-                    return
-                }
-
-                // Apply the same task-cancellation versus ownership-retirement
-                // distinction used by the visual pipeline.
-                if error is CancellationError {
-                    if publishQueuedRetiredOwnershipHandoffIfNeeded(
-                        scanId: ownedScanId,
-                        attemptGeneration: attemptGeneration,
-                        foregroundInferenceGeneration:
-                            ownedForegroundInferenceGeneration
-                    ) {
-                        return
-                    }
-                    if stillOwnsAttempt {
-                        self.releaseQueueBackedLiveInferenceForRecovery(
-                            scanId: ownedScanId,
-                            attemptGeneration: attemptGeneration,
-                            foregroundInferenceGeneration:
-                                ownedForegroundInferenceGeneration,
-                            reason: "live_nonvisual_cancelled"
-                        )
-                    }
-                    return
-                }
-
-                if (error as? URLError)?.code == .cancelled {
-                    _ = publishQueuedRecoveryHandoffIfNeeded(
-                        scanId: ownedScanId,
-                        attemptGeneration: attemptGeneration,
-                        foregroundInferenceGeneration:
-                            ownedForegroundInferenceGeneration,
-                        telemetryEvent:
-                            "InferenceQueuedForTransportCancellation",
-                        reason: "live_nonvisual_transport_cancelled"
-                    )
-                    return
-                }
-
-                if publishQueuedConnectivityFailureIfNeeded(
-                    error,
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration
-                ) {
-                    return
-                }
-
-                guard stillOwnsAttempt else { return }
-                self.releaseQueueBackedLiveInferenceForRecovery(
-                    scanId: ownedScanId,
+                let didCommitResult = self.commitSuccessfulResult(
+                    for: ownedScanId,
                     attemptGeneration: attemptGeneration,
                     foregroundInferenceGeneration:
                         ownedForegroundInferenceGeneration,
-                    reason: "live_nonvisual_failed"
+                    speciesData: mappedData
                 )
-                if ownedScanId != nil {
-                    self.recoverablePresentationScanId = resolvedClientScanId
-                }
-
-                if publishRecoverableInferenceConflictIfNeeded(
-                    error,
-                    scanId: resolvedClientScanId,
-                    telemetry: telemetry
-                ) {
-                    return
-                }
-                if publishConsentRequiredIfNeeded(
-                    error,
-                    telemetry: telemetry
-                ) {
-                    return
-                }
-                if publishProviderAdmissionFailureIfNeeded(
-                    error,
-                    telemetry: telemetry
-                ) {
-                    return
-                }
-                if publishTerminalObservationRejectionIfNeeded(
-                    error,
-                    scanId: resolvedClientScanId,
-                    telemetry: telemetry
-                ) {
-                    return
-                }
-
-                let isConnectivityFailure = Self.isConnectivityFailure(error)
-                AppTelemetry.trackError(
-                    isConnectivityFailure
-                        ? "InferenceNetworkFailure"
-                        : (filteredAudioFilePaths.isEmpty
-                            ? "DescribeInferenceFailure"
-                            : "InferenceServiceFailure")
+                let stateCommittedAt = CFAbsoluteTimeGetCurrent()
+                MerianLog.general.debug(
+                    "[⏱ BENCH] Response to first-result state: \(String(format: "%.3f", stateCommittedAt - responseReceivedAt), privacy: .public)s"
                 )
-                CircuitBreakerManager.shared.recordFailure()
-                MerianLog.general.debug("Non-visual inference failure: \(error.localizedDescription, privacy: .private)")
-                if stillOwnsAttempt {
-                    HapticManager.shared.triggerErrorThump()
-                    self.speciesData = makeErrorSpeciesData(
-                        title: isConnectivityFailure
-                            ? "Network timeout"
-                            : "Analysis delayed",
-                        subtitle: ownedScanId == nil
-                            ? "Please try again"
-                            : "Scan saved",
-                        reasoning: isConnectivityFailure
-                            ? Self.networkTimeoutRecoveryReason
-                            : (ownedScanId == nil
-                                ? Self.serviceFailureReason
-                                : Self.savedServiceFailureReason),
-                        telemetry: telemetry
+                MerianLog.general.debug(
+                    "[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", stateCommittedAt - postFlightStart), privacy: .public)s"
+                )
+                MerianLog.general.debug(
+                    "[⏱ BENCH] Total pipeline: \(String(format: "%.3f", stateCommittedAt - pipelineStart), privacy: .public)s"
+                )
+                var didFinalizeQueue = true
+                if didCommitResult, shouldFlushQueuedScan {
+                    didFinalizeQueue =
+                        await self.completeQueuedLiveInferenceIfNeeded(
+                            scanId: ownedScanId,
+                            attemptGeneration: attemptGeneration,
+                            foregroundInferenceGeneration:
+                                ownedForegroundInferenceGeneration,
+                            mediaPathsToKeep:
+                                (mappedData.audioFilePaths ?? []) +
+                                (mappedData.videoFilePaths ?? [])
+                        )
+                }
+                let stillOwnsPresentation =
+                    self.isLocalLiveInferenceAttemptCurrent(
+                        scanId: ownedScanId,
+                        attemptGeneration: attemptGeneration
+                    )
+                if didCommitResult,
+                   didFinalizeQueue,
+                   stillOwnsPresentation {
+                    Task { [mappedData] in
+                        guard let scanId = mappedData.scanId else { return }
+                        await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
+                            scanId: scanId,
+                            speciesData: mappedData,
+                            modelContainer: modelContext?.container
+                        )
+                    }
+                    self.sendInferenceCompleteNotificationIfEnabled(
+                        for: mappedData
+                    )
+                    schedulePostInferenceHydrationIfNeeded(
+                        for: mappedData,
+                        modelContext: modelContext,
+                        referencePolicy: .none
                     )
                 }
+            } catch {
+                handleLiveInferenceFailure(
+                    error,
+                    mode: .nonVisual(hasAudio: !filteredAudioFilePaths.isEmpty),
+                    scanId: ownedScanId,
+                    resolvedClientScanId: resolvedClientScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration,
+                    telemetry: telemetry
+                )
             }
         }
     }
 
-    // MARK: - Error State Factory
+    // MARK: - Live Failure Recovery
 
-    private static let networkTimeoutRecoveryReason =
-        "Naturebook couldn’t reach the analysis service. Check your connection and try again."
+    /// One synchronous owner for both catch paths. Capture full ownership before
+    /// retiring it; only exact local presentation may acknowledge a queue handoff
+    /// after durable ownership has already moved to background recovery.
+    private func handleLiveInferenceFailure(
+        _ error: Error,
+        mode: InferenceLiveFailurePolicy.Mode,
+        scanId: String?,
+        resolvedClientScanId: String,
+        attemptGeneration: UUID,
+        foregroundInferenceGeneration: UUID?,
+        telemetry: CaptureTelemetry
+    ) {
+        let stillOwnsAttempt = isLiveInferenceAttemptCurrent(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundInferenceGeneration: foregroundInferenceGeneration
+        )
 
-    private static let serviceFailureReason =
-        "Naturebook couldn’t complete this analysis because the service returned an " +
-        "unexpected response. Please try again."
+        switch InferenceLiveFailurePolicy.interruption(
+            for: error,
+            isTaskCancelled: Task.isCancelled
+        ) {
+        case .taskCancellation:
+            if stillOwnsAttempt {
+                releaseQueueBackedLiveInferenceForRecovery(
+                    scanId: scanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration: foregroundInferenceGeneration,
+                    reason: mode.cancellationReason
+                )
+            }
+            return
+        case .ownershipCancellation:
+            if publishQueuedRetiredOwnershipHandoffIfNeeded(
+                scanId: scanId,
+                attemptGeneration: attemptGeneration,
+                foregroundInferenceGeneration: foregroundInferenceGeneration
+            ) {
+                return
+            }
+            if stillOwnsAttempt {
+                releaseQueueBackedLiveInferenceForRecovery(
+                    scanId: scanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration: foregroundInferenceGeneration,
+                    reason: mode.cancellationReason
+                )
+            }
+            return
+        case .transportCancellation:
+            _ = publishQueuedRecoveryHandoffIfNeeded(
+                scanId: scanId,
+                attemptGeneration: attemptGeneration,
+                foregroundInferenceGeneration: foregroundInferenceGeneration,
+                telemetryEvent: "InferenceQueuedForTransportCancellation",
+                reason: mode.transportCancellationReason
+            )
+            return
+        case nil:
+            break
+        }
 
-    private static let savedServiceFailureReason =
-        "Naturebook saved this scan and will retry it automatically. You can leave this " +
-        "screen and check Scans later."
+        // Connectivity monitoring can retire the durable generation before the
+        // transport returns. The still-current sheet may acknowledge that exact
+        // queue handoff, but cannot publish provider results or generic failure.
+        if InferenceLiveFailurePolicy.isConnectivityFailure(error),
+           publishQueuedRecoveryHandoffIfNeeded(
+               scanId: scanId,
+               attemptGeneration: attemptGeneration,
+               foregroundInferenceGeneration: foregroundInferenceGeneration,
+               telemetryEvent: "InferenceQueuedForConnectivity",
+               reason: "live_connectivity_handoff"
+           ) {
+            return
+        }
 
-    private static let consentRequiredRecoveryReason =
-        "Naturebook saved this scan. Complete the required age, Terms, and Google Gemini " +
-        "consent step, and Naturebook will resume it automatically when eligible. " +
-        "If it stays paused, you can retry it from Scans."
+        guard stillOwnsAttempt else { return }
+        releaseQueueBackedLiveInferenceForRecovery(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundInferenceGeneration: foregroundInferenceGeneration,
+            reason: mode.failureReason
+        )
+        if scanId != nil {
+            recoverablePresentationScanId = resolvedClientScanId
+        }
 
-    private static let savedScanRecoveryReason =
-        "Your scan reached Naturebook safely. We’re restoring its saved result now, " +
-        "and it will appear here or in Scans automatically."
+        let failure = InferenceLiveFailurePolicy.failure(for: error, mode: mode)
+        publishLiveInferenceFailure(
+            failure,
+            error: error,
+            mode: mode,
+            scanId: resolvedClientScanId,
+            hasQueuedScan: scanId != nil,
+            telemetry: telemetry
+        )
+    }
 
-    private static let proRequiredRecoveryReason =
-        "Naturebook saved this scan. This capture requires Pro access. " +
-        "Upgrade, then retry it from Scans."
+    /// Called only from the guarded synchronous handler above. Do not add a
+    /// suspension between its ownership snapshot, retirement, and these effects.
+    private func publishLiveInferenceFailure(
+        _ failure: InferenceLiveFailurePolicy.Failure,
+        error: Error,
+        mode: InferenceLiveFailurePolicy.Mode,
+        scanId: String,
+        hasQueuedScan: Bool,
+        telemetry: CaptureTelemetry
+    ) {
+        AppTelemetry.trackError(failure.telemetryEvent(for: mode))
+        if failure.recordsCircuitFailure {
+            CircuitBreakerManager.shared.recordFailure()
+        }
+        logLiveInferenceFailure(failure, error: error, mode: mode, scanId: scanId)
 
-    private static let rateLimitRecoveryReason =
-        "Naturebook saved this scan and will retry automatically after the server’s " +
-        "short safety pause. You can leave this screen and check Scans later."
+        switch failure {
+        case .dailyQuotaExceeded:
+            // Quota exhaustion requests the root paywall without publishing an
+            // Insight placeholder, error haptic, or circuit failure.
+            requestPaywall()
+            return
+        case .observationRejected:
+            // Preserve release-before-disposition ordering. If this durable
+            // transition fails, background recovery can apply the same rejection.
+            _ = OfflineQueueManager.shared.softDeleteQueuedScan(
+                scanId: scanId,
+                reason: InferenceFailurePresentation.observationRejected.reasoning,
+                errorCode: "observation_rejected",
+                httpStatus: 400,
+                needsAttention: false
+            )
+        default:
+            break
+        }
 
-    private static let observationRejectedReason =
-        "Naturebook couldn’t process this observation. Try a different photo or " +
-        "recording with the subject clearly visible."
+        if failure.triggersErrorFeedback {
+            HapticManager.shared.triggerErrorThump()
+        }
+        if let presentation = InferenceFailurePresentation.make(
+            for: failure,
+            hasQueuedScan: hasQueuedScan
+        ) {
+            speciesData = presentation.speciesData(telemetry: telemetry)
+        }
+    }
+
+    private func logLiveInferenceFailure(
+        _ failure: InferenceLiveFailurePolicy.Failure,
+        error: Error,
+        mode: InferenceLiveFailurePolicy.Mode,
+        scanId: String
+    ) {
+        switch failure {
+        case .recoverableConflict:
+            MerianLog.general.debug(
+                "Inference response was ambiguous after server acceptance; restoring scanId=\(scanId, privacy: .public)"
+            )
+        case .consentRequired:
+            MerianLog.general.debug(
+                "Inference paused until required consent is authoritative; the queued scan remains saved."
+            )
+        case .proRequired, .rateLimited:
+            let code: String
+            if case .rateLimited(let limit) = failure {
+                code = limit.rawValue
+            } else {
+                code = "pro_required"
+            }
+            MerianLog.general.debug(
+                "Inference paused by provider admission policy code=\(code, privacy: .public); the queued scan remains saved."
+            )
+        case .dailyQuotaExceeded:
+            MerianLog.general.debug(
+                "Inference daily quota exhausted; requesting the paywall while the queued scan remains saved."
+            )
+        case .observationRejected:
+            MerianLog.general.debug(
+                "Inference observation was rejected by policy; a different capture is required."
+            )
+        case .visualDecoding:
+            break
+        case .connectivity, .service:
+            if mode == .visual {
+                MerianLog.general.debug("Inference failure: \(error.localizedDescription, privacy: .private)")
+            } else {
+                MerianLog.general.debug("Non-visual inference failure: \(error.localizedDescription, privacy: .private)")
+            }
+        }
+    }
 
     private func clearQueuedVisualPresentationContext() {
         queuedVisualPresentationScanId = nil
@@ -2181,36 +2025,6 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             hasLiveVisualQueueHandoff(for: scanId)
     }
 
-    private static func isConnectivityFailure(_ error: Error) -> Bool {
-        if (error as? MerianError) == .networkTimeout {
-            return true
-        }
-        return ScanConnectivityFailurePolicy.isDurableRecoveryFailure(error)
-    }
-
-    @discardableResult
-    private func publishQueuedConnectivityFailureIfNeeded(
-        _ error: Error,
-        scanId: String?,
-        attemptGeneration: UUID,
-        foregroundInferenceGeneration: UUID?
-    ) -> Bool {
-        guard Self.isConnectivityFailure(error) else {
-            return false
-        }
-
-        // Physical captures are already durable before this request starts.
-        // Connectivity loss therefore changes presentation and ownership, not
-        // scan success: background recovery continues from the same scan ID.
-        return publishQueuedRecoveryHandoffIfNeeded(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundInferenceGeneration: foregroundInferenceGeneration,
-            telemetryEvent: "InferenceQueuedForConnectivity",
-            reason: "live_connectivity_handoff"
-        )
-    }
-
     private func publishQueuedRetiredOwnershipHandoffIfNeeded(
         scanId: String?,
         attemptGeneration: UUID,
@@ -2283,193 +2097,6 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             foregroundInferenceGeneration: foregroundInferenceGeneration,
             resumeBackground: true,
             reason: reason
-        )
-    }
-
-    private static func isTerminalObservationRejection(_ error: Error) -> Bool {
-        guard case let MerianError.httpError(statusCode, _) = error,
-              statusCode == 400 else {
-            return false
-        }
-        return MerianNetworkClient.stableEdgeErrorCode(from: error)
-            == "observation_rejected"
-    }
-
-    @discardableResult
-    private func publishConsentRequiredIfNeeded(
-        _ error: Error,
-        telemetry: CaptureTelemetry
-    ) -> Bool {
-        guard (error as? MerianError) == .aiConsentRequired else {
-            return false
-        }
-
-        // Missing or rejected consent is a policy transition, not evidence of
-        // network instability. In particular, it must not advance the shared
-        // circuit breaker and strand the user after fresh approval succeeds.
-        AppTelemetry.trackError("InferenceConsentRequired")
-        MerianLog.general.debug(
-            "Inference paused until required consent is authoritative; the queued scan remains saved."
-        )
-        HapticManager.shared.triggerErrorThump()
-        speciesData = makeErrorSpeciesData(
-            title: "Approval needed",
-            subtitle: "Scan saved",
-            reasoning: Self.consentRequiredRecoveryReason,
-            telemetry: telemetry
-        )
-        return true
-    }
-
-    @discardableResult
-    private func publishProviderAdmissionFailureIfNeeded(
-        _ error: Error,
-        telemetry: CaptureTelemetry
-    ) -> Bool {
-        guard let merianError = error as? MerianError,
-              case let .httpError(statusCode, _) = merianError,
-              let code = MerianNetworkClient.stableEdgeErrorCode(from: error) else {
-            return false
-        }
-
-        let title: String
-        let reasoning: String
-        let telemetryEvent: String
-        switch (statusCode, code) {
-        case (402, "pro_required"):
-            title = "Upgrade needed"
-            reasoning = Self.proRequiredRecoveryReason
-            telemetryEvent = "InferenceProRequired"
-        case (429, "ai_quota_daily_exceeded"):
-            // The durable queue still owns retry timing, but quota exhaustion
-            // is an upgrade boundary rather than an Insight result. Request the
-            // root paywall without publishing a synthetic SpeciesData view.
-            AppTelemetry.trackError("InferenceDailyQuotaExceeded")
-            MerianLog.general.debug(
-                "Inference daily quota exhausted; requesting the paywall while the queued scan remains saved."
-            )
-            requestPaywall()
-            return true
-        case (429, "ai_user_rate_limit_exceeded"),
-             (429, "ai_ip_rate_limit_exceeded"):
-            title = "Retrying shortly"
-            reasoning = Self.rateLimitRecoveryReason
-            telemetryEvent = "InferenceRateLimited"
-        default:
-            return false
-        }
-
-        // These are authenticated provider-admission decisions, not evidence
-        // that the device network is unhealthy. The durable queue owns the
-        // saved scan: 402 becomes explicit attention after entitlement refresh,
-        // while temporary 429s honor the server retry delay in the background.
-        AppTelemetry.trackError(telemetryEvent)
-        MerianLog.general.debug(
-            "Inference paused by provider admission policy code=\(code, privacy: .public); the queued scan remains saved."
-        )
-        HapticManager.shared.triggerErrorThump()
-        speciesData = makeErrorSpeciesData(
-            title: title,
-            subtitle: "Scan saved",
-            reasoning: reasoning,
-            telemetry: telemetry
-        )
-        return true
-    }
-
-    @discardableResult
-    private func publishTerminalObservationRejectionIfNeeded(
-        _ error: Error,
-        scanId: String,
-        telemetry: CaptureTelemetry
-    ) -> Bool {
-        guard Self.isTerminalObservationRejection(error) else {
-            return false
-        }
-
-        // This is a handler-owned moderation/policy outcome. Retrying the same
-        // retained media cannot succeed, and it says nothing about the device's
-        // network health. Mirror the background disposition immediately; if
-        // the durable transition fails, the normal background owner remains
-        // eligible to retry and apply the same terminal response safely.
-        AppTelemetry.trackError("InferenceObservationRejected")
-        MerianLog.general.debug(
-            "Inference observation was rejected by policy; a different capture is required."
-        )
-        _ = OfflineQueueManager.shared.softDeleteQueuedScan(
-            scanId: scanId,
-            reason: Self.observationRejectedReason,
-            errorCode: "observation_rejected",
-            httpStatus: 400,
-            needsAttention: false
-        )
-        HapticManager.shared.triggerErrorThump()
-        speciesData = makeErrorSpeciesData(
-            title: "Try another capture",
-            subtitle: "Scan not processed",
-            reasoning: Self.observationRejectedReason,
-            telemetry: telemetry
-        )
-        return true
-    }
-
-    @discardableResult
-    private func publishRecoverableInferenceConflictIfNeeded(
-        _ error: Error,
-        scanId: String,
-        telemetry: CaptureTelemetry
-    ) -> Bool {
-        guard MerianNetworkClient.isRecoverableInferenceConflict(error) else {
-            return false
-        }
-        AppTelemetry.trackError("InferenceCompletionRecovery")
-        MerianLog.general.debug(
-            "Inference response was ambiguous after server acceptance; restoring scanId=\(scanId, privacy: .public)"
-        )
-        speciesData = makeErrorSpeciesData(
-            title: "Restoring scan",
-            subtitle: "Safely saved",
-            reasoning: Self.savedScanRecoveryReason,
-            telemetry: telemetry
-        )
-        return true
-    }
-
-    /// Builds an error-placeholder `SpeciesData` for failures that cannot use the
-    /// durable queued presentation. Every branch shares the same field layout.
-    private func makeErrorSpeciesData(
-        title: String,
-        subtitle: String,
-        reasoning: String,
-        telemetry: CaptureTelemetry
-    ) -> SpeciesData {
-        SpeciesData(
-            scanId: nil,
-            presentationRole: .inferenceError,
-            commonName: title,
-            scientificName: subtitle,
-            insightData: InsightData(aiReasoning: reasoning, hazardType: "none"),
-            confidenceScore: 0,
-            blurScore: nil,
-            similarSpecies: nil,
-            wikipediaUrl: nil,
-            wikipediaOverview: nil,
-            referenceImageUrl: nil,
-            isBiological: false,
-            isLiveCapture: true,
-            isInvasive: false,
-            ecologyType: "unknown",
-            taxonomy: nil,
-            locationName: telemetry.locationName,
-            weatherCondition: telemetry.weatherCondition,
-            weatherTemperatureF: telemetry.weatherTemperatureF,
-            gpsElevation: telemetry.gpsElevation,
-            gpsLatitude: telemetry.gpsLatitude,
-            gpsLongitude: telemetry.gpsLongitude,
-            colors: nil,
-            groupTags: nil,
-            iucnRedListStatus: nil,
-            zoomFactor: telemetry.zoomFactor.map { Double($0) }
         )
     }
 

@@ -3,7 +3,7 @@ import Foundation
 import SwiftData
 import Testing
 
-@Suite(.serialized)
+@Suite(.serialized, .sharedProcessState(.offlineQueueManager))
 @MainActor
 struct OfflineQueueManagerTests {
     @Test func backgroundSessionCompletionWaitsForTerminalPersistence() async {
@@ -2537,23 +2537,26 @@ struct OfflineQueueManagerTests {
         let scanId = UUID().uuidString
         let imageData = Data("dummy_image".utf8)
 
-        OfflineQueueManager.shared.enqueueCapture(
-            imageDatas: [imageData],
-            telemetry: dummyTelemetry,
-            scanId: scanId
-        )
-
-        // Wait a brief moment for the BackgroundTaskWrapper to complete the disk write
-        // and dispatch to the MainActor for insertion.
-        try await Task.sleep(nanoseconds: 500_000_000)
+        let manager = OfflineQueueManager.shared
+        let didQueue = await withCheckedContinuation { continuation in
+            manager.enqueueCapture(
+                imageDatas: [imageData],
+                telemetry: dummyTelemetry,
+                scanId: scanId,
+                startSyncImmediately: false,
+                onQueued: { continuation.resume(returning: $0) }
+            )
+        }
+        defer { manager.deferredLiveUploadScanIds.remove(scanId) }
+        #expect(didQueue)
 
         let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         let fetched = try ctx.fetch(descriptor).first
 
         #expect(fetched != nil, "Scan must be inserted into the context")
         #expect(
-            fetched?.queueState == .pending || fetched?.queueState == .uploading,
-            "New capture scans must be persisted and may advance to .uploading immediately when sync kicks off"
+            fetched?.queueState == .pending,
+            "The persisted fixture must not start an unowned background upload"
         )
         #expect(OfflineQueueManager.shared.unsyncedItemsCount == 1, "Unsynced count must update")
 
@@ -2574,9 +2577,9 @@ struct OfflineQueueManagerTests {
         defer { restoreFreeScanLimitForTest() }
 
         let manager = OfflineQueueManager.shared
-        manager.deferredLiveUploadScanIds.removeAll()
         let ctx = try createIsolatedContext()
         let scanId = UUID().uuidString
+        defer { manager.deferredLiveUploadScanIds.remove(scanId) }
         let didQueue = await withCheckedContinuation { continuation in
             manager.enqueueCapture(
                 imageDatas: [Data("deferred_live_image".utf8)],
@@ -2616,11 +2619,12 @@ struct OfflineQueueManagerTests {
         manager.isOnline = false
         defer {
             manager.isOnline = originalIsOnline
+            manager.deferredLiveUploadScanIds.remove(scanId)
             manager.foregroundInferenceGenerations.removeValue(
                 forKey: scanId
             )
         }
-        manager.deferredLiveUploadScanIds = [scanId]
+        manager.deferredLiveUploadScanIds.insert(scanId)
         manager.foregroundInferenceGenerations.removeValue(forKey: scanId)
 
         manager.foregroundInferenceGenerations[scanId] =

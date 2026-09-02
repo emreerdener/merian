@@ -34,6 +34,23 @@ wrapper chain veto both recovery decisions; a broad outer transport error cannot
 hide them. A chain that exceeds the reviewed depth also fails closed rather than
 accepting only its inspected prefix.
 
+## Foreground lifecycle
+
+`AppLifecycleManager` keeps onboarding admission before consent synchronization
+and purchase-identity retry, and current required consent before hardware,
+notifications, or maintenance work. Its live maintenance path still drains the
+durable `OfflineJobScheduler`. Narrow initializer-injected consent-sync,
+identity-retry, and authorized-work callbacks let lifecycle tests exercise that
+admission policy without launching real queue, Auth, notification, or cloud
+maintenance. `AppLifecycleManagerTests` pairs the injected admission matrix with
+a source guard for the live scheduler route. Core Data's
+`OfflineJobSchedulerTests` separately executes scheduler ordering, awaits each
+asynchronous drain, and verifies wake admission/cancellation with inert effects.
+Those tests do not substitute for durable staged-claim or provider-replay
+coverage. Fixtures must not restore a queue context while production lifecycle
+tasks are still running, and background-phase tests restore the timestamp they
+write to standard preferences.
+
 ## Typed event and route coordination
 
 - `AppEventPublisher` is a DI-owned, synchronous `@MainActor` bus for

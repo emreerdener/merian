@@ -127,11 +127,11 @@ push toggles in `Profile/Settings/Notifications/`, bundled release notes in
 
 Suggested first targets:
 
-| File                                                     | Cleanup Direction                                                                                                                                                                                                   |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Continue extracting persistence/result mapping and recovery policy; live request/provider dispatch, hydration, bounded writes, shared reference transport, and local-analysis lifecycle/policies are already split. |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core.                                                                                 |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                                                             |
+| File                                                     | Cleanup Direction                                                                                                                                                                                                                                                                                                           |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Integration audit and scoped safety fixes are implemented; close current-source build and runtime verification before moving to Core/Network; live request/result adaptation, recovery classification/presentation, hydration, bounded writes, shared reference transport, and local-analysis lifecycle/policies are split. |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core.                                                                                                                                                                                         |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                                                                                                                                                                     |
 
 Rules for this phase:
 
@@ -196,6 +196,61 @@ Implemented Core slices:
   or observable UI contract changed. A follow-up review restored MIME and
   observation-context helpers to file-private visibility and added an explicit
   stale-after-image-encoding fence test.
+- The fifth slice added the injected `InferenceLiveResultService` for shared
+  visual/nonvisual parse/save input normalization and typed result outcomes.
+  `InferenceProcessingActor` retains its existing decoding, entitlement,
+  storage, media cleanup, and durable-completion rules. The service forwards the
+  exact model context, canonical media, original observation-context JSON, and
+  persistence fence; the engine supplies attempt validation before/after the
+  actor call. Both persisted and confidence-zero no-record completion keep the
+  original engine publication/queue path. Rejected or stale results cannot enter
+  it. Discovery feedback, replacement metadata, notifications, milestones,
+  hydration, failure policy, and their existing ordering remain in the engine.
+  Mirrored service and integration suites use injected dependencies and
+  continuation gates, with architecture checks preventing direct parse/save
+  mapping from returning to the engine. No DTO, payload, schema, endpoint, or
+  presentation contract changed.
+- Fifth-slice verification status (2026-09-02): XcodeGen is byte-stable;
+  project/source membership, event-routing guards and adversarial tests, Swift
+  parsing, strict affected-source lint, isolated result-service typechecking
+  against cached app/dependency modules, Markdown formatting, and diff checks
+  passed. A successful generic Simulator build, `build-for-testing`, and
+  focused/full test execution remain outstanding: local build attempts stopped
+  during SwiftPM resolution because of cache-write and nested-sandbox
+  restrictions, before any new tests ran. Static checks and isolated
+  typechecking are not full-target compilation or runtime evidence. The
+  [request/result verification matrix](../development-guides/08-testing-strategy.md#live-inference-requestresult-verification)
+  records the required follow-up selectors.
+- The sixth slice extracted stateless `InferenceLiveFailurePolicy` and
+  `InferenceFailurePresentation` under `Inference/Recovery` and replaced the two
+  catch implementations with one private synchronous engine handler.
+  Interruption precedence, retired-owner/connectivity handoff before the stale
+  guard, exact retirement before terminal effects, known HTTP policy matching,
+  all copy, and visual/nonvisual decoding and telemetry differences remain
+  unchanged. Queue mutation, paywall requests, circuit accounting, logging,
+  haptics, and observable publication stay engine-owned. The engine shrank by
+  337 lines in this slice; both new production files remain below 600 lines.
+  Pure policy/presentation suites and queue-less engine integration cases cover
+  those decisions, known conflicts, decoding, and non-cooperative stale or
+  cancelled failures. Result/recovery fixtures now share contained test support
+  and a continuation gate instead of duplicating setup. Circuit-breaker XCTest
+  unit cases now use a fresh manager instead of resetting the singleton used by
+  Swift Testing integration suites. The architecture suite locks the effect-free
+  policies and synchronous ownership-to-commit boundary. Parsing, strict
+  affected-source lint, byte-stable XcodeGen, project/source membership,
+  event-routing and workflow-contract checks, and isolated policy/presentation
+  source and test typechecking against cached dependencies passed. A follow-up
+  review (2026-09-02) found no additional code fixes necessary. All new
+  result/recovery service and integration tests, shared fixtures, policy and
+  presentation tests, architecture tests, and the isolated circuit XCTest passed
+  focused frontend typechecking against the exact current engine/result/recovery
+  declarations and cached unchanged dependencies. That verifies test bodies, not
+  full engine compilation or runtime behavior. Simulator discovery is available
+  again, but the generic Simulator build and `build-for-testing` still stop at
+  denied SwiftPM manifest-cache writes, before candidate tests can execute.
+  Direct engine/current-app compilation also stops at the environment's Apple
+  macro sandbox restrictions. Focused and full runtime acceptance remain
+  outstanding at that slice's handoff; the integration audit below follows it.
 - Focused Core AI and Species Reference suites cover hydration replacement and
   stale-completion isolation, TTL/backoff policy, queue capacity and overflow,
   cancellation and Auth quiescence, ordered newest-action writes, public
@@ -205,10 +260,58 @@ Implemented Core slices:
   behavior through the stable engine adapters. The live-request suite covers
   payload parity, descriptor alignment, upload order, callback forwarding, and
   stale-attempt rejection around its suspension points; the architecture suite
-  locks the extracted owners and retired aggregate. No JSON payload, SwiftData
-  schema, navigation, or backend contract changed. `InferenceEngine.swift`
-  remains a large orchestrator and should continue through small behavior-
-  preserving slices.
+  locks the extracted owners and retired aggregate. The result suites cover
+  persistence input parity, actor outcome classification, and stale-result
+  isolation through both live engine paths. No JSON payload, SwiftData schema,
+  navigation, or backend contract changed. `InferenceEngine.swift` remains a
+  large orchestrator and should continue through small, behavior-preserving
+  slices.
+- The Inference-wide source integration audit (2026-09-02) traced visual, audio,
+  and Describe requests through result, recovery, hydration, writes, Auth, and
+  exact queue completion. It repaired an existing reanalysis data-loss path:
+  `InferenceScanReplacement` requires a typed persisted result and a distinct
+  store-visible replacement, saves tags/collections/notes before deletion, and
+  preserves the original on no-record outcomes or lookup/save failure. Scoped
+  save rollback leaves unrelated user edits intact. The repository's existing
+  deletion/outbox commit still owns destruction; its post-commit cleanup now has
+  an optional completion handle so tests can await their own work.
+- The audit added atomic, cancellation-aware resource leases shared by Swift
+  Testing and the Capture XCTest base. Queue scopes restore the previous model
+  context; individual cases still own other state restoration and task
+  completion. Generic Insight/repository fixtures no longer call production
+  startup configuration. Enqueue fixtures await `onQueued` with automatic sync
+  disabled, pure projection tests delete only their isolated local record, and
+  lifecycle admission tests inject inert consent/maintenance callbacks. The live
+  lifecycle sequence and durable scheduler call remain unchanged.
+- The follow-up review restored executable scheduler dispatch-policy coverage
+  lost when the uncontrolled lifecycle replay fixture was removed.
+  `OfflineJobScheduler.DrainOperations` injects only the six existing manager
+  effects; production still uses the same shared scheduler and call order.
+  `OfflineJobSchedulerTests` suspends each async effect, proves inference replay
+  is reached in sequence, and checks future-wake admission and offline
+  cancellation on a fixture-owned scheduler. It does not claim a real durable
+  staged claim or provider replay. The lifecycle background-phase fixture also
+  restores its standard-preference timestamp.
+- New replacement and integration suites cover durable metadata safety,
+  no-record/missing-ID original retention, Auth waiting for cancellation-
+  ignoring live results, and suspended queue-backed results losing to
+  cancellation or generation replacement across all three modalities. Shared
+  gate tests cover atomic overlap, cancelled waiters, throwing scopes, and stale
+  release. Byte-stable XcodeGen, project/source membership, event-routing and
+  build-workflow guards, changed-source parsing, strict affected-production
+  lint, Markdown formatting, and diff checks passed. Focused frontend
+  typechecking also passed for 17 test/support files against current
+  inference/lifecycle/scheduler declarations and cached unchanged dependencies.
+  The scheduler's complete current body also passed isolated typechecking. These
+  are bounded compiler checks, not full-target compilation or runtime
+  acceptance. The fresh generic Simulator build and `build-for-testing` still
+  fail before compilation on denied SwiftPM manifest-diagnostics cache writes.
+  Full-engine current-source compilation also encounters the environment's Apple
+  macro sandbox restriction. Simulator discovery works. The expanded
+  [focused matrix](../development-guides/08-testing-strategy.md#live-inference-requestresult-verification)
+  and complete `merianTests` target must run from a successful current-source
+  build before closing this Inference round; stale cached products are not
+  candidate evidence. No deployment or external publication was performed.
 
 Implemented Explore slices:
 

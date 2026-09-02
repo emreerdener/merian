@@ -12,7 +12,10 @@ Shell owns the mounted UI and presentation timing; `InferenceEngine` owns exact
 live-attempt and presentation policy plus the concurrent on-device
 `VNClassifyImageRequest` status phrases. Its injected
 `InferenceLiveRequestService` owns live visual/nonvisual payload preparation,
-staged-video upload, and `/identify-multimodal` dispatch.
+staged-video upload, and `/identify-multimodal` dispatch. The paired
+`InferenceLiveResultService` adapts the same canonical projection and exact
+attempt fence to the existing parse/save actor; typed completion returns to the
+engine for presentation and queue cleanup.
 
 ## Ownership
 

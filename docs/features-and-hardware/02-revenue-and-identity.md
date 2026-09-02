@@ -586,8 +586,8 @@ provider-cost enforcement boundary.
 - Resets the advisory meter at device calendar boundaries. The authoritative
   free scan bucket resets at the UTC database boundary. The
   `evaluateDailyRefresh()` check is called from
-  `AppDIContainer.handleActivePhase()`, ensuring user quotas are reset when the
-  app enters the foreground from an overnight suspension.
+  `AppLifecycleManager.handleActivePhase()`, ensuring user quotas are reset when
+  the app enters the foreground from an overnight suspension.
 
 The complete grant, ledger, balance, fallback, settlement, protocol, offline,
 merge, security, and rollout contract is

@@ -487,8 +487,11 @@ Because the `InferenceEngine` tracks its properties on the `@MainActor`, a
 non-isolated initializer crosses execution boundaries, triggering a "Main
 actor-isolated property can not be referenced from a nonisolated context"
 compiler error. Merian tags `@MainActor` on the `CaptureTelemetry` initializer
-itself (`@MainActor init(from inferenceEngine: InferenceEngine)`), ensuring
-execution aligns with `AppDIContainer.handleBackgroundPhase()` on the UI thread.
+itself (`@MainActor init(from inferenceEngine: InferenceEngine)`), so a
+telemetry snapshot reads the engine's isolated properties on the main actor.
+This is not a background-rescue hook: Capture makes the scan durable at
+submission, and `AppLifecycleManager.handleBackgroundPhase()` only records the
+timeout timestamp.
 
 ### Core Location Delegate Re-entry (`LocationPermissionDelegate`)
 

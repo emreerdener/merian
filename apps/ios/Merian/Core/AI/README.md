@@ -5,13 +5,18 @@ remote identification pipeline. Capture-specific composition remains under
 `Features/Capture`; server prompts, schema, and Gemini calls remain under
 `services/supabase/functions/_shared/identify/` and `identify-multimodal/`.
 
+The canonical behavioral contract is
+[AI Engineering](../../../../../docs/system-architecture/04-ai-engineering.md).
+This README maps that contract to native source and test ownership.
+
 ## Responsibilities
 
 - `InferenceEngine` coordinates live analysis, observable result state,
   saved-media handoff, offline-queue adoption, enrichment, awards, and Field
-  trips. It delegates live request preparation/dispatch, hydration lifecycle,
-  bounded background-write, and external-reference work to focused owners
-  instead of storing those implementation details itself.
+  trips. It delegates live request preparation/dispatch, result-persistence
+  adaptation, failure classification/presentation, hydration lifecycle, bounded
+  background-write, and external-reference work to focused owners instead of
+  storing those implementation details itself.
 - `Inference/Hydration/InferenceHydrationCoordinator.swift` privately owns the
   replaceable live, historical, and identification-review task slots; retains
   cancelled handles until completion for Auth quiescence; and contains the
@@ -41,13 +46,46 @@ remote identification pipeline. Capture-specific composition remains under
   the one `/identify-multimodal` invocation. `InferenceEngine` supplies an exact
   attempt validator after encoding, video upload, and provider return; it keeps
   the provider-ready timer callback, request-body callback effects,
-  presentation, queue retirement, parsing, persistence, and recovery policy.
+  presentation, queue retirement, and recovery effects, and delegates parsing
+  and persistence through the result service below.
+- `Inference/Result/InferenceLiveResultService.swift` adapts visual/nonvisual
+  responses to the existing `InferenceProcessingActor.parseAndSave` boundary. It
+  forwards the original response/context JSON, canonical media projection, model
+  context, and exact persistence fence; normalizes optional media paths; and
+  returns typed persisted, completed-without-record, or rejected outcomes. The
+  engine supplies validation before and after the actor call. A confidence-zero
+  response still reaches presentation and queue completion only when the actor
+  proves terminal completion. The service has no retained request/task state or
+  presentation, queue, discovery, or notification effects. AppDI owns both live
+  request and result service values.
+- `Inference/Result/InferenceScanReplacement.swift` owns the synchronous
+  reanalysis metadata safety boundary. Only a typed persisted outcome with
+  distinct, non-empty scan IDs and a replacement visible in a fresh store
+  context can authorize replacement. It saves tags, collection membership, and
+  field notes before returning the original record to the engine for
+  repository-owned deletion. No-record outcomes, missing/deleted records, lookup
+  failures, and failed metadata saves preserve the original. Save failure
+  restores only the helper's staged fields, not unrelated user edits. A cleanup
+  failure can leave two scans; it cannot justify deleting the only usable
+  original. Review state intentionally belongs to the new analysis.
+- `Inference/Recovery/InferenceLiveFailurePolicy.swift` owns stateless
+  interruption and failure classification, modality-specific retirement reasons,
+  and telemetry/circuit/feedback decisions. It reuses Core Network's stable-code
+  parsing and the shared connectivity policy without invoking transport.
+  `InferenceFailurePresentation.swift` owns unchanged recovery copy and the
+  `.inferenceError` value factory. Both engine catch paths enter one private,
+  synchronous handler; exact-attempt validation, queue handoff/retirement,
+  paywall requests, terminal queue disposition, logging, feedback, and
+  observable commits remain engine-owned. These policies have no live
+  dependencies or mutable task state.
 - `Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift` owns
   the shared public Wikipedia/GBIF session, request construction, wire DTOs, and
   off-main parsing used by Inference and thumbnail recovery. The engine still
   owns presentation identity, observable mutations, and persistence.
-- `InferenceProcessingActor` performs CPU/file/database work away from the main
-  actor, including image encoding, response parsing, and scan persistence.
+- `InferenceProcessingActor` owns off-main image encoding and response parsing,
+  delegates media writes to `FileIOActor` and scan persistence to
+  `BackgroundDatabaseActor`, and retains the existing main-actor entitlement
+  reconciliation. The result service does not replace those owners.
 - `Inference/LocalAnalysis/` separates the injected Vision classifier and broad-
   category policy, bounded-image builder, deterministic pixel-trait extractor,
   phrase coordinator, Foundation visual-cue seam, validation, and runtime
@@ -68,10 +106,11 @@ remote identification pipeline. Capture-specific composition remains under
 The Analyze-tap timestamp is passed into `InferenceEngine.analyze` or
 `analyzeNonVisual`, so image, video, audio, and describe paths share the
 tap-to-first-render boundary without changing non-image submission behavior.
-After the HTTP response arrives, response decoding and local persistence are
-measured separately. The engine rebuilds `ActiveScanMedia`, commits
-`speciesData`, and ends processing immediately after those required operations
-succeed.
+After the HTTP response arrives, `InferenceLiveResultService` prepares one
+visual/nonvisual actor request and revalidates the exact attempt around that
+suspension. The actor's response decoding and local persistence are measured
+separately. The engine rebuilds `ActiveScanMedia`, commits `speciesData`, and
+ends processing immediately after those required operations succeed.
 
 Scan milestones and Field trips start in follow-up work through
 `ScanMilestoneCoordinator`. Current multimodal `200` already guarantees the
@@ -313,8 +352,11 @@ writes it to the scan-ingestion `OfflineJobRecord.metadataJSON` in the same
 transaction as the queued scan. `InferenceEngine` captures that UUID in the
 provider task. It validates at task entry, supplies the exact predicate that
 `InferenceLiveRequestService` checks after request-preparation suspension points
-and provider return, and checks again at each persistence, result-publication,
-failure-publication, notification, hydration, and queue-cleanup boundary.
+and provider return, and supplies `InferenceLiveResultService` with the same
+validator before and after parsing/persistence. The engine still checks each
+result-publication, failure-publication, notification, hydration, and
+queue-cleanup boundary. Service-level validation does not replace the database
+actor's commit-time persistence fence.
 
 All user-facing inference modes are queue-backed before provider dispatch.
 Online text-only Describe submissions use a zero-byte `.staged` row, so they
@@ -343,6 +385,17 @@ trigger an error haptic, or publish an error placeholder, and it does so without
 another suspension between the ownership snapshot and terminal commit. A
 cooperatively cancelled or replaced task therefore exits silently instead of
 overwriting the replacement attempt.
+
+The shared handler preserves three separate interruption decisions: Swift-task
+cancellation, a thrown `CancellationError` after logical ownership loss, and
+URLSession's `.cancelled` error. Retired-owner and connectivity handoffs still
+precede the full-owner stale guard, so only the exact local sheet can
+acknowledge background ownership. Remaining error classification runs after that
+guard and queue release. Known conflicts, consent, provider admission,
+observation rejection, and visual decoding retain their non-circuit behavior.
+Nonvisual decoding intentionally keeps the existing generic service failure and
+circuit accounting; Describe and audio also keep their distinct generic
+telemetry.
 
 ### Queue-backed connectivity contract
 
@@ -464,6 +517,13 @@ background recovery.
 
 ## Verification
 
+Use the canonical
+[live inference verification matrix](../../../../../docs/development-guides/08-testing-strategy.md#live-inference-requestresult-verification)
+for the extracted request, result, and recovery boundaries. The
+[cleanup plan](../../../../../docs/rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits)
+records slice completion, integration-audit outcomes, and outstanding runtime
+evidence.
+
 Focused tests live under `apps/ios/MerianTests/Core/AI/`.
 `Core/AI/Inference/InferenceHydrationCoordinatorTests.swift` covers replacement
 task retention, exact-task awaiting for review replacements, Auth admission and
@@ -478,6 +538,40 @@ nonvisual provider mapping, inline-image key omission, MIME detection,
 descriptor alignment, observation-context encoding, video upload order,
 request-body callback forwarding, empty encodes, and exact-attempt rejection
 after image encoding, video upload, or provider return.
+`Core/AI/Inference/InferenceLiveResultServiceTests.swift` covers normalized
+visual/nonvisual persistence inputs, model-context identity, canonical media
+order, exact fence forwarding, typed outcomes, nil/empty compatibility,
+confidence-zero completion, stale/cancelled returns, and the live actor adapter.
+`Core/AI/Inference/InferenceLiveResultIntegrationTests.swift` proves both engine
+pipelines use the injected result boundary, publish confidence-zero completion,
+forward the original media timeline and ordered context JSON, preserve persisted
+media order, withhold rejected results, and reject an uncancelled stale return
+for a replacement local attempt. These queue-less fixtures omit a response scan
+ID; durable queue transitions, notifications, milestones, and reference effects
+are not exercised by this suite. The service suite separately tests forwarding
+the exact fence and revalidating an injected same-scan replacement identity.
+Suspension tests use continuation gates, not timing sleeps.
+`Core/AI/Inference/InferenceLiveFailurePolicyTests.swift` locks interruption
+precedence, exact HTTP status/code classification, connectivity security vetoes,
+retirement reasons, and modality-specific telemetry/circuit/feedback decisions.
+`InferenceFailurePresentationTests.swift` locks exact copy, saved/direct
+fallback, the quota presentation omission, and typed placeholder/telemetry
+mapping. `InferenceLiveRecoveryIntegrationTests.swift` exercises both queue-less
+engine paths for known conflict presentation, cancellation and stale-failure
+suppression, and injected quota paywall requests; decoding cases also
+distinguish audio from Describe. The result and recovery suites share
+`InferenceLiveEngineTestSupport` and the single-operation
+`InferenceOperationGate`. Both suites claim
+`.sharedProcessState(.networkClientOverrides)`, also used by
+`InferenceEngineTests`, before temporarily setting the lookalikes-reset
+UserDefaults value and resetting the shared circuit breaker. The helper restores
+the previous UserDefaults value and clears the circuit at teardown; it never
+replaces queue-manager state. Suite-local `.serialized` alone cannot coordinate
+those peer suites. `Core/Security/CircuitBreakerManagerTests.swift` instead uses
+a fresh manager per XCTest case instead of borrowing the shared engine circuit.
+These queue-less tests do not prove durable handoff or actual haptic/telemetry
+delivery. Existing queue-backed engine/network suites cover durable ownership
+boundaries; actual feedback delivery remains runtime/device verification.
 `Core/AI/LocalVisualAnalysisTests.swift` exercises the local-analysis
 coordinator through the stable engine adapters, including replacement,
 dismissal, request completion, application inactivity/reactivation, queue
@@ -486,9 +580,10 @@ handoff, and Auth fences plus non-cooperative provider returns.
 Wikipedia/GBIF requests, response parsing, missing-description compatibility,
 and failure behavior. Its architecture suite prevents either consumer from
 reclaiming the shared transport, while `InferenceArchitectureTests.swift` locks
-all three extracted task-state boundaries, the injected request boundary and its
-file-private format helpers, the retired local-analysis aggregate, and the
-600-line local-analysis ceiling. Network timing and request-upload handoff
+all three extracted task-state boundaries, injected request and result
+boundaries, stateless recovery policies and synchronous engine failure commits,
+file-private format/mapping helpers, the retired local-analysis aggregate, and
+the 600-line local-analysis ceiling. Network timing and request-upload handoff
 coverage lives under `MerianTests/Core/Network/`; the full server generation
 invariants are enforced by the Deno tests beside `identify-multimodal`.
 `Core/AI/InferenceEngineTests.swift` retains the integration proofs for Auth
@@ -497,6 +592,32 @@ override, and presentation-reset hydration cancellation.
 `Core/Data/BackgroundDatabaseActorTests.swift` separately locks atomic override
 admission, destructive reset/identity replacement, and non-destructive
 same-species historical refresh.
+
+`Core/AI/Inference/InferenceScanReplacementTests.swift` uses isolated current-
+schema stores to cover persisted-result admission, missing/same/blank IDs,
+pending-only replacement inserts, durable metadata transfer, review-state reset,
+and metadata-save failure without discarding unrelated user edits.
+`InferenceIntegrationAuditTests.swift` covers visual, audio, and Describe flows
+through the injected live boundaries: no-record/missing-ID reanalysis retains
+the original; Auth quiescence waits for cancellation-ignoring results and
+rejects late success/failure; and suspended positive-confidence queue results
+cannot delete recovery rows, publish completion, or overwrite a replacement
+generation. The parser results in these overlap tests are injected;
+database-actor tests remain the authority for actual result persistence.
+
+Queue-backed inference suites claim both required resources in one
+`.sharedProcessState(.networkClientOverrides, .offlineQueueManager)` trait.
+`Support/SharedProcessStateGate.swift` supplies atomic, cancellation-aware test
+leases shared with the Capture XCTest base, `OfflineQueueTestCase`. The queue
+scope restores the prior model context after each case; individual tests must
+still await their own async work and restore every other field they change.
+Generic Insight contexts no longer configure the queue or launch repository
+startup work. `SharedProcessStateGateTests` locks overlap, independent
+resources, cancelled waiters, throwing scopes, and stale-release isolation.
+`Core/Data/OfflineSync/OfflineJobSchedulerTests.swift` covers ordered foreground
+drain dispatch, including inference replay, with injected inert effects and a
+fixture-owned wake timer. The lifecycle suite verifies admission and the live
+scheduler route; neither suite starts uncontrolled provider or maintenance work.
 
 A queue-handoff regression is not valid when it throws from consent preflight or
 another pre-request seam. It must dispatch through mocked URLSession transport,

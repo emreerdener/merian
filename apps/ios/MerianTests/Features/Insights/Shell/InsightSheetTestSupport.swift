@@ -13,7 +13,6 @@ enum InsightSheetTestSupport {
         let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
         let context = ModelContext(container)
-        ScanRepository.shared.configure(with: context)
         return context
     }
 

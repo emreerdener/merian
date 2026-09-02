@@ -37,25 +37,33 @@ its capture integration:
   completion notifications, queued-scan cleanup, reference URL normalization,
   and post-inference hydration scheduling. These helpers do not merge
   modality-specific request construction or media display setup.
-  **`targetEradicationRecord` (reanalysis path)**:
-  `analyze(targetEradicationRecord: LocalScanRecord?)` and
-  `analyzeNonVisual(targetEradicationRecord:)` accept an optional reference to
-  the old `LocalScanRecord` being replaced in the reanalysis flow. After
-  `InferenceProcessingActor.parseAndSave()` successfully persists the new scan,
-  `transferReplacementMetadataIfNeeded(...)` fetches the new `LocalScanRecord`
-  by `mappedData.scanId` and copies `customTags`, collections, and field notes
-  from the old record — preserving user-generated metadata across the
-  replacement. Review state (`userIdentificationOverride`,
-  `userConfirmedIdentification`, `isFlagged`) is intentionally not transferred
-  because this is a fresh analysis.
-  `ScanRepository.eradicateScan(record:modelContext:)` is then called,
-  atomically deleting the old record and queuing cloud deletion. This ordering
-  guarantees the new record inherits metadata before the old record is
-  destroyed. **Stale enrichment/lookalikes guard** (`capturedScanId`):
-  `fetchAndApplyEnrichment` captures `let capturedScanId = scanId` before the
-  async `enrich-scan` network call. Both write sites — the enrichment scope
-  write (`speciesData.habitatDescription`, taxonomy) and the lookalikes scope
-  write (`speciesData.similarSpecies`) — gate on
+  **`targetEradicationScanId` (reanalysis path)**: Both `analyze` and
+  `analyzeNonVisual` accept `targetEradicationScanId: String?`, carrying the old
+  scan's stable ID rather than retaining a managed record across inference
+  suspensions. `transferReplacementMetadataIfNeeded(...)` passes the typed
+  result outcome to `Inference/Result/InferenceScanReplacement.swift`. Only
+  `.persisted` with distinct non-empty IDs, a replacement resolved in a fresh
+  store context, and non-deleted original/replacement records may proceed. The
+  helper copies `customTags` and non-empty collection memberships. Non-empty old
+  field notes are copied only when the replacement's notes are empty. Review
+  state (`userIdentificationOverride`, `userConfirmedIdentification`,
+  `isFlagged`) is intentionally not transferred because this is a fresh
+  analysis. The metadata save must succeed before the engine delegates
+  old-record removal and queued cloud deletion to
+  `ScanRepository.eradicateScan(record:modelContext:)`. On save failure, only
+  the helper's staged fields are restored, preserving unrelated pending edits.
+  Lookup failure, pending-only inserts, missing/same IDs, rejected persistence,
+  and confidence-zero completed-without-record outcomes preserve the original
+  and never authorize its cloud deletion. If later cleanup fails, retaining two
+  scans is safer than deleting the original before metadata is durable.
+  Confidence-zero results still publish and finalize their own exact queue
+  owner; they do not count as a saved replacement. The result adapter itself
+  remains free of replacement/deletion effects. **Stale enrichment/lookalikes
+  guard** (`capturedScanId`): `fetchAndApplyEnrichment` captures
+  `let capturedScanId = scanId` before the async `enrich-scan` network call.
+  Both write sites — the enrichment scope write
+  (`speciesData.habitatDescription`, taxonomy) and the lookalikes scope write
+  (`speciesData.similarSpecies`) — gate on
   `self.speciesData?.scanId == capturedScanId` before mutating state. Without
   this guard, a slow enrichment Task started for scan A that completes after the
   user has already moved to scan B would overwrite scan B's `speciesData` with
@@ -104,6 +112,42 @@ its capture integration:
   provider return. Provider-ready and request-body callbacks return ownership
   effects to the engine; the service does not own presentation, queue
   retirement, parsing, persistence, or recovery state.
+- **`Inference/Result/InferenceLiveResultService.swift`**: The injected live
+  response-to-persistence adapter. It normalizes visual/nonvisual image
+  requirements and optional audio/video paths while forwarding the original
+  context JSON, canonical timeline/projection, model context, and exact
+  `LiveInferencePersistenceFence` to `InferenceProcessingActor.parseAndSave`.
+  The service calls the engine-supplied validator before and after that
+  suspension, before mapping the outcome. Both
+  `ParseAndSaveResult.didCompletePersistence` and a non-nil `mappedData` are
+  required: positive confidence maps to `.persisted`, and non-positive
+  confidence maps to `.completedWithoutRecord`. Otherwise the outcome is
+  `.persistenceRejected`; confidence alone cannot prove completion. Parser and
+  validation errors propagate to the engine unchanged, without a service-owned
+  retry or recovery policy. The model context remains a main-actor input to the
+  existing adapter, not a new Sendable value. AppDI owns the live request and
+  result service values; neither service retains mutable attempt/task state.
+  Observable commits, discovery feedback, queue cleanup, notifications,
+  milestones, and hydration ordering stay engine-owned. Reanalysis metadata
+  safety belongs to the synchronous `InferenceScanReplacement` helper described
+  above, not to this result adapter.
+- **`Inference/Recovery/`**: `InferenceLiveFailurePolicy` owns pure
+  interruption, error, retirement-reason, and telemetry/circuit/feedback
+  decisions; `InferenceFailurePresentation` owns recovery copy and
+  `.inferenceError` `SpeciesData` construction. Both live catch paths call the
+  engine's private synchronous `handleLiveInferenceFailure`. It snapshots full
+  ownership, handles task cancellation, logical ownership cancellation,
+  transport cancellation, and connectivity handoff in that order, then rejects
+  stale attempts before queue release and terminal publication. The policy never
+  reads queue state or invokes a live service; it reuses the existing Network
+  stable-code helper and shared connectivity policy. The engine retains all
+  effects and introduces no suspension between the ownership snapshot and
+  terminal commit. Known conflict, consent, admission, observation rejection,
+  and visual decoding remain outside circuit failure; nonvisual decoding retains
+  its generic service/circuit path and Describe-versus-audio telemetry. Quota
+  exhaustion requests the paywall without a placeholder or error haptic. No
+  copy, endpoint, retry, or durable ownership contract changes with this
+  extraction.
 - **`Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift`**:
   The initializer-injected Wikipedia mobile-sections and GBIF taxon-key
   transport/parsing boundary shared with scan-thumbnail recovery. Its live value
@@ -489,7 +533,8 @@ field inside the description payload:
    the Gemini context preamble while forwarding the structured value to
    `insertScan(... user_observation_context: ...)`.
 
-4. **Persistence**: `InferenceProcessingActor.parseAndSave(...)` →
+4. **Persistence**: `InferenceLiveResultService` →
+   `InferenceProcessingActor.parseAndSave(...)` →
    `BackgroundDatabaseActor.saveLiveScanRecord(..., persistenceFence: fence)` →
    scalar `LocalScanRecord.capturedMediaJSON` + V41 `capturedMediaEntries`
    mirror. New server manifests pass the strict Captured Media Wire V1 boundary:
@@ -500,26 +545,27 @@ field inside the description payload:
 
 5. **Attempt ownership**: A queue-backed live request carries the foreground
    generation created at submission. `InferenceEngine` compares it at task entry
-   and supplies the service's validator after every request-preparation
-   suspension point and provider return; the engine checks it again at every
-   result or failure side-effect boundary. `BackgroundDatabaseActor` validates
-   the same generation in the scan-ingestion job while holding the per-scan
-   persistence coordinator. `OfflineQueueManager` atomically consumes the
-   generation before provider dispatch and owns tokenized retirement for
-   cancellation and pre-provider exits. Duplicate active or retiring generations
-   therefore cannot restart, even through a second engine instance. Result
-   publication and queue cleanup are owned by the single-use attempt UUID, not
-   merely by the reusable `scanId`. Retirement registration immediately fences
-   persistence, UI, and cleanup while raw durable release is pending. A
-   transient durable-owner handoff failure retains the registry slot and retries
-   with bounded backoff instead of reopening that UUID or indefinitely
-   suppressing recovery. A failure handler snapshots the full current owner
-   before synchronous retirement; only that owner may emit telemetry, update the
-   circuit breaker, trigger an error haptic, or publish an error placeholder. A
-   replaced task exits without observable failure effects. Confidence-zero is
-   still a terminal response that intentionally saves no local record, but
-   queue-backed foreground and generated background results must echo the exact
-   scan ID before that response can finalize the job.
+   and supplies the request service's validator after every request-preparation
+   suspension point and provider return. It also supplies the result service's
+   validator before and after parsing/persistence, then checks every result or
+   failure side-effect boundary. `BackgroundDatabaseActor` validates the same
+   generation in the scan-ingestion job while holding the per-scan persistence
+   coordinator. `OfflineQueueManager` atomically consumes the generation before
+   provider dispatch and owns tokenized retirement for cancellation and
+   pre-provider exits. Duplicate active or retiring generations therefore cannot
+   restart, even through a second engine instance. Result publication and queue
+   cleanup are owned by the single-use attempt UUID, not merely by the reusable
+   `scanId`. Retirement registration immediately fences persistence, UI, and
+   cleanup while raw durable release is pending. A transient durable-owner
+   handoff failure retains the registry slot and retries with bounded backoff
+   instead of reopening that UUID or indefinitely suppressing recovery. A
+   failure handler snapshots the full current owner before synchronous
+   retirement; only that owner may emit telemetry, update the circuit breaker,
+   trigger an error haptic, or publish an error placeholder. A replaced task
+   exits without observable failure effects. Confidence-zero is still a terminal
+   response that intentionally saves no local record, but queue-backed
+   foreground and generated background results must echo the exact scan ID
+   before that response can finalize the job.
 
 **Offline resilience**: the queue stores the same ordered media timeline at
 enqueue time. `buildExtractedScanData` snapshots `capturedMediaItems`, and every
@@ -561,11 +607,12 @@ provider dispatch:
    result or failure publication, and successful queue deletion carry that exact
    UUID; failure hands the row to normal background replay.
 
-5. **Persistence path**: `InferenceEngine.analyzeNonVisual` forwards the ordered
-   `mediaTimeline`, then `InferenceProcessingActor.parseAndSave(...)` routes
-   through `BackgroundDatabaseActor.saveNonVisualRecord(...)` and persists the
-   same timeline into scalar `LocalScanRecord.capturedMediaJSON` plus the V41
-   `capturedMediaEntries` mirror.
+5. **Persistence path**: `InferenceEngine.analyzeNonVisual` passes the ordered
+   timeline and its canonical projection to `InferenceLiveResultService` with
+   nonvisual image policy, then `InferenceProcessingActor.parseAndSave(...)`
+   routes through `BackgroundDatabaseActor.saveNonVisualRecord(...)` and
+   persists the same timeline into scalar `LocalScanRecord.capturedMediaJSON`
+   plus the V41 `capturedMediaEntries` mirror.
 
 ---
 

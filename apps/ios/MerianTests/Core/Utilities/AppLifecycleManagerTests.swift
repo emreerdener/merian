@@ -3,96 +3,34 @@ import Foundation
 import SwiftData
 import Testing
 
-@Suite(.serialized)
+@Suite(.serialized, .sharedProcessState(.offlineQueueManager))
 @MainActor
 struct AppLifecycleManagerTests {
 
-    @Test("handleActivePhase recovers .staged scans stuck before inference on foreground with stable connectivity")
-    func testHandleActivePhasePlaysBackStagedScans() async throws {
+    @Test("Foreground maintenance requires both onboarding and current consent", arguments: [false, true], [false, true])
+    func foregroundMaintenanceAdmission(onboarded: Bool, granted: Bool) throws {
         let diContainer = AppDIContainer.preview
-        let consentFixture = try makeConsentFixture(granted: true)
+        let consentFixture = try makeConsentFixture(granted: granted)
         let originalConsentManager = diContainer.consentManager
-        diContainer.consentManager = consentFixture.manager
-        let manager = AppLifecycleManager(container: diContainer)
-        let offlineManager = diContainer.offlineQueueManager
-
-        let originalContext    = offlineManager.modelContext
-        let originalOnline     = offlineManager.isOnline
-        let originalReconciled = offlineManager.hasReconciledStartupState
         let originalOnboarding = diContainer.appSettings.hasCompletedOnboarding
         defer {
-            offlineManager.modelContext              = originalContext
-            offlineManager.isOnline                  = originalOnline
-            offlineManager.hasReconciledStartupState = originalReconciled
-            offlineManager.replayedStagedScanCount   = 0
             diContainer.appSettings.hasCompletedOnboarding = originalOnboarding
             diContainer.consentManager = originalConsentManager
             consentFixture.removePersistentState()
         }
-
-        let context = try makeStagedQueueContext()
-        offlineManager.modelContext              = context
-        offlineManager.isOnline                  = true
-        // Bypass startup reconciliation so replayInferenceForUploadedScans queries .staged scans immediately.
-        offlineManager.hasReconciledStartupState = true
-        // Reset debug counter so a prior test's replay doesn't interfere.
-        offlineManager.replayedStagedScanCount   = 0
-        diContainer.appSettings.hasCompletedOnboarding = true
-
-        manager.handleActivePhase()
-
-        // replayedStagedScanCount is incremented immediately after tryClaimForInference
-        // succeeds — before any network work — so this is a network-free observable that
-        // the staged-scan replay pipeline was triggered.
-        // Poll up to 5s to allow the nested Tasks in handleActivePhase to be scheduled.
-        let deadline = Date().addingTimeInterval(5)
-        while offlineManager.replayedStagedScanCount == 0, Date() < deadline {
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-
-        #expect(
-            offlineManager.replayedStagedScanCount > 0,
-            "handleActivePhase must call replayInferenceForUploadedScans() so .staged scans stuck mid-inference are recovered on foreground, not just on connectivity change"
+        var maintenanceCount = 0
+        let manager = AppLifecycleManager(
+            container: diContainer,
+            retryPurchaseIdentityReadiness: {},
+            synchronizeConsent: {},
+            authorizedForegroundWork: { maintenanceCount += 1 }
         )
-    }
-
-    @Test("handleActivePhase does not drain staged scans while required consent is closed")
-    func testHandleActivePhaseDoesNotPlayBackStagedScansWithoutConsent() async throws {
-        let diContainer = AppDIContainer.preview
-        let consentFixture = try makeConsentFixture(granted: false)
-        let originalConsentManager = diContainer.consentManager
         diContainer.consentManager = consentFixture.manager
-        let manager = AppLifecycleManager(container: diContainer)
-        let offlineManager = diContainer.offlineQueueManager
-
-        let originalContext = offlineManager.modelContext
-        let originalOnline = offlineManager.isOnline
-        let originalReconciled = offlineManager.hasReconciledStartupState
-        let originalOnboarding = diContainer.appSettings.hasCompletedOnboarding
-        defer {
-            offlineManager.modelContext = originalContext
-            offlineManager.isOnline = originalOnline
-            offlineManager.hasReconciledStartupState = originalReconciled
-            offlineManager.replayedStagedScanCount = 0
-            diContainer.appSettings.hasCompletedOnboarding = originalOnboarding
-            diContainer.consentManager = originalConsentManager
-            consentFixture.removePersistentState()
-        }
-
-        let context = try makeStagedQueueContext()
-        offlineManager.modelContext = context
-        offlineManager.isOnline = true
-        offlineManager.hasReconciledStartupState = true
-        offlineManager.replayedStagedScanCount = 0
-        diContainer.appSettings.hasCompletedOnboarding = true
+        diContainer.appSettings.hasCompletedOnboarding = onboarded
 
         manager.handleActivePhase()
-        try await Task.sleep(nanoseconds: 300_000_000)
 
-        #expect(
-            offlineManager.replayedStagedScanCount == 0,
-            "handleActivePhase must not drain provider work before current adult, Terms, and Gemini evidence exists"
-        )
+        #expect(maintenanceCount == (onboarded && granted ? 1 : 0))
     }
 
     @Test("handleActivePhase retries the exact purchase identity while consent is closed")
@@ -106,7 +44,8 @@ struct AppLifecycleManagerTests {
             container: diContainer,
             retryPurchaseIdentityReadiness: {
                 retryCount += 1
-            }
+            },
+            synchronizeConsent: {}
         )
         defer {
             diContainer.appSettings.hasCompletedOnboarding = originalOnboarding
@@ -132,6 +71,9 @@ struct AppLifecycleManagerTests {
         let diContainer = AppDIContainer.preview
         let manager = AppLifecycleManager(container: diContainer)
         let engine = diContainer.inferenceEngine
+        let timestampKey = UserDefaultsKeys.lastBackgroundedDate
+        let previousTimestamp = UserDefaults.standard.object(forKey: timestampKey)
+        defer { UserDefaults.standard.set(previousTimestamp, forKey: timestampKey) }
 
         // Simulate an active inference (scan was submitted and enqueued before the user backgrounded)
         engine.isProcessing = true
@@ -159,29 +101,14 @@ struct AppLifecycleManagerTests {
         )
     }
 
-    private func makeStagedQueueContext() throws -> ModelContext {
-        let schema = Schema(CurrentSchema.models)
-        let configuration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: true
+    @Test func liveForegroundMaintenanceRoutesToTheDurableQueueScheduler() throws {
+        let sourcePath = URL(fileURLWithPath: #filePath).path.replacingOccurrences(
+            of: "/MerianTests/Core/Utilities/AppLifecycleManagerTests.swift",
+            with: "/Merian/Core/Utilities/AppLifecycleManager.swift"
         )
-        let container = try ModelContainer(
-            for: schema,
-            configurations: [configuration]
-        )
-        let context = ModelContext(container)
-        let encodedMedia = try JSONEncoder().encode([
-            SerializedMediaItem.image("stuck.webp")
-        ])
-
-        // Scan fully uploaded to R2 but inference was interrupted before completion.
-        context.insert(OfflineQueuedScan(
-            capturedMediaJSON: String(bytes: encodedMedia, encoding: .utf8),
-            scanState: .staged,
-            stagedR2Keys: ["staging/test-user/stuck.webp"]
-        ))
-        try context.save()
-        return context
+        let source = try String(contentsOfFile: sourcePath, encoding: .utf8)
+        #expect(source.contains("await OfflineJobScheduler.shared.drainRunnableJobs("))
+        #expect(source.contains("using: container.offlineQueueManager"))
     }
 
     private func makeConsentFixture(granted: Bool) throws -> ConsentFixture {

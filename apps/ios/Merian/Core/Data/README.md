@@ -69,7 +69,31 @@ replay omits the authoritative timeline when an older visual row lacks aligned
 `visualMediaItemsJSON`, or when a partial snapshot has sparse standalone-audio
 identities; it preserves any stored `sourceIndex` instead of renumbering it.
 
+## Scan replacement and deletion
+
+Reanalysis first uses Core AI's `InferenceScanReplacement` to verify a durable
+replacement and save the original's tags, collections, and field notes. A
+confidence-zero/no-record result, missing replacement, or failed metadata save
+keeps the original. Only then does `ScanRepository.eradicateScan` commit local
+deletion and the cloud-deletion outbox. It returns an optional task covering its
+post-commit file cleanup and immediate cloud attempt; callers may ignore that
+handle without delaying local deletion, while tests await it before restoring
+their shared queue context. A nil handle means the local deletion commit failed.
+The task is not proof of remote deletion: failed cloud work remains durably
+queued. See the
+[deletion contract](../../../../../docs/backend-and-data/01-offline-sync-pipeline.md#1-transactional-destruction-scanrepositoryeradicatescan).
+
 ## Offline Scan Durability Boundary
+
+`OfflineJobScheduler` owns persisted wake timing and the ordered drain: funding
+reconciliation, pending uploads, inference replay, Field trip progress, cloud
+deletion, then collections. Its small `DrainOperations` value keeps the six
+existing live manager calls together; fresh scheduler instances can inject inert
+effects without replacing global queue behavior. Mirrored
+`Core/Data/OfflineSync/OfflineJobSchedulerTests.swift` verifies that future work
+is armed before a suspended drain, every asynchronous effect is awaited in
+order, and an offline drain cancels only its own wake without dispatching. These
+are scheduler dispatch-policy proofs, not real provider-replay tests.
 
 Admission is durable state, not a read of an entitlement boolean. Before this
 layer writes capture files or allows foreground inference, `EntitlementManager`

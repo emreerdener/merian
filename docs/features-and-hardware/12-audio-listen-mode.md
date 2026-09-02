@@ -429,7 +429,9 @@ the same non-visual entry point as description-only captures:
    the one live Identify call. `MerianNetworkClient.buildMultiModalRequest(...)`
    sends live foreground WAVs as size-preflighted `audioBase64s`; queued replay
    sends R2-backed `audioR2ObjectKeys`.
-4. `InferenceProcessingActor.parseAndSave(...)` routes the result through
+4. `InferenceLiveResultService` preserves the canonical audio/timeline order and
+   exact persistence fence while selecting the no-image actor input.
+   `InferenceProcessingActor.parseAndSave(...)` then routes the result through
    `BackgroundDatabaseActor.saveNonVisualRecord(...)`.
 
 Replay uses the same endpoint and payload shape through the offline queue’s

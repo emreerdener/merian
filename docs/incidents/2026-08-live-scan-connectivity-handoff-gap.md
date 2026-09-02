@@ -174,13 +174,15 @@ non-biological result and receive the wrong pill, retention copy, haptic, or
 success lifecycle.
 
 The current contract uses explicit typed presentation state instead of a title
-whitelist. `InferenceEngine.makeErrorSpeciesData(...)` marks every transient
-failure and policy presentation as `.inferenceError`; decoded and persisted
-classifications default to `.inferenceResult`. `isInferenceErrorPlaceholder`
-therefore cannot change when customer-facing copy changes. A direct role test
-and the protected queue-backed server/provider tests lock both sides of this
-boundary. Exact-SHA workflow and device acceptance still apply to the joined
-source repair.
+whitelist. The factory now lives in
+`Core/AI/Inference/Recovery/InferenceFailurePresentation.speciesData(telemetry:)`;
+the engine's synchronous failure handler publishes its values. It marks every
+transient failure and policy presentation as `.inferenceError`; decoded and
+persisted classifications default to `.inferenceResult`.
+`isInferenceErrorPlaceholder` therefore cannot change when customer-facing copy
+changes. A direct role test and the protected queue-backed server/provider tests
+lock both sides of this boundary. Exact-SHA workflow and device acceptance still
+apply to the joined source repair.
 
 ### The former test stopped before the transport boundary
 
@@ -280,11 +282,17 @@ owner per presentation mode: modal Insight uses the environment dismiss action,
 while embedded Insight uses its navigation binding. A Shell architecture test
 locks that separation. A new hosted exact-SHA run remains required because the
 available log does not contain a post-dismissal store dump and local
-CoreSimulatorService is unavailable.
+CoreSimulatorService was unavailable during that follow-up.
 
 ## Validation Status at Review
 
-The current local review checkout is based on published HEAD
+This section records the original remediation review, not the later Inference
+hygiene candidate. The
+[cleanup plan](../rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits)
+tracks current refactor validation separately; those source checks do not close
+this incident's exact-SHA hosted or physical-device gates.
+
+The original local review checkout was based on published HEAD
 `1dc9c587a32bdcccf6ef6c6a40e19caf17df6fb8`. That commit contains the bounded
 admission route, queue-backed transport handoff, stable Insight close selector,
 and 92-case protected inventory. Hosted iOS Build and Test Run 226 ran on the

@@ -516,6 +516,15 @@ place, but retry ownership is no longer process-local: each job stores attempt
 counts, last errors, next-run times, server status/stage, and user-attention
 state in SwiftData.
 
+The native scheduler's `DrainOperations` value preserves the existing dispatch
+order: funding reconciliation, pending uploads, inference replay, Field trip
+progress, cloud deletion, then collection sync. It arms the next persisted wake
+before awaiting those effects and re-evaluates it after dispatch, so a suspended
+drain does not delay a future retry. Fresh scheduler instances can inject inert
+operations without replacing the production singleton. Those dispatch-policy
+tests are separate from durable queue and provider-replay tests; see the
+[Core Data ownership guide](../../apps/ios/Merian/Core/Data/README.md#offline-scan-durability-boundary).
+
 The persisted date is an eligibility boundary, not an operating-system timer.
 `OfflineJobScheduler` therefore selects the earliest active
 `queueNextRetryAt`/`OfflineJobRecord.nextRunAt` and creates one token-fenced
@@ -1453,6 +1462,15 @@ permanently erased, even fully offline.
 
 ### 1. Transactional Destruction (`ScanRepository.eradicateScan`)
 
+Reanalysis must first pass `InferenceScanReplacement`: a typed persisted
+outcome, distinct valid IDs, a store-visible replacement, and successful user-
+metadata persistence. Confidence-zero/no-record results and failed replacement
+lookups or saves retain the original without queuing its deletion. This is a
+two-stage safety boundary: replacement metadata commits before the existing
+deletion/outbox transaction below. If cleanup fails afterward, both scans may
+remain; the original's metadata is not sacrificed. Explicit user deletion keeps
+its existing contract.
+
 Deletion follows a strict ordering designed to guarantee consistency: **database
 operations commit first, file deletion runs after**.
 
@@ -1467,6 +1485,13 @@ operations commit first, file deletion runs after**.
 4. `offlineQueue.syncPendingDeletions()` async — attempt the cloud deletion
    immediately; retry from durable eligibility dates on the current or a later
    connectivity cycle until the server explicitly confirms erasure.
+
+The post-commit file cleanup and immediate cloud attempt are structured children
+of the optional task returned by `eradicateScan`. UI and inference callers may
+ignore it; tests await it before restoring shared queue state. A nil handle
+means the local commit failed. A completed handle means this cleanup attempt
+ended, not that remote erasure succeeded; any failed remote deletion remains in
+the durable outbox.
 
 ### 2. Cloud Deletion Tasking (`PendingCloudDeletionTask`)
 
@@ -1769,7 +1794,7 @@ Each page passes through these steps inside the actor:
 
 This synchronization fires the moment a user transitions from Ghost →
 Authenticated (inside `SupabaseManager.setupAuthStateListener`) and whenever the
-app recovers foreground state (`AppDIContainer.handleActivePhase`).
+app recovers foreground state (`AppLifecycleManager.handleActivePhase`).
 
 ### Ghost-Rendering Image Optimization
 

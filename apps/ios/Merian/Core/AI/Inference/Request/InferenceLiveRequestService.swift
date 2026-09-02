@@ -2,10 +2,10 @@ import Foundation
 
 /// Prepares and dispatches the provider request for one live inference attempt.
 ///
-/// Presentation identity, durable queue ownership, response parsing, persistence,
-/// and recovery remain owned by `InferenceEngine`. The engine supplies an exact
-/// attempt validator around each suspension point that could otherwise dispatch
-/// stale work.
+/// Presentation identity, durable queue ownership, and recovery remain owned by
+/// `InferenceEngine`; `InferenceLiveResultService` adapts response parsing and
+/// persistence. The engine supplies an exact attempt validator around each
+/// suspension point that could otherwise dispatch stale work.
 struct InferenceLiveRequestService {
     struct Dependencies {
         let encodeVisualImages: @MainActor ([Data]) async -> [String]
