@@ -90,7 +90,10 @@ import SwiftUI
             localVisualTraitExtractor: localVisualTraitExtractor,
             foundationVisualCueProvider: foundationVisualCueProvider,
             foundationVisualCueEligibilityChecker:
-                foundationVisualCueEligibilityChecker
+                foundationVisualCueEligibilityChecker,
+            localAnalysisStartFeedback: {
+                HapticManager.shared.triggerLightImpact(intensity: 0.3)
+            }
         )
         self.milestoneToastClock = milestoneToastClock
         self.milestoneToastPresenter = milestoneToastPresenter

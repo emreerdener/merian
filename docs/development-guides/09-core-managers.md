@@ -555,6 +555,13 @@ triggering excessive SwiftUI view rebuilds.
   action generations; shared identification serial tail; presentation
   generation; and Auth-transition quiescence fence. Mutable task handles do not
   escape this owner.
+- `Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift` — the
+  private classification, deterministic-trait, Foundation-cue, and phrase-
+  rotation task owner. It contains the bounded derivative, provisional Vision
+  state, request-body gate, phrase cursor, and inactivity pause/resume state;
+  the engine supplies exact presentation validity and receives phrase values.
+  Sibling files separate classifier/category, image, deterministic-trait,
+  Foundation contract/validation/eligibility, and phrase policy.
 - `Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift` — the
   shared injected public Wikipedia/GBIF request, wire DTO, and off-main parsing
   boundary used by Inference and scan-thumbnail recovery. It performs no engine,

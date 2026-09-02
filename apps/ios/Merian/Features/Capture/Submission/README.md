@@ -46,14 +46,16 @@ generated response DTOs; moving them here changes no request field, enum raw
 value, JSON key, persistence schema, or replay rule.
 
 For visual scans, submission passes only the first visual item's existing focus
-region to local analysis. `InferenceEngine` derives one 512 px local image from
-the primary inference image, uses the accepted padded focus region when one is
-present, and otherwise uses the full square. Apple Vision and the deterministic
-pixel-trait extractor reuse that derivative; the extractor samples it at 32×32
-pixels to produce five bounded palette, color-intensity, tone, contrast, and
-surface cues. It never analyzes the second capture locally or changes the
-ordered images sent to Gemini. Audio-only and Describe submissions retain their
-established analyzing copy.
+region with the primary inference image to `InferenceEngine`. The engine starts
+the exact visual-presentation session in `InferenceLocalAnalysisCoordinator`;
+that private owner uses `LocalVisualAnalysisImageBuilder` to derive one 512 px
+local image, applies the accepted padded focus region when present, and
+otherwise uses the full square. Apple Vision and the deterministic pixel-trait
+extractor reuse that derivative; the extractor samples it at 32×32 pixels to
+produce five bounded palette, color-intensity, tone, contrast, and surface cues.
+It never analyzes the second capture locally or changes the ordered images sent
+to Gemini. Audio-only and Describe submissions retain their established
+analyzing copy.
 
 ## Submission Contract
 

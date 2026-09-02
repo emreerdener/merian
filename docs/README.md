@@ -260,12 +260,17 @@ as their permanent engineering identity.
 - **Progressive on-device analyzing context (2026-08-19)**: Foreground visual
   scans now reuse one primary-image derivative bounded to 512 px for injected
   Apple Vision classification, applying the accepted padded focus region when
-  available. The pill moves from morphology-only generic copy to an immediate
-  qualifying broad category, then advances no more often than every 2.3 seconds
-  without returning to generic text. Gemini remains the only identification
-  authority; local image, category, and cue text are ephemeral and absent from
-  payloads, persistence, analytics, and logs. Xcode 26.6 ships the improved
-  Vision path and a no-op Foundation visual-cue provider. The multimodal
+  available. A private `InferenceLocalAnalysisCoordinator` owns that derivative,
+  local model tasks, and phrase cadence behind the engine's exact-session
+  predicate; AppDI injects the live providers and start feedback. The pill moves
+  from morphology-only generic copy to an immediate qualifying broad category,
+  then advances no more often than every 2.3 seconds without returning to
+  generic text. The normal inactive/background callback pair is idempotent, and
+  reactivation resumes at most the exact visual session's phrase cadence rather
+  than restarting model work. Gemini remains the only identification authority;
+  local image, category, and cue text are ephemeral and absent from payloads,
+  persistence, analytics, and logs. Xcode 26.6 ships the improved Vision path
+  and a no-op Foundation visual-cue provider. The multimodal
   `SystemLanguageModel.default` implementation remains gated on stable Xcode 27
   locally and in hosted CI, iOS 27 availability, on-device readiness, power,
   thermal, and active-app checks, and the request-body-sent boundary. See the

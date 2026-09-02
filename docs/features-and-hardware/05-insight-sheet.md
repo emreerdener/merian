@@ -145,16 +145,18 @@ rather than in the Field Notes state suite.
 ## Progressive Analyzing Pill
 
 For foreground visual scans, `AnalyzingContentView` continues to read only
-`InferenceEngine.scanningPhaseText`. The engine now progresses that value from
-generic visible analysis to a qualifying broad Apple Vision category, then to
-five bounded image-specific dominant-color, saturation, lighting,
-light-contrast, and surface-detail cues from the current deterministic local
-extractor. The category handoff is immediate; later automatic label changes use
-the shared 2.3-second clock. A future eligible Foundation Models provider may
-replace the deterministic trait deck with richer visible cues. Source priority
-is monotonic, so generic or category text never returns after more-specific
-trait context arrives. The pill shows every phrase in its active deck before
-wrapping to the first phrase for a new round.
+`InferenceEngine.scanningPhaseText`. The engine remains the exact presentation
+authority and the only observable value exposed to the view. Its private
+`InferenceLocalAnalysisCoordinator` progresses that value through a narrow
+callback, from generic visible analysis to a qualifying broad Apple Vision
+category, then to five bounded image-specific dominant-color, saturation,
+lighting, light-contrast, and surface-detail cues from the current deterministic
+local extractor. The category handoff is immediate; later automatic label
+changes use the shared 2.3-second clock. A future eligible Foundation Models
+provider may replace the deterministic trait deck with richer visible cues.
+Source priority is monotonic, so generic or category text never returns after
+more-specific trait context arrives. The pill shows every phrase in its active
+deck before wrapping to the first phrase for a new round.
 
 Visible trait strings are natural verb-led observations such as **Analyzing gray
 and green colors**, **Reviewing softly colored areas**, and **Observing light
@@ -168,6 +170,13 @@ to five complete, unique labels of at most 36 rendered characters; the future
 Foundation stream remains limited to three. Partial stream snapshots and invalid
 identity-bearing text never reach SwiftUI. Gemini remains the only source for
 the completed identification and Insight content.
+
+When iOS emits the normal inactive-then-background callback pair, the
+coordinator cancels current local model and cadence tasks once while retaining
+the visible phrase and at most one pending resume for the exact visual
+presentation. Repeated nonactive callbacks are idempotent. Reactivation restarts
+only phrase cadence; it never reruns Vision, deterministic traits, Foundation
+work, audio analysis, or Describe analysis.
 
 `ConfidenceBadge` keeps the same opacity-only text transition and intrinsic
 capsule composition. The deterministic `-seedProgressiveAnalyzingFlow` UI

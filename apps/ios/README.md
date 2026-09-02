@@ -484,38 +484,45 @@ resolution, and the 600-line production-file ceiling.
 
 `Merian/Core/AI/` owns remote inference orchestration and the ephemeral local
 analysis that improves foreground scanning copy. `InferenceEngine` remains the
-single observable state owner exposed to SwiftUI through `scanningPhaseText`.
-Its `Inference/Hydration` collaborator privately owns live, historical, and
-identification-review hydration task lifetime, Auth draining, request
-deduplication, the enriched-species TTL cache, and temporary backoff. GBIF work
-stays a structured child of the owning hydration task. `Inference/State`
-privately owns bounded background and ordered identification write sequencing;
-species-changing review hydration and same-species confirmation have independent
-action generations on the shared final-writer tail. The shared injected
+single observable state owner exposed to SwiftUI through `scanningPhaseText` and
+the authority for exact presentation identity. Its `Inference/Hydration`
+collaborator privately owns live, historical, and identification-review
+hydration task lifetime, Auth draining, request deduplication, the
+enriched-species TTL cache, and temporary backoff. GBIF work stays a structured
+child of the owning hydration task. `Inference/State` privately owns bounded
+background and ordered identification write sequencing; species-changing review
+hydration and same-species confirmation have independent action generations on
+the shared final-writer tail. The shared injected
 `Core/SpeciesReference/Services` boundary owns the isolated Wikipedia/GBIF
 session, wire parsing, and request construction used by Inference and thumbnail
 recovery. Presentation identity and persistence decisions remain in the engine.
-`LocalVisualAnalysis.swift` supplies the injected Vision classifier,
-deterministic pixel-trait extractor, one bounded primary-image derivative,
-phrase coordination, future Foundation visual-cue seam, validation, and runtime
-eligibility policy; `AppDIContainer` owns the live implementations. The current
-toolchain derives five image-specific observations covering dominant colors,
-color saturation, lighting, light contrast, and surface detail. They render as
-plain visible descriptions such as **Reviewing softly colored areas** and
-**Observing light and shadow areas**, not `Kind: detail` labels or internal
-statistical buckets such as “moderate” and “balanced.” Active visual
-live-to-queue handoff preserves the ephemeral contextual deck and in-memory
-carousel media only for an exact scan-and-attempt owner. Prepared visual work
-transfers generic copy without media; audio and Describe are typed nonvisual
-owners. That exact handoff also retains the canonical scan ID, selected carousel
-page, focus state, and time-derived analysis sweep through pending, uploading,
-staged, and inferencing queue states while none requires attention; ordinary
-queued scans animate only while inferencing. The trailing Insight toolbar slot
-stays mounted and fades in its queued delete action only after the durable ID is
-bound. The same visual cursor survives save and connectivity changes, while
-dismissal or Auth removes contextual phrase/media exposure without blocking
-durable result recovery. Generative multimodal cues remain the stable-Xcode-27
-milestone.
+`Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift` privately owns
+the classification, deterministic-trait, Foundation-cue, and phrase-clock task
+slots plus the bounded derivative, provisional classification, phrase cursor,
+request-body gate, and inactivity pause/resume state. The engine supplies an
+exact-session predicate and receives phrase values; raw handles and mutable
+local-analysis state do not escape the coordinator. Its sibling files separate
+the Vision classifier/category policy, bounded image builder, deterministic
+pixel-trait extractor, Foundation cue contract and validation, runtime
+eligibility, and phrase coordination. `AppDIContainer` owns the live
+implementations and start feedback; direct/default engine instances use inert
+feedback. The current toolchain derives five image-specific observations
+covering dominant colors, color saturation, lighting, light contrast, and
+surface detail. They render as plain visible descriptions such as **Reviewing
+softly colored areas** and **Observing light and shadow areas**, not
+`Kind: detail` labels or internal statistical buckets such as “moderate” and
+“balanced.” Active visual live-to-queue handoff preserves the ephemeral
+contextual deck and in-memory carousel media only for an exact scan-and-attempt
+owner. Prepared visual work transfers generic copy without media; audio and
+Describe are typed nonvisual owners. That exact handoff also retains the
+canonical scan ID, selected carousel page, focus state, and time-derived
+analysis sweep through pending, uploading, staged, and inferencing queue states
+while none requires attention; ordinary queued scans animate only while
+inferencing. The trailing Insight toolbar slot stays mounted and fades in its
+queued delete action only after the durable ID is bound. The same visual cursor
+survives save and connectivity changes, while dismissal or Auth removes
+contextual phrase/media exposure without blocking durable result recovery.
+Generative multimodal cues remain the stable-Xcode-27 milestone.
 
 Gemini remains the sole authority for identification and completed Insight
 content. Local classifications and cue text are never persisted, logged,

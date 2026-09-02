@@ -849,11 +849,12 @@ it; otherwise `isProcessing` can be left true with no live task to clear it. It:
   Wikipedia, enrichment, and GBIF requests are structured children of those
   slots. The coordinator retains cancelled handles until completion for Auth
   quiescence.
-- Calls `cancelLocalVisualAnalysis()` to cancel `localClassificationTask`,
-  `foundationVisualCueTask`, and `phaseRotationTask`, then releases the bounded
-  local derivative, Vision candidates, request-dispatch flag, and phrase
-  coordinator state. None of this ephemeral work joins the Auth-transition
-  quiescence drain or delays the next scan.
+- Calls `cancelLocalVisualAnalysis()`, which delegates to
+  `InferenceLocalAnalysisCoordinator` to cancel and release its classification,
+  deterministic-trait, Foundation-cue, and phrase-rotation task slots plus the
+  bounded local derivative, Vision candidates, request-dispatch flag, exact
+  session callback, and phrase coordinator state. None of this ephemeral work
+  joins the Auth-transition quiescence drain or delays the next scan.
 - Advances and cancels bounded background-write ownership through
   `InferenceWriteCoordinator`, without exposing raw write-task handles.
 - Clears the temporary enrichment backoff so a new presentation does not inherit

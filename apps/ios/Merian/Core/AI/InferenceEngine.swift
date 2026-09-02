@@ -103,7 +103,6 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     @ObservationIgnored private var pendingFirstRenderMetric: (scanId: String, startedAt: CFAbsoluteTime)?
     var isProcessing: Bool = false
     var scanningPhaseText: String = "Analyzing subject"
-    @ObservationIgnored private var phaseRotationTask: Task<Void, Never>?
     var activeMedia = ActiveScanMedia()
     var speciesData: SpeciesData?
     // MARK: - Environmental Telemetry State
@@ -127,37 +126,18 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     // MARK: - Background Rescue State
     /// One-time global reset guard for stale locally cached lookalikes.
     @ObservationIgnored private static var localLookalikesCacheResetInFlight = false
-    @ObservationIgnored private var localClassificationTask: Task<Void, Never>?
-    @ObservationIgnored private var localVisualTraitTask: Task<Void, Never>?
-    @ObservationIgnored private var foundationVisualCueTask: Task<Void, Never>?
-    /// Set only by an actual active → inactive transition that paused a live
-    /// visual presentation. An initial `.active` notification must not start a
-    /// cadence task that the current presentation never asked to resume.
-    @ObservationIgnored private var didPauseLocalVisualAnalysisForInactivity = false
-    @ObservationIgnored private let visionSubjectClassifier: any VisionSubjectClassifying
-    @ObservationIgnored private let localVisualTraitExtractor: any LocalVisualTraitExtracting
-    @ObservationIgnored private let foundationVisualCueProvider: any FoundationVisualCueProviding
-    @ObservationIgnored private let foundationVisualCueEligibilityChecker:
-        any FoundationVisualCueEligibilityChecking
-    @ObservationIgnored private let scanningPhraseSleeper: any ScanningPhraseSleeping
+    @ObservationIgnored private let localAnalysisCoordinator:
+        InferenceLocalAnalysisCoordinator
     @ObservationIgnored private let requestPaywall: @MainActor () -> Void
     @ObservationIgnored private let speciesReferenceService:
         SpeciesReferenceHydrationService
     @ObservationIgnored private let hydrationCoordinator:
         InferenceHydrationCoordinator
     @ObservationIgnored private let writeCoordinator = InferenceWriteCoordinator()
-    @ObservationIgnored private var localVisualAnalysisImage: ImageDownsampler.SendableImage?
-    @ObservationIgnored private var localVisionClassification: VisionSubjectClassification?
-    @ObservationIgnored private var didFinishLocalVisionClassification = false
-    @ObservationIgnored private var didSendInferenceRequestBody = false
-    @ObservationIgnored private var scanningPhraseCoordinator = ScanningPhraseCoordinator()
     @ObservationIgnored private var preparedPresentationOwner:
         AnalysisPresentationOwner?
     @ObservationIgnored private var activePresentationOwner:
         AnalysisPresentationOwner?
-    #if DEBUG
-    @ObservationIgnored private var debugProgressiveAnalyzingStep = 0
-    #endif
     var scanPresentationGeneration: UInt64 { writeCoordinator.generation }
 
     init(
@@ -166,17 +146,24 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         foundationVisualCueProvider: any FoundationVisualCueProviding = UnavailableFoundationVisualCueProvider(),
         foundationVisualCueEligibilityChecker: any FoundationVisualCueEligibilityChecking = SystemFoundationCueEligibility(),
         scanningPhraseSleeper: any ScanningPhraseSleeping = ContinuousScanningPhraseSleeper(),
+        localAnalysisStartFeedback: @escaping @MainActor () -> Void = {},
         speciesReferenceService: SpeciesReferenceHydrationService = .live,
         hydrationCoordinator: InferenceHydrationCoordinator? = nil,
         requestPaywall: @escaping @MainActor () -> Void = {
             UsageManager.shared.showPaywall = true
         }
     ) {
-        self.visionSubjectClassifier = visionSubjectClassifier
-        self.localVisualTraitExtractor = localVisualTraitExtractor
-        self.foundationVisualCueProvider = foundationVisualCueProvider
-        self.foundationVisualCueEligibilityChecker = foundationVisualCueEligibilityChecker
-        self.scanningPhraseSleeper = scanningPhraseSleeper
+        self.localAnalysisCoordinator = InferenceLocalAnalysisCoordinator(
+            dependencies: .init(
+                classifier: visionSubjectClassifier,
+                traitExtractor: localVisualTraitExtractor,
+                foundationCueProvider: foundationVisualCueProvider,
+                foundationCueEligibilityChecker:
+                    foundationVisualCueEligibilityChecker,
+                phraseSleeper: scanningPhraseSleeper,
+                startFeedback: localAnalysisStartFeedback
+            )
+        )
         self.speciesReferenceService = speciesReferenceService
         self.hydrationCoordinator = hydrationCoordinator
             ?? InferenceHydrationCoordinator()
@@ -342,15 +329,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         await writeCoordinator.awaitQuiescence()
 
         inferenceTask = nil
-        localClassificationTask = nil
-        localVisualTraitTask = nil
-        foundationVisualCueTask = nil
-        phaseRotationTask = nil
-        localVisualAnalysisImage = nil
-        localVisionClassification = nil
-        didFinishLocalVisionClassification = false
-        didSendInferenceRequestBody = false
-        _ = scanningPhraseCoordinator.reset()
+        localAnalysisCoordinator.cancel()
         preparedPresentationOwner = nil
         activePresentationOwner = nil
         queuedVisualPresentationScanId = nil
@@ -1354,7 +1333,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                                 reason: "inline_request_body_sent"
                             )
                             self?.markInferenceRequestBodySent(
-                                ownership: LocalAnalysisOwnership(
+                                session: InferenceLocalAnalysisCoordinator.Session(
                                     scanId: ownedScanId,
                                     attemptGeneration: attemptGeneration,
                                     foregroundGeneration:
@@ -2213,7 +2192,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 !isPreparedHandoff && activeMedia.totalItems > 0
             let phraseDeck = isPreparedHandoff
                 ? ScanningPhraseCoordinator.genericPhrases
-                : scanningPhraseCoordinator.handoffPhraseDeck
+                : localAnalysisCoordinator.handoffPhraseDeck
             queuedPresentationScanningPhrases = phraseDeck
             if let firstPhrase = phraseDeck.first {
                 scanningPhaseText = firstPhrase
@@ -3919,276 +3898,77 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
     // MARK: - On-Device Subject Study
 
-    private struct LocalAnalysisOwnership {
-        let scanId: String?
-        let attemptGeneration: UUID
-        let foregroundGeneration: UUID?
-    }
-
     /// Builds one bounded image from the primary visual item, then reuses it for
     /// Vision, deterministic visible-trait extraction, and the future Foundation
     /// Models provider. This work never joins the network task and cannot delay
     /// request dispatch or result publication.
+    @discardableResult
     private func classifySubjectLocally(
         from data: Data,
         focusRegion: NormalizedImageFocusRegion?
-    ) {
-        scanningPhaseText = scanningPhraseCoordinator.reset()
-        startPhaseRotation()
-        HapticManager.shared.triggerLightImpact(intensity: 0.3)
-
+    ) -> Task<Void, Never>? {
         guard let attemptGeneration = activeLiveInferenceAttemptGeneration else {
-            return
+            return nil
         }
-        let ownership = LocalAnalysisOwnership(
+        let session = InferenceLocalAnalysisCoordinator.Session(
             scanId: activeScanId,
             attemptGeneration: attemptGeneration,
             foregroundGeneration: activeForegroundInferenceGeneration
         )
-        let classifier = visionSubjectClassifier
-
-        localClassificationTask?.cancel()
-        localClassificationTask = Task(priority: .userInitiated) { [weak self] in
-            guard let self,
-                  let image = await LocalVisualAnalysisImageBuilder.makeImage(
-                      data: data,
-                      focusRegion: focusRegion
-                  ),
-                  !Task.isCancelled,
-                  self.isLocalAnalysisCurrent(ownership) else {
-                return
+        return localAnalysisCoordinator.start(
+            imageData: data,
+            focusRegion: focusRegion,
+            session: session,
+            isCurrent: { [weak self] session in
+                self?.isLocalAnalysisCurrent(session) == true
+            },
+            publishPhrase: { [weak self] phrase in
+                self?.scanningPhaseText = phrase
             }
-
-            self.localVisualAnalysisImage = image
-            let classification: VisionSubjectClassification
-            do {
-                classification = try await classifier.classify(image: image)
-            } catch {
-                guard !Task.isCancelled else { return }
-                classification = VisionSubjectClassification(
-                    category: nil,
-                    candidates: []
-                )
-            }
-
-            guard !Task.isCancelled, self.isLocalAnalysisCurrent(ownership) else {
-                return
-            }
-            self.localVisionClassification = classification
-            self.didFinishLocalVisionClassification = true
-
-            if let category = classification.category {
-                self.scanningPhaseText = self.scanningPhraseCoordinator.promote(
-                    to: category
-                )
-                self.startPhaseRotation()
-            }
-            self.startFoundationVisualCuesIfReady(ownership: ownership)
-            self.startLocalVisualTraits(
-                from: image,
-                classification: classification,
-                ownership: ownership
-            )
-        }
-    }
-
-    /// Runs outside the Vision task so a non-cooperative injected extractor can
-    /// never keep category publication or the network/result path suspended.
-    /// The task captures the engine weakly until extraction returns; cancellation
-    /// and ownership are rechecked before any phrase can be accepted.
-    private func startLocalVisualTraits(
-        from image: ImageDownsampler.SendableImage,
-        classification: VisionSubjectClassification,
-        ownership: LocalAnalysisOwnership
-    ) {
-        localVisualTraitTask?.cancel()
-        let extractor = localVisualTraitExtractor
-        localVisualTraitTask = Task(priority: .utility) { [weak self] in
-            let extractedCues = await extractor.extractCues(from: image)
-            guard !Task.isCancelled,
-                  let self,
-                  self.isLocalAnalysisCurrent(ownership) else {
-                return
-            }
-
-            self.localVisualTraitTask = nil
-            let forbiddenIdentityTerms = FoundationVisualCueValidator.identityTerms(
-                from: classification.candidates
-            )
-            for extractedCue in extractedCues {
-                guard let cue = FoundationVisualCueValidator.validatedCue(
-                    extractedCue,
-                    forbiddenIdentityTerms: forbiddenIdentityTerms,
-                    existingPhrases: self.scanningPhraseCoordinator
-                        .acceptedLocalTraitPhrases
-                ) else {
-                    continue
-                }
-                _ = self.scanningPhraseCoordinator.acceptLocalTraitCue(cue)
-            }
-        }
+        )
     }
 
     private func markInferenceRequestBodySent(
-        ownership: LocalAnalysisOwnership
+        session: InferenceLocalAnalysisCoordinator.Session
     ) {
-        guard isLocalAnalysisCurrent(ownership) else { return }
-        didSendInferenceRequestBody = true
-        startFoundationVisualCuesIfReady(ownership: ownership)
-    }
-
-    private func startFoundationVisualCuesIfReady(
-        ownership: LocalAnalysisOwnership
-    ) {
-        guard foundationVisualCueTask == nil,
-              didSendInferenceRequestBody,
-              didFinishLocalVisionClassification,
-              foundationVisualCueEligibilityChecker.isEligibleForVisualCues(),
-              let image = localVisualAnalysisImage else {
-            return
-        }
-
-        let classification = localVisionClassification
-            ?? VisionSubjectClassification(category: nil, candidates: [])
-        let request = FoundationVisualCueRequest(
-            image: image,
-            broadCategory: classification.category,
-            forbiddenIdentityTerms: FoundationVisualCueValidator.identityTerms(
-                from: classification.candidates
-            )
-        )
-        let provider = foundationVisualCueProvider
-
-        foundationVisualCueTask = Task(priority: .utility) { [weak self] in
-            guard let self else { return }
-            do {
-                guard let snapshots = try await provider.cueSnapshots(for: request) else {
-                    return
-                }
-                var buffer = FoundationVisualCueBuffer()
-                var acceptedCount = 0
-
-                for try await snapshot in snapshots {
-                    guard !Task.isCancelled,
-                          self.isLocalAnalysisCurrent(ownership),
-                          self.foundationVisualCueEligibilityChecker
-                              .isEligibleForVisualCues() else {
-                        return
-                    }
-                    guard let bufferedCue = buffer.consume(snapshot),
-                          let cue = FoundationVisualCueValidator.validatedCue(
-                              bufferedCue,
-                              forbiddenIdentityTerms: request.forbiddenIdentityTerms,
-                              existingPhrases: self.scanningPhraseCoordinator
-                                  .acceptedFoundationPhrases.union(
-                                      self.scanningPhraseCoordinator
-                                          .acceptedLocalTraitPhrases
-                                  )
-                          ),
-                          self.scanningPhraseCoordinator.acceptFoundationCue(cue) else {
-                        continue
-                    }
-                    acceptedCount += 1
-                    if acceptedCount == FoundationVisualCueRequest.maximumCueCount {
-                        return
-                    }
-                }
-            } catch {
-                // Local cues are best-effort and intentionally have no user-visible error.
-            }
-        }
-    }
-
-    private func startPhaseRotation() {
-        phaseRotationTask?.cancel()
-        let ownedScanId = activeScanId
-        let ownedAttemptGeneration = activeLiveInferenceAttemptGeneration
-        let ownedForegroundInferenceGeneration = activeForegroundInferenceGeneration
-        let ownedPresentationOwner = activePresentationOwner
-        let sleeper = scanningPhraseSleeper
-        phaseRotationTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                do {
-                    try await sleeper.sleepUntilNextPhrase()
-                } catch {
-                    return
-                }
-                guard !Task.isCancelled, let self else { return }
-                if let ownedAttemptGeneration,
-                   !self.isLiveInferenceAttemptCurrent(
-                       scanId: ownedScanId,
-                       attemptGeneration: ownedAttemptGeneration,
-                       foregroundInferenceGeneration:
-                           ownedForegroundInferenceGeneration
-                   ) ||
-                       ownedPresentationOwner?.modality != .visual ||
-                       self.activePresentationOwner?.attemptGeneration
-                           != ownedPresentationOwner?.attemptGeneration {
-                    return
-                }
-                if let nextPhrase = self.scanningPhraseCoordinator.nextPhrase() {
-                    self.scanningPhaseText = nextPhrase
-                }
-            }
-        }
+        localAnalysisCoordinator.markInferenceRequestBodySent(for: session)
     }
 
     private func isLocalAnalysisCurrent(
-        _ ownership: LocalAnalysisOwnership
+        _ session: InferenceLocalAnalysisCoordinator.Session
     ) -> Bool {
         guard activePresentationOwner?.modality == .visual,
               activePresentationOwner?.attemptGeneration
-                == ownership.attemptGeneration else {
+                == session.attemptGeneration else {
             return false
         }
         return isLiveInferenceAttemptCurrent(
-            scanId: ownership.scanId,
-            attemptGeneration: ownership.attemptGeneration,
-            foregroundInferenceGeneration: ownership.foregroundGeneration
+            scanId: session.scanId,
+            attemptGeneration: session.attemptGeneration,
+            foregroundInferenceGeneration: session.foregroundGeneration
         )
     }
 
     private func cancelLocalVisualAnalysis(
         resetPhraseCoordinator: Bool = true
     ) {
-        localClassificationTask?.cancel()
-        localVisualTraitTask?.cancel()
-        foundationVisualCueTask?.cancel()
-        phaseRotationTask?.cancel()
-        localClassificationTask = nil
-        localVisualTraitTask = nil
-        foundationVisualCueTask = nil
-        phaseRotationTask = nil
-        localVisualAnalysisImage = nil
-        localVisionClassification = nil
-        didFinishLocalVisionClassification = false
-        didSendInferenceRequestBody = false
-        didPauseLocalVisualAnalysisForInactivity = false
-        if resetPhraseCoordinator {
-            _ = scanningPhraseCoordinator.reset()
-        }
+        localAnalysisCoordinator.cancel(
+            resetPhraseCoordinator: resetPhraseCoordinator
+        )
     }
 
     func handleApplicationActiveStateChange(isActive: Bool) {
-        if isActive {
-            let shouldResume = didPauseLocalVisualAnalysisForInactivity
-            didPauseLocalVisualAnalysisForInactivity = false
-            if shouldResume,
-               isProcessing,
-               activePresentationOwner?.modality == .visual,
-               activePresentationOwner?.attemptGeneration
-                == activeLiveInferenceAttemptGeneration {
-                startPhaseRotation()
-            }
-            return
-        }
-        let shouldResume = phaseRotationTask != nil
-            && isProcessing
+        let canResume = isProcessing
             && activePresentationOwner?.modality == .visual
             && activePresentationOwner?.attemptGeneration
                 == activeLiveInferenceAttemptGeneration
-        cancelLocalVisualAnalysis(resetPhraseCoordinator: false)
-        didPauseLocalVisualAnalysisForInactivity = shouldResume
+        if isActive {
+            localAnalysisCoordinator.resumeAfterInactivity(
+                canResume: canResume
+            )
+            return
+        }
+        localAnalysisCoordinator.pauseForInactivity(canResume: canResume)
     }
 
     #if DEBUG
@@ -4209,44 +3989,25 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             modality: .visual
         )
         isProcessing = true
-        scanningPhaseText = scanningPhraseCoordinator.reset()
-        debugProgressiveAnalyzingStep = 0
-        guard automaticallyAdvances else { return }
-        let sleeper = scanningPhraseSleeper
-        phaseRotationTask = Task { @MainActor [weak self] in
-            do {
-                try await sleeper.sleepUntilNextPhrase()
-                guard !Task.isCancelled, let self else { return }
-                self.debugAdvanceProgressiveAnalyzing()
-
-                try await sleeper.sleepUntilNextPhrase()
-                guard !Task.isCancelled else { return }
-                self.debugAdvanceProgressiveAnalyzing()
-            } catch {
-                return
+        let session = InferenceLocalAnalysisCoordinator.Session(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundGeneration: nil
+        )
+        localAnalysisCoordinator.startDebugProgression(
+            session: session,
+            automaticallyAdvances: automaticallyAdvances,
+            isCurrent: { [weak self] session in
+                self?.isLocalAnalysisCurrent(session) == true
+            },
+            publishPhrase: { [weak self] phrase in
+                self?.scanningPhaseText = phrase
             }
-        }
+        )
     }
 
     func debugAdvanceProgressiveAnalyzing() {
-        switch debugProgressiveAnalyzingStep {
-        case 0:
-            scanningPhaseText = scanningPhraseCoordinator.promote(to: .arthropod)
-            debugProgressiveAnalyzingStep = 1
-        case 1:
-            let cue = FoundationVisualCue(
-                kind: .colorPattern,
-                detail: "amber banded wings"
-            )
-            guard scanningPhraseCoordinator.acceptLocalTraitCue(cue),
-                  let phrase = scanningPhraseCoordinator.nextPhrase() else {
-                return
-            }
-            scanningPhaseText = phrase
-            debugProgressiveAnalyzingStep = 2
-        default:
-            break
-        }
+        localAnalysisCoordinator.advanceDebugProgression()
     }
 
     func simulateAnalyzing() {
@@ -4269,21 +4030,21 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             modality: .visual
         )
         isProcessing = true
-        scanningPhaseText = scanningPhraseCoordinator.reset()
-        if let category = classification.category {
-            scanningPhaseText = scanningPhraseCoordinator.promote(to: category)
-        }
-        localVisualAnalysisImage = image
-        localVisionClassification = classification
-        didFinishLocalVisionClassification = true
-        didSendInferenceRequestBody = true
-        startPhaseRotation()
-        startFoundationVisualCuesIfReady(
-            ownership: LocalAnalysisOwnership(
-                scanId: scanId,
-                attemptGeneration: attemptGeneration,
-                foregroundGeneration: nil
-            )
+        let session = InferenceLocalAnalysisCoordinator.Session(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundGeneration: nil
+        )
+        localAnalysisCoordinator.startDebugFoundationCueStream(
+            image: image,
+            classification: classification,
+            session: session,
+            isCurrent: { [weak self] session in
+                self?.isLocalAnalysisCurrent(session) == true
+            },
+            publishPhrase: { [weak self] phrase in
+                self?.scanningPhaseText = phrase
+            }
         )
     }
 
@@ -4304,8 +4065,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             modality: .visual
         )
         isProcessing = true
-        classifySubjectLocally(from: imageData, focusRegion: focusRegion)
-        return localClassificationTask
+        return classifySubjectLocally(
+            from: imageData,
+            focusRegion: focusRegion
+        )
     }
 
     @discardableResult
@@ -4349,28 +4112,27 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     }
 
     var debugAcceptedFoundationPhraseCount: Int {
-        scanningPhraseCoordinator.acceptedFoundationPhrases.count
+        localAnalysisCoordinator.acceptedFoundationPhraseCount
     }
 
     func debugWaitForFoundationVisualCueStream() async {
-        await foundationVisualCueTask?.value
+        await localAnalysisCoordinator.waitForFoundationCueStream()
     }
 
     func debugWaitForLocalVisualTraits() async {
-        await localVisualTraitTask?.value
+        await localAnalysisCoordinator.waitForTraits()
     }
 
     var debugLocalVisionCategory: LocalSubjectCategory? {
-        localVisionClassification?.category
+        localAnalysisCoordinator.localVisionCategory
     }
 
     var debugLocalVisualAnalysisIsRunning: Bool {
-        localClassificationTask != nil || localVisualTraitTask != nil
-            || foundationVisualCueTask != nil || phaseRotationTask != nil
+        localAnalysisCoordinator.isRunning
     }
 
     var debugLocalVisualTraitIsRunning: Bool {
-        localVisualTraitTask != nil
+        localAnalysisCoordinator.isTraitExtractionRunning
     }
     #endif
 

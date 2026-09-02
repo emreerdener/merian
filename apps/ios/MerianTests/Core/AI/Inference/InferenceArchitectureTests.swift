@@ -8,7 +8,13 @@ struct InferenceArchitectureTests {
     @Test func extractedOwnersRemainSmallAndExplicit() throws {
         for relativePath in [
             "State/InferenceWriteCoordinator.swift",
-            "Hydration/InferenceHydrationCoordinator.swift"
+            "Hydration/InferenceHydrationCoordinator.swift",
+            "LocalAnalysis/InferenceLocalAnalysisCoordinator.swift",
+            "LocalAnalysis/VisionSubjectClassification.swift",
+            "LocalAnalysis/LocalVisualAnalysisImageBuilder.swift",
+            "LocalAnalysis/LocalVisualTraitExtraction.swift",
+            "LocalAnalysis/FoundationVisualCues.swift",
+            "LocalAnalysis/ScanningPhraseCoordinator.swift"
         ] {
             let file = try sourceRoot().appendingPathComponent(relativePath)
             #expect(
@@ -35,6 +41,7 @@ struct InferenceArchitectureTests {
         #expect(source.contains("private let speciesReferenceService:"))
         #expect(source.contains("private let hydrationCoordinator:"))
         #expect(source.contains("private let writeCoordinator"))
+        #expect(source.contains("private let localAnalysisCoordinator:"))
         #expect(source.contains("resetEnrichmentRateLimit()"))
         #expect(source.contains("replaceAndAwaitTask("))
         #expect(source.contains("in: .review"))
@@ -53,7 +60,17 @@ struct InferenceArchitectureTests {
             "wikiFetchAttemptedIds",
             "enrichmentAttemptedScanIds",
             "enrichmentRateLimitedUntil",
-            "private var enrichedSpeciesTimestamps"
+            "private var enrichedSpeciesTimestamps",
+            "localClassificationTask",
+            "localVisualTraitTask",
+            "foundationVisualCueTask",
+            "phaseRotationTask",
+            "localVisualAnalysisImage",
+            "localVisionClassification",
+            "didFinishLocalVisionClassification",
+            "didSendInferenceRequestBody",
+            "didPauseLocalVisualAnalysisForInactivity",
+            "private var scanningPhraseCoordinator"
         ] {
             #expect(
                 !source.contains(retiredToken),
@@ -100,6 +117,60 @@ struct InferenceArchitectureTests {
         #expect(!hydrationSource.contains("case gbif"))
         #expect(!writeSource.contains("@unchecked Sendable"))
         #expect(!hydrationSource.contains("@unchecked Sendable"))
+
+        let localAnalysisSource = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "LocalAnalysis/InferenceLocalAnalysisCoordinator.swift"
+            )
+        )
+        for declaration in [
+            "private var activeContext",
+            "private var classificationTask",
+            "private var traitTask",
+            "private var foundationCueTask",
+            "private var phraseRotationTask",
+            "private var analysisImage",
+            "private var visionClassification",
+            "private var didFinishVisionClassification",
+            "private var didSendInferenceRequestBody",
+            "private var isPausedForInactivity",
+            "private var phraseCoordinator"
+        ] {
+            #expect(localAnalysisSource.contains(declaration))
+        }
+        #expect(!localAnalysisSource.contains("@unchecked Sendable"))
+    }
+
+    @Test func localAnalysisAggregateIsRetired() throws {
+        let legacyFile = try repositoryRoot().appendingPathComponent(
+            "apps/ios/Merian/Core/AI/LocalVisualAnalysis.swift"
+        )
+        #expect(!FileManager.default.fileExists(atPath: legacyFile.path))
+
+        let coordinatorSource = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "LocalAnalysis/InferenceLocalAnalysisCoordinator.swift"
+            )
+        )
+        #expect(coordinatorSource.contains("final class InferenceLocalAnalysisCoordinator"))
+        #expect(coordinatorSource.contains("func pauseForInactivity"))
+        #expect(coordinatorSource.contains("func resumeAfterInactivity"))
+        #expect(coordinatorSource.contains("func markInferenceRequestBodySent"))
+
+        let engineSource = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/Merian/Core/AI/InferenceEngine.swift"
+            )
+        )
+        #expect(!engineSource.contains("triggerLightImpact(intensity: 0.3)"))
+
+        let appDISource = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/Merian/Core/AppDIContainer.swift"
+            )
+        )
+        #expect(appDISource.contains("localAnalysisStartFeedback:"))
+        #expect(appDISource.contains("triggerLightImpact(intensity: 0.3)"))
     }
 
     @Test func hydrationOrchestrationKeepsReferenceWorkStructured() throws {

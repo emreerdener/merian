@@ -706,6 +706,34 @@ struct LocalVisualAnalysisTests {
         #expect(crop == CGRect(x: 50, y: 80, width: 200, height: 200))
     }
 
+    @Test func engineUsesInjectedStartFeedbackOncePerLocalSession() async throws {
+        var feedbackCount = 0
+        let engine = InferenceEngine(
+            localAnalysisStartFeedback: {
+                feedbackCount += 1
+            }
+        )
+
+        let task = try #require(
+            engine.debugStartLocalClassification(imageData: Data())
+        )
+        #expect(feedbackCount == 1)
+        await task.value
+        #expect(feedbackCount == 1)
+
+        engine.handleApplicationActiveStateChange(isActive: false)
+        engine.handleApplicationActiveStateChange(isActive: true)
+        #expect(feedbackCount == 1)
+
+        let replacementTask = try #require(
+            engine.debugStartLocalClassification(imageData: Data())
+        )
+        #expect(feedbackCount == 2)
+        await replacementTask.value
+        #expect(feedbackCount == 2)
+        engine.cancelActiveRequest()
+    }
+
     @Test func enginePublishesVisionCategoryThenImageTraitsOnCadence() async throws {
         let classifier = ControlledVisionSubjectClassifier(
             result: VisionSubjectClassification(
@@ -1243,6 +1271,9 @@ struct LocalVisualAnalysisTests {
         await clock.waitUntilWaiting()
         let phaseBeforeDeactivation = engine.scanningPhaseText
 
+        // ScenePhase normally emits inactive followed by background. Both map
+        // to false and must preserve the single pending cadence resume.
+        engine.handleApplicationActiveStateChange(isActive: false)
         engine.handleApplicationActiveStateChange(isActive: false)
 
         #expect(!engine.debugLocalVisualAnalysisIsRunning)

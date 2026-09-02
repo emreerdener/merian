@@ -27,16 +27,26 @@ remote identification pipeline. Capture-specific composition remains under
   on one final-writer tail, so confirmation does not invalidate an unrelated
   historical hydration. `InferenceEngine` retains lifecycle orchestration; the
   coordinator's mutable write registries do not escape that owner.
+- `Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift` privately
+  owns the classification, deterministic-trait, Foundation-cue, and phrase-
+  rotation task slots; bounded derivative and provisional classification;
+  request-body gate; phrase cursor; and inactivity pause/resume state. The
+  engine supplies the exact visual-session predicate and receives observable
+  phrase values. Local task handles and mutable lifecycle state do not escape
+  the coordinator or participate in durable Auth quiescence.
 - `Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift` owns
   the shared public Wikipedia/GBIF session, request construction, wire DTOs, and
   off-main parsing used by Inference and thumbnail recovery. The engine still
   owns presentation identity, observable mutations, and persistence.
 - `InferenceProcessingActor` performs CPU/file/database work away from the main
   actor, including image encoding, response parsing, and scan persistence.
-- `LocalVisualAnalysis` owns the injected Vision classifier, deterministic
-  pixel-trait extractor, bounded-image builder, phrase coordinator, Foundation
-  visual-cue seam, validation, and runtime eligibility policy. `AppDIContainer`
-  owns the live providers and injects them into `InferenceEngine`.
+- `Inference/LocalAnalysis/` separates the injected Vision classifier and broad-
+  category policy, bounded-image builder, deterministic pixel-trait extractor,
+  phrase coordinator, Foundation visual-cue seam, validation, and runtime
+  eligibility policy. No production file in that owner exceeds 600 lines.
+  `AppDIContainer` owns the live providers and light-impact start feedback and
+  injects them through `InferenceEngine` into the lifecycle coordinator.
+  Direct/default engine instances keep start feedback inert.
 - On-device Vision classification runs concurrently with the network request to
   provide scanning phrases. It does not replace or add a Gemini call, and the
   local image and phrase text never enter the request, persistence, analytics,
@@ -126,15 +136,20 @@ but is never rendered as a `Kind: detail` prefix.
 
 Every local mutation is fenced by a typed visual-presentation session containing
 the exact scan ID and presentation-attempt UUID, plus the durable foreground
-generation. Result arrival, dismissal, scan replacement, queue handoff, Auth
-transition, and failure fence all local producers. Dismissal invalidates the
+generation. `InferenceEngine` remains the authority for that identity and gives
+the coordinator a narrow current-session predicate. Result arrival, dismissal,
+scan replacement, queue handoff, Auth transition, and failure synchronously
+cancel and release all coordinator-owned producers. Dismissal invalidates the
 ephemeral phrase and live-media association while Gemini networking, upload,
 persistence, and result recovery continue independently. Auth admission clears
 that state atomically so a replacement account cannot see the preceding scan's
 phrase or in-memory image. App deactivation stops every local model and cadence
-task but retains the current phrase and visual owner; reactivation resumes only
-that visual session's cadence and never starts local analysis for audio or
-Describe. Networking and result publication never await Vision or a visual-cue
+task but retains the current phrase and exact visual-session callback only when
+cadence was active; reactivation resumes only that cadence and never starts
+Vision or trait work again, including for audio or Describe. Consecutive
+inactive and background notifications are idempotent and retain that single
+pending cadence resume while the exact presentation remains current. Networking
+and result publication never await the coordinator, Vision, or a visual-cue
 stream.
 
 Vision and deterministic trait extraction have separate task owners. The trait
@@ -449,20 +464,25 @@ TTL pruning, and backoff expiry/reset.
 `Core/AI/Inference/InferenceWriteCoordinatorTests.swift` covers queue bounds,
 Auth quiescence, reset cancellation, action-history eviction, ordered stale
 write rejection, confirmation/review generation independence, and the shared
-identification final-writer tail.
+identification final-writer tail. `Core/AI/LocalVisualAnalysisTests.swift`
+exercises the local-analysis coordinator through the stable engine adapters,
+including replacement, dismissal, request completion, application
+inactivity/reactivation, queue handoff, and Auth fences plus non-cooperative
+provider returns.
 `Core/SpeciesReference/SpeciesReferenceHydrationServiceTests.swift` covers
 Wikipedia/GBIF requests, response parsing, missing-description compatibility,
 and failure behavior. Its architecture suite prevents either consumer from
 reclaiming the shared transport, while `InferenceArchitectureTests.swift` locks
-both extracted task-state boundaries. Network timing and request-upload handoff
-coverage lives under `MerianTests/Core/Network/`; the full server generation
-invariants are enforced by the Deno tests beside `identify-multimodal`.
-`Core/AI/InferenceEngineTests.swift` retains the integration proofs for Auth
-quiescence, closed-fence review rejection, stale confirmation rejection after an
-override, and presentation-reset hydration cancellation.
-`Core/Data/BackgroundDatabaseActorTests.swift` separately locks atomic override
-admission, destructive reset/identity replacement, and non-destructive
-same-species historical refresh.
+all three extracted task-state boundaries, the retired local-analysis aggregate,
+and the 600-line local-analysis ceiling. Network timing and request-upload
+handoff coverage lives under `MerianTests/Core/Network/`; the full server
+generation invariants are enforced by the Deno tests beside
+`identify-multimodal`. `Core/AI/InferenceEngineTests.swift` retains the
+integration proofs for Auth quiescence, closed-fence review rejection, stale
+confirmation rejection after an override, and presentation-reset hydration
+cancellation. `Core/Data/BackgroundDatabaseActorTests.swift` separately locks
+atomic override admission, destructive reset/identity replacement, and
+non-destructive same-species historical refresh.
 
 A queue-handoff regression is not valid when it throws from consent preflight or
 another pre-request seam. It must dispatch through mocked URLSession transport,

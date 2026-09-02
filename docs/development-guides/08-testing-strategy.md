@@ -1177,10 +1177,12 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   thumbnail recovery reuse this shared transport/parser instead of duplicating
   wire DTOs or sessions.
 - **`Core/AI/Inference/InferenceArchitectureTests.swift`**: Prevents mutable
-  write/hydration registries or shared reference wire state from drifting back
-  into `InferenceEngine`, requires private coordinator state, and keeps both
-  extracted state owners below 600 lines. The Species Reference architecture
-  suite applies the same ceiling to the shared transport owner.
+  write, hydration, or local-analysis registries and shared reference wire state
+  from drifting back into `InferenceEngine`; requires private coordinator state;
+  rejects the retired `LocalVisualAnalysis.swift` aggregate; and keeps every
+  extracted owner and split local-analysis policy file below 600 lines. The
+  Species Reference architecture suite applies the same ceiling to the shared
+  transport owner.
 - **`SpeciesDictionaryTests.swift`**: Validates the public dictionary response
   decoder, additive `content_quality`, strict `schema_version = 1`, canonical
   UUID/name request normalization, dual-identity local recovery,
@@ -3917,7 +3919,8 @@ entry points. The fixture does not invent an authorized state or location. It
 only prevents a fresh simulator's Core Location alert from consuming the first
 deterministic interaction. A location-permission UI test must launch without
 that argument. The Release archive marker denylist prevents this Debug contract
-from reaching the shipped executable. `LocalVisualAnalysisTests` separately lock
+from reaching the shipped executable. `LocalVisualAnalysisTests` exercise the
+contained local-analysis coordinator through the stable engine adapters and lock
 Vision threshold and margin qualification, every broad-category mapping,
 directly observable phrase decks, deterministic pixel inputs producing distinct
 palette cues; concrete saturation, lighting, contrast, and surface wording;
@@ -3928,15 +3931,17 @@ rendering without `Kind: detail` labels, handoff ordering that consumes unseen
 entries before any prior phrase repeats, focus-region crop math, partial
 snapshot buffering, duplicate and unsafe cue rejection, runtime
 power/thermal/lifecycle eligibility, provider errors, replacement fences,
-app-deactivation cancellation without visible-copy regression, phrase rotation
-and Foundation streams, and cancellation of a permanently hung stream at
-simulated Gemini response arrival. `InsightQueuedHandoffTests` and
-`InsightMediaSuppressionTests` separately prove that an exact active-visual
-live-to-queue handoff carries contextual phrases and in-memory carousel media,
-that save plus offline/online changes preserve its cursor, and that the carousel
-overlay remains active for the exact handoff in pending, uploading, staged, and
-inferencing. The same matrix rejects mismatched IDs,
-failed/external-import/attention states, and ordinary queued states before
+idempotent consecutive inactive/background handling, app-deactivation
+cancellation without visible-copy regression, phrase rotation and Foundation
+streams, and cancellation of a permanently hung stream at simulated Gemini
+response arrival. The architecture suite separately locks the coordinator's
+private task/image/phrase ownership, aggregate removal, and 600-line split.
+`InsightQueuedHandoffTests` and `InsightMediaSuppressionTests` separately prove
+that an exact active-visual live-to-queue handoff carries contextual phrases and
+in-memory carousel media, that save plus offline/online changes preserve its
+cursor, and that the carousel overlay remains active for the exact handoff in
+pending, uploading, staged, and inferencing. The same matrix rejects mismatched
+IDs, failed/external-import/attention states, and ordinary queued states before
 inferencing. `ImageFocusRegionDetectorTests` retain Core Vision candidate and
 geometry resolution coverage. `InsightMediaFocusPresentationTests` lock the
 carousel focus geometry, time-derived sweep, Reduce Motion midpoint, same-scan

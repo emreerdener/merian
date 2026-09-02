@@ -83,6 +83,18 @@ its capture integration:
   therefore stays the newest review-state writer without invalidating live or
   historical hydration for the same species. The engine supplies operations and
   lifecycle events but cannot mutate these registries.
+- **`Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift`**: The
+  private `@MainActor` owner for Vision classification, deterministic trait,
+  future Foundation-cue, and phrase-rotation task slots; the bounded derivative
+  and provisional classification; request-body gate; phrase cursor; and
+  application-inactivity pause/resume state. `InferenceEngine` supplies a typed
+  scan/presentation/durable-generation session plus the authoritative
+  current-session predicate and receives only phrase values. Raw task handles,
+  the derivative, provisional candidates, and mutable phrase state do not escape
+  the coordinator or participate in durable Auth draining. Sibling files under
+  `Inference/LocalAnalysis/` own the classifier/category policy, image builder,
+  deterministic extractor, Foundation contract/validation/eligibility, and
+  phrase policy; each remains below 600 lines.
 - **`Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift`**:
   The initializer-injected Wikipedia mobile-sections and GBIF taxon-key
   transport/parsing boundary shared with scan-thumbnail recovery. Its live value
@@ -1120,25 +1132,30 @@ remains the only authority for species identity and completed Insight content.
 ### Current Pipeline
 
 `AppDIContainer` owns injected `VisionSubjectClassifying`,
-`LocalVisualTraitExtracting`, and `FoundationVisualCueProviding`
-implementations. `InferenceEngine` builds one bounded image from the primary
-visual item, applying its accepted, already-padded `NormalizedImageFocusRegion`
-when present and otherwise using the full square inference image. The local
-derivative is bounded to 512 px and reused; additional captures are not analyzed
-locally, and Gemini's request payload is not changed.
+`LocalVisualTraitExtracting`, and `FoundationVisualCueProviding` implementations
+and the live light-impact start-feedback closure; direct/default engine
+instances use inert feedback. `InferenceEngine` passes those dependencies into
+the private local-analysis coordinator and retains only presentation authority
+plus observable `scanningPhaseText`. For the primary visual item, the
+coordinator builds one bounded image, applying its accepted, already-padded
+`NormalizedImageFocusRegion` when present and otherwise using the full square
+inference image. The local derivative is bounded to 512 px and reused;
+additional captures are not analyzed locally, and Gemini's request payload is
+not changed.
 
-The tracked `localClassificationTask` starts generic copy and a light-impact
-haptic immediately, then runs `AppleVisionSubjectClassifier` off the main actor.
-A qualifying broad category is published as soon as Vision returns. The engine
-then launches a separately owned `localVisualTraitTask` without awaiting it.
-`AppleImageVisualTraitExtractor` samples the same local derivative at 32×32
-pixels and deterministically describes its dominant colors, saturation
-distribution, lighting distribution, light contrast, and surface detail. The
-five pixel observations are validated against the Vision candidate denylist and
-become eligible at the next phrase tick. Numeric midpoint buckets are converted
-to plain observations—for example, **Reviewing softly colored areas** or
-**Observing light and shadow areas**—rather than exposing phrases such as
-**moderate color levels** or **balanced light and dark**.
+The coordinator starts generic copy and injected light-impact feedback
+immediately, then runs `AppleVisionSubjectClassifier` off the main actor. A
+qualifying broad category is returned through the engine's phrase callback as
+soon as Vision returns. The coordinator then launches its separately owned
+deterministic-trait task without awaiting it. `AppleImageVisualTraitExtractor`
+samples the same local derivative at 32×32 pixels and deterministically
+describes its dominant colors, saturation distribution, lighting distribution,
+light contrast, and surface detail. The five pixel observations are validated
+against the Vision candidate denylist and become eligible at the next phrase
+tick. Numeric midpoint buckets are converted to plain observations—for example,
+**Reviewing softly colored areas** or **Observing light and shadow
+areas**—rather than exposing phrases such as **moderate color levels** or
+**balanced light and dark**.
 
 A single `ScanningPhraseCoordinator` owns the monotonic source order: generic →
 Vision category → deterministic image trait → Foundation Models cue. A less
@@ -1180,10 +1197,10 @@ such as Reviewing, Comparing, Studying, or Tracing.
 
 ### Phrase Cycling & Freshness
 
-`startPhaseRotation` owns one cancellable `phaseRotationTask`. The generic
-phrase is visible immediately; a qualifying Vision category hands off
-immediately and restarts the interval so another label cannot follow less than
-2.3 seconds later. Later phrases advance through
+`InferenceLocalAnalysisCoordinator` owns one cancellable phrase-rotation task.
+The generic phrase is visible immediately; a qualifying Vision category hands
+off immediately and restarts the interval so another label cannot follow less
+than 2.3 seconds later. Later phrases advance through
 `MerianConfig.scanningPhaseRotationIntervalNs`. Deterministic image traits enter
 at the next clock tick. Foundation cues, when available, replace that deck at a
 later tick and permanently raise source priority. `ScanningPhraseCoordinator`
@@ -1220,8 +1237,9 @@ scanning layout.
   Foundation work while leaving durable networking intact. Dismissal also
   invalidates contextual media exposure, while Auth clears phrase and media
   ownership atomically. App deactivation stops local work but retains the exact
-  visual owner and visible phrase; reactivation restarts cadence only for that
-  owner and never for audio or Describe.
+  visual owner and visible phrase. The normal consecutive inactive/background
+  callbacks are idempotent and retain one pending resume; reactivation restarts
+  cadence only for that owner and never for audio or Describe.
 - `simulateProgressiveAnalyzing()` supplies the deterministic generic → category
   → visible-trait seed used by UI automation.
 

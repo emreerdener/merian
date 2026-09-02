@@ -105,24 +105,27 @@ object, or image-token charge.
 
 ### Foreground local-analysis derivative
 
-For a foreground visual scan, `InferenceEngine` passes only the first inference
-image and the first visual item's accepted focus region to
-`LocalVisualAnalysisImageBuilder`. The builder downsamples that square image to
-at most 512 px, then crops the derivative to the already-padded top-left focus
-rectangle when one exists. An absent or invalid region keeps the full bounded
-square. Vision and the future on-device Foundation Models provider reuse this
-single derivative. The current `AppleImageVisualTraitExtractor` also samples it
-at 32×32 pixels to derive five bounded dominant-color, saturation-distribution,
-lighting-distribution, light-contrast, and surface-detail cues; no additional
-capture is decoded for local analysis. User-facing wording describes the visible
-result rather than the extractor's numeric buckets.
+For a foreground visual scan, `InferenceEngine` starts an exact typed session in
+`InferenceLocalAnalysisCoordinator` with only the first inference image and the
+first visual item's accepted focus region. The coordinator passes those bounded
+inputs to `LocalVisualAnalysisImageBuilder`. The builder downsamples that square
+image to at most 512 px, then crops the derivative to the already-padded
+top-left focus rectangle when one exists. An absent or invalid region keeps the
+full bounded square. Vision and the future on-device Foundation Models provider
+reuse this single derivative. The current `AppleImageVisualTraitExtractor` also
+samples it at 32×32 pixels to derive five bounded dominant-color,
+saturation-distribution, lighting-distribution, light-contrast, and
+surface-detail cues; no additional capture is decoded for local analysis.
+User-facing wording describes the visible result rather than the extractor's
+numeric buckets.
 
-This derivative is ephemeral and independent of the remote image pipeline. It
-does not replace, crop, reorder, or add a part to the images sent to Gemini, and
-it is released on result arrival, dismissal, scan replacement, queue handoff,
-Auth transition, failure, or application deactivation. It is never written to
-disk, analytics, or logs. Its classifications and rendered trait strings are
-also never persisted, logged, or attached to telemetry.
+This derivative is ephemeral, privately owned by the coordinator, and
+independent of the remote image pipeline. It does not replace, crop, reorder, or
+add a part to the images sent to Gemini, and it is released on result arrival,
+dismissal, scan replacement, queue handoff, Auth transition, failure, or
+application deactivation. It is never written to disk, analytics, or logs. Its
+classifications and rendered trait strings are also never persisted, logged, or
+attached to telemetry.
 
 Only an exact active visual presentation owner can associate the original
 in-memory carousel media with a queue handoff. Prepared visual work carries
