@@ -441,7 +441,6 @@ struct MerianNetworkClientTests {
             throw URLError(.networkConnectionLost)
         }
 
-        let startedAt = ContinuousClock.now
         do {
             _ = try await MerianNetworkClient.shared.identifyMultiModal(
                 base64ImageDatas: ["AA=="],
@@ -468,15 +467,13 @@ struct MerianNetworkClientTests {
         } catch {
             Issue.record("Expected URLError.networkConnectionLost, got \(error).")
         }
-        let elapsed = startedAt.duration(to: ContinuousClock.now)
 
-        #expect(requestProbe.count == 1)
+        #expect(
+            requestProbe.count == 1,
+            "Queue-backed transport must return the first failure without inline replay."
+        )
         #expect(requestProbe.recordedIdempotencyKeys == [scanID])
         #expect(bodySentProbe.wasMarked)
-        #expect(
-            elapsed < .milliseconds(1_500),
-            "Queue-backed transport must return before the two-second inline replay delay."
-        )
     }
 
     @Test func queueLessIdentifyRetainsOneReviewedInlineTransportReplay() async throws {

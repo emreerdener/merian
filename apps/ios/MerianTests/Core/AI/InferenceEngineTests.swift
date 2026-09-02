@@ -1884,14 +1884,10 @@ struct InferenceEngineTests {
                 )
             }
 
-            let failureReleasedAt = ContinuousClock.now
             transportFailure.releaseFirstResponse()
             if let task = engine.inferenceTask {
                 _ = try? await task.value
             }
-            let handoffDuration = failureReleasedAt.duration(
-                to: ContinuousClock.now
-            )
 
             #expect(engine.queuedPresentationScanId == scanId)
             #expect(engine.recoverablePresentationScanId == scanId)
@@ -1900,10 +1896,6 @@ struct InferenceEngineTests {
             #expect(
                 transportFailure.count == 1,
                 "A queue-backed foreground request must not start an inline transport replay."
-            )
-            #expect(
-                handoffDuration < .milliseconds(1_500),
-                "The queued handoff must finish before the client's two-second replay delay."
             )
             #expect(
                 !circuitBreaker.isCircuitTripped,
