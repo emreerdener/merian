@@ -170,6 +170,8 @@ Primary files:
 
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Services/ExploreFeedViewModelDependencies.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Feed.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Views/ExploreFeedTabContent.swift`
@@ -201,7 +203,9 @@ Client method:
 MerianNetworkClient.shared.setUserFollow(authorUserId:isFollowing:)
 ```
 
-Only the Author Profile live dependency adapter resolves this method.
+Only the Author Profile live dependency adapter resolves this method. Its
+payload and response projection live in the Core Network interaction extension;
+Following feed and profile reads live in the browsing extension.
 `ExploreAuthorProfileViewModel` owns the optimistic follower count and
 Follow/Following mutation, applies the server-authoritative response, and rolls
 back with recoverable feedback on failure. Views and components invoke no
@@ -222,8 +226,12 @@ Backend:
 
 iOS:
 
-- `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift` covers
-  follow-state decoding and request payload construction.
+- `apps/ios/MerianTests/Core/Network/Endpoints/ExploreInteractionEndpointTests.swift`
+  rehomes follow-state decoding and request payload construction, including
+  Boolean false and server-authoritative counts.
+- `apps/ios/MerianTests/Core/Network/Endpoints/ExploreInteractionEndpointTransportTests.swift`
+  covers one classified-401 refresh, ambiguous-failure replay refusal, and
+  cancellation for follow/unfollow and blocking.
 - `apps/ios/MerianTests/Features/Explore/AuthorProfile/ExploreAuthorProfileViewModelTests.swift`
   covers authoritative follow success and optimistic rollback.
 - `apps/ios/MerianTests/Features/Explore/Notifications/ExploreNotificationRowPresentationTests.swift`
@@ -233,6 +241,10 @@ iOS:
   lifecycle used by Follow activity.
 
 Useful verification:
+
+For iOS transport changes, run the complete
+[Core Network interaction matrix](../../apps/ios/Merian/Core/Network/README.md#explore-interaction-verification)
+and the unit target in addition to the feature checks below.
 
 ```sh
 deno check --config services/supabase/functions/deno.json services/supabase/functions/get-explore-feed/index.ts services/supabase/functions/get-explore-author-profile/index.ts services/supabase/functions/get-explore-notifications/index.ts services/supabase/functions/set-user-follow/index.ts services/supabase/functions/block-user/index.ts services/supabase/functions/merge-ghost-profile/index.ts

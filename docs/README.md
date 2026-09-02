@@ -476,13 +476,14 @@ as their permanent engineering identity.
   current release identifiers, and high-impact corrections to the retired
   product document.
 - **[`/product/03-identification-foundation-prd.md`](./product/03-identification-foundation-prd.md)**
-  — Active provider-flexibility plan: task-based Gemini/OpenAI routing,
-  preserved identification behavior, provider qualification, and five delivery
-  phases. BioCLIP and model training are deferred.
+  — Active provider-flexibility infrastructure plan: Gemini remains on all
+  identification and supporting content tasks while shared interfaces, explicit
+  bindings, and parity tests prepare for a later provider change. Video capture
+  supplies sampled images and any included companion audio to inference.
 - **[`/rfcs/identification-foundation-srd.md`](./rfcs/identification-foundation-srd.md)**
-  — Companion proposed system requirements for adapters, authoritative routing,
-  consent and confidence compatibility, usage accounting, recovery, and tested
-  provider changes.
+  — Companion system requirements for the Gemini adapter, actual-input
+  capability checks, existing consent/confidence and recovery behavior, and a
+  separate future-provider integration and qualification procedure.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;

@@ -8,12 +8,12 @@ Suggested owners: Backend, iOS, ML, and Product\
 Product authority:
 [Companion PRD](../product/02-family-plans-and-ai-platform-prd.md)
 
-The active scope is now the
+The active scope is Gemini-only infrastructure in the
 [Provider Flexibility SRD](./identification-foundation-srd.md) and its
 [PRD](../product/03-identification-foundation-prd.md). Family plans are
-deferred, along with BioCLIP and model training. The content below preserves
-prior combined planning; the focused documents supersede its AI requirements and
-implementation sequence.
+deferred, along with BioCLIP and model training. Integrating another live
+provider is future work. The content below preserves prior combined planning;
+the focused documents supersede its AI requirements and implementation sequence.
 
 ## 1. Scope and authority
 

@@ -1,416 +1,403 @@
 # Naturebook AI Provider Flexibility — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-001\
-Version: 0.2\
+Version: 0.3\
 Date: 2 September 2026\
-Status: Active planning draft; proposed system requirements\
-Suggested owners: Backend, iOS, and Product\
+Status: Active infrastructure plan; Gemini remains the only enabled provider\
+Suggested owners: Backend and Product, with iOS contract review\
 Product authority:
 [Provider Flexibility PRD](../product/03-identification-foundation-prd.md)
 
 ## 1. Scope and current implementation
 
-Implement replaceable hosted AI providers for identification and its supporting
-content tasks. Gemini is the parity baseline; OpenAI is the first additional
-provider to qualify. Keep one primary identification call per observation.
-BioCLIP, model training, multi-model cascades, and family plans are deferred.
+Create the shared interfaces, explicit Gemini task bindings, execution metadata,
+and verification needed for a later provider change. **All identification and
+scoped content-generation requests remain on their current approved Gemini
+models.** An OpenAI or other live-provider integration is future work.
 
-This revision supersedes the earlier specialist-led foundation design and the
-active AI scope of the [combined SRD](./family-plans-and-ai-platform-srd.md).
-Names for new modules and records below are proposed. Repository contracts were
-reviewed on 2 September 2026, including the current working tree; this is not
-production-state or benchmark evidence.
+The current milestone preserves prompts, sampling, media encoding, confidence,
+permissions, subscription policy, response contracts, and recovery behavior. It
+does not require another SDK, vendor credentials, new processor disclosures,
+confidence recalibration, or live multi-provider evaluation. BioCLIP, training,
+model cascades, and family plans remain deferred.
 
-| Existing boundary                                                                                                                                                                                              | Consequence for this plan                                                                                           |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| [`identify-multimodal`](../../services/supabase/functions/identify-multimodal/README.md) owns the primary flow; `identify`, `identify-describe`, and `audio-spec` are compatibility paths.                     | Include all four routes and their differing input contracts. Description-only identification must remain text-only. |
-| [`gemini.ts`](../../services/supabase/functions/_shared/gemini.ts) owns shared Google client setup, while callers still use Google transport and response types.                                               | Isolate provider transport and schema translation; preserve the existing paid-service configuration for Gemini.     |
-| [`identify/contract.ts`](../../services/supabase/functions/_shared/identify/contract.ts) already defines provider-neutral model and final response contracts.                                                  | Extend this existing seam; do not introduce another handwritten Identify schema.                                    |
-| [`aiQuota.ts`](../../services/supabase/functions/_shared/aiQuota.ts) and database admission allow only specific Gemini models today.                                                                           | Update authoritative admission and its Edge checks together; changing a TypeScript model name is insufficient.      |
-| [`biology.ts`](../../services/supabase/functions/_shared/biology.ts), [`groupTagQuota.ts`](../../services/supabase/functions/_shared/groupTagQuota.ts), enrichment, and content workers make additional calls. | Route scoped dependent generation explicitly, with its existing independent admission.                              |
-| [AI engineering](../system-architecture/04-ai-engineering.md) and [API contracts](../backend-and-data/05-api-contracts.md) couple current confidence, consent, and some consumers to Gemini.                   | Qualify confidence interpretation and coordinate permissions and consumers before admitting a second provider.      |
+This revision supersedes the earlier plan to add OpenAI during the initial
+milestone. Repository contracts were reviewed on 2 September 2026, including the
+current working tree. New module/metadata names below are proposed; this
+document is not production-state, benchmark, implementation, or deployment
+evidence.
 
-Current executable contracts and canonical runbooks remain authoritative until
-implementation deliberately changes them. This document activates no route.
+| Current boundary                                                                                                                                                                         | Planning consequence                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| [`identify-multimodal`](../../services/supabase/functions/identify-multimodal/README.md), with `identify`, `identify-describe`, and `audio-spec` compatibility routes.                   | Route all scoped calls through the shared boundary while preserving their differing input and result contracts. |
+| [`gemini.ts`](../../services/supabase/functions/_shared/gemini.ts) and Google-specific caller transport/types.                                                                           | Move SDK construction, transport, schema conversion, and response decoding behind the Gemini adapter.           |
+| [`identify/contract.ts`](../../services/supabase/functions/_shared/identify/contract.ts) and `googleSchema.ts`.                                                                          | Reuse the executable common contract and its existing Google schema seam.                                       |
+| [`aiQuota.ts`](../../services/supabase/functions/_shared/aiQuota.ts) and database admission authorize specific Gemini models.                                                            | Keep admission authoritative and the production registry limited to those Gemini models.                        |
+| [`biology.ts`](../../services/supabase/functions/_shared/biology.ts), [`groupTagQuota.ts`](../../services/supabase/functions/_shared/groupTagQuota.ts), enrichment, and content workers. | Make dependent task bindings explicit; keep Gemini and existing independent quota/cache behavior.               |
+| [AI engineering](../system-architecture/04-ai-engineering.md) and [API contracts](../backend-and-data/05-api-contracts.md).                                                              | Preserve current Gemini confidence, consent, public payload, and durable-result semantics.                      |
+
+### Actual video-capture inference path
+
+The capture limit is five seconds. The preparer requests five image samples; for
+a five-second clip, the sampling policy chooses nominal offsets of 0.5, 1.5,
+2.5, 3.5, and 4.5 seconds. Existing failed-sample handling can yield fewer
+usable frames; the provider refactor must preserve accepted-input behavior.
+
+The pipeline separately prepares a playback video and optionally extracts
+companion WAV audio. The identification endpoint builds model input from text,
+image parts, and any included audio parts. It does **not** pass the raw playback
+video to the model. Its video storage keys serve ownership, persistence, and
+playback, not native video inference.
+
+Sources:
+[capture limit](../../apps/ios/Merian/Features/Capture/Scan/ViewModels/CaptureWorkspaceViewModel+VideoCapture.swift),
+[sampling policy](../../apps/ios/Merian/Features/Capture/Scan/Models/CaptureScanMediaModels.swift),
+[media preparation](../../apps/ios/Merian/Features/Capture/Scan/Services/CaptureScanVideoMediaPreparer.swift),
+and
+[provider input assembly](../../services/supabase/functions/identify-multimodal/index.ts).
 
 ## 2. Shared provider boundary
 
-**SRD-PF-01 — Coverage.** Maintain a caller inventory covering the four
-identification endpoints, species overview/lookalike generation, group tags, and
-related content workers. Record task, evidence, quota operation, permission,
-cache, and result consumer for every dispatch. Preserve existing quota-operation
-names and their distinction from usage-ledger names.
+**SRD-PF-01 — Coverage.** Inventory the four identification endpoints, overview
+and lookalike generation, group tags, and related content workers. Record each
+caller's task, actual inference inputs, quota operation, permission, cache, and
+result consumer. Preserve existing quota-operation and usage-ledger names.
 
-Deferred Field/Insight, Explore-post, and Dictionary chat and public-audio
-moderation retain their current behavior. Shared helper changes must be tested
-against these callers. The scoped routing claim excludes their Gemini calls.
+Field/Insight, Explore-post, and Dictionary chat migrations and replacement of
+public-audio moderation are outside scope. Preserve these consumers when
+changing shared helpers. Keep an explicit list of deferred Gemini dispatch
+sites.
 
-**SRD-PF-02 — Adapter ownership.** Add a small shared `_shared/ai/` boundary for
-task types, approved variants, execution, and provider adapters. Keep HTTP
-admission, taxonomy, domain validation, storage, and finalization with their
-existing owners.
+**SRD-PF-02 — Adapter ownership.** Introduce a small `_shared/ai/` boundary for
+canonical task types, the approved registry, execution, and Gemini integration.
+Existing orchestrators retain HTTP admission and sequencing. Domain validation,
+taxonomy, storage, and finalization remain with their existing owners.
 
 ```mermaid
 flowchart TD
-    Input[Observation or content task] --> Admission[Server admission and task policy]
-    Admission --> Choice{Selected provider}
-    Choice --> Gemini[Gemini adapter]
-    Choice --> OpenAI[OpenAI adapter]
+    Input[Observation or content task] --> Admission[Existing server admission]
+    Admission --> Binding[Explicit Gemini task binding]
+    Binding --> Interface[Common provider interface]
+    Interface --> Gemini[Gemini adapter]
     Gemini --> Validate[Shared contract and domain validation]
-    OpenAI --> Validate
     Validate --> Final[Existing persistence and result delivery]
 ```
 
-Exactly one provider branch executes for each admitted task. Separate enrichment
-operations retain their own admission and do not become a second primary
-identification.
-
-| Adapter boundary  | Required content                                                                                                                                                                                   |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Request           | Task-tagged canonical input, complete owned evidence and lineage, shared output-contract version, and approved instruction profile.                                                                |
-| Execution context | Exact admitted variant, policy version, reservation/attempt identity, permission reference, absolute deadline, cancellation, and resource budget.                                                  |
-| Outcome           | Task-specific draft plus normalized usage, actual model identity when supplied, and a bounded finish state; or a typed refusal, invalid output, operational failure, or unknown execution outcome. |
+| Interface         | Required content                                                                                                                                                           |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Request           | Task-tagged canonical input; actual image/audio/text evidence; source lineage and order; output-contract and instruction references.                                       |
+| Execution context | Admitted Gemini model, policy/binding version, existing reservation/attempt identity, permission reference, absolute deadline, cancellation, and budget.                   |
+| Outcome           | A task-specific draft and normalized usage/model/timing facts, or a bounded refusal, invalid output, operational failure, unsupported-input, or unknown-execution outcome. |
 
 Use `identify`, `species_overview`, `lookalikes`, and `group_tags` as conceptual
-task contracts. An `identify` draft includes required observed traits, quality,
-uncertainty, and explanation. Content tasks return their existing bounded
-schemas. Successful generation is not yet a saved observation.
+task contracts. An Identify draft already includes required observed details,
+confidence, and explanation. Content tasks retain their existing bounded output
+schemas. Provider success is not yet a durable user result.
 
-SDK imports, endpoint credentials, media encoding, provider schema dialects,
-finish/refusal decoding, and usage parsing belong inside adapters. Google types
-and file URIs must not become common interfaces. Reuse existing transport,
-timeout, and media guards. Keep the dependency-free Identify contract as the
-source; the current `googleSchema.ts` seam remains owned by Gemini integration.
+SDK imports, credentials, request/response types, schema dialect conversion,
+media encoding, refusal handling, and usage parsing belong inside the Gemini
+adapter. The common contract must not require Google SDK types or Google file
+URIs. Preserve the current paid-service client setup and generation options.
+Reuse existing transport, timeout, media, and validation helpers.
 
-Add syntax-aware import/dispatch checks and intercepted-dispatch tests for the
-scope, with an explicit list of deferred callers. A search for the literal
-`.generateContent({` alone cannot detect new-provider bypasses.
+Check scoped imports and actual dispatch, with a bounded allowlist for deferred
+callers. Exercise the interface using a deterministic, network-free test adapter
+in the test suite. Do not bundle or register that adapter as a production route,
+add a live alternative-provider SDK, or accept arbitrary endpoint/provider names
+from clients or environment overrides.
 
-## 3. Task routing and admission
+## 3. Gemini-only routing and authoritative admission
 
-**SRD-PF-03 — Approved variants.** Register support at the exact task, model,
-API endpoint, and evidence-representation level. Each variant declares its
-prompt, schema, media and confidence profiles; input/output limits; processing
-policy; usage/pricing dimensions; compatible clients; and qualification record.
-Pin a concrete model identifier or snapshot where available. A mutable alias
-requires recorded returned identity where available and requalification when its
-behavior changes; an unreviewed `latest` alias is not a rollout strategy.
+**SRD-PF-03 — Registry and capabilities.** Declare task support, actual input
+representations, limits, prompt/schema references, media preparation, existing
+confidence interpretation, permission policy, and usage mapping for each enabled
+Gemini variant. Model identity remains distinct from product entitlement.
 
-Two initial configurations illustrate the required flexibility:
+The sole enabled configuration is `gemini_baseline_v1`. It represents the
+current model choices; it does not change Free/Pro behavior or introduce a model
+upgrade.
 
-| Task/evidence                              | `gemini_baseline_v1` | `hosted_split_v1` after qualification |
-| ------------------------------------------ | -------------------- | ------------------------------------- |
-| Still images, with optional description    | Gemini               | OpenAI                                |
-| Description only                           | Gemini               | OpenAI                                |
-| Species overview, lookalikes, group tags   | Gemini               | OpenAI                                |
-| Audio                                      | Gemini               | Gemini                                |
-| Video or combined visual/acoustic evidence | Gemini               | Gemini                                |
+| Task or input representation                        | Enabled provider | Capability to check                                                                                |
+| --------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
+| Still images with optional text                     | Gemini           | The accepted single/multiple-image and context contract.                                           |
+| Ordered snapshots from a short video, without audio | Gemini           | Multiple images with clip/frame order and source context. Native video-file input is not required. |
+| Description only                                    | Gemini           | Text identification and its existing schema variant.                                               |
+| Audio only                                          | Gemini           | Accepted audio input and its subject policy.                                                       |
+| Images/snapshots with included audio                | Gemini           | The complete combined image/audio/text representation.                                             |
+| Overview, lookalikes, group tags                    | Gemini           | Existing task-specific content schemas and inputs.                                                 |
 
-These are versioned sets of independently configurable bindings. A later version
-can change only image identification while retaining the other bindings.
-Multiple still images remain one visual observation; text alongside images is
-visual context. Video-origin frames remain video evidence even when transported
-as images. Mixed evidence uses the full qualified Gemini path initially.
+Distinguish **capture origin** from **model input capability**. A `video_frame`
+source label preserves provenance and the current video-aware wording; it does
+not imply that an adapter must accept a video file. Conversely, a provider that
+accepts images alone cannot handle included companion audio by silently dropping
+it. This distinction is part of the interface now and future qualification
+later.
 
-OpenAI documents image inputs and structured outputs; Gemini documents audio and
-video understanding. Those API capabilities support evaluating this split, but
-do not establish Naturebook quality or make every model eligible.
-[OpenAI image inputs](https://developers.openai.com/api/docs/guides/images-vision),
-[structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs),
-[Gemini audio](https://ai.google.dev/gemini-api/docs/audio),
-[Gemini video](https://ai.google.dev/gemini-api/docs/video-understanding).
+**SRD-PF-04 — Preserve admission authority.** The database continues to admit
+the operation and exact allowed Gemini model. Resolve the task binding against
+that admitted decision; the registry must not override it. Verify model,
+operation, evidence, and policy agreement before sending data. Unknown
+providers, unsupported inputs, or configuration mismatches produce the existing
+compatible error path before provider dispatch and commitment to unavailable
+work.
 
-**SRD-PF-04 — Authoritative selection.** Use a reviewed, versioned route
-manifest and synchronize the approved variants with database admission. The
-reservation returns the exact admitted variant and policy version; the Edge
-registry verifies agreement before dispatch. Missing or mismatched configuration
-fails closed. Keep entitlement, provider/model, media preparation, and
-confidence interpretation separate.
+Do not widen the database model allowlist for a hypothetical second provider. A
+future integration must extend database admission and Edge validation together.
+Current client model/tier hints remain non-authoritative.
 
-Select using task, complete evidence, server entitlement, active permission,
-client compatibility, configured availability, and budget. Client tier/model
-hints do not authorize a route. Preserve the existing subscription, trial,
-complimentary-credit, and daily-allowance rules.
+Pin binding identity to admitted work using the existing
+reservation/model/policy identity and scoped internal metadata where needed. A
+configuration refresh must not silently rewrite a retry or resumed attempt.
+Recheck current permission and stop controls before disclosure. Keep
+configuration versioning consistent across primary and dependent task bindings.
 
-Resolve one complete policy snapshot, including dependent content bindings, and
-persist its identity with admitted work. New requests may use a newer snapshot;
-retries and resumed work cannot silently switch providers. Revocation or a stop
-control can still prevent a pending dispatch. New configurations must not
-combine partially updated model, prompt, confidence, and permission settings.
-
-Initially, task routing is explicit configuration. There is no automatic
-cross-provider retry, speculative duplicate identification, or confidence-based
-escalation. Moving future traffic to another qualified variant is separate from
-recovering an attempt that may already have executed.
+This is an explicit, Gemini-only dispatch policy. It adds no automatic failover,
+confidence-based escalation, parallel identification, or authority for a test
+adapter to process a production request.
 
 ## 4. Permissions and evidence transport
 
-**SRD-PF-05 — Actual processor permission.** Preserve the meaning of existing
-`google_gemini` receipts and deny-wins revocation. Introduce the
-processor/purpose mapping needed for OpenAI, with corresponding disclosure,
-account synchronization, and client behavior. Revalidate before provider upload
-and dispatch, including queued work. Keep existing adult/Terms requirements and
-account-generation fences.
+**SRD-PF-05 — Preserve current permission.** Keep the `google_gemini` receipt
+meaning, deny-wins revocation, adult/Terms prerequisites, account
+synchronization, and generation fences. Check the active account's permission
+before provider upload/invocation, including queued work and resumed attempts.
 
-An older client or account with only Gemini permission uses an eligible Gemini
-profile or the compatible consent/unavailability outcome. Inference permission
-does not automatically cover offline or live-shadow evaluation. This plan starts
-comparisons with eligible evaluation assets; it does not duplicate live user
-submissions to another provider by default.
+Represent the required processor/purpose as an explicit execution dependency,
+currently bound only to the existing Gemini policy. Do not rename old receipts,
+add an OpenAI permission, or introduce a new consent screen in this milestone. A
+later recipient requires its own onboarding and permission work in section 8.
+Credentials remain server-side and the canonical
+[consent readiness requirements](../legal/production-consent-readiness-2026-08-03.md)
+remain applicable to the Gemini-backed infrastructure release.
 
-Before any live upload or invocation, require an onboarding record approved by
-the responsible privacy/operating owners for the actual provider account,
-region, and purpose. Record the applicable processing terms,
-regional/subprocessor arrangements, retention/deletion and abuse-log treatment,
-and verified production data-handling and billing settings. Missing readiness
-blocks the new route even when a user has granted permission. This
-provider-specific record is additional to the existing Gemini readiness
-evidence.
+**SRD-PF-06 — Preserve actual media.** Pass owned, validated image/audio/text
+inputs and their existing descriptors to the adapter. Keep byte/count bounds,
+content types, staged ownership, ordered frames, clip membership, and
+`video_audio` relationships. Preserve Gemini's currently prepared input bytes,
+image resolution, and prompts; this refactor does not change capture sampling.
 
-Credentials stay on the server, and uploaded-file cleanup is an explicit
-operating requirement. Retain the canonical
-[consent readiness requirements](../legal/production-consent-readiness-2026-08-03.md).
+For the normal five-second capture, the five snapshots are one observation and
+one primary inference request. Preserve the actual accepted frame count and
+existing failure handling; do not reject a previously accepted partial sample or
+fabricate a missing image. Do not add raw-video inference uploads or forward
+playback/storage keys as model evidence.
 
-**SRD-PF-06 — Complete, bounded media.** Adapters consume canonical owned media
-references. Reuse existing ownership checks, content-type validation, byte
-limits, bounded reads, preparation profiles, and timeline metadata. Prepare
-provider-specific transport only after admission; never forward a Gemini file
-URI to OpenAI or drop unsupported evidence to make a route fit.
+Retain any included companion audio and the existing combined-input policy. When
+audio is absent, the input is a sequence of images, not a native video payload.
+Preserve optional extraction failure behavior and existing distinctions between
+inference-only companion media and durable display media.
 
-Multiple images retain their roles and ordering. Audio/video keep the currently
-accepted representation, including video frame and associated-audio lineage.
-Transcripts, sampled frames, or spectrograms are not interchangeable with the
-original evidence without separate qualification.
+Keep bounded reads, allowlisted transport destinations, temporary-file cleanup,
+and finalization ownership/deletion fences. The stored playback video still
+needs its existing durability checks even though it is not sent to Gemini.
 
-Any provider upload uses an allowlisted destination and appropriately scoped,
-short-lived access, with durable cleanup/expiry after timeout or worker loss.
-Keep large media out of unbounded Edge memory. Recheck deletion and ownership
-fences during existing finalization so late responses cannot resurrect deleted
-work.
+## 5. Results and confidence
 
-## 5. Results and confidence compatibility
+**SRD-PF-07 — Preserve result validation.** Generate Gemini's schema from the
+existing executable task contract, normalize through the existing rules, and
+retain structural and domain validation before persistence and response.
+Preserve required fields, numeric bounds, taxonomy, processed-material handling,
+and the existing biological/unresolved/Human/non-biological distinctions.
 
-**SRD-PF-07 — Shared result validation.** Translate the canonical task schema
-into each provider's supported dialect. Normalize only declared representation
-differences, then run shared structural and domain validation. Preserve required
-fields, finite numeric bounds, taxonomic resolution, processed-material
-handling, and the distinction between biological, unresolved, Human-only, and
-non-biological outcomes where applicable.
+Keep refusal, invalid or truncated output, and unknown execution distinct. Never
+invent missing fields or retry through another provider to overcome a refusal.
+Public-audio moderation stays independent and fail-closed. The primary Identify
+call continues to include explanation and observed details; no new mandatory
+model call is added.
 
-Handle refusal, truncation, absent output, malformed JSON, and unsupported
-schema options explicitly. Schema-constrained generation does not prove an
-answer is correct or complete. Missing traits or confidence must not be invented
-to fill a response. Provider refusal never triggers another provider to evade
-the refusal. Public-audio moderation retains its independent fail-closed
-behavior.
+The existing moderation, media durability, primary-species resolution, scan
+insertion, and owner read-back remain the success boundary.
 
-The primary model produces the existing identification and explanation together;
-this plan adds no mandatory explanation call. Validate the complete final
-response after shared enrichment and preserve moderation, media durability, scan
-insertion, and owner read-back as the success boundary.
+**SRD-PF-08 — Preserve confidence and client compatibility.** Give the existing
+Gemini interpretation an explicit internal reference without changing scores,
+Flash/Pro bands, candidate suppression, visual-confidence meaning, or the rule
+that location and season cannot increase visual diagnostic confidence.
 
-**SRD-PF-08 — Versioned confidence interpretation.** Preserve the current Gemini
-scores and Flash/Pro thresholds during P1. OpenAI scores cannot inherit those
-thresholds automatically or be presented as calibrated probabilities merely
-because they fall between zero and one.
+Keep public payloads, generated DTOs, persisted client models, historical reads,
+review behavior, and confidence-sensitive SQL/server consumers compatible. This
+phase does not recalibrate scores, add public decision fields, redesign ranks,
+or require a SwiftData migration. Record affected consumers in the inventory so
+a later model change has a known compatibility boundary.
 
-P2 defines a server-owned, versioned confidence interpretation for each admitted
-model/task. Evaluate its visible-evidence meaning, confidence bands, ambiguity,
-and candidate suppression against independent examples. Preserve the current
-rule that location or season cannot raise visual diagnostic confidence. This
-work does not introduce a new identification-rank or subject taxonomy.
-
-Store the interpretation with each new result. Define any necessary public or
-persisted fields in `_shared/identify/contract.ts`, generate the Swift DTOs, and
-update domain, persistence, and presentation mappings together. Product tier
-must not stand in for the model or confidence profile.
-
-Cover every read path: live results, queues, replay, historical detail, another
-device running an older app, public/community projections, and server/SQL
-features that use confidence. Restricting new inference to a newer client alone
-does not make later reads by older clients safe. Define and test a legitimate
-legacy projection, or block the new route until those consumers are compatible.
-Never reinterpret an old observation using today's provider or subscription.
-
-Exact wire fields and any SwiftData migration are P2 design outputs.
-New-provider activation is blocked until the complete compatibility decision is
-implemented; a permissive optional field is not sufficient evidence.
+A future provider's numeric scores must not automatically inherit Gemini bands.
+Any needed new confidence interpretation, persisted provenance, legacy
+projection, or client migration is a prerequisite for that later provider's
+activation, not a current implementation package.
 
 ## 6. Execution, accounting, and dependent content
 
-**SRD-PF-09 — One existing attempt lifecycle.** Extend the current lease and
-recovery machinery rather than adding retries inside adapters:
+**SRD-PF-09 — Existing attempt lifecycle.** Preserve the established order:
 
-1. Resolve completed/replayable work under its existing owner and logical key.
-2. Validate input, consent, entitlement, and route; obtain the authoritative
-   lease.
-3. Prepare bounded authorized evidence and recheck dispatch eligibility.
-4. Record the provider attempt durably and preserve the existing quota
-   commitment before provider invocation.
-5. Dispatch once, normalize outcome/usage, validate, and perform existing
-   durable finalization.
-6. Settle the allowance and attempt under the current operation-specific
-   failure/refund rules.
+1. Resolve existing completed/replayable work under its owner and logical key.
+2. Validate input, current consent, entitlement, and the admitted Gemini
+   binding.
+3. Prepare bounded evidence and recheck dispatch eligibility.
+4. Preserve current quota commitment and attempt ownership before invoking
+   Gemini.
+5. Invoke once, validate the draft, and execute existing durable finalization.
+6. Settle the allowance under current operation-specific failure/refund rules.
 
-Only one attempt may hold the logical reservation lease. Disable hidden SDK
-retries in the initial release. A timeout or lost response can mean the provider
-executed and billed; record an unknown outcome and follow the existing recovery
-protocol rather than calling another vendor. Saved results replay without
-inference, and persistence failures are not repaired with a new model call.
-Preserve account/deletion fences and existing complimentary-credit behavior.
+Only one attempt may own the logical reservation lease. The adapter must not
+introduce SDK retries or another primary call. Lost responses may still have
+executed and incurred cost; preserve unknown-outcome recovery rather than
+redispatching blindly. Replay saved results without inference and preserve
+account/deletion and complimentary-credit fences.
 
-Use an absolute budget across preparation, provider work, validation, and
-finalization. The current live request envelope is 90 seconds and the duplicate
-completion wait is bounded at 70 seconds; neither becomes a fresh budget for
-each outbound operation. Reserve time for finalization. A new asynchronous job
-protocol is outside this migration.
+Retain the 90-second live request envelope and bounded 70-second duplicate
+completion wait under the existing contract. Preparation, invocation, and
+finalization share the applicable deadline; an adapter does not restart it.
+Client foreground handoff and durable queue behavior remain unchanged.
 
-**SRD-PF-10 — Provider-attempt evidence.** Retain `public.ai_usage_events` as
-the logical ledger. Add private durable attempt evidence linked to the existing
-reservation/operation for provider, exact model, route/prompt/schema versions,
-timing, outcome, usage completeness, and effective price version. This is
-single-attempt accounting, not a new multi-stage execution engine. Recover
-incomplete accounting after worker loss and apply reviewed retention and account
-deletion rules.
+**SRD-PF-10 — Common execution facts.** Normalize Gemini's returned model,
+usage, timing, and bounded outcome into the shared result. Associate them with
+the admitted task, model, binding/policy version, and existing attempt identity.
+Retain `public.ai_usage_events` and its known historical/best-effort coverage.
+Missing usage or prices remain unknown, not zero.
 
-Normalize provider usage without equating different token or media units.
-Cached-input and reasoning counts may be components of other totals; price each
-provider's dimensions without double counting. Missing usage or prices remain
-unknown. Include failed and uncertain attempts and separately admitted content
-work. Join logical events and attempt records by stable linkage rather than
-adding both cost estimates. Label historical partial coverage and reconcile
-estimates against provider billing.
+Reuse existing durable reservation, finalization, and accounting paths. Add only
+internal metadata that those paths actually lack; any necessary persistence
+change must be additive, scoped, and tested with the prior Gemini-backed code. A
+new multi-provider billing database or execution engine is not required for this
+milestone. Document accounting gaps for failed/uncertain attempts instead of
+claiming complete cost coverage.
 
-Operational telemetry contains bounded task/provider/version/outcome fields and
-counters, not prompts, response bodies, media URLs or keys, credentials, user
-identifiers, or raw coordinates. Private linkage records and public analytics
-retain their separate access boundaries.
+Preserve Gemini's unit/pricing interpretation and avoid double counting cached
+input, reasoning components, or linked logical events. Account for sampled-image
+and any audio work actually sent; the existence of a saved playback clip does
+not mean the provider processed a native video file. New providers' usage and
+pricing dimensions are added with their later adapters.
 
-**SRD-PF-11 — Content and cache policy.** Pass the admitted content policy into
-overview, lookalike, and group-tag helpers; do not leave an implicit Gemini
-default on an OpenAI-configured operation. Cover both `enrich-scan` and relevant
-species-content refresh workers. Preserve each operation's quota and complete
-cost attribution.
+Telemetry stays content-free: bounded task/model/version/outcome fields and
+counts, without prompts, response bodies, media URLs/keys, user identifiers,
+credentials, or raw coordinates. Private linkage keeps its existing access and
+retention boundaries.
 
-Cache compatibility includes task, taxonomy identity/version, content contract,
-prompt/model compatibility, locale, and permission/owner scope. Existing
-verified content may be reused under an explicit compatibility policy; changing
-providers does not require bulk regeneration. Invalid or evaluation-only output
-cannot populate canonical caches or species records.
+**SRD-PF-11 — Explicit Gemini content bindings.** Move scoped overview,
+lookalike, and group-tag model construction behind task execution, including
+`enrich-scan` and related content refresh workers. Every binding remains Gemini.
+Preserve current operation admission, prompts, model choices, caches, and usage
+attribution; introducing the shared helper cannot merge separate quota
+lifecycles.
 
-Public species-fact jobs use an explicit admitted service policy. Jobs carrying
-private observation context retain that account's processor permission and
-lifecycle fences. Preserve deferred consumers of shared helpers and keep private
-content from entering a cross-user cache.
+Public species-fact work retains its admitted service purpose. Private-context
+work retains the owner's Gemini permission and lifecycle fences. Keep cache
+ownership and canonical species identities unchanged; test-only output cannot
+populate shared caches or records. Document cache compatibility as a future
+provider-change dependency, without regenerating existing content now.
 
-## 7. Qualification and measurement
+## 7. Verification and future qualification
 
-**SRD-PF-12 — A reproducible comparison.** P0 creates a bounded evaluation
-manifest and report, using assets eligible for the intended provider and
-purpose. Labels must be independently verified; existing Gemini answers or user
-confirmation alone are not ground truth. Keep related views of one observation
-in the same dataset partition. Separate prompt/threshold development from the
-held-out comparison and report uncertainty and sample counts.
+**SRD-PF-12 — Prove the current boundary.** Use existing sanitized fixtures and
+focused contract tests to compare requests, settings, outputs, and side effects
+before and after Gemini extraction. Include still images, descriptions, audio,
+five ordered clip snapshots, accepted partial sampling, frames with and without
+companion audio, multiple sources, and queued/replayed submissions.
 
-Cover the intended deployment population, including common and confusable taxa,
-blurred/partial/multiple-subject images, unknown and non-biological input,
-description-only requests, and multi-view observations. Preserve regression
-coverage for audio, Human/wildlife overlap, video, and mixed evidence even while
-those routes remain on Gemini. Scope any supported cohort honestly when evidence
-is insufficient for broader use.
+Verify permission denial, model/policy mismatch, unsupported-provider rejection,
+refusal/invalid output, quota settlement, unknown outcomes, deletion races,
+durable completion, and dependent content dispatch. Show that caller logic can
+use a deterministic test adapter with no network access, while production
+admission rejects it. This proves interface substitution only; a real second
+provider's API compatibility and quality remain unproven.
 
-| Measure                 | Qualification requirement                                                                                                                                                                                                                     |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Identification quality  | Compare taxonomic correctness at the same accepted/uncertain coverage. Predeclare the allowed degradation margin, confidence bound, minimum sample counts, and important-case thresholds; an inconclusive or underpowered result cannot pass. |
-| Confidence and content  | Measure confidently wrong answers and confidence reliability; separately assess required observed traits, explanation grounding, overview facts, lookalikes, and tags. Identification accuracy alone cannot qualify these tasks.              |
-| Contract and safety     | Pass required result fields, subject states, all permission/ownership denials, media completeness, and safety/refusal handling.                                                                                                               |
-| Latency and reliability | Report end-to-end p50/p95, provider duration, time to first rendered result, timeouts, invalid responses, and recovery outcomes by comparable task/evidence cohort.                                                                           |
-| Cost and capacity       | Report complete cost per successful eligible identification, failure spend, dependent generation, usage-coverage gaps, and the selected provider account's rate/capacity limits.                                                              |
+Baseline existing timing/call-count/cost coverage and measure introduced
+overhead. Retain the documented non-provider p50 ≤300 ms and p95 ≤1 second and
+response-to-first-render p95 ≤300 ms, plus existing full-flow reliability gates.
+The
+[timing contract](../system-architecture/04-ai-engineering.md#benchmark-timing)
+remains authoritative; these are documented limits, not new measurements.
 
-Retain the documented non-provider p50 ≤300 ms and p95 ≤1 second, and
-response-to-first-render p95 ≤300 ms, while measuring full user-visible latency
-separately. These are existing
-[timing constraints](../system-architecture/04-ai-engineering.md#benchmark-timing),
-not new measurements. Adapter or transfer overhead must not be hidden inside a
-renamed provider timer.
+Do not make a new biological benchmark, alternate-model calibration study, or
+live cross-provider trial a gate for this Gemini-preserving infrastructure.
+Those become necessary before a real candidate is enabled: use eligible,
+independently verified examples, held-out evaluation, comparable
+accepted/unknown coverage, and predeclared quality, confidence, safety, latency,
+failure, and cost limits. Qualify sampled-frame identification as such;
+native-video benchmarks cannot substitute for the actual input path.
 
-Freeze task-specific quality/confidence bounds, a full latency limit,
-failure-rate ceiling, cost ceiling, and important-case sample sizes before
-confirmatory comparison. A task that fails stays on its qualified Gemini
-binding; another passing task can advance independently. There is no assumed
-savings target.
+## 8. Infrastructure release and later provider changes
 
-## 8. Configuration changes and rollout
+**SRD-PF-13 — Separate current release from future activation.** Current
+production configuration contains only approved Gemini variants. Release the
+refactor through the existing
+[deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md) and
+consent readiness controls. Verify parity and the return to the prior
+Gemini-backed implementation/configuration; any internal metadata additions must
+remain compatible with that return path. Production release still requires its
+existing explicit authorization.
 
-**SRD-PF-13 — Controlled activation.** Begin with `gemini_baseline_v1`. Enable
-only qualified task bindings with the approved provider-onboarding record and
-current permission required by SRD-PF-05. Start with an eligible cohort and
-follow the existing
-[release and rollout requirements](../backend-and-data/06-supabase-deployment-runbook.md),
-using small-cohort, 10%, 50%, and full eligible-traffic stages only while the
-predeclared operating limits hold. Record the policy version, model variants,
-cohort, comparison evidence, limits, and operating owner for each activation.
+Keep the following procedure as a future implementation checklist, not an active
+OpenAI work package:
 
-Provide per-variant/task stop controls and a tested return path for future
-admissions. Verify both provider-to-provider directions. Normal changes leave
-already admitted work on its recorded route; revocation/stop controls can
-prevent further dispatch, and recovery cannot turn an unknown attempt into a new
-vendor call. A return to Gemini still requires current Gemini permission and
-compatible contracts. If no route is eligible, return the compatible unavailable
-outcome.
+1. Implement the chosen provider adapter for exact task/model/API variants and
+   the real accepted evidence. An images-only adapter may qualify for snapshots
+   without audio; it cannot silently drop audio from a combined observation.
+2. Extend authoritative database admission and the Edge registry together. Add
+   provider credentials, transport/cleanup, usage/pricing normalization, and
+   supported input limits. Do not rely on a configuration string alone.
+3. Before live disclosure, record approved processing terms, region/subprocessor
+   arrangements, retention/deletion and abuse-log treatment, production account
+   settings, and actual processor/purpose permission. Existing Gemini consent
+   and readiness evidence do not authorize the new recipient.
+4. Complete model-specific confidence interpretation and every affected
+   consumer: live/queued results, history, older-device reads, public/community
+   projections, confidence-sensitive SQL, caches, and replay. If needed, change
+   the canonical schema, regenerate DTOs, and perform explicit
+   client/persistence migration.
+5. Qualify complete task results on eligible independent data, including actual
+   snapshot and audio combinations. Freeze acceptance limits before comparison;
+   incomplete evidence does not count as a pass.
+6. Activate selected qualified bindings gradually for eligible traffic and
+   verify a return to an eligible Gemini route. Other tasks may remain on
+   Gemini. Pin admitted work and saved-result interpretation; no automatic
+   cross-provider retry follows an unknown attempt or refusal.
 
-Changing a supported, qualified binding can be a reviewed server configuration
-change without changing callers. Adding an adapter, new evidence representation,
-processor, or public contract still needs the corresponding implementation and
-qualification. Model, prompt, schema, media, or confidence-policy changes create
-a new configuration to evaluate. This rollout does not reanalyze old scans.
+Compatible switches between providers that have completed these steps can be
+reviewed server configuration changes. This phase delivers the boundary and the
+procedure; it does not claim that a second provider can already be activated.
 
 ## 9. Work packages and acceptance
 
-| Phase | Main implementation boundary                                                                                        | Reviewable output                                                                                                                  |
-| ----- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| P0    | Identification callers and evaluation setup                                                                         | Caller/task inventory, eligible comparison manifest, baseline report, and frozen qualification criteria.                           |
-| P1    | `_shared/ai/`, Gemini transport, scoped endpoint/helper calls                                                       | Gemini adapter and shared task contracts with behavior-parity evidence.                                                            |
-| P2    | Database admission/attempt records, consent, canonical response contract, affected clients and confidence consumers | Forward migrations, manifest/admission agreement, permission support, old/new result compatibility, and usage/route observability. |
-| P3    | OpenAI adapter, provider schema projection, qualified task bindings                                                 | Complete contract tests and a per-task Gemini/OpenAI comparison report with selected exact variants.                               |
-| P4    | Server configuration, monitoring, and existing runbooks                                                             | Staged activation record and tested disable/return procedure for eligible traffic.                                                 |
+| Phase | Main boundary                                                  | Reviewable output                                                                                                                            |
+| ----- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0    | Current callers, media, admission, results, and measurement    | Scoped inventory and Gemini behavior/input baseline, including playback versus sampled inference media.                                      |
+| P1    | Shared task types, Gemini adapter, scoped call sites           | Provider-neutral caller interfaces and preserved Gemini requests/results.                                                                    |
+| P2    | Gemini registry, admission checks, internal execution metadata | Gemini-only bindings that honor current quotas/models, explicit capability checks, and additive metadata only where required.                |
+| P3    | Tests and future-provider procedure                            | Gemini parity, production rejection of test/unknown providers, deterministic interface substitution, and documented later integration gates. |
+| P4    | Existing infrastructure release process                        | Controlled Gemini-backed rollout and verified return to the previous implementation/configuration.                                           |
 
-Primary backend ownership stays in existing endpoint orchestrators and shared
-modules; avoid a parallel quota, media, or persistence stack. P2 must inventory
-all confidence-sensitive SQL, iOS, web/admin, and public consumers before schema
-work. Shared helper changes preserve callers outside this migration.
+The acceptance groups below cover current requirements. Numbers refer to the
+`PRD-PF-` and `SRD-PF-` prefixes. Future-provider qualification is a documented
+condition, not a live integration that must run to close this milestone.
 
-The following acceptance groups trace the PRD to system requirements. Numbers in
-the middle columns refer to the `PRD-PF-` and `SRD-PF-` prefixes respectively.
+| Group        | PRD        | SRD            | Current acceptance evidence                                                                                                                                            |
+| ------------ | ---------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-ADAPTER    | 01, 02, 03 | 01, 02, 07, 11 | Gemini parity; scoped endpoint/helper coverage; common task contracts; no new bypasses; deferred callers preserved.                                                    |
+| T-ROUTING    | 01, 04, 10 | 03, 04, 13     | Every production binding remains Gemini; exact admission agreement; disabled/mismatched/unknown-provider rejection; compatible configuration return.                   |
+| T-MEDIA      | 02, 04, 05 | 03, 05, 06     | Ordered five-snapshot and accepted partial inputs; included/absent companion audio; origin versus capability; no raw-video model input; playback durability preserved. |
+| T-CONSENT    | 05         | 05, 11         | Current Gemini consent, revocation, account switch, queue/replay, private/service-purpose boundaries, and no new processor authority.                                  |
+| T-CONFIDENCE | 02, 06     | 07, 08         | Existing Gemini scores/bands/candidates, payloads, history, and server/SQL interpretations remain compatible.                                                          |
+| T-RECOVERY   | 02, 07     | 09, 13         | One primary invocation, no added retries, quota lifecycle, unknown outcomes, durable completion/replay, deletion fences, and compatible return.                        |
+| T-USAGE      | 08         | 09, 10         | Correct Gemini usage mapping and linkage, explicit incomplete coverage, bounded timing facts, and content-free telemetry.                                              |
+| T-EXTENSION  | 09, 10     | 02, 12, 13     | Network-free test adapter exercises callers but cannot reach production; the future integration, permission, qualification, and switching procedure is complete.       |
 
-| Group        | PRD        | SRD            | Required evidence                                                                                                                                                           |
-| ------------ | ---------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| T-ADAPTER    | 01, 02, 03 | 01, 02, 07, 11 | Both adapters implement scoped task contracts; Gemini parity; all endpoint/helper callers; no direct-dispatch bypass; deferred callers remain valid.                        |
-| T-ROUTING    | 01, 04, 10 | 03, 04, 13     | Independent task changes, exact variants, admission/manifest agreement, denied client overrides, mismatched/disabled configurations, and both switch directions.            |
-| T-MEDIA      | 02, 04, 05 | 05, 06         | Single/multiple photos, text-only, audio, video frames with lineage, mixed evidence, unsupported combinations, bounded uploads, and cleanup.                                |
-| T-CONSENT    | 05         | 05, 11         | Provider onboarding and processor/purpose permission, revocation, account switch, queued work, legacy clients, evaluation eligibility, and private/public cache boundaries. |
-| T-CONFIDENCE | 02, 06     | 07, 08         | Model-specific interpretation, complete canonical output, generated DTOs, older-device reads, replay/history, candidate behavior, and server/SQL confidence consumers.      |
-| T-RECOVERY   | 02, 07     | 09, 13         | Single primary call, quota lifecycle, SDK retry rejection, timeout/unknown outcome, durable completion/replay, deletion races, and stop controls.                           |
-| T-USAGE      | 08         | 09, 10         | Successful/failed/unknown attempt coverage, accounting recovery, correct unit pricing, no double counting, and content-free telemetry.                                      |
-| T-EVAL       | 08, 09     | 12             | Independently verified held-out comparisons, all per-task quality/confidence criteria, latency, failure and cost budgets, and capacity readiness.                           |
+Follow the [testing strategy](../development-guides/08-testing-strategy.md) and
+repository skills for implementation gates:
 
-During implementation, use the
-[testing strategy](../development-guides/08-testing-strategy.md) and repository
-skills for exact commands:
-
-- Edge/database work requires recursive Deno checks, formatting/lint, relevant
-  complete tests, tooling and contract gates, forward migration validation, and
-  fresh disposable database/catalog/concurrency evidence through Supabase
-  Candidate Validation.
-- Identify contract changes start in the executable schema, run
-  `make generate-edge-dto-contract`, and pass `make validate-edge-dto-contract`;
-  generated Swift must not be edited manually. Run the complete compiled iOS
-  gate and any affected web/admin gates. Persisted iOS changes require the
-  SwiftData migration workflow.
-- Markdown changes require `deno fmt` and `make validate-markdown-format`. Edge
-  Function/script changes additionally require
+- Edge work requires recursive Deno checks, formatting/lint, the complete
+  affected tests, tooling, and contract checks. Any database metadata change
+  uses a forward migration and fresh disposable database/catalog/concurrency
+  validation through Supabase Candidate Validation.
+- Public/SwiftData changes are not planned. If a concrete current need changes
+  that scope, first update the canonical schema and compatibility plan,
+  regenerate DTOs, and run the complete affected client gates; do not hand-edit
+  generated Swift. Review existing consumers even when the wire shape stays the
+  same.
+- Markdown requires `deno fmt` and `make validate-markdown-format`. Changes
+  under Edge Functions/scripts additionally require
   `deno fmt --check services/supabase/functions services/supabase/scripts`.
 
-These are implementation acceptance requirements, not checks claimed to have run
-for this planning draft. Production activation remains subject to the existing
-consent readiness and explicitly authorized release process.
+These are future implementation requirements, not runtime checks claimed for
+this planning-only revision. The
+[earlier combined SRD](./family-plans-and-ai-platform-srd.md) remains deferred
+background.

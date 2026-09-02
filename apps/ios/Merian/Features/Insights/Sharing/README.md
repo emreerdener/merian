@@ -33,6 +33,20 @@ Wire DTOs, strict response validation, and recovery transport remain in
 `Core/Network`; this refactor does not change an endpoint, payload, persistence,
 feature flag, or navigation contract.
 
+`InsightSharingDependencies.loadExplorePostDetail` adapts `getExplorePostDetail`
+from
+[Core Network's Explore browsing extension](../../../Core/Network/README.md#explore-browsing-endpoints).
+Sharing retains advisory-detail reconciliation and scan/generation fencing.
+Composer-media reads, content/field-note mutations, and authoritative
+share-state reads use
+[Core Network's post-management extension](../../../Core/Network/README.md#explore-post-management-endpoints).
+It retains request construction and response validation only; Sharing retains
+drafts, cache reconciliation, callbacks, and generation/revision fencing.
+Publication and recovery transport remain together in the main network client.
+The
+[post-management matrix](../../../Core/Network/README.md#explore-post-management-verification)
+joins endpoint regression and existing Sharing state coverage.
+
 ## Explore Publication Contract
 
 The focused `Sharing/ViewModels` extensions own presentation and mutation state,
@@ -338,6 +352,11 @@ aggregate removal, and the 600-line production-file ceiling.
 `InsightSharingCacheRefreshTests` owns missing-cache clearing and preservation
 of a restored Community request; those assertions no longer live in the Field
 Notes state suite.
+
+For shared post-detail transport changes, also run the
+[Core Network browsing matrix](../../../Core/Network/README.md#endpoint-verification).
+It includes Sharing's publication and cache-refresh state suites alongside the
+endpoint request/response and transport tests.
 
 ## Privacy and Security
 

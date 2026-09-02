@@ -103,6 +103,10 @@ remote URLs before network/media frameworks see them. See the
   required before inference. A legacy ledger without the fence decodes as
   unfenced, and account switching cannot inherit another user's marker.
 - `SocialGuardManager` centralizes block-state checks used by social surfaces.
+  It retains optimistic blocking, haptics, live client resolution, and rollback;
+  the `blockUser` request payload lives in
+  [Core Network's Explore interaction owner](../Network/README.md#explore-interaction-endpoints).
+  Endpoint extraction does not move social state into transport.
 - `CircuitBreakerManager` stops repeated failing requests from turning poor
   connectivity into continuous foreground retries.
 

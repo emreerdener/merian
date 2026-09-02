@@ -23,6 +23,15 @@ the canonical
   publications, profile, and shared use. Views and components do not call the
   network client directly.
 
+The shared wire implementation lives in
+`Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift`, which owns
+request actions, payload construction, and typed response projections for this
+feature and its cross-feature callers. Feature Services adapt those operations;
+they do not own the shared transport. `MerianNetworkClient.swift` retains
+private session, Auth, retry, and cancellation behavior behind one narrow JSON
+POST bridge. See the [Core Network guide](../../../Core/Network/README.md) for
+that boundary.
+
 ## Shared feature flows
 
 - `FieldTripPublishedContent` normalizes outing publications and Event entries
@@ -62,8 +71,37 @@ Add presentation, policy, dependency-adapter, and view-model tests under
 `MerianTests/Features/Explore/FieldTrips`. Shared fixtures belong in
 `FieldTripTestFixtures.swift`. Keep only JSON decoding and wire-contract
 compatibility coverage in `FieldTripAPIModelsTests`.
+
+`MerianTests/Core/Network/Endpoints/FieldTripEndpointTests.swift` owns request
+mapping, typed response, error, refresh, replay, and cancellation coverage with
+a private client and scoped mock transport per network case.
+`MerianNetworkArchitectureTests.swift` guards the extracted endpoint owner and
+private transport boundary. Payload assertions preserve JSON scalar types and
+null/omission while ignoring object-key order; do not replace them with
+Foundation dictionary equality, which conflates Booleans with numeric 0/1.
+
+`MerianTests/Core/Network/Endpoints/NetworkEndpointTestSupport.swift` owns the
+per-case client/session fixture, handler-marked mock responses, and JSON
+comparison shared with Community Identification, Explore browsing/interactions,
+notifications, and public-profile endpoints. It is separate from the feature's
+`FieldTripTestFixtures.swift`. Changes to that support or the shared JSON POST
+bridge require the Field Trips matrix below, the
+[Identify focused matrix](../Identify/README.md#verification), the
+[Explore browsing matrix](../../../Core/Network/README.md#endpoint-verification),
+the
+[Explore interaction matrix](../../../Core/Network/README.md#explore-interaction-verification),
+and the
+[notification/public-profile matrix](../../../Core/Network/README.md#notification-and-public-profile-verification),
+plus the complete `merianTests` target. Never substitute the shared client's
+overrides or the legacy global endpoint-handler registry for per-case transport
+isolation.
+
 `FieldTripFeaturedMediaTests` owns featured-source ordering, fallback, stable
 goal identity, and the reference/user reuse boundary. Pair it with
 `InsightMediaGalleryTests` and `InsightMediaCarouselArchitectureTests` whenever
 the shared Core pager, page identity, zoom host, pagination, or top-edge
 treatment changes.
+
+Use the canonical
+[Field Trips verification matrix](../../../../../../docs/features-and-hardware/25-field-trips.md#verification)
+for the focused selector list, complete `merianTests` target, and manual checks.

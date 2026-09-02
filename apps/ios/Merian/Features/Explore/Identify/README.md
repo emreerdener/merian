@@ -153,8 +153,17 @@ generation.
   directly.
 - `Core/Network/ExploreAPIModels.swift` owns request/activity response DTOs,
   item types, and cursor models.
-- `Core/Network/MerianNetworkClient.swift` constructs authenticated request and
-  Activity payloads.
+- `Core/Network/Endpoints/MerianNetworkClient+CommunityIdentification.swift`
+  constructs the eight request/activity/detail/edit/search and
+  submit/withdraw/restore payloads and projects their typed responses through
+  the shared JSON POST bridge. `MerianNetworkClient.swift` retains private Auth,
+  transport, retry, and cancellation ownership, plus scan publication and media
+  recovery. See the [Core Network guide](../../../Core/Network/README.md).
+- `Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift` owns
+  the `reportExplorePost` payload used by Community detail. The Identify live
+  adapter still supplies the exact post ID and fixed report context; its state
+  owner retains feedback and presentation. Reports ignore successful bodies and
+  do not replay ambiguous failures.
 - `Core/Utilities/ExploreErrorFormatter.swift` owns generic and Recent
   activity-specific error copy.
 - `Explore/Shell/Models/ExploreShellNavigationModels.swift` owns initial
@@ -197,6 +206,10 @@ stable pagination. See:
 - `apps/ios/MerianTests/Features/Explore/Shell/ExploreShellNavigationPolicyTests.swift`
 - `apps/ios/MerianTests/Features/SpeciesDictionary/Catalog/`
 - `apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift`
+- `apps/ios/MerianTests/Core/Network/Endpoints/CommunityIdentificationEndpointTests.swift`
+- `apps/ios/MerianTests/Core/Network/Endpoints/ExploreInteractionEndpointTests.swift`
+- `apps/ios/MerianTests/Core/Network/Endpoints/ExploreInteractionEndpointTransportTests.swift`
+- `apps/ios/MerianTests/Core/Network/Endpoints/MerianNetworkArchitectureTests.swift`
 - `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift`
 - `apps/ios/MerianTests/Core/Utilities/MerianConfigTests.swift`
 - `services/supabase/functions/get-community-identification-activity/db_test.ts`
@@ -206,6 +219,34 @@ stable pagination. See:
 - `services/supabase/functions/_tests/communityIdentificationActivityDb.test.ts`
 - `services/supabase/functions/_tests/communityIdentificationActivityMigrationContract.test.ts`
 - `services/supabase/tests/flag_issue_submission_security.sql`
+
+The endpoint suite owns 32 independent payload cases and rehomes the former
+feed, activity, and request-edit regressions from the aggregate network suite.
+Coverage preserves cursor pairing, nil/null/empty distinctions, pinned taxonomy
+versions, raw text, limit forwarding, typed projections, 30-second deadlines,
+handler denials, one auth-refresh replay, the existing ambiguous-replay
+allowlist, and pre-dispatch cancellation. Distinct lifecycle fixtures verify
+withdrawal/restoration timestamps; repeated failures verify the replay ceiling
+and generic handler denials forbid auth refresh. Coordinate forwarding uses
+nonzero, out-of-range sentinels rather than observed locations. Its scoped
+client/transport and type-preserving JSON comparison are shared with Field
+Trips, Explore browsing/interactions, notifications, and public-profile
+endpoints in
+`MerianTests/Core/Network/Endpoints/NetworkEndpointTestSupport.swift`; follow
+that feature's [test guide](../FieldTrips/README.md#tests) when changing those
+helpers or the shared JSON POST bridge, and also run the
+[Explore browsing matrix](../../../Core/Network/README.md#endpoint-verification)
+and the
+[interaction](../../../Core/Network/README.md#explore-interaction-verification)
+and
+[notification/public-profile matrices](../../../Core/Network/README.md#notification-and-public-profile-verification).
+No endpoint test touches the shared client's overrides or the legacy global
+handler registry. Core DTO decoding and feature interaction tests retain their
+respective owners.
+
+`ExploreInteractionEndpointTests.testReportExplorePost` owns the rehomed
+Community detail report regression: it requires the exact `post_id`, reason, and
+`Reported from Community request` context, not a scan or request ID.
 
 Run the focused iOS suites with:
 
@@ -219,6 +260,10 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/CommunityTaxonomySearchViewModelTests \
   -only-testing:merianTests/CommunityFeedbackViewModelTests \
   -only-testing:merianTests/CommunityIdentificationModelsTests \
+  -only-testing:merianTests/CommunityIdentificationEndpointTests \
+  -only-testing:merianTests/ExploreInteractionEndpointTests \
+  -only-testing:merianTests/ExploreInteractionEndpointTransportTests \
+  -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/ExploreShellNavigationPolicyTests \
   -only-testing:merianTests/SpeciesDictionaryCatalogContractTests \
   -only-testing:merianTests/SpeciesCatalogPresentationTests \
@@ -231,6 +276,33 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/MerianConfigTests test
 ```
 
+Regenerate and validate source membership, lint the affected production
+boundary, build the generic Simulator target without signing, and run the
+complete unit target and repository checks:
+
+```sh
+make xcodegen
+make validate-ios-project
+bash scripts/test-ios-project-source-membership.sh
+swiftlint lint --strict --no-cache \
+  apps/ios/Merian/Core/Network/MerianNetworkClient.swift \
+  apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+CommunityIdentification.swift \
+  apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift
+xcodebuild build -scheme Merian -project Merian.xcodeproj \
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
+xcodebuild -scheme Merian -project Merian.xcodeproj \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+  -only-testing:merianTests test
+make validate-markdown-format
+git diff --check
+```
+
 The focused matrix does not replace the complete `merianTests` target, generic
 iOS Simulator build, generated-project validation, SwiftLint, Markdown format,
 or manual parity checks in the canonical contract.
+
+Record source parsing, focused frontend typechecking, native macOS
+JSON/architecture checks, and candidate iOS runtime results separately. The
+[cleanup record](../../../../../../docs/rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits)
+tracks the local build restrictions and remaining runtime acceptance; a prior
+merged feature's CI result is not evidence for a new endpoint slice.

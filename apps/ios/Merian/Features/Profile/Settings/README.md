@@ -66,6 +66,17 @@ shared-manager contracts stay with their canonical Core suites. The focused
 selectors and manual matrix are canonical in the
 [Profile Settings testing strategy](../../../../../../docs/development-guides/08-testing-strategy.md#profile-settings).
 
+`Notifications/Services/NotificationSettingsDependencies.swift` delegates remote
+registration synchronization to `PushNotificationManager`. Settings retains
+permission presentation, preference decisions, and stable synchronization
+reasons; Hardware retains token/registration lifetime. The request payload lives
+in `Core/Network/Endpoints/MerianNetworkClient+Notifications.swift`, not in
+Settings. For changes across this boundary, also run the
+[notification/public-profile matrix](../../../Core/Network/README.md#notification-and-public-profile-verification):
+`NotificationSettingsViewModelTests` covers Settings state, while
+`NotificationEndpointTests` and the shared endpoint transport suite cover the
+wire request, response handling, and replay policy.
+
 The Profile product-area contract is summarized in
 [`06-profile-and-gamification.md`](../../../../../../docs/features-and-hardware/06-profile-and-gamification.md)
 and the app-wide feature inventory in

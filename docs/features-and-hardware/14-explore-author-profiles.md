@@ -347,6 +347,9 @@ Primary files:
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Core/Network/FieldTripAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift`
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+PublicProfile.swift`
 - `apps/ios/Merian/Features/Profile/UserProfile/Components/Achievements/`
 
 `ExploreAuthorProfileViewModel` owns profile loading, preview seeding, cursor
@@ -461,8 +464,15 @@ MerianNetworkClient.shared.getFieldTripPublication(publicationId:)
 
 The Author Profile live dependency adapter is the only layer in that feature
 that calls the first four methods. Core Network continues to own transport,
-payload encoding, and DTO decoding; this organization pass changes no wire
-contract.
+payload encoding, and DTO decoding. The profile/posts reads live in
+`Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`; follow and
+report mutations live in
+`Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift`. Public
+identity update/availability requests live in
+`Core/Network/Endpoints/MerianNetworkClient+PublicProfile.swift`, while shared
+`ProfileViewModel` retains identity state, refresh/events, and avatar upload
+orchestration. This organization pass changes no wire contract or profile-state
+ownership.
 
 ## Testing
 
@@ -496,13 +506,26 @@ iOS:
   and cancellation retry.
 - `apps/ios/MerianTests/Features/Profile/UserProfile/ProfilePublicationRecoverySummaryTests.swift`
   covers owner recovery visibility, copy, and dismissal identity.
-- `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift`
-- Covers profile decoding, award/heatmap conversion, and author-post cursor
-  payload construction.
-- Covers follow-state decoding and `/set-user-follow` request payload
-  construction.
-- Covers `/update-public-avatar` response decoding and request payload
-  construction.
+- `apps/ios/MerianTests/Core/Network/Endpoints/ExploreBrowsingEndpointTests.swift`
+  rehomes profile projection, award/heatmap conversion, and author-post cursor
+  request coverage. It also checks owner-only metadata omission and empty-page
+  server cursors. `ExploreBrowsingEndpointTransportTests.swift` covers errors,
+  bounded retries, and pre-dispatch cancellation. Run the
+  [Core Network browsing matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification)
+  when changing these wire methods.
+- `apps/ios/MerianTests/Core/Network/Endpoints/ExploreInteractionEndpointTests.swift`
+  rehomes follow-state decoding/request coverage and adds Boolean false,
+  user-report details trimming/omission, and authoritative-state cases.
+  `ExploreInteractionEndpointTransportTests.swift` guards refresh, mutation
+  replay refusal, report body-ignoring success, and cancellation. Use the
+  [Core Network interaction matrix](../../apps/ios/Merian/Core/Network/README.md#explore-interaction-verification).
+- `apps/ios/MerianTests/Core/Network/Endpoints/PublicProfileEndpointTests.swift`
+  rehomes avatar and display-name payload/projection regressions and covers
+  username updates and availability. The shared
+  `NotificationAndPublicProfileEndpointTransportTests` guards typed response
+  failures, refresh/replay, and cancellation. Use the
+  [Core Network notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification);
+  shared identity-state tests remain in `ProfileViewModelTests`.
 - `apps/ios/MerianTests/Core/Network/FieldTripAPIModelsTests.swift` covers Field
   trip DTO decoding used by profile modules and publication detail.
 - `apps/ios/MerianTests/Features/Explore/FieldTrips/FieldTripProfilePresentationTests.swift`

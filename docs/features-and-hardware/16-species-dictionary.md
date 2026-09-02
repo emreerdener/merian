@@ -77,6 +77,7 @@ Primary files:
 - `apps/ios/Merian/Core/Network/SpeciesDictionaryIdentity.swift`
 - `apps/ios/Merian/Core/Network/SpeciesObservationStatsAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`
 - `apps/ios/Merian/Core/Utilities/AppRouteCoordinator.swift`
 - `apps/ios/Merian/App/MerianApp.swift`
 - `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+Routing.swift`
@@ -472,6 +473,16 @@ MerianNetworkClient.shared.getExploreSpeciesPosts(
     cursor: cursor
 )
 ```
+
+The client method lives in
+`Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`. Its
+stateless payload and typed-page mapping are separate from Dictionary identity
+validation/caching and feature Community loading state. The rehomed quality-
+cursor request tests and transport checks live under
+`MerianTests/Core/Network/Endpoints/ExploreBrowsingEndpointTests.swift` and
+`ExploreBrowsingEndpointTransportTests.swift`; use the
+[Core Network browsing matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification)
+for wire changes.
 
 `/get-explore-species-posts` accepts `species_id`, `limit`, and optional flat
 `before_image_quality_score`, `before_shared_at`, and `before_post_id` cursor

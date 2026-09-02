@@ -166,14 +166,18 @@ write_test_tree() {
               "testCheckScanStatusRejectsMalformedOrMismatchedSuccess",
               "testBulkScanStatusRejectsDuplicateMissingOrForeignRows",
               "testExploreMediaIncidentsAndLifecycleNotificationsDecode",
-              "testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary",
-              "testExploreMediaIncidentsRejectsUnknownSuccessShape",
               "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload",
               "testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning",
               "testCommunityRequestSendsStableAIIdempotencyKey",
               "testCommunityRequestRejectsUnconfirmedSuccessResponse",
+              "testMissingOwnerShareStateClearsStaleLocalPublication"
+            ]),
+            suite("Explore Media Incident Endpoints"; [
+              "testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary",
+              "testExploreMediaIncidentsRejectsUnknownSuccessShape"
+            ]),
+            suite("Explore Share State Endpoints"; [
               "testGetExploreShareStateRejectsUnconfirmedState",
-              "testMissingOwnerShareStateClearsStaleLocalPublication",
               "testGetExploreShareStateAcceptsServerHiddenPostWithoutCommunityRequest"
             ]),
             suite("InsightShellRecordTests"; [
@@ -297,7 +301,9 @@ for omitted_suite in \
   "CameraManagerTests" \
   "Inference Engine Tests" \
   "OfflineQueueManagerTests" \
-  "SyncStateManagerTests"; do
+  "SyncStateManagerTests" \
+  "Explore Media Incident Endpoints" \
+  "Explore Share State Endpoints"; do
   write_test_tree "$omitted_suite"
   assert_rejected "A result missing $omitted_suite"
 done

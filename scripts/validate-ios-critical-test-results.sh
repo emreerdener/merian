@@ -555,13 +555,13 @@ assert_suite_has_passed_test_case \
   "testExploreMediaIncidentsAndLifecycleNotificationsDecode"
 assert_suite_has_passed_test_case \
   "Explore media-health legacy network compatibility" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ExploreMediaIncidentEndpointTests" \
+  "Explore Media Incident Endpoints" \
   "testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary"
 assert_suite_has_passed_test_case \
   "Explore media-health response integrity" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ExploreMediaIncidentEndpointTests" \
+  "Explore Media Incident Endpoints" \
   "testExploreMediaIncidentsRejectsUnknownSuccessShape"
 assert_suite_has_passed_test_case \
   "Explore repair preflight budget" \
@@ -585,8 +585,8 @@ assert_suite_has_passed_test_case \
   "testCommunityRequestRejectsUnconfirmedSuccessResponse"
 assert_suite_has_passed_test_case \
   "Explore reconciliation integrity" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ExploreShareStateEndpointTests" \
+  "Explore Share State Endpoints" \
   "testGetExploreShareStateRejectsUnconfirmedState"
 assert_suite_has_passed_test_case \
   "Missing-owner stale publication reset" \
@@ -595,8 +595,8 @@ assert_suite_has_passed_test_case \
   "testMissingOwnerShareStateClearsStaleLocalPublication"
 assert_suite_has_passed_test_case \
   "Explore hidden-publication reconciliation" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ExploreShareStateEndpointTests" \
+  "Explore Share State Endpoints" \
   "testGetExploreShareStateAcceptsServerHiddenPostWithoutCommunityRequest"
 assert_suite_has_passed_test_case \
   "Explore Field Chat identifier routing" \

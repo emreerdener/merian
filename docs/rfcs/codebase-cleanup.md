@@ -127,11 +127,11 @@ push toggles in `Profile/Settings/Notifications/`, bundled release notes in
 
 Suggested first targets:
 
-| File                                                     | Cleanup Direction                                                                                                                                                                                                                                                                                                           |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Integration audit and scoped safety fixes are implemented; close current-source build and runtime verification before moving to Core/Network; live request/result adaptation, recovery classification/presentation, hydration, bounded writes, shared reference transport, and local-analysis lifecycle/policies are split. |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core.                                                                                                                                                                                         |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                                                                                                                                                                     |
+| File                                                     | Cleanup Direction                                                                                                                                                                                                                                                                |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                      |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Seven endpoint owners now cover Field Trips, Community Identification, Explore browsing/interactions/post management, notifications, and public profile. Transport/state remain private, and scan publication stays with media recovery. Continue with cohesive endpoint groups. |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                                                                                                                          |
 
 Rules for this phase:
 
@@ -309,9 +309,335 @@ Implemented Core slices:
   Full-engine current-source compilation also encounters the environment's Apple
   macro sandbox restriction. Simulator discovery works. The expanded
   [focused matrix](../development-guides/08-testing-strategy.md#live-inference-requestresult-verification)
-  and complete `merianTests` target must run from a successful current-source
-  build before closing this Inference round; stale cached products are not
-  candidate evidence. No deployment or external publication was performed.
+  and complete `merianTests` target were still awaiting a successful
+  current-source build at that local handoff; stale cached products are not
+  candidate evidence. The later merged-CI confirmation below supersedes this
+  local verification hold. No deployment or external publication was performed.
+- A clean-checkout closeout attempt for committed candidate `28831c812` on
+  2026-09-02 repeated byte-stable XcodeGen, project/source membership,
+  event-routing and build-workflow guards, parsing of all 39 changed Swift
+  files, and strict lint of the ten changed production files successfully.
+  Generic Simulator build and `build-for-testing` used separate fresh derived-
+  data directories, locked packages, and the CI package-cache flags. Both exited
+  74 during SwiftPM manifest resolution on the same denied diagnostics-cache
+  writes. Simulator selection returned an available device, but `xcodebuild`
+  also reported a CoreSimulatorService connection failure. No candidate test
+  products were created, so this local attempt did not execute the focused
+  matrix, complete unit target, or manual checks.
+- The user subsequently confirmed that the Inference work was merged and all
+  GitHub Actions checks passed. That merged-CI confirmation is the accepted
+  baseline for proceeding to Core Network; this workspace's local build
+  restrictions are not a project-level blocker. The CI run was not independently
+  inspected here, and no manual device verification is claimed. New unmerged
+  Network changes still need their own candidate CI validation.
+
+Implemented Core Network slices:
+
+- Explore post management now lives in
+  `Core/Network/Endpoints/MerianNetworkClient+ExplorePostManagement.swift`: six
+  composer-media/share-state/incident reads and unshare/notes/content edits form
+  a 120-line owner. The main client shrinks from 5,334 to 5,214 lines. The typed
+  POST bridge gains nil-defaulted idempotency-key forwarding and
+  decoding-failure replacement scoped only to decoding after transport.
+  Signatures, defaults, 30-second deadlines, DTOs, payloads, semantic
+  share-state checks, legacy incident-array compatibility, callers, backend,
+  persistence, and `project.yml` remain unchanged. Publication, uploads, and
+  cloud/media recovery stay together in the main client.
+- `ExplorePostManagementEndpointTests` owns 36 request cases and composer/edit
+  projections; `ExploreShareStateEndpointTests` and
+  `ExploreMediaIncidentEndpointTests` own strict reconciliation and
+  compatibility coverage. Six direct endpoint tests retain their names in the
+  new suites, reducing the aggregate from 5,046 to 4,804 lines. Four protected
+  selectors and their adversarial fixtures now identify the new suite/type
+  owners; required case names and count are unchanged. Mixed
+  incident/notification DTO decoding and Insight stale-cache clearing remain
+  aggregate-owned. `ExplorePostManagementEndpointTransportTests` covers raw
+  versus mapped decoding failures, body-ignoring unshare success, handler
+  denials, classified 401 refresh, exact body/key preservation through bounded
+  replay, distinct content-edit keys, legacy edit/unshare replay refusal, and
+  both cancellation paths.
+- Independent read-only implementation/contract review found no actionable
+  parity, test-oracle, isolation, retry, cancellation, or protected-selector
+  defect. Exact baseline comparisons confirm only the six methods and typed
+  bridge changed in the main client, its share-state validation is identical,
+  and only the six test declarations left the aggregate. Final frontend
+  typechecking passed for the full current client, seven endpoint extensions,
+  and all endpoint suites against cached unchanged dependencies; all eight
+  production copies match current source. Native macOS execution passed eight
+  architecture and two exact-source JSON-comparison methods. Repeated XcodeGen
+  was byte-stable with source/group additions only. Source parsing,
+  generated-project/source membership, event-routing, the complete
+  `make test-ios-ci-tooling` gate, strict affected-production SwiftLint,
+  Markdown formatting, local-link/selector checks, and tracked/new-file
+  whitespace checks passed. Documentation review corrected a remaining
+  share-state ownership row in the codebase map.
+- The 2026-09-02 post-management second-pass review found no actionable code
+  defect and required no corrective code edits. Independent read-only tracing
+  confirmed decoding-only error replacement, nil-default compatibility for the
+  other six endpoint owners, retry-stable content-edit keys, legacy edit replay
+  refusal, and unchanged cancellation boundaries. Exact source/test comparisons,
+  cached-dependency frontend typechecking, all ten native architecture/JSON test
+  methods, byte-stable XcodeGen, and the source, project, CI-tooling, lint,
+  documentation, and whitespace guards passed again. Follow-up documentation
+  clarifies that the endpoint returns validated state while Insight Sharing owns
+  cache reconciliation and presentation fencing.
+- Both initial and second-pass attempts at a fresh generic Simulator build and
+  complete-unit `build-for-testing` exited 74 during package resolution, before
+  compilation, on denied SwiftPM diagnostics-cache writes; CoreSimulatorService
+  was also unavailable. No candidate test products were created. The
+  [post-management matrix](../../apps/ios/Merian/Core/Network/README.md#explore-post-management-verification),
+  other shared-bridge focused matrices, complete `merianTests` runtime, and
+  manual checks still require current-candidate validation outside that
+  restriction; source/typechecking evidence is not an iOS runtime pass.
+- Notifications and public-profile operations now live in
+  `Core/Network/Endpoints/MerianNetworkClient+Notifications.swift` and
+  `MerianNetworkClient+PublicProfile.swift`: four methods each, in 53- and
+  33-line owners. The main client shrinks from 5,421 to 5,334 lines. Whole-file
+  comparison confirms only those eight declarations were removed. Both JSON POST
+  overloads, private transport/state, signatures, payloads, DTOs, timeouts,
+  callers, backend, persistence, and `project.yml` remain unchanged. Catalog,
+  badge/push, shared Profile state, and avatar upload retain their existing
+  owners.
+- `NotificationEndpointTests` owns 19 payload cases and
+  `PublicProfileEndpointTests` owns 16. Typed tests preserve notification
+  ordering/metadata/counts, required-but-uninterpreted mark-read `success`,
+  server identity projections, display-name clearing, and optional availability
+  errors. The shared `NotificationAndPublicProfileEndpointTransportTests`
+  distinguishes seven typed results from body-ignoring push success and locks
+  the three-read/five-mutation replay split, handler denials, classified-401
+  refresh, failed replays, and both cancellation paths. Four endpoint
+  regressions retain their names in the new owners; exact aggregate comparison
+  confirms only those four removals. The protected shared-Auth
+  `testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry` remains
+  byte-identical in `MerianNetworkClientTests`, with CI selectors unchanged.
+- Independent read-only implementation/contract review found no actionable
+  parity issue. Focused iOS frontend typechecking passed for the current full
+  client, all six endpoint extensions, and every endpoint suite against cached
+  unchanged dependencies; all seven typechecked production copies exactly match
+  current source. Native macOS execution passed seven architecture tests and two
+  exact-source JSON-comparison methods. Neither check executes hosted iOS
+  requests. XcodeGen is byte-stable, with only source/group membership
+  additions; project/resource, source-membership/adversarial,
+  event-routing/adversarial, and build-workflow guards passed. Source parsing
+  and strict affected-production SwiftLint also passed. Ownership guides,
+  canonical feature/API references, and shared verification requirements now
+  cover all six endpoint groups. Independent documentation review verified those
+  boundaries and clarified fixture-local versus shared-client overrides. Added
+  local links/anchors, focused suite selectors, command-block syntax, Markdown
+  formatting, and tracked/new-file whitespace checks passed.
+- The fresh generic Simulator build and complete-unit `build-for-testing` for
+  this pair failed during package resolution, before compilation, on denied
+  SwiftPM manifest diagnostics-cache writes; CoreSimulatorService also reported
+  a connection failure. No candidate test products were created. The
+  [notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification),
+  complete `merianTests` runtime, and manual checks remain unrun locally and
+  need current-candidate validation outside this restriction. Prior merged-CI
+  evidence does not attest to this unmerged slice.
+- The notification/public-profile second-pass review repeated exact
+  source/test-removal comparisons, cached-dependency iOS frontend typechecking,
+  all nine native architecture/JSON methods, byte-stable XcodeGen, and the
+  listed source, project, workflow, and documentation guards. The typechecked
+  source/mock copies and native JSON methods matched current source. Independent
+  adversarial review found no extraction, test-oracle, isolation, retry, or
+  cancellation defect; no corrective code changes were needed. Both fresh Xcode
+  build attempts exited 74 during package resolution before compilation,
+  repeating the environment restriction above. No candidate iOS runtime or
+  manual pass is claimed.
+- Documentation synchronization also covers Settings-to-Hardware push
+  registration, the canonical Explore architecture inventory, and Profile
+  editors' shared-state ownership. The Profile and backend guides no longer
+  claim empty display names are rejected; the API contract explicitly records
+  the existing custom-name clearing and username-alias response. These are
+  documentation corrections, not app or backend behavior changes.
+- Explore interactions now live in
+  `Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift`: 12
+  comment/reply/mention, like/follow, comment mutation, report, and block
+  methods move into a 171-line owner. The main client shrinks from 5,574 to
+  5,421 lines. One narrow body-discarding POST overload preserves five `Void`
+  operations' HTTP-only success, including empty/non-JSON/false-success bodies;
+  seven typed operations retain their decoder and projections. Three reads
+  retain bounded ambiguous replay and nine mutations retain replay refusal.
+  Signatures, defaults, payloads, cursor pairing, trimming, DTOs, callers,
+  feature state, backend, persistence, and `project.yml` remain unchanged.
+- `ExploreInteractionEndpointTests` adds 41 independent request cases and
+  typed-state/metadata/legacy-response coverage, rehoming six aggregate
+  regressions with their names preserved.
+  `ExploreInteractionEndpointTransportTests` covers typed versus body-ignoring
+  success, handler denials, classified-401 refresh, failed replays, mutation
+  replay refusal, and both cancellation paths. The architecture suite protects
+  all four owners and both POST overloads. The
+  [Core Network interaction matrix](../../apps/ios/Merian/Core/Network/README.md#explore-interaction-verification)
+  includes the affected Feed, Author Profile, Notifications, Identify, and Core
+  social-guard suites.
+- Independent read-only review found no implementation, test-oracle, or legacy
+  regression loss. Whole-file comparison confirmed only the 12 removals and new
+  body-discarding overload. Focused iOS frontend typechecking passed for the
+  full client, all four extensions, and every endpoint suite against cached
+  unchanged dependencies. Native macOS execution passed five architecture tests
+  and the two exact-source JSON-comparison methods; those seven methods do not
+  execute iOS requests. Ownership/test references now include the new owner and
+  no longer place follow/report or comment regressions in the aggregate client
+  suite. The API documentation also correctly describes the existing reaction
+  operation as a toggle, not an idempotent state setter.
+- XcodeGen is byte-stable, with generated-project changes limited to source and
+  group membership. Project/resource validation, source-membership guards and
+  their adversarial tests, event-routing validation and adversarial tests,
+  build-workflow regression checks, Swift parsing, strict affected-source
+  SwiftLint, documentation links/selectors, Markdown formatting, and
+  `git diff --check` passed. Exact aggregate-test comparison confirms that only
+  the six rehomed methods were removed.
+- The interaction slice's second-pass review repeated exact source/test
+  comparisons, focused iOS frontend typechecking against cached unchanged
+  dependencies, all seven native architecture/JSON methods, byte-stable
+  XcodeGen, and the listed source, project, and documentation guards. The
+  typechecked source copies matched the current implementation. Independent
+  contract review also found no actionable regression; no corrective code
+  changes were needed. Fresh build attempts repeated the pre-compilation failure
+  below, not an iOS runtime pass.
+- This interaction slice's fresh generic Simulator build and complete-unit
+  `build-for-testing` both exited 74 before compilation on denied SwiftPM
+  manifest diagnostics-cache writes; CoreSimulatorService also reported a
+  connection failure. No candidate test products were created. Focused iOS
+  runtime, the complete `merianTests` runtime, and manual regression remain
+  unrun locally and require current-candidate validation outside this
+  restriction.
+- Explore browsing now lives in
+  `Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`: eight
+  stateless Feed/Map/post/detail/author/hashtag/species methods move into a
+  184-line owner through the unchanged JSON POST bridge. The main client shrinks
+  from 5,758 to 5,574 lines. Signatures/defaults, raw values, ordering, ISO
+  cutoff, coordinate forwarding, paired/ranking/quality cursors, typed
+  projections, timeouts, and the existing read replay allowance remain
+  unchanged. Comments, mutations, notifications, composer media,
+  publication/recovery, and Dictionary validation/caches stay in their current
+  owners. No backend, feature caller, UI, DTO, persistence, or manifest contract
+  changes are part of this slice.
+- `ExploreBrowsingEndpointTests` owns 40 independent request cases and typed
+  response regressions, rehoming nine aggregate Feed/Map/author/species request
+  tests into isolated clients. `ExploreBrowsingEndpointTransportTests` covers
+  every route's malformed success, handler denial, auth-refresh, bounded
+  network/503 replay, terminal failed replay, and cancellation boundary. The
+  architecture suite protects the exact inventory and private transport.
+  Ownership guides, affected feature contracts, test references, and the new
+  [Core Network browsing matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification)
+  describe the split. Shared test/bridge changes follow the current all-group
+  verification requirement in the Core Network guide.
+- Independent read-only review on 2026-09-02 found no extraction mismatch or
+  unsafe mock. Focused iOS frontend typechecking passed for the full current
+  client, all three endpoint extensions, and all endpoint suites against cached
+  unchanged dependencies. That check caught and corrected an async throwing
+  assertion in the new Following test. Native macOS execution passed the actual
+  four architecture tests and two exact-source JSON-comparison methods; those
+  six methods do not execute iOS requests. XcodeGen was byte-stable and added
+  only source references for the new files, with `project.yml` unchanged.
+- Final browsing-slice checks passed project/resource and source-membership
+  guards, source-membership adversarial tests, event-routing/adversarial and
+  build-workflow guards, affected Swift parsing, strict production lint with
+  zero violations, Markdown formatting, added links/anchors, focused-selector
+  resolution, command syntax, and `git diff --check`. Full-source comparison
+  confirmed that only the eight methods were removed from the pre-slice client;
+  the nine rehomed tests are present exactly once and other aggregate tests are
+  unchanged apart from the earlier Community rehome. Independent documentation
+  review found no ownership or verification drift.
+- The second-pass review repeated the source/test comparison, iOS frontend
+  typechecking, six native architecture/JSON methods, and all listed source,
+  project, and documentation guards. Independent contract review also found no
+  actionable issue; no corrective code changes were needed. The fresh Xcode
+  build attempts repeated the pre-compilation failure below, not an iOS runtime
+  pass. Profile and Insight Sharing ownership references now distinguish their
+  existing state/adapters from the extracted browsing transport.
+- This browsing slice's fresh generic Simulator build and complete-unit-target
+  `build-for-testing` both exited 74 before compilation on denied SwiftPM
+  manifest diagnostics-cache writes; Xcode also reported CoreSimulatorService
+  connection failure. No candidate test products were created, so the focused
+  browsing matrix, complete `merianTests` runtime, and manual checks remain
+  unrun locally. This does not reopen the accepted merged Inference baseline or
+  count as runtime acceptance of the new Network changes.
+- Community Identification browsing/contribution operations now live in
+  `Core/Network/Endpoints/MerianNetworkClient+CommunityIdentification.swift`:
+  eight existing methods move into a 151-line owner through the existing JSON
+  POST bridge. Signatures/defaults, raw text, null/omission, cursor pairing,
+  coordinate forwarding, DTO projections, 30-second timeouts, and the ambiguous-
+  replay allowlist remain unchanged. Scan-publication overloads and media
+  recovery stay together in the main client; no backend, UI, schema, or feature
+  adapter changes are part of this slice.
+- `CommunityIdentificationEndpointTests` adds 32 independent payload cases and
+  typed-response, malformed-success, denial, auth-refresh, replay-allowlist, and
+  cancellation coverage. The three former Community feed/activity/ request-edit
+  regressions move out of the aggregate network suite and use per-case clients.
+  Shared `NetworkEndpointTestSupport` keeps their fixture and
+  scalar-type-preserving JSON assertions aligned with Field Trips.
+  `MerianNetworkArchitectureTests` protects the eight-method inventory, thin
+  extension boundary, 600-line guard, and retained scan-publication owner.
+  Ownership docs and the Identify focused matrix mirror this split.
+- The initial independent review found no extraction mismatch. Its
+  classification correction distinguishes the existing allowlisted taxonomy
+  search from a pure read: thin search results can enrich the backend cache.
+  Test names and documentation now describe the existing replay allowlist
+  without changing it. The full current client, both endpoint extensions, and
+  focused endpoint tests passed iOS frontend typechecking against cached
+  unchanged dependencies. Direct macOS execution passed the actual three
+  architecture tests plus the two exact-source JSON-comparison methods,
+  including four scalar/null cases. These five test methods do not execute the
+  iOS client.
+- Follow-up review on 2026-09-02 strengthened the Community suite's test
+  oracles: distinct submit/withdraw/restore fixtures assert lifecycle
+  timestamps; repeated network/503 failures and post-refresh 401/503 denials
+  enforce the existing single-replay budget; handler denials use a mock refresh
+  tripwire; and nonzero, out-of-range coordinate sentinels detect dropped or
+  swapped values without observed location data. Production endpoint and private
+  transport behavior remain unchanged. Independent follow-up review closed all
+  four findings. The updated tests passed source parsing and focused iOS
+  frontend typechecking against cached unchanged dependencies; the five native
+  architecture/JSON-comparison methods and project/routing/workflow, strict
+  production lint, Markdown, and diff checks passed again. These regressions
+  still require candidate iOS runtime execution; focused typechecking is not a
+  runtime pass.
+- The Community slice's fresh generic Simulator build and complete-unit-target
+  `build-for-testing` attempt both exited 74 before compilation on denied
+  SwiftPM manifest diagnostics-cache writes; Xcode also reported a
+  CoreSimulatorService connection failure. The focused Identify and Field Trips
+  runtime matrices, complete `merianTests` execution, and manual checks remain
+  unrun locally. Source parsing, strict affected-production lint, generated
+  project/source membership, event-routing/adversarial, and build-workflow
+  guards passed. These local restrictions do not reopen the accepted merged
+  Inference baseline or constitute runtime acceptance of the new Network slice.
+- Field Trips wire operations now live in
+  `Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift`: 29 existing
+  client methods and two private helpers move together, with the endpoint file
+  below 600 lines. A narrow internal JSON POST bridge delegates to the existing
+  private session, Auth, retry, and cancellation implementation. Request
+  signatures/defaults, actions, payloads, DTOs, timeouts, and cross-feature
+  callers remain compatible. Shared filter trimming uses the existing Core
+  string helper; no UI policy or backend contract moved into the endpoint owner.
+- `MerianTests/Core/Network/Endpoints` adds 48 request-mapping cases, focused
+  response/error/refresh/replay/cancellation tests, and source ownership guards.
+  The Core Network guide, codebase map, manager guide, testing strategy, and
+  canonical Field Trips matrix describe the split and suite ownership.
+- Follow-up review corrected the request tests' Foundation dictionary equality,
+  which treated JSON Booleans as equal to numeric 0/1. Canonical JSON comparison
+  now preserves scalar types and null/omission without depending on key order,
+  with explicit regression cases. Ambiguous-POST coverage also requires the
+  original network-loss error code, not merely any thrown error. Production
+  endpoint behavior remains unchanged. At that Field Trips review, its
+  JSON-comparison methods and architecture suite passed direct macOS execution:
+  four test methods, including the four parameterized scalar/null cases. This
+  narrow source and Foundation check does not execute the iOS client or replace
+  its test matrix.
+- The initial Field Trips verification passed byte-stable XcodeGen,
+  project/source membership, event-routing and build-workflow guards,
+  changed-source parsing, strict affected-production lint, Markdown formatting,
+  and diff checks. The complete current client body, extracted endpoint, shared
+  trim helper, and new tests passed focused frontend typechecking against cached
+  unchanged dependencies; this is bounded compiler evidence, not a full-target
+  build or test run. The fresh generic Simulator build and follow-up
+  `build-for-testing` attempt exited 74 before compilation because SwiftPM could
+  not write its manifest diagnostics cache. No new candidate test product was
+  produced, so the updated Field Trips matrix, complete `merianTests` target,
+  and manual checks remain unrun locally. The independent read-only review found
+  no remaining request, response, fixture, or transport-policy mismatch. This
+  slice requires its own CI result; the accepted merged Inference baseline
+  remains closed.
 
 Implemented Explore slices:
 

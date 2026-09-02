@@ -32,6 +32,11 @@ Every production Swift file in this directory must remain at or below the
 new groups are registered by running `make xcodegen`, not by editing the Xcode
 project directly.
 
+The Community adapter calls `getExploreSpeciesPosts` in
+`Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`. That
+stateless request retains the quality-score cursor and typed Explore card page;
+it does not own Dictionary page validation/caching or Community loading state.
+
 ## Loading And Concurrency
 
 `SpeciesDictionaryPageViewModel` normalizes the route identity and classifies
@@ -138,3 +143,10 @@ Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Detail/`:
 The aggregate `SpeciesDictionaryTests` suite retains wire decoding, strict
 schema and response-identity validation, UUID/name recovery, and cache
 compatibility.
+
+Species Community wire payload and quality-cursor regressions live in
+`MerianTests/Core/Network/Endpoints/ExploreBrowsingEndpointTests.swift`, rehomed
+from the aggregate network suite, with failure/replay coverage in
+`ExploreBrowsingEndpointTransportTests.swift`. Wire changes require the
+[Core Network browsing matrix](../../../Core/Network/README.md#endpoint-verification)
+in addition to the feature's state/service tests.

@@ -94,7 +94,13 @@ canceled driver cannot replace the last accepted incident state, an
 account-replacement trigger remains queued behind the stale request, and the
 captured authenticated session is revalidated after suspension before a response
 enters UI state. Dismissal is scoped to the normalized account and exact
-incident signature. No JSON payload or endpoint contract changed.
+incident signature. Its live closure calls
+`Core/Network/Endpoints/MerianNetworkClient+ExplorePostManagement.swift`;
+`ExploreMediaIncidentEndpointTests` owns canonical/legacy decoding and network
+compatibility, while Shell tests retain refresh and account-fence behavior. See
+the
+[post-management matrix](../../../Core/Network/README.md#explore-post-management-verification).
+No JSON payload or endpoint contract changed.
 
 ## Focused verification
 

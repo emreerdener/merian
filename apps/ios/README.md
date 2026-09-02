@@ -80,6 +80,21 @@ Examples:
 - `Core/Data/OfflineSync` owns sync infrastructure rather than a
   feature-specific scan screen.
 
+Cross-feature wire operations can live in `Core/Network/Endpoints/` even when
+grouped by feature. Field Trips, Community Identification browsing/contribution,
+the eight Explore browsing reads, 12 Explore interaction methods, four
+notification methods, four public-profile methods, and six Explore
+post-management methods are extracted. Existing feature adapters, shared Profile
+state, Hardware push/badge owners, and Core's social guard retain their callers
+and state, while the existing network client retains private session, Auth,
+retry, and cancellation ownership behind typed-response and body-ignoring POST
+overloads. The typed bridge preserves optional idempotency keys and
+endpoint-specific decoding-error mapping without intercepting transport
+failures. Codable wire contracts remain in Core. Scan publication and media
+recovery remain together in the main client, alongside the remaining endpoint
+groups. See the [Core Network guide](Merian/Core/Network/README.md) for the
+endpoint, transport, and mirrored test boundaries.
+
 ## Onboarding Ownership
 
 [Onboarding](Merian/Features/Onboarding/README.md) owns the first-run Welcome,

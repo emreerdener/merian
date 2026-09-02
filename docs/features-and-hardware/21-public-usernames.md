@@ -190,6 +190,14 @@ rows.
 
 ## iOS Touchpoints
 
+`Core/Network/Endpoints/MerianNetworkClient+PublicProfile.swift` owns the four
+username/display-name/avatar update and username-availability wire methods. They
+forward caller values without new normalization and return the typed server
+projection. `Profile/Shared/ViewModels/ProfileViewModel.swift` retains live
+client resolution, shared identity state/events, and avatar signing/upload
+orchestration; only the final avatar promotion request belongs to the endpoint
+extension. Server validation remains authoritative.
+
 - `ProfileViewModel.fetchPublicIdentity()` reads `public_username` and
   `public_author_name` from `public.users`, plus `public_avatar_url` for the
   resolved profile image.
@@ -213,6 +221,16 @@ rows.
   name when available; both stack and sheet hosts render that shared content.
 
 ## Testing
+
+The iOS wire suites are `PublicProfileEndpointTests` and
+`NotificationAndPublicProfileEndpointTransportTests` under
+`MerianTests/Core/Network/Endpoints/`. They cover raw/empty values, availability
+results, clearing the display name, avatar promotion, errors, refresh, replay
+refusal, and cancellation. Shared identity-state tests remain in
+`ProfileViewModelTests`. Run the
+[Core Network notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification)
+and the complete `merianTests` target for client changes; these are separate
+from the backend checks below.
 
 Recommended checks:
 

@@ -69,6 +69,19 @@ injected environment identity and entitlement state to prepare card
 presentation, but cards consume only those prepared values. Shared media
 receives image-loading closures through its narrow Explore-wide adapter.
 
+The stateless Feed, post/detail, and hashtag wire methods live in
+`Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`. Comment,
+reply, mention, like, report, and blocking requests live in
+`Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift`. This
+does not move Feed state into Core: Services retain live adapters, ViewModels
+retain loading and interaction state, and `SocialGuardManager` retains shared
+blocking state. Composer-media reads, both public-notes/content edits, and
+unsharing use `MerianNetworkClient+ExplorePostManagement.swift`; publication and
+media recovery remain together in the main client. The
+[post-management matrix](../../../Core/Network/README.md#explore-post-management-verification)
+covers wire/retry behavior separately from Feed state. Codable wire models
+remain in Core Network.
+
 Keep existing Feed-tab, hashtag-route, post-detail, composer, and card
 initializer signatures stable. Preserve visible copy, accessibility values, hit
 regions, gestures, haptics, telemetry, autoplay rules, Low Power behavior,
@@ -317,6 +330,20 @@ cover a playing video must participate in the coordinator:
 
 Focused tests mirror their production owners:
 
+- `MerianTests/Core/Network/Endpoints/ExploreBrowsingEndpointTests.swift` and
+  `ExploreBrowsingEndpointTransportTests.swift` own browsing payload, response,
+  error, replay, and cancellation coverage. They rehome the legacy Feed request
+  tests from `MerianNetworkClientTests`; feature state tests stay here. When
+  changing this wire boundary, run the
+  [Core Network browsing matrix](../../../Core/Network/README.md#endpoint-verification).
+- `MerianTests/Core/Network/Endpoints/ExploreInteractionEndpointTests.swift` and
+  `ExploreInteractionEndpointTransportTests.swift` own comment/interaction
+  payloads, server projections, body-ignoring success, errors, and replay rules.
+  They rehome the aggregate comment/reply/create/post-report/block regressions.
+  Run the
+  [Core Network interaction matrix](../../../Core/Network/README.md#explore-interaction-verification)
+  after changing this shared wire boundary; optimistic UI and comment-session
+  behavior remain in the feature suites below.
 - `MerianTests/Features/Explore/Shared/Media/ExploreMediaPlaybackPolicyTests.swift`
   covers overlay reduction, center-hit policy, resume intent, contained playback
   state, and nested coordinator tokens.

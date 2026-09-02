@@ -133,6 +133,15 @@ presenting another sheet or stale content.
 Explore is organized by product area first so a contributor can open the folder
 for the surface they are changing:
 
+- Stateless Feed, Map, post/detail, author, hashtag, and species browsing wire
+  methods live in
+  `Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`. Core
+  retains Codable DTOs and private transport; the feature owners below retain
+  adapters, asynchronous state, and UI. Comments, mutations, notifications,
+  composer media, publication/recovery, and Dictionary caches are outside this
+  browsing extension. Its request and transport suites are under
+  `MerianTests/Core/Network/Endpoints/`; see the
+  [Core Network browsing matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification).
 - `apps/ios/Merian/Features/Explore/Shell/` owns the root Explore sheet,
   toolbar, root mode picker, shared navigation path, initial-route and
   Capture-goal conversion policy, stack-based author-profile presentation, the
@@ -173,7 +182,13 @@ for the surface they are changing:
   state, and `Views/` plus feature-grouped `Components/` contain no direct
   networking. See the feature-local
   [`README`](../../apps/ios/Merian/Features/Explore/Identify/README.md) for the
-  compatibility and test boundaries.
+  compatibility and test boundaries. Its eight browsing/contribution wire
+  operations live in
+  `Core/Network/Endpoints/MerianNetworkClient+CommunityIdentification.swift`;
+  Codable responses and cursor values remain in `ExploreAPIModels.swift`. The
+  main network client retains private Auth/transport/retry ownership and the
+  separate scan-publication/media-recovery flow. Mirrored Core endpoint tests
+  cover payload and transport parity; feature tests retain interaction state.
 - `apps/ios/Merian/Features/Explore/FieldTrips/` owns public Field trip Outings
   and Events, Seasonal Challenges cards/detail, guided template detail, progress
   cards, publication and challenge entry detail pages, profile modules,

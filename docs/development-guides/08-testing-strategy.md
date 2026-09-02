@@ -881,7 +881,12 @@ injected closure dependencies for Settings state tests:
   replacing its transport.
 - `NotificationSettingsViewModelTests` covers authorization decisions, deferred
   enablement, disable behavior, stale-refresh fencing, and exact
-  remote-registration reason values.
+  remote-registration reason values. The live adapter delegates to Hardware's
+  `PushNotificationManager`; it does not own push payload construction.
+  `NotificationEndpointTests` and
+  `NotificationAndPublicProfileEndpointTransportTests` retain wire/replay
+  coverage. Cross-boundary changes also require the
+  [Core Network notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification).
 - `PlanViewModelTests` covers plan-display policy, restore single-flight,
   cross-action fencing, subscribed dismissal, and provider error feedback for
   paywall and plan management.
@@ -2281,6 +2286,197 @@ import, and permission-denial UI require the physical-device checklist in
 
 ### Security, Network & Identity
 
+- **Field Trips endpoint boundary**:
+  `Core/Network/Endpoints/FieldTripEndpointTests.swift` owns 48 request-mapping
+  cases across every Field Trips client operation, including optional fields,
+  explicit nulls, trimming, limits, complete/incomplete cursors, and the two
+  15-second progress routes. Canonical JSON comparison preserves wire scalar
+  types and null/omission while ignoring object-key order; regression cases
+  prevent Foundation's Boolean/number equality from masking a payload change.
+  Additional tests cover typed snake-case responses, achievement projection,
+  malformed success, handler failure, refresh-once behavior, refusal to replay
+  an ambiguous mutation with the exact transport error code preserved, and
+  cancellation before dispatch. Each request case owns a private
+  `MerianNetworkClient` and `ScopedMockTransport`; it must not replace the
+  shared client's session or use the legacy `MockURLProtocol.mockEndpoints`
+  registry. `MerianNetworkArchitectureTests.swift` guards endpoint ownership and
+  the private transport boundary. DTO decoding remains in
+  `FieldTripAPIModelsTests`, and view-model/presentation behavior remains in
+  `Features/Explore/FieldTrips`. Run the canonical
+  [Field Trips focused matrix](../features-and-hardware/25-field-trips.md#verification)
+  and the complete `merianTests` target after changing this boundary. Its
+  per-case fixture and JSON comparison now live in
+  `NetworkEndpointTestSupport.swift`, shared with Community Identification,
+  Explore browsing/interactions, notifications, public-profile, and
+  post-management endpoints. Changes to that support or either shared JSON POST
+  overload also require the
+  [Identify focused matrix](../../apps/ios/Merian/Features/Explore/Identify/README.md#verification),
+  [Explore browsing matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification),
+  [Explore interaction matrix](../../apps/ios/Merian/Core/Network/README.md#explore-interaction-verification),
+  [notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification),
+  and
+  [post-management matrix](../../apps/ios/Merian/Core/Network/README.md#explore-post-management-verification).
+  Exact-source macOS checks of pure Foundation/architecture behavior and focused
+  frontend typechecking are supplemental evidence; neither executes the hosted
+  iOS client or replaces candidate-build runtime tests. The
+  [cleanup record](../rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits)
+  separates those checks from the unrun local iOS matrix and accepted earlier
+  merged-CI baseline.
+- **Community Identification endpoint boundary**:
+  `Core/Network/Endpoints/CommunityIdentificationEndpointTests.swift` owns 32
+  independent payload cases across the eight browsing/contribution methods.
+  These lock defaults, limit forwarding, paired/incomplete/blank cursors,
+  independently forwarded coordinate arguments, nullable notes/reasoning,
+  untrimmed text, pinned taxonomy versions, Boolean values, and 30-second
+  deadlines. Typed projection tests retain detail timelines, all three Activity
+  types, GBIF taxa without Dictionary rows, and distinct submit/withdraw/restore
+  lifecycle timestamps. Transport tests cover malformed success, handler-owned
+  400/401/404 denials with zero auth refreshes, auth refresh, the existing
+  ambiguous network/503 replay allowlist, and cancellation before dispatch.
+  Repeated network/503 failures and failed post-refresh 401/503 responses must
+  stop at the existing single-replay ceiling. Nonzero, out-of-range coordinate
+  sentinels detect dropped or swapped values without using observed locations.
+  Taxonomy search is allowlisted despite its backend cache-enrichment side
+  effects; it is not classified as a pure read.
+  `NetworkEndpointTestSupport.swift` shares the isolated fixture and
+  type-preserving JSON assertion with Field Trips, Explore
+  browsing/interactions, notifications, public-profile, and post-management
+  endpoints; no suite writes the shared client's overrides or legacy global
+  endpoint handlers. The architecture suite keeps all seven endpoint owners
+  below 600 lines and leaves scan publication/media recovery in the main client.
+  Run the
+  [Identify focused matrix](../../apps/ios/Merian/Features/Explore/Identify/README.md#verification),
+  the Field Trips, Explore browsing, Explore interaction, and
+  notification/public-profile and post-management matrices when shared helpers
+  or the JSON POST bridge change, and the complete unit target. Runtime coverage
+  is not inferred from parsing or frontend typechecking.
+- **Explore browsing endpoint boundary**:
+  `Core/Network/Endpoints/ExploreBrowsingEndpointTests.swift` owns 40
+  independent request cases across eight stateless reads and rehomes nine
+  aggregate Feed, Map, author, and species request regressions. Expectations
+  retain defaults, raw IDs/hashtags, caller limits, omitted fields, Feed
+  category-priority versus Map lexical ordering, independent coordinate/ranking
+  values, Nearby-only radius, explicit ISO cutoff, paired/incomplete/blank
+  cursors, and nil/zero species quality scores. Typed projections lock
+  media-only card ordering, Map modes/facets, profile/owner metadata, post
+  detail, and full author/species envelopes including cursors on empty pages.
+  `ExploreBrowsingEndpointTransportTests.swift` covers malformed success,
+  handler-owned 400/401/404 denials with zero refreshes, a single auth-refresh
+  replay, bounded ambiguous network/503 replays, terminal failed replays, and
+  pre-dispatch cancellation for every route. These tests use the shared scoped
+  fixture, not the global mock registry or shared client. The architecture suite
+  protects all eight declarations and private transport state. Standalone DTO
+  decoding stays in Core; feature state remains in its mirrored suites. Run the
+  [Core Network browsing matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification)
+  and complete `merianTests` target. Shared bridge/helper changes also require
+  the Field Trips, Identify, Explore interaction, and
+  notification/public-profile and post-management matrices; cached-module
+  typechecking or native Foundation checks never count as iOS runtime execution.
+- **Explore interaction endpoint boundary**:
+  `Core/Network/Endpoints/ExploreInteractionEndpointTests.swift` owns 41
+  independent request cases across 12 comment/reply/mention, like/follow,
+  comment mutation, report, and blocking methods. Six aggregate regressions move
+  here with their names preserved. Cases retain complete/partial/blank cursor
+  pairs, caller limits, raw query/body/report text, parent omission, Boolean
+  false, user-report-only trimming, and the exact `blocked_id` key. Typed
+  coverage preserves public avatars, reaction/mention metadata, server order,
+  legacy optional fields, authoritative counts, and caller-owned success flags
+  and deletion actions. `ExploreInteractionEndpointTransportTests.swift`
+  distinguishes seven typed operations from five `Void` operations: malformed
+  success throws only for typed results; body-ignoring calls accept empty
+  200/204, non-JSON, false-success, and other 2xx bodies. All 12 retain
+  handler-denial and classified-401 behavior; the three reads retain bounded
+  network/503 replay, while the nine mutations refuse ambiguous replay.
+  Task-owned pre-dispatch cancellation and independent `URLError.cancelled`
+  remain distinct. Per-case fixtures never mutate the shared client.
+  Architecture checks lock all 12 declarations and both narrow POST overloads
+  without widening transport access. Run the
+  [Core Network interaction matrix](../../apps/ios/Merian/Core/Network/README.md#explore-interaction-verification),
+  including all seven endpoint groups and affected Feed, Author Profile,
+  Notifications, Identify, and social-guard suites, plus the complete unit
+  target. Record cached-dependency typechecking/native source checks separately
+  from fresh candidate iOS build/runtime evidence.
+- **Notification endpoint boundary**:
+  `Core/Network/Endpoints/NotificationEndpointTests.swift` owns 19 independent
+  request cases across four catalog/count/read/push methods. These retain caller
+  limits, paired/incomplete/blank cursors, every independent push-preference
+  combination, raw token/environment values, and explicit Boolean false. Typed
+  checks preserve row/actor order, optional routing metadata, read flags,
+  timestamps, and unclamped top-level counts. Mark-read still requires a
+  decodable `success` field but returns its count even when that flag is false.
+  Unknown notification types and missing required fields remain decoding errors.
+  `testRegisterPushDeviceEndpoint` moves here from the aggregate suite.
+  Catalog/view-model, route, permission, and badge lifecycle ownership does not
+  move into transport.
+- **Public-profile endpoint boundary**:
+  `Core/Network/Endpoints/PublicProfileEndpointTests.swift` owns 16 independent
+  request cases across four username/display-name/avatar update and availability
+  methods. Raw, blank, and overlong values are forwarded without new
+  normalization; response values remain server-authoritative. Coverage includes
+  display-name clearing/alias fallback, staging keys/MIME types, unavailable
+  usernames, and optional availability errors. Three display-name/avatar
+  regressions move from the aggregate suite with their names preserved.
+  `ProfileViewModelTests` retains shared identity defaults/display-name
+  coverage; `UserProfileAvatarCoordinatorTests` retains selection,
+  error-presentation, and account-fence coverage.
+- **Notification/public-profile transport**:
+  `NotificationAndPublicProfileEndpointTransportTests.swift` covers all eight
+  methods with the existing isolated per-case fixture. Seven typed operations
+  reject malformed success; push registration alone ignores empty, non-JSON, or
+  false-success 2xx bodies. Handler 400/401/404/409 failures cannot refresh.
+  Classified 401 refreshes once for all eight methods, while ambiguous
+  network/503 failures replay only the notification list, unread count, and
+  username-availability reads, never the five mutations. Failed replays stop
+  after two attempts; pre-dispatch task cancellation and independent
+  `URLError.cancelled` preserve distinct behavior. Architecture guards cover
+  both exact four-method inventories and the unchanged private transport. The
+  protected
+  `MerianNetworkClientTests.testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry`
+  remains in the aggregate suite: its push request exercises shared Auth
+  recovery, and its CI identity must not be rehomed as an endpoint regression.
+  Run the
+  [notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification)
+  and complete unit target. The matrix includes all seven endpoint groups and
+  affected notification, push/routing, notification-settings, and shared Profile
+  suites. Run the other focused matrices above when shared bridge/test helpers
+  change.
+- **Explore post-management endpoint boundary**:
+  `Core/Network/Endpoints/ExplorePostManagementEndpointTests.swift` owns 36
+  independent payload cases across six methods and five routes, including both
+  edits on `update-explore-field-notes`. Cases retain independently optional
+  composer IDs, raw IDs/notes/hashtags, explicit null notes, nil-versus-empty
+  media, ordered media fields, all location choices, and common-name-only outer
+  trimming/blank omission. Typed composer/edit projections preserve server
+  order, optional selection metadata, nullable fields, and caller-owned success
+  flags. `ExploreShareStateEndpointTests.swift` owns matching scan identity,
+  valid post/time/Community topology, authoritative visibility/location, hidden
+  publications, and malformed/contradictory-response rejection.
+  `ExploreMediaIncidentEndpointTests.swift` owns canonical and exact
+  legacy-array compatibility, including empty arrays, metadata/order, and strict
+  entry decoding. Six endpoint regressions retain their names in these two
+  owners; mixed DTO and Insight cache-reset tests stay in
+  `MerianNetworkClientTests`.
+  `ExplorePostManagementEndpointTransportTests.swift` preserves three raw
+  decoding operations, two `invalidResponse`-mapped decoders, and body-ignoring
+  unshare success without remapping HTTP/auth/cancellation errors. Three reads
+  and full content edits allow one ambiguous replay; legacy notes and unshare
+  refuse it. Content keys are lowercase UUIDs, stable with exact body bytes
+  across replay, distinct across edits, and still supplied when media is absent.
+  Unclassified handler denials must not trigger refresh. A classified
+  refreshable 401 permits one auth refresh/replay for all six methods; the
+  auth-replay tests require exactly two requests and propagation of a failed
+  second response without another replay. Cancellation coverage distinguishes
+  zero sends for an already-cancelled task from an independently cancelled
+  transport, whose `URLError.cancelled` must propagate without retry or
+  decoding-error mapping. Four critical selectors in
+  `validate-ios-critical-test-results.sh` name the new suite/type owners. Its
+  adversarial fixture preserves required case names and count and checks missing
+  suites/cases and skipped results. Run `make test-ios-ci-tooling` after
+  changing these references, the
+  [post-management matrix](../../apps/ios/Merian/Core/Network/README.md#explore-post-management-verification),
+  the other focused matrices for shared bridge/test-helper changes, and the
+  complete unit target. Feed, Insight Sharing, and Scans Shell retain state
+  tests; source checks do not replace candidate iOS runtime or manual checks.
 - **`MerianNetworkClientTests.swift`, `SupabaseManagerTests.swift`**: Tests API
   routing, including `.401` retry cycles for Ghost User flows and JSON body
   payload serialization.
@@ -2423,9 +2619,14 @@ return Map view-model policy to the former root `merianTests.swift` aggregate.
   approximate presentation, viewport/zoom/filter request forwarding, 500-row
   limit ownership, fresh cache reuse, stale cache revalidation, and
   stale-content retention across an offline area refresh.
-- `Core/Network/MerianNetworkClientTests.swift` retains JSON and transport
-  coverage for media-only Map posts, response facet decoding, and
-  `species_categories` / `media_types` request construction.
+- `Core/Network/MerianNetworkClientTests.swift` retains standalone Map DTO
+  decoding, including media-only rows.
+  `Core/Network/Endpoints/ExploreBrowsingEndpointTests.swift` owns the rehomed
+  `species_categories` / `media_types` request regression and typed
+  mode/facet/card projection. `ExploreBrowsingEndpointTransportTests.swift`
+  covers its failure/replay boundary. Wire changes require the
+  [Core Network browsing matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification)
+  in addition to the Map feature suites.
 - Generated-project source membership must include every Swift file below
   `Features/Explore/Map/` and both mirrored test files. Production Map Swift
   files must remain below the feature's 600-line review ceiling, and a static
@@ -2662,11 +2863,25 @@ iOS focused coverage:
   `Features/SpeciesDictionary/Shared/`. Wire, strict schema/identity, cache, and
   observation-stats compatibility remain in
   `Features/SpeciesDictionary/SpeciesDictionaryTests.swift`.
-- `Core/Network/MerianNetworkClientTests.swift` decodes all Activity item fields
-  and verifies `limit`, shared scope/group filters, plus paired
-  `(before_activity_at, before_activity_id)` payload construction. It also locks
-  the Community detail's post-report payload to `/report-explore-post` and
-  prevents scan/request identifiers from re-entering that client path.
+- `Core/Network/Endpoints/CommunityIdentificationEndpointTests.swift` owns the
+  former feed/activity/request-edit endpoint regressions and expands them to all
+  eight browsing/contribution methods. It verifies complete typed Activity
+  projection and shared scope/group filters, both paired cursor contracts,
+  nullable fields, distinct mutation lifecycle responses, and the existing
+  transport replay allowlist and ceiling. Handler-denial tests explicitly reject
+  auth refresh. `MerianNetworkArchitectureTests.swift` protects the endpoint
+  owner and private shared transport. The
+  [Identify README matrix](../../apps/ios/Merian/Features/Explore/Identify/README.md#verification)
+  includes both suites.
+- `Core/Network/Endpoints/ExploreInteractionEndpointTests.swift` owns the
+  rehomed Community detail post-report payload regression for
+  `/report-explore-post`, preventing scan/request identifiers from re-entering
+  that report path. Its transport suite guards body-ignoring success and
+  mutation replay refusal; both are in the Identify matrix.
+- `Core/Network/MerianNetworkClientTests.swift` retains scan-publication and
+  media-recovery coverage.
+  `Core/Network/CommunityIdentificationModelsTests.swift` retains standalone
+  DTO/model compatibility tests.
 - `Core/Utilities/MerianConfigTests.swift` verifies a temporary service failure
   uses Recent activity-specific copy rather than the generic Explore outage
   message.
@@ -3713,7 +3928,7 @@ Explore media quarantine has four complementary boundaries:
 - `reconcile-explore-media-health/worker_test.ts` proves direct primary `404`,
   retryable `5xx`, distinct auxiliary poster checking without hiding a healthy
   video, and one recorded result per live lease.
-- `MerianNetworkClientTests.testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary`
+- `ExploreMediaIncidentEndpointTests.testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary`
   proves the actual iOS network method maps the older deployed direct `[]`
   response to a valid empty incident list. The hosted critical-result validator
   requires this exact case in addition to typed canonical/legacy decoding and

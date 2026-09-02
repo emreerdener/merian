@@ -1342,8 +1342,67 @@ consults that Keychain entry.
 - Routes all Deno function endpoints via `MerianEnvironment.supabaseUrl`; if
   Supabase config is incomplete, endpoint construction throws
   `MerianError.invalidURL` and no fallback network request is attempted.
-- Centralizes JWT validation in `performAuthenticatedRequest`, which handles
-  authentication for all five public endpoints.
+- Keeps session state, Auth leases, refresh/retry policy, and authenticated
+  transport private in `MerianNetworkClient.swift`. Feature wire operations can
+  live in `Core/Network/Endpoints/` without acquiring their own transport or
+  mutable state. `MerianNetworkClient+FieldTrips.swift` owns the Field Trips
+  methods; `MerianNetworkClient+CommunityIdentification.swift` owns the eight
+  Community browsing/contribution methods;
+  `MerianNetworkClient+ExploreBrowsing.swift` owns the eight Feed, Map,
+  post/detail, author, hashtag, and species reads; and
+  `MerianNetworkClient+ExploreInteractions.swift` owns 12 comment/reply/mention,
+  like/follow, comment mutation, reporting, and blocking methods.
+  `MerianNetworkClient+Notifications.swift` owns four notification/push methods,
+  and `MerianNetworkClient+PublicProfile.swift` owns four public-identity
+  update/availability methods. `MerianNetworkClient+ExplorePostManagement.swift`
+  owns six composer-media/share-state/incident reads and unshare/notes/content
+  edits. All seven use narrow internal `performAuthenticatedJSONPost` overloads.
+  Typed results use the existing decoder; five interaction `Void` methods, push
+  registration, and unshare ignore successful bodies without adding JSON
+  validation. Codable contracts remain in `FieldTripAPIModels.swift` and
+  `ExploreAPIModels.swift`, and feature Services retain their injected
+  presentation adapters. Scan publication and its media recovery remain together
+  in the main client. Shared retry policy stays private; existing per-endpoint
+  payload normalization stays with its endpoint owner. The typed bridge forwards
+  an optional idempotency key and can replace decoding failures only after
+  transport succeeds, with nil defaults for both options.
+- The browsing owner preserves Feed's category-priority order, Map's lexical
+  filter order, independently forwarded Feed coordinates/ranking cursor, paired
+  author/hashtag cursors, and the distinct species quality cursor. Map and
+  author/species page responses retain their envelopes, including empty-page
+  server cursors. Notifications, composer media, publication/editing, and
+  Dictionary validation/caches remain in their existing owners. See the
+  [Core Network browsing matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification)
+  for endpoint and caller-state coverage.
+- The interaction owner preserves comment/reply cursor pairing, raw caller
+  values, Boolean false, report defaults, and user-report details trimming and
+  omission. Three reads retain bounded ambiguous replay; nine mutations retain
+  replay refusal, independently of the shared classified-401 refresh path.
+  Feature state and `SocialGuardManager` still own optimistic updates and
+  rollback. Run the
+  [Core Network interaction matrix](../../apps/ios/Merian/Core/Network/README.md#explore-interaction-verification)
+  for request/response, transport, and caller-state coverage.
+- Notification and public-profile owners preserve raw inputs, paired
+  notification cursors, top-level counts, required-but-uninterpreted mark-read
+  `success`, all push flags, and typed identity/availability projections. Three
+  reads allow bounded ambiguous replay; five mutations refuse it. Notification
+  Services/ViewModels, `PushNotificationManager`, `AppIconBadgeCoordinator`, and
+  shared `ProfileViewModel` retain state and lifecycle ownership. Avatar
+  signing/upload remains separate from final promotion. Run the
+  [notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification);
+  shared Auth recovery and its protected CI selector stay in
+  `MerianNetworkClientTests`.
+- The post-management owner preserves share-state topology validation, hidden
+  publications, exact legacy incident-array compatibility, optional/null edit
+  fields, and HTTP-only unshare success. Only content edits carry an idempotency
+  key, preserved through replay; legacy notes edits on the same route do not.
+  Share-state/incidents alone map decoding errors to `invalidResponse`, without
+  intercepting HTTP or cancellation failures. Four protected endpoint
+  regressions name their new suite owners; the mixed DTO and Insight cache-state
+  tests stay aggregate. Run the
+  [post-management matrix](../../apps/ios/Merian/Core/Network/README.md#explore-post-management-verification)
+  and retain feature-owned Feed, Sharing, and Scans state coverage.
+- Centralizes authenticated Edge requests in `performAuthenticatedRequest`.
 - Prewarms `/identify-multimodal` with `OPTIONS` through the same TLS-pinned
   `URLSession` used by the real request; the Supabase auth SDK's connection pool
   is not treated as an inference connection prewarm.

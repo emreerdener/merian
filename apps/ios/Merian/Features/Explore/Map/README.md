@@ -86,9 +86,14 @@ stale-response fencing, canonical post synchronization, public-detail mapping,
 request construction, fresh/stale cache behavior, and stale-content error
 recovery.
 
-Keep JSON decoding and network-payload coverage in
-`MerianTests/Core/Network/MerianNetworkClientTests.swift`, including media-only
-map rows and species/media request facets.
+`Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift` owns the
+stateless map-points wire method; the Map Services adapter and ViewModel still
+own viewport requests and caching. Its payload, typed response, and transport
+coverage lives in
+`MerianTests/Core/Network/Endpoints/ExploreBrowsingEndpointTests.swift` and
+`ExploreBrowsingEndpointTransportTests.swift`, including deterministic
+species/media filters, mode/facets, and media-only rows. DTO-only decoding
+remains in `MerianTests/Core/Network/MerianNetworkClientTests.swift`.
 
 After `make xcodegen` and build-for-testing, run the focused Map suite with:
 
@@ -101,6 +106,8 @@ xcodebuild test-without-building \
   -only-testing:merianTests/ExploreMapViewModelTests
 ```
 
+Wire changes also require the
+[Core Network browsing matrix](../../../Core/Network/README.md#endpoint-verification).
 The focused suite does not replace the complete `merianTests` target, generic
 iOS Simulator build, XcodeGen/source-membership validation, SwiftLint,
 documentation formatting, or manual MapKit regression on a candidate build.

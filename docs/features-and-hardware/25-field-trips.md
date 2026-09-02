@@ -963,6 +963,14 @@ split by responsibility:
 - `Components/` owns catalog, detail, media, publication, profile, and shared UI
   without calling the network client directly.
 
+The shared wire implementation lives in
+`Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift`. It constructs
+Field Trips payloads and maps typed responses through the client's narrow JSON
+POST bridge; `MerianNetworkClient.swift` keeps the session, Auth, retry, and
+cancellation implementation private. This Core owner serves the feature's
+Services and existing cross-feature callers without moving presentation policy
+or changing endpoint behavior.
+
 `FieldTripPublishedContent` normalizes outing publications and Event entries for
 one detail renderer and interaction view model while
 `FieldTripPublishedContentEndpoint` preserves their distinct network actions.
@@ -991,6 +999,7 @@ Primary files:
 - `apps/ios/Merian/Core/Models/CaptureGoalContext.swift`
 - `apps/ios/Merian/Core/Network/FieldTripAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift`
 - `apps/ios/Merian/Core/UI/Feedback/AchievementToastPresenter.swift`
 - `apps/ios/Merian/Core/UI/Feedback/AchievementToastBanner.swift`
 - `apps/ios/Merian/Core/Utilities/AppEventPublisher.swift`
@@ -1382,6 +1391,9 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
   -only-testing:merianTests/FieldTripAPIModelsTests \
   -only-testing:merianTests/FieldTripCaptureContextModelsTests \
+  -only-testing:merianTests/FieldTripEndpointTests \
+  -only-testing:merianTests/MerianNetworkArchitectureTests \
+  -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/FieldTripPresentationTests \
   -only-testing:merianTests/ActiveFieldTripProfilePresentationTests \
   -only-testing:merianTests/EarnedFieldTripPatchPresentationTests \
@@ -1404,10 +1416,12 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
 xcodebuild -scheme Merian -project Merian.xcodeproj \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
   -only-testing:merianTests test
-swiftlint lint --strict \
+swiftlint lint --strict --no-cache \
   apps/ios/Merian/Features/Explore/FieldTrips \
   apps/ios/MerianTests/Features/Explore/FieldTrips \
   apps/ios/Merian/Core/Network/FieldTripAPIModels.swift \
+  apps/ios/Merian/Core/Network/MerianNetworkClient.swift \
+  apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift \
   apps/ios/Merian/Core/UI/Feedback/AchievementToastPresenter.swift
 make validate-markdown-format
 git diff --check
@@ -1417,6 +1431,32 @@ The focused selector matrix and complete `merianTests` target are both required;
 one does not replace the other. Run the SwiftLint command only when the local
 SourceKitten installation is functional, and report the limitation if it cannot
 run.
+
+`Core/Network/Endpoints/FieldTripEndpointTests.swift` owns wire request mapping
+and the extracted endpoint's response/error/refresh/cancellation coverage;
+`MerianNetworkArchitectureTests.swift` keeps transport internals private.
+`FieldTripAPIModelsTests` remains the Codable contract suite, while feature
+presentation and interaction tests stay under
+`MerianTests/Features/Explore/FieldTrips/`.
+
+`Core/Network/Endpoints/NetworkEndpointTestSupport.swift` under `MerianTests`
+owns the isolated client/session fixture, handler-marked mock responses, and
+JSON comparison shared with Community Identification, Explore
+browsing/interactions, notifications, and public-profile endpoints. When
+changing this support or either shared JSON POST overload, also run the
+[Identify focused matrix](../../apps/ios/Merian/Features/Explore/Identify/README.md#verification),
+[Explore browsing matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification),
+[Explore interaction matrix](../../apps/ios/Merian/Core/Network/README.md#explore-interaction-verification),
+and
+[notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification);
+the Field Trips matrix and complete unit target remain required.
+
+Request assertions compare canonical JSON so object-key ordering is irrelevant
+but Boolean/number/string and null/omission differences remain failures. The
+network-loss case also requires the original transport error code. Native macOS
+runs of pure JSON/architecture checks and frontend typechecking do not execute
+the hosted iOS request paths; report them separately from the focused matrix and
+complete unit-target runtime results.
 
 Manual iOS parity matrix:
 

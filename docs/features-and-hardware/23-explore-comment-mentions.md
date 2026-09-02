@@ -181,8 +181,11 @@ notifications feed remains complete and continues to include mention rows.
 
 ## iOS Touchpoints
 
-- DTOs and client method: `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
-  and `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- DTOs: `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
+- Comment/reply/mention request mapping and response projection:
+  `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift`;
+  private transport remains in
+  `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - Shared comment composer:
   `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentComposer.swift`
 - Comment/mention endpoint adapter and state owner:
@@ -217,6 +220,12 @@ notifications feed remains complete and continues to include mention rows.
   `apps/ios/MerianTests/Features/Explore/Shared/ExploreCommentAuthorPresentationTests.swift`,
   and
   `apps/ios/MerianTests/Features/Explore/Feed/ExploreReplyLoadingStateTests.swift`
+- Wire and transport regressions:
+  `apps/ios/MerianTests/Core/Network/Endpoints/ExploreInteractionEndpointTests.swift`
+  and `ExploreInteractionEndpointTransportTests.swift`. These cover paired
+  cursors, raw mention queries/bodies, optional parents, public mention
+  metadata, read retries, mutation replay refusal, and cancellation without
+  moving suggestion/composer state into Core.
 
 The composer watches the trailing token. Selecting a suggestion replaces the
 active `@query` token with `@username` followed by a space and leaves the
@@ -224,6 +233,11 @@ comment as plain text. Rendered comments link only the resolved mention spans
 that came back in the `mentions` array. Unresolved `@text` remains normal text.
 
 ## Verification
+
+For iOS transport changes, run the
+[Core Network interaction matrix](../../apps/ios/Merian/Core/Network/README.md#explore-interaction-verification)
+and complete unit target; the feature parsing test alone does not exercise the
+endpoint boundary.
 
 Recommended checks:
 

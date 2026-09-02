@@ -580,16 +580,26 @@ The request body is:
 }
 ```
 
-The function trims and collapses whitespace, rejects empty/control-character
-names, caps names at 40 characters, and updates
-`public.users.public_author_name` with
-`public_identity_source = 'display_name'`. On success it returns:
+The function requires a string, trims and collapses whitespace, rejects
+control-character names, and caps names at 40 characters. A non-empty name
+updates `public.users.public_author_name` with
+`public_identity_source = 'display_name'`. An empty normalized name clears the
+custom override, restores the viewer's `public_username` as the author name, and
+sets `public_identity_source = 'alias'`. Both paths return the resolved author
+name, not an echo of the request. For a custom name:
 
 ```json
 {
   "display_name": "River Wren"
 }
 ```
+
+The iOS editor calls shared `ProfileViewModel`; the stateless update request
+lives in `Core/Network/Endpoints/MerianNetworkClient+PublicProfile.swift`. The
+[Profile contract](../features-and-hardware/06-profile-and-gamification.md#public-display-name-ux)
+and
+[Core Network verification matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification)
+cover the existing clearing/alias behavior and its client regression tests.
 
 ## The Edge Inference Node (`identify`)
 

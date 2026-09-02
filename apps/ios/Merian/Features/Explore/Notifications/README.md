@@ -38,6 +38,17 @@ Views and components must not call RPCs, Edge Functions, `URLSession`, or
 identity singletons. New endpoint work belongs in a narrow closure dependency
 under `Services/`; JSON DTOs and wire validation remain in `Core/Network`.
 
+Comment/reply request construction lives in
+`Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift`.
+`ExploreReplyThreadDependencies` still adapts those reads, and the reply-thread
+state owner still controls traversal, fallback, pagination, and generation
+fencing. Notification catalog/count/read-state and push-registration request
+construction lives in
+`Core/Network/Endpoints/MerianNetworkClient+Notifications.swift`. Hardware
+retains push-token/permission and badge lifecycle state; notification Services
+and ViewModels retain their existing adapters and state. Neither extraction
+changes the notification or navigation contract.
+
 ## Catalog lifecycle
 
 Opening the sheet fetches the first page before marking unread rows as read. A
@@ -125,7 +136,17 @@ Tests mirror this owner under `MerianTests/Features/Explore/Notifications/`:
   and dismissal invalidation after a row callback leaves this feature boundary.
 
 Wire decoding and endpoint request/response tests remain under
-`MerianTests/Core/Network/`.
+`MerianTests/Core/Network/`. `Endpoints/ExploreInteractionEndpointTests.swift`
+rehomes the comment/reply request regressions; its transport suite covers read
+retries and cancellation. Run the
+[Core Network interaction matrix](../../../Core/Network/README.md#explore-interaction-verification)
+when changing that shared transport boundary.
+`Endpoints/NotificationEndpointTests.swift` covers catalog/cursor payloads,
+count/read projections, and push preferences.
+`NotificationAndPublicProfileEndpointTransportTests.swift` covers their typed
+versus body-ignoring success, errors, refresh/replay, and cancellation. Run the
+[notification/public-profile matrix](../../../Core/Network/README.md#notification-and-public-profile-verification)
+when changing notification transport; feature lifecycle tests remain here.
 
 Run the focused matrix after changing this folder:
 

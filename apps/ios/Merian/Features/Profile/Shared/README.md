@@ -21,6 +21,25 @@ survey, plan, sign-out, and deletion presentation.
 `Settings` consume the shared values but retain their own Services, ViewModels,
 Views, and Components.
 
+`ProfileViewModel.fetchSocialStats()` still calls `getExploreAuthorProfile` with
+`previewLimit: 0` and maps the returned owner publication summary into Profile
+state. That stateless request now lives in
+[Core Network's Explore browsing extension](../../../Core/Network/README.md#explore-browsing-endpoints).
+The transport extraction does not relocate the shared account owner, its live
+client resolution, or identity/preference mutations into UserProfile Services.
+
+Username/display-name/avatar update and username-availability wire requests live
+in
+[Core Network's public-profile extension](../../../Core/Network/README.md#public-profile-endpoints).
+`ProfileViewModel` still orchestrates the calls and publishes shared identity
+values/events. The endpoint owner forwards raw values and returns server
+projections; it does not own editor validation, account state, or avatar upload.
+`PublicProfileEndpointTests` and
+`NotificationAndPublicProfileEndpointTransportTests` own wire/transport
+coverage. `ProfileViewModelTests` retains shared-state coverage; run the
+[notification/public-profile matrix](../../../Core/Network/README.md#notification-and-public-profile-verification)
+when changing this boundary.
+
 ## Avatar upload contract
 
 `ProfileViewModel` prepares one bounded square WebP/JPEG data item and requests

@@ -276,6 +276,13 @@ Never bulk-update health to `healthy` without proving object existence.
   share-state/public-projection parity
 - Scheduled worker: `reconcile-explore-media-health`
 - Owner API: `get-explore-media-incidents`
+- iOS owner reads and response validation:
+  `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExplorePostManagement.swift`
+- iOS wire/compatibility tests:
+  `apps/ios/MerianTests/Core/Network/Endpoints/ExploreMediaIncidentEndpointTests.swift`
+  and `ExploreShareStateEndpointTests.swift`; transport and caller-state
+  verification use the
+  [Core Network post-management matrix](../../apps/ios/Merian/Core/Network/README.md#explore-post-management-verification)
 - iOS presentation owner:
   `apps/ios/Merian/Features/Scans/Shell/ViewModels/ScansShellViewModel.swift`
 - iOS overlap and owner-fence tests:

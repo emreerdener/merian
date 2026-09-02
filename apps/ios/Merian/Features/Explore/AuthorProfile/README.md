@@ -29,6 +29,12 @@ details bound, submission state, and recoverable error. Both are
 Only `Services/ExploreAuthorProfileViewModelDependencies.swift` resolves
 `MerianNetworkClient`, `LocalImageLoader`, and haptic feedback.
 
+The stateless profile/posts wire methods live in
+`Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`; follow and
+report mutations live in
+`Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift`. Core
+owns payloads and DTOs, not profile presentation or pagination state.
+
 Views and components call no endpoint. They retain UI-only state and timing: the
 profile/library transition, toolbar and report-sheet presentation, navigation
 path callbacks, SwiftData-backed local thumbnail fallback, scroll pagination
@@ -69,5 +75,16 @@ Mirrored tests live under
 - `ExploreReportUserViewModelTests` owns details validation and report
   success/error restoration.
 
-Wire decoding and request payload tests remain in Core Network tests. Do not
-move JSON DTO ownership into this feature during feature-organization work.
+`MerianTests/Core/Network/Endpoints/ExploreBrowsingEndpointTests.swift` rehomes
+profile projection and author-post cursor request tests from the aggregate
+network suite. `ExploreBrowsingEndpointTransportTests.swift` covers their
+transport failure/replay boundary. `ExploreInteractionEndpointTests.swift`
+rehomes the follow-state request regression and covers both Boolean values and
+user-report trimming/omission; `ExploreInteractionEndpointTransportTests.swift`
+guards mutation replay refusal and body-ignoring report success. DTO-only
+regressions remain with their existing Core owners. Run the
+[Core Network browsing matrix](../../../Core/Network/README.md#endpoint-verification)
+and
+[interaction matrix](../../../Core/Network/README.md#explore-interaction-verification)
+when changing their respective wire methods; do not move JSON DTO ownership into
+this feature.

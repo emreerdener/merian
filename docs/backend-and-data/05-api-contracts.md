@@ -4738,6 +4738,26 @@ Rules:
   ghost/default Explore rows render as `@username`. Derived/display-name users
   keep their existing Explore display label.
 
+### `/update-public-display-name`
+
+Updates or clears the authenticated viewer's custom public display name.
+`display_name` is a required string; a missing or non-string value returns
+`400`. The handler trims/collapses whitespace, rejects control-character names,
+and enforces the 40-character limit.
+
+A non-empty value sets the public author name and
+`public_identity_source = 'display_name'`. Sending `{"display_name": ""}` clears
+the custom override, restores the current `public_username` as the author name,
+and sets `public_identity_source = 'alias'`. A successful response contains the
+resolved `display_name` at the top level, including the username alias after
+clearing; it does not echo an empty request value.
+
+The iOS editor calls shared `ProfileViewModel`, which uses the public-profile
+endpoint extension and adopts the server projection. See
+[Public Display Name UX](../features-and-hardware/06-profile-and-gamification.md#public-display-name-ux)
+for editor validation and save-state behavior. Endpoint extraction changes none
+of these existing rules.
+
 ### `/check-public-username`
 
 Validates a candidate username for the current authenticated user without
@@ -4984,8 +5004,8 @@ Response:
 
 ### `/toggle-explore-comment-reaction`
 
-Idempotently toggles an emoji reaction for the current viewer on a specific
-comment and returns:
+Toggles an emoji reaction for the current viewer on a specific comment and
+returns:
 
 - `success`
 - `comment_id`
@@ -5002,6 +5022,8 @@ Request body:
 
 - If the viewer has not yet reacted with this emoji, the reaction is inserted.
 - If the viewer has already reacted with this emoji, the reaction is removed.
+- This is a toggle, not an idempotent absolute-state setter. The iOS client does
+  not replay it after an ambiguous transport or server failure.
 - Reactions are aggregated into a `reactions` JSON array by the
   `/get-explore-comments` read endpoint.
 - The server also maintains aggregated Explore notification rows per
@@ -5319,6 +5341,45 @@ The Explore iOS mapping, state, and presentation layers are:
 
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`
+  for the eight Feed/Map/post/detail/author/hashtag/species browsing payloads
+  and typed projections; feature adapters and state remain below their existing
+  owners, and comments/mutations/composer/publication/recovery/cache methods are
+  not part of this extension
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift`
+  for 12 comment/reply/mention, like/follow, comment mutation, reporting, and
+  blocking methods; feature Services and Core's social guard retain adapters and
+  state. Seven methods decode existing DTOs; reaction/report/block `Void`
+  methods preserve HTTP-only success and ignore successful bodies. The shared
+  transport retains its three-read/nine-mutation ambiguous-replay split and
+  classified-401 refresh behavior
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+CommunityIdentification.swift`
+  for Community request/activity feeds, detail, request editing, taxonomy
+  search, and submit/withdraw/restore payloads and typed response projections
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExplorePostManagement.swift`
+  for composer media, authoritative share state, owner media incidents, unshare,
+  legacy public-notes edits, and full post edits. It preserves existing payload
+  and response validation, selective decoding-error mapping, and HTTP-only
+  unshare success. Full edits supply one retry-stable idempotency key per call;
+  legacy notes edits on the same route supply none. Feature state and
+  publication/upload/recovery orchestration remain outside this extension
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift`
+  for Field Trips actions and typed response projections
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Notifications.swift`
+  for notification catalog/count/read-state and push-registration requests.
+  Three methods decode existing DTOs; mark-read returns the count without
+  interpreting its required `success` flag, and push registration ignores
+  successful bodies. Notification Services/ViewModels retain catalog state;
+  Hardware retains push-token/permission and badge lifecycle
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+PublicProfile.swift`
+  for username/display-name/avatar updates and username availability. All four
+  preserve raw payload values and typed server projections, including
+  unavailable usernames and display-name clearing. Shared `ProfileViewModel`
+  retains identity state/events and avatar signing/upload orchestration; only
+  final avatar promotion belongs to this extension. Together these eight methods
+  retain the existing shared transport, 30-second deadlines,
+  three-read/five-mutation ambiguous-replay split, and classified-401 refresh
+  path
 - `apps/ios/Merian/Features/Explore/Feed/Services/` for live Feed,
   comment/interaction, post-detail, composer-image, presentation, and
   unread-realtime adapters
@@ -5339,6 +5400,16 @@ The Explore iOS mapping, state, and presentation layers are:
 - `apps/ios/Merian/Features/Explore/Notifications/Services/` for the live
   notification catalog/read, comment/reply, current-viewer, telemetry, and error
   adapters
+- `apps/ios/Merian/Core/Hardware/PushNotificationManager.swift` for push
+  permission/token synchronization and the co-located `AppIconBadgeCoordinator`
+  unread-count refresh/cache policy
+- `apps/ios/Merian/Features/Profile/Settings/Notifications/Services/NotificationSettingsDependencies.swift`
+  for the Settings permission/remote-registration adapter; Settings state does
+  not construct push payloads
+- `apps/ios/Merian/Features/Profile/Shared/ViewModels/ProfileViewModel.swift`
+  for public-identity updates/availability, shared identity values/events, and
+  avatar signing/upload orchestration; Profile editors call this owner rather
+  than resolving the network client
 - `apps/ios/Merian/Features/Explore/Notifications/ViewModels/` for
   generation-fenced catalog and notification reply-thread state
 - `apps/ios/Merian/Features/Explore/Notifications/Models/` for decoded activity,
@@ -5374,6 +5445,18 @@ The Explore iOS mapping, state, and presentation layers are:
   mutation, and the observable request draft
 - `apps/ios/Merian/Features/Insights/Sharing/Views/` plus `Components/` for the
   stable network-free Share and Community request presentations
+
+The extracted endpoint owners use typed-response and body-ignoring overloads of
+one internal JSON POST bridge. The typed overload preserves optional idempotency
+keys and endpoint-specific decoding failures without catching transport
+failures; private session, Auth lease, refresh, retry, and cancellation behavior
+remains in `MerianNetworkClient.swift`. The two `requestCommunityIdentification`
+scan-publication overloads remain there with media recovery. This is a source
+ownership split, not a change to these API contracts. Feed, Insights Sharing,
+and Scans Shell retain composer/edit, reconciliation, and private incident
+state. See the
+[Core Network guide](../../apps/ios/Merian/Core/Network/README.md#meriannetworkclient)
+for the endpoint and test boundaries.
 
 Feed views and components do not resolve endpoint clients. The Feed state owners
 invoke small initializer-injected closure groups; only their live
@@ -5449,18 +5532,22 @@ The Explore detail page additionally uses:
   `ExplorePostDetailView`
 - cursor-based comment pagination on `(created_at, comment_id)` so long threads
   page safely in both the sheet and detail view
-- `/get-explore-unread-notification-count` for the bell badge and
-  `/get-explore-notifications` plus `/mark-explore-notifications-read` for the
-  in-app activity sheet
+- `/get-explore-unread-notification-count` through `AppIconBadgeCoordinator` for
+  the bell badge, and `/get-explore-notifications` plus
+  `/mark-explore-notifications-read` through Notifications Services for the
+  in-app activity sheet; the state owners keep refresh, pagination, and
+  read-clearing policy outside the endpoint extension
 - cursor-based activity pagination on `(updated_at, notification_id)` so the
   notifications sheet does not skip or duplicate rows during active usage
 - `/set-user-follow` through the Author Profile live dependency adapter;
   `ExploreAuthorProfileViewModel` owns the optimistic state and rollback
-- `/check-public-username` and `/update-public-username` from the Profile
-  account card username editor
-- `/register-push-device` to sync the APNs token, the Explore-specific push
-  preference, the independent comment mention push preference, and the
-  independent Community identification push preference
+- `/check-public-username` and `/update-public-username` through shared
+  `ProfileViewModel` for the Profile account card username editor; display-name
+  edits and final avatar promotion use the same shared owner and public-profile
+  endpoint extension
+- `/register-push-device` through `PushNotificationManager` to sync the APNs
+  token, the Explore-specific push preference, the independent comment mention
+  push preference, and the independent Community identification push preference
 
 The Explore map additionally uses:
 

@@ -1379,6 +1379,10 @@ Recommended feature module:
 - `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotificationRowPresentation.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotificationReplyThreadRoute.swift`
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
+- `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Core/Network/Endpoints/`
+- `apps/ios/Merian/Core/Hardware/PushNotificationManager.swift`
+- `apps/ios/Merian/Features/Profile/Shared/ViewModels/ProfileViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/Cards/ExplorePostCard.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/Media/ExploreFeedMediaHosts.swift`
 - `apps/ios/Merian/Features/Explore/Shared/Media/Components/ExplorePublicMediaView.swift`
@@ -1390,6 +1394,27 @@ Recommended feature module:
 - `apps/ios/Merian/Features/Explore/Notifications/Components/ReplyThread/ExploreNotificationReplyThreadContent.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationsSheet.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationReplyThreadSheet.swift`
+
+Stateless wire construction and response projection live in
+`Core/Network/Endpoints/`; the main client retains private authenticated
+transport, refresh, retry, and cancellation. Notification
+catalog/count/read-state and push registration use
+`MerianNetworkClient+Notifications.swift`. Feature Services and ViewModels
+retain catalog state, while Hardware's `PushNotificationManager` and
+`AppIconBadgeCoordinator` retain token/permission and badge lifecycle.
+Public-identity updates and username availability use
+`MerianNetworkClient+PublicProfile.swift`; shared `ProfileViewModel` retains
+identity state/events and avatar signing/upload orchestration. Composer media,
+share-state and incident reads, unshare, and public-notes/content edits use
+`MerianNetworkClient+ExplorePostManagement.swift`. Feed, Insights Sharing, and
+Scans Shell retain adapters, draft/reconciliation state, and account fences;
+publication and cloud/media recovery remain in the main client. The
+[Core Network guide](../../apps/ios/Merian/Core/Network/README.md) documents all
+seven extracted endpoint groups, the
+[notification/public-profile verification matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification),
+and the
+[post-management verification matrix](../../apps/ios/Merian/Core/Network/README.md#explore-post-management-verification).
+Endpoint tests do not replace feature-state or manual navigation checks.
 
 The Shell keeps view-local root selection, `NavigationPath`, sheet occupancy,
 Insight handoff, and playback-coordinator state in `ExploreView`. Pure

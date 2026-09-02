@@ -32,6 +32,18 @@ already server-visible post. They receive environment-owned cross-feature state
 where appropriate and call the narrow feature state owners. Live singleton and
 endpoint resolution stays inside `Services/`.
 
+`ProfilePublicationsDependencies` adapts `getExploreAuthorPosts` and
+`getExplorePost`. Their request construction and response projection live in
+[Core Network's Explore browsing extension](../../../Core/Network/README.md#explore-browsing-endpoints),
+not in Profile. Preview/library state, account fencing, pagination, local
+fallback lookup, and recovery navigation remain UserProfile-owned.
+
+Public-identity edits and username availability remain orchestrated by shared
+`ProfileViewModel`. Their stateless request/response mapping lives in
+[Core Network's public-profile extension](../../../Core/Network/README.md#public-profile-endpoints);
+it does not move account state, editor feedback, or avatar signing/upload into
+this folder's Services.
+
 ## State Boundaries
 
 `ProfileTabViewModel` generation-fences local-stat and server Field trip
@@ -115,6 +127,18 @@ xcodebuild test-without-building \
 Then run the complete `merianTests` target. The focused matrix proves value,
 actor, and asynchronous state contracts; it does not prove SwiftUI navigation,
 framework-picker dismissal timing, animation, accessibility, or layout.
+
+Changes to the shared author/post transport also require the
+[Core Network browsing matrix](../../../Core/Network/README.md#endpoint-verification).
+Its endpoint suites cover wire payloads, response cursors, and transport replay;
+`ProfilePublicationsViewModelTests` retains the Profile interaction coverage.
+
+Public-identity transport changes also require the
+[notification/public-profile matrix](../../../Core/Network/README.md#notification-and-public-profile-verification),
+including `PublicProfileEndpointTests`, the shared transport suite, and
+`ProfileViewModelTests`. Avatar selection/account fences remain covered by
+`UserProfileAvatarCoordinatorTests`; endpoint tests do not exercise OS picker or
+upload lifecycle timing.
 
 Manual regression should cover Profile loading and event refresh, persona and
 terrarium tiers, achievement sorting/detail navigation, Field trip badge links,

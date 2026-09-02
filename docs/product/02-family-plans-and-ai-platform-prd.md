@@ -8,13 +8,14 @@ Suggested owners: Product, Engineering, and ML\
 Companion:
 [System Requirements Document](../rfcs/family-plans-and-ai-platform-srd.md)
 
-The active scope is now the
+The active scope is Gemini-only infrastructure in the
 [Provider Flexibility PRD](./03-identification-foundation-prd.md) and its
 [SRD](../rfcs/identification-foundation-srd.md). Family plans are deferred by
 the user's direction; BioCLIP and model training are also outside the active
-provider-flexibility plan. The combined content below preserves prior planning
-for reference; its AI requirements, delivery sequence, and family milestones are
-not the active implementation scope.
+provider-flexibility plan. Integrating another live provider is future work. The
+combined content below preserves prior planning for reference; its AI
+requirements, delivery sequence, and family milestones are not the active
+implementation scope.
 
 ## 1. Purpose and evidence
 

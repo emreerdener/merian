@@ -138,7 +138,8 @@ badges use paid status only.
   local handle, and publishes `.publicAuthorIdentityChanged` so Explore/Profile
   surfaces can update
 - `updatePublicDisplayName(_:)` — calls `/update-public-display-name`, refreshes
-  the public display name, and marks the identity as a user-chosen display name
+  the public display name, and records a user-chosen display name or restores
+  the username alias when the custom name is cleared
 - `updatePublicAvatar(_:)` — stages a prepared square profile picture in R2,
   calls `/update-public-avatar`, refreshes `publicAvatarUrl`, and publishes
   `.publicAuthorIdentityChanged`
@@ -158,6 +159,16 @@ Heavy data operations (fetching all scan records for stats, computing awards)
 are **firewalled** out of `ProfileViewModel` and into `ProfileDatabaseActor` to
 avoid locking the `@MainActor`.
 
+The four public-identity update/availability wire methods live in
+`Core/Network/Endpoints/MerianNetworkClient+PublicProfile.swift`.
+`ProfileViewModel` retains orchestration, identity refresh/events, and avatar
+signing/upload; the extension only forwards payloads and returns typed server
+projections through the shared transport. `PublicProfileEndpointTests` and
+`NotificationAndPublicProfileEndpointTransportTests` own this wire coverage,
+while `ProfileViewModelTests` and the UserProfile suites retain state coverage.
+See the
+[Core Network notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification).
+
 ## Public Username UX
 
 The Profile account card shows the user's public handle (`@public_username`) in
@@ -169,21 +180,27 @@ preview inline, rejects protected brand namespaces, official/system roles, and
 exact brand-role combinations before submission, then confirms availability
 through the authenticated server boundary. The database CHECK remains
 authoritative even when an older client lacks the current early-feedback list.
-The sheet submits through `MerianNetworkClient.updatePublicUsername`. Logged-in
-Explore posts continue to render `public_author_name` when the user has a
-provider-derived display label; default/ghost identities render
-`@public_username`. See [`21-public-usernames.md`](./21-public-usernames.md) for
-the full backend and display contract, exact reservation groups, and
-historical-mention behavior.
+The sheet calls `ProfileViewModel` for availability checks and submission. That
+shared owner invokes the public-profile endpoint extension and updates identity
+state; the sheet does not resolve the network client. Logged-in Explore posts
+continue to render `public_author_name` when the user has a provider-derived
+display label; default/ghost identities render `@public_username`. See
+[`21-public-usernames.md`](./21-public-usernames.md) for the full backend and
+display contract, exact reservation groups, and historical-mention behavior.
 
 ---
 
 ## Public Display Name UX
 
 Guest and signed-in users can edit their public display name from the Profile
-identity menu. The display-name editor trims/collapses whitespace, rejects empty
-or control-character values, and caps names at 40 characters before submitting
-through `/update-public-display-name`.
+identity menu. The display-name editor trims/collapses whitespace, rejects
+control-character values, and caps names at 40 characters before calling
+`ProfileViewModel.updatePublicDisplayName(_:)`. Clearing an existing custom name
+is supported: the shared owner sends `display_name: ""` through the
+public-profile endpoint and adopts the returned username alias. Save remains
+disabled when the normalized draft matches the current custom name. The
+transport extension performs no additional normalization or empty-value
+rejection.
 
 Untouched guest aliases still show as `Explorer` on the local Profile card, with
 the stable `@public_username` underneath. Once a guest chooses a display name,
@@ -202,7 +219,9 @@ bounded crop-preview `CGImage`, and hands confirmed crop bytes to
 `ProfileAvatarImagePreparer` for downsample, square-crop, and WebP/JPEG
 encoding. `ProfileViewModel` remains the account/cloud owner that uploads the
 prepared bytes to R2 staging through the same `/generate-upload-urls` manifest
-used by scan media, then calls `MerianNetworkClient.updatePublicAvatar(...)`.
+used by scan media, then calls `MerianNetworkClient.updatePublicAvatar(...)` in
+the public-profile endpoint extension for final promotion. The endpoint
+extension does not own picker, upload, or account lifecycle state.
 
 Selection preparation is one stored, replaceable task keyed by a request UUID.
 Opening another picker or editor, changing accounts, or leaving the view cancels
