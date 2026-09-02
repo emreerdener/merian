@@ -128,6 +128,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     @ObservationIgnored private static var localLookalikesCacheResetInFlight = false
     @ObservationIgnored private let localAnalysisCoordinator:
         InferenceLocalAnalysisCoordinator
+    @ObservationIgnored private let liveRequestService:
+        InferenceLiveRequestService
     @ObservationIgnored private let requestPaywall: @MainActor () -> Void
     @ObservationIgnored private let speciesReferenceService:
         SpeciesReferenceHydrationService
@@ -147,6 +149,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         foundationVisualCueEligibilityChecker: any FoundationVisualCueEligibilityChecking = SystemFoundationCueEligibility(),
         scanningPhraseSleeper: any ScanningPhraseSleeping = ContinuousScanningPhraseSleeper(),
         localAnalysisStartFeedback: @escaping @MainActor () -> Void = {},
+        liveRequestService: InferenceLiveRequestService = .live,
         speciesReferenceService: SpeciesReferenceHydrationService = .live,
         hydrationCoordinator: InferenceHydrationCoordinator? = nil,
         requestPaywall: @escaping @MainActor () -> Void = {
@@ -164,6 +167,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 startFeedback: localAnalysisStartFeedback
             )
         )
+        self.liveRequestService = liveRequestService
         self.speciesReferenceService = speciesReferenceService
         self.hydrationCoordinator = hydrationCoordinator
             ?? InferenceHydrationCoordinator()
@@ -445,12 +449,6 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
     private func filteredObservationContexts(_ observationContexts: [ObservationContext]) -> [ObservationContext] {
         observationContexts.filter { !$0.isEmpty }
-    }
-
-    private func observationContextJSONStrings(from observationContexts: [ObservationContext]) -> [String] {
-        observationContexts.compactMap { context in
-            (try? JSONEncoder().encode(context)).flatMap { String(data: $0, encoding: .utf8) }
-        }
     }
 
     private func resolvedAudioPath(for audioFilePath: String) -> String {
@@ -1221,17 +1219,69 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     throw URLError(.notConnectedToInternet)
                 }
 
-                let client = MerianNetworkClient.shared
-
-                let base64Strings = await InferenceProcessingActor.shared.encodeBase64(compressedDatas: compressedDatas)
-                try self.checkLiveInferenceAttempt(
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration
-                )
-                let validBase64Strings = base64Strings.filter { !$0.isEmpty }
-                guard !validBase64Strings.isEmpty else {
+                var uploadFailSafe: Task<Void, Never>?
+                defer { uploadFailSafe?.cancel() }
+                let requestResponse = try await self.liveRequestService
+                    .dispatchVisual(
+                        InferenceLiveRequestService.VisualRequest(
+                            compressedImages: compressedDatas,
+                            submissionProjection: submissionProjection,
+                            ownerMediaTimeline: ownerMediaTimeline,
+                            visualMediaItems: visualMediaItems,
+                            telemetry: telemetry,
+                            clientScanId: resolvedClientScanId,
+                            preferredGoal: preferredGoal,
+                            // A durable queue already owns every later
+                            // transport retry and receives a bounded foreground
+                            // deadline. Direct callers retain the reviewed long
+                            // request window and inline replay.
+                            durableQueueOwnsRecovery:
+                                ownedForegroundInferenceGeneration != nil,
+                            pipelineStartedAt: pipelineStart
+                        ),
+                        validateAttempt: {
+                            try self.checkLiveInferenceAttempt(
+                                scanId: ownedScanId,
+                                attemptGeneration: attemptGeneration,
+                                foregroundInferenceGeneration:
+                                    ownedForegroundInferenceGeneration
+                            )
+                        },
+                        onProviderDispatchReady: {
+                            uploadFailSafe = Task { @MainActor in
+                                try? await Task.sleep(for: .seconds(2))
+                                guard !Task.isCancelled else { return }
+                                OfflineQueueManager.shared
+                                    .releaseDeferredLiveUpload(
+                                        scanId: resolvedClientScanId,
+                                        foregroundInferenceGeneration:
+                                            ownedForegroundInferenceGeneration,
+                                        reason:
+                                            "inline_upload_two_second_failsafe"
+                                    )
+                            }
+                        },
+                        onRequestBodySent: { [weak self] in
+                            Task { @MainActor in
+                                OfflineQueueManager.shared
+                                    .releaseDeferredLiveUpload(
+                                        scanId: resolvedClientScanId,
+                                        foregroundInferenceGeneration:
+                                            ownedForegroundInferenceGeneration,
+                                        reason: "inline_request_body_sent"
+                                )
+                                self?.markInferenceRequestBodySent(
+                                    session: InferenceLocalAnalysisCoordinator.Session(
+                                        scanId: ownedScanId,
+                                        attemptGeneration: attemptGeneration,
+                                        foregroundGeneration:
+                                            ownedForegroundInferenceGeneration
+                                    )
+                                )
+                            }
+                        }
+                    )
+                guard let requestResponse else {
                     MerianLog.general.error("All base64 payloads are empty — corrupted capture data. Refunding scan.")
                     UsageManager.shared.refundScan(scanId: resolvedClientScanId)
                     OfflineQueueManager.shared.releaseDeferredLiveUpload(
@@ -1250,107 +1300,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     )
                     return
                 }
-
-                // Detect actual encoding from JPEG magic bytes (FF D8 FF).
-                // Falls back to WebP when the image was encoded with the primary path.
-                let imageMimeType: String = {
-                    guard let first = compressedDatas.first, first.count >= 3 else { return "image/webp" }
-                    let prefix = [UInt8](first.prefix(3))
-                    return (prefix[0] == 0xFF && prefix[1] == 0xD8 && prefix[2] == 0xFF) ? "image/jpeg" : "image/webp"
-                }()
-
-                try Task.checkCancellation()
-
-                // --- Step 2: Edge Inference Generation (Gemini 1.5 Flash) ---
-
-                MerianLog.general.debug("[⏱ BENCH] Pre-flight (encode+auth): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
-                let inferenceStart = CFAbsoluteTimeGetCurrent()
-                // Encode ObservationContext to JSON once: used for DB persistence (observationContextJSON)
-                // and already serialised to plain text for the Gemini prompt (description).
-                let observationContextsJSON = observationContextJSONStrings(
-                    from: submissionProjection.observationContexts
-                )
-                let validVisualMediaItems = visualMediaItems?.count == validBase64Strings.count
-                    ? visualMediaItems
-                    : nil
-                let videoFrameCount = validVisualMediaItems?
-                    .filter { $0.kind == .videoFrame }
-                    .count ?? (submissionProjection.videoFilePaths.isEmpty ? nil : imageDatas.count)
-                let videoR2ObjectKeys: [String]
-                if !submissionProjection.videoFilePaths.isEmpty {
-                    videoR2ObjectKeys = try await client.uploadStagedVideoFiles(
-                        videoFilePaths: submissionProjection.videoFilePaths,
-                        scanId: resolvedClientScanId
-                    )
-                    try self.checkLiveInferenceAttempt(
-                        scanId: ownedScanId,
-                        attemptGeneration: attemptGeneration,
-                        foregroundInferenceGeneration:
-                            ownedForegroundInferenceGeneration
-                    )
-                } else {
-                    videoR2ObjectKeys = []
-                }
-                let uploadFailSafe = Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(2))
-                    guard !Task.isCancelled else { return }
-                    OfflineQueueManager.shared.releaseDeferredLiveUpload(
-                        scanId: resolvedClientScanId,
-                        foregroundInferenceGeneration:
-                            ownedForegroundInferenceGeneration,
-                        reason: "inline_upload_two_second_failsafe"
-                    )
-                }
-                defer { uploadFailSafe.cancel() }
-                let resultData = try await client.identifyMultiModal(
-                    // Inline images have no staged source object. Older clients sent a
-                    // synthetic key here as a destination filename hint, which the durable
-                    // finalizer could misclassify as an upload that must be promoted.
-                    r2ObjectKeys: [],
-                    base64ImageDatas: validBase64Strings,
-                    mimeType: imageMimeType,
-                    audioFilePaths: submissionProjection.audioFilePaths,
-                    videoR2ObjectKeys: videoR2ObjectKeys,
-                    videoFrameCount: videoFrameCount,
-                    visualMediaItems: validVisualMediaItems,
-                    audioMediaItems: submissionProjection.audioMediaItems,
-                    ownerMediaTimeline: ownerMediaTimeline,
-                    observationContextsJSON: observationContextsJSON,
-                    telemetry: telemetry,
-                    clientScanId: resolvedClientScanId,
-                    preferredGoal: preferredGoal,
-                    // A durable queue already owns every later transport retry
-                    // and receives a bounded foreground deadline. Direct callers
-                    // retain the reviewed long request window and inline replay.
-                    durableQueueOwnsRecovery:
-                        ownedForegroundInferenceGeneration != nil,
-                    onRequestBodySent: { [weak self] in
-                        Task { @MainActor in
-                            OfflineQueueManager.shared.releaseDeferredLiveUpload(
-                                scanId: resolvedClientScanId,
-                                foregroundInferenceGeneration:
-                                    ownedForegroundInferenceGeneration,
-                                reason: "inline_request_body_sent"
-                            )
-                            self?.markInferenceRequestBodySent(
-                                session: InferenceLocalAnalysisCoordinator.Session(
-                                    scanId: ownedScanId,
-                                    attemptGeneration: attemptGeneration,
-                                    foregroundGeneration:
-                                        ownedForegroundInferenceGeneration
-                                )
-                            )
-                        }
-                    }
-                )
-                try self.checkLiveInferenceAttempt(
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration
-                )
-                let responseReceivedAt = CFAbsoluteTimeGetCurrent()
-                MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
+                let resultData = requestResponse.resultData
+                let observationContextsJSON =
+                    requestResponse.observationContextsJSON
+                let responseReceivedAt = requestResponse.receivedAt
                 self.cancelLocalVisualAnalysis(resetPhraseCoordinator: false)
 
                 // --- Step 3: Response Parsing & Local Persistence ---
@@ -1817,32 +1770,29 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     throw URLError(.notConnectedToInternet)
                 }
 
-                let observationContextsJSON = observationContextJSONStrings(
-                    from: submissionProjection.observationContexts
-                )
-                try self.checkLiveInferenceAttempt(
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration
-                )
-                let resultData = try await MerianNetworkClient.shared.identifyMultiModal(
-                    audioFilePaths: submissionProjection.audioFilePaths,
-                    audioMediaItems: submissionProjection.audioMediaItems,
-                    ownerMediaTimeline: ownerMediaTimeline,
-                    observationContextsJSON: observationContextsJSON,
-                    telemetry: telemetry,
-                    clientScanId: scanId,
-                    durableQueueOwnsRecovery:
-                        ownedForegroundInferenceGeneration != nil
-                )
-                try self.checkLiveInferenceAttempt(
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration
-                )
-                let responseReceivedAt = CFAbsoluteTimeGetCurrent()
+                let requestResponse = try await self.liveRequestService
+                    .dispatchNonVisual(
+                        InferenceLiveRequestService.NonVisualRequest(
+                            submissionProjection: submissionProjection,
+                            ownerMediaTimeline: ownerMediaTimeline,
+                            telemetry: telemetry,
+                            clientScanId: scanId,
+                            durableQueueOwnsRecovery:
+                                ownedForegroundInferenceGeneration != nil
+                        ),
+                        validateAttempt: {
+                            try self.checkLiveInferenceAttempt(
+                                scanId: ownedScanId,
+                                attemptGeneration: attemptGeneration,
+                                foregroundInferenceGeneration:
+                                    ownedForegroundInferenceGeneration
+                            )
+                        }
+                    )
+                let resultData = requestResponse.resultData
+                let observationContextsJSON =
+                    requestResponse.observationContextsJSON
+                let responseReceivedAt = requestResponse.receivedAt
                 let postFlightStart = CFAbsoluteTimeGetCurrent()
 
                 let parseResult = try await InferenceProcessingActor.shared.parseAndSave(

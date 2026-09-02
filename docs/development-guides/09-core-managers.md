@@ -433,10 +433,12 @@ triggering excessive SwiftUI view rebuilds.
 ### `InferenceEngine`
 
 - The core processing unit in `apps/ios/Merian/Core/AI/`.
-- Dispatches sensor data via `CaptureTelemetry` — forwarding `depthScaleText`,
-  `deviceLocale`, `currentMonth`, and coordinate state — to the active Supabase
-  Edge path (`MerianNetworkClient.identifyMultiModal` /
-  `buildMultiModalRequest(...)`).
+- Projects sensor and ordered-media state once, then delegates visual/nonvisual
+  request mapping and provider dispatch to the injected
+  `InferenceLiveRequestService`. That service forwards `CaptureTelemetry` —
+  including `depthScaleText`, `deviceLocale`, `currentMonth`, and coordinate
+  state — to `MerianNetworkClient.identifyMultiModal` /
+  `buildMultiModalRequest(...)`.
 - Selects between `gemini-2.5-flash` and `gemini-2.5-pro` based on the user's
   subscription tier, then maps the taxonomy strings from the response back to
   local model properties.
@@ -471,14 +473,16 @@ triggering excessive SwiftUI view rebuilds.
   progress call may carry the durable camera-only selected-goal hint, and its
   completion publishes a scan-specific contribution invalidation so an open
   historical Insight reloads without replaying milestone celebrations.
-- **Inline/background upload handoff**: `analyze()` installs a two-second
-  fail-safe, then asks `MerianNetworkClient` to release the live scan's deferred
-  queue row when request-body upload completes. Network failure releases the row
-  immediately. Every callback carries the expected foreground generation, so a
-  delayed callback is an idempotent no-op after replacement. Progress, response
-  fallback, failure, and timer races cannot release another attempt's queue
-  ownership. A separate foreground-inference claim lets recovery media stage
-  without allowing staged replay to dispatch a duplicate primary identification.
+- **Inline/background upload handoff**: after optional staged-video upload,
+  `InferenceLiveRequestService` signals provider readiness. `analyze()` installs
+  its two-second fail-safe at that exact boundary, and the service forwards the
+  engine-owned request-body completion callback to `MerianNetworkClient`.
+  Network failure releases the row immediately. Every callback carries the
+  expected foreground generation, so a delayed callback is an idempotent no-op
+  after replacement. Progress, response fallback, failure, and timer races
+  cannot release another attempt's queue ownership. A separate foreground-
+  inference claim lets recovery media stage without allowing staged replay to
+  dispatch a duplicate primary identification.
 - **Post-inference carousel handoff**: On a successful result, the saved user
   media is rebuilt into `ActiveScanMedia` _before_ `speciesData` is assigned.
   This ensures the insight sheet carousel always has the user's saved
@@ -562,6 +566,12 @@ triggering excessive SwiftUI view rebuilds.
   the engine supplies exact presentation validity and receives phrase values.
   Sibling files separate classifier/category, image, deterministic-trait,
   Foundation contract/validation/eligibility, and phrase policy.
+- `Inference/Request/InferenceLiveRequestService.swift` — the initializer-
+  injected visual/nonvisual provider boundary. It owns base64 filtering, MIME
+  detection, observation-context JSON, descriptor forwarding, staged-video
+  upload, and one Identify invocation. The engine supplies exact-attempt
+  validation after each suspension boundary and retains queue, presentation,
+  parsing, persistence, and recovery decisions.
 - `Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift` — the
   shared injected public Wikipedia/GBIF request, wire DTO, and off-main parsing
   boundary used by Inference and scan-thumbnail recovery. It performs no engine,
@@ -682,11 +692,12 @@ triggering excessive SwiftUI view rebuilds.
   changing the upload owner. Queue-backed foreground inference additionally
   persists its UUID on the scan-ingestion job and atomically consumes it before
   provider dispatch. `InferenceEngine` checks the scan, presentation UUID, and
-  foreground UUID at task entry, after suspension, immediately before provider
-  dispatch, and before each result or failure effect. A current failure handler
-  snapshots that proof before synchronous retirement; a stale handler cannot
-  emit telemetry, update the circuit breaker, trigger a haptic, or replace the
-  UI with an error.
+  foreground UUID at task entry; supplies that predicate to
+  `InferenceLiveRequestService` across request-preparation suspension points and
+  provider return; and checks again before each result or failure effect. A
+  current failure handler snapshots that proof before synchronous retirement; a
+  stale handler cannot emit telemetry, update the circuit breaker, trigger a
+  haptic, or replace the UI with an error.
 - **Orphaned `.uploading` Reconciliation**: `markScansAsUploading` runs before
   `generateUploadURLs`, returns the scan IDs whose `.pending → .uploading`
   transition actually committed, and `syncPendingScans` signs/dispatches only

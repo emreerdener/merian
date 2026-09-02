@@ -319,8 +319,9 @@ first transport failure of a queue-backed live Identify request. The client uses
 one explicit per-call ownership policy:
 
 - queue-backed `identifyMultiModal` gets one 15-second foreground attempt and
-  returns its first transient `URLError` to `InferenceEngine`, after the
-  idempotent body-sent callback releases the upload hold;
+  returns its first transient `URLError` through `InferenceLiveRequestService`
+  to `InferenceEngine`, after the idempotent body-sent callback releases the
+  upload hold;
 - `InferenceEngine` changes the exact still-current Insight to **Queued for
   later** and retires durable foreground ownership idempotently; and
 - durable replay or exact-ID status recovery decides when another provider
@@ -342,14 +343,15 @@ handoff, not scan loss.
 **Current source status (2026-08-10): remediated; release acceptance pending.**
 `performAuthenticatedRequest` carries `allowsTransientTransportRetry` through
 transport, auth-refresh, route-propagation, and handler retry recursion.
-`identifyMultiModal` exposes `durableQueueOwnsRecovery`; queue-backed engine
-calls set it to true, coupling the 15-second bound with no inline retry, while
-queue-less calls keep the 90-second/replay default. Protected request-policy
-regressions assert both request deadlines, one immediate queue-backed failure,
-and one stable-key queue-less replay. The engine regression also proves that a
-deadline timeout can retire the active owner without a prior path-monitor
-callback. Exact-SHA hosted and physical connectivity evidence remain release
-blockers in the
+`identifyMultiModal` exposes `durableQueueOwnsRecovery`; the engine includes the
+ownership decision in `InferenceLiveRequestService`'s request value, and the
+service forwards it unchanged. Queue-backed calls therefore couple the 15-second
+bound with no inline retry, while queue-less calls keep the 90-second/replay
+default. Protected request-policy regressions assert both request deadlines, one
+immediate queue-backed failure, and one stable-key queue-less replay. The engine
+regression also proves that a deadline timeout can retire the active owner
+without a prior path-monitor callback. Exact-SHA hosted and physical
+connectivity evidence remain release blockers in the
 [live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
 ## Deferred Context

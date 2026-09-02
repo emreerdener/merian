@@ -506,21 +506,26 @@ the Vision classifier/category policy, bounded image builder, deterministic
 pixel-trait extractor, Foundation cue contract and validation, runtime
 eligibility, and phrase coordination. `AppDIContainer` owns the live
 implementations and start feedback; direct/default engine instances use inert
-feedback. The current toolchain derives five image-specific observations
-covering dominant colors, color saturation, lighting, light contrast, and
-surface detail. They render as plain visible descriptions such as **Reviewing
-softly colored areas** and **Observing light and shadow areas**, not
-`Kind: detail` labels or internal statistical buckets such as “moderate” and
-“balanced.” Active visual live-to-queue handoff preserves the ephemeral
-contextual deck and in-memory carousel media only for an exact scan-and-attempt
-owner. Prepared visual work transfers generic copy without media; audio and
-Describe are typed nonvisual owners. That exact handoff also retains the
-canonical scan ID, selected carousel page, focus state, and time-derived
-analysis sweep through pending, uploading, staged, and inferencing queue states
-while none requires attention; ordinary queued scans animate only while
-inferencing. The trailing Insight toolbar slot stays mounted and fades in its
-queued delete action only after the durable ID is bound. The same visual cursor
-survives save and connectivity changes, while dismissal or Auth removes
+feedback. `Inference/Request/InferenceLiveRequestService.swift` is the injected
+visual/nonvisual request boundary. It owns base64 filtering, MIME selection,
+observation-context JSON, descriptor forwarding, staged-video upload, and the
+single provider invocation, while the engine supplies exact-attempt validation
+and retains queue callbacks, presentation, parsing, persistence, and recovery.
+`AppDIContainer` owns the production live service. The current toolchain derives
+five image-specific observations covering dominant colors, color saturation,
+lighting, light contrast, and surface detail. They render as plain visible
+descriptions such as **Reviewing softly colored areas** and **Observing light
+and shadow areas**, not `Kind: detail` labels or internal statistical buckets
+such as “moderate” and “balanced.” Active visual live-to-queue handoff preserves
+the ephemeral contextual deck and in-memory carousel media only for an exact
+scan-and-attempt owner. Prepared visual work transfers generic copy without
+media; audio and Describe are typed nonvisual owners. That exact handoff also
+retains the canonical scan ID, selected carousel page, focus state, and
+time-derived analysis sweep through pending, uploading, staged, and inferencing
+queue states while none requires attention; ordinary queued scans animate only
+while inferencing. The trailing Insight toolbar slot stays mounted and fades in
+its queued delete action only after the durable ID is bound. The same visual
+cursor survives save and connectivity changes, while dismissal or Auth removes
 contextual phrase/media exposure without blocking durable result recovery.
 Generative multimodal cues remain the stable-Xcode-27 milestone.
 

@@ -637,6 +637,7 @@
 		8207D692319EE85F907508D3 /* SchemaV11.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9EA7B5B49BE570AFD0006D9 /* SchemaV11.swift */; };
 		821FD50DA2616ECAA53B7635 /* InsightChatEmptyAccentGradient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF55DFC92EFB61D525DD01E /* InsightChatEmptyAccentGradient.swift */; };
 		82380E4C2DD4BBA38E976ABD /* ExploreCommentMentionTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDFB45D4B0E96FF42F715768 /* ExploreCommentMentionTextTests.swift */; };
+		827B642F79297F3C4BF93DDE /* InferenceLiveRequestService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73EC1E6673DA180E35C332D3 /* InferenceLiveRequestService.swift */; };
 		829DBF622A0871E877F2D89D /* FieldNotesArchitectureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 560D7A15433D8D58080D4E1A /* FieldNotesArchitectureTests.swift */; };
 		82B0608E6EC3193C1E67F8B4 /* MerianNetworkClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEF87E857ED65795554D49EE /* MerianNetworkClientTests.swift */; };
 		82B3192CCE566D10DDABC66F /* CommunityIdentificationTestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 443AA96A733B71D73915CF54 /* CommunityIdentificationTestFixtures.swift */; };
@@ -670,6 +671,7 @@
 		891E79B85AE924D21564DE17 /* PrivateScanMapCollectionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC87193E43766D30BC52307 /* PrivateScanMapCollectionCard.swift */; };
 		8953A3B81DF538FF81B426AE /* ExplorePostComposerMediaTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFD847EA12E9BBC31C77F7B0 /* ExplorePostComposerMediaTile.swift */; };
 		89BEE1A64836D0ACFD5C4E84 /* LocationPermissionStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFB16E89CB4607F4CB77173E /* LocationPermissionStepView.swift */; };
+		89BF28DBA7130ED496ED92F0 /* InferenceLiveRequestServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23881D7ADC385212BF955DA /* InferenceLiveRequestServiceTests.swift */; };
 		8A1413EDD81D8F1D69F8C6B8 /* ExploreLocationPrivacyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B922D91A0B8F40D1500E3D4 /* ExploreLocationPrivacyTests.swift */; };
 		8A3C50482DE0E5BAEA1CB66F /* GeoprivacyPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 650761D22042CCE2164C4B5B /* GeoprivacyPickerView.swift */; };
 		8A728A58D52239DD48598471 /* SimilarSpeciesImageFetcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB1F026931E5B6887B309177 /* SimilarSpeciesImageFetcherTests.swift */; };
@@ -1875,6 +1877,7 @@
 		73B648A602F1E5758EC20824 /* Terrarium.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Terrarium.swift; sourceTree = "<group>"; };
 		73DA10112B1D30321A2B4235 /* DescribePromptTagsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescribePromptTagsView.swift; sourceTree = "<group>"; };
 		73DE1EE313CA81FF684F7625 /* SpeciesDictionaryPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryPageView.swift; sourceTree = "<group>"; };
+		73EC1E6673DA180E35C332D3 /* InferenceLiveRequestService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceLiveRequestService.swift; sourceTree = "<group>"; };
 		73FD741CA00449A01CD64841 /* PrivateScanMapLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateScanMapLifecycleTests.swift; sourceTree = "<group>"; };
 		7435A1CBD69213D3E204A8F5 /* SpeciesCommunitySightingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesCommunitySightingsViewModelTests.swift; sourceTree = "<group>"; };
 		74708521AF440375D741C099 /* SpeciesDictionaryDetailArchitectureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryDetailArchitectureTests.swift; sourceTree = "<group>"; };
@@ -2485,6 +2488,7 @@
 		F198873F8906E34F754A908C /* SpeciesDictionaryIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryIdentity.swift; sourceTree = "<group>"; };
 		F2049F37B9A1F29D0C11F6E5 /* DescriptionTextCarouselPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescriptionTextCarouselPage.swift; sourceTree = "<group>"; };
 		F229BB86B7EC92D8C3DD25D2 /* UserTagsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserTagsViewModel.swift; sourceTree = "<group>"; };
+		F23881D7ADC385212BF955DA /* InferenceLiveRequestServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceLiveRequestServiceTests.swift; sourceTree = "<group>"; };
 		F31B3CA87C0EA6AA527BA576 /* CaptureScanVideoMediaPreparer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureScanVideoMediaPreparer.swift; sourceTree = "<group>"; };
 		F340CAB78931C951CAD0AF0F /* GamificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamificationManager.swift; sourceTree = "<group>"; };
 		F3521184AAE49AEC2111A2E5 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
@@ -4791,6 +4795,7 @@
 			children = (
 				8BEEC2DCAAC5EB721545FF75 /* InferenceArchitectureTests.swift */,
 				BAA2F3A4B2D8644D0CED7C6C /* InferenceHydrationCoordinatorTests.swift */,
+				F23881D7ADC385212BF955DA /* InferenceLiveRequestServiceTests.swift */,
 				E6B2DDE5201B4F44D17AACE9 /* InferenceWriteCoordinatorTests.swift */,
 			);
 			path = Inference;
@@ -5652,6 +5657,7 @@
 			children = (
 				0EB9D115EA7E66889AEF24D9 /* Hydration */,
 				1381EDA64D122BDF47964EF6 /* LocalAnalysis */,
+				EFCEB6BC5AD4BA33B34E0B3F /* Request */,
 				68A9AFB0D71965AD80BA6A8A /* State */,
 			);
 			path = Inference;
@@ -7410,6 +7416,14 @@
 			path = Images;
 			sourceTree = "<group>";
 		};
+		EFCEB6BC5AD4BA33B34E0B3F /* Request */ = {
+			isa = PBXGroup;
+			children = (
+				73EC1E6673DA180E35C332D3 /* InferenceLiveRequestService.swift */,
+			);
+			path = Request;
+			sourceTree = "<group>";
+		};
 		F156F9CB10078076036A2C33 /* Playback */ = {
 			isa = PBXGroup;
 			children = (
@@ -8154,6 +8168,7 @@
 				AD4919ED994531704EE294F0 /* InferenceAudioTestFixtures.swift in Sources */,
 				BDF3575ADB88331A011488A7 /* InferenceEngineTests.swift in Sources */,
 				879380B5CD747E8C4B1B3CE9 /* InferenceHydrationCoordinatorTests.swift in Sources */,
+				89BF28DBA7130ED496ED92F0 /* InferenceLiveRequestServiceTests.swift in Sources */,
 				97129048AF97F5B37C16224B /* InferenceWriteCoordinatorTests.swift in Sources */,
 				6DE7CA92688B98E76B9FEF53 /* InsightAudioBoostPolicyTests.swift in Sources */,
 				C241FC72B707487C15EC3A23 /* InsightContentActionsTests.swift in Sources */,
@@ -8797,6 +8812,7 @@
 				32AA107F24777E3852563BA1 /* InferenceEdgeDTOs.swift in Sources */,
 				1AF43A34D958F0AD5B596EC8 /* InferenceEngine.swift in Sources */,
 				564A432F4272E1C0919C0754 /* InferenceHydrationCoordinator.swift in Sources */,
+				827B642F79297F3C4BF93DDE /* InferenceLiveRequestService.swift in Sources */,
 				D4303D39C45AB1D270F8FC46 /* InferenceLocalAnalysisCoordinator.swift in Sources */,
 				64CE9C8E1C4F98305888BB99 /* InferenceProcessingActor.swift in Sources */,
 				E950C73C6FCBAD026BEBF86C /* InferenceWriteCoordinator.swift in Sources */,

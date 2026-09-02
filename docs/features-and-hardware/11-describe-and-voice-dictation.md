@@ -6,9 +6,11 @@ biological subject through free-text description or live voice dictation instead
 of a photograph. The shipped path now routes through the same shared non-visual
 `/identify-multimodal` flow used by audio-only captures, via
 `CaptureWorkspaceViewModel.submitNonVisualCapture(...)` and
-`InferenceEngine.analyzeNonVisual(...)`. `/identify-describe` remains deployed
-only as a compatibility route and writes the same ingestion ledger so text-only
-legacy rows can recover through `/identify-multimodal`.
+`InferenceEngine.analyzeNonVisual(...)`; the engine delegates request mapping
+and the live endpoint call to its injected `InferenceLiveRequestService`.
+`/identify-describe` remains deployed only as a compatibility route and writes
+the same ingestion ledger so text-only legacy rows can recover through
+`/identify-multimodal`.
 
 ---
 
@@ -18,8 +20,9 @@ legacy rows can recover through `/identify-multimodal`.
 
 `ObservationContext` is a `Codable, Equatable, Sendable` struct with a single
 `freeText: String` property and a computed `isEmpty` guard (trims whitespace).
-It is the value type that carries the user's input from the UI to
-`InferenceEngine`.
+It is the value type that carries the user's input from the UI through
+`InferenceEngine` to `InferenceLiveRequestService`, which serializes it for the
+shared nonvisual request.
 
 `@State private var observationContext = ObservationContext()` lives in
 **`CaptureWorkspaceView`**, not in `DescribeInputView`. This lift is required

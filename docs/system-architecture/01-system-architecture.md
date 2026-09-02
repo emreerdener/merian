@@ -232,10 +232,12 @@ orphaned object does not reconstruct its relational context.
   `apikey`/Bearer transport during migration. The database equivalent is the
   private `internal.server_api_request_headers(text)` helper, applied to both
   installed `pg_net` routines and persisted `pg_cron` command text.
-- `Task.checkCancellation()` boundaries are injected inside `InferenceEngine`
-  before transferring `URLSession` data payloads to Cloudflare R2. If the iOS
-  Watchdog or the user cancels a processing scan, execution aborts immediately
-  to prevent cellular bandwidth leakage.
+- Live cancellation and exact-attempt boundaries are split across the owning
+  layers: `InferenceEngine` validates pipeline and side-effect ownership, while
+  `InferenceLiveRequestService` invokes the supplied validator after image
+  encoding, optional staged-video upload, and provider return. If the iOS
+  Watchdog or the user cancels a processing scan, stale work cannot continue to
+  provider dispatch, persistence, or presentation effects.
 
 **Edge Function Map:** The backend logic is strictly decoupled into modular,
 single-responsibility functions under `/services/supabase/functions/`.

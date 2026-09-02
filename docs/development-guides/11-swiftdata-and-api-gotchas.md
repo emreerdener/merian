@@ -923,12 +923,14 @@ cooperatively cancelled live task could resume its error handler after
 background recovery published a result.
 
 **The fix**: every live task captures its presentation UUID and durable
-foreground generation. It checks the full owner at task entry, after suspension,
-immediately before provider dispatch, and before result or failure side effects.
-Background recovery compares the exact UUID and absence of a new foreground
-owner, then atomically invalidates the live presentation slot before publishing
-and cancelling the old task. Explicit cancellation also clears `activeScanId`
-synchronously because its invalidated task defer no longer owns the slot:
+foreground generation. It checks the full owner at task entry, supplies that
+predicate to `InferenceLiveRequestService` across request-preparation suspension
+points and provider return, and checks again before result or failure side
+effects. Background recovery compares the exact UUID and absence of a new
+foreground owner, then atomically invalidates the live presentation slot before
+publishing and cancelling the old task. Explicit cancellation also clears
+`activeScanId` synchronously because its invalidated task defer no longer owns
+the slot:
 
 ```swift
 defer {

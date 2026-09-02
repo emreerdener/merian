@@ -32,9 +32,12 @@ begins this pipeline:
    job; the live provider, persistence, UI, and cleanup paths carry that exact
    owner. An eligible live-camera still scan is temporarily excluded from
    background upload so it does not compete with the inline request.
-3. **Biological Inference (`InferenceEngine.swift`)**: The pinned network client
-   sends all current still, gallery, audio, Describe, mixed-media, and video
-   submissions to `/identify-multimodal`, keeping `GEMINI_PAID_API_KEY` off the
+3. **Biological Inference (`InferenceEngine.swift` and `Inference/Request/`)**:
+   `InferenceEngine` owns the exact live attempt, queue callbacks, presentation,
+   parsing, persistence, and recovery policy. Its AppDI-injected
+   `InferenceLiveRequestService` maps all current still, gallery, audio,
+   Describe, mixed-media, and video submissions and invokes the pinned network
+   client once for `/identify-multimodal`, keeping `GEMINI_PAID_API_KEY` off the
    client. The eligible live-camera still path first gives shutter-prefetched
    environmental context at most 150 ms. That grace bounds context waiting, not
    all telemetry preparation or total dispatch latency. Request-body completion

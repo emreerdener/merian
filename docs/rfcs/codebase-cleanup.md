@@ -127,11 +127,11 @@ push toggles in `Profile/Settings/Notifications/`, bundled release notes in
 
 Suggested first targets:
 
-| File                                                     | Cleanup Direction                                                                                                                                                                                                    |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Continue extracting request/provider orchestration, persistence/result mapping, and recovery policy; hydration, bounded writes, shared reference transport, and local-analysis lifecycle/policies are already split. |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core.                                                                                  |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                                                              |
+| File                                                     | Cleanup Direction                                                                                                                                                                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Continue extracting persistence/result mapping and recovery policy; live request/provider dispatch, hydration, bounded writes, shared reference transport, and local-analysis lifecycle/policies are already split. |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core.                                                                                 |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                                                             |
 
 Rules for this phase:
 
@@ -183,17 +183,32 @@ Implemented Core slices:
   completed local model work. The generic simulator build, focused and complete
   `merianTests` suites, XcodeGen/source-membership checks, parsing, strict lint,
   and documentation gates passed after that correction.
+- The fourth slice moved shared visual/nonvisual request preparation and live
+  provider dispatch into the initializer-injected `InferenceLiveRequestService`.
+  It owns base64 filtering, MIME detection, observation-context serialization,
+  aligned descriptor forwarding, staged-video upload, and the single Identify
+  call. `InferenceEngine` supplies exact-attempt validation after encoding,
+  video upload, and provider return and retains its provider-ready timer,
+  request-body queue effects, presentation, response parsing, persistence, and
+  recovery policy. AppDI owns the production live value; tests inject three
+  narrow closures without a broad protocol or new singleton. No payload field,
+  request ordering, timeout, endpoint, callback, navigation, persistence schema,
+  or observable UI contract changed. A follow-up review restored MIME and
+  observation-context helpers to file-private visibility and added an explicit
+  stale-after-image-encoding fence test.
 - Focused Core AI and Species Reference suites cover hydration replacement and
   stale-completion isolation, TTL/backoff policy, queue capacity and overflow,
   cancellation and Auth quiescence, ordered newest-action writes, public
   request/parse behavior, missing-description thumbnail compatibility, and
   architecture ownership. The local-analysis suite continues to cover category,
   phrase, cancellation, lifecycle, queue-handoff, and non-cooperative-provider
-  behavior through the stable engine adapters; the architecture suite locks the
-  new private owner and retired aggregate. No JSON payload, SwiftData schema,
-  navigation, or backend contract changed. `InferenceEngine.swift` remains a
-  large orchestrator and should continue through small behavior-preserving
-  slices.
+  behavior through the stable engine adapters. The live-request suite covers
+  payload parity, descriptor alignment, upload order, callback forwarding, and
+  stale-attempt rejection around its suspension points; the architecture suite
+  locks the extracted owners and retired aggregate. No JSON payload, SwiftData
+  schema, navigation, or backend contract changed. `InferenceEngine.swift`
+  remains a large orchestrator and should continue through small behavior-
+  preserving slices.
 
 Implemented Explore slices:
 

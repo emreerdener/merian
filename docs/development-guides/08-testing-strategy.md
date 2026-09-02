@@ -1169,6 +1169,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   and rejected-override field-clearing integrations. The architecture suite
   rejects a detached/duplicate GBIF owner and verifies that historical override
   hydration uses the displayed species.
+- **`Core/AI/Inference/InferenceLiveRequestServiceTests.swift`**: Executes the
+  injected live request boundary without networking. It locks visual and
+  nonvisual provider fields, inline-image staging-key omission, JPEG/WebP
+  detection, descriptor-count alignment, observation-context JSON, canonical
+  audio/timeline forwarding, staged-video upload order, request-body callback
+  forwarding, empty-encode short circuiting, and exact-attempt revalidation
+  after image encoding, video upload, and provider return.
 - **`Core/SpeciesReference/SpeciesReferenceHydrationServiceTests.swift`**:
   Injects a deterministic data loader and locks Wikipedia/GBIF URLs, timeouts,
   User-Agent policy, HTML/entity normalization, missing-description media
@@ -1177,12 +1184,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   thumbnail recovery reuse this shared transport/parser instead of duplicating
   wire DTOs or sessions.
 - **`Core/AI/Inference/InferenceArchitectureTests.swift`**: Prevents mutable
-  write, hydration, or local-analysis registries and shared reference wire state
-  from drifting back into `InferenceEngine`; requires private coordinator state;
-  rejects the retired `LocalVisualAnalysis.swift` aggregate; and keeps every
-  extracted owner and split local-analysis policy file below 600 lines. The
-  Species Reference architecture suite applies the same ceiling to the shared
-  transport owner.
+  write, hydration, or local-analysis registries, live provider
+  payload/dispatch, and shared reference wire state from drifting back into
+  `InferenceEngine`; requires private coordinator state and AppDI-owned live
+  request injection; keeps request-format helpers file-private; rejects the
+  retired `LocalVisualAnalysis.swift` aggregate; and keeps every extracted owner
+  and split local-analysis policy file below 600 lines. The Species Reference
+  architecture suite applies the same ceiling to the shared transport owner.
 - **`SpeciesDictionaryTests.swift`**: Validates the public dictionary response
   decoder, additive `content_quality`, strict `schema_version = 1`, canonical
   UUID/name request normalization, dual-identity local recovery,

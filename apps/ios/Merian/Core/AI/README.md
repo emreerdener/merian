@@ -9,9 +9,9 @@ remote identification pipeline. Capture-specific composition remains under
 
 - `InferenceEngine` coordinates live analysis, observable result state,
   saved-media handoff, offline-queue adoption, enrichment, awards, and Field
-  trips. It delegates hydration lifecycle, bounded background-write, and
-  external-reference work to focused owners instead of storing those
-  implementation details itself.
+  trips. It delegates live request preparation/dispatch, hydration lifecycle,
+  bounded background-write, and external-reference work to focused owners
+  instead of storing those implementation details itself.
 - `Inference/Hydration/InferenceHydrationCoordinator.swift` privately owns the
   replaceable live, historical, and identification-review task slots; retains
   cancelled handles until completion for Auth quiescence; and contains the
@@ -34,6 +34,14 @@ remote identification pipeline. Capture-specific composition remains under
   engine supplies the exact visual-session predicate and receives observable
   phrase values. Local task handles and mutable lifecycle state do not escape
   the coordinator or participate in durable Auth quiescence.
+- `Inference/Request/InferenceLiveRequestService.swift` is the initializer-
+  injected boundary for visual/nonvisual live request preparation and provider
+  dispatch. It owns base64 filtering, image MIME detection, observation-context
+  JSON, visual/audio/timeline descriptor forwarding, staged-video upload, and
+  the one `/identify-multimodal` invocation. `InferenceEngine` supplies an exact
+  attempt validator after encoding, video upload, and provider return; it keeps
+  the provider-ready timer callback, request-body callback effects,
+  presentation, queue retirement, parsing, persistence, and recovery policy.
 - `Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift` owns
   the shared public Wikipedia/GBIF session, request construction, wire DTOs, and
   off-main parsing used by Inference and thumbnail recovery. The engine still
@@ -211,11 +219,11 @@ floor rather than silently changing these economics or behavior.
 
 An explicit capture timeline is also a request invariant. `InferenceEngine`
 projects the ordered image, standalone-audio, video, and description items once,
-then uses that same projection for audio file order, `audioMediaItems`,
-observation contexts, video paths, and `ownerMediaTimeline`. Both live visual
-and live nonvisual paths must send the projection. Do not independently
-aggregate audio paths or descriptors: their raw input positions are the durable
-identity used by Edge validation and promotion.
+then passes that projection to `InferenceLiveRequestService`. The service uses
+it unchanged for audio file order, `audioMediaItems`, observation-context JSON,
+video paths, and `ownerMediaTimeline` in both live visual and live nonvisual
+requests. Do not independently aggregate audio paths or descriptors: their raw
+input positions are the durable identity used by Edge validation and promotion.
 
 Audio evidence has a format and ownership invariant as well. Provider-bound
 audio must be a local, structurally valid WAV within `audioPayloadMaxBytes`;
@@ -303,10 +311,10 @@ spend another credit. The joined server/client contract is
 Every queue-backed live submission also creates a UUID inference generation and
 writes it to the scan-ingestion `OfflineJobRecord.metadataJSON` in the same
 transaction as the queued scan. `InferenceEngine` captures that UUID in the
-provider task and revalidates it at task entry, after external suspension
-points, immediately before provider dispatch, and again at each persistence,
-result-publication, failure-publication, notification, hydration, and
-queue-cleanup boundary.
+provider task. It validates at task entry, supplies the exact predicate that
+`InferenceLiveRequestService` checks after request-preparation suspension points
+and provider return, and checks again at each persistence, result-publication,
+failure-publication, notification, hydration, and queue-cleanup boundary.
 
 All user-facing inference modes are queue-backed before provider dispatch.
 Online text-only Describe submissions use a zero-byte `.staged` row, so they
@@ -464,25 +472,31 @@ TTL pruning, and backoff expiry/reset.
 `Core/AI/Inference/InferenceWriteCoordinatorTests.swift` covers queue bounds,
 Auth quiescence, reset cancellation, action-history eviction, ordered stale
 write rejection, confirmation/review generation independence, and the shared
-identification final-writer tail. `Core/AI/LocalVisualAnalysisTests.swift`
-exercises the local-analysis coordinator through the stable engine adapters,
-including replacement, dismissal, request completion, application
-inactivity/reactivation, queue handoff, and Auth fences plus non-cooperative
-provider returns.
+identification final-writer tail.
+`Core/AI/Inference/InferenceLiveRequestServiceTests.swift` covers visual and
+nonvisual provider mapping, inline-image key omission, MIME detection,
+descriptor alignment, observation-context encoding, video upload order,
+request-body callback forwarding, empty encodes, and exact-attempt rejection
+after image encoding, video upload, or provider return.
+`Core/AI/LocalVisualAnalysisTests.swift` exercises the local-analysis
+coordinator through the stable engine adapters, including replacement,
+dismissal, request completion, application inactivity/reactivation, queue
+handoff, and Auth fences plus non-cooperative provider returns.
 `Core/SpeciesReference/SpeciesReferenceHydrationServiceTests.swift` covers
 Wikipedia/GBIF requests, response parsing, missing-description compatibility,
 and failure behavior. Its architecture suite prevents either consumer from
 reclaiming the shared transport, while `InferenceArchitectureTests.swift` locks
-all three extracted task-state boundaries, the retired local-analysis aggregate,
-and the 600-line local-analysis ceiling. Network timing and request-upload
-handoff coverage lives under `MerianTests/Core/Network/`; the full server
-generation invariants are enforced by the Deno tests beside
-`identify-multimodal`. `Core/AI/InferenceEngineTests.swift` retains the
-integration proofs for Auth quiescence, closed-fence review rejection, stale
-confirmation rejection after an override, and presentation-reset hydration
-cancellation. `Core/Data/BackgroundDatabaseActorTests.swift` separately locks
-atomic override admission, destructive reset/identity replacement, and
-non-destructive same-species historical refresh.
+all three extracted task-state boundaries, the injected request boundary and its
+file-private format helpers, the retired local-analysis aggregate, and the
+600-line local-analysis ceiling. Network timing and request-upload handoff
+coverage lives under `MerianTests/Core/Network/`; the full server generation
+invariants are enforced by the Deno tests beside `identify-multimodal`.
+`Core/AI/InferenceEngineTests.swift` retains the integration proofs for Auth
+quiescence, closed-fence review rejection, stale confirmation rejection after an
+override, and presentation-reset hydration cancellation.
+`Core/Data/BackgroundDatabaseActorTests.swift` separately locks atomic override
+admission, destructive reset/identity replacement, and non-destructive
+same-species historical refresh.
 
 A queue-handoff regression is not valid when it throws from consent preflight or
 another pre-request seam. It must dispatch through mocked URLSession transport,

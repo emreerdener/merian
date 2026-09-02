@@ -422,11 +422,13 @@ the same non-visual entry point as description-only captures:
 
 1. `CaptureWorkspaceViewModel.submitAudio(...)` delegates to
    `submitNonVisualCapture(...)`.
-2. `InferenceEngine.analyzeNonVisual(...)` forwards `audioFilePaths`, any
-   `observationContexts`, and the ordered `mediaTimeline`.
-3. `MerianNetworkClient.buildMultiModalRequest(...)` sends live foreground WAVs
-   as size-preflighted `audioBase64s`; queued replay sends R2-backed
-   `audioR2ObjectKeys`.
+2. `InferenceEngine.analyzeNonVisual(...)` establishes the exact attempt and
+   passes `audioFilePaths`, any `observationContexts`, and the ordered timeline
+   projection to its injected `InferenceLiveRequestService`.
+3. `InferenceLiveRequestService` serializes the nonvisual context and performs
+   the one live Identify call. `MerianNetworkClient.buildMultiModalRequest(...)`
+   sends live foreground WAVs as size-preflighted `audioBase64s`; queued replay
+   sends R2-backed `audioR2ObjectKeys`.
 4. `InferenceProcessingActor.parseAndSave(...)` routes the result through
    `BackgroundDatabaseActor.saveNonVisualRecord(...)`.
 

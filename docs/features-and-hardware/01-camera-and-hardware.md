@@ -942,9 +942,10 @@ A dedicated `PHPhotoLibrary` handler.
   runs in a `Task.detached` context to protect the 120Hz scroll rate during
   historical imports. The actual encoding format is auto-detected from the first
   image's magic bytes (`0xFF 0xD8 0xFF` → JPEG, otherwise WebP) inside
-  `InferenceEngine.analyze`, which forwards the correct MIME type string
+  `InferenceLiveRequestService`, which forwards the correct MIME type string
   (`"image/jpeg"` or `"image/webp"`) to the Edge Function so Gemini receives the
-  right label.
+  right label. `InferenceEngine.analyze` retains exact-attempt and result-policy
+  ownership around that injected request boundary.
 - **Photos Share-Sheet Import**: `Info.plist` registers the app as an alternate
   `public.image` viewer with in-place editing disabled. `MerianApp.onOpenURL`
   handles one incoming file after Google/Merian routing and before Supabase

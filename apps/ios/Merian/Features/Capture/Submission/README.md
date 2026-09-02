@@ -8,9 +8,11 @@ Capture observation is ready to analyze.
 This area normalizes staged media, admits it to the durable SwiftData queue
 (`OfflineQueuedScan`) before live work begins, coordinates visual and nonvisual
 foreground inference, and prepares the existing Insight or queued presentation.
-Shell owns the mounted UI and presentation timing; `InferenceEngine` owns
-provider dispatch and its concurrent on-device `VNClassifyImageRequest` status
-phrases.
+Shell owns the mounted UI and presentation timing; `InferenceEngine` owns exact
+live-attempt and presentation policy plus the concurrent on-device
+`VNClassifyImageRequest` status phrases. Its injected
+`InferenceLiveRequestService` owns live visual/nonvisual payload preparation,
+staged-video upload, and `/identify-multimodal` dispatch.
 
 ## Ownership
 
@@ -263,18 +265,20 @@ does not enter the identification request. It can choose the one credited item
 inside that standard outing only. The server still evaluates every eligible
 experience and ignores stale, unauthorized, completed, or nonmatching hints.
 
-The active live request temporarily owns the uplink. Its request-body completion
-callback releases the queue row for normal background upload only when the
-expected foreground generation still matches; a two-second fail-safe carries the
-same fence. Request failure, connectivity loss, or app backgrounding
-synchronously retires that exact generation, and relaunch naturally clears
-process-local upload suppression. Live success deletes the queue only with a
-matching foreground-generation expectation. Recovery media may finish staging
-while the live request awaits Gemini, but the durable foreground claim prevents
-the queue from dispatching a second identification call. Failure, cancellation,
-or backgrounding releases that claim and replays any staged row. Staged replay
-checks the server ingestion ledger first and polls an already-processing
-foreground job instead of issuing a duplicate model call.
+The active live request temporarily owns the uplink. After any staged-video
+upload, `InferenceLiveRequestService` signals that provider dispatch is ready;
+`InferenceEngine` then starts the existing two-second fail-safe and supplies the
+request-body completion callback that the service forwards unchanged. Either
+release path opens the queue row for normal background upload only when the
+expected foreground generation still matches. Request failure, connectivity
+loss, or app backgrounding synchronously retires that exact generation, and
+relaunch naturally clears process-local upload suppression. Live success deletes
+the queue only with a matching foreground-generation expectation. Recovery media
+may finish staging while the live request awaits Gemini, but the durable
+foreground claim prevents the queue from dispatching a second identification
+call. Failure, cancellation, or backgrounding releases that claim and replays
+any staged row. Staged replay checks the server ingestion ledger first and polls
+an already-processing foreground job instead of issuing a duplicate model call.
 
 That same request-body completion callback is the earliest point at which the
 injected Foundation visual-cue provider may start. The callback only marks the
@@ -293,11 +297,12 @@ recovery work running.
 ## Latency Boundaries
 
 The capture submission layer logs Analyze tap, durable queue commit, the still-
-image or non-visual context grace, and inference dispatch. `MerianNetworkClient`
-measures upload/response transport, `InferenceProcessingActor` measures parse
-and persistence, and `InsightSheetView` records the first rendered result frame.
-Awards, Field trips, and optional enrichment must not be awaited before that
-frame.
+image or non-visual context grace, and inference dispatch.
+`InferenceLiveRequestService` measures visual preparation/provider duration,
+`MerianNetworkClient` measures upload/response transport,
+`InferenceProcessingActor` measures parse and persistence, and
+`InsightSheetView` records the first rendered result frame. Awards, Field trips,
+and optional enrichment must not be awaited before that frame.
 
 After the result commit, foreground completion passes the final scan ID,
 `SpeciesData`, and model container to `ScanMilestoneCoordinator`. Background

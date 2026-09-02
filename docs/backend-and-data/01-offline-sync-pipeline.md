@@ -887,11 +887,11 @@ additional callback fence, but they are not the persistence authority:
 - An online queue-backed submission receives a foreground inference UUID before
   enqueue. The queue transaction stores it in the scan-ingestion job and
   registers the same in-memory owner before upload/replay can start. Provider
-  preflight, provider dispatch and completion, live local persistence,
-  main-actor result or failure commit, and queue cleanup all carry that UUID.
-  `scanId` alone is never sufficient ownership. The UUID is single-use:
-  `OfflineQueueManager` atomically consumes an exact generation before any
-  engine instance dispatches its provider pipeline. Cancellation and
+  preflight, `InferenceLiveRequestService` dispatch and completion, live local
+  persistence, main-actor result or failure commit, and queue cleanup all carry
+  that UUID. `scanId` alone is never sufficient ownership. The UUID is
+  single-use: `OfflineQueueManager` atomically consumes an exact generation
+  before any engine instance dispatches its provider pipeline. Cancellation and
   pre-provider exits register a tokenized retirement task synchronously so the
   UUID cannot restart before asynchronous durable handoff completes. Transient
   handoff fetch/save failures retain that registry slot and retry with bounded

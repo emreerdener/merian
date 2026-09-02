@@ -14,7 +14,7 @@ The iOS inference layer is split across focused owners under
 its capture integration:
 
 - **`InferenceEngine.swift`**: The main engine. Coordinates upload confirmation,
-  triggers the Edge function, and delivers results to
+  delegates live provider preparation/dispatch, and delivers results to
   `CaptureWorkspaceViewModel`. Key `@ObservationIgnored` properties that track
   in-flight state: `inferenceTask: Task<Void, Error>?` (the live `analyze`
   task), `activeScanId: String?` (set to the `scanId` at the start of
@@ -95,6 +95,15 @@ its capture integration:
   `Inference/LocalAnalysis/` own the classifier/category policy, image builder,
   deterministic extractor, Foundation contract/validation/eligibility, and
   phrase policy; each remains below 600 lines.
+- **`Inference/Request/InferenceLiveRequestService.swift`**: The immutable,
+  initializer-injected live request boundary shared by visual and nonvisual
+  flows. It owns image base64 filtering and MIME detection, observation-context
+  JSON, visual/audio/timeline descriptor forwarding, staged-video upload, and
+  the single `/identify-multimodal` call. The engine supplies a main-actor
+  exact-attempt validator after image encoding, staged-video upload, and
+  provider return. Provider-ready and request-body callbacks return ownership
+  effects to the engine; the service does not own presentation, queue
+  retirement, parsing, persistence, or recovery state.
 - **`Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift`**:
   The initializer-injected Wikipedia mobile-sections and GBIF taxon-key
   transport/parsing boundary shared with scan-thumbnail recovery. Its live value
@@ -460,14 +469,18 @@ belongs to the staged timeline wrapper; durable chronology belongs to
 `ownerMediaTimeline` and final Captured Media array order, not to an `addedAt`
 field inside the description payload:
 
-1. **Media timeline build**: Before calling `identifyMultiModal(...)`,
-   `analyze()` builds one ordered mixed-media timeline containing the current
-   images plus any staged `ObservationContext` items. The text prompt sent to
-   Gemini and the JSON persisted locally are both derived from that single
-   source.
+1. **Media timeline build**: `analyze()` builds one ordered mixed-media timeline
+   containing the current images plus any staged `ObservationContext` items,
+   then passes its canonical projection to `InferenceLiveRequestService`. The
+   text prompt sent to Gemini and the JSON persisted locally are both derived
+   from that single source.
 
-2. **Network layer**: `MerianNetworkClient.buildMultiModalRequestBody(...)` and
-   `buildMultiModalRequest(...)` deserialize that JSON into
+2. **Request/network layer**: `InferenceLiveRequestService` serializes the
+   projection's observation contexts, preserves its aligned audio and owner-
+   timeline descriptors, uploads staged video when present, and invokes
+   `MerianNetworkClient.identifyMultiModal(...)` once.
+   `MerianNetworkClient.buildMultiModalRequestBody(...)` and
+   `buildMultiModalRequest(...)` deserialize the resulting JSON into
    `observation_contexts` objects alongside camelCase telemetry (`gpsLatitude`,
    `deviceTimeZone`, `currentMonth`, etc.). This is the canonical live request
    contract.
@@ -486,26 +499,27 @@ field inside the description payload:
    `public.scans.user_observation_context` on the cloud side.
 
 5. **Attempt ownership**: A queue-backed live request carries the foreground
-   generation created at submission. `InferenceEngine` compares it at task
-   entry, after external suspension points, immediately before provider
-   dispatch, and at every result or failure side-effect boundary.
-   `BackgroundDatabaseActor` validates the same generation in the scan-ingestion
-   job while holding the per-scan persistence coordinator. `OfflineQueueManager`
-   atomically consumes the generation before provider dispatch and owns
-   tokenized retirement for cancellation and pre-provider exits. Duplicate
-   active or retiring generations therefore cannot restart, even through a
-   second engine instance. Result publication and queue cleanup are owned by the
-   single-use attempt UUID, not merely by the reusable `scanId`. Retirement
-   registration immediately fences persistence, UI, and cleanup while raw
-   durable release is pending. A transient durable-owner handoff failure retains
-   the registry slot and retries with bounded backoff instead of reopening that
-   UUID or indefinitely suppressing recovery. A failure handler snapshots the
-   full current owner before synchronous retirement; only that owner may emit
-   telemetry, update the circuit breaker, trigger an error haptic, or publish an
-   error placeholder. A replaced task exits without observable failure effects.
-   Confidence-zero is still a terminal response that intentionally saves no
-   local record, but queue-backed foreground and generated background results
-   must echo the exact scan ID before that response can finalize the job.
+   generation created at submission. `InferenceEngine` compares it at task entry
+   and supplies the service's validator after every request-preparation
+   suspension point and provider return; the engine checks it again at every
+   result or failure side-effect boundary. `BackgroundDatabaseActor` validates
+   the same generation in the scan-ingestion job while holding the per-scan
+   persistence coordinator. `OfflineQueueManager` atomically consumes the
+   generation before provider dispatch and owns tokenized retirement for
+   cancellation and pre-provider exits. Duplicate active or retiring generations
+   therefore cannot restart, even through a second engine instance. Result
+   publication and queue cleanup are owned by the single-use attempt UUID, not
+   merely by the reusable `scanId`. Retirement registration immediately fences
+   persistence, UI, and cleanup while raw durable release is pending. A
+   transient durable-owner handoff failure retains the registry slot and retries
+   with bounded backoff instead of reopening that UUID or indefinitely
+   suppressing recovery. A failure handler snapshots the full current owner
+   before synchronous retirement; only that owner may emit telemetry, update the
+   circuit breaker, trigger an error haptic, or publish an error placeholder. A
+   replaced task exits without observable failure effects. Confidence-zero is
+   still a terminal response that intentionally saves no local record, but
+   queue-backed foreground and generated background results must echo the exact
+   scan ID before that response can finalize the job.
 
 **Offline resilience**: the queue stores the same ordered media timeline at
 enqueue time. `buildExtractedScanData` snapshots `capturedMediaItems`, and every
@@ -525,10 +539,11 @@ alone. The current app routes this through `/identify-multimodal` with no images
 or audio attached, but still creates a zero-byte durable queue job before
 provider dispatch:
 
-1. **No image**: `InferenceEngine.analyzeNonVisual(...)` never calls
-   `FileIOActor` or `InferenceProcessingActor.encodeImages` for description-only
-   submissions. The edge function receives structured observation context only —
-   no `r2ObjectKeys`, `imageBase64s`, or `audioBase64s`.
+1. **No image**: `InferenceEngine.analyzeNonVisual(...)` selects the nonvisual
+   request path, and `InferenceLiveRequestService` never calls its injected
+   image encoder or staged-video uploader for description-only submissions. The
+   edge function receives structured observation context only — no
+   `r2ObjectKeys`, `imageBase64s`, or `audioBase64s`.
 
 2. **Unified edge function** (`/identify-multimodal`): The handler builds a
    text-only Gemini prompt from `observation_contexts`, takes the
@@ -1386,9 +1401,11 @@ insight sheet display.
   scan is reported persisted. Client follow-up retrieves the idempotent receipt
   for notifications without placing progress correctness on the first-result
   task.
-- **base64 encoding priority** (`InferenceProcessingActor`): Multi-image base64
-  encoding uses `withTaskGroup` at `.userInitiated` priority so the CPU-bound
-  work is not deprioritized behind background system tasks on a loaded device.
+- **base64 encoding priority** (`InferenceLiveRequestService` →
+  `InferenceProcessingActor`): The request service invokes the actor's multi-
+  image encoder, which uses `withTaskGroup` at `.userInitiated` priority so the
+  CPU-bound work is not deprioritized behind background system tasks on a loaded
+  device.
 - **Inference request timeout 90s** (`MerianNetworkClient.identifyMultiModal` /
   `buildMultiModalRequest(...)`): The `URLRequest.timeoutInterval` for inference
   calls was raised from 30s (the shared default) to 90s, matching

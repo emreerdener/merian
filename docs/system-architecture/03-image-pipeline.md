@@ -327,11 +327,12 @@ releases ownership. This prevents the durability path from creating a duplicate
 primary model call.
 
 The successful path then passes both image `Data` arrays to
-`InferenceEngine.analyze(imageDatas:displayDatas:)`. Inside the engine,
-`imageDatas` is base64-encoded for the AI call and discarded after encoding —
-there is no retained inference buffer; durability is fully owned by the offline
-queue. `displayDatas.first` is assigned to `activeImageData: Data?` and wrapped
-into `activeMedia` as a single-frame preview used by the insight sheet carousel
+`InferenceEngine.analyze(imageDatas:displayDatas:)`. The engine passes
+`imageDatas` to its injected `InferenceLiveRequestService`, which delegates
+base64 encoding to `InferenceProcessingActor` and retains no encoded request
+buffer after dispatch; durability is fully owned by the offline queue.
+`displayDatas.first` is assigned to `activeImageData: Data?` and wrapped into
+`activeMedia` as a single-frame preview used by the insight sheet carousel
 during the inference window. The full `displayDatas` array is forwarded to
 `InferenceProcessingActor.parseAndSave(displayDatas:)` and written to disk via
 `FileIOActor.writeTemporaryImages`; once saved, the persisted user timeline is
@@ -353,10 +354,11 @@ than appending `Data()`. Sending an empty base64 string
 (`Data().base64EncodedString() == ""`) causes Gemini to reject the request with
 an opaque AI processing error; the guard prevents this at the source.
 
-`InferenceEngine.analyze` adds a second-layer filter: after `encodeBase64`, any
-empty strings are removed from `base64Strings`. If all strings are empty after
-filtering, the scan is refunded immediately without a network call. The Edge
-Function (`identify/index.ts`) applies a third-layer check: each element of
+`InferenceLiveRequestService.dispatchVisual` adds a second-layer filter: after
+`encodeBase64`, empty strings are removed from the encoded array. If every
+string is empty after filtering, the service returns without a network call and
+`InferenceEngine` retains the refund plus durable-owner retirement policy. The
+Edge Function (`identify/index.ts`) applies a third-layer check: each element of
 `imageBase64s` is validated non-empty before being forwarded to Gemini,
 returning a clear `400 Bad Request` instead of an opaque AI error.
 
@@ -466,7 +468,7 @@ returns nil for WebP (e.g., the iOS Simulator's host-macOS ImageIO stack does
 not support WebP writing on all platforms), the encoding automatically falls
 back to JPEG using the same quality setting. The actual format used is detected
 from the first image's magic bytes (`FF D8 FF` → `"image/jpeg"`, otherwise
-`"image/webp"`) in `InferenceEngine.analyze` and forwarded to the Edge
+`"image/webp"`) inside `InferenceLiveRequestService` and forwarded to the Edge
 Function's `mimeType` field so Gemini receives the correct MIME label. The
 `CGImageDestination` API writes directly from the `CGImage` without an
 intermediate `UIImage`, reducing peak allocation by one full decoded-pixel

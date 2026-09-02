@@ -14,7 +14,8 @@ struct InferenceArchitectureTests {
             "LocalAnalysis/LocalVisualAnalysisImageBuilder.swift",
             "LocalAnalysis/LocalVisualTraitExtraction.swift",
             "LocalAnalysis/FoundationVisualCues.swift",
-            "LocalAnalysis/ScanningPhraseCoordinator.swift"
+            "LocalAnalysis/ScanningPhraseCoordinator.swift",
+            "Request/InferenceLiveRequestService.swift"
         ] {
             let file = try sourceRoot().appendingPathComponent(relativePath)
             #expect(
@@ -42,6 +43,7 @@ struct InferenceArchitectureTests {
         #expect(source.contains("private let hydrationCoordinator:"))
         #expect(source.contains("private let writeCoordinator"))
         #expect(source.contains("private let localAnalysisCoordinator:"))
+        #expect(source.contains("private let liveRequestService:"))
         #expect(source.contains("resetEnrichmentRateLimit()"))
         #expect(source.contains("replaceAndAwaitTask("))
         #expect(source.contains("in: .review"))
@@ -70,13 +72,53 @@ struct InferenceArchitectureTests {
             "didFinishLocalVisionClassification",
             "didSendInferenceRequestBody",
             "didPauseLocalVisualAnalysisForInactivity",
-            "private var scanningPhraseCoordinator"
+            "private var scanningPhraseCoordinator",
+            "observationContextJSONStrings(",
+            "identifyMultiModal(",
+            "uploadStagedVideoFiles("
         ] {
             #expect(
                 !source.contains(retiredToken),
                 "InferenceEngine reclaimed \(retiredToken)"
             )
         }
+    }
+
+    @Test func liveRequestServiceOwnsProviderPayloadAndDispatch() throws {
+        let requestSource = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Request/InferenceLiveRequestService.swift"
+            )
+        )
+        for requiredToken in [
+            "struct VisualRequest: Sendable",
+            "struct NonVisualRequest: Sendable",
+            "r2ObjectKeys: []",
+            "observationContextJSONStrings(",
+            "uploadStagedVideoFiles(",
+            "MerianNetworkClient.shared.identifyMultiModal(",
+            "try validateAttempt()"
+        ] {
+            #expect(requestSource.contains(requiredToken))
+        }
+        #expect(!requestSource.contains("@unchecked Sendable"))
+        #expect(!requestSource.contains("OfflineQueueManager.shared"))
+        #expect(!requestSource.contains("ModelContext"))
+        #expect(!requestSource.contains("SpeciesData"))
+        #expect(requestSource.contains("private static func imageMIMEType("))
+        #expect(
+            requestSource.contains(
+                "private static func observationContextJSONStrings("
+            )
+        )
+
+        let appDISource = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/Merian/Core/AppDIContainer.swift"
+            )
+        )
+        #expect(appDISource.contains("liveInferenceRequestService"))
+        #expect(appDISource.contains("liveRequestService:"))
     }
 
     @Test func coordinatorKeepsItsMutableTaskStatePrivate() throws {
