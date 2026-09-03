@@ -782,6 +782,97 @@ struct InferenceEngineTests {
 
     // MARK: - Premium Insights: EdgeResponse decoding
 
+    @Test(arguments: ["", " \n\t "])
+    func testHistoricalBlankHabitatRequestsMetadata(storedHabitat: String) async throws {
+        let responseData = Data("""
+        {
+            "success": true,
+            "data": {
+                "habitat_description": "  Woodland edges.  ",
+                "gbif_taxon_key": 2433697
+            }
+        }
+        """.utf8)
+        MockURLProtocol.mockEndpoints["/enrich-scan"] = { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil
+            ))
+            return (response, responseData)
+        }
+
+        let coordinator = makeHydrationCoordinator()
+        let engine = InferenceEngine(
+            speciesReferenceService: .init { _ in throw URLError(.resourceUnavailable) },
+            hydrationCoordinator: coordinator
+        )
+        let record = LocalScanRecord(
+            id: "00000000-0000-4000-8000-00000000e124",
+            speciesId: "synthetic-habitat-species",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon",
+            wikipediaOverview: "Synthetic reference overview.",
+            referenceImageUrl: "https://example.com/reference.jpg",
+            taxonomyKingdom: "Animalia",
+            taxonomyOrder: "Carnivora",
+            taxonomyFamily: "Procyonidae",
+            lookalikesData: Data("[]".utf8),
+            habitatDescription: storedHabitat,
+            gbifTaxonKey: 2433697
+        )
+
+        engine.load(from: record)
+        #expect(engine.speciesData?.habitatDescription == nil)
+        await engine.awaitHistoricHydration()
+
+        #expect(engine.speciesData?.habitatDescription == "Woodland edges.")
+        #expect(engine.speciesData?.gbifTaxonKey == 2433697)
+        #expect(coordinator.snapshot.enrichedSpeciesCount == 1)
+        #expect(!engine.isEnrichmentLoading)
+    }
+
+    @Test(arguments: [nil, "", " \n\t "] as [String?], [nil, "Wetlands and riverbanks."] as [String?])
+    func testMissingEnrichmentHabitatPreservesExistingContent(
+        responseHabitat: String?,
+        existingHabitat: String?
+    ) async throws {
+        let responseData = try JSONSerialization.data(withJSONObject: [
+            "success": true,
+            "data": [
+                "habitat_description": responseHabitat.map { $0 as Any } ?? NSNull(),
+                "gbif_taxon_key": 2433697
+            ]
+        ])
+        MockURLProtocol.mockEndpoints["/enrich-scan"] = { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil
+            ))
+            return (response, responseData)
+        }
+        let engine = InferenceEngine(hydrationCoordinator: makeHydrationCoordinator())
+        engine.speciesData = SpeciesData(
+            scanId: "00000000-0000-4000-8000-00000000e125",
+            commonName: "Raccoon",
+            scientificName: "Procyon lotor",
+            insightData: InsightData(aiReasoning: "Synthetic observation.", hazardType: "none"),
+            confidenceScore: 0.95,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild",
+            habitatDescription: existingHabitat
+        )
+
+        await engine.fetchAndApplyEnrichment(
+            modelContext: nil, needsMetadata: true, needsLookalikes: false
+        )
+
+        #expect(engine.speciesData?.habitatDescription == existingHabitat)
+        #expect(engine.speciesData?.gbifTaxonKey == 2433697)
+        #expect(!engine.isEnrichmentLoading)
+    }
+
     @Test func testEnrichScanTaskHydratesSpeciesDataContent() async throws {
         // Arrange: Inject Mock URL Session
         let config = URLSessionConfiguration.ephemeral

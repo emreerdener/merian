@@ -24,7 +24,13 @@ The shared iOS conversation implementation is owned by
 owner-row readiness, dismissal handoffs, and its typed presentation slot;
 `FieldChatEndpoint` and `InsightChatViewModel` own source adaptation and
 subject-fenced conversation state. Core Network retains the Codable wire
-contracts, strict validation, and transport.
+contracts, the shared endpoint extension and strict response decoder, and
+private authenticated transport. See the
+[Core Field Chat ownership guide](../../apps/ios/Merian/Core/Network/README.md#field-chat-endpoints-and-validation)
+for those boundaries. Chat endpoint or validation changes require the
+[Core Field Chat matrix](../../apps/ios/Merian/Core/Network/README.md#field-chat-verification)
+alongside the host's feature regressions; cloud-readiness coverage remains in
+`MerianNetworkClientTests`, not the rehomed direct chat endpoint suites.
 
 Availability preparation is same-subject single-flight; subject replacement or
 clearing invalidates older readiness. Prompt refresh is latest-trigger-wins, and
@@ -47,6 +53,21 @@ reconciliation conditions in the
 are satisfied.
 
 ---
+
+## Field Chat Species Knowledge
+
+Field Chat can answer general questions about stable species traits, such as
+typical flower fragrance, even when the scan or dictionary did not record that
+detail. The three chat routes share backend rules that use the supplied
+scientific name, preserve identification uncertainty, and qualify relevant
+individual or cultivar variation. General knowledge is not evidence that a trait
+was observed in this specimen, and does not provide live search, current/local
+facts, or additional access to media or private data.
+
+Field-note drafts use recorded scan evidence and explicit observations reported
+by the user. General species facts in assistant replies or dictionary prose,
+questions, hypotheticals, and suggested checks must not become recorded
+observations.
 
 ## Architecture
 
@@ -78,7 +99,7 @@ are satisfied.
 | `InsightChatSheet`                                                       | Shared bottom-sheet Field chat. For completed biological, non-human Insights, a valid toolbar tap presents the loading shell immediately; the sheet then preflights ownership through `/check-scan-status` before using `/insight-chat`. Explore post details reuse the same floating `FieldChatToolbarButton`, sheet, and view model with `/explore-post-chat`. Every loaded canonical Species Dictionary page uses a third source with `/species-dictionary-chat`; loading/error states hide its bottom bar, while Share stays at top. Each Explore or Dictionary thread belongs only to the requesting viewer, and Non-Pro users open the existing paywall. The sheet renders saved messages, deterministic/AI prompt chips, in-memory offline reading, durable failed-send retry/edit, safety refusal styling, answer feedback, deletion, and an anchored composer. Owner-only Insight actions such as append-to-notes, feature feedback, identification review, and reanalysis are disabled for Explore and Dictionary threads. Backend context stays source-specific and text-only. Dictionary product telemetry omits species names and IDs.                                                                                                            |
 | `ScanInformationCard`                                                    | Privacy-aware spatiotemporal context card. Reads `ProfileViewModel.defaultGeoprivacy`: `private` hides location/elevation/weather/map, `obscured` shows sanitized location plus rounded map region, and `open` may show exact owner-facing location context.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `GBIFHeatmapMapView`                                                     | SwiftUI `View` that composites two images to render a full-world GBIF occurrence heatmap natively. (1) A static `world-map-base` custom Mapbox topography background image, entirely eliminating MapKit CPU overhead. (2) The GBIF density zoom-0 tile (`/0/0/0@2x.png`) — a single 512 px PNG covering the entire world in Web Mercator — is fetched by `GBIFHeatmapTileService`, generation-fenced by `GBIFHeatmapViewModel`, and drawn on top. Both images perfectly align their projection/extent. A custom `UIViewRepresentable` bridge unlocks elastic 2-finger pinch and pan exploration, locks the encompassing parent `ScrollView`, and engages `.interactiveDismissDisabled` to prevent sheet conflicts. The same map primitive is also reused by Explore's public habitat/distribution card.                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `HabitatAndDistributionCard`                                             | Habitat and distribution card for encyclopedic habitat text. It keeps the map mounted in both visible states: (1) **Loaded** — habitat text; (2) **Hydrating** — a shimmer placeholder while habitat text is absent. The placeholder task polls active enrichment and, while enrichment is idle, performs up to five injected enrichment attempts with the existing exponential backoff. Reads `habitatDescription` and `scientificName` directly from `inferenceEngine.speciesData` (not passed as parameters) so the card directly tracks `@Observable` changes on `speciesData` and re-renders the moment enrichment writes to it, independent of any parent view re-render timing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `HabitatAndDistributionCard`                                             | Habitat and distribution card for encyclopedic habitat text. It keeps the map mounted while showing usable habitat text, a shimmer during bounded hydration, or an unavailable message with Retry for eligible scans after five attempts. Empty and whitespace-only habitat are missing content. Retry tasks are scoped to scan, species, and presentation generation and recheck state after every delay. Reads `habitatDescription` and `scientificName` directly from `inferenceEngine.speciesData` (not passed as parameters) so the card directly tracks `@Observable` changes on `speciesData` and re-renders the moment enrichment writes to it, independent of any parent view re-render timing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `SpeciesObservationChartsCard`                                           | Reusable Swift Charts card rendered after Habitat & Distribution for known biological species. The generation-fenced `SpeciesObservationStatsViewModel` coordinates injected local/public loading; the Services-owned `SpeciesObservationStatsDatabaseActor` fetches local SwiftData projections off the main actor; and the platform-neutral `SpeciesObservationStatsReducer` computes on-device aggregates before they are combined with cached global public iNaturalist stats from `/species-observation-stats`. Tabs are Seasonality, History, and Life Stage; per-scan sex is shown in `OverviewCard` instead.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `ToxicityBanner`                                                         | Core render-only hazard banner shown when the caller-provided hazard type is not `none`. It preserves the full-width liquid-glass treatment, severe-versus-irritant tint, and hazard-specific copy without reading `InferenceEngine` or resolving feature state.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `ConservationBanner`                                                     | IUCN Red List status banner                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -1304,31 +1325,39 @@ While this request is in flight:
 `fetchAndApplyEnrichment` completes, `InferenceEngine` asks
 `InferenceHydrationCoordinator` to record the scientific name in its
 `UserDefaults`-persisted timestamp dictionary. The coordinator owns its 24-hour
-TTL and pruning policy. This write is **conditional on
-`speciesData?.habitatDescription != nil`** — if enrichment fails transiently and
-`habitatDescription` is not populated, no timestamp is recorded, so the species
-remains retryable.
+TTL and pruning policy. This write requires a **non-empty habitat description
+after trimming whitespace**, plus usable taxonomy. If no usable habitat remains
+after enrichment, no timestamp is recorded, so the species remains retryable.
+Edge results, cached records, enrichment responses, and identification-override
+dictionary reads normalize blank habitat text to `nil`. A metadata response
+without usable habitat preserves any existing description for the same species.
 
 ### Loading Flow (historical scans)
 
 When `InferenceEngine.load(from:)` loads an eligible resolved non-Human
-`LocalScanRecord` that is missing `habitatDescription`, `gbifTaxonKey`, or
-`lookalikesData`, it automatically fires `fetchAndApplyEnrichment`. Human and
-unresolved records skip this path and load without stale candidates, lookalikes,
-GBIF keys, or external reference imagery. For eligible species, metadata remains
-species-cache-aware, but lookalikes are still fetched per scan whenever the
-record lacks rich local lookalike data. This gap-fills enrichment for older
-resolved scans (even those that already have flat `similarSpecies` string
-arrays) to retrieve rich image and common-name JSON payloads from the V27
-pipeline.
+`LocalScanRecord` that has missing or blank `habitatDescription`, or is missing
+`gbifTaxonKey` or `lookalikesData`, it automatically fires
+`fetchAndApplyEnrichment`. Human and unresolved records skip this path and load
+without stale candidates, lookalikes, GBIF keys, or external reference imagery.
+For eligible species, metadata remains species-cache-aware, but lookalikes are
+still fetched per scan whenever the record lacks rich local lookalike data. This
+gap-fills enrichment for older resolved scans (even those that already have flat
+`similarSpecies` string arrays) to retrieve rich image and common-name JSON
+payloads from the V27 pipeline.
 
 ### States
 
-| State       | Trigger                                       | Rendered                                                                                                                                                                                                                                                                                          |
-| ----------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Loaded**  | `habitatDescription != nil`                   | Habitat text                                                                                                                                                                                                                                                                                      |
-| **Loading** | `inferenceEngine.isEnrichmentLoading == true` | Shimmer skeleton (3 text lines)                                                                                                                                                                                                                                                                   |
-| **Retry**   | No data, not loading                          | "Retry" button → calls `inferenceEngine.fetchAndApplyEnrichment`. **Auto-retry**: when the card first enters this state, a `.task` fires `triggerEnrichment()` once after a 2-second delay (gated by `@State private var hasAutoRetried = false`). The manual Retry button remains as a fallback. |
+| State           | Trigger                                                      | Rendered                                                                                                                                              |
+| --------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Loaded**      | Habitat contains non-whitespace text                         | Trimmed habitat text                                                                                                                                  |
+| **Loading**     | Habitat is missing and automatic enrichment is eligible      | Shimmer skeleton while polling an active request or awaiting one of up to five attempts, delayed by 2, 4, 8, 16, and 32 seconds                       |
+| **Unavailable** | Automatic attempts are exhausted or enrichment is ineligible | **Habitat information is not available for this species yet.** Eligible resolved non-Human scans also offer **Retry**, which starts a new retry cycle |
+
+The GBIF map remains mounted in every state. The retry task and exhausted state
+are keyed to scan ID, scientific name, and presentation generation. After each
+delay, the card rechecks cancellation, identity, habitat content, and active
+enrichment before dispatching, so a completed hydration or changed species
+cannot trigger an obsolete retry.
 
 ### Observation Pattern Charts
 

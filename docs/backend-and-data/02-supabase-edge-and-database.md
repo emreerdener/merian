@@ -2234,7 +2234,7 @@ owners additionally manage memberships, sessions, and audit history. The private
 `internal` schema is not a Data API schema and remains inaccessible to browser
 roles.
 
-The one-time beta product survey uses a separate feedback path rather than the
+The current beta product survey uses a separate feedback path rather than the
 moderation queue:
 
 - **`submit-feedback-survey`**: Accepts authenticated survey responses for the
@@ -2243,6 +2243,15 @@ moderation queue:
 - **`feedback_survey_responses` table**: Stores private product feedback with
   app/build/device context, ratings, selected answers, free text, and
   `created_at`. RLS allows users to insert/read only their own rows.
+
+The iOS `Core/Network/Endpoints/MerianNetworkClient+ProductFeedback.swift`
+extension owns survey and Community feedback HTTP submission. Settings Feedback
+and Explore Identify retain their respective feature adapters and interaction
+state. Automatic survey prompts and the manual form's 24-hour submitted-state
+interval are
+[Settings-owned policy](../../apps/ios/Merian/Features/Profile/Settings/README.md#feedback-campaign-policy),
+not a server-wide one-submission limit. Endpoint coverage is listed in the
+[Core Network focused matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
 
 The admin feedback inbox unifies community feedback, surveys, Field
 message-level feedback, and Field feature feedback. Original submissions stay

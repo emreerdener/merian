@@ -105,6 +105,8 @@ Deno.test("safety classifier catches unsafe action intent", () => {
 Deno.test("safety classifier permits educational biology language", () => {
   for (
     const educational of [
+      "Do they smell good?",
+      "Are this species' flowers usually fragrant?",
       "What does this bird eat?",
       "How does this animal forage?",
       "What habitat does poison ivy prefer?",

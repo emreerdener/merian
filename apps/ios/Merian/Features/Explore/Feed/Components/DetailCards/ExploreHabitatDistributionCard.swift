@@ -6,9 +6,7 @@ struct ExploreHabitatDistributionCard: View {
     let gbifTaxonKey: Int?
 
     private var trimmedHabitatDescription: String? {
-        guard let habitatDescription else { return nil }
-        let trimmed = habitatDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        habitatDescription?.trimmedNonEmptyValue
     }
 
     var body: some View {
@@ -30,6 +28,11 @@ struct ExploreHabitatDistributionCard: View {
                         )
                             .font(.body)
                             .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text("Habitat information is not available for this species yet.")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }

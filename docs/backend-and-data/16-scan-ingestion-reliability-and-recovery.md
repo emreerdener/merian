@@ -384,7 +384,8 @@ hint is never fetched, ledgered, deleted, or finalized.
 not a body `user_id` and not the client's predicted device identity. Every
 current background task persists the exact server-issued object key.
 
-Before any PUT starts, iOS validates the complete signing response:
+Before any background PUT starts, the iOS durable queue validates the complete
+signing response:
 
 - one response for every requested file and no extras;
 - safe HTTPS signed URLs;
@@ -393,9 +394,16 @@ Before any PUT starts, iOS validates the complete signing response:
 - exact media kind, role, content type, and byte-budget compatibility; and
 - `mediaAssetId` / `mediaSessionId` for every structured scan file.
 
-A malformed or partial signing response starts no upload. Legacy OS-owned tasks
-recover the same key from the original signed URL path rather than rebuilding it
-from whichever Auth identity is hydrated later.
+A malformed or partial signing response starts no queue upload. Legacy OS-owned
+tasks recover the same key from the original signed URL path rather than
+rebuilding it from whichever Auth identity is hydrated later.
+
+The shared Network signer only serializes and decodes that exchange; this
+whole-response policy remains queue-owned. Foreground video retains its existing
+response-count check and sequential file PUTs, while raw PUT helpers enforce
+HTTPS, signed headers, current byte size, and HTTP 200. Endpoint, upload, DTO,
+and test owners are listed in the
+[Core Network media guide](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-ownership).
 
 ### Signing registration
 
@@ -633,6 +641,15 @@ Recovery must preserve richer work and deletion intent:
    the completed handoff and matching endpoint/quota operation.
 
 ### Missing owner scan
+
+iOS scan status request mapping lives in
+`Core/Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift`;
+`ScanLifecycleAPIModels.swift` and `ScanLifecycleResponseDecoder` own unchanged
+wire and strict response decoding. `MerianNetworkClient` still constructs
+`OwnedScanRecoveryPayload`, classifies missing-row recovery, and owns the
+private account-bound transport. Core Data retains queue authority. See the
+[endpoint ownership and verification guide](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-endpoints-and-decoding);
+the extraction does not alter the server eligibility rules below.
 
 A single `check-scan-status` request or `share-scan-to-explore` may include
 `recovery_scan`. It contains bounded non-media state only. The server:
@@ -1417,6 +1434,12 @@ The focused regression inventory includes:
   races;
 - `MerianNetworkClientTests`, including queue-backed no-inline-replay request
   count and bounded timing;
+- `ScanStatusEndpointTests`, `ScanDeletionEndpointTests`, and the five
+  `ScanLifecycle*Tests` suites in the
+  [scan lifecycle matrix](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-verification),
+  covering raw wire mapping, strict confirmation, bounded replay, cancellation,
+  and source ownership; scoped DEBUG transport does not exercise live Auth
+  leases;
 - `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, and
   `InsightQueuedRetryPresentationTests`, including exact-ID queued binding and
   **Analysis delayed** placeholder routing;

@@ -24,9 +24,18 @@ experience used by Insights, Explore posts, and Species Dictionary pages.
 
 The three host features remain responsible for their own eligibility,
 entitlement, navigation, and mutually exclusive presentation slots. Core Network
-retains the Codable wire DTOs, strict response validation, request construction,
-and transport. The Supabase functions remain the authorization, context, quota,
-persistence, and provider owners.
+retains the Codable wire DTOs in `InsightChatAPIModels.swift`, all 17 source
+methods in
+[`Endpoints/MerianNetworkClient+FieldChat.swift`](../../Core/Network/Endpoints/MerianNetworkClient+FieldChat.swift),
+and stateless candidate-success validation in
+[`Decoding/FieldChatResponseDecoder.swift`](../../Core/Network/Decoding/FieldChatResponseDecoder.swift).
+The main client keeps private authenticated transport, replay, and cloud/media
+readiness. Scan status preflight delegates to
+[`MerianNetworkClient+ScanLifecycle.swift`](../../Core/Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift);
+its strict decoder and account-bound raw-response bridge do not move recovery
+orchestration into Field Chat. These Core owners do not replace this feature's
+Services or task and generation state. The Supabase functions remain the
+authorization, context, quota, persistence, and provider owners.
 
 `InsightChatSheet`, `InsightChatViewModel`, `InsightChatReplyAction`, and
 `InsightChatFieldNotesAppendKind` keep their existing names and initializer
@@ -39,11 +48,16 @@ This area allows Pro users to ask contextual follow-up questions about a
 completed biological scan without needing to re-upload raw images. It also
 provides the shared presentation and floating control used by private per-viewer
 chats on every visible Explore post, including the viewer's own posts. Insight
-conversations use owner-only scan context; Explore conversations use only the
+conversations receive owner-only scan context; Explore conversations receive the
 privacy-filtered public post and Species Dictionary projection. Loaded in-app
-Species Dictionary pages use a third source grounded only in the latest bounded
-canonical dictionary text. All three use Gemini 2.5 Flash and smart prompt
-chips.
+Species Dictionary pages use a third source with the latest bounded canonical
+dictionary text. All three can answer general questions from well-established
+species knowledge even when a detail is absent from their reference text. The
+shared backend prompt rules distinguish typical species traits from evidence
+about an individual and preserve uncertainty and privacy. Insight field-note
+drafts remain limited to recorded evidence and explicit user observations. All
+three use Gemini 2.5 Flash and smart prompt chips, with no live search or source
+retrieval.
 
 Generated Insight prompt chips are merged with deterministic local fallbacks,
 deduplicated, and filtered against pending or previously sent questions. For an
@@ -308,6 +322,7 @@ punctuation, combining marks, non-BMP input, U+FEFF, and U+0085.
 See:
 
 - [`insight-chat` route contract](../../../../../services/supabase/functions/insight-chat/README.md)
+- [`explore-post-chat` route contract](../../../../../services/supabase/functions/explore-post-chat/README.md)
 - [`species-dictionary-chat` route contract](../../../../../services/supabase/functions/species-dictionary-chat/README.md)
 - [Scan ingestion reliability and recovery](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#field-chat-readiness)
 - [Insight sheet architecture](../../../../../docs/features-and-hardware/05-insight-sheet.md)
@@ -317,12 +332,33 @@ See:
 - Wire request/response decoding stays in
   `MerianTests/Core/Network/FieldChatAPIModelsTests.swift` beside the Codable
   contracts.
+- `MerianTests/Core/Network/Endpoints/` owns the 17-method request and transport
+  matrix in `FieldChatNetworkEndpointTests` and
+  `FieldChatNetworkTransportTests`. `FieldChatConversationEndpointTests`,
+  `FieldChatActionEndpointTests`, and `SpeciesDictionaryChatEndpointTests` own
+  the five rehomed strict-response regressions. Each case uses an isolated
+  client and scoped mock session.
+- `Core/Network/Endpoints/NetworkEndpointTestSupportTests.swift` protects the
+  shared single-read request snapshot used for exact body/key/timeout replay
+  comparisons. It covers both data- and stream-backed bodies without running the
+  authenticated client; the endpoint transport suites remain required.
+- `Core/Network/Decoding/FieldChatResponseDecoderTests.swift` owns pure
+  candidate-success boundaries: byte/character limits, subject/message binding,
+  send acknowledgement, confirmation, summary trimming, and safe suggestions.
+  `MerianNetworkClientTests` retains cloud preflight/recovery integration and
+  its existing protected selector.
 - Presentation, view-model state, preparation, dependency routing, stale-work
   fencing, and architecture coverage live under
   `MerianTests/Features/FieldChat/`.
 - `FieldChatArchitectureTests` enforces the cross-feature owner,
   platform-neutral Models, Services-only live resolution, and the 600-line
   production-file ceiling.
+
+Run the
+[Core Network Field Chat matrix](../../Core/Network/README.md#field-chat-verification)
+and the complete unit target on fresh candidate products. That matrix joins the
+new Core suites to these unchanged feature suites; native decoder/source checks
+do not replace iOS transport execution or manual three-source regression.
 
 The canonical endpoint and privacy contract remains
 [`05-api-contracts.md`](../../../../../docs/backend-and-data/05-api-contracts.md);

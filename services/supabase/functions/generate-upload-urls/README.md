@@ -36,6 +36,30 @@ receives durable lifecycle registration before any URL is returned.
   Exact rows reused after an ambiguous response retain their original committed
   session and order identity.
 
+## Native Client Ownership
+
+`Core/Network/Endpoints/MerianNetworkClient+MediaStorage.swift` owns
+`generateUploadURLs`, with unchanged wire DTOs in `MediaStorageAPIModels.swift`.
+Its narrow account-bound encoded bridge preserves the lowercase body owner and
+same expected Auth UUID through private transport; it does not bypass current
+session resolution or change the server's JWT-derived ownership. The endpoint
+keeps its 30-second deadline, required `urls` projection, optional lifecycle
+IDs, plain decoding errors, classified refresh, and ambiguous-replay refusal.
+
+`Core/Network/Media/` owns raw Data/file PUTs, exact signed-request validation,
+and immutable foreground video planning. File uploads remain file-backed and
+re-stat before request validation. The durable queue retains whole-response
+validation and background task/account binding; foreground video retains its
+existing count check, sequential uploads, and server-order keys. Profile,
+LocalImageLoader, inference, and scan publication retain their workflows. The
+shared signer does not substitute for caller-level manifest validation.
+
+See the
+[native ownership guide](../../../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-ownership),
+[focused test matrix](../../../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification),
+and
+[API contract](../../../../docs/backend-and-data/05-api-contracts.md#deno-generate-upload-urls-edge-node).
+
 ## Structured Scan Request
 
 ```json
@@ -146,20 +170,21 @@ Response:
 }
 ```
 
-iOS must validate the complete response before starting any PUT and persist the
-exact returned `objectKey` in the background task description. It must not
-reconstruct the owner segment from delayed in-memory Auth state. A partial,
-extra, malformed, cross-owner, or media-incompatible response starts no upload.
-Every PUT must apply the response-declared `Content-Type` and `Content-Length`.
-Both values are covered by the signature; the signed-header set is exactly
-`content-length;content-type;host` because signing uses `allHeaders: true`.
-Every iOS data, file, avatar, repair, restore, foreground, and background PUT
-applies the returned map rather than reconstructing headers. A file is
-re-statted immediately before task creation, and a changed size discards the URL
-so the next pass re-signs it. Legacy `{ "fileNames": [...] }` requests,
-structured entries without `sizeBytes`, top-level arrays, and other
-old/non-object request shapes all receive the stable `400 size_bytes_required`
-response.
+The iOS durable queue must validate the complete response before starting any
+background PUT and persist the exact returned `objectKey` in the background task
+description. It must not reconstruct the owner segment from delayed in-memory
+Auth state. A partial, extra, malformed, cross-owner, or media-incompatible
+response starts no queue upload. Every PUT must apply the response-declared
+`Content-Type` and `Content-Length`. Both values are covered by the signature;
+the signed-header set is exactly `content-length;content-type;host` because
+signing uses `allHeaders: true`. Every iOS data, file, avatar, repair, restore,
+foreground, and background PUT applies the returned map rather than
+reconstructing headers. A file is re-statted immediately before task creation,
+and a changed size rejects that PUT. The queue returns to fresh signing;
+foreground callers retain their own failure/retry policy. Legacy
+`{ "fileNames": [...] }` requests, structured entries without `sizeBytes`,
+top-level arrays, and other old/non-object request shapes all receive the stable
+`400 size_bytes_required` response.
 
 The declared size is not trusted as proof of storage. Integration verification
 must perform the exact signed PUT, reject wrong size and MIME, then HEAD the

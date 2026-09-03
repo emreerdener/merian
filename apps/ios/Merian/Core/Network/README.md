@@ -56,19 +56,58 @@ mount the Ready approval screen before refresh completes.
 ## `MerianNetworkClient`
 
 Field Trips, Community Identification browsing/contribution, Explore browsing,
-Explore interactions, notifications, public-profile operations, and Explore post
-management live below `Endpoints/`. Remaining endpoint groups stay in
-`MerianNetworkClient.swift`, which retains private session, endpoint
-construction, Auth lease, refresh, retry, and cancellation implementation.
-Endpoint extensions share only the internal `performAuthenticatedJSONPost`
-overloads: construct the endpoint, serialize the payload, and invoke the
+Explore interactions, notifications, public-profile operations, Explore post
+management, Field Chat, Species Dictionary, scan lifecycle, scan enrichment and
+deferred context, exports, product feedback, and media storage live below
+`Endpoints/`. Raw signed uploads and foreground video planning live in `Media/`.
+Remaining endpoint groups stay in `MerianNetworkClient.swift`, which retains
+private session, endpoint construction, Auth lease, refresh, retry, and
+cancellation implementation. Endpoint extensions use narrow internal JSON
+bridges to construct the endpoint, serialize the payload, and invoke the
 existing authenticated POST. Typed calls decode with the existing snake-case
 decoder; body-ignoring calls preserve HTTP-only success without decoding. The
 typed bridge can forward an existing idempotency key and replace decoding
 failures with a caller-specified `MerianError`; both options default to nil.
 Error replacement surrounds only decoding, never request construction,
-transport, auth, or cancellation. Neither overload adds a retry or task owner or
-exposes mutable transport state.
+transport, auth, or cancellation. `performAuthenticatedEncodedJSONPost` encodes
+an `Encodable` body with `JSONEncoder` and returns bytes for domain-specific
+validation. It forwards the timeout and optional idempotency key without
+catching encoding, transport, or cancellation errors. None of these bridges adds
+a retry or task owner or exposes mutable transport state.
+
+`performAuthenticatedJSONDataPost` serializes an untyped JSON body and returns
+bytes for scan lifecycle's explicit-key decoder. Its optional expected Auth user
+ID flows into the same private transport, keeping recovery account-bound without
+exposing Auth leases, constructing a second session, or catching errors.
+
+`performAuthenticatedPreparedJSONPost` forwards an already-serialized JSON body,
+timeout, and optional idempotency key without changing bytes or adding
+validation/replay. Enrichment checks configuration, serializes its payload, and
+validates the scan UUID before this bridge; that ordering preserves the existing
+configuration, serialization, and invalid-ID failure precedence. The endpoint
+owns plain response decoding, while the bridge keeps transport private.
+
+`performAccountBoundEncodedJSONPost` checks endpoint configuration, captures the
+explicit or privately resolved Auth UUID, and passes that UUID to a nonescaping
+body builder before encoding. It forwards the same UUID to private authenticated
+transport. This does not bypass current-session resolution or live Auth leases.
+The two `performPresignedUpload` overloads forward a prepared request through
+the same private session, using `data(for:)` or file-backed
+`upload(for:fromFile:)`. They add no Auth headers, refresh, retry, cancellation
+mapping, or task owner.
+
+The private `performAuthenticatedJSONGet` accepts ordered query items, uses the
+same authenticated transport, and decodes a typed response without mapping
+errors. Dictionary detail and stats use the fixed-result
+`performCachedSpeciesDictionaryRequest` and
+`performCachedSpeciesObservationStatsRequest` bridges. Only these bridges can
+read the client's private cache instance or insert a network response after the
+fixed schema/identity validator accepts it; they accept no cache object,
+response DTO, custom loader, or insertion callback. Dictionary implementations
+call the internal `Void` `validateEndpointConfiguration` guard before input
+validation or cache lookup to preserve missing-configuration error precedence.
+It exposes no URL or mutable state and adds no cancellation check; a cache miss
+then enters the existing authenticated transport through the appropriate bridge.
 
 `Endpoints/MerianNetworkClient+FieldTrips.swift` owns all Field Trips request
 actions and typed response projections, including cross-feature capture,
@@ -118,14 +157,13 @@ Distinct submit/withdraw/restore fixtures retain lifecycle timestamps. Repeated
 network/503 failures and failed post-refresh 401/503 responses guard the shared
 single-replay budget; handler denials explicitly forbid refresh. Nonzero,
 out-of-range coordinate sentinels verify forwarding without real location data.
-`NetworkEndpointTestSupport.swift` supplies the per-case client/transport,
-type-preserving JSON comparison, and fixed handler-marked response helpers for
-all extracted endpoint suites. The architecture suite protects their source
-owners and keeps scan publication separate. Run the
+The suite uses the shared endpoint fixtures and assertions described under
+[Endpoint verification](#endpoint-verification). The architecture suite protects
+source owners and keeps scan publication separate. Run the
 [Identify focused matrix](../../Features/Explore/Identify/README.md#verification)
 and the complete unit target. For shared bridge or test-support changes, follow
-[Endpoint verification](#endpoint-verification) to cover all seven extracted
-groups. These tests do not replace backend authorization or Activity projection
+[Endpoint verification](#endpoint-verification) to cover all extracted groups.
+These tests do not replace backend authorization or Activity projection
 verification.
 
 ### Explore browsing endpoints
@@ -308,15 +346,266 @@ in the critical-result validator and its adversarial fixtures. The mixed
 incident/notification DTO test and Insight cache-clearing integration test stay
 in `MerianNetworkClientTests`; the protected-case count is unchanged.
 
+### Field Chat endpoints and validation
+
+[`Endpoints/MerianNetworkClient+FieldChat.swift`](Endpoints/MerianNetworkClient+FieldChat.swift)
+owns 17 public methods across three action-based routes: seven Insight methods,
+five Explore-post methods, and five Species Dictionary methods. Its private
+family helpers share the encoded-body POST bridge without acquiring session,
+retry, task, or presentation state. Raw subject/message IDs, text, and notes
+retain their existing encoding; nil optional request fields remain omitted.
+`InsightChatAPIModels.swift` remains the Codable wire owner for all three
+sources. The compatibility `InsightChat...` names and public signatures are
+unchanged.
+
+| Source             | Actions                           | Timeout    | Idempotency key                       |
+| ------------------ | --------------------------------- | ---------- | ------------------------------------- |
+| Insight            | load, delete                      | 45 seconds | None                                  |
+| Insight            | send                              | 45 seconds | Caller-supplied `client_message_id`   |
+| Insight            | answer feedback, feature feedback | 20 seconds | None                                  |
+| Insight            | summarize notes                   | 45 seconds | One new lowercase UUID per invocation |
+| Insight            | suggest prompts                   | 30 seconds | One new lowercase UUID per invocation |
+| Explore post       | load, delete, answer feedback     | 20 seconds | None                                  |
+| Explore post       | send                              | 20 seconds | Caller-supplied `client_message_id`   |
+| Explore post       | suggest prompts                   | 30 seconds | None                                  |
+| Species Dictionary | load, delete, answer feedback     | 20 seconds | None                                  |
+| Species Dictionary | send                              | 45 seconds | Caller-supplied `client_message_id`   |
+| Species Dictionary | suggest prompts                   | 30 seconds | None                                  |
+
+The five keyed operations retain the existing single ambiguous-failure replay;
+the twelve unkeyed operations do not gain one, including load and deterministic
+prompt requests. Classified-401 refresh still uses the shared single-replay
+budget. Replays retain the exact encoded body, timeout, and key. The client does
+not regenerate a caller's send UUID or trim the outbound text.
+
+[`Decoding/FieldChatResponseDecoder.swift`](Decoding/FieldChatResponseDecoder.swift)
+is the one stateless candidate-success validator. It preserves the 1 MiB byte
+ceiling, fixed limits, subject/conversation/message binding, exactly
+acknowledged send pair, strict action confirmations, trimmed bounded summaries,
+safe prompt allowlist, and `MerianError.invalidResponse` mapping. Date decoding
+reuses `DateUtilities`' existing fractional and whole-second ISO formatters.
+Validation does not select a route or own feature state.
+
+`FieldChatNetworkEndpointTests` owns 60 request variants for all 17 operations;
+`FieldChatNetworkTransportTests` covers malformed/oversized success, denials,
+refresh, bounded keyed replay, unkeyed replay refusal, cancellation, generated
+key lifetime, and encoding-error propagation.
+`FieldChatConversationEndpointTests`, `FieldChatActionEndpointTests`, and
+`SpeciesDictionaryChatEndpointTests` rehome five existing strict-response
+regressions with per-test clients and unchanged test names.
+`Core/Network/Decoding/FieldChatResponseDecoderTests.swift` directly tests all
+five validators and their boundary values.
+
+`MerianNetworkClientTests` retains cloud preflight and recovery integration;
+`FieldChatAPIModelsTests` retains standalone wire decoding. Existing protected
+CI selectors remain with those owners. Presentation/effect adapters and
+generation-fenced state remain in
+[`Features/FieldChat`](../../Features/FieldChat/README.md). Run the
+[Field Chat matrix](#field-chat-verification) and the complete unit target.
+
+### Species Dictionary endpoints, validation, and caches
+
+[`Endpoints/MerianNetworkClient+SpeciesDictionary.swift`](Endpoints/MerianNetworkClient+SpeciesDictionary.swift)
+owns six public method variants: two detail lookups, two catalog overloads,
+overview, and public observation stats. Detail, catalog, and overview retain
+authenticated JSON POSTs at 30 seconds; stats retains an authenticated GET with
+ordered `species_id` and `scientific_name` query items at 20 seconds. Both
+routes keep their existing safe-read replay allowance and add no idempotency
+key. Catalog filters trim only their edges and omit blanks; category `all` is
+omitted, limits remain raw, and cursor fields remain raw with only nil
+`created_at` omitted. Overview generates one uppercase UUID `cache_buster` per
+call, reused across transport retries.
+
+[`Decoding/SpeciesDictionaryResponseValidator.swift`](Decoding/SpeciesDictionaryResponseValidator.swift)
+owns typed schema/identity validation after wire decoding. Dictionary schemas
+must be exactly 1; stats accepts schema 2 or newer and requires both the
+canonical ID and normalized name to match. Wire decoding failures remain raw
+`DecodingError`s; schema/identity failures remain `MerianError.invalidResponse`.
+Neither failure enters the response cache. Codable contracts remain unchanged in
+`SpeciesDictionaryAPIModels.swift` and `SpeciesObservationStatsAPIModels.swift`.
+
+[`Caching/SpeciesDictionaryResponseCache.swift`](Caching/SpeciesDictionaryResponseCache.swift)
+contains both per-client locked memos behind a private immutable client
+reference. Endpoint extensions cannot read or mutate that instance directly; the
+two fixed-result client bridges own lookup, authenticated load, validation, and
+insertion. Storage, locks, and the shared memo implementation are private; the
+injected clock supports deterministic expiry tests. See the
+[identity/cache boundary](#species-dictionary-identity-and-cache-boundary) for
+the preserved TTL, capacity, alias, reset, and cancellation rules. Catalog and
+Detail Services and `Features/SpeciesReference/Services` retain their live
+adapters; Views, ViewModels, navigation, chart aggregation, and Field Chat do
+not move into Core Network. Run the
+[Dictionary verification matrix](#species-dictionary-verification).
+
+### Scan lifecycle endpoints and decoding
+
+[`Endpoints/MerianNetworkClient+ScanLifecycle.swift`](Endpoints/MerianNetworkClient+ScanLifecycle.swift)
+owns `checkScanStatusDetails`, `checkScanStatuses`, the `checkScanStatus`
+compatibility wrapper, and `deleteScan`. The four unchanged status DTOs live in
+[`ScanLifecycleAPIModels.swift`](ScanLifecycleAPIModels.swift);
+[`Decoding/ScanLifecycleResponseDecoder.swift`](Decoding/ScanLifecycleResponseDecoder.swift)
+owns plain `JSONDecoder` decoding, scan matching, nonnegative attempt
+validation, and explicit deletion confirmation. Bulk/deletion envelope types
+remain private to the decoder. Wire keys, optionality, legacy `failed_terminal`
+mapping, public signatures, raw inputs, and the 30-second deadline are
+unchanged.
+
+Single status checks validate configuration before encoding an optional
+`OwnedScanRecoveryPayload`. They pass its parsed owner UUID to the private
+authenticated transport. Positive required-video counts are included; zero and
+negative counts are omitted. A returned single `scan_id` may be absent, but a
+present ID must match case-insensitively without trimming. Bulk checks return an
+empty dictionary immediately for empty input, reject blank/duplicate normalized
+IDs before configuration or Auth, and forward the original IDs. Responses must
+contain exactly one row per requested ID; trimmed/lowercased response identities
+map back to the original caller keys, independent of response order. These
+compatibility rules add no client-side UUID or batch-size restriction.
+
+`deleteScan` keeps its raw camel-case `scanId` body and requires a decodable
+Boolean `success: true`. Malformed or unconfirmed success remains
+`MerianError.invalidResponse`, not proof of remote erasure. Status requests
+retain the existing single ambiguous-failure replay allowance even though
+server-side reconciliation can mutate job/quota/staging state. Deletion retains
+ambiguous-replay refusal and adds no idempotency key. Both keep the shared
+classified-401 refresh, Auth lease, and cancellation behavior.
+
+`OwnedScanRecoveryPayload`, missing-row classification, scan publication, and
+media restoration stay in the main client. Durable queue scheduling, deletion
+outbox persistence, and retry authority remain in Core Data. This is endpoint
+organization, not a new recovery policy. See the canonical
+[status contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-check-scan-status-edge-node),
+[deletion contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-delete-scan-edge-node),
+and [focused matrix](#scan-lifecycle-verification).
+
+### Enrichment, export, and product feedback endpoints
+
+These small operations have separate domain owners rather than a miscellaneous
+endpoint file:
+
+- [`MerianNetworkClient+ScanEnrichment.swift`](Endpoints/MerianNetworkClient+ScanEnrichment.swift)
+  owns `updateDeferredScanContext` and `fetchEnrichment`. Capture Submission
+  retains local persistence and its single delayed context retry;
+  InferenceEngine retains enrichment scheduling, result application, and
+  stale-result checks. `EnrichScanResponse` remains hand-written below the
+  generated Identify block in
+  [`Core/AI/InferenceEdgeDTOs.swift`](../AI/InferenceEdgeDTOs.swift).
+- [`MerianNetworkClient+Exports.swift`](Endpoints/MerianNetworkClient+Exports.swift)
+  owns `requestDwcAExport`. Settings retains presentation and the launch-gated
+  control. The request still defaults to `personal`, forwards caller scope
+  unchanged, and sends the Boolean `includePreciseCoordinates: true`. Server
+  release/scope authorization remains authoritative; this extraction does not
+  enable exports.
+- [`MerianNetworkClient+ProductFeedback.swift`](Endpoints/MerianNetworkClient+ProductFeedback.swift)
+  owns survey and Community feedback submission. `FeedbackSurveySubmission`
+  remains in Settings Feedback Models; `CommunityFeedbackSubmission` remains in
+  `ExploreAPIModels.swift`. Their existing constructors retain trimming and
+  metadata construction, and JSONEncoder retains wire keys, enum values, array
+  order, and empty fields. Community's model is still constructed before
+  endpoint configuration is checked. Feature Services/ViewModels retain
+  validation, drafts, single-flight submission, error feedback, and
+  prompt/cooldown policy.
+
+Deferred context checks configuration before its no-context return. Only nonnil
+elevation, weather condition, temperature, and semantic location are forwarded,
+without new client trimming or range checks; it sends no raw coordinates.
+Context and export retain 15-second deadlines and ignore every successful HTTP
+body. Enrichment and both feedback routes retain 30-second deadlines. Enrichment
+serializes before validating the UUID, uses its canonical lowercase value as the
+stable idempotency key, and preserves plain JSONDecoder errors and the
+enrichment DTO's optional success/data fields. Feedback also ignores successful
+bodies. Only keyed enrichment retains ambiguous-failure replay; the other four
+mutations do not add a replay or key. All five retain the existing
+classified-401 refresh and cancellation rules.
+
+See the canonical
+[deferred-context contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-update-scan-context-edge-node),
+[enrichment contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-enrich-scan-edge-node),
+[export contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-request-export-dwca-edge-node),
+[survey contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-submit-feedback-survey-edge-node),
+[Community feedback contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-submit-community-feedback-edge-node),
+and [focused matrix](#enrichment-export-and-feedback-verification).
+
+### Media storage and upload ownership
+
+- [`Endpoints/MerianNetworkClient+MediaStorage.swift`](Endpoints/MerianNetworkClient+MediaStorage.swift)
+  owns `generateUploadURLs`, `inspectScanImageCloudStatus`, and
+  `repairScanImageCloudReference`. Signing uses the account-bound body bridge,
+  lowercase `user_id`, and the unchanged structured manifest. Inspection and
+  repair preserve raw `source_url` and optional `restored_object_key` values.
+  All three retain 30-second deadlines, plain JSONDecoder failures, classified
+  401 refresh, and no ambiguous-failure replay or new idempotency key.
+- [`MediaStorageAPIModels.swift`](MediaStorageAPIModels.swift) owns the
+  unchanged hand-written signing and scan-image inspection DTOs. Signing
+  requires `urls` and every URL's filename, signed URL, object key, and headers;
+  lifecycle IDs remain optional. Inspection requires the private `data` envelope
+  and known status, preserves explicit snake-case keys, and defaults absent/null
+  counts to zero. Private request/envelope types stay with the endpoint.
+- [`Media/MerianNetworkClient+MediaUploads.swift`](Media/MerianNetworkClient+MediaUploads.swift)
+  owns both `uploadToR2` overloads and `uploadStagedVideoFiles`.
+  [`PresignedMediaUpload.swift`](Media/PresignedMediaUpload.swift) owns HTTPS
+  admission, the exact two-header map, the signed
+  `content-length;content-type;host` set, and HTTP-200-only success. File
+  uploads re-stat before URL/header validation and remain file-backed. A size
+  mismatch rejects that PUT; retry/re-signing belongs to the caller. Transport
+  errors, including independent and task-owned URL cancellation, propagate
+  unchanged; raw PUTs do not apply the authenticated POST's cancellation
+  translation.
+- [`Media/StagedVideoUploadPlan.swift`](Media/StagedVideoUploadPlan.swift) owns
+  immutable local-file resolution, Documents/temporary basename fallback,
+  sanitized playback manifests, and existing count/byte limits. Missing or
+  partially missing inputs fail before size planning; invalid counts or sizes
+  fail before signing. Foreground video checks response count, uploads
+  sequentially, and returns the server's keys in order without adding response
+  correspondence or lifecycle validation.
+
+These primitives do not own durable jobs or feature workflows.
+OfflineQueueManager retains complete signing-response validation, background
+task/account binding, and durable retry authority. Inference's live request
+service retains attempt fencing; LocalImageLoader retains inspect → validate
+local image → sign → upload → repair and cache/event handling; shared Profile
+state retains avatar preparation and promotion. Scan publication and restore
+orchestration stay in the main client. The signing primitive decodes the
+response; it does not replace the queue's stronger whole-manifest checks or add
+server-side input policy.
+
+See the canonical
+[signing contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-generate-upload-urls-edge-node),
+[image repair contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-repair-scan-image-edge-node),
+and [focused matrix](#media-storage-and-upload-verification).
+
 ### Endpoint verification
 
-Changes to either shared JSON POST overload or
-`NetworkEndpointTestSupport.swift` require the Field Trips and Identify matrices
-linked above, the Explore browsing matrix below, the
-[interaction matrix](#explore-interaction-verification), the
+This section owns the shared endpoint-test requirements. Feature guides link
+here rather than maintain separate lists of the endpoint groups that must run
+after a shared bridge or fixture change.
+
+`MerianTests/Core/Network/Endpoints/NetworkEndpointTestSupport.swift` supplies
+the per-case client/transport, type-preserving JSON comparison, and fixed
+handler-marked response helpers for all extracted endpoint suites. Its POST
+assertion reads a potentially one-shot body stream once and returns a
+`NetworkEndpointRequestSnapshot` containing those same bytes, the idempotency
+key, and the timeout. Field Chat, post-management, Dictionary, scan lifecycle,
+enrichment/export/feedback, and media storage retry tests compare the snapshot
+directly; Dictionary also retains the GET URL and the overview's single-read
+body with its generated cache-buster. Rereading a request can compare drained
+streams instead of the transmitted bodies. `NetworkEndpointTestSupportTests`
+covers data- and stream-backed bodies, byte-distinct but semantically equal
+JSON, key/timeout identity, and scalar/null/omission distinctions. It tests the
+assertion helper with synthetic requests; it does not execute the authenticated
+client or replace endpoint transport tests.
+
+Changes to any shared JSON bridge, the configuration guard, or
+`NetworkEndpointTestSupport.swift` require `NetworkEndpointTestSupportTests`,
+the Field Trips and Identify matrices linked above, the Explore browsing matrix
+below, the [interaction matrix](#explore-interaction-verification), the
 [notification/public-profile matrix](#notification-and-public-profile-verification),
-and the [post-management matrix](#explore-post-management-verification). Every
-endpoint slice also requires the complete `merianTests` target, generic
+the [post-management matrix](#explore-post-management-verification), the
+[Field Chat matrix](#field-chat-verification), the
+[Dictionary matrix](#species-dictionary-verification), the
+[scan lifecycle matrix](#scan-lifecycle-verification), the
+[enrichment/export/feedback matrix](#enrichment-export-and-feedback-verification),
+and the [media storage/upload matrix](#media-storage-and-upload-verification).
+Every endpoint slice also requires the complete `merianTests` target, generic
 Simulator build, generated-project/source membership checks, strict
 affected-source lint, Markdown formatting, and diff checks. The focused browsing
 command builds its own candidate test products:
@@ -330,6 +619,28 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=NO \
   -only-testing:merianTests/ExploreBrowsingEndpointTests \
   -only-testing:merianTests/ExploreBrowsingEndpointTransportTests \
+  -only-testing:merianTests/NetworkEndpointTestSupportTests \
+  -only-testing:merianTests/ScanStatusEndpointTests \
+  -only-testing:merianTests/ScanDeletionEndpointTests \
+  -only-testing:merianTests/ScanLifecycleNetworkEndpointTests \
+  -only-testing:merianTests/ScanLifecycleNetworkTransportTests \
+  -only-testing:merianTests/ScanLifecycleAPIModelsTests \
+  -only-testing:merianTests/ScanLifecycleResponseDecoderTests \
+  -only-testing:merianTests/ScanLifecycleNetworkArchitectureTests \
+  -only-testing:merianTests/ScanEnrichmentEndpointTests \
+  -only-testing:merianTests/ExportEndpointTests \
+  -only-testing:merianTests/ProductFeedbackEndpointTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackTransportTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackBoundaryTests \
+  -only-testing:merianTests/MediaStorageEndpointTests \
+  -only-testing:merianTests/ScanImageCloudEndpointTests \
+  -only-testing:merianTests/MediaStorageTransportTests \
+  -only-testing:merianTests/MediaStorageBoundaryTests \
+  -only-testing:merianTests/MediaStorageAPIModelsTests \
+  -only-testing:merianTests/PresignedMediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadPlanTests \
+  -only-testing:merianTests/MediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadTests \
   -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/ExploreFeedViewModelTests \
@@ -357,7 +668,7 @@ acceptance.
 
 ### Explore interaction verification
 
-The interaction matrix includes all seven endpoint groups because the
+The interaction matrix includes all extracted endpoint groups because the
 body-ignoring overload shares the private authenticated transport. Build fresh
 candidate products and run the affected feature state and social-guard suites:
 
@@ -370,6 +681,28 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=NO \
   -only-testing:merianTests/ExploreInteractionEndpointTests \
   -only-testing:merianTests/ExploreInteractionEndpointTransportTests \
+  -only-testing:merianTests/NetworkEndpointTestSupportTests \
+  -only-testing:merianTests/ScanStatusEndpointTests \
+  -only-testing:merianTests/ScanDeletionEndpointTests \
+  -only-testing:merianTests/ScanLifecycleNetworkEndpointTests \
+  -only-testing:merianTests/ScanLifecycleNetworkTransportTests \
+  -only-testing:merianTests/ScanLifecycleAPIModelsTests \
+  -only-testing:merianTests/ScanLifecycleResponseDecoderTests \
+  -only-testing:merianTests/ScanLifecycleNetworkArchitectureTests \
+  -only-testing:merianTests/ScanEnrichmentEndpointTests \
+  -only-testing:merianTests/ExportEndpointTests \
+  -only-testing:merianTests/ProductFeedbackEndpointTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackTransportTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackBoundaryTests \
+  -only-testing:merianTests/MediaStorageEndpointTests \
+  -only-testing:merianTests/ScanImageCloudEndpointTests \
+  -only-testing:merianTests/MediaStorageTransportTests \
+  -only-testing:merianTests/MediaStorageBoundaryTests \
+  -only-testing:merianTests/MediaStorageAPIModelsTests \
+  -only-testing:merianTests/PresignedMediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadPlanTests \
+  -only-testing:merianTests/MediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadTests \
   -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/FieldTripEndpointTests \
@@ -383,6 +716,22 @@ xcodebuild test \
   -only-testing:merianTests/ExploreShareStateEndpointTests \
   -only-testing:merianTests/ExploreMediaIncidentEndpointTests \
   -only-testing:merianTests/ExplorePostManagementEndpointTransportTests \
+  -only-testing:merianTests/FieldChatNetworkEndpointTests \
+  -only-testing:merianTests/FieldChatNetworkTransportTests \
+  -only-testing:merianTests/FieldChatConversationEndpointTests \
+  -only-testing:merianTests/FieldChatActionEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryChatEndpointTests \
+  -only-testing:merianTests/FieldChatResponseDecoderTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkTransportTests \
+  -only-testing:merianTests/SpeciesDictionaryDetailEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogEndpointTests \
+  -only-testing:merianTests/SpeciesObservationStatsEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseValidatorTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseCacheTests \
+  -only-testing:merianTests/SpeciesDictionaryAPIModelsTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogAPIModelsTests \
+  -only-testing:merianTests/SpeciesObservationStatsAPIModelsTests \
   -only-testing:merianTests/ExploreFeedViewModelTests \
   -only-testing:merianTests/ExplorePostDetailViewModelTests \
   -only-testing:merianTests/ExploreCommentMentionTextTests \
@@ -425,6 +774,44 @@ xcodebuild test \
   -only-testing:merianTests/ExploreShareStateEndpointTests \
   -only-testing:merianTests/ExploreMediaIncidentEndpointTests \
   -only-testing:merianTests/ExplorePostManagementEndpointTransportTests \
+  -only-testing:merianTests/FieldChatNetworkEndpointTests \
+  -only-testing:merianTests/FieldChatNetworkTransportTests \
+  -only-testing:merianTests/FieldChatConversationEndpointTests \
+  -only-testing:merianTests/FieldChatActionEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryChatEndpointTests \
+  -only-testing:merianTests/FieldChatResponseDecoderTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkTransportTests \
+  -only-testing:merianTests/SpeciesDictionaryDetailEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogEndpointTests \
+  -only-testing:merianTests/SpeciesObservationStatsEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseValidatorTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseCacheTests \
+  -only-testing:merianTests/SpeciesDictionaryAPIModelsTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogAPIModelsTests \
+  -only-testing:merianTests/SpeciesObservationStatsAPIModelsTests \
+  -only-testing:merianTests/NetworkEndpointTestSupportTests \
+  -only-testing:merianTests/ScanStatusEndpointTests \
+  -only-testing:merianTests/ScanDeletionEndpointTests \
+  -only-testing:merianTests/ScanLifecycleNetworkEndpointTests \
+  -only-testing:merianTests/ScanLifecycleNetworkTransportTests \
+  -only-testing:merianTests/ScanLifecycleAPIModelsTests \
+  -only-testing:merianTests/ScanLifecycleResponseDecoderTests \
+  -only-testing:merianTests/ScanLifecycleNetworkArchitectureTests \
+  -only-testing:merianTests/ScanEnrichmentEndpointTests \
+  -only-testing:merianTests/ExportEndpointTests \
+  -only-testing:merianTests/ProductFeedbackEndpointTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackTransportTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackBoundaryTests \
+  -only-testing:merianTests/MediaStorageEndpointTests \
+  -only-testing:merianTests/ScanImageCloudEndpointTests \
+  -only-testing:merianTests/MediaStorageTransportTests \
+  -only-testing:merianTests/MediaStorageBoundaryTests \
+  -only-testing:merianTests/MediaStorageAPIModelsTests \
+  -only-testing:merianTests/PresignedMediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadPlanTests \
+  -only-testing:merianTests/MediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadTests \
   -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/FieldTripEndpointTests \
@@ -458,8 +845,8 @@ current-candidate results and unrun checks in the
 
 ### Explore post-management verification
 
-Build fresh candidate products for all seven endpoint owners and the affected
-Feed, Insight Sharing, and Scans incident state:
+Build fresh candidate products for all extracted endpoint owners and the
+affected Feed, Insight Sharing, and Scans incident state:
 
 ```sh
 xcodebuild test \
@@ -472,6 +859,44 @@ xcodebuild test \
   -only-testing:merianTests/ExploreShareStateEndpointTests \
   -only-testing:merianTests/ExploreMediaIncidentEndpointTests \
   -only-testing:merianTests/ExplorePostManagementEndpointTransportTests \
+  -only-testing:merianTests/FieldChatNetworkEndpointTests \
+  -only-testing:merianTests/FieldChatNetworkTransportTests \
+  -only-testing:merianTests/FieldChatConversationEndpointTests \
+  -only-testing:merianTests/FieldChatActionEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryChatEndpointTests \
+  -only-testing:merianTests/FieldChatResponseDecoderTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkTransportTests \
+  -only-testing:merianTests/SpeciesDictionaryDetailEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogEndpointTests \
+  -only-testing:merianTests/SpeciesObservationStatsEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseValidatorTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseCacheTests \
+  -only-testing:merianTests/SpeciesDictionaryAPIModelsTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogAPIModelsTests \
+  -only-testing:merianTests/SpeciesObservationStatsAPIModelsTests \
+  -only-testing:merianTests/NetworkEndpointTestSupportTests \
+  -only-testing:merianTests/ScanStatusEndpointTests \
+  -only-testing:merianTests/ScanDeletionEndpointTests \
+  -only-testing:merianTests/ScanLifecycleNetworkEndpointTests \
+  -only-testing:merianTests/ScanLifecycleNetworkTransportTests \
+  -only-testing:merianTests/ScanLifecycleAPIModelsTests \
+  -only-testing:merianTests/ScanLifecycleResponseDecoderTests \
+  -only-testing:merianTests/ScanLifecycleNetworkArchitectureTests \
+  -only-testing:merianTests/ScanEnrichmentEndpointTests \
+  -only-testing:merianTests/ExportEndpointTests \
+  -only-testing:merianTests/ProductFeedbackEndpointTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackTransportTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackBoundaryTests \
+  -only-testing:merianTests/MediaStorageEndpointTests \
+  -only-testing:merianTests/ScanImageCloudEndpointTests \
+  -only-testing:merianTests/MediaStorageTransportTests \
+  -only-testing:merianTests/MediaStorageBoundaryTests \
+  -only-testing:merianTests/MediaStorageAPIModelsTests \
+  -only-testing:merianTests/PresignedMediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadPlanTests \
+  -only-testing:merianTests/MediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadTests \
   -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/FieldTripEndpointTests \
@@ -506,6 +931,381 @@ runtime and manual results separately from parsing, cached-dependency
 typechecking, and native source/JSON checks; a clean source review does not
 complete the runtime or manual requirements above.
 
+### Field Chat verification
+
+Build fresh candidate products for all extracted endpoint owners plus the
+unchanged Field Chat DTO, source-adapter, presentation, and state owners:
+
+```sh
+xcodebuild test \
+  -scheme Merian \
+  -project merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -derivedDataPath .build/ios-field-chat-network-tests \
+  CODE_SIGNING_ALLOWED=NO \
+  -only-testing:merianTests/FieldChatNetworkEndpointTests \
+  -only-testing:merianTests/FieldChatNetworkTransportTests \
+  -only-testing:merianTests/FieldChatConversationEndpointTests \
+  -only-testing:merianTests/FieldChatActionEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryChatEndpointTests \
+  -only-testing:merianTests/FieldChatResponseDecoderTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkTransportTests \
+  -only-testing:merianTests/SpeciesDictionaryDetailEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogEndpointTests \
+  -only-testing:merianTests/SpeciesObservationStatsEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseValidatorTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseCacheTests \
+  -only-testing:merianTests/SpeciesDictionaryAPIModelsTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogAPIModelsTests \
+  -only-testing:merianTests/SpeciesObservationStatsAPIModelsTests \
+  -only-testing:merianTests/FieldChatAPIModelsTests \
+  -only-testing:merianTests/NetworkEndpointTestSupportTests \
+  -only-testing:merianTests/ScanStatusEndpointTests \
+  -only-testing:merianTests/ScanDeletionEndpointTests \
+  -only-testing:merianTests/ScanLifecycleNetworkEndpointTests \
+  -only-testing:merianTests/ScanLifecycleNetworkTransportTests \
+  -only-testing:merianTests/ScanLifecycleAPIModelsTests \
+  -only-testing:merianTests/ScanLifecycleResponseDecoderTests \
+  -only-testing:merianTests/ScanLifecycleNetworkArchitectureTests \
+  -only-testing:merianTests/ScanEnrichmentEndpointTests \
+  -only-testing:merianTests/ExportEndpointTests \
+  -only-testing:merianTests/ProductFeedbackEndpointTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackTransportTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackBoundaryTests \
+  -only-testing:merianTests/MediaStorageEndpointTests \
+  -only-testing:merianTests/ScanImageCloudEndpointTests \
+  -only-testing:merianTests/MediaStorageTransportTests \
+  -only-testing:merianTests/MediaStorageBoundaryTests \
+  -only-testing:merianTests/MediaStorageAPIModelsTests \
+  -only-testing:merianTests/PresignedMediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadPlanTests \
+  -only-testing:merianTests/MediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadTests \
+  -only-testing:merianTests/MerianNetworkArchitectureTests \
+  -only-testing:merianTests/MerianNetworkClientTests \
+  -only-testing:merianTests/FieldTripEndpointTests \
+  -only-testing:merianTests/CommunityIdentificationEndpointTests \
+  -only-testing:merianTests/ExploreBrowsingEndpointTests \
+  -only-testing:merianTests/ExploreBrowsingEndpointTransportTests \
+  -only-testing:merianTests/ExploreInteractionEndpointTests \
+  -only-testing:merianTests/ExploreInteractionEndpointTransportTests \
+  -only-testing:merianTests/NotificationEndpointTests \
+  -only-testing:merianTests/PublicProfileEndpointTests \
+  -only-testing:merianTests/NotificationAndPublicProfileEndpointTransportTests \
+  -only-testing:merianTests/ExplorePostManagementEndpointTests \
+  -only-testing:merianTests/ExploreShareStateEndpointTests \
+  -only-testing:merianTests/ExploreMediaIncidentEndpointTests \
+  -only-testing:merianTests/ExplorePostManagementEndpointTransportTests \
+  -only-testing:merianTests/FieldChatEndpointTests \
+  -only-testing:merianTests/FieldChatViewModelStateTests \
+  -only-testing:merianTests/FieldChatPresentationPreparationTests \
+  -only-testing:merianTests/FieldChatPresentationTests \
+  -only-testing:merianTests/FieldChatArchitectureTests
+```
+
+Also run the complete `merianTests` target and the shared-bridge project/build,
+source, lint, documentation, and other focused matrices above. On a candidate
+device/simulator, cover load/send/retry/edit/delete on all three subjects,
+cancel/dismiss/subject replacement, quota and unavailable feedback, prompt
+fallbacks, answer feedback, Insight feature feedback and note summaries, offline
+state, VoiceOver, and large Dynamic Type. Source/architecture checks and native
+decoder execution do not exercise URLSession, the iOS host, or live backend
+admission. Record candidate runtime and manual results separately in the
+[cleanup record](../../../../../docs/rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits).
+This refactor does not clear existing backend release holds or authorize live
+service calls or deployment.
+
+### Species Dictionary verification
+
+The canonical
+[Species Dictionary iOS matrix](../../../../../docs/features-and-hardware/16-species-dictionary.md#testing)
+joins the ten Core Network Dictionary suites with the unchanged Catalog, Detail,
+Shared, Species Reference, and Explore routing suites. It includes the rehome of
+18 prior wire/endpoint tests; Catalog's three route assertions now live in
+`SpeciesDictionaryCatalogRouteTests`, alongside explicit identity/name
+propagation checks. `SpeciesDictionaryNetworkEndpointTests` adds 17 request
+variants and cache/reset/cancellation integration coverage;
+`SpeciesDictionaryNetworkTransportTests` covers raw decoding errors, handler
+denials, auth refresh, bounded ambiguous replay, and independent cancellation.
+`SpeciesDictionaryResponseValidatorTests` and
+`SpeciesDictionaryResponseCacheTests` run deterministic schema, identity, TTL,
+alias-capacity, replacement, and reset checks without transport or wall-clock
+sleep. `MerianNetworkArchitectureTests`,
+`ScanLifecycleNetworkArchitectureTests`,
+`EnrichmentExportFeedbackBoundaryTests`, and `MediaStorageBoundaryTests` lock
+all extracted endpoint owners, the private GET/cache boundary,
+configuration-before-input ordering, and fixed-result cache bridges.
+Rejected-schema and returned-identity regression tests require a fresh dispatch
+after rejection, catching premature cache insertion rather than only asserting
+that the first call throws.
+
+Run the complete `merianTests` target and the project, source, lint, and
+documentation gates above. A shared bridge/guard change also requires all other
+endpoint matrices. Manually cover Index filters/search/refresh/pagination,
+UUID/name/deep-link fallback, Dictionary reopen/error/retry, observation chart
+refresh and partial/local-only states, and VoiceOver/large Dynamic Type. Record
+candidate build/runtime and manual results in the
+[cleanup record](../../../../../docs/rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits);
+native cache/validator/source checks are not iOS URLSession or host execution.
+This code-only extraction changes no API, persistence, or backend release gate
+and authorizes no hosted calls or deployment.
+
+### Scan lifecycle verification
+
+`ScanStatusEndpointTests` and `ScanDeletionEndpointTests` rehome all six legacy
+status/deletion regressions without changing method selectors. The
+[critical-result validator](../../../../../scripts/validate-ios-critical-test-results.sh)
+now requires their new suite owners;
+[adversarial fixtures](../../../../../scripts/test-validate-ios-critical-test-results.sh)
+reject those three protected integrity results if reported under the old
+aggregate suite. `ScanLifecycleNetworkEndpointTests` adds 18 independent request
+cases, bulk ordering/raw-key projection, empty/invalid bulk short circuits, and
+recovery encoding failures. `ScanLifecycleNetworkTransportTests` covers handler
+denials, classified refresh, bounded status replay, deletion replay refusal,
+identical single-read request snapshots, and pre-dispatch/in-flight/independent
+cancellation. Every case uses a private client and scoped transport.
+
+`ScanLifecycleAPIModelsTests` owns wire/legacy/optional decoding;
+`ScanLifecycleResponseDecoderTests` owns strict single/bulk/deletion validation.
+`ScanLifecycleNetworkArchitectureTests` guards the exact endpoint inventory,
+encoding/configuration order, recovery owner-ID pass-through, private transport,
+and test rehome. DEBUG transport fixtures bypass live Auth lease acquisition;
+their retry tests do not prove real-session account fencing. Shared Auth and
+missing-row recovery tests remain in `MerianNetworkClientTests`, and queue and
+feature callers keep their existing suites.
+
+Build and run fresh candidate products:
+
+```sh
+xcodebuild test \
+  -scheme Merian \
+  -project merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -derivedDataPath .build/ios-scan-lifecycle-tests \
+  CODE_SIGNING_ALLOWED=NO \
+  -only-testing:merianTests/ScanStatusEndpointTests \
+  -only-testing:merianTests/ScanDeletionEndpointTests \
+  -only-testing:merianTests/ScanLifecycleNetworkEndpointTests \
+  -only-testing:merianTests/ScanLifecycleNetworkTransportTests \
+  -only-testing:merianTests/ScanLifecycleAPIModelsTests \
+  -only-testing:merianTests/ScanLifecycleResponseDecoderTests \
+  -only-testing:merianTests/ScanLifecycleNetworkArchitectureTests \
+  -only-testing:merianTests/ScanEnrichmentEndpointTests \
+  -only-testing:merianTests/ExportEndpointTests \
+  -only-testing:merianTests/ProductFeedbackEndpointTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackTransportTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackBoundaryTests \
+  -only-testing:merianTests/MediaStorageEndpointTests \
+  -only-testing:merianTests/ScanImageCloudEndpointTests \
+  -only-testing:merianTests/MediaStorageTransportTests \
+  -only-testing:merianTests/MediaStorageBoundaryTests \
+  -only-testing:merianTests/MediaStorageAPIModelsTests \
+  -only-testing:merianTests/PresignedMediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadPlanTests \
+  -only-testing:merianTests/MediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadTests \
+  -only-testing:merianTests/MerianNetworkArchitectureTests \
+  -only-testing:merianTests/NetworkEndpointTestSupportTests \
+  -only-testing:merianTests/MerianNetworkClientTests \
+  -only-testing:merianTests/OfflineQueueManagerTests \
+  -only-testing:merianTests/OfflineSyncTests \
+  -only-testing:merianTests/OfflineQueuedScanDeletionTests \
+  -only-testing:merianTests/ScanDeletionServiceTests \
+  -only-testing:merianTests/FieldChatEndpointTests \
+  -only-testing:merianTests/FieldChatViewModelStateTests
+```
+
+Run the complete unit target and shared endpoint requirements above, including
+`make test-ios-ci-tooling` for the selector rehome. Manually check queued
+confirmation/retry, recovery before sharing or Field Chat, owner switching
+during a request, and scan deletion with interrupted connectivity on an
+authorized local/staging fixture. Record fresh-build, iOS runtime, and manual
+evidence separately in the
+[cleanup record](../../../../../docs/rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits).
+Pure decoder/source tests and cached-dependency frontend checks are
+supplemental, not iOS URLSession/queue integration evidence. No hosted call or
+deployment is authorized by this refactor.
+
+### Enrichment, export, and feedback verification
+
+`ScanEnrichmentEndpointTests` rehomes the three context/enrichment endpoint
+regressions and adds raw/optional inputs, both enrichment scopes and legacy
+scope forwarding, no-context cancellation, serialization-before-UUID failure,
+explicit-key projection, and plain decoding-error coverage.
+`ExportEndpointTests` rehomes the export regression and checks default/raw
+scopes, Boolean precision, the queue deadline, and release/rate denials.
+`ProductFeedbackEndpointTests` rehomes the survey endpoint regression and checks
+both submissions' wire keys, constructor normalization, metadata, and empty
+fields. Settings' `FeedbackSurveyTests` retains only prompt/cooldown policy and
+no longer changes the shared network client.
+
+`EnrichmentExportFeedbackTransportTests` shares request fixtures across exactly
+these five methods. It checks ignored 2xx bodies/statuses, handler denials,
+classified refresh with identical single-read request snapshots, bounded keyed
+enrichment replay, replay refusal for the other four mutations, cancellation,
+and exact prepared-body forwarding. `EnrichmentExportFeedbackBoundaryTests`
+protects the three owners, ordering, unchanged DTO locations, private transport,
+and test rehome. No protected critical-CI selector changes owner in this slice.
+Private DEBUG fixtures bypass live Auth leases; they are not evidence of real
+account-switch fencing.
+
+Build and run fresh candidate products:
+
+```sh
+xcodebuild test \
+  -scheme Merian \
+  -project merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -derivedDataPath .build/ios-enrichment-export-feedback-tests \
+  CODE_SIGNING_ALLOWED=NO \
+  -only-testing:merianTests/ScanEnrichmentEndpointTests \
+  -only-testing:merianTests/ExportEndpointTests \
+  -only-testing:merianTests/ProductFeedbackEndpointTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackTransportTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackBoundaryTests \
+  -only-testing:merianTests/MediaStorageEndpointTests \
+  -only-testing:merianTests/ScanImageCloudEndpointTests \
+  -only-testing:merianTests/MediaStorageTransportTests \
+  -only-testing:merianTests/MediaStorageBoundaryTests \
+  -only-testing:merianTests/MediaStorageAPIModelsTests \
+  -only-testing:merianTests/PresignedMediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadPlanTests \
+  -only-testing:merianTests/MediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadTests \
+  -only-testing:merianTests/NetworkEndpointTestSupportTests \
+  -only-testing:merianTests/MerianNetworkArchitectureTests \
+  -only-testing:merianTests/MerianNetworkClientTests \
+  -only-testing:merianTests/InferenceEngineTests \
+  -only-testing:merianTests/CaptureSubmissionDeferredContextServiceTests \
+  -only-testing:merianTests/ExportScansViewModelTests \
+  -only-testing:merianTests/FeedbackSurveyViewModelTests \
+  -only-testing:merianTests/FeedbackSurveyTests \
+  -only-testing:merianTests/CommunityFeedbackViewModelTests
+```
+
+Also run the complete `merianTests` target and the shared endpoint requirements
+above. On authorized local/staging fixtures, manually verify late context and
+local fallback, independent enrichment/lookalike loading and stale-result
+suppression, export's unchanged release gate and queue/error presentation, and
+both feedback forms' validation, loading, failure, and repeat-submission
+behavior. Record fresh-build/runtime and manual results separately from native
+pure/source tests and cached-dependency typechecking in the
+[cleanup record](../../../../../docs/rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits).
+No hosted mutation or deployment is part of this refactor.
+
+### Media storage and upload verification
+
+`MediaStorageEndpointTests` rehomes the structured-signing regression and covers
+lowercase explicit/resolved payload-owner mapping, unresolved-current-account
+refusal, optional and raw manifest fields, encoding order, and plain decoding
+failures. `ScanImageCloudEndpointTests` rehomes both inspect/repair regressions
+and checks raw values, omitted versus empty keys, status projection, required
+envelopes, and malformed counts. `MediaStorageTransportTests` covers all three
+operations' handler denials, classified refresh with identical single-read body
+snapshots, ambiguous-replay refusal, and cancellation. Private DEBUG transports
+bypass live Auth leases; these tests do not prove real-session account-switch
+fencing. The existing `SupabaseManagerTests` exact-session lease tests and
+`MerianNetworkClientTests` retry-account policy tests remain the pure
+state/policy owners; neither substitutes for live-session integration.
+
+`MediaStorageAPIModelsTests` owns strict wire fields, optional lifecycle IDs,
+snake-case inspection projection, and default counts.
+`PresignedMediaUploadTests` covers URL/header validation order and exact success
+policy. `StagedVideoUploadPlanTests` covers resolution/fallback, partial-file
+refusal, and count/byte boundaries without signing. `MediaUploadTests` covers
+both raw PUT paths, absent Auth headers, changed/missing files, strict status
+handling, and unmodified transport errors. Its private held-request transport
+also checks that cancelling the owning task stops both Data/file URLSession
+requests and retains raw `URLError.cancelled`. Start, completion, and stop waits
+have independent bounds; completion timeout actively invalidates the test
+session instead of awaiting a potentially stuck task. `StagedVideoUploadTests`
+rehomes all three foreground video regressions and adds invalid-plan,
+wrong-response-count, post-signing file-change, and failed-PUT coverage.
+`MediaStorageBoundaryTests` guards the five owners, ordering, private bridges,
+file-backed transfer, retained workflow owners, DTOs, and test rehomes.
+
+The raw-upload mock asserts body bytes only for the Data overload. Its file
+cases exercise request headers, validation, response/error handling, and
+cancellation; source guards separately protect `upload(for:fromFile:)`. Neither
+a mocked file PUT nor the supplemental native Foundation probe proves which
+bytes reach storage. That requires a real iOS transfer and receiver-side
+verification with approved fixtures.
+
+The critical-result gate now requires
+`StagedVideoUploadTests/testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning`
+under suite display name `Staged Video Uploads`, not `MerianNetworkClientTests`.
+The validator's adversarial fixtures reject the old owner. Keep that exact
+selector protected and run `make test-ios-ci-tooling` when changing its owner.
+
+Build and run fresh candidate products:
+
+```sh
+xcodebuild test \
+  -scheme Merian \
+  -project merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -derivedDataPath .build/ios-media-storage-tests \
+  CODE_SIGNING_ALLOWED=NO \
+  -only-testing:merianTests/MediaStorageEndpointTests \
+  -only-testing:merianTests/ScanImageCloudEndpointTests \
+  -only-testing:merianTests/MediaStorageTransportTests \
+  -only-testing:merianTests/MediaStorageBoundaryTests \
+  -only-testing:merianTests/MediaStorageAPIModelsTests \
+  -only-testing:merianTests/PresignedMediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadPlanTests \
+  -only-testing:merianTests/MediaUploadTests \
+  -only-testing:merianTests/StagedVideoUploadTests \
+  -only-testing:merianTests/NetworkEndpointTestSupportTests \
+  -only-testing:merianTests/MerianNetworkArchitectureTests \
+  -only-testing:merianTests/MerianNetworkClientTests \
+  -only-testing:merianTests/SupabaseManagerTests \
+  -only-testing:merianTests/OfflineQueueManagerTests \
+  -only-testing:merianTests/InferenceLiveRequestServiceTests \
+  -only-testing:merianTests/LocalImageLoaderTests \
+  -only-testing:merianTests/ProfileViewModelTests
+```
+
+Also run the shared endpoint matrices and complete `merianTests` target.
+
+#### Media storage integration checklist
+
+Use only authorized local/staging targets and synthetic media:
+
+- **Signed Data/file transfers:** Verify the received fixture bytes and stored
+  length, exact signed headers, and rejection of wrong length or MIME. HEAD
+  confirms stored length, not byte identity. Change a file's size after signing
+  and confirm the stale signature is rejected before a PUT.
+- **Foreground video:** Exercise absolute, file-URL, Documents, and temporary
+  paths, including a moved-file fallback. Missing, empty, oversized, or failed
+  uploads must not become an empty successful video-key list; the
+  already-durable queue retains recovery. A valid upload returns the server's
+  key.
+- **Cancellation and identity:** Cancel a held foreground Data/file PUT and
+  verify the underlying transfer stops with raw `URLError.cancelled`. Separately
+  exercise real-session changes during signing and queue upload; the old
+  operation must not adopt a replacement account. Verify background suspension
+  and resume retain each server-issued key and its account binding. Raw PUTs do
+  not themselves own Auth leases or durable queue cancellation.
+- **Avatar and missing-image consumers:** Check avatar upload followed by
+  promotion, healthy-image inspection without repair, and missing-image recovery
+  through the surviving local file. Confirm repaired references refresh the
+  existing cache/library consumers; an ambiguous repair outcome must preserve a
+  potentially committed replacement.
+- **Publication restore:** Exercise surviving image, audio, and playback-video
+  restoration through the existing publication workflow, including failed
+  signing/PUT/repair. Network primitives must not bypass the owning workflow or
+  silently accept a partial media set.
+
+Record the candidate revision, platform/OS, selected suites, synthetic fixture
+cases, outcomes, and outstanding checks without signed URLs, Auth/session data,
+or response bodies. Keep fresh-build, iOS runtime, and manual evidence separate
+in the
+[cleanup record](../../../../../docs/rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits).
+Native model/policy/planning/source tests and cached-dependency typechecking are
+supplemental, not iOS URLSession/background integration evidence. No hosted
+mutation or deployment is authorized by this refactor.
+
 ### Shared client behavior
 
 - Builds authenticated requests to Supabase Edge Functions and retains the
@@ -516,8 +1316,8 @@ complete the runtime or manual requirements above.
 - Sends positive exact `sizeBytes` for every foreground/avatar/repair/restore
   signing request, validates each returned two-header `requiredHeaders` map, and
   applies its `Content-Type` and `Content-Length` to every PUT. File-backed work
-  re-stats before upload and re-signs on mutation; no legacy no-size signing
-  method remains.
+  re-stats before upload and rejects a changed size; callers retain retry and
+  re-signing policy. No legacy no-size signing method remains.
 - Uses one pinned `URLSession` for both inference and connection prewarming.
   `prewarmInferenceEndpoint()` sends `OPTIONS` to `/identify-multimodal`; an
   auth SDK request is not considered a prewarm because it uses another
@@ -568,7 +1368,9 @@ complete the runtime or manual requirements above.
   and deterministic scan/category filenames, so a completed ingestion can stage
   surviving local media only after an unrestricted scan read confirms the active
   JWT-owned row or proves it absent for guarded reconstruction; tombstoned and
-  foreign rows fail closed. Bulk status never mutates server state.
+  foreign rows fail closed. Bulk status never accepts caller-provided row
+  recovery or writes `public.scans`; it may reconcile existing job/quota/staging
+  state under the canonical server policy.
 - Enforces the inference/playback audio split before request creation. Ordinary
   inline and staged inference accepts only a local, structurally supported WAV;
   a URL-scheme path, compressed M4A, missing file, or extension-only spoof fails
@@ -615,13 +1417,47 @@ accepts only canonical UUID species IDs, collapses scientific-name whitespace,
 enforces the 160-character name bound, and derives the case-insensitive cache
 key.
 
-`MerianNetworkClient` requires exact `schema_version = 1` for catalog, overview,
-and detail responses. A detail response must match the requested UUID or the
-exact normalized compatibility name before it can be returned. The 10-minute
-in-memory memo stores only identifiers proven by the returned entry; it never
-aliases a stale requested UUID or an `external:` identifier. Tests for wire
-decoding and this request/response/cache boundary live in
-`MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift`.
+`Decoding/SpeciesDictionaryResponseValidator.swift` requires exact
+`schema_version = 1` for catalog, overview, and detail. An exact requested UUID
+may retain a stale display-name hint; a different returned UUID is accepted only
+with a matching supplied normalized name and a canonical returned ID. A
+name-only response must match that name and return either a canonical UUID or an
+`external:` identity. Stats requires schema 2 or newer and both canonical ID and
+normalized-name equality.
+
+The cache type can be constructed in isolation for clock-injected tests, but
+`MerianNetworkClient` keeps its live cache instance private. Endpoint extensions
+reach that instance only through the fixed-result request bridges described
+[above](#meriannetworkclient); feature Services keep calling the existing client
+methods. Neither layer receives a cache reference or injects a response or
+loader into that instance. Rejected schemas and identities must not add
+requested or returned aliases. Without a previously validated entry, a later
+lookup must load and validate a response independently.
+
+`Caching/SpeciesDictionaryResponseCache.swift` owns separate locked per-client
+stores: 10 minutes for Dictionary detail and 5 minutes for observation stats,
+each capped at 64 alias keys, not 64 species. A valid requested UUID is always
+the lookup key; a miss does not fall through to the name alias. Detail inserts
+only the returned canonical UUID and normalized name, never a stale requested
+UUID or an `external:` ID. Stats retains the union of requested and returned
+ID/name aliases after strict validation. A warm stats UUID lookup still returns
+its cached entry when a later caller supplies another valid name; the endpoint
+does not revalidate a cached response against that hint.
+
+TTL is measured from insertion, with expiry at the exact boundary. Reads do not
+refresh age. On capacity overflow, expired keys are pruned before oldest-
+insertion keys are evicted; equal-timestamp tie ordering remains unspecified.
+The DEBUG reset and `overridingSession` replacement clear both stores but do not
+add an in-flight generation fence: an already dispatched valid response can
+repopulate them. Cache hits continue to bypass Auth/transport cancellation; cold
+misses enter the existing cancellation-aware transport. Feature state owners
+retain their own cancellation/generation fences.
+
+Wire tests live in `MerianTests/Core/Network/Decoding/`, endpoint and transport
+tests in `Core/Network/Endpoints/`, and clock-injected memo tests in
+`Core/Network/Caching/`. Feature-only routes, presentation, and state tests stay
+under `Features/SpeciesDictionary` or `Features/SpeciesReference`; the former
+`SpeciesDictionaryTests` aggregate has been removed.
 
 ## Entitlement protocol
 
@@ -952,25 +1788,28 @@ unknown request statuses, false success flags, identity mismatches, invalid
 UUIDs/timestamps, or non-`needs_id` results become
 `MerianError.invalidResponse`.
 
-Field Chat responses are decoded through one strict path for Insight scans,
-Explore posts, and Species Dictionary entries. Requests select exactly one
-source-specific key: `scan_id`, `post_id`, or `species_id`. Every envelope must
-echo the requested subject through `subject_id`, including when the thread is
-empty. Every message must have a unique UUID, match that same subject through
-the compatibility `scan_id`, match the envelope's valid conversation UUID,
-contain trimmed/nonempty text bounded to 4,000 characters, and fit the exact v1
-server limits. Field Chat JSON is rejected above the reviewed 1 MiB decode
-ceiling. A send response must also contain exactly one user message and one
-assistant message carrying the requested `client_message_id`, and the
-acknowledged user row must contain the exact trimmed text that was sent.
-Invalid, contradictory, or incomplete envelopes never reach the Field Chat
-feature's `InsightChatViewModel.apply`; failed sends remain retryable under the
-same canonical lowercase idempotency UUID rather than clearing the pending
-question or creating a duplicate on manual retry. A backend
-`field_chat_idempotency_conflict` means that UUID was reused for edited text and
-is never treated as confirmation of either send.
+Field Chat responses are decoded through
+`Decoding/FieldChatResponseDecoder.swift` for Insight scans, Explore posts, and
+Species Dictionary entries. `Endpoints/MerianNetworkClient+FieldChat.swift`
+constructs requests with exactly one source-specific key: `scan_id`, `post_id`,
+or `species_id`. Every envelope must echo the requested subject through
+`subject_id`, including when the thread is empty. Every message must have a
+unique UUID, match that same subject through the compatibility `scan_id`, match
+the envelope's valid conversation UUID, contain trimmed/nonempty text bounded to
+4,000 characters, and fit the exact v1 server limits. Field Chat JSON is
+rejected above the reviewed 1 MiB decode ceiling. A send response must also
+contain exactly one user message and one assistant message carrying the
+requested `client_message_id`, and the acknowledged user row must contain the
+exact trimmed text that was sent. Invalid, contradictory, or incomplete
+envelopes never reach the Field Chat feature's `InsightChatViewModel.apply`;
+failed sends remain retryable under the same canonical lowercase idempotency
+UUID rather than clearing the pending question or creating a duplicate on manual
+retry. A backend `field_chat_idempotency_conflict` means that UUID was reused
+for edited text and is never treated as confirmation of either send.
 
-Core Network owns those wire contracts and validation rules. The source-specific
+Core Network owns those wire contracts, endpoint construction, and validation
+rules through the [Field Chat owners](#field-chat-endpoints-and-validation).
+Cloud preflight and media recovery stay in the main client. The source-specific
 presentation adapter lives in
 `Features/FieldChat/Services/FieldChatEndpoint.swift`; host views do not select
 or call these routes directly.

@@ -7,6 +7,16 @@ This scheduler and transport detail is governed by the joined
 [Scan Ingestion Reliability and Recovery
 Contract](./16-scan-ingestion-reliability-and-recovery.md).
 
+The iOS status and deletion wire methods live in
+`Core/Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift`.
+`ScanLifecycleAPIModels.swift` owns status DTOs, and
+`Decoding/ScanLifecycleResponseDecoder.swift` owns strict response validation.
+The main network client retains private authenticated transport and owner-row
+recovery orchestration; Core Data retains durable state, generation checks,
+scheduling, and deletion retries. The
+[scan lifecycle verification matrix](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-verification)
+joins endpoint tests with the queue and deletion-service tests described here.
+
 ## How the Queue Works
 
 ### 1. Realtime Inference Mapper (`saveLiveScanRecord`)
@@ -864,6 +874,17 @@ foreground path no longer converts a video upload failure into
 same rule applies on replay: a scan that began as video must reach the backend
 with a durable playback video key, not as sampled frames alone.
 
+The foreground method lives in
+`Core/Network/Media/MerianNetworkClient+MediaUploads.swift`; its immutable
+`StagedVideoUploadPlan` owns local-file resolution and pre-signing limits.
+`Endpoints/MerianNetworkClient+MediaStorage.swift` owns the shared signer, not
+queue admission, whole-response validation, background tasks, or retry
+scheduling. The queue retains those responsibilities and exact account/key
+binding. See the
+[Network ownership guide](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-ownership)
+and
+[integration checklist](../../apps/ios/Merian/Core/Network/README.md#media-storage-integration-checklist).
+
 **Distributed lock (`tryClaimForInference`)**: Before any inference pipeline
 starts, `BackgroundDatabaseActor.tryClaimForInference(scanId:)` performs an
 atomic `.staged → .inferencing` transition. It returns `false` if the scan is
@@ -1538,18 +1559,19 @@ Capping at 10 concurrent Edge calls prevents connection-pool exhaustion; for a
 user with 10 offline deletions the wall time still drops from ~4 s (serial) to
 ~600 ms (concurrent).
 
-The task is removed only when `MerianNetworkClient.deleteScan` receives a 2xx
-body and decodes explicit `success: true`. `invalidResponse` is not not-found
-proof: it can represent a missing/non-HTTP response, an unresolved auth/session
-failure, or a malformed/contradictory 2xx body. That error and every transport,
-HTTP, or decoding failure retain the task for the next cycle until the server
-explicitly confirms success. Cloud erasure does not inherit the scan-analysis
-ten-attempt pause: its maintenance-scope exponential delay still caps at 15
-minutes, but the privacy request never expires. A pending task is authoritative,
-so the next drain also repairs legacy `needsAttention` jobs and contradictory
-local `complete` or `cancelled` job states before retrying. The owner-bound
-endpoint rejects a different active account rather than confirming someone
-else's deletion; the task remains queued until its owner session can resume it.
+The task is removed only when `MerianNetworkClient.deleteScan` returns after
+`ScanLifecycleResponseDecoder.confirmDeletion` accepts a 2xx body with explicit
+Boolean `success: true`. `invalidResponse` is not not-found proof: it can
+represent a missing/non-HTTP response, an unresolved auth/session failure, or a
+malformed/contradictory 2xx body. That error and every transport, HTTP, or
+decoding failure retain the task for the next cycle until the server explicitly
+confirms success. Cloud erasure does not inherit the scan-analysis ten-attempt
+pause: its maintenance-scope exponential delay still caps at 15 minutes, but the
+privacy request never expires. A pending task is authoritative, so the next
+drain also repairs legacy `needsAttention` jobs and contradictory local
+`complete` or `cancelled` job states before retrying. The owner-bound endpoint
+rejects a different active account rather than confirming someone else's
+deletion; the task remains queued until its owner session can resume it.
 Server-declared already-absent scans use the same validated `success: true`
 envelope, so idempotency never requires guessing from a client error category.
 The result-processing loop builds a `[String: PendingCloudDeletionTask]`

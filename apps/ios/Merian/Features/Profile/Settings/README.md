@@ -51,6 +51,17 @@ generation-fenced so a replaced request cannot overwrite newer state. Failed or
 superseded work cannot publish stale success or error feedback into its
 replacement.
 
+Core Network's `Endpoints/MerianNetworkClient+Exports.swift` owns the DwC-A
+queue request; `MerianNetworkClient+ProductFeedback.swift` owns survey and
+Community feedback HTTP submission. Settings keeps its export and survey
+Services/ViewModels and the existing survey request model. Transport preserves
+15-second export and 30-second survey deadlines, body-ignored success, and
+server-denial propagation without enabling exports or adding mutation replay.
+The
+[Network focused matrix](../../../Core/Network/README.md#enrichment-export-and-feedback-verification)
+covers the moved endpoint tests; `FeedbackSurveyTests` now contains only prompt
+and cooldown policy, with no shared network override.
+
 `SettingsTabView` remains the route and sheet composition owner. Detailed
 screens keep UI-only selection and presentation state locally. Account deletion
 continues to delegate protocol ordering and recovery to `SupabaseManager`; the
@@ -81,6 +92,23 @@ The Profile product-area contract is summarized in
 [`06-profile-and-gamification.md`](../../../../../../docs/features-and-hardware/06-profile-and-gamification.md)
 and the app-wide feature inventory in
 [`07-feature-modules-and-ui.md`](../../../../../../docs/features-and-hardware/07-feature-modules-and-ui.md).
+
+## Feedback campaign policy
+
+`FeedbackSurveyPromptPolicy` suppresses the automatic prompt once the current
+campaign has been dismissed or submitted. Settings keeps manual survey entry
+available while the campaign is active. `FeedbackSurveyCampaign` retains the
+submitted-state display for 24 hours after a successful submission; preparing
+the form after that interval permits a fresh draft without rearming the
+automatic prompt. `FeedbackSurveyViewModel` owns draft validation and
+single-flight submission through `FeedbackSurveyDependencies`.
+
+This is client presentation policy, not a transport cooldown or server-wide
+one-submission limit. The
+[survey endpoint contract](../../../../../../docs/backend-and-data/05-api-contracts.md#deno-submit-feedback-survey-edge-node)
+owns campaign and payload validation. `FeedbackSurveyTests` covers prompt and
+cooldown policy; `FeedbackSurveyViewModelTests` covers draft and interaction
+state, and the Core Network matrix above covers HTTP submission.
 
 ## Purpose
 

@@ -1,3 +1,4 @@
+import { FIELD_CHAT_SPECIES_KNOWLEDGE_RULES } from "../_shared/fieldChatSpeciesKnowledge.ts";
 import type {
   ExplorePostChatContext,
   ExplorePostChatMessageRow,
@@ -70,10 +71,13 @@ export function buildSystemInstruction(
   context: ExplorePostChatContext,
 ): string {
   return `Naturebook Field chat for a public Explore observation.
-Answer educational questions about the published species using only the public
-text context below. You cannot inspect the post's photo, video, or audio and must
+Use the public text context below for evidence about the published observation.
+You can also answer general questions about the species under the rules below.
+You cannot inspect the post's photo, video, or audio and must
 say so when a question requires direct media inspection. Never imply access to
 the owner's private scan, exact location, unpublished notes, chat, or comments.
+
+${FIELD_CHAT_SPECIES_KNOWLEDGE_RULES}
 
 Do not provide edible certainty, medical or veterinary treatment, dangerous
 handling, capture, killing, poisoning, pesticide use, illegal collection, or

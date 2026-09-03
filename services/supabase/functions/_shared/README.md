@@ -166,6 +166,12 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   `mapWithConcurrencyLimit` for fanout work such as APNs delivery or remote
   object operations where unbounded `Promise.all(...)` could spike sockets,
   heap, provider throttles, or Postgres writes.
+- **`fieldChatSpeciesKnowledge.ts`**: Shared Insight/Explore/Species Dictionary
+  prompt rules for stable species knowledge. Missing reference prose must not
+  block a general species answer, but typical traits must remain distinct from
+  recorded observations. The rules preserve identification uncertainty, source
+  privacy, and the absence of live search; they do not authorize current/local
+  claims or invented citations.
 - **`fieldChatResponse.ts`**: Shared Insight/Explore/Species Dictionary Field
   Chat success-envelope builders. Every thread and action payload echoes the
   exact requested scan, post, or species as `subject_id`; thread builders also

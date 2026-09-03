@@ -312,15 +312,19 @@ instruction, tests, and this documentation together.
 
 ## Edge Function Architecture (`/enrich-scan`)
 
-The `/enrich-scan` Supabase Edge Function handles on-demand encyclopedic lookup
-(habitat, taxonomy, and similar species lookalikes) for legacy scans lacking
-full metadata.
+The `/enrich-scan` Supabase Edge Function hydrates missing metadata and
+lookalikes for current and historical biological scans. Each request selects
+`enrichment` or `lookalikes`; the
+[canonical API contract](../backend-and-data/05-api-contracts.md#deno-enrich-scan-edge-node)
+owns required fields, scoped payloads, quota attribution, and legacy fallback
+behavior.
 
-- **`index.ts`**: The main orchestrator. Re-routes data fetched by the shared
-  micro-agents, handling the concurrent `Promise.all` logic based on what
-  Postgres data is currently missing. Unifies the output via
-  `formatEnrichmentPayload` to strictly guarantee uniform JSON contracts back to
-  Swift.
+- **`index.ts`**: Validates the requested scope, checks its cache path, and
+  reserves quota before provider work. Separate in-flight maps coalesce
+  same-species requests within each scope. `formatEnrichmentOnlyPayload` and
+  `formatLookalikesOnlyPayload` return only that scope's fields; concurrency
+  between scopes comes from separate native requests, not a combined handler
+  `Promise.all`.
 - **`types.ts`**: Strict TypeScript interfaces tracking the shape of
   `CachedSpeciesData` returned from Postgres. Removing these inline types from
   the orchestrator eliminates dangerous semantic type-casting across
@@ -336,51 +340,59 @@ full metadata.
   persists entries that resolve to real `species_dictionary` rows with matching
   taxonomy), `clearLookalikesForSpecies(speciesId, supabase)` (deletes all
   `species_lookalikes` join table rows for a species, used for stale-cache
-  invalidation), and `updateSpeciesEnrichment` (UPSERT patching). Lookalike
-  thumbnail URLs prefer `species_reference_images` and fall back to the legacy
-  comma-separated dictionary cache. `resolveLookalikesToJoinTable` now requires
-  a real primary `kingdom` plus either `order` or `family`, then rejects any
-  candidate lacking a matching real `kingdom` and matching `order` or fallback
-  `family`. Candidates with missing taxonomy or no dictionary row are dropped
-  rather than returned as provisional Flash stubs. **Stale cache detection**
-  (`index.ts`): after fetching from the join table, if the primary species has a
-  known `order` and all cached lookalikes carry a different known order, or if
-  order is unavailable but family is known and all cached lookalikes carry a
-  different known family, `clearLookalikesForSpecies` is called,
-  `lookalikes_flash_attempted` and `similar_species` are reset to
+  invalidation), and `updateSpeciesEnrichment` (dictionary update attempts).
+  Lookalike thumbnail URLs prefer `species_reference_images` and fall back to
+  the legacy comma-separated dictionary cache. `resolveLookalikesToJoinTable`
+  now requires a real primary `kingdom` plus either `order` or `family`, then
+  rejects any candidate lacking a matching real `kingdom` and matching `order`
+  or fallback `family`. Candidates with missing taxonomy or no dictionary row
+  are dropped rather than returned as provisional Flash stubs. **Stale cache
+  detection** (`index.ts`): after fetching from the join table, if the primary
+  species has a known `order` and all cached lookalikes carry a different known
+  order, or if order is unavailable but family is known and all cached
+  lookalikes carry a different known family, `clearLookalikesForSpecies` is
+  called, `lookalikes_flash_attempted` and `similar_species` are reset to
   `false`/`null`, and the flow falls through to a fresh validated attempt.
   Internal `_order` / `_family` fields are stripped before serving to the iOS
   client.
 
 ### Enrichment Pipeline (`isEnrichmentLoading` / `fetchAndApplyEnrichment`)
 
-After a successful biological scan, `InferenceEngine` automatically fires
-`fetchAndApplyEnrichment(modelContext:)` for all users:
+After an eligible biological scan or historical load, `InferenceEngine`
+coordinates the required scopes through `fetchAndApplyEnrichment`.
+`Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift` owns the
+stateless HTTP methods, while the engine and its hydration/write coordinators
+retain admission, scheduling, presentation, and persistence. The hand-written
+`EnrichScanResponse` remains below the generated Identify block in
+`InferenceEdgeDTOs.swift`. See the
+[native ownership and verification guide](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
 
-1. Sets `isEnrichmentLoading = true` — `HabitatAndDistributionCard` observes
-   this via `@Environment(InferenceEngine.self)` and shows an animated loading
-   skeleton.
-2. Calls `MerianNetworkClient.shared.fetchEnrichment(scanId:scientificName:)` →
-   POST `/enrich-scan`.
-3. On success, collects all mutations into a local `var updated = speciesData`
-   copy, then assigns `self.speciesData = updated` in a single write on
-   `@MainActor`. This guarantees `@Observable` change notifications fire and
-   `HabitatAndDistributionCard` updates live without reopening the sheet.
-   Individual optional-chain mutations (`speciesData?.field = value`) do not
-   reliably trigger observation for struct value types — a full-value
-   replacement is the only guaranteed trigger. Fields patched:
-   `habitatDescription`, `gbifTaxonKey` (when non-nil), and `taxonomy`.
-4. Maps `data.similar_species` (a `[SimilarSpeciesEntry]` array, including
-   `species_id` when the entry is dictionary-backed) to a local `mappedEntries`
-   array, assigns it to
-   `updated.similarSpecies = SimilarSpecies(entries: mappedEntries)`, then
+1. Sets the requested scope's `isEnrichmentLoading` or `isLookalikesLoading`
+   flag. Metadata and similar-species loading remain independent.
+   `HabitatAndDistributionCard` observes the engine's metadata state.
+2. A task group calls
+   `MerianNetworkClient.shared.fetchEnrichment(scanId:scientificName:confidenceScore:inferenceTier:scope:)`
+   once per required scope. The endpoint serializes before UUID-key validation,
+   then preserves the existing 30-second private transport and plain decoder.
+3. As each scope resolves for the current scan/species/presentation, collects
+   its mutations into a local `var updated = speciesData` copy, then assigns
+   `self.speciesData = updated` in a single write on `@MainActor`. This
+   preserves the established full-value update pattern for observation and live
+   `HabitatAndDistributionCard` rendering. Metadata fields patched include
+   nonblank `habitatDescription`, non-nil `gbifTaxonKey`, `taxonomy`, and
+   sanitized `alternativeCommonNames`.
+4. The lookalike child maps nonempty `data.similar_species` (a
+   `[EnrichScanResponse.SimilarSpeciesEntry]` array, including `species_id` when
+   the entry is dictionary-backed) to a local `mappedEntries` array, assigns it
+   to `updated.similarSpecies = SimilarSpecies(entries: mappedEntries)`, then
    commits with `self.speciesData = updated` — same single-write pattern —
    triggering a live `SimilarSpeciesGallery` UI update. No confidence threshold
    gate — enrichment always sets the data, and the gallery renders validated
    entries with the stable "Similar species" label. Lookalikes are sourced from
    the validated `species_lookalikes` / `species_dictionary` path when
-   available, with legacy local string fallback handled only during historical
-   scan hydration.
+   available. The wire formatter also retains the legacy TEXT[] fallback
+   described in the API contract; historical hydration separately supports old
+   local string arrays.
    - **Client-side filtering:** `SimilarSpeciesGallery` removes entries whose
      scientific name matches the active species and deduplicates repeated
      scientific names before rendering. If a remaining lookalike shares the
@@ -435,37 +447,32 @@ After a successful biological scan, `InferenceEngine` automatically fires
    WHERE lookalikes_flash_attempted = true
      AND id NOT IN (SELECT DISTINCT species_id FROM species_lookalikes);
    ```
-5. JSON-encodes `speciesData.similarSpecies?.entries` via `JSONEncoder` into a
-   `Data` blob. Encode failures are logged via `MerianLog.general.debug` and
-   result in `nil` — the field is never written with corrupt data. Persists all
-   fields to `LocalScanRecord` via
-   `BackgroundDatabaseActor.updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:)`
-   through `InferenceWriteCoordinator`'s bounded background-write queue. A
-   presentation reset advances the write generation, drops queued operations,
-   and cancels active work, preventing a stale enrichment write from landing on
-   the wrong `LocalScanRecord` when the user rapidly navigates between scans.
-   The blob lands in `LocalScanRecord.lookalikesData` (`MerianSchemaV27`). The
-   backend now only persists this blob for validated lookalikes; raw Flash names
-   are never cached locally.
-6. Sets `isEnrichmentLoading = false` (via `defer`).
+5. Each child queues only its own field snapshots through
+   `executeSpeciesMetadataWrite` and
+   `BackgroundDatabaseActor.updateScanWithEnrichment`. The lookalike child
+   JSON-encodes its mapped entries off-main into a `Data` blob; an encoding
+   failure supplies nil rather than invalid JSON. The blob's existing native
+   destination is `LocalScanRecord.lookalikesData` (`MerianSchemaV27`).
+   `InferenceWriteCoordinator` retains bounded write scheduling and the
+   scan/species/presentation/review-action fences. A presentation reset advances
+   the write generation, drops queued operations, and cancels active work.
+6. Each child's `defer` clears only its own loading flag, and only while the
+   same presentation still owns that state.
 
-`InferenceEngine.fetchAndApplyEnrichment(...)` also has a one-time retry path
-for lookalikes. If metadata and lookalikes are requested together, the first
-lookalikes call can legitimately return `null` because the species still lacks
-usable taxonomy. Once the metadata scope lands and taxonomy becomes usable, the
-engine retries the lookalikes scope exactly once within the same session.
+After both initially requested scopes finish, the engine may retry lookalikes
+once when the presentation is still current, similar species remain absent, and
+taxonomy is usable. The retry requests no metadata, disables further lookalike
+retries, and remains subject to hydration admission/backoff. This is caller
+policy, not another retry owner in the endpoint extension.
 
-`InferenceEngine.load(from:)` triggers enrichment for historical records that
-are missing `habitatDescription`, `gbifTaxonKey`, both `lookalikesData` and
-`similarSpecies`, where `lookalikesData` decodes to entries that are all
-`commonName == nil` (indicating the join table was populated before the
-common-name back-fill pipeline existed), or where the stored taxonomy itself is
-not yet usable for validated lookalikes. Metadata scope remains
-species-cache-aware, but the lookalikes scope still fires whenever the record
-lacks rich local lookalike data. The `lookalikesData` blob is decoded once on
-`@MainActor` for the gate check and the resulting `SimilarSpecies` value is
-captured by the coordinator-owned `.historic` operation — no second
-`JSONDecoder` pass on the same data.
+For eligible historical records, `load(from:)` requests metadata when habitat is
+blank/missing, the GBIF key is missing, or taxonomy is unusable. It requests
+lookalikes for the local reset policy, a missing rich blob, or a nonempty
+decoded set whose common names are all nil. Scope planning also retains the
+existing species-level hydration cache and backoff. The `lookalikesData` blob is
+decoded once on `@MainActor` for the gate check and the resulting
+`SimilarSpecies` value is captured by the coordinator-owned `.historic`
+operation — no second `JSONDecoder` pass on the same data.
 
 Additionally, `load(from:)` asks `InferenceHydrationCoordinator` to record the
 displayed hydration scientific name—the active override when present, otherwise

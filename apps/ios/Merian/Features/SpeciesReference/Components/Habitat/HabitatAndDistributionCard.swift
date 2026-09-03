@@ -6,15 +6,23 @@ struct HabitatAndDistributionCard: View {
     @Environment(InferenceEngine.self) private var inferenceEngine
 
     @State private var isPulsing = false
+    @State private var exhaustedEnrichmentIdentity: EnrichmentIdentity?
     private let dependencies: HabitatDistributionDependencies
+
+    private struct EnrichmentIdentity: Equatable {
+        let scanID: String?
+        let scientificName: String?
+        let presentationGeneration: UInt64
+    }
 
     init(dependencies: HabitatDistributionDependencies = .live) {
         self.dependencies = dependencies
     }
 
     var body: some View {
-        let habitatDescription = inferenceEngine.speciesData?.habitatDescription
+        let habitatDescription = inferenceEngine.speciesData?.habitatDescription?.trimmedNonEmptyValue
         let scientificName = inferenceEngine.speciesData?.scientificName
+        let identity = enrichmentIdentity
 
         VStack(alignment: .leading, spacing: 0) {
             GBIFHeatmapMapView(
@@ -40,9 +48,23 @@ struct HabitatAndDistributionCard: View {
                     .font(.body)
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
-                } else {
+                } else if canRequestEnrichment && exhaustedEnrichmentIdentity != identity {
                     loadingPlaceholder
-                        .task { await retryEnrichment() }
+                        .task(id: identity) { await retryEnrichment(for: identity) }
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Habitat information is not available for this species yet.")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if canRequestEnrichment {
+                            Button("Retry") {
+                                exhaustedEnrichmentIdentity = nil
+                            }
+                            .accessibilityLabel("Retry habitat information")
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 32)
@@ -77,19 +99,37 @@ struct HabitatAndDistributionCard: View {
         }
     }
 
-    private func retryEnrichment() async {
+    private var enrichmentIdentity: EnrichmentIdentity {
+        EnrichmentIdentity(
+            scanID: inferenceEngine.speciesData?.scanId,
+            scientificName: inferenceEngine.speciesData?.scientificName,
+            presentationGeneration: inferenceEngine.scanPresentationGeneration
+        )
+    }
+
+    private var canRequestEnrichment: Bool {
+        guard let data = inferenceEngine.speciesData else { return false }
+        return data.scanId?.trimmedNonEmptyValue != nil &&
+            data.hasResolvedBiologicalIdentification && !data.isHumanSubject
+    }
+
+    private func retryEnrichment(for identity: EnrichmentIdentity) async {
         var retryCount = 0
         let maxRetries = 5
 
         while !Task.isCancelled && retryCount < maxRetries {
-            if inferenceEngine.speciesData?.habitatDescription != nil {
-                break
-            }
+            guard identity == enrichmentIdentity,
+                  canRequestEnrichment,
+                  inferenceEngine.speciesData?.habitatDescription?.trimmedNonEmptyValue == nil else { return }
 
             if !inferenceEngine.isEnrichmentLoading {
                 let delay = pow(2, Double(retryCount + 1))
                 try? await Task.sleep(for: .seconds(delay))
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled,
+                      identity == enrichmentIdentity,
+                      canRequestEnrichment,
+                      inferenceEngine.speciesData?.habitatDescription?.trimmedNonEmptyValue == nil else { return }
+                guard !inferenceEngine.isEnrichmentLoading else { continue }
 
                 retryCount += 1
                 await dependencies.requestEnrichment(
@@ -100,5 +140,10 @@ struct HabitatAndDistributionCard: View {
                 try? await Task.sleep(for: .seconds(1))
             }
         }
+
+        guard !Task.isCancelled,
+              identity == enrichmentIdentity,
+              inferenceEngine.speciesData?.habitatDescription?.trimmedNonEmptyValue == nil else { return }
+        exhaustedEnrichmentIdentity = identity
     }
 }

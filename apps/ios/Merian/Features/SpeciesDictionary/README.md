@@ -14,10 +14,17 @@ canonical behavior, API, privacy, and release contract is
   presentation adaptation, and reference-image labels/attribution used by
   Catalog, Detail, Explore, or Field Trips. It contains no networking or
   SwiftUI.
-- `Core/Network/SpeciesDictionaryAPIModels.swift` owns Codable wire DTOs only.
-  `SpeciesDictionaryIdentity.swift` and `MerianNetworkClient` own request and
-  response identity normalization, exact schema-version validation, transport,
-  and the bounded memory cache.
+- Core Network owns Codable contracts in `SpeciesDictionaryAPIModels.swift` and
+  `SpeciesObservationStatsAPIModels.swift`. Its Species Dictionary endpoint
+  extension maps requests, `SpeciesDictionaryIdentity` normalizes identity,
+  `SpeciesDictionaryResponseValidator` validates schemas/responses, and
+  `SpeciesDictionaryResponseCache` contains the two bounded memory memos.
+  `MerianNetworkClient` keeps its cache instance private; its fixed-result
+  request bridges alone load, validate, and insert network responses. Feature
+  adapters cannot receive that cache or populate it with prepared responses. The
+  client also retains private Auth, transport, retries, and cancellation; see
+  the
+  [Core ownership guide](../../Core/Network/README.md#species-dictionary-endpoints-validation-and-caches).
 - Explore Shell owns Identify/Index selection, the shared navigation path, and
   destination registration. Views keep selection, navigation, presentation,
   scroll, focus, and lifecycle timing.
@@ -36,7 +43,10 @@ existing local row with the exact normalized name; it never invokes external
 enrichment. Name-only local misses may use the bounded public GBIF/Wikipedia
 fallback. iOS accepts only `schema_version = 1` and a matching response identity
 before caching. It caches only the returned canonical UUID and normalized
-returned name, never a stale requested UUID alias or an `external:` ID.
+returned name, never a stale requested UUID alias or an `external:` ID. For
+detail/stats TTLs, alias capacity, warm-cache cancellation, and DEBUG reset
+semantics, use the
+[Core identity/cache contract](../../Core/Network/README.md#species-dictionary-identity-and-cache-boundary).
 
 Index is the only dictionary browser. Taxonomy remains metadata in Catalog and
 Detail; the Tree implementation, route, feature flag, DTOs, and endpoint mode
@@ -47,8 +57,13 @@ maps an old response to the complete All catalog.
 
 Mirrored tests live under
 `MerianTests/Features/SpeciesDictionary/{Catalog,Detail,Shared}`. The Shared
-suite owns both presentation behavior and architecture. `SpeciesDictionaryTests`
-retains wire, strict client validation, lookup recovery, and cache coverage.
-Backend request, eligibility, handler, and disposable-database coverage lives
-beside `services/supabase/functions/species-dictionary/` and under
+suite owns both presentation behavior and architecture. Catalog route assertions
+stay in `SpeciesDictionaryCatalogRouteTests`. Core Network's `Decoding`,
+`Endpoints`, and `Caching` suites own wire compatibility, strict validation,
+lookup recovery, transport, and deterministic cache behavior; the former mixed
+aggregate has been removed. Use the
+[canonical iOS matrix](../../../../../docs/features-and-hardware/16-species-dictionary.md#testing)
+and the complete unit target for this boundary. Backend request, eligibility,
+handler, and disposable-database coverage lives beside
+`services/supabase/functions/species-dictionary/` and under
 `services/supabase/tests/`.

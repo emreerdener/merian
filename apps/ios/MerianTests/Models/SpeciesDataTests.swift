@@ -390,6 +390,37 @@ struct SpeciesDataTests {
         #expect(species.habitatDescription?.contains("meadows") == true)
     }
 
+    @Test(arguments: ["", " \n\t "])
+    func testBlankHabitatRemainsMissingAcrossDomainInitializers(habitat: String) throws {
+        let species = SpeciesData(
+            commonName: "Firefly",
+            scientificName: "Photinus pyralis",
+            insightData: InsightData(aiReasoning: "Synthetic observation.", hazardType: "none"),
+            confidenceScore: 0.95,
+            habitatDescription: habitat
+        )
+        #expect(species.habitatDescription == nil)
+
+        let responseData = try JSONSerialization.data(withJSONObject: [
+            "success": true,
+            "data": [
+                "is_biological_subject": true,
+                "common_name": "Firefly",
+                "scientific_name": "Photinus pyralis",
+                "confidence_score": 0.95,
+                "species_insights": ["habitat_description": habitat]
+            ]
+        ])
+        let response = try JSONDecoder().decode(EdgeResponseWrapper.self, from: responseData)
+        let decodedSpecies = SpeciesData(
+            fromEdgeResponse: response.data,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil
+        )
+        #expect(decodedSpecies.habitatDescription == nil)
+    }
+
     @Test func testPremiumFieldsRoundTripThroughInit() {
         let insightData = InsightData(aiReasoning: "A monarch.", hazardType: "none")
         let species = SpeciesData(
@@ -398,7 +429,7 @@ struct SpeciesDataTests {
             insightData: insightData,
             confidenceScore: 0.98,
             aiReasoning: "The orange-black wing pattern is diagnostic.",
-            habitatDescription: "Open fields with milkweed."
+            habitatDescription: "  Open fields with milkweed.\n"
         )
 
         #expect(species.aiReasoning == "The orange-black wing pattern is diagnostic.")

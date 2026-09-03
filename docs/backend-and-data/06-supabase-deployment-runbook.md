@@ -1176,18 +1176,30 @@ supabase --workdir services test db --local \
 
 xcrun swiftc -frontend -parse \
   apps/ios/Merian/Core/Network/MerianNetworkClient.swift \
+  apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+SpeciesDictionary.swift \
+  apps/ios/Merian/Core/Network/Decoding/SpeciesDictionaryResponseValidator.swift \
+  apps/ios/Merian/Core/Network/Caching/SpeciesDictionaryResponseCache.swift \
   apps/ios/Merian/Features/SpeciesReference/Models/*.swift \
   apps/ios/Merian/Features/SpeciesReference/Services/*.swift \
   apps/ios/Merian/Features/SpeciesReference/ViewModels/*.swift \
   apps/ios/Merian/Features/SpeciesReference/Views/*.swift \
   apps/ios/Merian/Features/SpeciesReference/Components/Charts/*.swift \
   apps/ios/MerianTests/Features/SpeciesReference/*.swift \
-  apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift
+  apps/ios/MerianTests/Core/Network/Endpoints/SpeciesObservationStatsEndpointTests.swift \
+  apps/ios/MerianTests/Core/Network/Decoding/SpeciesObservationStatsAPIModelsTests.swift \
+  apps/ios/MerianTests/Core/Network/Decoding/SpeciesDictionaryResponseValidatorTests.swift \
+  apps/ios/MerianTests/Core/Network/Caching/SpeciesDictionaryResponseCacheTests.swift
 swiftlint lint --strict \
   apps/ios/Merian/Core/Network/MerianNetworkClient.swift \
+  apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+SpeciesDictionary.swift \
+  apps/ios/Merian/Core/Network/Decoding/SpeciesDictionaryResponseValidator.swift \
+  apps/ios/Merian/Core/Network/Caching/SpeciesDictionaryResponseCache.swift \
   apps/ios/Merian/Features/SpeciesReference \
   apps/ios/MerianTests/Features/SpeciesReference \
-  apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift
+  apps/ios/MerianTests/Core/Network/Endpoints/SpeciesObservationStatsEndpointTests.swift \
+  apps/ios/MerianTests/Core/Network/Decoding/SpeciesObservationStatsAPIModelsTests.swift \
+  apps/ios/MerianTests/Core/Network/Decoding/SpeciesDictionaryResponseValidatorTests.swift \
+  apps/ios/MerianTests/Core/Network/Caching/SpeciesDictionaryResponseCacheTests.swift
 ```
 
 After production deploy, request one known dictionary UUID/name pair. Expect

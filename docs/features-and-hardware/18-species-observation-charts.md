@@ -39,6 +39,9 @@ Primary files:
 
 - `apps/ios/Merian/Core/Network/SpeciesObservationStatsAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+SpeciesDictionary.swift`
+- `apps/ios/Merian/Core/Network/Decoding/SpeciesDictionaryResponseValidator.swift`
+- `apps/ios/Merian/Core/Network/Caching/SpeciesDictionaryResponseCache.swift`
 - `apps/ios/Merian/Features/SpeciesReference/Models/SpeciesObservationLocalStats.swift`
 - `apps/ios/Merian/Features/SpeciesReference/Models/SpeciesObservationChartPresentation.swift`
 - `apps/ios/Merian/Features/SpeciesReference/Models/SpeciesObservationStatsReducer.swift`
@@ -58,6 +61,14 @@ client. `Services/` alone creates the `@ModelActor`
 `MerianNetworkClient.getSpeciesObservationStats(...)`. The actor fetches narrow
 local projections, then delegates normalization and bucket aggregation to the
 platform-neutral `SpeciesObservationStatsReducer`.
+
+The client method lives in the Species Dictionary endpoint extension. It retains
+an authenticated GET with ordered ID/name query items and a 20-second deadline;
+Auth, retries, and cancellation remain in the shared client. The stateless
+response validator requires schema 2 or newer plus matching canonical ID and
+normalized name before the private 5-minute, 64-alias-key stats memo accepts a
+response. The Dictionary detail memo is a separate 10-minute store. See the
+[Core Network cache boundary](../../apps/ios/Merian/Core/Network/README.md#species-dictionary-identity-and-cache-boundary).
 
 Each load owns a generation token. A late local or public result cannot mutate
 state after a newer species request starts, and an empty identity invalidates an
@@ -282,9 +293,12 @@ Abuse and concurrency controls:
 
 iOS cache:
 
-- `MerianNetworkClient` keeps a short in-memory cache.
+- The per-client `SpeciesDictionaryResponseCache` owner keeps a separate
+  5-minute, 64-alias-key in-memory stats memo. Its instance is private to the
+  network client; only the fixed-result request bridge can populate it after
+  authenticated loading and schema/identity validation.
 - TTL: 5 minutes.
-- Limit: 64 entries.
+- Limit: 64 alias keys, not 64 species.
 - Keys: normalized species UUID and normalized scientific name.
 - Admission requires response `schema_version >= 2` plus returned UUID/name
   identity equal to the canonical request; legacy and mismatched responses fail
@@ -341,5 +355,10 @@ xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<BOOTED_SIM
   -only-testing:merianTests/SpeciesObservationStatsReducerTests \
   -only-testing:merianTests/SpeciesObservationStatsViewModelTests \
   -only-testing:merianTests/SpeciesReferenceArchitectureTests \
-  -only-testing:merianTests/SpeciesDictionaryTests
+  -only-testing:merianTests/SpeciesObservationStatsEndpointTests \
+  -only-testing:merianTests/SpeciesObservationStatsAPIModelsTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseValidatorTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseCacheTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkTransportTests
 ```

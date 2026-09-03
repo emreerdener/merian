@@ -127,11 +127,11 @@ push toggles in `Profile/Settings/Notifications/`, bundled release notes in
 
 Suggested first targets:
 
-| File                                                     | Cleanup Direction                                                                                                                                                                                                                                                                |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                      |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Seven endpoint owners now cover Field Trips, Community Identification, Explore browsing/interactions/post management, notifications, and public profile. Transport/state remain private, and scan publication stays with media recovery. Continue with cohesive endpoint groups. |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                                                                                                                          |
+| File                                                     | Cleanup Direction                                                                                                                                                                                                                                                                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                         |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Fourteen endpoint owners now cover the extracted feature, lifecycle, enrichment, feedback/export, and storage operations; signed transfers and foreground video planning live in `Media/`. Transport/state remain private, and scan publication stays with media recovery. Continue with cohesive remaining groups. |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                                                                                                                                                             |
 
 Rules for this phase:
 
@@ -333,6 +333,451 @@ Implemented Core slices:
 
 Implemented Core Network slices:
 
+- The 2026-09-03 media storage/upload pass extracts six existing client method
+  variants into five focused files: `MerianNetworkClient+MediaStorage.swift` (65
+  lines), `MediaStorageAPIModels.swift` (43), and `Media/`'s
+  `MerianNetworkClient+MediaUploads.swift` (59), `PresignedMediaUpload.swift`
+  (44), and `StagedVideoUploadPlan.swift` (91). The main client shrinks from
+  3,908 to 3,659 lines. A nonescaping account-bound encoded-body bridge
+  preserves configuration → frozen UUID → encoding → private transport, while
+  two value-only PUT bridges retain the same private session and file-backed
+  upload. DTOs, all six method signatures, exact signed headers, HTTP-200-only
+  success, validation order, video count/byte caps, 30-second endpoint
+  deadlines, error propagation, refresh/replay/cancellation policy, and
+  sequential foreground video behavior remain unchanged. Queue manifest and
+  background-task authority, inference attempt fencing, LocalImageLoader repair,
+  Profile avatar promotion, and main-client publication/restore orchestration do
+  not move. No API, schema, persistence, backend, feature-flag, UI, hosted
+  mutation, or deployment change is included.
+- Six aggregate regressions move intact to `MediaStorageEndpointTests`,
+  `ScanImageCloudEndpointTests`, and `StagedVideoUploadTests`, shrinking the
+  aggregate from 3,448 to 3,181 lines. Per-client fixtures and unique disposable
+  file names replace shared overrides and fixed names. Nine focused suites cover
+  wire mapping, current-account refusal, encoding order, raw/optional values,
+  decoding errors, refresh/request identity, ambiguous-replay refusal, signed
+  header/status policy, raw Data/file errors, missing or changed files, local
+  fallback, whole-input planning, count/byte caps, and signing/PUT failures.
+  Source guards protect private transport, retained workflows, DTO ownership,
+  file-backed transfers, and rehomes. The critical-result gate now requires
+  `StagedVideoUploadTests/testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning`
+  under `Staged Video Uploads`; its adversarial fixtures reject the retired
+  aggregate owner. Read-only review found and corrected one new test oracle: an
+  explicit expected owner does not bypass the transport's current-session
+  resolution. Success cases retain a current mock identity, and the nil-current
+  case now requires `signOutSessionChanged` with zero dispatch. No further
+  material production parity or encapsulation finding remained.
+- Verification passed current-source iOS frontend typechecking for 24 production
+  copies, all 14 endpoint owners, and focused Network suites against cached
+  unchanged dependencies; 88 native pure model/decoder/cache/policy/
+  planning/architecture tests in 14 suites; parsing of all 20 affected Swift
+  files; strict lint of the 19 affected non-aggregate files with zero
+  violations; project/source membership; and the complete
+  `make test-ios-ci-tooling` gate. The Edge DTO contract gate, 65 signing/
+  lifecycle-registration/image-repair unit tests, and both handlers' frozen
+  entrypoint checks also pass without hosted calls. Exact comparisons preserve
+  the main-client and aggregate remainders and all six rehomes, allowing only
+  fixture/unique-name/UTF-8 convenience and whitespace changes. XcodeGen is
+  byte-stable; removing only references to the 16 new source files and two new
+  `Media` groups reproduces the pre-slice project hash. `project.yml` is
+  unchanged. The 24 production copies, four native test/fixture copies, and
+  selected staging dependency declarations/methods match current source.
+  Markdown and Edge-fleet formatting, local links/anchors, focused selectors,
+  command-block syntax, and whitespace checks pass.
+- The
+  [media storage matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification),
+  shared matrices, native inventories, testing strategy, API contracts, and
+  Function READMEs now describe the new owners. They distinguish the queue's
+  complete signing-response checks from foreground video's unchanged count
+  check, and raw PUT rejection from caller-owned re-signing. The image-pipeline
+  guide also corrects existing documentation drift: ambiguous metadata
+  persistence preserves a promoted object instead of unconditionally deleting
+  it. These are ownership and accuracy corrections, not backend policy changes.
+- Fresh generic Simulator and full-unit `build-for-testing` attempts stop before
+  compilation with exit 74 because SwiftPM cannot write its manifest diagnostic
+  cache; CoreSimulatorService is also unavailable. No fresh candidate iOS test
+  products were produced, so focused/full iOS runtime and manual integration
+  remain unrun. Native/source checks and cached-dependency typechecking are
+  supplemental, not iOS transport, background transfer, or real-session
+  account-switch acceptance. These local restrictions do not undo the accepted
+  merged baseline; this new candidate still needs its own CI/runtime evidence.
+- The media-storage second pass found no production regression. It corrected the
+  signing test's name and documentation to describe explicit/resolved
+  payload-owner mapping, not live Auth lease enforcement; the existing
+  `SupabaseManagerTests` exact-session lease and `MerianNetworkClientTests`
+  retry-account policy suites remain the pure state/policy owners. The focused
+  matrix now includes both. A private per-session held-request transport adds
+  task-owned cancellation coverage for both Data and file PUTs, preserving raw
+  `URLError.cancelled` and requiring the underlying request to stop. Independent
+  start/completion/stop bounds and session invalidation on completion timeout
+  prevent a cancellation regression from hanging the suite. These are test and
+  documentation fixes; production source remains unchanged in the second pass.
+- Second-pass verification repeated current-source iOS frontend typechecking,
+  all 88 native pure/source tests, the complete iOS CI-tooling gate, the Edge
+  DTO gate, and 65 backend unit tests. A supplemental native Foundation probe
+  exercises both held-request cancellation paths and an unfinished completion
+  signal's watchdog using the same private test helper; its two test functions
+  bring the native run to 90 tests in 15 suites. That probe uses Foundation
+  directly, not the app client or live Auth. Strict lint, Swift parsing,
+  project/source membership, byte-stable XcodeGen, exact rehome/source-copy
+  comparisons, Markdown/Edge-fleet formatting, documentation references, and
+  `git diff --check` also pass. Fresh generic Simulator and full-unit
+  `build-for-testing` attempts again stop before compilation with exit 74 at the
+  restricted SwiftPM manifest cache; CoreSimulatorService remains unavailable.
+  Focused/full iOS runtime and manual integration remain unrun.
+- Documentation follow-up makes the remaining
+  [media storage integration checklist](../../apps/ios/Merian/Core/Network/README.md#media-storage-integration-checklist)
+  explicit: real Data/file bytes and stored length, foreground video failure
+  recovery, task cancellation versus live-session fencing, background
+  continuation, avatar/image-repair consumers, and publication restore. The
+  testing strategy distinguishes Data-body assertions from file-upload mocks and
+  source guards; neither file mocks nor the native Foundation probe prove
+  received storage bytes. The codebase map identifies the file-private
+  cancellation test helpers, and the offline-sync guide links foreground
+  planning to Network without moving queue authority. This follow-up changes
+  documentation only and adds no fresh runtime or deployment evidence.
+- The 2026-09-03 enrichment/export/product-feedback pass extracts five thin
+  methods into three stateless owners:
+  `MerianNetworkClient+ScanEnrichment.swift` (59 lines),
+  `MerianNetworkClient+Exports.swift` (22), and
+  `MerianNetworkClient+ProductFeedback.swift` (22). The main client shrinks from
+  3,984 to 3,908 lines. A narrow prepared-JSON bridge preserves enrichment's
+  configuration → serialization → UUID-key validation → private transport →
+  plain-decoder sequence without re-encoding bytes or widening session/Auth
+  access. Context's configuration-before-no-op behavior, optional/raw fields,
+  hand-written enrichment DTOs, 15-/30-second deadlines, canonical enrichment
+  idempotency, body-ignored export/feedback success, and existing refresh,
+  replay, and cancellation policies remain unchanged. Capture/AI/Settings/
+  Identify retain their scheduling, persistence, presentation, and request-model
+  owners. Export remains launch-gated; there is no API, schema, feature-flag,
+  hosted mutation, or deployment change.
+- Four aggregate regressions move to `ScanEnrichmentEndpointTests` and
+  `ExportEndpointTests`, shrinking the aggregate from 3,559 to 3,448 lines. The
+  survey endpoint regression moves from Settings to
+  `ProductFeedbackEndpointTests`; all five method selectors and assertions are
+  retained with isolated per-client transport. Settings' `FeedbackSurveyTests`
+  now keeps only its three prompt/cooldown tests and removes shared network
+  overrides. New request/transport coverage checks raw scopes and optional
+  context, serialization-before-UUID/cancellation, explicit-key enrichment
+  projection and decoding errors, constructor normalization/metadata, ignored
+  2xx bodies/statuses, bounded keyed replay, unkeyed mutation replay refusal,
+  refresh, cancellation, and prepared-body identity.
+  `EnrichmentExportFeedbackBoundaryTests` guards the three source owners,
+  unchanged DTO locations, private transport, and rehomes. No protected
+  critical-result selector changes owner. The
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification),
+  shared endpoint matrices, caller READMEs, Core manager/codebase inventories,
+  testing strategy, and API references now name the owners. The API reference
+  also documents the existing Community feedback route; no wire semantics
+  change.
+- Independent pre-/post-edit contract review found no material parity or
+  transport-encapsulation defect. Verification passed current-source iOS
+  frontend typechecking for 19 production source copies, all 13 endpoint owners,
+  and focused Network/feedback suites against cached dependencies; 63 native
+  pure model/decoder/cache/architecture tests in ten suites; Swift parsing of
+  the 12 directly affected files; strict lint of four production files and seven
+  new/updated test files with zero violations; project/source membership and its
+  adversarial fixtures; event routing; and the complete
+  `make test-ios-ci-tooling` gate. Exact comparisons preserve the main-client
+  remainder, aggregate remainder, and rehomed regressions. Nineteen production
+  and eleven native source/fixture copies match current source. XcodeGen is
+  byte-stable; removing only 36 generated references for nine new Swift files
+  reproduces the pre-slice project hash, and `project.yml` is unchanged.
+  Markdown formatting, local links/anchors, focused selectors, command syntax,
+  and whitespace checks pass.
+- Fresh generic Simulator and full-unit `build-for-testing` attempts stop before
+  compilation with exit 74 because SwiftPM cannot write its diagnostic cache;
+  CoreSimulatorService is also unavailable. No fresh candidate iOS test products
+  were produced. Focused/full iOS runtime and manual integration remain unrun.
+  The native/source/typechecking results are supplemental and must not be
+  reported as iOS transport or real-session account-fencing acceptance; the new
+  candidate still needs its own CI/runtime evidence.
+- The second-pass review found no production-code or test correction needed. It
+  corrected pre-existing enrichment documentation drift in the canonical API
+  section and linked Function README: required scope and UUID attribution,
+  separate scoped responses and client requests, the bounded lookalike retry,
+  cache/singleflight conditions, and legacy null/omission/placeholder behavior.
+  These are documentation corrections to the existing handler, not wire or
+  backend changes. The source-parity, native-test, cached-dependency
+  typechecking, strict-lint, generated-project, and local CI-tooling reruns
+  pass. Both fresh Xcode attempts still stop before compilation at the same
+  local SwiftPM permission boundary; no iOS runtime or manual acceptance is
+  claimed.
+- The follow-up documentation audit aligns the AI architecture, API references,
+  native ownership guides, testing strategy, and backend caller READMEs. It
+  corrects `EnrichScanResponse` to a hand-written contract below the generated
+  Identify block, describes independently scoped enrichment and awaited update
+  attempts without promising atomic persistence, and distinguishes survey prompt
+  suppression from the manual form's 24-hour submitted-state display.
+  Independent contract review, Markdown and Edge-fleet formatting, added local
+  links/anchors, focused suite references, shell-block syntax, scoped API
+  examples, source-copy parity, and whitespace checks pass. This follow-up is
+  documentation-only; it does not rerun or replace the candidate iOS runtime
+  evidence still required above.
+
+- The 2026-09-03 scan lifecycle slice moves detailed/bulk status, the legacy
+  status-string wrapper, and deletion into the 80-line
+  `Core/Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift` owner.
+  `ScanLifecycleAPIModels.swift` contains the four unchanged wire DTOs in 82
+  lines; `Decoding/ScanLifecycleResponseDecoder.swift` contains strict
+  explicit-key single/bulk/deletion validation in 63 lines, with private
+  envelope types. The main client shrinks from 4,189 to 3,984 lines. Its narrow
+  raw-response JSON bridge preserves recovery-owner forwarding into the existing
+  private transport. Configuration/input/encoding order, optional video counts,
+  raw request IDs, single-versus-bulk identity matching, legacy status decoding,
+  classified refresh, status replay, deletion confirmation/replay refusal, and
+  cancellation remain unchanged. Recovery payload construction/classification,
+  publication/media orchestration, account deletion, uploads, and durable queue
+  authority stay out of this extraction.
+- Six legacy regressions move to `ScanStatusEndpointTests` and
+  `ScanDeletionEndpointTests`, reducing the aggregate from 3,783 to 3,559 lines.
+  All selectors/assertions remain; deletion adds an exact camel-case body
+  assertion, and the moved recovery fixture omits location coordinates. Three
+  protected integrity selectors now require their new suite owners in CI;
+  adversarial fixtures reject results placed under the old aggregate. New
+  request coverage has 18 independent variants plus bulk ordering/alias/input
+  cases and encoding failure. Separate transport, wire, strict decoder, and
+  architecture suites cover retry/cancellation, legacy compatibility,
+  confirmation, account-owner pass-through, and private ownership. DEBUG mock
+  transport bypasses live Auth lease acquisition; source assertions and mock
+  retries are not real-session account-fencing evidence. The
+  [scan lifecycle matrix](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-verification)
+  joins the seven suites with shared Auth, queue, deletion, and Field Chat
+  callers. Shared endpoint matrices, API/reliability references, local READMEs,
+  testing strategy, and the codebase map now name the new owners. Documentation
+  also corrects the earlier claim that bulk status never mutates server state:
+  it cannot reconstruct scan rows but may reconcile existing job/quota/staging
+  state under the unchanged backend contract.
+- Scan lifecycle verification passed current-source iOS frontend typechecking
+  for the client, all ten endpoint extensions, decoders/validator/cache/status
+  DTOs, and focused Network suites against cached dependencies. A native macOS
+  harness passed 57 pure model/decoder/cache/architecture tests in nine suites;
+  it did not execute iOS endpoint transport tests. Exact comparisons confirmed
+  the unchanged client remainder, all four relocated DTOs, six test rehomes, and
+  retained aggregate tests. Repeated XcodeGen is byte-stable; removing only the
+  48 generated lines for the 12 new Swift files reproduces the pre-slice project
+  hash, and `project.yml` is unchanged. Project/source membership, adversarial
+  membership, event-routing, the complete `make test-ios-ci-tooling` gate,
+  parsing of all 52 changed/new Swift files, strict 16-file production lint,
+  comparison of 16 current production and 11 native test/fixture copies,
+  formatting of all 22 changed Markdown files, local links/anchors, focused
+  selectors, command syntax, and tracked/new-file whitespace checks passed.
+  Fresh generic Simulator and full-unit `build-for-testing` attempts both exited
+  74 before compilation on denied SwiftPM diagnostic-cache writes;
+  CoreSimulatorService is unavailable. Focused/full iOS runtime and manual
+  integration remain unrun. This slice changes no wire, schema, persistence,
+  feature, or release contract and performs no hosted calls or deployment; new
+  candidate CI/runtime evidence is still required.
+- The 2026-09-03 scan lifecycle second-pass review found no material defect and
+  made no corrective code edits. Independent caller tracing confirmed unchanged
+  Core Data funding/queue/deletion ownership and Field Chat preflight behavior.
+  Exact comparisons again preserved all four DTOs, six rehomed regressions, and
+  the remaining client/aggregate code. The rerun passed 57 native tests in nine
+  suites, current-source iOS frontend typechecking against cached dependencies,
+  parsing of 52 changed/new Swift files, strict lint of 16 production and nine
+  scan lifecycle test files with zero violations, byte-stable XcodeGen,
+  project/source membership and adversarial guards, event-routing, the complete
+  CI-tooling gate, Markdown formatting, links/anchors, focused selectors, and
+  whitespace checks. Fresh generic and full-unit builds again exited 74 before
+  compilation because SwiftPM could not write its diagnostic cache;
+  CoreSimulatorService remained unavailable. Focused/full iOS runtime and manual
+  verification remain unrun, not waived by the source review. The documentation
+  follow-up links the exact CI selector guards, adds the scan lifecycle matrix
+  to the codebase map, and clarifies Network-versus-Core Data ownership in the
+  offline-sync guide. No API, persistence, deployment, or release control
+  changed.
+- The initial Species Dictionary extraction moved all six
+  detail/catalog/overview/stats public method variants into the then-163-line
+  `Core/Network/Endpoints/MerianNetworkClient+SpeciesDictionary.swift` owner.
+  `Decoding/SpeciesDictionaryResponseValidator.swift` owns typed response
+  validation in 73 lines, and `Caching/SpeciesDictionaryResponseCache.swift`
+  contains the two private, locked, per-client caches in 133 lines. At that
+  checkpoint, the main client shrank from 4,528 to 4,128 lines, retaining
+  private transport behind narrow configuration-validation and typed-GET
+  bridges. The second-pass entries below record the final encapsulation
+  boundary, file sizes, and verification status. Signatures, wire DTOs,
+  input/configuration ordering, schema and identity checks, auth/retry behavior,
+  30-second POST and 20-second GET deadlines, and overview cache-buster lifetime
+  remain unchanged. Cache injection enables deterministic clock tests without
+  changing the ten-/five-minute TTLs, 64-alias limits, ID-first lookup, returned
+  identity aliases, cancellation behavior, or DEBUG reset semantics. Feature
+  callers/state, backend, persistence, and `project.yml` are untouched.
+- Eighteen existing wire/endpoint methods move from the two oversized feature
+  suites into six mirrored Core suites. Sixteen bodies are byte-identical; two
+  lose only the three route assertions now covered by feature-owned
+  `SpeciesDictionaryCatalogRouteTests`. New request cases cover all six public
+  variants plus eleven parameter combinations. Transport tests cover strict
+  malformed-success decoding, denial versus auth refresh, bounded replay, exact
+  single-read body/query identity, cancellation, and overview nonce lifetime.
+  Eleven deterministic cache tests and seven validator tests cover TTL
+  boundaries, alias capacity and expiry, isolation/reset, stale identity
+  recovery, schema versions, and normalized names. Source-architecture tests
+  protect the contained owners, validation/cache ordering, and private
+  transport. The Core Network, Dictionary/catalog/detail, Species Reference,
+  Identify, API, ownership, and testing guides now identify the ninth endpoint
+  owner and its focused suites; the deployment runbook changes only local source
+  paths, not release controls.
+- At the initial checkpoint, independent read-only implementation, test-oracle,
+  and documentation review found no actionable drift. Native macOS execution
+  passed 37 methods in six cache, validator, wire-decoding, and
+  source-architecture suites using current source. Compiler verification caught
+  a test-only throwing-closure inference error in the new Unicode boundary
+  fixture; the test now evaluates each throwing request before asserting its
+  result. Final current-source iOS frontend typechecking passed for the client,
+  all nine endpoint extensions, decoder, validator, cache, and all
+  endpoint/decoder/cache suites against cached unchanged dependencies. Exact
+  test-rehome and source-copy comparisons passed. Repeated XcodeGen was
+  byte-stable; project/source membership, adversarial membership, event-routing,
+  the complete `make test-ios-ci-tooling` gate, parsing of all 33 changed/new
+  Swift files, and strict production SwiftLint with zero violations across 13
+  files passed. Markdown formatting, local-link/anchor and focused-suite
+  validation, shell command-block syntax, and tracked/new-file whitespace checks
+  passed. Native execution is bounded evidence for these pure helpers;
+  cached-dependency typechecking is not full-target compilation. Neither is an
+  iOS transport/runtime pass.
+- Fresh generic Simulator build and complete-unit `build-for-testing` attempts
+  on 2026-09-02 both exited 74 during package resolution, before compilation, on
+  denied SwiftPM diagnostics-cache writes; CoreSimulatorService was also
+  unavailable. No candidate test products were created. The
+  [Species Dictionary matrix](../../apps/ios/Merian/Core/Network/README.md#species-dictionary-verification),
+  shared-bridge matrices, complete `merianTests` runtime, and manual Dictionary,
+  chart, VoiceOver, and Dynamic Type checks remain unrun locally. The new
+  candidate needs its own CI/runtime validation; the earlier merged Inference CI
+  confirmation is not evidence for these edits. No live service calls,
+  deployment, or external publication were performed.
+- The 2026-09-02 Species Dictionary second-pass review found a cache
+  encapsulation gap: the immutable client cache reference was module-internal,
+  exposing its mutators to callers that could bypass validation. This supersedes
+  the first-pass no-actionable-drift conclusion for that boundary. The reference
+  is private again. Two fixed-result client request bridges own lookup,
+  authenticated load, fixed schema/identity validation, and insertion; they
+  accept neither cache objects nor caller-provided response DTOs, loaders, or
+  insertion callbacks. The typed GET helper is also private. The six public
+  methods, configuration-before-normalization ordering, payloads, deadlines,
+  warm-cache cancellation, TTL/alias policies, and DEBUG reset behavior remain
+  unchanged. The endpoint owner is now 130 lines and the main client 4,189
+  lines. No new production type, protocol, API field, or backend operation was
+  introduced.
+- New schema-rejection and returned-identity tests require another dispatch
+  after a rejected response, catching premature memo insertion under both
+  requested and returned aliases. Architecture tests require the private cache
+  reference and GET helper and enforce the fixed-result bridge signatures and
+  lookup/load/validate/insert ordering. Independent read-only follow-up review
+  found no remaining production parity or test-oracle defect. Native execution
+  passed 38 methods in six pure-helper/source-architecture suites, and
+  current-source iOS frontend typechecking passed for the client, nine endpoint
+  owners, decoder, validator, cache, and all endpoint/decoder/cache suites
+  against cached unchanged dependencies. This does not claim iOS runtime
+  execution of the new admission tests or full-target compilation.
+- The second-pass compiler also rejects a deliberate cross-file attempt to
+  access the client's cache because the property is private. Exact comparisons
+  confirm the unchanged client remainder outside the reviewed cache boundary,
+  all six public signatures, unchanged cache/validator policies, and all 18 test
+  rehomes. Repeated XcodeGen is byte-stable; project/source membership,
+  adversarial membership, event-routing, the complete `make test-ios-ci-tooling`
+  gate, all 33 changed/new Swift parses, all 13 production and six native
+  test/fixture source-copy comparisons, strict 13-file production lint, Markdown
+  formatting, local links/anchors, focused-suite selectors, and tracked/new-file
+  whitespace checks passed. Fresh generic Simulator build and complete-unit
+  `build-for-testing` attempts both exited 74 before compilation on denied
+  SwiftPM diagnostics-cache writes, with CoreSimulatorService still unavailable.
+  Focused/full iOS runtime and manual requirements remain unrun; no candidate
+  runtime, deployment, or external publication is claimed.
+- Field Chat now lives in
+  `Core/Network/Endpoints/MerianNetworkClient+FieldChat.swift`: all 17 Insight,
+  Explore-post, and Species Dictionary methods form a 401-line owner.
+  `Decoding/FieldChatResponseDecoder.swift` contains the unchanged stateless
+  strict validators in 304 lines. The main client shrinks from 5,214 to 4,528
+  lines and gains one narrow `Encodable`-body POST bridge that returns bytes.
+  Public signatures, DTOs, JSON omission/raw-text rules, per-family deadlines,
+  supplied/generated idempotency keys, private
+  transport/auth/replay/cancellation, and cloud/media recovery remain unchanged.
+  The other seven endpoint owners, feature callers/state, backend, persistence,
+  and `project.yml` are untouched.
+- `FieldChatNetworkEndpointTests` adds 60 request variants for the 17
+  operations; `FieldChatNetworkTransportTests` locks all-method
+  malformed/oversized success, denials, classified-401 refresh, cancellation,
+  the five-keyed/twelve-unkeyed ambiguous-replay split, exact request/key reuse,
+  generated-key lifetime, and encoding errors before dispatch. Five legacy
+  regressions retain their names and assertions in
+  `FieldChatConversationEndpointTests`, `FieldChatActionEndpointTests`, and
+  `SpeciesDictionaryChatEndpointTests`, reducing the aggregate from 4,804 to
+  3,783 lines. Per-test clients and scoped sessions replace shared-client
+  mutation. `FieldChatResponseDecoderTests` directly tests all five validators,
+  and `MerianNetworkArchitectureTests` guards their contained owners and private
+  transport. Standalone wire decoding and cloud-preflight integration keep their
+  existing owners and protected CI selectors.
+- Independent read-only production, test-oracle, and ownership-documentation
+  review found no actionable drift. Exact comparisons confirm all 17 signatures,
+  validator bodies/constants after owner/name/comment-only normalization, the
+  unchanged client remainder, and the five test rehomes. Current-source iOS
+  frontend typechecking passed for the client, eight endpoint extensions,
+  decoder, and all endpoint/decoder suites against cached unchanged
+  dependencies; all ten production copies match current source. Native macOS
+  execution passed 23 decoder and ten source-architecture test methods using the
+  actual decoder, DTO, date, and error implementations. Repeated XcodeGen was
+  byte-stable and adds only new source/group references. Source parsing,
+  project/source membership and adversarial membership checks, event-routing,
+  the complete `make test-ios-ci-tooling` gate, and strict SwiftLint of all ten
+  production files passed. All eight changed Markdown files were formatted;
+  Markdown validation, 20 added local links/anchors, 217 unique focused-suite
+  selectors, shell command-block syntax, and tracked/new-file whitespace checks
+  passed. Ownership guides and focused matrices now include the eighth endpoint
+  owner and mirrored decoder tests.
+- Fresh generic Simulator build and complete-unit `build-for-testing` attempts
+  on 2026-09-02 both exited 74 during package resolution, before compilation, on
+  denied SwiftPM diagnostics-cache writes; CoreSimulatorService was also
+  unavailable. No candidate test products were created. The
+  [Field Chat matrix](../../apps/ios/Merian/Core/Network/README.md#field-chat-verification),
+  the other shared-bridge focused matrices, complete `merianTests` runtime, and
+  manual three-source/VoiceOver/Dynamic Type checks remain unrun locally. Native
+  decoder execution and cached-dependency typechecking are not an iOS transport
+  or host-runtime pass. These local restrictions do not prevent the next scoped
+  hygiene slice, but new candidate changes still need CI/runtime validation.
+  Existing backend release holds are unchanged; no live service calls,
+  deployment, or external publication were performed.
+- The 2026-09-02 Field Chat second-pass review found a shared retry-test blind
+  spot: Field Chat and post-management handlers validated a request body, then
+  read it again for their replay fingerprint. A one-shot `httpBodyStream` could
+  therefore leave two empty bodies comparing equal. The shared POST assertion
+  now returns an immutable `NetworkEndpointRequestSnapshot` of the exact bytes
+  it validated, the idempotency key, and the timeout; all five affected replay
+  handlers reuse that snapshot. Five new `NetworkEndpointTestSupportTests`
+  methods cover data/stream bodies, exact bytes versus semantic JSON
+  equivalence, key/timeout identity, and scalar/null/omission distinctions. This
+  finding supersedes the earlier no-test-oracle-finding summaries for these two
+  slices. No production changes were needed; independent read-only review
+  confirmed the repair, and exact extraction/rehome comparisons remained clean.
+  The shared focused matrices include the helper suite, and testing-guide
+  inventory references now include the eighth endpoint owner, Field Chat.
+- Second-pass native execution passed all 38 test methods in three suites (23
+  decoder, ten architecture, five test-support). A temporary native-only
+  mutation that reread the body made both stream-backed byte-identity tests
+  fail, confirming that the new suite detects the original defect. Updated
+  current-source iOS frontend typechecking passed for the client, all eight
+  extensions, decoder, and endpoint/decoder tests against cached unchanged
+  dependencies. All compilation copies were compared with current source.
+  Parsing of all 17 changed/new Swift files, strict ten-file production lint,
+  byte-stable XcodeGen, project/source membership, adversarial membership,
+  event-routing, and the complete iOS CI-tooling gate passed. Markdown
+  formatting, local-link/focused-suite validation, shell command-block syntax,
+  and tracked/new-file whitespace checks also passed. Fresh generic Simulator
+  build and complete-unit `build-for-testing` attempts both exited 74 before
+  compilation on denied SwiftPM diagnostics-cache writes, with
+  CoreSimulatorService unavailable. No candidate test products, iOS runtime
+  pass, or manual device verification are claimed; the focused/full-target
+  runtime and manual requirements above still need candidate validation.
+- Documentation closeout puts shared endpoint-fixture and verification
+  requirements in the Core Network guide, replacing incomplete copied group
+  lists in the Field Trips, Identify, and testing guides. The Field Trips and
+  Identify selector matrices now include `NetworkEndpointTestSupportTests`.
+  Field Chat, Insights, Species Dictionary, Explore, and the codebase map point
+  to the extracted request/decoder and test owners. The three chat route
+  references are complete, and host guidance requires the shared chat matrix
+  separately from Dictionary reads or Insight cloud readiness. This follow-up
+  changes documentation only; it does not rerun or upgrade the prior native,
+  compiler, iOS-runtime, or release evidence above. Markdown formatting,
+  local-link and suite-selector validation, shell command-block syntax, and diff
+  checks passed; the non-Markdown candidate hashes remained unchanged.
 - Explore post management now lives in
   `Core/Network/Endpoints/MerianNetworkClient+ExplorePostManagement.swift`: six
   composer-media/share-state/incident reads and unshare/notes/content edits form

@@ -968,7 +968,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
             // Only mark the species as enriched when the call actually succeeded.
             if !capturedIsEnriched && !Task.isCancelled,
-               self.speciesData?.habitatDescription != nil,
+               self.speciesData?.habitatDescription?.trimmedNonEmptyValue != nil,
                self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
                 self.hydrationCoordinator.markSpeciesEnriched(
                     capturedScientificName
@@ -2329,7 +2329,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                                presentationGeneration: capturedPresentationGeneration,
                                reviewActionGeneration: reviewActionGeneration
                            ) {
-                            updated.habitatDescription = enrichData.habitat_description
+                            if let habitat = enrichData.habitat_description?.trimmedNonEmptyValue {
+                                updated.habitatDescription = habitat
+                            }
                             if let tax = enrichData.taxonomy {
                                 updated.taxonomy = TaxonomyData(
                                     kingdom: tax.kingdom,
@@ -2350,7 +2352,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         }
                         if let context = modelContext {
                             let container = context.container
-                            let habitatSnapshot = enrichData.habitat_description
+                            let habitatSnapshot = enrichData.habitat_description?.trimmedNonEmptyValue
                             let gbifSnapshot = enrichData.gbif_taxon_key
                             let taxonomySnapshot = enrichData.taxonomy
                             let altNamesSnapshot = enrichData.alternative_common_names
@@ -2903,7 +2905,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         genus: row.genus
                     )
                     updated.iucnRedListStatus = row.iucn_red_list_status
-                    updated.habitatDescription = row.habitat_description
+                    updated.habitatDescription = row.habitat_description?.trimmedNonEmptyValue
                     updated.gbifTaxonKey = row.gbif_taxon_key
                     updated.referenceImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(
                         row.reference_image_url
@@ -2936,7 +2938,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                             row.reference_image_url
                         )
                     let capturedIucn = row.iucn_red_list_status
-                    let capturedHabitat = row.habitat_description
+                    let capturedHabitat = row.habitat_description?.trimmedNonEmptyValue
                     let capturedGbif = row.gbif_taxon_key
                     enqueueIdentificationWrite(
                         scanId: scanId,
@@ -3290,7 +3292,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         } ?? false
         // Split enrichment needs by scope so each concurrent call is fired only when required.
         let needsMetadata = recordAllowsSpeciesHydration &&
-            (record.habitatDescription == nil || record.gbifTaxonKey == nil || !hasUsableLookalikeTaxonomy(recordTaxonomy))
+            (record.habitatDescription?.trimmedNonEmptyValue == nil || record.gbifTaxonKey == nil || !hasUsableLookalikeTaxonomy(recordTaxonomy))
         let needsLookalikes = recordAllowsSpeciesHydration &&
             (shouldResetLocalLookalikes || record.lookalikesData == nil || lookalikesHaveNoCommonNames)
         let needsEnrichment = needsMetadata || needsLookalikes
@@ -3441,7 +3443,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                             reviewActionGeneration: reviewActionGeneration
                         )
                         if !Task.isCancelled,
-                           self.speciesData?.habitatDescription != nil,
+                           self.speciesData?.habitatDescription?.trimmedNonEmptyValue != nil,
                            self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
                             self.hydrationCoordinator.markSpeciesEnriched(
                                 hydrationScientificName

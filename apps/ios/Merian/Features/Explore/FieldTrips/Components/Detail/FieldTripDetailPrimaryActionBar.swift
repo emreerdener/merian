@@ -42,7 +42,6 @@ struct FieldTripDetailPrimaryActionBar: View {
         .controlSize(.large)
         .tint(backgroundColor)
         .frame(maxWidth: .infinity)
-        .shadow(color: shadowColor, radius: 12, x: 0, y: 6)
         .disabled(!isEnabled || isLoading)
         .accessibilityLabel(title)
         .accessibilityValue(isLoading ? "In progress" : "")
@@ -63,15 +62,6 @@ struct FieldTripDetailPrimaryActionBar: View {
             .accentColor
         case .status:
             Color(uiColor: .secondarySystemGroupedBackground)
-        }
-    }
-
-    private var shadowColor: Color {
-        switch style {
-        case .primary:
-            .black.opacity(0.24)
-        case .status:
-            .clear
         }
     }
 }

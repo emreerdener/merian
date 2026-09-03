@@ -48,10 +48,11 @@ navigation mode.
 ## Boundaries
 
 - `Core/Network/SpeciesDictionaryAPIModels.swift` remains the owner of Codable
-  DTOs and JSON compatibility. `SpeciesDictionaryIdentity.swift` and
-  `MerianNetworkClient` own normalized identity, strict `schema_version = 1`
-  validation, transport, and caching; Catalog Services only adapt those calls
-  for observable state.
+  DTOs and JSON compatibility. The Species Dictionary endpoint extension owns
+  catalog/overview payloads, `SpeciesDictionaryResponseValidator` requires exact
+  `schema_version = 1`, and `MerianNetworkClient` retains private shared
+  transport. Catalog and overview do not use the separate detail/stats memos;
+  Catalog Services adapt their calls for observable state.
 - Explore Shell owns the shared `NavigationPath`, Identify/Index selection, and
   route destination registration. Catalog owns the category route value and
   emits species-detail routes without creating another navigation stack.
@@ -75,8 +76,8 @@ navigation mode.
 
 Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Catalog/`:
 
-- `SpeciesDictionaryCatalogContractTests` owns the relocated overview/catalog
-  decoding and endpoint-payload tests.
+- `SpeciesDictionaryCatalogRouteTests` owns catalog-item and featured-species
+  detail routing, including entry point and identity/name propagation.
 - `SpeciesCatalogPresentationTests` owns country flags, region visibility,
   category routes/order, and group-row policy.
 - `SpeciesDictionaryCatalogViewModelTests` owns normalization, initial-load
@@ -92,6 +93,9 @@ Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Catalog/`:
   and the 600-line ceiling.
 
 The mirrored sibling `SpeciesDictionary/Detail/` suites own detail-page state,
-presentation, endpoint adaptation, Community sightings, and architecture.
-`SpeciesDictionaryTests` retains wire decoding and validation plus endpoint and
-cache compatibility.
+presentation, endpoint adaptation, Community sightings, and architecture. Core
+Network's `SpeciesDictionaryCatalogAPIModelsTests` and
+`SpeciesDictionaryCatalogEndpointTests` now own the relocated overview/catalog
+wire and payload tests. Schema, identity, deterministic memo, and shared
+transport coverage stays with Core Network; see the
+[Dictionary verification matrix](../../../Core/Network/README.md#species-dictionary-verification).

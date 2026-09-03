@@ -79,7 +79,8 @@ struct ExplorePostManagementEndpointRequestCase: Sendable, CustomTestStringConve
         expectedJSON: #"{"post_id":"post-test","field_notes":null,"hashtags":[],"location_sharing":"obscured"}"#
     )
 
-    func expectRequest(_ request: URLRequest) throws {
+    @discardableResult
+    func expectRequest(_ request: URLRequest) throws -> NetworkEndpointRequestSnapshot {
         let key = request.value(forHTTPHeaderField: "Idempotency-Key")
         if requiresIdempotencyKey {
             let value = try #require(key)
@@ -88,7 +89,7 @@ struct ExplorePostManagementEndpointRequestCase: Sendable, CustomTestStringConve
         } else {
             #expect(key == nil)
         }
-        try NetworkEndpointTestSupport.expectPOST(
+        return try NetworkEndpointTestSupport.expectPOST(
             request, function: function, json: expectedJSON, idempotencyKey: key
         )
     }

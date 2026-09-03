@@ -876,9 +876,12 @@ injected closure dependencies for Settings state tests:
   unexpected failure recovery.
 - `FeedbackSurveyViewModelTests` covers required ratings, exclusive choices,
   stable request ordering, success reset, submission failure, and overlapping
-  submission rejection. `FeedbackSurveyTests` retains prompt policy and endpoint
-  encoding coverage and claims the shared network-client override gate before
-  replacing its transport.
+  submission rejection. `FeedbackSurveyTests` retains only prompt/cooldown
+  policy, without a shared network override. `ProductFeedbackEndpointTests` owns
+  its rehomed survey endpoint regression and Community feedback encoding;
+  `ExportEndpointTests` owns export request coverage. Cross-boundary changes
+  also require the
+  [Core Network enrichment/export/feedback matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
 - `NotificationSettingsViewModelTests` covers authorization decisions, deferred
   enablement, disable behavior, stale-refresh fencing, and exact
   remote-registration reason values. The live adapter delegates to Hardware's
@@ -916,6 +919,10 @@ xcodebuild test-without-building \
   -only-testing:merianTests/SettingsPreferenceInteractionTests \
   -only-testing:merianTests/SettingsArchitectureTests \
   -only-testing:merianTests/FeedbackSurveyTests \
+  -only-testing:merianTests/ExportEndpointTests \
+  -only-testing:merianTests/ProductFeedbackEndpointTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackTransportTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackBoundaryTests \
   -only-testing:merianTests/ChangelogTests
 ```
 
@@ -1292,14 +1299,45 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `LocalVisualAnalysis.swift` aggregate; and keeps every extracted owner and
   split local-analysis policy file below 600 lines. The Species Reference
   architecture suite applies the same ceiling to the shared transport owner.
-- **`SpeciesDictionaryTests.swift`**: Validates the public dictionary response
-  decoder, additive `content_quality`, strict `schema_version = 1`, canonical
-  UUID/name request normalization, dual-identity local recovery,
-  invalid/synthetic ID name-only fallback, response-identity rejection, and the
-  `MerianNetworkClient` 10-minute in-memory memoization path without stale UUID
-  or external-ID aliases. It also retains observation-stats compatibility. Test
-  setup resets the singleton cache whenever a mocked `URLSession` is injected so
-  serialized network tests do not share stale dictionary entries.
+- **`Core/Network/Decoding/SpeciesDictionaryAPIModelsTests.swift`,
+  `SpeciesDictionaryCatalogAPIModelsTests.swift`, and
+  `SpeciesObservationStatsAPIModelsTests.swift`**: Own the rehomed public
+  Dictionary/detail/catalog/overview and stats wire-decoding regressions,
+  including legacy optional schemas, additive content quality, reference-image
+  metadata, unknown image sources, and public chart buckets.
+  `SpeciesDictionaryResponseValidatorTests` separately validates exact
+  Dictionary schema 1, stats schema 2-or-newer, UUID/name equality, stale-ID
+  local recovery, and name-only canonical/external identities.
+- **`Core/Network/Endpoints/SpeciesDictionaryDetailEndpointTests.swift`,
+  `SpeciesDictionaryCatalogEndpointTests.swift`, and
+  `SpeciesObservationStatsEndpointTests.swift`**: Retain the prior request,
+  schema-rejection, response-identity, recovery, and memoization regressions.
+  `SpeciesDictionaryNetworkEndpointTests` adds 17 independent payload variants
+  across six public method signatures, input/Unicode bounds, cache isolation,
+  DEBUG reset/session replacement, warm-cache cancellation, ID-first stats hits,
+  and reset-during-dispatch compatibility. The parameterized
+  `rejectedSchemasNeverWarmRequestedAliases` and
+  `rejectedIdentityNeverWarmsReturnedAliases` regressions cover both detail
+  overloads and stats. They require another dispatch for the requested or
+  returned aliases, so inserting a response before throwing cannot silently
+  poison the memo; a first-call rejection alone is not a sufficient test oracle.
+  Architecture tests require the client's cache reference and GET helper to
+  remain private and enforce fixed-result lookup/load/validate/insert bridges
+  without caller-provided responses or loaders. Transport tests preserve raw
+  decode errors, unclassified denials, single auth refresh, bounded safe-read
+  replay, exact POST bytes/GET URLs, and cold-task versus independent transport
+  cancellation. Each case uses a private client and scoped mock session, never
+  the shared client. Run the
+  [Dictionary matrix](../../apps/ios/Merian/Core/Network/README.md#species-dictionary-verification)
+  plus the complete unit target and shared-bridge matrices when applicable.
+- **`Core/Network/Caching/SpeciesDictionaryResponseCacheTests.swift`**: Uses an
+  injected clock, not sleeps, to cover exact 10-/5-minute insertion-time expiry,
+  replacement age, ID-first lookup, returned-only detail aliases, stats alias
+  union, separate stores/instances, 64-alias-key capacity, expired-first
+  pruning, oldest-insertion rather than LRU eviction, unspecified timestamp
+  ties, reset, and single clock sampling. The former mixed
+  `SpeciesDictionaryTests` suite is removed; pure cache/validator execution is
+  not candidate iOS transport or host verification.
 - **`Features/SpeciesDictionary/Detail/`**: Mirrors Detail production ownership.
   `SpeciesDictionaryPageViewModelTests` owns normalized identity, visible state,
   telemetry, retry, and stale success/failure fencing;
@@ -1314,8 +1352,9 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   views, grouped components, retired aggregate-file removal, and the 600-line
   production-file ceiling.
 - **`Features/SpeciesDictionary/Catalog/`**: Mirrors Catalog production
-  ownership. `SpeciesDictionaryCatalogContractTests` owns relocated overview and
-  catalog decoding plus exact endpoint-payload coverage;
+  ownership. `SpeciesDictionaryCatalogRouteTests` owns catalog-item and
+  featured-species route identity/name and entry-point propagation; wire and
+  payload cases live in the Core Network suites above.
   `SpeciesCatalogPresentationTests` owns country flags, visible regions,
   category routing/order, and group-row policy;
   `SpeciesDictionaryCatalogViewModelTests` owns normalized initial loading,
@@ -1504,27 +1543,58 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `FieldChatArchitectureTests.swift` enforces the cross-feature owner,
   Services-only live resolution, platform-neutral Models, aggregate removal, and
   the 600-line production-file ceiling.
-- **Network Field Chat validation**: `MerianNetworkClientTests.swift` exercises
-  the candidate-success boundary: malformed Community enums become
-  `MerianError.invalidResponse`, and Field Chat rejects cross-subject,
-  missing-subject, cross-conversation, unknown-role, non-UUID-message, or
-  invalid-limit envelopes before the view model can apply them, including an
-  otherwise valid empty thread from the wrong subject. Send cases additionally
-  reject an incomplete or mismatched `client_message_id` pair, padded/empty or
-  over-4,000-character message text, and a JSON body over 1 MiB; manual retry
-  retains the failed send UUID. Species Dictionary cases additionally pin the
-  `species_id` request body and idempotency header, strict species subject echo,
-  cross-subject rejection, source-specific `species_not_available` handling, and
-  identifier-free product telemetry. The foreground identify boundary also
-  proves an exact handler-owned `403 ai_consent_required` becomes
-  `MerianError.aiConsentRequired`, so the app can enter disclosure recovery
-  instead of exposing a generic HTTP retry. Backend source/helper tests lock
-  bounded same-UUID quota replay coalescing. Action-response cases reject
-  false/mismatched answer and feature feedback, empty or internal-ID-leaking
-  note summaries, and malformed, duplicate, unsafe, oversized, or
-  unknown-category prompt suggestions. Safety fixtures distinguish direct action
-  requests such as harvesting/handling from ordinary educational species names
-  and behavior questions such as poison ivy habitat or animal foraging.
+- **Network Field Chat validation**:
+  `Core/Network/Endpoints/FieldChatNetworkEndpointTests.swift` owns 60 request
+  variants across all 17 methods and three routes, including nil omission, raw
+  text/notes, source-specific keys, deadlines, supplied send UUIDs, and
+  generated Insight action UUIDs. `FieldChatNetworkTransportTests.swift` covers
+  all-method malformed/oversized success, handler denials, classified-401
+  refresh, cancellation, five keyed operations' bounded ambiguous replay, twelve
+  unkeyed operations' replay refusal, exact body/key preservation, generated-key
+  lifetime, and encoding failure before dispatch. Every case uses a private
+  client and scoped mock session. Field Chat and post-management retry tests
+  compare the `NetworkEndpointRequestSnapshot` returned by the shared POST
+  assertion: the exact body bytes are captured once alongside the key and
+  timeout, not read again from a potentially consumed stream.
+  `Core/Network/Endpoints/NetworkEndpointTestSupportTests.swift` covers both
+  data- and stream-backed requests, exact-byte versus semantic JSON equality,
+  key/timeout identity, and scalar/null/omission distinctions. Run this shared
+  helper suite whenever an endpoint assertion or replay fingerprint changes.
+
+  `FieldChatConversationEndpointTests.swift`,
+  `FieldChatActionEndpointTests.swift`, and
+  `SpeciesDictionaryChatEndpointTests.swift` rehome five named regressions from
+  `MerianNetworkClientTests` without changing their behavioral assertions. They
+  reject cross-/missing-subject, cross-conversation, unknown-role,
+  non-UUID-message, invalid-limit, or mismatched send-pair success before the
+  feature applies it. Action cases reject false/mismatched feedback, empty or
+  internal-ID-leaking summaries, and malformed, duplicate, unsafe, oversized, or
+  unknown-category suggestions. Dictionary cases preserve the exact `species_id`
+  payload and idempotency header and require one saved pair after an ambiguous
+  retry. Source-specific unavailable feedback, manual-retry UUIDs, and
+  identifier-free telemetry remain feature-owned coverage.
+
+  `Core/Network/Decoding/FieldChatResponseDecoderTests.swift` directly tests the
+  stateless validator's inclusive 1 MiB bound, Unicode character limits,
+  subject/conversation/message identity, semantic UUID uniqueness, exact send
+  acknowledgement, fixed quotas, date parsing/order/metadata, action
+  confirmation, summary trimming, and prompt allowlist/safety rules.
+  `MerianNetworkArchitectureTests` guards the 17-method endpoint inventory,
+  contained validation constants, encoded-body bridge, and private transport.
+  `FieldChatAPIModelsTests` keeps standalone wire decoding, while
+  `MerianNetworkClientTests` keeps cloud preflight/recovery integration. Their
+  protected CI selectors do not move. Run the
+  [Core Network Field Chat matrix](../../apps/ios/Merian/Core/Network/README.md#field-chat-verification)
+  and the complete unit target on fresh candidate products; native decoder and
+  source tests do not replace iOS URLSession/host execution.
+
+  The remaining aggregate Network tests prove malformed Community enums become
+  `MerianError.invalidResponse`, and exact handler-owned
+  `403 ai_consent_required` becomes `MerianError.aiConsentRequired` at
+  foreground identify. Backend tests retain bounded same-UUID quota replay
+  coalescing and safety coverage that distinguishes direct harvesting/handling
+  requests from educational species names and behavior questions. This client
+  refactor does not change backend admission or release gates.
   `Features/Insights/Content/UserTagsViewModelTests.swift` verifies bounded,
   control-free validation, deduplication, rollback, local commit before external
   cloud/search effects, and ordered account-attributed cloud snapshots. The same
@@ -2286,6 +2356,93 @@ import, and permission-denial UI require the physical-device checklist in
 
 ### Security, Network & Identity
 
+- **Media storage endpoints and signed uploads**: `MediaStorageEndpointTests`
+  rehomes structured signing and checks lowercase explicit/resolved
+  payload-owner mapping, unresolved-current-session refusal, raw/optional
+  manifests, encoding order, and plain decoding failures.
+  `ScanImageCloudEndpointTests` rehomes inspect/repair and checks raw values,
+  optional keys, required envelopes, statuses, and count defaults.
+  `MediaStorageTransportTests` locks denials, classified refresh with exact
+  single-read body identity, ambiguous-replay refusal, and cancellation for all
+  three endpoints. `MediaStorageAPIModelsTests` owns wire decoding.
+  `Core/Network/Media/` owns `PresignedMediaUploadTests`,
+  `StagedVideoUploadPlanTests`, `MediaUploadTests`, and
+  `StagedVideoUploadTests`: URL/header validation ordering, strict HTTP-200
+  success, raw transport errors, Data/file PUTs, pre-upload re-stat, local
+  fallback and whole-input planning, count/byte limits, and failed or mismatched
+  signing/upload results. A private held-request transport in `MediaUploadTests`
+  exercises cancellation of the owning task for both Data/file PUTs, requires
+  raw `URLError.cancelled`, and observes the underlying request stop. Its start,
+  completion, and stop waits are independently bounded; completion timeout
+  invalidates the session rather than joining a potentially stuck task. The
+  raw-upload mock compares body bytes only for Data; file cases and source
+  guards do not prove the bytes received by storage. Follow the
+  [integration checklist](../../apps/ios/Merian/Core/Network/README.md#media-storage-integration-checklist)
+  for real iOS transfer, receiver-side bytes/length, live-session changes,
+  background continuation, and consumer-workflow acceptance.
+  `MediaStorageBoundaryTests` guards the five production owners, private
+  bridges, retained caller workflows, file-backed transfer, and six rehomes. The
+  critical-result gate requires
+  `StagedVideoUploadTests/testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning`
+  under `Staged Video Uploads`; adversarial fixtures reject its retired
+  `MerianNetworkClientTests` owner. Run the
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification),
+  shared endpoint matrices, complete unit target, and
+  `make test-ios-ci-tooling`. DEBUG mocks bypass live Auth leases: signing tests
+  prove payload selection, not real-session fencing. The existing
+  `SupabaseManagerTests` exact-session lease tests and
+  `MerianNetworkClientTests` retry-account policy tests retain that pure
+  state/policy coverage. Native pure/source tests plus cached-dependency
+  typechecking do not replace candidate iOS URLSession, background transfer, or
+  real-session account-switch execution.
+- **Scan enrichment, export, and product feedback endpoints**:
+  `ScanEnrichmentEndpointTests` rehomes three aggregate regressions and adds
+  optional/raw context, early no-context return, serialization/UUID/cancellation
+  ordering, canonical enrichment keys, both scopes and legacy raw scopes, and
+  plain hand-written enrichment DTO decoding. `ExportEndpointTests` rehomes
+  export and locks default/raw scopes, Boolean precision, its 15-second
+  deadline, and release/rate denials. `ProductFeedbackEndpointTests` rehomes
+  survey transport from Settings and covers both submissions' existing
+  constructors and wire fields. Feature prompt/state tests stay feature-owned
+  and no longer require shared network overrides.
+  `EnrichmentExportFeedbackTransportTests` locks ignored 2xx bodies/statuses,
+  classified refresh, bounded keyed-enrichment replay, replay refusal for the
+  other four mutations, single-read request identity, cancellation, and exact
+  prepared-body forwarding. `EnrichmentExportFeedbackBoundaryTests` guards the
+  three stateless owners, private transport, DTO locations, and rehome. No
+  protected CI selector moves in this slice. Run the
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification)
+  plus the shared endpoint and complete-unit gates. Mock Auth bypass, native
+  source tests, and cached-dependency typechecking do not replace candidate iOS
+  execution or account-switch integration checks.
+- **Scan lifecycle endpoint and decoding boundary**:
+  `Core/Network/Endpoints/ScanStatusEndpointTests.swift` and
+  `ScanDeletionEndpointTests.swift` retain all six legacy status/deletion method
+  selectors. The critical-result gate requires the new suite owners for
+  `testCheckScanStatusRejectsMalformedOrMismatchedSuccess`,
+  `testBulkScanStatusRejectsDuplicateMissingOrForeignRows`, and
+  `testDeleteScanRejectsUnconfirmedSuccessResponse`; adversarial fixtures reject
+  those results if placed back under `MerianNetworkClientTests`. The aggregate
+  retains shared Auth and missing-row recovery policy tests.
+  `ScanLifecycleNetworkEndpointTests` adds 18 independent request cases, raw
+  caller-key/out-of-order bulk mapping, empty/invalid input short circuits, and
+  recovery encoding failures. `ScanLifecycleNetworkTransportTests` locks
+  exact-body replay snapshots, unclassified denials without refresh,
+  classified-401 refresh, bounded status retries, deletion's ambiguous-replay
+  refusal, and pre-dispatch/in-flight/independent cancellation. The scoped DEBUG
+  transport bypasses live Auth lease acquisition; source guards for expected
+  recovery-owner forwarding do not replace real-session integration tests.
+  `Core/Network/Decoding/ScanLifecycleAPIModelsTests.swift` owns explicit wire
+  keys, optional state, and the legacy failure alias;
+  `ScanLifecycleResponseDecoderTests.swift` owns strict single/bulk identity,
+  cardinality, attempt counts, and Boolean deletion confirmation.
+  `ScanLifecycleNetworkArchitectureTests` guards the four-method owner,
+  configuration/encoding order, private raw-response bridge, retained recovery
+  owners, and test rehome. Run the
+  [scan lifecycle matrix](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-verification),
+  complete unit target, and `make test-ios-ci-tooling`. Native pure/source and
+  cached-dependency frontend checks are supplemental, not candidate iOS runtime
+  evidence.
 - **Field Trips endpoint boundary**:
   `Core/Network/Endpoints/FieldTripEndpointTests.swift` owns 48 request-mapping
   cases across every Field Trips client operation, including optional fields,
@@ -2307,15 +2464,12 @@ import, and permission-denial UI require the physical-device checklist in
   and the complete `merianTests` target after changing this boundary. Its
   per-case fixture and JSON comparison now live in
   `NetworkEndpointTestSupport.swift`, shared with Community Identification,
-  Explore browsing/interactions, notifications, public-profile, and
-  post-management endpoints. Changes to that support or either shared JSON POST
-  overload also require the
-  [Identify focused matrix](../../apps/ios/Merian/Features/Explore/Identify/README.md#verification),
-  [Explore browsing matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification),
-  [Explore interaction matrix](../../apps/ios/Merian/Core/Network/README.md#explore-interaction-verification),
-  [notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification),
-  and
-  [post-management matrix](../../apps/ios/Merian/Core/Network/README.md#explore-post-management-verification).
+  Explore browsing/interactions, notifications, public-profile, post-management,
+  Field Chat, Species Dictionary, scan lifecycle, enrichment, export, and
+  product feedback endpoints. Changes to that support, a shared JSON bridge, or
+  the configuration guard must follow the complete
+  [Core Network verification requirements](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification),
+  including `NetworkEndpointTestSupportTests` and every linked endpoint matrix.
   Exact-source macOS checks of pure Foundation/architecture behavior and focused
   frontend typechecking are supplemental evidence; neither executes the hosted
   iOS client or replaces candidate-build runtime tests. The
@@ -2340,16 +2494,17 @@ import, and permission-denial UI require the physical-device checklist in
   effects; it is not classified as a pure read.
   `NetworkEndpointTestSupport.swift` shares the isolated fixture and
   type-preserving JSON assertion with Field Trips, Explore
-  browsing/interactions, notifications, public-profile, and post-management
-  endpoints; no suite writes the shared client's overrides or legacy global
-  endpoint handlers. The architecture suite keeps all seven endpoint owners
-  below 600 lines and leaves scan publication/media recovery in the main client.
-  Run the
-  [Identify focused matrix](../../apps/ios/Merian/Features/Explore/Identify/README.md#verification),
-  the Field Trips, Explore browsing, Explore interaction, and
-  notification/public-profile and post-management matrices when shared helpers
-  or the JSON POST bridge change, and the complete unit target. Runtime coverage
-  is not inferred from parsing or frontend typechecking.
+  browsing/interactions, notifications, public-profile, post-management, Field
+  Chat, Species Dictionary, scan lifecycle, enrichment, export, and product
+  feedback endpoints; no extracted endpoint suite writes the shared client's
+  overrides or legacy global endpoint handlers. The architecture suites keep all
+  extracted endpoint owners below 600 lines and leave scan publication/media
+  recovery in the main client. Run the
+  [Identify focused matrix](../../apps/ios/Merian/Features/Explore/Identify/README.md#verification)
+  and the complete unit target. Shared helper, JSON bridge, or
+  configuration-guard changes also require the full
+  [Core Network verification matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification).
+  Runtime coverage is not inferred from parsing or frontend typechecking.
 - **Explore browsing endpoint boundary**:
   `Core/Network/Endpoints/ExploreBrowsingEndpointTests.swift` owns 40
   independent request cases across eight stateless reads and rehomes nine
@@ -2368,9 +2523,8 @@ import, and permission-denial UI require the physical-device checklist in
   protects all eight declarations and private transport state. Standalone DTO
   decoding stays in Core; feature state remains in its mirrored suites. Run the
   [Core Network browsing matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification)
-  and complete `merianTests` target. Shared bridge/helper changes also require
-  the Field Trips, Identify, Explore interaction, and
-  notification/public-profile and post-management matrices; cached-module
+  and complete `merianTests` target. Shared bridge/helper changes require every
+  focused matrix and the helper suite listed in that guide; cached-module
   typechecking or native Foundation checks never count as iOS runtime execution.
 - **Explore interaction endpoint boundary**:
   `Core/Network/Endpoints/ExploreInteractionEndpointTests.swift` owns 41
@@ -2392,7 +2546,7 @@ import, and permission-denial UI require the physical-device checklist in
   Architecture checks lock all 12 declarations and both narrow POST overloads
   without widening transport access. Run the
   [Core Network interaction matrix](../../apps/ios/Merian/Core/Network/README.md#explore-interaction-verification),
-  including all seven endpoint groups and affected Feed, Author Profile,
+  including all extracted endpoint groups and affected Feed, Author Profile,
   Notifications, Identify, and social-guard suites, plus the complete unit
   target. Record cached-dependency typechecking/native source checks separately
   from fresh candidate iOS build/runtime evidence.
@@ -2436,10 +2590,10 @@ import, and permission-denial UI require the physical-device checklist in
   recovery, and its CI identity must not be rehomed as an endpoint regression.
   Run the
   [notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification)
-  and complete unit target. The matrix includes all seven endpoint groups and
-  affected notification, push/routing, notification-settings, and shared Profile
-  suites. Run the other focused matrices above when shared bridge/test helpers
-  change.
+  and complete unit target. The matrix includes all extracted endpoint groups
+  and affected notification, push/routing, notification-settings, and shared
+  Profile suites. Run the other focused matrices above when shared bridge/test
+  helpers change.
 - **Explore post-management endpoint boundary**:
   `Core/Network/Endpoints/ExplorePostManagementEndpointTests.swift` owns 36
   independent payload cases across six methods and five routes, including both
@@ -2856,13 +3010,13 @@ iOS focused coverage:
 - `Features/Explore/Shell/ExploreShellNavigationPolicyTests.swift` locks the
   exact three root tabs plus species-to-Index and request-to-Requests deep-link
   policy. Identify presentation and asynchronous state tests remain with
-  Identify. Catalog decoding, presentation, asynchronous state, and architecture
+  Identify. Catalog routing, presentation, asynchronous state, and architecture
   tests live in `Features/SpeciesDictionary/Catalog/`; detail state,
   presentation, Services, and architecture tests live in
   `Features/SpeciesDictionary/Detail/`; cross-surface model ownership lives in
   `Features/SpeciesDictionary/Shared/`. Wire, strict schema/identity, cache, and
-  observation-stats compatibility remain in
-  `Features/SpeciesDictionary/SpeciesDictionaryTests.swift`.
+  observation-stats compatibility now live in the mirrored Core Network
+  `Decoding`, `Endpoints`, and `Caching` suites.
 - `Core/Network/Endpoints/CommunityIdentificationEndpointTests.swift` owns the
   former feed/activity/request-edit endpoint regressions and expands them to all
   eight browsing/contribution methods. It verifies complete typed Activity
@@ -3011,7 +3165,7 @@ occurrence `5938154750`. iOS coverage must prove:
 - blocked-only/all-failed dictionary galleries use the leaf placeholder.
 
 These assertions live in `LocalImageLoaderTests.swift`,
-`SpeciesDataTests.swift`, `SpeciesDictionaryTests.swift`,
+`SpeciesDataTests.swift`,
 `Features/SpeciesDictionary/Detail/SpeciesDictionaryDetailPresentationTests.swift`,
 and `Features/SpeciesReference/SimilarSpeciesImageFetcherTests.swift`. Do not
 replace them with a brittle assertion that merely skips array index zero.
@@ -3900,10 +4054,12 @@ Owned scan-image recovery has five complementary boundaries:
   and one owner staging key, then rejects an unrelated host, avatar/nested/query
   source variants, traversal/nested/non-image staging keys, and a key outside
   the exact authenticated owner prefix.
-- `repair-scan-image/worker_test.ts` proves inspection never touches R2 for an
-  unreferenced URL, identifies a referenced 404 as missing, checks the old and
-  restored objects before promotion, returns atomic update counts, and rolls
-  back a new durable object after persistence failure.
+- `repair-scan-image/{db,worker}_test.ts` proves inspection never touches R2 for
+  an unreferenced URL, identifies a referenced 404 as missing, checks the old
+  and restored objects before promotion, returns atomic update counts,
+  reconstructs committed success after a lost response, and preserves a promoted
+  object on ambiguous persistence. Cleanup requires a returned rejection plus
+  fresh proof that the source remains referenced and the replacement does not.
 - `_tests/migrationMediaContract.test.ts` statically requires exact recursive
   replacement across scan arrays, captured-media JSON, normalized assets, and
   owner Explore snapshots plus the service-only grant/allowlist boundary.
@@ -3911,10 +4067,13 @@ Owned scan-image recovery has five complementary boundaries:
   disposable catalog and proves media order preservation, exact JSON string
   replacement without substring damage, normalized storage-key repair, and
   atomic Explore snapshot repair plus health-state reset.
-- iOS `LocalImageLoaderTests` and `MerianNetworkClientTests` cover safe local
-  filename compatibility, rescue-store scan-ID mapping, constrained timestamp
-  grouping, unsafe/unrelated URL rejection, authenticated inspection/repair
-  DTOs, and request payloads.
+- iOS `LocalImageLoaderTests` covers safe local filename compatibility,
+  rescue-store scan-ID mapping, constrained timestamp grouping, and
+  unsafe/unrelated URL rejection. `ScanImageCloudEndpointTests` owns
+  authenticated inspection/repair payloads and response projection;
+  `MediaStorageAPIModelsTests` owns wire decoding. The
+  [media storage matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification)
+  adds signing, signed PUT, transport, and workflow integration coverage.
 
 Do not replace the timestamp tests with a nearest-file assertion. Test fixtures
 must cover exact media-count matching, the 60-second one-way window, a
@@ -4087,9 +4246,12 @@ Public species-observation stats have layered resource-abuse coverage:
   failed-refresh stale-positive retention, and effective API-role ACLs against
   the fully migrated catalog.
 
-`SpeciesDictionaryTests` additionally proves the iOS request rejects malformed
-UUIDs, empty/overlong names, legacy schemas, and response identity mismatches
-before either network dispatch or memoization.
+`SpeciesObservationStatsEndpointTests`, `SpeciesDictionaryNetworkEndpointTests`,
+and `SpeciesDictionaryResponseValidatorTests` additionally prove the iOS request
+rejects malformed UUIDs, empty/overlong names, legacy schemas, and response
+identity mismatches before dispatch or memoization, as appropriate. The separate
+`SpeciesDictionaryResponseCacheTests` owns clock-injected expiry,
+alias-capacity, and reset behavior.
 
 Owner-level pgTAP fixtures must first create a matching transactional
 `auth.users` fixture. That insert fires `handle_new_user()` and may already
@@ -5161,10 +5323,14 @@ and detail seeking still behaves as documented.
   block/file. Tests must accompany any new server-only field, compatibility
   rule, or source-root policy change.
 - **Enrich response coverage**: `EnrichData.similar_species` and
-  `SimilarSpeciesEntry` are a separate endpoint contract. Their additive
-  metadata and legacy decoding behavior are covered by `InferenceEngineTests`,
-  `MerianNetworkClientTests`, and the focused `enrich-scan` Deno tests rather
-  than this Identify schema validator.
+  `SimilarSpeciesEntry` are a separate hand-written endpoint contract below the
+  generated Identify block. Their additive metadata and legacy decoding behavior
+  are covered by `InferenceEngineTests`, `ScanEnrichmentEndpointTests`, and the
+  focused `enrich-scan` Deno tests rather than this Identify schema validator.
+  The shared `EnrichmentExportFeedbackTransportTests` covers the endpoint's
+  authenticated request, error, replay, and cancellation behavior; run the
+  [enrichment/export/feedback matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification)
+  for these moved endpoint tests and their feature callers.
 - **Lookalike relation metadata**: Swift and Deno tests cover the additive
   `reason`, `visual_traits`, `confidence`, source/review, direction, and order
   fields. Older payloads and cached `lookalikesData` blobs without those keys
@@ -5384,7 +5550,7 @@ The surrounding export suite is intentionally split by boundary:
   deadline exit, malformed-row rejection, and aggregate health thresholds.
 - `delete-scan/db_test.ts` distinguishes true absence from database failure and
   locks the request-before-storage/completion-after-storage RPC boundary.
-- `MerianNetworkClientTests.testDeleteScanRejectsUnconfirmedSuccessResponse`
+- `ScanDeletionEndpointTests.testDeleteScanRejectsUnconfirmedSuccessResponse`
   rejects empty, false, missing-key, and non-object 2xx bodies.
   `OfflineQueueManagerTests.cloudDeletionRequiresExplicitNetworkConfirmation`
   proves `invalidResponse`, HTTP, and transport errors all retain durable cloud

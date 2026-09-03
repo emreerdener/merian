@@ -1356,16 +1356,88 @@ consults that Keychain entry.
   and `MerianNetworkClient+PublicProfile.swift` owns four public-identity
   update/availability methods. `MerianNetworkClient+ExplorePostManagement.swift`
   owns six composer-media/share-state/incident reads and unshare/notes/content
-  edits. All seven use narrow internal `performAuthenticatedJSONPost` overloads.
-  Typed results use the existing decoder; five interaction `Void` methods, push
-  registration, and unshare ignore successful bodies without adding JSON
-  validation. Codable contracts remain in `FieldTripAPIModels.swift` and
-  `ExploreAPIModels.swift`, and feature Services retain their injected
+  edits. Those seven use narrow internal `performAuthenticatedJSONPost`
+  overloads. Typed results use the existing decoder; five interaction `Void`
+  methods, push registration, and unshare ignore successful bodies without
+  adding JSON validation. Codable contracts remain in `FieldTripAPIModels.swift`
+  and `ExploreAPIModels.swift`, and feature Services retain their injected
   presentation adapters. Scan publication and its media recovery remain together
   in the main client. Shared retry policy stays private; existing per-endpoint
   payload normalization stays with its endpoint owner. The typed bridge forwards
   an optional idempotency key and can replace decoding failures only after
   transport succeeds, with nil defaults for both options.
+- `MerianNetworkClient+FieldChat.swift` owns 17 Insight, Explore-post, and
+  Species Dictionary chat methods. The eighth endpoint owner preserves the three
+  source-specific request keys and existing timeout/idempotency policies through
+  `performAuthenticatedEncodedJSONPost`, which encodes a typed body and returns
+  bytes without catching encoding or transport errors.
+  `Decoding/FieldChatResponseDecoder.swift` owns stateless strict conversation,
+  feedback, summary, and prompt validation; `InsightChatAPIModels.swift` remains
+  the Codable contract owner. Private auth/retry/cancellation, cloud preflight,
+  and recovery stay in the main client, while `Features/FieldChat/Services` and
+  `ViewModels` retain presentation adaptation and lifecycle state. See the
+  [Field Chat endpoint and validation guide](../../apps/ios/Merian/Core/Network/README.md#field-chat-endpoints-and-validation)
+  and
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#field-chat-verification).
+- `MerianNetworkClient+SpeciesDictionary.swift` is the ninth endpoint owner: six
+  public method variants cover detail, catalog, overview, and stats. Dictionary
+  POSTs retain 30-second deadlines; stats uses the private typed authenticated
+  GET helper at 20 seconds. Two fixed-result cache-aware client bridges own
+  lookup, loading, validation, and insertion without exposing the private cache
+  instance or accepting caller-provided response DTOs/loaders. A `Void`
+  configuration guard preserves URL-validation-before-input/cache ordering.
+  Typed response checks live in
+  `Decoding/SpeciesDictionaryResponseValidator.swift`; two independent locked
+  memos live in `Caching/SpeciesDictionaryResponseCache.swift`. Their
+  10-/5-minute insertion-time TTLs, 64-alias-key caps, identity fallback,
+  resets, and cache-hit cancellation behavior remain unchanged. Feature Services
+  retain their adapters, and the main client still owns
+  Auth/retries/cancellation. See the
+  [Dictionary boundary and focused matrix](../../apps/ios/Merian/Core/Network/README.md#species-dictionary-verification).
+- `MerianNetworkClient+ScanLifecycle.swift` is the tenth endpoint owner:
+  detailed and bulk status, the compatibility status string, and scan deletion
+  retain their existing signatures and 30-second deadlines. Status DTOs live in
+  `ScanLifecycleAPIModels.swift`, with explicit-key decoding and strict
+  single/bulk/deletion checks in `Decoding/ScanLifecycleResponseDecoder.swift`.
+  `performAuthenticatedJSONDataPost` returns response bytes while forwarding the
+  recovery owner's UUID into the private Auth lease boundary. Status keeps its
+  bounded ambiguous replay; deletion requires Boolean `success: true` and
+  refuses ambiguous replay. Recovery orchestration/payloads and queue/deletion
+  scheduling do not move. See the
+  [scan lifecycle ownership and matrix](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-endpoints-and-decoding).
+- `MerianNetworkClient+ScanEnrichment.swift` owns deferred context and
+  enrichment, `MerianNetworkClient+Exports.swift` owns export intake, and
+  `MerianNetworkClient+ProductFeedback.swift` owns both product feedback
+  submissions. Context/export keep 15-second deadlines; enrichment/feedback keep
+  30 seconds. Enrichment checks configuration, serializes JSON, then validates
+  its stable UUID idempotency key before the narrow
+  `performAuthenticatedPreparedJSONPost` bridge forwards unchanged bytes. Plain
+  enrichment-response decoding and its optional fields remain unchanged. The
+  other four operations ignore 2xx bodies and add no ambiguous replay.
+  Capture/AI/Settings/Identify retain scheduling, persistence, validation, and
+  interaction state; hand-written enrichment DTOs and feature-owned survey
+  models stay in place. See the
+  [ownership guide](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-product-feedback-endpoints)
+  and
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
+- `MerianNetworkClient+MediaStorage.swift` owns signing and scan-image
+  inspect/repair endpoints; `MediaStorageAPIModels.swift` owns their unchanged
+  hand-written DTOs. Signing's narrow account-bound encoded bridge captures the
+  explicit/private Auth UUID before body construction, lowercases only the wire
+  owner, and forwards the same UUID to private transport without bypassing
+  current session resolution. All three endpoints keep 30-second deadlines,
+  plain decoding errors, classified refresh, and ambiguous-replay refusal.
+  `Media/` owns Data/file PUTs and foreground video upload:
+  `PresignedMediaUpload` checks HTTPS, exact signed headers, and HTTP 200;
+  `StagedVideoUploadPlan` resolves all files and enforces existing count/byte
+  limits before signing. File PUTs re-stat before request validation and stay
+  file-backed through two raw session bridges, without new Auth, retries, or
+  cancellation mapping. Queue manifest validation/task binding, inference
+  attempt fencing, LocalImageLoader repair, Profile avatar promotion, and
+  main-client publication/restore orchestration retain their owners. See the
+  [ownership guide](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-ownership)
+  and
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification).
 - The browsing owner preserves Feed's category-priority order, Map's lexical
   filter order, independently forwarded Feed coordinates/ranking cursor, paired
   author/hashtag cursors, and the distinct species quality cursor. Map and

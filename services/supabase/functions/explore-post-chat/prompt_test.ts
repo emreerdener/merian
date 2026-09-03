@@ -1,4 +1,4 @@
-import { assertEquals, assertFalse } from "@std/assert";
+import { assertEquals, assertFalse, assertStringIncludes } from "@std/assert";
 import {
   buildExplorePostContextBlock,
   buildSystemInstruction,
@@ -67,4 +67,28 @@ Deno.test("Explore chat prompt excludes media and private scan identifiers", () 
   assertFalse(prompt.includes(context.post.scan_id));
   assertFalse(prompt.includes(context.post.author_user_id));
   assertFalse(prompt.includes("private-scan-id"));
+});
+
+Deno.test("Explore chat permits species knowledge without public reference prose", () => {
+  const prompt = buildSystemInstruction({
+    ...context,
+    detail: {
+      ...context.detail,
+      wikipedia_overview: null,
+      habitat_description: null,
+    },
+  });
+  assertStringIncludes(prompt, "Overview: Unavailable");
+  assertStringIncludes(
+    prompt,
+    "using well-established species knowledge even when that detail is absent from the supplied context",
+  );
+  assertStringIncludes(
+    prompt,
+    "Never present general species knowledge as a trait observed in this individual",
+  );
+  assertStringIncludes(prompt, "You cannot inspect the post's photo");
+  assertStringIncludes(prompt, "Do not provide edible certainty");
+  assertStringIncludes(prompt, "You have no live search or source retrieval");
+  assertFalse(prompt.includes("using only the public"));
 });

@@ -77,7 +77,13 @@ Primary files:
 - `apps/ios/Merian/Core/Network/SpeciesDictionaryIdentity.swift`
 - `apps/ios/Merian/Core/Network/SpeciesObservationStatsAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+SpeciesDictionary.swift`
+- `apps/ios/Merian/Core/Network/Decoding/SpeciesDictionaryResponseValidator.swift`
+- `apps/ios/Merian/Core/Network/Caching/SpeciesDictionaryResponseCache.swift`
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+FieldChat.swift`
+- `apps/ios/Merian/Core/Network/Decoding/FieldChatResponseDecoder.swift`
+- `apps/ios/Merian/Core/Network/InsightChatAPIModels.swift`
 - `apps/ios/Merian/Core/Utilities/AppRouteCoordinator.swift`
 - `apps/ios/Merian/App/MerianApp.swift`
 - `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+Routing.swift`
@@ -246,11 +252,22 @@ disabled. Answer feedback, delete, retry/edit, and deterministic prompt chips
 remain available. A thread already loaded in memory stays readable offline;
 network mutations remain unavailable.
 
+Dictionary Field Chat can answer general questions from well-established species
+knowledge even when the bounded dictionary text lacks the requested detail.
+Shared backend rules distinguish typical traits from observations of an
+individual, acknowledge uncertainty and relevant variation, and retain the
+existing safety and privacy limits. This does not add live search, media access,
+or evidence for current/local conditions.
+
 The shared implementation is owned by `Features/FieldChat`, not Insights.
 `FieldChatEndpoint` selects the Dictionary adapter, and `InsightChatViewModel`
 consumes its injected dependencies. Dictionary Detail retains only eligibility,
 entitlement, loaded-species identity, and typed presentation ownership. Codable
-DTOs and strict response validation remain in Core Network.
+DTOs remain in `Core/Network/InsightChatAPIModels.swift`. Shared chat request
+construction lives in `Endpoints/MerianNetworkClient+FieldChat.swift`, and
+strict response validation lives in `Decoding/FieldChatResponseDecoder.swift`.
+The main client retains private authenticated transport and replay policy; the
+anonymous Dictionary read and its identity/cache rules are separate.
 
 The detail host serializes gallery, author profile, Field Chat, and paywall as
 cases of one `SpeciesDictionaryPresentation` value. Its sheet and full-screen
@@ -696,25 +713,40 @@ Catalog implementation ownership is:
   navigation, and presentation timing. Grouped Catalog, Overview, Regions, and
   Shared components retain rendering and leaf placeholders.
 
-The mirrored Catalog test suites cover wire/payload compatibility, presentation
-policy, request normalization, initial-load de-duplication, pagination,
+The mirrored Catalog test suites cover detail routing, presentation policy,
+request normalization, initial-load de-duplication, pagination,
 refresh/search/reverted-selection overlap, failed-replacement page suppression,
 stale overview/map completion, map cancellation, ownership boundaries, and the
 600-line production-file ceiling. Mirrored Detail suites own page/Community
-state, presentation, endpoint adaptation, and architecture. The broader
-`SpeciesDictionaryTests` suite retains wire validation plus endpoint and cache
-compatibility. The retired taxonomy visualization has no iOS source, feature
-flag, route, Swift transport/DTO, overview card, or Edge mode. The endpoint
-rejects `mode: "tree"` with `400`; this explicit rejection is covered by the
-import-safe HTTP handler tests before service-client construction. Decode-only
-handling of the legacy overview category ID `taxonomy` maps old responses to the
-complete `All` catalog during rolling client/server deployment.
+state, presentation, endpoint adaptation, and architecture. Core Network's
+`Decoding`, `Endpoints`, and `Caching` suites own wire/schema/identity
+validation, request/transport compatibility, and deterministic memo tests. The
+former mixed aggregate is removed; Catalog route assertions remain feature-owned
+in `SpeciesDictionaryCatalogRouteTests`. The retired taxonomy visualization has
+no iOS source, feature flag, route, Swift transport/DTO, overview card, or Edge
+mode. The endpoint rejects `mode: "tree"` with `400`; this explicit rejection is
+covered by the import-safe HTTP handler tests before service-client
+construction. Decode-only handling of the legacy overview category ID `taxonomy`
+maps old responses to the complete `All` catalog during rolling client/server
+deployment.
 
 Observation pattern charts use a separate public endpoint:
 
 ```swift
 SpeciesObservationStatsDependencies.live
 ```
+
+The six client lookup/catalog/overview/stats method variants live in
+`Core/Network/Endpoints/MerianNetworkClient+SpeciesDictionary.swift`. Dictionary
+POSTs retain 30-second deadlines; stats remains an authenticated GET at 20
+seconds through the same private client transport. Core's stateless
+`SpeciesDictionaryResponseValidator` checks typed schemas/identities before
+`SpeciesDictionaryResponseCache` inserts validated detail/stats values. The
+client's cache instance is private; two fixed-result request bridges own its
+lookup/load/validate/insert sequence and expose neither raw cache mutation nor
+caller-provided response/loader hooks. Codable DTOs, feature Services,
+observable state, navigation, and backend contracts are unchanged. See the
+[Core Network boundary](../../apps/ios/Merian/Core/Network/README.md#species-dictionary-endpoints-validation-and-caches).
 
 The Services adapter invokes
 `MerianNetworkClient.getSpeciesObservationStats(speciesId:scientificName:)`,
@@ -743,16 +775,21 @@ Overview responses send `Cache-Control: no-store` and `Vary: Accept-Encoding`.
 `400`, `404`, and `500` responses do not opt into public caching, so missing
 rows and transient errors can recover immediately after data is added or fixed.
 
-The iOS client also memoizes recently opened dictionary pages inside
-`MerianNetworkClient`. The cache is in memory only, capped at 64 keys, and
-expires entries after 10 minutes. Exact `schema_version = 1` and response
-identity are validated first. Accepted entries are stored under the returned
-canonical `species_id` and normalized returned scientific name, so an Insight or
-Explore tap that carries a dictionary ID can warm a later scientific-name route
-for the same species. A stale requested UUID, malformed identity,
-unsupported/missing schema version, and `external:` ID never become cache
-aliases. The cache is cleared in DEBUG whenever tests swap the injected
-`URLSession`.
+The iOS client memoizes recently opened dictionary pages in its per-client
+`Core/Network/Caching/SpeciesDictionaryResponseCache` owner. The detail store is
+in memory only, capped at 64 alias keys, and expires entries 10 minutes after
+insertion; the stats memo is an independent 5-minute, 64-key store. Reads do not
+refresh age. Capacity overflow prunes expired keys before oldest-insertion
+eviction, with no promised ordering for timestamp ties. Exact
+`schema_version = 1` and response identity are validated first. Accepted entries
+are stored under the returned canonical `species_id` and normalized returned
+scientific name, so an Insight or Explore tap that carries a dictionary ID can
+warm a later scientific-name route for the same species. A stale requested UUID,
+malformed identity, unsupported/missing schema version, and `external:` ID never
+become cache aliases. The cache is cleared in DEBUG whenever tests swap the
+injected `URLSession`; that reset does not cancel or generation-fence an already
+dispatched response. Validated cache hits still precede Auth/transport and
+cancellation checks; feature state owners retain their own generation fences.
 
 Community sightings are not part of either cache. Their endpoint requires the
 current viewer so blocked authors and other visibility state are evaluated on
@@ -783,6 +820,13 @@ same state when older payloads omit it. `complete` pages render normally.
 species header so missing sections read as limited dictionary coverage, not
 broken layout. The page still renders every available section and continues to
 fall back gracefully when images or text are missing.
+
+A GBIF taxon key can supply a distribution map before habitat prose is
+available. The Dictionary habitat card keeps that map visible and shows
+**Habitat information is not available for this species yet.** for missing,
+empty, or whitespace-only descriptions. It never leaves the habitat heading
+without content or requests private scan enrichment from a public dictionary
+page.
 
 Sparse and needs-enrichment records also feed durable background enrichment.
 `20260707153931_species_dictionary_enrichment_queue_backfill.sql` enqueues
@@ -1000,7 +1044,7 @@ xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<booted sim
   -only-testing:merianTests/SpeciesReferenceArchitectureTests \
   -only-testing:merianTests/LocalImageLoaderTests \
   -only-testing:merianTests/SpeciesDataTests \
-  -only-testing:merianTests/SpeciesDictionaryCatalogContractTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogRouteTests \
   -only-testing:merianTests/SpeciesCatalogPresentationTests \
   -only-testing:merianTests/SpeciesDictionaryCatalogViewModelTests \
   -only-testing:merianTests/SpeciesDictionaryOverviewViewModelTests \
@@ -1013,9 +1057,39 @@ xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<booted sim
   -only-testing:merianTests/SpeciesDictionaryDetailArchitectureTests \
   -only-testing:merianTests/SpeciesDictionarySharedPresentationTests \
   -only-testing:merianTests/SpeciesDictionarySharedArchitectureTests \
-  -only-testing:merianTests/SpeciesDictionaryTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkTransportTests \
+  -only-testing:merianTests/SpeciesDictionaryDetailEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogEndpointTests \
+  -only-testing:merianTests/SpeciesObservationStatsEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseValidatorTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseCacheTests \
+  -only-testing:merianTests/SpeciesDictionaryAPIModelsTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogAPIModelsTests \
+  -only-testing:merianTests/SpeciesObservationStatsAPIModelsTests \
+  -only-testing:merianTests/NetworkEndpointTestSupportTests \
+  -only-testing:merianTests/MerianNetworkArchitectureTests \
+  -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/ExploreShellNavigationPolicyTests
 ```
+
+The iOS matrix includes the Core endpoint/cache rehome and new deterministic
+boundary suites. Dictionary, chart, routing, and state owners remain separate.
+For shared JSON bridge/configuration-guard changes, additionally run every
+[Core Network endpoint matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification)
+and the complete `merianTests` target. Native cache/validator/architecture
+execution and cached-dependency typechecking do not replace a fresh iOS build,
+Simulator tests, or the manual checks below.
+
+For Field Chat changes, also run the
+[Core Network Field Chat matrix](../../apps/ios/Merian/Core/Network/README.md#field-chat-verification)
+and the complete `merianTests` target on fresh candidate products.
+`SpeciesDictionaryChatEndpointTests` owns the rehomed strict-species request,
+subject-binding, and ambiguous-replay regression. The shared request/transport,
+decoder, and single-read snapshot suites cover all three chat sources; feature
+suites retain source adaptation and generation-fenced state. The Dictionary
+read/cache suite and host presentation tests above do not replace those chat
+suites or the manual and release acceptance below.
 
 Web:
 

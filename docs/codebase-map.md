@@ -514,7 +514,7 @@ the native iOS source tree.
 | Offline sync      | `apps/ios/Merian/Core/Data/OfflineSync/`   | Durable queue state machine, generation-fenced upload/inference URLSession ownership, exact server-issued staging-key handoff, consumed-key re-upload recovery, a persisted `failed_retryable` dispatch latch and fresh-context retry accounting, compare-before-clear retry/probe registries, background replay and reconciliation, audio queue helpers, and tokenized sync phase state. Scan-analysis retries use a five-second minimum, jittered exponential growth, a 30-second ordinary local maximum, and ten automatic attempts; server-directed minimums remain authoritative, while maintenance keeps its 15-minute maximum.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Store recovery    | `apps/ios/Merian/Core/Data/StoreRecovery/` | SwiftData store metadata parsing, source-aware migration hints, duplicate-checksum detection, corruption-gated quarantine, legacy migration rescue archives, safe-mode decision support, and sanitized recovery manifests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Hardware          | `apps/ios/Merian/Core/Hardware/`           | Camera, environment context, cross-feature speech, generation-fenced bioacoustic recording/review playback, one-shot token-aware audio-session coordination, spectrogram DSP and ambient-noise classification, haptics, thermal/battery orchestration, and push token management. Audio capture receives maximum-duration feedback through AppDI instead of resolving the haptic singleton.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Network           | `apps/ios/Merian/Core/Network/`            | Supabase auth/client facade and generation-bound transition coordinator, protocol-3 stable purchase-principal prepare/claim/cancel journal orchestration, legacy sign-out purchase handoff, Sign in with Apple authorization-code/Vault registration and subject-bound credential-state revalidation, strict account-deletion receipts, TLS-pinned network client, subject-bound Insight/Explore Field Chat DTO validation, private Field trip completion-scan DTO mapping, Explore DTOs, species dictionary/observation-stats DTOs, and Keychain manager.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Network           | `apps/ios/Merian/Core/Network/`            | Supabase auth/client facade and generation-bound transition coordinator, protocol-3 stable purchase-principal prepare/claim/cancel journal orchestration, legacy sign-out purchase handoff, Sign in with Apple authorization-code/Vault registration and subject-bound credential-state revalidation, strict account-deletion receipts, TLS-pinned network client, shared Insight/Explore/Dictionary Field Chat endpoints and strict DTO validation, private Field trip completion-scan DTO mapping, Explore DTOs, species dictionary/observation-stats DTOs, and Keychain manager.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Security          | `apps/ios/Merian/Core/Security/`           | Circuit breaker; device identity; `PurchasePrincipalResolver`; serialized, binding-generation-fenced RevenueCat identity/readiness; current-launch versioned complimentary entitlement; bounded/no-retry caller-scoped scan-admission preview with typed queue-only connectivity fallback; append-only versioned adult/Terms/Gemini/PostHog consent ledger and sync; fail-closed restoration with account/generation-fenced automatic and explicit retry; causal provider append with stale-grant rejection and deny-wins revocation rebasing; all-version provider-head authorization; atomic verified ledger-file storage; Keychain withdrawal journal; and social guard. The canonical purchase-identity target is [`purchase-principal-auth-separation.md`](./rfcs/purchase-principal-auth-separation.md); the canonical consent hold is [`production-consent-readiness-2026-08-03.md`](./legal/production-consent-readiness-2026-08-03.md).                                                                                                                                                                                                                    |
 | Species reference | `apps/ios/Merian/Core/SpeciesReference/`   | Shared non-UI Wikipedia mobile-sections and GBIF taxon-key transport/parsing used by Inference and scan-thumbnail recovery. Callers retain scheduling, presentation identity, URL admission, image loading, and persistence policy.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | UI                | `apps/ios/Merian/Core/UI/`                 | Shared controls, tab bar, media mode toggle, render-only cards/feedback/model-tier presentation, audio spectrogram, cross-feature scan thumbnails and empty states, goal progress, and a domain-neutral media carousel package containing pager, gallery, audio playback, and reusable video chrome. Live image loading and other effects remain behind injected services/dependencies; feature owners retain navigation, source policy, entitlement lookup, telemetry, and presentation lifetime.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -541,21 +541,86 @@ orchestration stay with their existing owners.
 composer-media/share-state/incident reads and unshare/notes/content edits, with
 their existing response validation and payload rules. Feed, Insight Sharing, and
 Scans Shell keep adapters, state, reconciliation, and account fences.
-Publication/recovery and Dictionary validation/caching remain in the main
-client. `MerianNetworkClient.swift` retains private session, Auth, retry, and
-cancellation ownership behind typed-response and body-ignoring JSON POST
-overloads, plus scan publication and media recovery. The typed bridge forwards
-optional idempotency keys and selectively replaces decoding errors without
-catching transport failures. Wire DTOs remain in `FieldTripAPIModels.swift` and
-`ExploreAPIModels.swift`. The mirrored `MerianTests/Core/Network/Endpoints/`
-folder owns request/transport regression and architectural boundary tests, using
-shared per-case fixtures and type-preserving JSON comparison. Feature Services
-and ViewModels retain presentation adapters and interaction state. See the
+`Endpoints/MerianNetworkClient+FieldChat.swift` owns all 17 Insight,
+Explore-post, and Species Dictionary chat methods, while
+`Decoding/FieldChatResponseDecoder.swift` owns their stateless strict
+candidate-success validation. Shared Field Chat Services and ViewModels retain
+source/effect adaptation and generation-fenced presentation state.
+`Endpoints/MerianNetworkClient+SpeciesDictionary.swift` owns the six detail,
+catalog, overview, and stats method variants;
+`Decoding/SpeciesDictionaryResponseValidator.swift` owns typed schema/identity
+validation, and `Caching/SpeciesDictionaryResponseCache.swift` contains the
+separate locked detail/stats memos. Dictionary and Species Reference Services
+retain their adapters and state owners.
+`Endpoints/MerianNetworkClient+ScanLifecycle.swift` owns detailed/bulk status,
+the status-string compatibility wrapper, and scan deletion.
+`ScanLifecycleAPIModels.swift` owns their unchanged status DTOs;
+`Decoding/ScanLifecycleResponseDecoder.swift` owns plain explicit-key decoding,
+strict identity/cardinality checks, and confirmed deletion. Recovery payload
+construction/classification and queue/deletion scheduling retain their existing
+client/Core Data owners. `Endpoints/MerianNetworkClient+ScanEnrichment.swift`
+owns deferred-context and enrichment requests;
+`Endpoints/MerianNetworkClient+Exports.swift` owns export intake;
+`Endpoints/MerianNetworkClient+ProductFeedback.swift` owns survey and Community
+feedback submission. Capture/AI/Settings/Identify retain their existing
+adapters, scheduling, and interaction state. `EnrichScanResponse` remains
+hand-written below the generated Identify block in
+`Core/AI/InferenceEdgeDTOs.swift`, and the survey request model remains in
+Settings Feedback Models. `Endpoints/MerianNetworkClient+MediaStorage.swift`
+owns signing and scan-image inspect/repair endpoints;
+`MediaStorageAPIModels.swift` owns their unchanged hand-written DTOs.
+`Media/MerianNetworkClient+MediaUploads.swift` owns Data/file PUTs and
+foreground video upload; `Media/PresignedMediaUpload.swift` owns exact
+signed-header and HTTP-200 policy; `Media/StagedVideoUploadPlan.swift` owns
+immutable file/manifest planning. Queue manifest validation and background jobs,
+live inference attempt fencing, LocalImageLoader repair, and Profile avatar
+promotion stay caller-owned. `MerianNetworkClient.swift` retains private
+session, Auth, retry, and cancellation ownership behind typed-response,
+body-ignoring, encoded-body, and raw-response JSON POST bridges, plus scan
+publication and media recovery. Fixed-result Dictionary/stats bridges
+exclusively access the client's private cache instance, validating each loaded
+response before insertion; their typed GET helper remains private. The internal
+configuration guard preserves Dictionary validation/cache ordering without
+exposing URLs. The typed POST bridge forwards optional idempotency keys and
+selectively replaces decoding errors without catching transport failures. Wire
+DTOs remain in `FieldTripAPIModels.swift`, `ExploreAPIModels.swift`,
+`InsightChatAPIModels.swift`, `SpeciesDictionaryAPIModels.swift`,
+`SpeciesObservationStatsAPIModels.swift`, `ScanLifecycleAPIModels.swift`, and
+`MediaStorageAPIModels.swift`. The encoded-body bridge preserves typed request
+encoding and returns bytes for Field Chat's strict decoder. The raw-response
+bridge keeps scan recovery bound to its expected Auth owner through the private
+transport. The prepared-JSON bridge forwards enrichment's serialized body and
+stable key after its configuration/serialization/UUID validation sequence. The
+account-bound encoded bridge keeps signing's lowercase body owner bound to the
+same private transport UUID without bypassing current-session resolution. Two
+raw PUT bridges expose only request/file inputs and response values, adding no
+Auth/retry policy. The mirrored `MerianTests/Core/Network/Endpoints/` folder
+owns request/transport regression and architectural boundary tests, using shared
+per-case fixtures, type-preserving JSON comparison, and immutable single-read
+request snapshots for replay checks. `NetworkEndpointTestSupportTests.swift`
+protects those shared assertions for data- and stream-backed request bodies;
+`MerianTests/Core/Network/Decoding/` owns chat validation, Dictionary DTO and
+schema/identity tests, and scan lifecycle wire/strict-response tests;
+`Core/Network/Caching/` owns deterministic Dictionary
+expiry/alias-capacity/reset tests. `MerianTests/Core/Network/Media/` owns pure
+signed-upload policy, local video planning, and Data/file/foreground upload
+regressions. `MediaUploadTests.swift` keeps its held-request cancellation
+transport, per-session signals, and bounded completion/cleanup helpers private
+to that file; it does not add a production task or session owner.
+`MediaStorageAPIModelsTests.swift` owns signing/inspection wire decoding.
+`StagedVideoUploadTests` now owns the protected empty-file-before-signing CI
+regression. Feature Services and ViewModels retain presentation adapters and
+interaction state. See the
 [Core Network guide](../apps/ios/Merian/Core/Network/README.md),
 [Explore browsing verification matrix](../apps/ios/Merian/Core/Network/README.md#endpoint-verification),
 [Explore interaction verification matrix](../apps/ios/Merian/Core/Network/README.md#explore-interaction-verification),
 [notification/public-profile verification matrix](../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification),
 [Explore post-management verification matrix](../apps/ios/Merian/Core/Network/README.md#explore-post-management-verification),
+[Field Chat verification matrix](../apps/ios/Merian/Core/Network/README.md#field-chat-verification),
+[Dictionary verification matrix](../apps/ios/Merian/Core/Network/README.md#species-dictionary-verification),
+[scan lifecycle verification matrix](../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-verification),
+[enrichment/export/feedback verification matrix](../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification),
+[media storage/upload verification matrix](../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification),
 [Identify verification matrix](../apps/ios/Merian/Features/Explore/Identify/README.md#verification),
 and
 [Field Trips verification matrix](features-and-hardware/25-field-trips.md#verification).
@@ -1358,10 +1423,12 @@ current-version grants, then verifies both RPCs rebase the accepted parent and
 every consumer keeps the revoked all-version head authoritative.
 
 Missing-image repair coverage spans
-`repair-scan-image/{validation,worker}_test.ts`,
+`repair-scan-image/{validation,db,worker}_test.ts`,
 `_tests/{accountDeletionMigrationContract,migrationMediaContract}.test.ts`,
 `tests/{account_deletion_security,scan_image_repair_security}.sql`, and the iOS
-`LocalImageLoaderTests`/`MerianNetworkClientTests`.
+`LocalImageLoaderTests`, `ScanImageCloudEndpointTests`, and
+`MediaStorageAPIModelsTests`. Shared signing/PUT coverage is included in the
+[media storage matrix](../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification).
 
 App privacy assurance spans source, generated project, archive, and export.
 `scripts/check-ios-project-resources.sh` validates the source manifest and

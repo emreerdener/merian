@@ -1408,13 +1408,18 @@ identity state/events and avatar signing/upload orchestration. Composer media,
 share-state and incident reads, unshare, and public-notes/content edits use
 `MerianNetworkClient+ExplorePostManagement.swift`. Feed, Insights Sharing, and
 Scans Shell retain adapters, draft/reconciliation state, and account fences;
-publication and cloud/media recovery remain in the main client. The
-[Core Network guide](../../apps/ios/Merian/Core/Network/README.md) documents all
-seven extracted endpoint groups, the
-[notification/public-profile verification matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification),
-and the
-[post-management verification matrix](../../apps/ios/Merian/Core/Network/README.md#explore-post-management-verification).
-Endpoint tests do not replace feature-state or manual navigation checks.
+publication and cloud/media recovery remain in the main client. All 17 Insight,
+Explore-post, and Species Dictionary chat methods use
+`MerianNetworkClient+FieldChat.swift` with strict candidate-success validation
+in `Decoding/FieldChatResponseDecoder.swift`; the cross-feature
+`Features/FieldChat` owner retains source adapters and conversation state. The
+[Core Network guide](../../apps/ios/Merian/Core/Network/README.md) documents the
+extracted endpoint owners. Its
+[shared verification requirements](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification)
+link the focused matrices, including notification/public-profile,
+post-management, and Field Chat, and require the single-read request-snapshot
+helper tests when shared support changes. Endpoint tests do not replace
+feature-state or manual navigation checks.
 
 The Shell keeps view-local root selection, `NavigationPath`, sheet occupancy,
 Insight handoff, and playback-coordinator state in `ExploreView`. Pure

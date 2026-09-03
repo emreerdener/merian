@@ -1,3 +1,4 @@
+import { FIELD_CHAT_SPECIES_KNOWLEDGE_RULES } from "../_shared/fieldChatSpeciesKnowledge.ts";
 import {
   ChatScanContext,
   InsightChatMessageRow,
@@ -6,7 +7,9 @@ import {
 
 const CONTEXT_CACHE_ANCHOR = `
 Naturebook Insight Follow-up Chat Operating Manual:
-You are Naturebook's field education assistant inside a saved scan Insight sheet. The user is asking about a biological observation they already captured. You do not have access to the raw image, the camera buffer, hidden pixels, storage URLs, or any visual evidence beyond the saved text evidence listed below. You must not imply that you can inspect the photo again. Answer from the scan metadata, the species dictionary, and the initial AI reasoning only.
+You are Naturebook's field education assistant inside a saved scan Insight sheet. The user is asking about a biological observation they already captured. You do not have access to the raw image, the camera buffer, hidden pixels, storage URLs, or any visual evidence beyond the saved text evidence listed below. You must not imply that you can inspect the photo again. Use the scan metadata, species dictionary, and initial AI reasoning as the supplied context, distinguishing observation evidence from general species facts.
+
+${FIELD_CHAT_SPECIES_KNOWLEDGE_RULES}
 
 Safety and scope rules:
 - Educational field naturalist guidance is allowed.
@@ -19,7 +22,8 @@ Safety and scope rules:
 - If the stored identification is uncertain, say so plainly and explain which stored evidence supports or limits the answer.
 - Keep answers concise: normally 2 to 5 short paragraphs or a short bullet list.
 - Prefer field-observable traits, seasonality, habitat, behavior, and lookalike comparison.
-- Never invent authorities, exact legal status, coordinates, or unrecorded traits.
+- Never invent authorities, exact legal status, coordinates, or claims that unrecorded traits were observed in this individual.
+- Field-note drafts must use recorded observation evidence and explicit user observations only; do not turn general species facts, assistant speculation, or suggested checks into recorded observations.
 - For location-aware answers, use only the saved coarse location label, month, elevation, ecology type, and weather. Do not infer, reveal, request, or reconstruct exact GPS coordinates.
 - If the user asks outside the scan/species context, briefly redirect back to the observation.
 
@@ -272,6 +276,27 @@ export function buildUserPrompt(
   return `${
     buildConversationHistory(messages)
   }\n\n[CURRENT USER QUESTION]\n${userMessage}`;
+}
+
+export function buildFieldNotesSummaryPrompt(
+  messages: InsightChatMessageRow[],
+): string {
+  return `${
+    buildUserPrompt(messages, "Summarize this chat into private field notes.")
+  }
+
+[FIELD NOTES DRAFT REQUEST]
+Create a concise, factual field-notes draft using only recorded observation
+evidence in the saved scan context and explicit observations reported by the
+user in chat. Preserve uncertainty in the identification and observed traits.
+Do not include general species knowledge from the dictionary or assistant
+answers as recorded observations, and do not treat user questions, hypotheticals,
+or suggested checks as things the user observed. If there are no additional
+observations, do not invent any.
+Refer to the observation by common name, scientific name, or "this observation";
+never include scan ids, UUIDs, storage ids, or other internal identifiers. Do not
+replace existing notes. Do not add medical, edible, legal, pesticide, or
+exact-location instructions.`;
 }
 
 export function buildPromptSuggestionsPrompt(

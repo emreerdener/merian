@@ -82,19 +82,16 @@ Foundation dictionary equality, which conflates Booleans with numeric 0/1.
 
 `MerianTests/Core/Network/Endpoints/NetworkEndpointTestSupport.swift` owns the
 per-case client/session fixture, handler-marked mock responses, and JSON
-comparison shared with Community Identification, Explore browsing/interactions,
-notifications, and public-profile endpoints. It is separate from the feature's
-`FieldTripTestFixtures.swift`. Changes to that support or the shared JSON POST
-bridge require the Field Trips matrix below, the
-[Identify focused matrix](../Identify/README.md#verification), the
-[Explore browsing matrix](../../../Core/Network/README.md#endpoint-verification),
-the
-[Explore interaction matrix](../../../Core/Network/README.md#explore-interaction-verification),
-and the
-[notification/public-profile matrix](../../../Core/Network/README.md#notification-and-public-profile-verification),
-plus the complete `merianTests` target. Never substitute the shared client's
-overrides or the legacy global endpoint-handler registry for per-case transport
-isolation.
+comparison used across the extracted Core endpoint groups. It is separate from
+the feature's `FieldTripTestFixtures.swift`. The shared POST assertion also
+returns one captured body/key/timeout snapshot for retry comparisons;
+`NetworkEndpointTestSupportTests` verifies it for data- and stream-backed
+bodies. For support or any shared JSON POST bridge changes, follow all
+requirements in the
+[Core Network verification guide](../../../Core/Network/README.md#endpoint-verification),
+including the helper suite, every linked endpoint matrix, and the complete
+`merianTests` target. Never substitute the shared client's overrides or the
+legacy global endpoint-handler registry for per-case transport isolation.
 
 `FieldTripFeaturedMediaTests` owns featured-source ordering, fallback, stable
 goal identity, and the reference/user reuse boundary. Pair it with

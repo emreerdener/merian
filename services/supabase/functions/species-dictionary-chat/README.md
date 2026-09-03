@@ -38,6 +38,14 @@ nonrejected lookalikes with their names, rationale, and visual traits. Source
 values are fenced as untrusted reference data and cannot supply instructions to
 the model.
 
+Shared `_shared/fieldChatSpeciesKnowledge.ts` rules also allow well-established
+general species knowledge, such as typical fragrance or diet, when reference
+prose does not cover the question. Answers distinguish typical traits and
+individual variation, acknowledge uncertain knowledge, and never imply that
+general facts were observed in a particular specimen. This adds no live search
+or source retrieval and does not authorize unsupported current/local facts or
+invented citations.
+
 The prompt and database projection exclude Community sightings, observation
 charts or counts, scans, field notes, users, locations, media, reference URLs,
 licenses, and attribution identities. The route never receives raw image, video,

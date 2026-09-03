@@ -64,6 +64,23 @@ scan may claim ingestion before the background ghost-user upsert completes.
 Ownership is established by verified claims plus the matching ingestion job or
 scan row.
 
+## Native Caller And Verification
+
+On iOS, `Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift` owns
+`updateDeferredScanContext` request construction and the existing 15-second,
+body-ignored HTTP call. The client sends only supplied optional context fields;
+the validation and owner-scoped apply-or-stage rules above remain server-owned.
+`CaptureSubmissionDeferredContextService` retains local persistence,
+cancellation, and the bounded retry described above; the endpoint extension does
+not own that workflow.
+
+See the
+[canonical API contract](../../../../docs/backend-and-data/05-api-contracts.md#deno-update-scan-context-edge-node),
+[Capture Submission ownership](../../../../apps/ios/Merian/Features/Capture/Submission/README.md),
+and the
+[native focused matrix](../../../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification)
+for request, transport, and caller-policy coverage.
+
 ## Deployment And Verification
 
 Apply `20260715153946_reduce_identification_latency_round_trips.sql` before

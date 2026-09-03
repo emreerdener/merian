@@ -1,5 +1,6 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import {
+  buildFieldNotesSummaryPrompt,
   buildPromptSuggestionsPrompt,
   buildScanContextBlock,
   buildSystemInstruction,
@@ -166,6 +167,28 @@ Deno.test("system instruction states raw image is unavailable", () => {
   );
 });
 
+Deno.test("Insight chat permits species facts absent from saved evidence", () => {
+  const instruction = buildSystemInstruction(scan);
+  assertStringIncludes(instruction, "typical flower fragrance");
+  assertStringIncludes(
+    instruction,
+    "using well-established species knowledge even when that detail is absent from the supplied context",
+  );
+  assertStringIncludes(
+    instruction,
+    "Never present general species knowledge as a trait observed in this individual",
+  );
+  assertStringIncludes(
+    instruction,
+    "respect any uncertainty in the identification",
+  );
+  assertStringIncludes(
+    instruction,
+    "You have no live search or source retrieval",
+  );
+  assertEquals(instruction.includes("initial AI reasoning only"), false);
+});
+
 Deno.test("conversation prompt appends current question after history", () => {
   const messages = [{
     id: "m1",
@@ -191,6 +214,45 @@ Deno.test("conversation prompt appends current question after history", () => {
   assertStringIncludes(prompt, "Naturebook: It is often found near milkweed.");
   assertStringIncludes(prompt, "[CURRENT USER QUESTION]");
   assertStringIncludes(prompt, "What should I compare next?");
+});
+
+Deno.test("field notes distinguish recorded observations from general answers", () => {
+  const messages = [{
+    id: "m1",
+    conversation_id: "c1",
+    scan_id: scan.id,
+    user_id: scan.user_id,
+    role: "assistant",
+    message_text: "This species typically feeds on nectar as an adult.",
+    client_message_id: null,
+    model: "gemini-2.5-flash",
+    llm_prompt_tokens: null,
+    llm_candidate_tokens: null,
+    llm_thinking_tokens: null,
+    llm_total_tokens: null,
+    llm_cached_tokens: null,
+    is_refusal: false,
+    refusal_reason: null,
+    safety_metadata: null,
+    created_at: "2026-06-26T12:00:01Z",
+  }] satisfies InsightChatMessageRow[];
+
+  const prompt = buildFieldNotesSummaryPrompt(messages);
+  assertStringIncludes(
+    prompt,
+    "Naturebook: This species typically feeds on nectar as an adult.",
+  );
+  assertStringIncludes(prompt, "[FIELD NOTES DRAFT REQUEST]");
+  assertStringIncludes(prompt, "using only recorded observation");
+  assertStringIncludes(prompt, "explicit observations reported by the");
+  assertStringIncludes(prompt, "Preserve uncertainty in the identification");
+  assertStringIncludes(
+    prompt,
+    "Do not include general species knowledge from the dictionary or assistant",
+  );
+  assertStringIncludes(prompt, "do not treat user questions, hypotheticals,");
+  assertStringIncludes(prompt, "never include scan ids, UUIDs, storage ids");
+  assertStringIncludes(prompt, "Do not add medical, edible, legal, pesticide");
 });
 
 Deno.test("prompt suggestion prompt uses history and safety constraints", () => {

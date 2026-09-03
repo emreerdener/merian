@@ -1265,6 +1265,19 @@ structured media manifest. The cross-language contract lives in
 `docs/contracts/media-staging-upload-manifest.json`; Swift and Deno tests both
 load that file so limits and allowed content types cannot drift silently.
 
+Native request ownership is
+`Core/Network/Endpoints/MerianNetworkClient+MediaStorage.swift`; the unchanged
+signing DTOs live in `Core/Network/MediaStorageAPIModels.swift`. The signing
+method captures the explicit or privately resolved Auth UUID before encoding the
+lowercase `user_id` and passes that same UUID to private authenticated
+transport. Current-session resolution and live Auth leases remain required. The
+30-second deadline, plain required-`urls` decoding, classified-401 refresh, and
+ambiguous-replay refusal are unchanged. The signer primitive adds no client
+manifest normalization or validation; its callers retain those policies. Raw
+Data/file PUTs and foreground video planning live in `Core/Network/Media/`. See
+the
+[native ownership and verification guide](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-ownership).
+
 ### Request Payload
 
 ```json
@@ -1317,14 +1330,15 @@ URL response includes `requiredHeaders` with the exact `Content-Type` and
 decimal `Content-Length`. Signing uses `allHeaders: true`, binding the exact
 `content-length;content-type;host` header set. Every iOS data, file, avatar,
 repair, restore, foreground, and background PUT applies the returned map. A
-file-backed upload retains its signing-time size, re-stats immediately before
-task creation, and discards the URL for re-signing if size changed. Pre-signed
-`PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours). This extended
-window gives iOS `BackgroundTasks` flexibility to transmit overnight, subject to
-OS memory, thermal, and Wi-Fi conditions, without hitting 403 errors. Deployed
-integration tests PUT the exact headers, reject wrong length/MIME, then HEAD the
-object to prove the stored size equals the declaration; a client-declared value
-alone is not storage evidence.
+file-backed upload retains its signing-time size and re-stats immediately before
+task creation. A changed size rejects that PUT; the durable queue returns to
+fresh signing, while foreground callers retain their own failure/retry policy.
+Pre-signed `PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours).
+This extended window gives iOS `BackgroundTasks` flexibility to transmit
+overnight, subject to OS memory, thermal, and Wi-Fi conditions, without hitting
+403 errors. Deployed integration tests PUT the exact headers, reject wrong
+length/MIME, then HEAD the object to prove the stored size equals the
+declaration; a client-declared value alone is not storage evidence.
 
 Audio signing is purpose-aware. An ordinary scan-ingestion entry accepts only
 `audio/wav` with a `.wav` filename. `audio/mp4` is available only to an explicit
@@ -1362,10 +1376,17 @@ applying basic sanitization to prevent path traversal vectors) rather than
 generating random internal UUIDs. The verified server identity, not the optional
 body `user_id`, determines the `objectKey` owner segment. A client that planned
 with a device identity before lazy anonymous authentication must accept the
-canonical returned key. Before dispatching any PUT, iOS requires exact response
-count/order, matching filenames, one canonical staging owner, and signed URL
-paths that resolve to the returned keys. Each background task carries its exact
-returned key through suspension.
+canonical returned key. Before dispatching any background PUT, the iOS durable
+queue requires exact response count/order, matching filenames, one canonical
+staging owner, and signed URL paths that resolve to the returned keys. Each
+background task carries its exact returned key through suspension.
+
+That whole-manifest validation belongs to the durable queue, not the shared
+signing decoder. Foreground video retains its existing response-count check and
+sequential file uploads; each raw PUT independently enforces HTTPS, the exact
+signed header map, current byte size, and HTTP-200-only success. The extraction
+does not add foreground filename/key/lifecycle correspondence checks or move
+queue scheduling into Network.
 
 ```json
 {
@@ -3189,9 +3210,18 @@ MerianNetworkClient.shared.getSpeciesDictionary(speciesId:scientificName:)
 decodes into `SpeciesDictionaryResponse` / `SpeciesDictionaryEntry` in
 `Core/Network/SpeciesDictionaryAPIModels.swift`, which contains wire DTOs only.
 `Core/Network/SpeciesDictionaryIdentity.swift` owns canonical UUID/name and
-cache key normalization. `Features/SpeciesDictionary/Shared/Models` owns the
-route, entry-point, taxonomy, and cross-surface reference-image presentation
-values; Detail Models adapt hydrated lookalikes and detail-only quality policy.
+cache key normalization. The six Dictionary/detail/catalog/overview/stats method
+variants live in
+`Core/Network/Endpoints/MerianNetworkClient+SpeciesDictionary.swift`;
+`Decoding/SpeciesDictionaryResponseValidator.swift` owns typed schema/identity
+checks and `Caching/SpeciesDictionaryResponseCache.swift` contains the locked
+per-client detail/stats memos. `MerianNetworkClient` keeps that cache instance
+private; its fixed-result request bridges perform lookup, authenticated load,
+validation, and insertion without exposing cache mutation to endpoint callers.
+It retains private configuration, Auth, transport, retries, and cancellation.
+`Features/SpeciesDictionary/Shared/Models` owns the route, entry-point,
+taxonomy, and cross-surface reference-image presentation values; Detail Models
+adapt hydrated lookalikes and detail-only quality policy.
 
 The client canonicalizes UUIDs and drops invalid, synthetic, or `external:`
 route IDs. A usable name then becomes a name-only request. On response, an exact
@@ -3374,9 +3404,12 @@ Caching:
 - Successful payloads do not vary by Authorization because identity affects only
   abuse accounting, not the public body. This avoids per-token cache
   fragmentation. Errors remain `private, no-store` and vary by Authorization.
-- iOS adds a 5-minute, 64-key in-memory memo cache in `MerianNetworkClient`,
-  keyed by normalized `species_id` and scientific name. Only schema-v2-or-newer
-  responses with an exact canonical identity match enter that cache.
+- iOS adds a 5-minute, 64-alias-key in-memory stats memo in the per-client
+  `Core/Network/Caching/SpeciesDictionaryResponseCache` owner, keyed by
+  normalized `species_id` and scientific name. It is separate from the 10-minute
+  detail memo; TTL is insertion-time and reads do not refresh it. Only
+  schema-v2-or-newer responses with an exact canonical identity match enter that
+  cache.
 
 Privacy:
 
@@ -3411,6 +3444,13 @@ SpeciesObservationStatsDependencies.live
 
 decodes into `SpeciesObservationStatsResponse` / `SpeciesObservationStatsEntry`
 in `SpeciesObservationStatsAPIModels.swift`.
+`Core/Network/Endpoints/MerianNetworkClient+SpeciesDictionary.swift` maps the
+authenticated GET's ordered ID/name query. The client's fixed-result stats
+bridge retains the 20-second deadline and exclusively accesses its private memo
+through lookup, authenticated load, validation, and insertion.
+`SpeciesDictionaryResponseValidator` checks typed schema/identity before cache
+insertion; raw wire-decoding errors are not remapped. The shared client retains
+private Auth, retry, and cancellation implementation.
 `Services/SpeciesObservationStatsDependencies.swift` is the live endpoint
 adapter; `SpeciesObservationStatsViewModel` never resolves the network client
 directly. The view model combines that public baseline with local SwiftData
@@ -5924,6 +5964,13 @@ remain optional `EdgeRuntime.waitUntil` work.
 Adds late WeatherKit/geocoding data to the owner's active ingestion job or
 completed scan without rerunning identification.
 
+On iOS, `Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift` owns
+the request's unchanged 15-second HTTP boundary. Capture Submission's service
+keeps durable local context and its delayed retry; an empty native
+optional-field set returns without Auth/transport only after configuration
+validation. Native payload, error-ordering, and caller regressions belong to the
+[enrichment/export/feedback matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
+
 ### Request Payload
 
 ```json
@@ -6052,31 +6099,53 @@ JWT claims. The `user_id` in the request body is ignored for auth purposes.
 ## Deno `/enrich-scan` Edge Node
 
 An enrichment endpoint that asynchronously surfaces habitat, taxonomy, and
-similar species data for a scan. Called automatically by the iOS client after
-every successful biological scan completes — the user sees a loading skeleton in
-`HabitatAndDistributionCard` while this request is in flight.
+similar species data for a scan. The iOS client schedules missing scopes for
+eligible current or historical biological scans under its hydration admission
+and backoff policy. `HabitatAndDistributionCard` shows a loading skeleton while
+the metadata scope is in flight.
+
+The native `fetchEnrichment` request is owned by
+`Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift`.
+InferenceEngine keeps scope scheduling and stale-result/application policy;
+`EnrichScanResponse` remains hand-written below the generated Identify block in
+`Core/AI/InferenceEdgeDTOs.swift`. The native client sends all five fields
+including `scope`, preserves its 30-second deadline, and serializes before
+requiring a UUID `scan_id` for the canonical lowercase `Idempotency-Key`. It
+forwards the serialized bytes through the existing authenticated transport and
+uses plain JSONDecoder without remapping decoding failures or adding
+success/data requirements. See the
+[native verification matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
 
 ### Request Payload
 
 ```json
 {
-  "scan_id": "A1B2C3D4-...",
+  "scan_id": "A1B2C3D4-0000-4000-8000-000000000000",
   "scientific_name": "Danaus plexippus",
   "confidence_score": 0.91,
-  "inference_tier": "flash"
+  "inference_tier": "flash",
+  "scope": "enrichment"
 }
 ```
 
-Only `scientific_name` is strictly required by the Edge function. `scan_id`,
-`confidence_score`, and `inference_tier` are sent by the iOS client for
-telemetry but are not used server-side — the Edge function applies no confidence
-gating of its own.
+The Edge function requires `scientific_name` and `scope`. The scientific name
+must be a non-empty string of at most 500 characters; scope must be exactly
+`"enrichment"` or `"lookalikes"`. A supplied, non-null `scan_id` must be a UUID.
+The handler lowercases it into `originalAnalysisId` for either scope's
+provider-quota reservation; it is not a caller-selected authorization identity.
+`confidence_score` and `inference_tier` remain native compatibility fields and
+are not consumed by this handler.
+
+The native endpoint forwards scope unchanged to preserve its existing request
+contract. Tests using legacy or invalid scopes verify that forwarding, not
+server acceptance; the public route still rejects unsupported scopes.
 
 ### Architecture
 
-**No Tier Gate**: Available to all authenticated users. Enrichment data is
-generated by Flash and cached in `species_dictionary` at the species level —
-subsequent calls for the same species are served from cache with no AI call.
+**No Tier Gate**: Available to all authenticated users, with uncached provider
+work subject to quota admission. Data is cached in `species_dictionary` at the
+species level and can be reused when the requested scope's cache requirements
+are satisfied.
 
 **No Confidence Gate**: The Edge function accepts `confidence_score` for
 telemetry compatibility but does not use it to decide whether similar species
@@ -6084,10 +6153,11 @@ should be generated or returned. Similar-species generation is gated by taxonomy
 quality and cache state, not confidence, and the iOS gallery renders validated
 entries with the stable "Similar species" label.
 
-**Full Cache Hit**: If `species_dictionary` already has `habitat_description`,
-usable taxonomy (`kingdom` plus `order` or `family`), and validated
-`species_lookalikes` rows for this species, the function returns all data
-immediately with no Gemini calls — typically sub-50ms.
+**Scoped Cache Hits**: Each request checks its own cache requirements and
+returns only that scope's fields without AI work when satisfied. A metadata
+cache hit does not imply a lookalike cache hit. Missing alternative names can
+still require a GBIF fetch on the metadata path; the iOS caller combines the
+independently arriving projections.
 
 **Two-Layer Lookalike Strategy**:
 
@@ -6097,12 +6167,14 @@ immediately with no Gemini calls — typically sub-50ms.
   both rows have a real genus and matching kingdom. Placeholder taxonomy such as
   `"Unknown"` is normalized away and never participates in trigger linking.
 - **Layer 2 — Gemini Flash for cross-family visual mimics**:
-  `fetchSimilarSpecies` is only invoked when the `species_lookalikes` join table
-  is empty, `similar_species TEXT[]` has no usable legacy names, and the primary
-  species already has usable taxonomy. Flash receives the species' normalized
-  taxonomy (`kingdom`, `class`, `order`, `family`) from `cachedSpecies` and is
-  constrained by the system instruction to return lookalikes from the **same
-  taxonomic order** — not merely the same kingdom. After Gemini returns entries,
+  `fetchSimilarSpecies` requires usable primary taxonomy and an unsatisfied
+  lookalike cache gate. That gate accepts at least one resolved non-null common
+  name or a prior `lookalikes_flash_attempted` flag. Same-species waiters first
+  await in-flight work and re-read its cache; provider admission remains subject
+  to quota. Flash receives the species' normalized taxonomy (`kingdom`, `class`,
+  `order`, `family`) from `cachedSpecies` and is constrained by the system
+  instruction to return lookalikes from the **same taxonomic order** — not
+  merely the same kingdom. After Gemini returns entries,
   `resolveLookalikesToJoinTable` validates the candidates again before writing
   anything durable.
 
@@ -6117,8 +6189,9 @@ different orders). `resolveLookalikesToJoinTable` now requires a real
 and then either a matching `order` or, if order is unavailable on both sides, a
 matching `family`. Candidates with missing taxonomy or no `species_dictionary`
 row are dropped rather than returned as provisional stubs. **Early-exit on
-insufficient taxonomy**: If the primary species lacks usable taxonomy, the
-lookalikes scope returns `similar_species: null` and does not call Flash.
+insufficient taxonomy**: On a lookalike cache miss, missing usable primary
+taxonomy prevents a Flash call. The response still uses the scoped formatter's
+legacy-name fallback, or `similar_species: null` when no fallback exists.
 `lookalikes_flash_attempted` is **only** set to `true` when
 `resolveLookalikesToJoinTable` returns `persisted: true`, ensuring the flag
 never locks before validated data is in the join table.
@@ -6152,23 +6225,47 @@ legacy name strings (populated by older pipeline versions), they are resolved to
 the join table at zero token cost before returning, using the same
 kingdom/order/family validation as fresh Flash output.
 
-**Parallel Flash Generation**: If enrichment data is missing, encyclopedic
-enrichment (`fetchStaticEncyclopedicData`) and similar species generation
-(`fetchSimilarSpecies`) can still run concurrently via `Promise.all`. Both use
-`gemini-2.5-flash` with `temperature: 0.1`. The difference now is that
-lookalikes only participate in that parallel branch when the primary species
-already has usable taxonomy; otherwise the function returns metadata first and
-the iOS client retries the lookalikes scope once taxonomy lands.
+**Independent Scoped Requests**: `InferenceEngine.fetchAndApplyEnrichment` uses
+a task group to request missing metadata and lookalikes separately. Each handler
+invocation performs only its own scope's work; there is no combined
+`Promise.all` generation branch. Provider calls use the model selected by the
+quota reservation, and lookalike generation requires usable primary taxonomy.
+After both initially requested scopes finish, iOS may retry only lookalikes once
+if the presentation is still current, no similar species are present, and usable
+taxonomy is now available. That retry disables further lookalike retries and
+remains subject to the existing hydration admission/backoff.
 
 ### Response Schema
+
+An `"enrichment"` response contains metadata only:
 
 ```json
 {
   "success": true,
   "data": {
+    "scope": "enrichment",
     "habitat_description": "Frequently spotted in milkweed patches, meadows, and open plains.",
     "gbif_taxon_key": 5130978,
     "alternative_common_names": ["Monarch", "Common Tiger"],
+    "taxonomy": {
+      "kingdom": "Animalia",
+      "phylum": "Arthropoda",
+      "class": "Insecta",
+      "order": "Lepidoptera",
+      "family": "Nymphalidae",
+      "genus": "Danaus"
+    }
+  }
+}
+```
+
+A `"lookalikes"` response contains only its discriminator and similar species:
+
+```json
+{
+  "success": true,
+  "data": {
+    "scope": "lookalikes",
     "similar_species": [
       {
         "species_id": "uuid",
@@ -6191,24 +6288,17 @@ the iOS client retries the lookalikes scope once taxonomy lands.
         "reference_image_url": "https://inaturalist-open-data.s3.amazonaws.com/...",
         "iucn_red_list_status": null
       }
-    ],
-    "taxonomy": {
-      "kingdom": "Animalia",
-      "phylum": "Arthropoda",
-      "class": "Insecta",
-      "order": "Lepidoptera",
-      "family": "Nymphalidae",
-      "genus": "Danaus"
-    }
+    ]
   }
 }
 ```
 
-`gbif_taxon_key` is `null` when the species has not yet been matched by GBIF.
-`similar_species` is `null` when no validated lookalike data is available,
-including the intentional case where the species still lacks usable taxonomy.
-Each entry in the `similar_species` array is sourced from the
-`species_lookalikes` join table joined to `species_dictionary` — providing
+`gbif_taxon_key` can be `null` or absent when there is no cached GBIF key. The
+lookalike formatter prefers resolved entries, falls back to legacy
+`similar_species TEXT[]` names when present, and otherwise returns
+`similar_species: null`. The usable-taxonomy guard suppresses new provider work;
+it does not change that formatter's legacy fallback. Resolved entries come from
+the `species_lookalikes` join table joined to `species_dictionary` — providing
 `species_id`, `common_name` (English), `reference_image_url`,
 `iucn_red_list_status`, and additive relation metadata (`reason`,
 `visual_traits`, `confidence`, `source`, `review_status`, `is_bidirectional`,
@@ -6220,15 +6310,19 @@ and relation metadata until they are resolved into the join table. Successful
 enrichment writes also record source/freshness metadata in
 `species_content_provenance`; this does not change the client response.
 
-`alternative_common_names` is `string[] | null` — `null` when GBIF has no
-English vernacular entries for the species. The enrichment scope serves this
-field from `species_dictionary.alternative_common_names` on a cache hit. When
-that column is `null` (covering pre-V34 cached species, compatibility-route
-timing, or a current model response that preceded its awaited dictionary
-resolution), the Edge function calls `fetchGBIFVernacularNames` live to retrieve
-English vernacular names from the GBIF API and populates the field from the
-result. Taxonomy fields in the response likewise use `null` for unknown ranks;
-the backend no longer emits placeholder strings like `"Unknown"`.
+`alternative_common_names` is `string[] | null`. It can be `null` when no
+alternative names are available, including a missing cached GBIF key or no
+additional English vernacular names returned by GBIF. The enrichment scope
+serves this field from `species_dictionary.alternative_common_names` on a cache
+hit. When that column is `null` (covering pre-V34 cached species,
+compatibility-route timing, or a current model response that preceded its
+awaited dictionary resolution), and a cached GBIF taxon key is available, the
+Edge function calls `fetchGBIFVernacularNames` live to retrieve English
+vernacular names from the GBIF API and populates the field from the result. This
+route's scoped formatter retains the legacy `"Unknown"` fallback for a taxonomy
+rank missing from both generated and cached data. That placeholder is not usable
+taxonomy: the native lookalike eligibility policy normalizes it away. These
+compatibility details are unchanged by the native endpoint extraction.
 
 **iOS mapping**: The array is decoded as
 `[EnrichScanResponse.SimilarSpeciesEntry]` (snake_case Codable DTO in
@@ -6283,8 +6377,14 @@ verification atomically with quota and model selection.
 
 ### iOS Ownership and Application Boundary
 
-Core Network owns the Codable wire DTOs, strict response validation, request
-construction, and `MerianNetworkClient` transport for all Field Chat sources.
+Core Network owns the Codable wire DTOs in `InsightChatAPIModels.swift`, the 17
+source methods in `Endpoints/MerianNetworkClient+FieldChat.swift`, and strict
+stateless response validation in `Decoding/FieldChatResponseDecoder.swift`.
+`MerianNetworkClient.swift` retains private authenticated transport, replay,
+cancellation, and cloud/media recovery. Its narrow encoded-body POST bridge
+returns bytes to the decoder without adding a retry or task owner. See the
+[Core endpoint guide](../../apps/ios/Merian/Core/Network/README.md#field-chat-endpoints-and-validation)
+for the unchanged per-action timeout and idempotency policies.
 `Features/FieldChat/Services/FieldChatEndpoint.swift` adapts `FieldChatSource`
 to the exact Insight, Explore-post, or Species Dictionary route, while the
 feature's narrow dependency value owns its live effects.
@@ -6595,11 +6695,24 @@ load of that thread fail.
 
 ### Safety and Errors
 
-The system prompt states the assistant has no raw image access and answers only
-from stored scan evidence. The Edge Function refuses or redirects
-edible/foraging certainty, medical/veterinary treatment, dangerous handling,
-illegal collection, pesticide/poison instructions, and human-subject
-identification requests.
+The system prompt states the assistant has no raw image access. All three Field
+Chat routes use `_shared/fieldChatSpeciesKnowledge.ts` to permit
+well-established general species knowledge when the supplied text lacks a
+detail, such as typical fragrance. The supplied scientific name and
+identification uncertainty bound the subject; answers qualify relevant
+individual or cultivar variation. Claims about a particular observation still
+require supplied observation evidence or explicit observations reported by the
+user. General knowledge cannot establish current/local facts or justify invented
+citations or claims of live retrieval.
+
+Insight field-note summary prompts admit only recorded scan evidence and
+explicit user observations. General species facts in dictionary text or
+assistant replies, questions, hypotheticals, and suggested checks must not
+become recorded observations.
+
+The Edge Function refuses or redirects edible/foraging certainty,
+medical/veterinary treatment, dangerous handling, illegal collection,
+pesticide/poison instructions, and human-subject identification requests.
 
 | Status | Body                                             | Meaning                                                                |
 | ------ | ------------------------------------------------ | ---------------------------------------------------------------------- |
@@ -6768,6 +6881,11 @@ inside them. The projection and prompt exclude Community sightings, local and
 global observation charts/counts, scans, notes, users, locations, media,
 reference URLs, licenses, and attribution identities. Questions that require
 those sources are answered with the limitation rather than invented context.
+
+The shared Field Chat species-knowledge rules also permit stable general facts
+absent from that projection. Missing reference prose alone must not block a
+general species answer; answers still distinguish species traits from individual
+observations and cannot claim live retrieval or unsupported current/local facts.
 
 `send` uses `species_dictionary_chat_reply` and the database-selected
 `gemini-2.5-flash` model with 700 output tokens, JSON output, no Search
@@ -6998,6 +7116,15 @@ Provides a lightweight outbox confirmation endpoint. Current
 `/identify-multimodal` success already includes durable owner-row insertion;
 polling remains useful for compatibility endpoints, interrupted older requests,
 and queued recovery.
+
+iOS request mapping lives in
+`Core/Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift`, with unchanged
+explicit-key DTOs in `ScanLifecycleAPIModels.swift` and strict response checks
+in `Decoding/ScanLifecycleResponseDecoder.swift`. The raw-response JSON bridge
+preserves recovery-owner binding through the client's private authenticated
+transport. Recovery payload construction and missing-row classification stay in
+the main client; durable scheduling stays in Core Data. See the
+[iOS ownership and verification guide](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-endpoints-and-decoding).
 
 ### Request Payload
 
@@ -8227,6 +8354,18 @@ is missing, promotes a surviving local image and atomically repairs its cloud
 metadata. The same transaction updates matching Scan Library and Explore media
 references.
 
+Native inspect/repair requests live in
+`Core/Network/Endpoints/MerianNetworkClient+MediaStorage.swift`; their unchanged
+DTOs live in `Core/Network/MediaStorageAPIModels.swift`. The endpoint forwards
+raw source/key values, preserves omitted versus supplied keys, and decodes the
+required `data` envelope with explicit wire keys, known statuses, and zero
+defaults for absent/null counts. It retains the 30-second deadline, plain
+decoding errors, classified refresh, and no ambiguous-failure replay. Core
+Data's LocalImageLoader still owns inspection, local-byte admission, signing,
+file PUT, repair, cache handling, and library-change notification; status
+decoding alone does not execute that workflow. See the
+[native media storage matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification).
+
 ### Request Payloads
 
 Inspection:
@@ -8547,6 +8686,16 @@ supported iOS version uses the RPCs.
 
 Deletes a single scan from both Supabase PostgreSQL and Cloudflare R2.
 
+iOS `deleteScan` lives in
+`Core/Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift` and retains the
+raw camel-case request key below. `ScanLifecycleResponseDecoder` accepts only a
+decodable Boolean `success: true` envelope; an empty, malformed, missing-key, or
+false-success 2xx response is `MerianError.invalidResponse`. The private
+transport retains classified-401 refresh and refuses ambiguous deletion replay.
+Core Data retains durable deletion scheduling and does not retire a pending task
+without explicit network confirmation. See the
+[scan lifecycle verification matrix](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-verification).
+
 ### Request Payload
 
 ```json
@@ -8722,6 +8871,15 @@ HTTP connection limits, this endpoint validates the user and performs a bounded
 phase DTOs plus compact live eligibility metadata under canonical row- and
 source-byte budgets; CSV, ZIP, storage, and email work remains asynchronous. The
 iOS client awaits the queue response off-main with a 15-second HTTP timeout.
+
+`Core/Network/Endpoints/MerianNetworkClient+Exports.swift` owns that native
+request, while Settings Services/ViewModels retain UI gating and error
+presentation. It forwards the existing raw scope and Boolean precision flag,
+ignores successful HTTP bodies, and adds neither an idempotency key nor
+ambiguous mutation replay. This organization does not enable exports or relax
+server authorization. `ExportEndpointTests` and the shared transport suite are
+in the
+[native verification matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
 
 ### Request Payload
 
@@ -9458,9 +9616,24 @@ Response:
 
 ## Deno `/submit-feedback-survey` Edge Node
 
-Accepts the one-time beta feedback survey from the iOS app. The endpoint is
-authenticated through `withEdgeHandler`; the server ignores any client-provided
-user identity and stores the response under the JWT user id.
+Accepts beta feedback survey submissions for the current campaign from the iOS
+app. The endpoint is authenticated through `withEdgeHandler`; the server ignores
+any client-provided user identity and stores the response under the JWT user id.
+
+Native HTTP submission belongs to
+`Core/Network/Endpoints/MerianNetworkClient+ProductFeedback.swift`; the
+`FeedbackSurveySubmission` request model and draft/prompt/validation state stay
+in Settings Feedback. JSONEncoder, the 30-second deadline, ignored 2xx body, and
+ambiguous-replay refusal remain unchanged. `ProductFeedbackEndpointTests` owns
+the rehomed endpoint test; `FeedbackSurveyTests` retains only feature policy.
+See the
+[native matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
+
+The
+[Settings campaign policy](../../apps/ios/Merian/Features/Profile/Settings/README.md#feedback-campaign-policy)
+owns automatic-prompt suppression and the 24-hour submitted-state display for
+manual entry. Those client presentation rules are separate from this endpoint's
+campaign validation; they are not a server-wide one-submission limit.
 
 ### Request Payload
 
@@ -9489,7 +9662,7 @@ user identity and stores the response under the JWT user id.
 
 Validation rules:
 
-- `survey_campaign_id` must match the active one-time campaign.
+- `survey_campaign_id` must match the current campaign.
 - Satisfaction must be an integer from 1 to 5.
 - Recommendation must be an integer from 0 to 10.
 - Feature/use values must be from the native survey enum sets.
@@ -9508,6 +9681,33 @@ Validation rules:
 Responses are stored in `public.feedback_survey_responses` with RLS enabled.
 Users can insert and read their own rows; product review happens through
 Supabase dashboard/service-role tooling rather than public app APIs.
+
+---
+
+## Deno `/submit-community-feedback` Edge Node
+
+Accepts feedback from Explore Identify through the authenticated
+`withEdgeHandler` boundary. The handler derives ownership from the verified
+user, validates the small JSON body, and awaits insertion into
+`community_feedback` before returning `{ "success": true }`. Client-supplied
+identity is not used for ownership.
+
+The body contains `feedback` and optional `app_version`, `build_number`,
+`platform`, and `os_version` metadata. Feedback must be a nonblank string after
+trimming, at most 4,000 characters. Supplied metadata must be strings with at
+most 160 characters after trimming; absent/null values are accepted. Blank
+version/build/OS values become null, and blank/absent platform defaults to
+`ios`. Invalid values return `400` through the shared error boundary.
+
+`Core/Network/Endpoints/MerianNetworkClient+ProductFeedback.swift` owns the
+native request. `CommunityFeedbackSubmission` in `ExploreAPIModels.swift`
+retains constructor trimming, metadata, and CodingKeys; Identify Services and
+its view model retain validation and submission presentation. The native method
+keeps its 30-second timeout, ignores successful HTTP bodies, and adds no
+idempotency key or ambiguous-failure replay. `ProductFeedbackEndpointTests` and
+`EnrichmentExportFeedbackTransportTests` cover this boundary in the
+[native matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
+This documents the existing route; it introduces no new field or server policy.
 
 ---
 

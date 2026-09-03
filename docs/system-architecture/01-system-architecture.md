@@ -257,8 +257,11 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/identify`: Still-image compatibility entry point that reuses the same
     identify modules and writes the shared ingestion ledger before returning
     success.
-  - `/enrich-scan`: On-demand background enrichment for historical "Free" tier
-    scans upgrading to Pro insight depths.
+  - `/enrich-scan`: Independently scoped metadata and lookalike hydration for
+    current or historical biological scans. The
+    [enrichment contract](../backend-and-data/05-api-contracts.md#deno-enrich-scan-edge-node)
+    retains species caching and provider-quota admission; it is not limited to a
+    Free-to-Pro upgrade.
   - `/merge-ghost-profile`: Handles existing-account OAuth conflicts with a
     source-issued, provider-bound proof, an atomic Ghost-to-account data merge,
     a verified RevenueCat Pro mirror before source Auth deletion, client receipt

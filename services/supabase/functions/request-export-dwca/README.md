@@ -49,3 +49,19 @@ coordinate policy, pseudonym key version, row/archive budgets, and current
 durable phase. See `../export-dwca/README.md` for claim leases, persisted
 cursors/chunk manifests, bounded assembly, delivery idempotency, and key
 rotation.
+
+## Native Caller And Verification
+
+The iOS `Core/Network/Endpoints/MerianNetworkClient+Exports.swift` extension
+owns `requestDwcAExport`: request construction, the existing 15-second deadline,
+and ignored success-body semantics. Settings Services/ViewModels retain export
+interaction state and error presentation. The endpoint forwards the caller's
+scope unchanged; native raw-scope transport tests do not make non-personal
+scopes valid server requests or enable the release gate.
+
+See the
+[canonical API contract](../../../../docs/backend-and-data/05-api-contracts.md#deno-request-export-dwca-edge-node),
+[Settings ownership](../../../../apps/ios/Merian/Features/Profile/Settings/README.md),
+and the
+[native focused matrix](../../../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification)
+for the unchanged intake contract and its endpoint coverage.

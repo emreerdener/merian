@@ -4,134 +4,6 @@ import os
 
 // Using MerianError from Core/Utilities.
 
-// MARK: - Pre-Signed URL DTOs
-
-struct PreSignedURLResponse: Codable {
-    let urls: [PreSignedURL]
-}
-
-struct PreSignedURL: Codable {
-    let fileName: String
-    let signedUrl: String
-    let objectKey: String
-    let requiredHeaders: [String: String]
-    let mediaAssetId: String?
-    let mediaSessionId: String?
-}
-
-enum ScanImageCloudStatus: String, Decodable, Equatable, Sendable {
-    case healthy
-    case missing
-    case notReferenced = "not_referenced"
-    case repaired
-}
-
-struct ScanImageCloudInspection: Decodable, Equatable, Sendable {
-    let status: ScanImageCloudStatus
-    let replacementUrl: String?
-    let updatedScanCount: Int
-    let updatedPostMediaCount: Int
-
-    private enum CodingKeys: String, CodingKey {
-        case status
-        case replacementUrl = "replacement_url"
-        case updatedScanCount = "updated_scan_count"
-        case updatedPostMediaCount = "updated_post_media_count"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        status = try container.decode(ScanImageCloudStatus.self, forKey: .status)
-        replacementUrl = try container.decodeIfPresent(String.self, forKey: .replacementUrl)
-        updatedScanCount = try container.decodeIfPresent(Int.self, forKey: .updatedScanCount) ?? 0
-        updatedPostMediaCount = try container.decodeIfPresent(Int.self, forKey: .updatedPostMediaCount) ?? 0
-    }
-}
-
-private struct ScanImageCloudInspectionResponse: Decodable {
-    let data: ScanImageCloudInspection
-}
-
-enum ScanCloudStatus: String, Decodable, Equatable, Sendable {
-    case found
-    case notFound = "not_found"
-}
-
-enum ScanIngestionJobStatus: String, Decodable, Equatable, Sendable {
-    case processing
-    case finalizing
-    case retrying
-    case failedRetryable = "failed_retryable"
-    case failed
-    case complete
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let rawValue = try container.decode(String.self)
-        if rawValue == "failed_terminal" {
-            self = .failed
-            return
-        }
-        guard let status = ScanIngestionJobStatus(rawValue: rawValue) else {
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Unknown scan ingestion job status: \(rawValue)"
-            )
-        }
-        self = status
-    }
-}
-
-enum ComplimentaryScanState: String, Decodable, Equatable, Sendable {
-    case held
-    case consumed
-    case released
-}
-
-struct ScanStatusResponse: Decodable, Equatable, Sendable {
-    let scanId: String?
-    let status: ScanCloudStatus
-    let jobStatus: ScanIngestionJobStatus?
-    let jobStage: String?
-    let jobAttemptCount: Int?
-    let retryAfter: String?
-    let lastError: String?
-    let complimentaryState: ComplimentaryScanState?
-
-    var isFound: Bool { status == .found }
-
-    init(
-        scanId: String? = nil,
-        status: ScanCloudStatus,
-        jobStatus: ScanIngestionJobStatus?,
-        jobStage: String?,
-        jobAttemptCount: Int?,
-        retryAfter: String?,
-        lastError: String?,
-        complimentaryState: ComplimentaryScanState? = nil
-    ) {
-        self.scanId = scanId
-        self.status = status
-        self.jobStatus = jobStatus
-        self.jobStage = jobStage
-        self.jobAttemptCount = jobAttemptCount
-        self.retryAfter = retryAfter
-        self.lastError = lastError
-        self.complimentaryState = complimentaryState
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case scanId = "scan_id"
-        case status
-        case jobStatus = "job_status"
-        case jobStage = "job_stage"
-        case jobAttemptCount = "job_attempt_count"
-        case retryAfter = "retry_after"
-        case lastError = "last_error"
-        case complimentaryState = "complimentary_state"
-    }
-}
-
 enum MissingScanRecoveryAction: Equatable, Sendable {
     case retryStatus
     case recover
@@ -171,14 +43,6 @@ func missingScanRecoveryAction(
     case .failed?, .complete?, nil:
         return .recover
     }
-}
-
-private struct BulkScanStatusResponse: Decodable {
-    let results: [ScanStatusResponse]
-}
-
-private struct DeleteScanResponse: Decodable {
-    let success: Bool
 }
 
 enum AccountDeletionStatus: String, Decodable, Equatable, Sendable {
@@ -278,16 +142,6 @@ private struct AccountDeletionRecoveryV2Payload: Encodable {
         case operation
         case recoveryCapability = "recovery_capability"
         case acknowledgementCapability = "acknowledgement_capability"
-    }
-}
-
-private struct UploadURLRequestBody: Encodable {
-    let files: [StagingUploadFile]
-    let userId: String
-
-    private enum CodingKeys: String, CodingKey {
-        case files
-        case userId = "user_id"
     }
 }
 
@@ -934,14 +788,8 @@ final class MerianNetworkClient {
 
     private let supabaseUrl = MerianEnvironment.supabaseUrl
     private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
-    private let speciesDictionaryCacheTTL: TimeInterval = 10 * 60
-    private let speciesDictionaryCacheLimit = 64
-    private let speciesDictionaryCacheLock = NSLock()
-    private var speciesDictionaryCache: [String: SpeciesDictionaryCacheEntry] = [:]
-    private let speciesObservationStatsCacheTTL: TimeInterval = 5 * 60
-    private let speciesObservationStatsCacheLimit = 64
-    private let speciesObservationStatsCacheLock = NSLock()
-    private var speciesObservationStatsCache: [String: SpeciesObservationStatsCacheEntry] = [:]
+    /// No caller can access this memo or insert a response outside the validated request boundary.
+    private let speciesDictionaryResponses = SpeciesDictionaryResponseCache()
     private static let functionRouteRetryDelays: [UInt64] = [
         1_000_000_000,
         2_000_000_000,
@@ -993,44 +841,6 @@ final class MerianNetworkClient {
         "species-dictionary-chat",
         "update-explore-field-notes"
     ]
-    private static let insightChatPromptCategoryAllowlist: Set<String> = [
-        "confidence",
-        "ecology",
-        "evidence",
-        "field_notes",
-        "generic",
-        "habitat",
-        "hazard",
-        "invasive",
-        "lookalike_compare",
-        "season"
-    ]
-    private static let unsafeInsightChatPromptPatterns = [
-        #"\b(?:can|could|should|may|would)\s+(?:i|we|you)\s+(?:safely\s+)?(?:eat|consume|taste|cook|bake|brew|forage|feed|kill|exterminate|trap|capture|handle|pick\s+up|relocate|collect|harvest|remove\s+(?:it|this|that|a\s+nest)|take\s+(?:it|this|that)\s+home)\b"#,
-        #"\bhow\s+(?:(?:do|can|could|should|would|may)\s+(?:i|we|you)\s+|to\s+)(?:eat|consume|taste|cook|bake|brew|forage|feed|kill|exterminate|trap|capture|handle|pick\s+up|relocate|collect|harvest|remove\s+(?:it|this|that|a\s+nest)|take\s+(?:it|this|that)\s+home)\b"#,
-        #"\b(?:edible|safe\s+to\s+(?:eat|consume|taste|cook|brew|feed|handle|pick\s+up|capture|relocate)|(?:can|could|should|may|would)\s+(?:this|that|it|these|those)\s+be\s+(?:eaten|consumed|tasted|cooked|brewed|fed|killed|trapped|captured|handled|relocated|collected|harvested|removed|taken\s+home))\b"#,
-        #"\b(?:(?:can|could|should|may|would)\s+(?:my|our)\s+(?:dog|cat|pet|livestock)\s+(?:eat|consume|taste)|(?:what\s+happens\s+if|after)\s+(?:i|we|you|someone|a\s+person|a\s+child|my\s+(?:dog|cat|pet))\s+(?:eat|ate|consume|consumed|taste|tasted|ingest|ingested))\b"#,
-        #"\b(?:(?:best|safest|proper|recommended)\s+(?:ways?|methods?)\s+to|(?:instructions?|steps?|tips?|advice|guide)\s+(?:for|on|to)|(?:tell|show)\s+me\s+how\s+to)\s+(?:eat(?:ing)?|consum(?:e|ing)|tast(?:e|ing)|cook(?:ing)?|bak(?:e|ing)|brew(?:ing)?|forag(?:e|ing)|feed(?:ing)?|treat(?:ing)?|medicat(?:e|ing)|kill(?:ing)?|exterminat(?:e|ing)|trap(?:ping)?|captur(?:e|ing)|handl(?:e|ing)|pick(?:ing)?\s+up|relocat(?:e|ing)|collect(?:ing)?|harvest(?:ing)?|remov(?:e|ing)\s+(?:it|this|that|a\s+nest)|tak(?:e|ing)\s+(?:it|this|that)\s+home)\b"#,
-        #"\b(?:(?:can|could|should|may|would)\s+(?:i|we|you)\s+(?:treat|medicate|manage)\b.{0,40}\b(?:rash|bite|sting|venom|allergic\s+reaction|poisoning|exposure)|what\s+should\s+(?:i|we|you|someone|a\s+person|a\s+child)\s+do\b.{0,30}\b(?:if|after)\b.{0,30}\b(?:bitten|stung|ate|ingested|rash|allergic\s+reaction|poisoning|exposure))\b"#,
-        #"\b(?:dosage|antidote|treatment\s+(?:advice|instructions?|plan)|medical\s+treatment|veterinary\s+treatment|medicine\s+for|pesticide\s+(?:instructions?|application|use)|apply\s+(?:a\s+)?pesticide|(?:use|apply)\s+poison|poison\s+(?:it|this|that|them)|extermination\s+instructions?)\b"#,
-        #"\b(?:legal|allowed|permit(?:ted)?|permission)\b.{0,30}\b(?:collect|harvest|capture|take|remove|relocate)\b"#,
-        #"\b(?:gps|coordinates?|latitude|longitude|exact\s+location|where\s+exactly)\b"#,
-        #"\b(?:identify|recognize|name|who\s+is)\b.{0,30}\b(?:person|human|face)\b"#
-    ]
-    private static let internalUUIDPattern =
-        #"\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b"#
-    private static let maxFieldChatResponseBytes = 1_048_576
-    private static let maxFieldChatMessageCharacters = 4_000
-
-    private struct SpeciesDictionaryCacheEntry {
-        let value: SpeciesDictionaryEntry
-        let storedAt: Date
-    }
-
-    private struct SpeciesObservationStatsCacheEntry {
-        let value: SpeciesObservationStatsEntry
-        let storedAt: Date
-    }
 
     // MARK: - URLSession
 
@@ -1133,276 +943,6 @@ final class MerianNetworkClient {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return decoder
-    }
-
-    private func makeInsightChatDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let value = try container.decode(String.self)
-            if let date =
-                DateUtilities.iso8601FractionalFormatter.date(from: value) ??
-                DateUtilities.iso8601Formatter.date(from: value) {
-                return date
-            }
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Invalid ISO 8601 date: \(value)"
-            )
-        }
-        return decoder
-    }
-
-    /// Treats a chat HTTP 200 as candidate evidence until every message is
-    /// bound to the requested scan/post and to the envelope's conversation.
-    private func decodeInsightChatResponse(
-        _ data: Data,
-        expectedSubjectId: String,
-        expectedClientMessageId: String? = nil,
-        expectedUserMessageText: String? = nil
-    ) throws -> InsightChatResponse {
-        try validateFieldChatResponseSize(data)
-        let response: InsightChatResponse
-        do {
-            response = try makeInsightChatDecoder()
-                .decode(InsightChatEnvelope.self, from: data)
-                .data
-        } catch {
-            throw MerianError.invalidResponse
-        }
-
-        let expectedSubjectId = expectedSubjectId
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let conversationId = response.conversationId?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let messageIds = response.messages.compactMap {
-            UUID(uuidString: $0.id)
-        }
-        let expectedClientMessageId = expectedClientMessageId?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let expectedUserMessageText = expectedUserMessageText?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let requestMessages = expectedClientMessageId.map { requestId in
-            response.messages.filter { message in
-                message.clientMessageId?.caseInsensitiveCompare(requestId) ==
-                    .orderedSame
-            }
-        } ?? []
-        let requestIsValid: Bool
-        switch (expectedClientMessageId, expectedUserMessageText) {
-        case (nil, nil):
-            requestIsValid = true
-        case let (requestId?, userMessageText?):
-            requestIsValid =
-                UUID(uuidString: requestId) != nil &&
-                !userMessageText.isEmpty &&
-                userMessageText.count <= 600 &&
-                requestMessages.count == 2 &&
-                requestMessages.filter {
-                    $0.role == .user
-                }.count == 1 &&
-                requestMessages.filter {
-                    $0.role == .assistant
-                }.count == 1 &&
-                requestMessages.first {
-                    $0.role == .user
-                }?.text == userMessageText
-        default:
-            requestIsValid = false
-        }
-        guard !expectedSubjectId.isEmpty,
-              response.subjectId?.caseInsensitiveCompare(
-                  expectedSubjectId
-              ) == .orderedSame,
-              response.limits.maxUserMessageCharacters == 600,
-              response.limits.maxMessagesPerConversation == 30,
-              response.limits.dailySendLimit == 20,
-              response.limits.sendsRemainingToday >= 0,
-              response.limits.sendsRemainingToday <=
-                response.limits.dailySendLimit,
-              response.messages.count <=
-                response.limits.maxMessagesPerConversation,
-              response.conversationId == nil ||
-                (
-                    response.conversationId == conversationId &&
-                    conversationId?.isEmpty == false &&
-                    conversationId.flatMap {
-                        UUID(uuidString: $0)
-                    } != nil
-                ),
-              response.messages.isEmpty || conversationId != nil,
-              messageIds.count == response.messages.count,
-              Set(messageIds).count == messageIds.count,
-              response.messages.allSatisfy({ message in
-                  let text = message.text
-                      .trimmingCharacters(in: .whitespacesAndNewlines)
-                  return message.scanId.caseInsensitiveCompare(
-                      expectedSubjectId
-                  ) == .orderedSame &&
-                    message.conversationId.caseInsensitiveCompare(
-                        conversationId ?? ""
-                    ) == .orderedSame &&
-                    text == message.text &&
-                    !text.isEmpty &&
-                    text.count <= Self.maxFieldChatMessageCharacters &&
-                    (
-                        message.clientMessageId == nil ||
-                        message.clientMessageId.flatMap {
-                            UUID(uuidString: $0)
-                        } != nil
-                    )
-              }),
-              requestIsValid else {
-            throw MerianError.invalidResponse
-        }
-        return response
-    }
-
-    private func validateFieldChatResponseSize(_ data: Data) throws {
-        guard data.count <= Self.maxFieldChatResponseBytes else {
-            throw MerianError.invalidResponse
-        }
-    }
-
-    private func decodeInsightChatFeedbackResponse(
-        _ data: Data,
-        expectedSubjectId: String,
-        expectedMessageId: String,
-        expectedRating: InsightChatFeedbackRating
-    ) throws -> InsightChatFeedbackResponse {
-        try validateFieldChatResponseSize(data)
-        let response: InsightChatFeedbackResponse
-        do {
-            response = try JSONDecoder()
-                .decode(InsightChatFeedbackEnvelope.self, from: data)
-                .data
-        } catch {
-            throw MerianError.invalidResponse
-        }
-        guard response.ok,
-              response.subjectId?.caseInsensitiveCompare(
-                  expectedSubjectId
-              ) == .orderedSame,
-              UUID(uuidString: expectedMessageId) != nil,
-              UUID(uuidString: response.messageId) != nil,
-              response.messageId.caseInsensitiveCompare(expectedMessageId) ==
-                .orderedSame,
-              response.rating == expectedRating else {
-            throw MerianError.invalidResponse
-        }
-        return response
-    }
-
-    private func decodeInsightChatFeatureFeedbackResponse(
-        _ data: Data,
-        expectedSubjectId: String,
-        expectedSentiment: InsightChatFeatureFeedbackSentiment?
-    ) throws -> InsightChatFeatureFeedbackResponse {
-        try validateFieldChatResponseSize(data)
-        let response: InsightChatFeatureFeedbackResponse
-        do {
-            response = try JSONDecoder()
-                .decode(InsightChatFeatureFeedbackEnvelope.self, from: data)
-                .data
-        } catch {
-            throw MerianError.invalidResponse
-        }
-        guard response.ok,
-              response.subjectId?.caseInsensitiveCompare(
-                  expectedSubjectId
-              ) == .orderedSame,
-              UUID(uuidString: response.id) != nil,
-              response.sentiment == expectedSentiment else {
-            throw MerianError.invalidResponse
-        }
-        return response
-    }
-
-    private func decodeInsightChatSummaryResponse(
-        _ data: Data,
-        expectedSubjectId: String
-    ) throws -> InsightChatSummaryResponse {
-        try validateFieldChatResponseSize(data)
-        let response: InsightChatSummaryResponse
-        do {
-            response = try JSONDecoder()
-                .decode(InsightChatSummaryEnvelope.self, from: data)
-                .data
-        } catch {
-            throw MerianError.invalidResponse
-        }
-        let summaryText = response.summaryText
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard response.subjectId?.caseInsensitiveCompare(
-                  expectedSubjectId
-              ) == .orderedSame,
-              !summaryText.isEmpty,
-              summaryText.count <= 4_000,
-              summaryText.range(
-                  of: Self.internalUUIDPattern,
-                  options: [.regularExpression, .caseInsensitive]
-              ) == nil else {
-            throw MerianError.invalidResponse
-        }
-        return InsightChatSummaryResponse(
-            subjectId: response.subjectId,
-            summaryText: summaryText
-        )
-    }
-
-    private func decodeInsightChatPromptSuggestionsResponse(
-        _ data: Data,
-        expectedSubjectId: String
-    ) throws -> InsightChatPromptSuggestionsResponse {
-        try validateFieldChatResponseSize(data)
-        let response: InsightChatPromptSuggestionsResponse
-        do {
-            response = try JSONDecoder()
-                .decode(InsightChatPromptSuggestionsEnvelope.self, from: data)
-                .data
-        } catch {
-            throw MerianError.invalidResponse
-        }
-        let conversationId = response.conversationId?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        var normalizedPrompts = Set<String>()
-        guard response.subjectId?.caseInsensitiveCompare(
-                  expectedSubjectId
-              ) == .orderedSame,
-              response.conversationId == nil ||
-                (
-                    conversationId?.isEmpty == false &&
-                    conversationId.flatMap {
-                        UUID(uuidString: $0)
-                    } != nil
-                ),
-              response.prompts.count <= 3,
-              response.prompts.allSatisfy({ prompt in
-                  let text = prompt.text
-                      .trimmingCharacters(in: .whitespacesAndNewlines)
-                  let category = prompt.category
-                      .trimmingCharacters(in: .whitespacesAndNewlines)
-                  return text == prompt.text &&
-                    !text.isEmpty &&
-                    text.count <= 120 &&
-                    category == prompt.category &&
-                    Self.insightChatPromptCategoryAllowlist.contains(
-                        category
-                    ) &&
-                    Self.unsafeInsightChatPromptPatterns.allSatisfy {
-                        text.range(
-                            of: $0,
-                            options: [
-                                .regularExpression,
-                                .caseInsensitive
-                            ]
-                        ) == nil
-                    } &&
-                    normalizedPrompts.insert(text.lowercased()).inserted
-              }) else {
-            throw MerianError.invalidResponse
-        }
-        return response
     }
 
     private static func isRefreshableAuthSessionError(
@@ -1560,13 +1100,7 @@ final class MerianNetworkClient {
 
     #if DEBUG
     func resetSpeciesDictionaryCacheForTesting() {
-        speciesDictionaryCacheLock.lock()
-        speciesDictionaryCache.removeAll()
-        speciesDictionaryCacheLock.unlock()
-
-        speciesObservationStatsCacheLock.lock()
-        speciesObservationStatsCache.removeAll()
-        speciesObservationStatsCacheLock.unlock()
+        speciesDictionaryResponses.resetForTesting()
     }
     #endif
 
@@ -1734,6 +1268,186 @@ final class MerianNetworkClient {
             body: body,
             timeoutInterval: timeoutInterval
         )
+    }
+
+    /// Encodes a typed request body and returns bytes for domain-specific validation.
+    /// URL construction, authentication, replay, and cancellation stay in this client.
+    func performAuthenticatedEncodedJSONPost<Body: Encodable>(
+        function: String,
+        body: Body,
+        timeoutInterval: TimeInterval,
+        idempotencyKey: String? = nil
+    ) async throws -> Data {
+        let url = try endpointURL(function)
+        let bodyData = try JSONEncoder().encode(body)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: url,
+            method: "POST",
+            body: bodyData,
+            timeoutInterval: timeoutInterval,
+            idempotencyKey: idempotencyKey
+        )
+        return data
+    }
+
+    /// Builds an encoded body with the exact account later reacquired by transport.
+    /// Configuration precedes account resolution and encoding; the body builder
+    /// cannot escape or acquire mutable session state.
+    func performAccountBoundEncodedJSONPost<Body: Encodable>(
+        function: String,
+        expectedAuthUserID: UUID? = nil,
+        body: (UUID) -> Body
+    ) async throws -> Data {
+        let url = try endpointURL(function)
+        let authUserID: UUID
+        if let expectedAuthUserID {
+            authUserID = expectedAuthUserID
+        } else {
+            authUserID = try await requestPayloadAuthUserID()
+        }
+        let bodyData = try JSONEncoder().encode(body(authUserID))
+        let (data, _) = try await performAuthenticatedRequest(
+            url: url,
+            method: "POST",
+            body: bodyData,
+            expectedAuthUserID: authUserID
+        )
+        return data
+    }
+
+    /// Raw signed uploads reuse the pinned session without Edge authentication,
+    /// response decoding, retry, or cancellation translation.
+    func performPresignedUpload(request: URLRequest) async throws -> (Data, URLResponse) {
+        try await activeSession.data(for: request)
+    }
+
+    func performPresignedUpload(request: URLRequest, fileURL: URL) async throws -> (Data, URLResponse) {
+        try await activeSession.upload(for: request, fromFile: fileURL)
+    }
+
+    /// Returns JSON response bytes for endpoint-owned explicit-key decoding.
+    /// Account binding, Auth leases, replay, and cancellation remain in the private transport.
+    func performAuthenticatedJSONDataPost(
+        function: String,
+        payload: [String: Any],
+        expectedAuthUserID: UUID? = nil
+    ) async throws -> Data {
+        let url = try endpointURL(function)
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: url,
+            method: "POST",
+            body: body,
+            expectedAuthUserID: expectedAuthUserID
+        )
+        return data
+    }
+
+    /// Sends an already-serialized JSON body without changing its bytes.
+    /// Endpoints with pre-dispatch validation first check configuration, then
+    /// prepare the body and validate it before entering the private transport.
+    func performAuthenticatedPreparedJSONPost(
+        function: String,
+        body: Data,
+        timeoutInterval: TimeInterval = 30.0,
+        idempotencyKey: String? = nil
+    ) async throws -> Data {
+        let url = try endpointURL(function)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: url,
+            method: "POST",
+            body: body,
+            timeoutInterval: timeoutInterval,
+            idempotencyKey: idempotencyKey
+        )
+        return data
+    }
+
+    /// Preserves endpoint-configuration failure precedence before validation or
+    /// cache lookup. The URL builder and authenticated transport remain private.
+    func validateEndpointConfiguration(_ function: String) throws {
+        _ = try endpointURL(function)
+    }
+
+    /// Keeps memo access inside the client. Callers supply request values, never
+    /// a cache entry or loader that could bypass authenticated response validation.
+    func performCachedSpeciesDictionaryRequest(
+        payload: [String: Any],
+        requestedSpeciesId: String?,
+        requestedScientificName: String?
+    ) async throws -> SpeciesDictionaryEntry {
+        if let cached = speciesDictionaryResponses.dictionaryEntry(
+            speciesId: requestedSpeciesId,
+            scientificName: requestedScientificName
+        ) {
+            return cached
+        }
+
+        let response = try await performAuthenticatedJSONPost(
+            function: "species-dictionary",
+            payload: payload,
+            responseType: SpeciesDictionaryResponse.self
+        )
+        let entry = try SpeciesDictionaryResponseValidator.dictionaryEntry(
+            response,
+            requestedSpeciesId: requestedSpeciesId,
+            requestedScientificName: requestedScientificName
+        )
+        speciesDictionaryResponses.storeDictionaryEntry(entry)
+        return entry
+    }
+
+    /// A warm memo hit intentionally precedes transport cancellation and Auth.
+    /// A miss can populate the memo only after the fixed stats validator accepts it.
+    func performCachedSpeciesObservationStatsRequest(
+        queryItems: [URLQueryItem],
+        requestedSpeciesId: String,
+        requestedScientificName: String
+    ) async throws -> SpeciesObservationStatsEntry {
+        if let cached = speciesDictionaryResponses.observationStatsEntry(
+            speciesId: requestedSpeciesId,
+            scientificName: requestedScientificName
+        ) {
+            return cached
+        }
+
+        let response = try await performAuthenticatedJSONGet(
+            function: "species-observation-stats",
+            queryItems: queryItems,
+            responseType: SpeciesObservationStatsResponse.self,
+            timeoutInterval: 20
+        )
+        let entry = try SpeciesDictionaryResponseValidator.observationStats(
+            response,
+            requestedSpeciesId: requestedSpeciesId,
+            requestedScientificName: requestedScientificName
+        )
+        speciesDictionaryResponses.storeObservationStatsEntry(
+            entry,
+            requestedSpeciesId: requestedSpeciesId,
+            requestedScientificName: requestedScientificName
+        )
+        return entry
+    }
+
+    /// Typed authenticated GET for endpoint-owned ordered query items. This uses
+    /// the same header, Auth lease, retry, and cancellation path as JSON POST.
+    private func performAuthenticatedJSONGet<Response: Decodable>(
+        function: String,
+        queryItems: [URLQueryItem],
+        responseType: Response.Type,
+        timeoutInterval: TimeInterval
+    ) async throws -> Response {
+        let url = try endpointURL(function)
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = queryItems
+        guard let requestURL = components?.url else { throw MerianError.invalidURL }
+        let (data, _) = try await performAuthenticatedRequest(
+            url: requestURL,
+            method: "GET",
+            timeoutInterval: timeoutInterval
+        )
+        return try makeExploreDecoder().decode(responseType, from: data)
     }
 
     /// Dispatches one authenticated HTTP attempt while an exact-session lease
@@ -2589,425 +2303,7 @@ final class MerianNetworkClient {
         return data
     }
 
-    func updateDeferredScanContext(scanId: String, telemetry: CaptureTelemetry) async throws {
-        let functionUrl = try endpointURL("update-scan-context")
-        var payload: [String: Any] = ["scan_id": scanId]
-        if let gpsElevation = telemetry.gpsElevation {
-            payload["gps_elevation"] = gpsElevation
-        }
-        if let condition = telemetry.weatherCondition {
-            payload["weather_condition"] = condition
-        }
-        if let temperature = telemetry.weatherTemperatureF {
-            payload["weather_temperature_f"] = temperature
-        }
-        if let locationName = telemetry.locationName {
-            payload["semantic_location"] = locationName
-        }
-        guard payload.count > 1 else { return }
-
-        let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        _ = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: bodyData,
-            timeoutInterval: 15
-        )
-    }
-
-    func fetchEnrichment(
-        scanId: String,
-        scientificName: String,
-        confidenceScore: Double,
-        inferenceTier: String,
-        scope: String
-    ) async throws -> EnrichScanResponse {
-        let functionUrl = try endpointURL("enrich-scan")
-        let payload: [String: Any] = [
-            "scan_id": scanId,
-            "scientific_name": scientificName,
-            "confidence_score": confidenceScore,
-            "inference_tier": inferenceTier,
-            "scope": scope
-        ]
-        let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        // Scan IDs are UUIDs and remain stable across foreground, offline, and
-        // server-recovery retries. The database namespaces idempotency by
-        // operation, so enrichment and lookalike calls can safely share it.
-        guard let idempotencyKey = UUID(uuidString: scanId)?.uuidString.lowercased() else {
-            throw MerianError.invalidResponse
-        }
-        let (data, _) = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: bodyData,
-            idempotencyKey: idempotencyKey
-        )
-        return try JSONDecoder().decode(EnrichScanResponse.self, from: data)
-    }
-
-    // MARK: - R2 Storage
-
-    func generateUploadURLs(
-        uploadFiles: [StagingUploadFile],
-        expectedAuthUserID: UUID? = nil
-    ) async throws -> [PreSignedURL] {
-        let functionUrl = try endpointURL("generate-upload-urls")
-        let authUserID: UUID
-        if let expectedAuthUserID {
-            authUserID = expectedAuthUserID
-        } else {
-            authUserID = try await requestPayloadAuthUserID()
-        }
-        let userId = authUserID.uuidString.lowercased()
-        let bodyData = try JSONEncoder().encode(UploadURLRequestBody(files: uploadFiles, userId: userId))
-
-        let (data, _) = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: bodyData,
-            expectedAuthUserID: authUserID
-        )
-        return try JSONDecoder().decode(PreSignedURLResponse.self, from: data).urls
-    }
-
-    func uploadToR2(
-        uploadURL: PreSignedURL,
-        data: Data,
-        contentType: String
-    ) async throws {
-        let request = try r2UploadRequest(
-            uploadURL: uploadURL,
-            contentType: contentType,
-            contentLength: data.count
-        )
-        var bodyRequest = request
-        bodyRequest.httpBody = data
-
-        let uploadStart = CFAbsoluteTimeGetCurrent()
-        let (responseData, response) = try await activeSession.data(for: bodyRequest)
-        MerianLog.network.debug("R2 upload completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - uploadStart), privacy: .public)s.")
-        try validateR2UploadResponse(responseData: responseData, response: response)
-    }
-
-    func uploadToR2(
-        uploadURL: PreSignedURL,
-        fileURL: URL,
-        contentType: String
-    ) async throws {
-        let currentSize = try MediaStagingContract.fileSizeBytes(at: fileURL)
-        let request = try r2UploadRequest(
-            uploadURL: uploadURL,
-            contentType: contentType,
-            contentLength: currentSize
-        )
-
-        let uploadStart = CFAbsoluteTimeGetCurrent()
-        let (responseData, response) = try await activeSession.upload(for: request, fromFile: fileURL)
-        MerianLog.network.debug("R2 file upload completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - uploadStart), privacy: .public)s.")
-        try validateR2UploadResponse(responseData: responseData, response: response)
-    }
-
-    private func r2UploadRequest(
-        uploadURL: PreSignedURL,
-        contentType: String,
-        contentLength: Int
-    ) throws -> URLRequest {
-        guard let signedURL = SecureTransportPolicy.httpsURL(
-            from: uploadURL.signedUrl
-        ) else {
-            throw MerianError.invalidURL
-        }
-        guard uploadURL.requiredHeaders.count == 2,
-              uploadURL.requiredHeaders["Content-Type"] == contentType,
-              uploadURL.requiredHeaders["Content-Length"] == String(contentLength),
-              MediaStagingContract.signedHeaders(from: signedURL)
-                == "content-length;content-type;host" else {
-            throw MerianError.invalidResponse
-        }
-
-        var request = URLRequest(url: signedURL)
-        request.httpMethod = "PUT"
-        for (field, value) in uploadURL.requiredHeaders {
-            request.setValue(value, forHTTPHeaderField: field)
-        }
-        return request
-    }
-
-    func inspectScanImageCloudStatus(sourceUrl: String) async throws -> ScanImageCloudInspection {
-        try await scanImageCloudRequest(sourceUrl: sourceUrl, restoredObjectKey: nil)
-    }
-
-    func repairScanImageCloudReference(
-        sourceUrl: String,
-        restoredObjectKey: String
-    ) async throws -> ScanImageCloudInspection {
-        try await scanImageCloudRequest(
-            sourceUrl: sourceUrl,
-            restoredObjectKey: restoredObjectKey
-        )
-    }
-
-    private func scanImageCloudRequest(
-        sourceUrl: String,
-        restoredObjectKey: String?
-    ) async throws -> ScanImageCloudInspection {
-        let functionUrl = try endpointURL("repair-scan-image")
-        var payload: [String: Any] = ["source_url": sourceUrl]
-        if let restoredObjectKey {
-            payload["restored_object_key"] = restoredObjectKey
-        }
-        let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: bodyData
-        )
-        return try JSONDecoder()
-            .decode(ScanImageCloudInspectionResponse.self, from: data)
-            .data
-    }
-
-    func uploadStagedVideoFiles(videoFilePaths: [String], scanId: String) async throws -> [String] {
-        var videoFileURLs: [URL] = []
-        var missingVideoPaths: [String] = []
-        for videoFilePath in videoFilePaths {
-            if let fileURL = existingLocalMediaURL(for: videoFilePath) {
-                videoFileURLs.append(fileURL)
-            } else {
-                missingVideoPaths.append(videoFilePath)
-            }
-        }
-
-        guard !videoFileURLs.isEmpty else {
-            MerianLog.network.error("Video staging upload requested but no local video files were found.")
-            throw CocoaError(.fileNoSuchFile)
-        }
-        if !missingVideoPaths.isEmpty {
-            MerianLog.network.error(
-                "Video staging upload missing \(missingVideoPaths.count, privacy: .public)/\(videoFilePaths.count, privacy: .public) requested local video file(s)."
-            )
-            throw CocoaError(.fileNoSuchFile)
-        }
-
-        let uploadFiles = try videoFileURLs.map { fileURL in
-            let sizeBytes = try MediaStagingContract.fileSizeBytes(at: fileURL)
-            return StagingUploadFile(
-                fileName: MediaStagingContract.stagingFileName(scanId: scanId, localPath: fileURL.lastPathComponent),
-                mediaKind: .video,
-                contentType: StagedMediaKind.video.contentType(for: fileURL.path),
-                sizeBytes: sizeBytes,
-                clientScanId: scanId,
-                mediaRole: StagedMediaKind.video.defaultScanMediaRole
-            )
-        }
-
-        guard uploadFiles.count <= MerianConfig.mediaStagingMaxVideoFilesPerRequest,
-              uploadFiles.count <= MerianConfig.mediaStagingMaxFilesPerRequest else {
-            throw MerianError.payloadTooLarge
-        }
-        for uploadFile in uploadFiles {
-            guard uploadFile.sizeBytes > 0,
-                  uploadFile.sizeBytes <= MerianConfig.videoPayloadMaxBytes else {
-                throw MerianError.payloadTooLarge
-            }
-        }
-
-        let uploadURLs = try await generateUploadURLs(uploadFiles: uploadFiles)
-        guard uploadURLs.count == videoFileURLs.count else {
-            throw MerianError.invalidResponse
-        }
-
-        for (fileURL, uploadURL) in zip(videoFileURLs, uploadURLs) {
-            try await uploadToR2(
-                uploadURL: uploadURL,
-                fileURL: fileURL,
-                contentType: StagedMediaKind.video.contentType(for: fileURL.path)
-            )
-        }
-
-        return uploadURLs.map(\.objectKey)
-    }
-
-    private func resolvedLocalMediaURL(for path: String) -> URL {
-        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("file://"), let url = URL(string: trimmed), url.isFileURL {
-            return url
-        }
-        if trimmed.hasPrefix("/") {
-            return URL(fileURLWithPath: trimmed)
-        }
-        return URL.documentsDirectory.appendingPathComponent(trimmed)
-    }
-
-    private func existingLocalMediaURL(for path: String) -> URL? {
-        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        let primaryURL = resolvedLocalMediaURL(for: trimmed)
-        if FileManager.default.fileExists(atPath: primaryURL.path) {
-            return primaryURL
-        }
-
-        let fileName = primaryURL.lastPathComponent
-        guard !fileName.isEmpty else { return nil }
-
-        let fallbackURLs = [
-            URL.documentsDirectory.appendingPathComponent(fileName),
-            FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        ]
-        return fallbackURLs.first { FileManager.default.fileExists(atPath: $0.path) }
-    }
-
-    private func validateR2UploadResponse(responseData: Data, response: URLResponse) throws {
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw MerianError.uploadFailed
-        }
-
-        if httpResponse.statusCode != 200 {
-            MerianLog.network.debug(
-                "R2 upload failed; status=\(httpResponse.statusCode, privacy: .public)."
-            )
-            throw MerianError.uploadFailed
-        }
-    }
-
-    // MARK: - Outbox Confirmation
-
-    /// Asks the server whether `scanId` exists in `public.scans` for the current user.
-    /// Returns the compatibility status plus optional scan-ingestion job state for recovery.
-    func checkScanStatusDetails(
-        scanId: String,
-        requiredVideoCount: Int? = nil,
-        recoveryScan: OwnedScanRecoveryPayload? = nil
-    ) async throws -> ScanStatusResponse {
-        let functionUrl = try endpointURL("check-scan-status")
-        var payload: [String: Any] = ["scan_id": scanId]
-        if let requiredVideoCount, requiredVideoCount > 0 {
-            payload["required_video_count"] = requiredVideoCount
-        }
-        if let recoveryScan {
-            let recoveryData = try JSONEncoder().encode(recoveryScan)
-            guard let recoveryObject = try JSONSerialization.jsonObject(with: recoveryData) as? [String: Any] else {
-                throw MerianError.invalidResponse
-            }
-            payload["recovery_scan"] = recoveryObject
-        }
-        let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let expectedAuthUserID = recoveryScan.flatMap {
-            UUID(uuidString: $0.userId)
-        }
-        let (data, _) = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: bodyData,
-            expectedAuthUserID: expectedAuthUserID
-        )
-        let decoded: ScanStatusResponse
-        do {
-            decoded = try JSONDecoder().decode(
-                ScanStatusResponse.self,
-                from: data
-            )
-        } catch {
-            throw MerianError.invalidResponse
-        }
-        guard decoded.scanId == nil ||
-                decoded.scanId?.caseInsensitiveCompare(scanId) == .orderedSame,
-              decoded.jobAttemptCount.map({ $0 >= 0 }) ?? true else {
-            throw MerianError.invalidResponse
-        }
-        return decoded
-    }
-
-    func checkScanStatuses(_ requirements: [String: Int]) async throws -> [String: ScanStatusResponse] {
-        guard !requirements.isEmpty else { return [:] }
-        var expectedScanIds: [String: String] = [:]
-        for scanId in requirements.keys {
-            let normalized = scanId
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            guard !normalized.isEmpty,
-                  expectedScanIds.updateValue(
-                    scanId,
-                    forKey: normalized
-                  ) == nil else {
-                throw MerianError.invalidResponse
-            }
-        }
-        let functionUrl = try endpointURL("check-scan-status")
-        let scans = requirements.map { requirement in
-            var payload: [String: Any] = ["scan_id": requirement.key]
-            let requiredVideoCount = requirement.value
-            if requiredVideoCount > 0 {
-                payload["required_video_count"] = requiredVideoCount
-            }
-            return payload
-        }
-        let bodyData = try JSONSerialization.data(withJSONObject: ["scans": scans])
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        let decoded: BulkScanStatusResponse
-        do {
-            decoded = try JSONDecoder().decode(
-                BulkScanStatusResponse.self,
-                from: data
-            )
-        } catch {
-            throw MerianError.invalidResponse
-        }
-        guard decoded.results.count == expectedScanIds.count else {
-            throw MerianError.invalidResponse
-        }
-
-        var results: [String: ScanStatusResponse] = [:]
-        for result in decoded.results {
-            guard let returnedScanId = result.scanId?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-                let requestedScanId = expectedScanIds[
-                    returnedScanId.lowercased()
-                ],
-                results[requestedScanId] == nil,
-                result.jobAttemptCount.map({ $0 >= 0 }) ?? true else {
-                throw MerianError.invalidResponse
-            }
-            results[requestedScanId] = result
-        }
-        guard results.count == expectedScanIds.count else {
-            throw MerianError.invalidResponse
-        }
-        return results
-    }
-
-    /// Compatibility wrapper for older call sites that only need `"found"` / `"not_found"`.
-    func checkScanStatus(scanId: String, requiredVideoCount: Int? = nil) async throws -> String {
-        let response = try await checkScanStatusDetails(
-            scanId: scanId,
-            requiredVideoCount: requiredVideoCount
-        )
-        return response.status.rawValue
-    }
-
-    // MARK: - Data Mutation
-
-    func deleteScan(scanId: String) async throws {
-        let functionUrl = try endpointURL("delete-scan")
-        let bodyData = try JSONSerialization.data(withJSONObject: ["scanId": scanId])
-        let (data, _) = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: bodyData
-        )
-        let response: DeleteScanResponse
-        do {
-            response = try JSONDecoder().decode(DeleteScanResponse.self, from: data)
-        } catch {
-            throw MerianError.invalidResponse
-        }
-        guard response.success else {
-            throw MerianError.invalidResponse
-        }
-        MerianLog.network.debug("Scan deleted: \(scanId, privacy: .private)")
-    }
+    // MARK: - Account Deletion
 
     func safeDeleteAccount(
         recoveryCapability: String? = nil,
@@ -3351,435 +2647,7 @@ final class MerianNetworkClient {
             ?? DateUtilities.iso8601Formatter.date(from: value)
     }
 
-    // MARK: - Darwin Core Export
-
-    /// Queues a DwC-A export job. The insertion transaction snapshots bounded
-    /// source membership and revision fingerprints, then a background webhook
-    /// generates the ZIP and emails the final download link via Resend.
-    func requestDwcAExport(scope: String = "personal") async throws {
-        let functionUrl = try endpointURL("request-export-dwca")
-        // includePreciseCoordinates: true — intentional for personal exports. The requesting
-        // user is downloading their own data, so full-resolution GPS coordinates are appropriate.
-        // For "global" scope exports, the server scrubs coordinates for all rows except the
-        // requesting user's own records, regardless of this flag.
-        let payload: [String: Any] = ["exportScope": scope, "includePreciseCoordinates": true]
-        let bodyData = try JSONSerialization.data(withJSONObject: payload)
-
-        // Archive generation remains asynchronous; this timeout covers only the
-        // bounded queue-and-snapshot transaction.
-        _ = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: bodyData,
-            timeoutInterval: 15.0
-        )
-    }
-
     // MARK: - Explore
-
-    func getSpeciesDictionary(scientificName: String) async throws -> SpeciesDictionaryEntry {
-        try await performSpeciesDictionaryRequest(speciesId: nil, scientificName: scientificName)
-    }
-
-    func getSpeciesDictionary(speciesId: String, scientificName: String? = nil) async throws -> SpeciesDictionaryEntry {
-        try await performSpeciesDictionaryRequest(speciesId: speciesId, scientificName: scientificName)
-    }
-
-    func getSpeciesDictionaryCatalog(
-        category: SpeciesDictionaryCatalogCategory = .all,
-        region: String? = nil,
-        group: String? = nil,
-        query: String? = nil,
-        limit: Int = 40,
-        cursor: SpeciesDictionaryCatalogCursor? = nil
-    ) async throws -> SpeciesDictionaryCatalogResponse {
-        let functionUrl = try endpointURL("species-dictionary")
-        var payload: [String: Any] = [
-            "mode": "catalog",
-            "limit": limit
-        ]
-        if category != .all {
-            payload["category"] = category.rawValue
-        }
-        if let region = region?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
-            payload["region"] = region
-        }
-        if let group = group?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
-            payload["group"] = group
-        }
-        if let query = query?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
-            payload["query"] = query
-        }
-        if let cursor {
-            var cursorPayload: [String: Any] = [
-                "scientific_name": cursor.scientificName,
-                "species_id": cursor.speciesId
-            ]
-            if let createdAt = cursor.createdAt {
-                cursorPayload["created_at"] = createdAt
-            }
-            payload["cursor"] = cursorPayload
-        }
-
-        let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        let response = try makeExploreDecoder().decode(
-            SpeciesDictionaryCatalogResponse.self,
-            from: data
-        )
-        guard response.schemaVersion == 1 else {
-            throw MerianError.invalidResponse
-        }
-        return response
-    }
-
-    func getSpeciesDictionaryCatalog(
-        query: String? = nil,
-        limit: Int = 40,
-        cursor: SpeciesDictionaryCatalogCursor? = nil
-    ) async throws -> SpeciesDictionaryCatalogResponse {
-        try await getSpeciesDictionaryCatalog(
-            category: .all,
-            region: nil,
-            group: nil,
-            query: query,
-            limit: limit,
-            cursor: cursor
-        )
-    }
-
-    func getSpeciesDictionaryOverview(userRegion: String? = nil) async throws -> SpeciesDictionaryOverviewResponse {
-        let functionUrl = try endpointURL("species-dictionary")
-        var payload: [String: Any] = [
-            "mode": "overview",
-            "cache_buster": UUID().uuidString
-        ]
-        if let userRegion = userRegion?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
-            payload["user_region"] = userRegion
-        }
-
-        let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        let response = try makeExploreDecoder().decode(
-            SpeciesDictionaryOverviewResponse.self,
-            from: data
-        )
-        guard response.schemaVersion == 1 else {
-            throw MerianError.invalidResponse
-        }
-        return response
-    }
-
-    func getSpeciesObservationStats(
-        speciesId: String,
-        scientificName: String
-    ) async throws -> SpeciesObservationStatsEntry {
-        let functionUrl = try endpointURL("species-observation-stats")
-        guard
-            let normalizedSpeciesId = normalizedSpeciesDictionaryId(speciesId),
-            let speciesUUID = UUID(uuidString: normalizedSpeciesId)
-        else {
-            throw MerianError.invalidResponse
-        }
-        let requestedSpeciesId = speciesUUID.uuidString.lowercased()
-        let normalizedScientificName = scientificName
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-        guard
-            let requestedScientificName = normalizedScientificName.nilIfEmpty,
-            requestedScientificName.count <= 160
-        else {
-            throw MerianError.invalidResponse
-        }
-
-        if let cached = cachedSpeciesObservationStatsEntry(
-            speciesId: requestedSpeciesId,
-            scientificName: requestedScientificName
-        ) {
-            return cached
-        }
-
-        var components = URLComponents(url: functionUrl, resolvingAgainstBaseURL: false)
-        components?.queryItems = [
-            URLQueryItem(name: "species_id", value: requestedSpeciesId),
-            URLQueryItem(name: "scientific_name", value: requestedScientificName)
-        ]
-        guard let requestURL = components?.url else {
-            throw MerianError.invalidURL
-        }
-
-        let (data, _) = try await performAuthenticatedRequest(
-            url: requestURL,
-            method: "GET",
-            timeoutInterval: 20.0
-        )
-        let response = try makeExploreDecoder().decode(SpeciesObservationStatsResponse.self, from: data)
-        let entry = response.data
-        guard
-            response.effectiveSchemaVersion >= 2,
-            normalizedSpeciesDictionaryId(entry.speciesId) == requestedSpeciesId,
-            normalizedSpeciesDictionaryName(entry.scientificName) ==
-                normalizedSpeciesDictionaryName(requestedScientificName)
-        else {
-            throw MerianError.invalidResponse
-        }
-        cacheSpeciesObservationStatsEntry(
-            entry,
-            requestedSpeciesId: requestedSpeciesId,
-            requestedScientificName: requestedScientificName
-        )
-        return entry
-    }
-
-    private func performSpeciesDictionaryRequest(speciesId: String?, scientificName: String?) async throws -> SpeciesDictionaryEntry {
-        let functionUrl = try endpointURL("species-dictionary")
-        var payload: [String: Any] = [:]
-        let requestedSpeciesId = SpeciesDictionaryIdentity
-            .canonicalSpeciesID(speciesId)
-        let requestedScientificName = SpeciesDictionaryIdentity
-            .normalizedScientificName(scientificName)
-        guard requestedSpeciesId != nil || requestedScientificName != nil else {
-            throw MerianError.invalidResponse
-        }
-
-        if let cached = cachedSpeciesDictionaryEntry(
-            speciesId: requestedSpeciesId,
-            scientificName: requestedScientificName
-        ) {
-            return cached
-        }
-
-        if let speciesId = requestedSpeciesId {
-            payload["species_id"] = speciesId
-        }
-        if let scientificName = requestedScientificName {
-            payload["scientific_name"] = scientificName
-        }
-        let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        let response = try makeExploreDecoder().decode(
-            SpeciesDictionaryResponse.self,
-            from: data
-        )
-        let entry = response.data
-        guard response.schemaVersion == 1,
-              isValidSpeciesDictionaryResponse(
-                  entry,
-                  requestedSpeciesId: requestedSpeciesId,
-                  requestedScientificName: requestedScientificName
-              ) else {
-            throw MerianError.invalidResponse
-        }
-        cacheSpeciesDictionaryEntry(entry)
-        return entry
-    }
-
-    private func cachedSpeciesDictionaryEntry(
-        speciesId: String?,
-        scientificName: String?
-    ) -> SpeciesDictionaryEntry? {
-        guard let key = speciesDictionaryCacheKey(
-            speciesId: speciesId,
-            scientificName: scientificName
-        ) else {
-            return nil
-        }
-
-        speciesDictionaryCacheLock.lock()
-        defer { speciesDictionaryCacheLock.unlock() }
-
-        guard let cached = speciesDictionaryCache[key] else { return nil }
-        guard Date().timeIntervalSince(cached.storedAt) < speciesDictionaryCacheTTL else {
-            speciesDictionaryCache.removeValue(forKey: key)
-            return nil
-        }
-
-        return cached.value
-    }
-
-    private func cacheSpeciesDictionaryEntry(_ entry: SpeciesDictionaryEntry) {
-        let keys = speciesDictionaryCacheKeys(for: entry)
-        guard !keys.isEmpty else { return }
-
-        let now = Date()
-        speciesDictionaryCacheLock.lock()
-        defer { speciesDictionaryCacheLock.unlock() }
-
-        for key in keys {
-            speciesDictionaryCache[key] = SpeciesDictionaryCacheEntry(
-                value: entry,
-                storedAt: now
-            )
-        }
-
-        if speciesDictionaryCache.count > speciesDictionaryCacheLimit {
-            let expiredKeys = speciesDictionaryCache
-                .filter { now.timeIntervalSince($0.value.storedAt) >= speciesDictionaryCacheTTL }
-                .map(\.key)
-            for key in expiredKeys {
-                speciesDictionaryCache.removeValue(forKey: key)
-            }
-
-            if speciesDictionaryCache.count > speciesDictionaryCacheLimit {
-                let currentOverflowCount = speciesDictionaryCache.count - speciesDictionaryCacheLimit
-                let keysToRemove = speciesDictionaryCache
-                    .sorted { $0.value.storedAt < $1.value.storedAt }
-                    .prefix(currentOverflowCount)
-                    .map(\.key)
-                for key in keysToRemove {
-                    speciesDictionaryCache.removeValue(forKey: key)
-                }
-            }
-        }
-    }
-
-    private func speciesDictionaryCacheKey(
-        speciesId: String?,
-        scientificName: String?
-    ) -> String? {
-        if let speciesId = normalizedSpeciesDictionaryId(speciesId) {
-            return "id:\(speciesId)"
-        }
-        if let scientificName = normalizedSpeciesDictionaryName(scientificName) {
-            return "name:\(scientificName)"
-        }
-        return nil
-    }
-
-    private func cachedSpeciesObservationStatsEntry(
-        speciesId: String?,
-        scientificName: String?
-    ) -> SpeciesObservationStatsEntry? {
-        guard let key = speciesDictionaryCacheKey(
-            speciesId: speciesId,
-            scientificName: scientificName
-        ) else {
-            return nil
-        }
-
-        speciesObservationStatsCacheLock.lock()
-        defer { speciesObservationStatsCacheLock.unlock() }
-
-        guard let cached = speciesObservationStatsCache[key] else { return nil }
-        guard Date().timeIntervalSince(cached.storedAt) < speciesObservationStatsCacheTTL else {
-            speciesObservationStatsCache.removeValue(forKey: key)
-            return nil
-        }
-
-        return cached.value
-    }
-
-    private func cacheSpeciesObservationStatsEntry(
-        _ entry: SpeciesObservationStatsEntry,
-        requestedSpeciesId: String?,
-        requestedScientificName: String?
-    ) {
-        var keys = Set<String>()
-        if let requestedSpeciesId = normalizedSpeciesDictionaryId(requestedSpeciesId) {
-            keys.insert("id:\(requestedSpeciesId)")
-        }
-        if let entrySpeciesId = normalizedSpeciesDictionaryId(entry.speciesId) {
-            keys.insert("id:\(entrySpeciesId)")
-        }
-        if let requestedScientificName = normalizedSpeciesDictionaryName(requestedScientificName) {
-            keys.insert("name:\(requestedScientificName)")
-        }
-        if let entryScientificName = normalizedSpeciesDictionaryName(entry.scientificName) {
-            keys.insert("name:\(entryScientificName)")
-        }
-        guard !keys.isEmpty else { return }
-
-        let now = Date()
-        speciesObservationStatsCacheLock.lock()
-        defer { speciesObservationStatsCacheLock.unlock() }
-
-        for key in keys {
-            speciesObservationStatsCache[key] = SpeciesObservationStatsCacheEntry(
-                value: entry,
-                storedAt: now
-            )
-        }
-
-        if speciesObservationStatsCache.count > speciesObservationStatsCacheLimit {
-            let expiredKeys = speciesObservationStatsCache
-                .filter { now.timeIntervalSince($0.value.storedAt) >= speciesObservationStatsCacheTTL }
-                .map(\.key)
-            for key in expiredKeys {
-                speciesObservationStatsCache.removeValue(forKey: key)
-            }
-
-            if speciesObservationStatsCache.count > speciesObservationStatsCacheLimit {
-                let currentOverflowCount = speciesObservationStatsCache.count - speciesObservationStatsCacheLimit
-                let keysToRemove = speciesObservationStatsCache
-                    .sorted { $0.value.storedAt < $1.value.storedAt }
-                    .prefix(currentOverflowCount)
-                    .map(\.key)
-                for key in keysToRemove {
-                    speciesObservationStatsCache.removeValue(forKey: key)
-                }
-            }
-        }
-    }
-
-    private func speciesDictionaryCacheKeys(
-        for entry: SpeciesDictionaryEntry
-    ) -> Set<String> {
-        var keys = Set<String>()
-        let entrySpeciesId = normalizedSpeciesDictionaryId(entry.id)
-        let entryScientificName = normalizedSpeciesDictionaryName(
-            entry.scientificName
-        )
-        if let entrySpeciesId {
-            keys.insert("id:\(entrySpeciesId)")
-        }
-        if let entryScientificName {
-            keys.insert("name:\(entryScientificName)")
-        }
-        return keys
-    }
-
-    private func isValidSpeciesDictionaryResponse(
-        _ entry: SpeciesDictionaryEntry,
-        requestedSpeciesId: String?,
-        requestedScientificName: String?
-    ) -> Bool {
-        let returnedSpeciesId = normalizedSpeciesDictionaryId(entry.id)
-        let returnedScientificName = normalizedSpeciesDictionaryName(
-            entry.scientificName
-        )
-        let requestedName = normalizedSpeciesDictionaryName(
-            requestedScientificName
-        )
-        guard returnedScientificName != nil else { return false }
-
-        if let requestedSpeciesId {
-            if returnedSpeciesId == requestedSpeciesId {
-                return true
-            }
-            return requestedName != nil
-                && returnedScientificName == requestedName
-                && returnedSpeciesId != nil
-        }
-
-        guard let requestedName,
-              returnedScientificName == requestedName else {
-            return false
-        }
-        return returnedSpeciesId != nil
-            || entry.id.trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-                .hasPrefix("external:")
-    }
-
-    private func normalizedSpeciesDictionaryId(_ value: String?) -> String? {
-        SpeciesDictionaryIdentity.canonicalSpeciesID(value)
-    }
-
-    private func normalizedSpeciesDictionaryName(_ value: String?) -> String? {
-        SpeciesDictionaryIdentity.scientificNameCacheKey(value)
-    }
 
     func shareScanToExplore(
         scanId: String,
@@ -4146,429 +3014,6 @@ final class MerianNetworkClient {
                 idempotencyKey: idempotencyKey
             )
         }
-    }
-
-    // MARK: - Product Feedback
-
-    func submitFeedbackSurvey(_ submission: FeedbackSurveySubmission) async throws {
-        let functionUrl = try endpointURL("submit-feedback-survey")
-        let bodyData = try JSONEncoder().encode(submission)
-        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-    }
-
-    func submitCommunityFeedback(feedback: String) async throws {
-        let submission = CommunityFeedbackSubmission(feedback: feedback)
-        let functionUrl = try endpointURL("submit-community-feedback")
-        let bodyData = try JSONEncoder().encode(submission)
-        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-    }
-
-    // MARK: - Insight Chat
-
-    func loadInsightChat(scanId: String) async throws -> InsightChatResponse {
-        try await insightChat(
-            action: "load",
-            scanId: scanId,
-            messageText: nil,
-            clientMessageId: nil
-        )
-    }
-
-    func sendInsightChatMessage(
-        scanId: String,
-        messageText: String,
-        clientMessageId: String
-    ) async throws -> InsightChatResponse {
-        try await insightChat(
-            action: "send",
-            scanId: scanId,
-            messageText: messageText,
-            clientMessageId: clientMessageId
-        )
-    }
-
-    func deleteInsightChat(scanId: String) async throws -> InsightChatResponse {
-        try await insightChat(
-            action: "delete",
-            scanId: scanId,
-            messageText: nil,
-            clientMessageId: nil
-        )
-    }
-
-    private func insightChat(
-        action: String,
-        scanId: String,
-        messageText: String?,
-        clientMessageId: String?
-    ) async throws -> InsightChatResponse {
-        let functionUrl = try endpointURL("insight-chat")
-        let body = InsightChatRequestBody(
-            action: action,
-            scanId: scanId,
-            messageText: messageText,
-            clientMessageId: clientMessageId,
-            messageId: nil,
-            feedbackRating: nil,
-            feedbackNote: nil,
-            featureFeedbackSentiment: nil
-        )
-        let bodyData = try JSONEncoder().encode(body)
-        let (data, _) = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: bodyData,
-            timeoutInterval: 45.0,
-            idempotencyKey: action == "send" ? clientMessageId : nil
-        )
-        return try decodeInsightChatResponse(
-            data,
-            expectedSubjectId: scanId,
-            expectedClientMessageId:
-                action == "send" ? clientMessageId : nil,
-            expectedUserMessageText:
-                action == "send" ? messageText : nil
-        )
-    }
-
-    func submitInsightChatFeedback(
-        scanId: String,
-        messageId: String,
-        rating: InsightChatFeedbackRating,
-        note: String? = nil
-    ) async throws -> InsightChatFeedbackResponse {
-        let body = InsightChatRequestBody(
-            action: "feedback",
-            scanId: scanId,
-            messageText: nil,
-            clientMessageId: nil,
-            messageId: messageId,
-            feedbackRating: rating,
-            feedbackNote: note,
-            featureFeedbackSentiment: nil
-        )
-        let data = try await performInsightChatRequest(body)
-        return try decodeInsightChatFeedbackResponse(
-            data,
-            expectedSubjectId: scanId,
-            expectedMessageId: messageId,
-            expectedRating: rating
-        )
-    }
-
-    func submitInsightChatFeatureFeedback(
-        scanId: String,
-        sentiment: InsightChatFeatureFeedbackSentiment?,
-        note: String?
-    ) async throws -> InsightChatFeatureFeedbackResponse {
-        let body = InsightChatRequestBody(
-            action: "feature_feedback",
-            scanId: scanId,
-            messageText: nil,
-            clientMessageId: nil,
-            messageId: nil,
-            feedbackRating: nil,
-            feedbackNote: note,
-            featureFeedbackSentiment: sentiment
-        )
-        let data = try await performInsightChatRequest(body)
-        return try decodeInsightChatFeatureFeedbackResponse(
-            data,
-            expectedSubjectId: scanId,
-            expectedSentiment: sentiment
-        )
-    }
-
-    func summarizeInsightChatForFieldNotes(scanId: String) async throws -> InsightChatSummaryResponse {
-        let body = InsightChatRequestBody(
-            action: "summarize_notes",
-            scanId: scanId,
-            messageText: nil,
-            clientMessageId: nil,
-            messageId: nil,
-            feedbackRating: nil,
-            feedbackNote: nil,
-            featureFeedbackSentiment: nil
-        )
-        let data = try await performInsightChatRequest(
-            body,
-            timeoutInterval: 45.0,
-            idempotencyKey: UUID().uuidString.lowercased()
-        )
-        return try decodeInsightChatSummaryResponse(
-            data,
-            expectedSubjectId: scanId
-        )
-    }
-
-    func suggestInsightChatPrompts(scanId: String) async throws -> InsightChatPromptSuggestionsResponse {
-        let body = InsightChatRequestBody(
-            action: "suggest_prompts",
-            scanId: scanId,
-            messageText: nil,
-            clientMessageId: nil,
-            messageId: nil,
-            feedbackRating: nil,
-            feedbackNote: nil,
-            featureFeedbackSentiment: nil
-        )
-        let data = try await performInsightChatRequest(
-            body,
-            timeoutInterval: 30.0,
-            idempotencyKey: UUID().uuidString.lowercased()
-        )
-        return try decodeInsightChatPromptSuggestionsResponse(
-            data,
-            expectedSubjectId: scanId
-        )
-    }
-
-    private func performInsightChatRequest(
-        _ body: InsightChatRequestBody,
-        timeoutInterval: TimeInterval = 20.0,
-        idempotencyKey: String? = nil
-    ) async throws -> Data {
-        let functionUrl = try endpointURL("insight-chat")
-        let bodyData = try JSONEncoder().encode(body)
-        let (data, _) = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: bodyData,
-            timeoutInterval: timeoutInterval,
-            idempotencyKey: idempotencyKey
-        )
-        return data
-    }
-
-    func loadExplorePostChat(postId: String) async throws -> InsightChatResponse {
-        try await performExplorePostChat(
-            action: "load",
-            postId: postId
-        )
-    }
-
-    func sendExplorePostChatMessage(
-        postId: String,
-        messageText: String,
-        clientMessageId: String
-    ) async throws -> InsightChatResponse {
-        try await performExplorePostChat(
-            action: "send",
-            postId: postId,
-            messageText: messageText,
-            clientMessageId: clientMessageId
-        )
-    }
-
-    func deleteExplorePostChat(postId: String) async throws -> InsightChatResponse {
-        try await performExplorePostChat(action: "delete", postId: postId)
-    }
-
-    func submitExplorePostChatFeedback(
-        postId: String,
-        messageId: String,
-        rating: InsightChatFeedbackRating,
-        note: String? = nil
-    ) async throws -> InsightChatFeedbackResponse {
-        let body = ExplorePostChatRequestBody(
-            action: "feedback",
-            postId: postId,
-            messageText: nil,
-            clientMessageId: nil,
-            messageId: messageId,
-            feedbackRating: rating,
-            feedbackNote: note
-        )
-        let data = try await performExplorePostChatRequest(body)
-        return try decodeInsightChatFeedbackResponse(
-            data,
-            expectedSubjectId: postId,
-            expectedMessageId: messageId,
-            expectedRating: rating
-        )
-    }
-
-    func suggestExplorePostChatPrompts(postId: String) async throws -> InsightChatPromptSuggestionsResponse {
-        let body = ExplorePostChatRequestBody(
-            action: "suggest_prompts",
-            postId: postId,
-            messageText: nil,
-            clientMessageId: nil,
-            messageId: nil,
-            feedbackRating: nil,
-            feedbackNote: nil
-        )
-        let data = try await performExplorePostChatRequest(body, timeoutInterval: 30.0)
-        return try decodeInsightChatPromptSuggestionsResponse(
-            data,
-            expectedSubjectId: postId
-        )
-    }
-
-    private func performExplorePostChat(
-        action: String,
-        postId: String,
-        messageText: String? = nil,
-        clientMessageId: String? = nil
-    ) async throws -> InsightChatResponse {
-        let body = ExplorePostChatRequestBody(
-            action: action,
-            postId: postId,
-            messageText: messageText,
-            clientMessageId: clientMessageId,
-            messageId: nil,
-            feedbackRating: nil,
-            feedbackNote: nil
-        )
-        let data = try await performExplorePostChatRequest(
-            body,
-            idempotencyKey: action == "send" ? clientMessageId : nil
-        )
-        return try decodeInsightChatResponse(
-            data,
-            expectedSubjectId: postId,
-            expectedClientMessageId:
-                action == "send" ? clientMessageId : nil,
-            expectedUserMessageText:
-                action == "send" ? messageText : nil
-        )
-    }
-
-    private func performExplorePostChatRequest(
-        _ body: ExplorePostChatRequestBody,
-        timeoutInterval: TimeInterval = 20.0,
-        idempotencyKey: String? = nil
-    ) async throws -> Data {
-        let functionUrl = try endpointURL("explore-post-chat")
-        let bodyData = try JSONEncoder().encode(body)
-        let (data, _) = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: bodyData,
-            timeoutInterval: timeoutInterval,
-            idempotencyKey: idempotencyKey
-        )
-        return data
-    }
-
-    func loadSpeciesDictionaryChat(speciesId: String) async throws -> InsightChatResponse {
-        try await performSpeciesDictionaryChat(
-            action: "load",
-            speciesId: speciesId
-        )
-    }
-
-    func sendSpeciesDictionaryChatMessage(
-        speciesId: String,
-        messageText: String,
-        clientMessageId: String
-    ) async throws -> InsightChatResponse {
-        try await performSpeciesDictionaryChat(
-            action: "send",
-            speciesId: speciesId,
-            messageText: messageText,
-            clientMessageId: clientMessageId
-        )
-    }
-
-    func deleteSpeciesDictionaryChat(speciesId: String) async throws -> InsightChatResponse {
-        try await performSpeciesDictionaryChat(
-            action: "delete",
-            speciesId: speciesId
-        )
-    }
-
-    func submitSpeciesDictionaryChatFeedback(
-        speciesId: String,
-        messageId: String,
-        rating: InsightChatFeedbackRating,
-        note: String? = nil
-    ) async throws -> InsightChatFeedbackResponse {
-        let body = SpeciesDictionaryChatRequestBody(
-            action: "feedback",
-            speciesId: speciesId,
-            messageText: nil,
-            clientMessageId: nil,
-            messageId: messageId,
-            feedbackRating: rating,
-            feedbackNote: note
-        )
-        let data = try await performSpeciesDictionaryChatRequest(body)
-        return try decodeInsightChatFeedbackResponse(
-            data,
-            expectedSubjectId: speciesId,
-            expectedMessageId: messageId,
-            expectedRating: rating
-        )
-    }
-
-    func suggestSpeciesDictionaryChatPrompts(
-        speciesId: String
-    ) async throws -> InsightChatPromptSuggestionsResponse {
-        let body = SpeciesDictionaryChatRequestBody(
-            action: "suggest_prompts",
-            speciesId: speciesId,
-            messageText: nil,
-            clientMessageId: nil,
-            messageId: nil,
-            feedbackRating: nil,
-            feedbackNote: nil
-        )
-        let data = try await performSpeciesDictionaryChatRequest(
-            body,
-            timeoutInterval: 30.0
-        )
-        return try decodeInsightChatPromptSuggestionsResponse(
-            data,
-            expectedSubjectId: speciesId
-        )
-    }
-
-    private func performSpeciesDictionaryChat(
-        action: String,
-        speciesId: String,
-        messageText: String? = nil,
-        clientMessageId: String? = nil
-    ) async throws -> InsightChatResponse {
-        let body = SpeciesDictionaryChatRequestBody(
-            action: action,
-            speciesId: speciesId,
-            messageText: messageText,
-            clientMessageId: clientMessageId,
-            messageId: nil,
-            feedbackRating: nil,
-            feedbackNote: nil
-        )
-        let data = try await performSpeciesDictionaryChatRequest(
-            body,
-            timeoutInterval: action == "send" ? 45.0 : 20.0,
-            idempotencyKey: action == "send" ? clientMessageId : nil
-        )
-        return try decodeInsightChatResponse(
-            data,
-            expectedSubjectId: speciesId,
-            expectedClientMessageId:
-                action == "send" ? clientMessageId : nil,
-            expectedUserMessageText:
-                action == "send" ? messageText : nil
-        )
-    }
-
-    private func performSpeciesDictionaryChatRequest(
-        _ body: SpeciesDictionaryChatRequestBody,
-        timeoutInterval: TimeInterval = 20.0,
-        idempotencyKey: String? = nil
-    ) async throws -> Data {
-        let functionUrl = try endpointURL("species-dictionary-chat")
-        let bodyData = try JSONEncoder().encode(body)
-        let (data, _) = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: bodyData,
-            timeoutInterval: timeoutInterval,
-            idempotencyKey: idempotencyKey
-        )
-        return data
     }
 
     private func shouldAttemptExploreMediaRestore(after error: Error) -> Bool {

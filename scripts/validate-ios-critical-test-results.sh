@@ -405,8 +405,8 @@ assert_suite_has_passed_test_case \
   "cloudDeletionDrainIsProcessSingleFlight"
 assert_suite_has_passed_test_case \
   "Cloud deletion response integrity" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ScanDeletionEndpointTests" \
+  "Scan Deletion Endpoints" \
   "testDeleteScanRejectsUnconfirmedSuccessResponse"
 assert_suite_has_passed_test_case \
   "Foreground scan submission" \
@@ -540,13 +540,13 @@ assert_suite_has_passed_test_case \
   "testExploreSharingRequiresExactEngineAndRecordIdentity"
 assert_suite_has_passed_test_case \
   "Single scan-status response integrity" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ScanStatusEndpointTests" \
+  "Scan Status Endpoints" \
   "testCheckScanStatusRejectsMalformedOrMismatchedSuccess"
 assert_suite_has_passed_test_case \
   "Bulk scan-status response integrity" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ScanStatusEndpointTests" \
+  "Scan Status Endpoints" \
   "testBulkScanStatusRejectsDuplicateMissingOrForeignRows"
 assert_suite_has_passed_test_case \
   "Explore media-health rollout compatibility" \
@@ -570,8 +570,8 @@ assert_suite_has_passed_test_case \
   "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload"
 assert_suite_has_passed_test_case \
   "Foreground video empty-file rejection" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "StagedVideoUploadTests" \
+  "Staged Video Uploads" \
   "testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning"
 assert_suite_has_passed_test_case \
   "Community all-media recovery" \

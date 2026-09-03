@@ -474,7 +474,7 @@ extension SpeciesData {
         self.individualCount = edgeRes.individual_count
         self.ecologicalInteractions = edgeRes.ecological_interactions
         self.aiReasoning = edgeRes.insight_data?.ai_reasoning  // per-scan; unique to the specific photo submitted
-        self.habitatDescription = edgeRes.species_insights?.habitat_description
+        self.habitatDescription = edgeRes.species_insights?.habitat_description?.trimmedNonEmptyValue
         self.gbifTaxonKey = edgeRes.gbif_taxon_key
         self.inferenceTier = edgeRes.inference_tier
         self.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(edgeRes.alternative_common_names)
@@ -605,7 +605,7 @@ extension SpeciesData {
         self.individualCount = individualCount
         self.ecologicalInteractions = ecologicalInteractions
         self.aiReasoning = aiReasoning
-        self.habitatDescription = habitatDescription
+        self.habitatDescription = habitatDescription?.trimmedNonEmptyValue
         self.gbifTaxonKey = gbifTaxonKey
         self.inferenceTier = inferenceTier
         self.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(alternativeCommonNames)

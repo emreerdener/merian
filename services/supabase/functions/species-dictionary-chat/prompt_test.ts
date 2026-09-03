@@ -69,3 +69,22 @@ Deno.test("each prompt build uses the latest supplied dictionary context", () =>
   assertEquals(before.includes("New enriched overview."), false);
   assertEquals(after.includes("New enriched overview."), true);
 });
+
+Deno.test("dictionary chat permits species knowledge when reference text is missing", () => {
+  const prompt = buildSystemInstruction({ ...context(""), habitat: null });
+  assertStringIncludes(prompt, "Overview: Unavailable");
+  assertStringIncludes(prompt, "Habitat: Unavailable");
+  assertStringIncludes(
+    prompt,
+    "using well-established species knowledge even when that detail is absent from the supplied context",
+  );
+  assertStringIncludes(
+    prompt,
+    "Never present general species knowledge as a trait observed in this individual",
+  );
+  assertStringIncludes(prompt, "If you do not reliably know a fact, say so");
+  assertStringIncludes(prompt, "Do not provide edible certainty");
+  assertStringIncludes(prompt, "Do not claim current facts beyond");
+  assertStringIncludes(prompt, "Do not invent citations");
+  assertFalse(prompt.includes("using only the bounded public"));
+});

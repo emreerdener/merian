@@ -4,13 +4,16 @@ import Testing
 @testable import Merian
 
 enum NetworkEndpointTestSupport {
+    /// Reads a potentially one-shot body stream once, then shares the same bytes
+    /// with payload assertions and exact-wire replay comparisons.
+    @discardableResult
     static func expectPOST(
         _ request: URLRequest,
         function: String,
         json: String,
         timeout: TimeInterval = 30,
         idempotencyKey: String? = nil
-    ) throws {
+    ) throws -> NetworkEndpointRequestSnapshot {
         #expect(request.url?.scheme == "https")
         #expect(request.url?.path == "/functions/v1/\(function)")
         #expect(request.url?.query == nil)
@@ -21,6 +24,11 @@ enum NetworkEndpointTestSupport {
         #expect(request.value(forHTTPHeaderField: "Idempotency-Key") == idempotencyKey)
         let body = try #require(MockURLProtocol.bodyData(for: request))
         #expect(try canonicalRequestJSON(body) == canonicalRequestJSON(Data(json.utf8)))
+        return NetworkEndpointRequestSnapshot(
+            body: body,
+            idempotencyKey: request.value(forHTTPHeaderField: "Idempotency-Key"),
+            timeout: request.timeoutInterval
+        )
     }
 
     static func canonicalRequestJSON(_ data: Data) throws -> Data {
@@ -44,6 +52,12 @@ enum NetworkEndpointTestSupport {
         ))
         return (response, Data(json.utf8))
     }
+}
+
+struct NetworkEndpointRequestSnapshot: Equatable, Sendable {
+    let body: Data
+    let idempotencyKey: String?
+    let timeout: TimeInterval
 }
 
 /// A private client and scoped transport per test; never changes the shared client.

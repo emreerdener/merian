@@ -97,9 +97,12 @@ Gemini's provider schema.
   `alternative_common_names: string[] | null`; read by `getCachedSpecies` and
   conditionally written by `updateSpeciesEnrichment`.
 - `insight-chat/`: follows the same `index.ts` / `db.ts` / `types.ts` split and
-  adds `prompt.ts` for text-only Gemini chat context plus AI quick-prompt
-  generation, and `guards.ts` for action, limit, entitlement, prompt-suggestion,
-  and deterministic safety checks.
+  adds `prompt.ts` for text-only Gemini chat context, field-note draft prompts,
+  and AI quick-prompt generation, and `guards.ts` for action, limit,
+  entitlement, prompt-suggestion, and deterministic safety checks. Insight,
+  Explore-post, and Species Dictionary prompts share
+  `_shared/fieldChatSpeciesKnowledge.ts` to distinguish general species
+  knowledge from recorded observation evidence without adding source access.
 - `field-trips/`: follows the same `index.ts` / `db.ts` split. `index.ts`
   validates the action payload, user identity, UUIDs, cursor pairs, pin arrays,
   habitat tags, comment lengths, and optional preferred-goal pair; `db.ts` is
@@ -428,21 +431,16 @@ the injected Wikipedia/GBIF image service. On the next `enrich-scan` call for
 the same species (once the row is visible on the replica), `speciesId` resolves
 normally and the join table is populated with full data.
 
-**`resolveLookalikesToJoinTable` Null Kingdom Early-Exit:** If `primaryKingdom`
-is `null` or `undefined` when `resolveLookalikesToJoinTable` is called, the
-function returns the Flash-generated entries as stubs immediately without
-writing anything to the `species_lookalikes` join table. Previously, all
-lookalike entries passed through unvalidated when no kingdom was available,
-risking cross-kingdom contamination in the join table. This early-exit ensures
-that kingdom-less enrichment paths (e.g., a very recently inserted species row
-not yet replicated) produce a safe, read-only response.
+**`resolveLookalikesToJoinTable` Taxonomy Early-Exit:** The resolver normalizes
+the primary taxonomy and returns `{ lookalikes: [], persisted: false }` when
+there is no usable kingdom plus order or family. It does not write join rows or
+return fresh Flash stubs on this path. Unresolved or taxonomy-incompatible
+candidates are also dropped from the resolved result.
 
-**TEXT[] Fallback Rule — Always Return Scientific Names When Join Table
-Resolution Fails:** `resolveLookalikesToJoinTable` may return entries for
-species already in `species_dictionary`, plus Flash-generated stubs for species
-not yet in the dictionary. However, `formatEnrichmentPayload` applies a
-secondary TEXT[] fallback in case the resolution returns completely empty (e.g.
-speciesId is null, or the function threw and was caught upstream):
+**Legacy TEXT[] Fallback:** `formatLookalikesOnlyPayload` prefers resolved
+entries, then falls back to existing `cachedSpecies.similar_species` names. This
+is compatibility with previously stored names, not permission to return
+unvalidated names from a new provider response:
 
 ```typescript
 const resolvedLookalikes: LookalikeSummary[] = lookalikes.length > 0
@@ -455,12 +453,10 @@ const resolvedLookalikes: LookalikeSummary[] = lookalikes.length > 0
   }));
 ```
 
-This guarantees that clients always receive at least the scientific names rather
-than `similar_species: null`. Note that `resolveLookalikesToJoinTable` itself
-now handles the "no dictionary matches" case by returning Flash-generated stubs
-directly (with `common_name` populated from the Flash response), so this
-fallback is a last-resort safety net rather than the primary path for unmatched
-species.
+When neither resolved entries nor legacy names exist, the scoped response
+contains `similar_species: null`. The missing-taxonomy branch passes an empty
+resolved list to this formatter and therefore preserves only that legacy-name
+fallback before returning null.
 
 **Resolve-and-Return Pattern:** Functions that write to a join table and then
 need the hydrated rows should return the resolved species rows directly instead
@@ -640,63 +636,62 @@ Postgres planner's cost estimates. A dedicated single-column index
 independent of table cardinality, without affecting the upsert's conflict
 detection which continues to use the composite unique index.
 
-**`enrich-scan` Scoped API — Concurrent Progressive Enrichment:**
-`enrich-scan/index.ts` accepts a required `scope` parameter (`"enrichment"` |
-`"lookalikes"`). Each scope handles an independent sub-problem and returns only
-its own fields:
+**`enrich-scan` Scoped API — Concurrent Progressive Enrichment:** Each request
+requires `scientific_name` and a `scope` of `"enrichment"` or `"lookalikes"`.
+Responses include `data.scope` and only the selected fields:
 
-| Scope          | Fields returned                                     | Flash call                    |
-| -------------- | --------------------------------------------------- | ----------------------------- |
-| `"enrichment"` | `habitat_description`, `gbif_taxon_key`, `taxonomy` | `fetchStaticEncyclopedicData` |
-| `"lookalikes"` | `similar_species`                                   | `fetchSimilarSpecies`         |
+| Scope          | Fields apart from `scope`                                                       | Provider helper               |
+| -------------- | ------------------------------------------------------------------------------- | ----------------------------- |
+| `"enrichment"` | `habitat_description`, `gbif_taxon_key`, `taxonomy`, `alternative_common_names` | `fetchStaticEncyclopedicData` |
+| `"lookalikes"` | `similar_species`                                                               | `fetchSimilarSpecies`         |
 
-The iOS client fires both scopes concurrently via `withTaskGroup` in
-`InferenceEngine.fetchAndApplyEnrichment`. Each task group child applies its
-fields to `speciesData` as soon as its network call resolves — habitat
-description and taxonomy appear independently of similar species cards. Two
-separate `@Observable` flags gate their respective loading states:
+When both scopes are needed, `InferenceEngine.fetchAndApplyEnrichment` issues
+two independent requests through a task group and applies each result as it
+arrives. The stateless
+`Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift` extension owns
+request construction and plain decoding of the hand-written
+`EnrichScanResponse`; the existing private client owns Auth, timeout, replay,
+and cancellation. Scheduling, result application, and stale-presentation checks
+stay in the engine and its hydration/write coordinators.
 
-- `isEnrichmentLoading` — gates the habitat/distribution skeleton in
-  `HabitatAndDistributionCard`
-- `isLookalikesLoading` — gates the similar species gallery skeleton in
-  `BiologicalView`
+The engine keeps separate `isEnrichmentLoading` and `isLookalikesLoading` flags
+for the metadata and gallery surfaces. Historical `load(from:)` derives
+`needsMetadata` and `needsLookalikes` independently from the eligible record's
+missing metadata, usable taxonomy, rich lookalike data, and local reset policy.
+Hydration admission can suppress an already-satisfied scope or back off after a
+rate limit. After both initially requested scopes finish, a still-current
+presentation with usable taxonomy and no similar species may request only
+lookalikes once more; that retry disables further lookalike retries.
 
-On a **cache hit** (species already enriched) each scoped call returns after a
-single DB round-trip — no behavioral latency difference from the pre-split
-design. On a **cold path** the two Flash calls run in parallel Deno isolate
-fanout rather than sequentially, so the first resolved scope reaches the client
-before the second Flash call completes.
+A handler invocation performs only its selected scope's work. Same-species
+requests can await that scope's in-flight work on a warm isolate; the handler
+does not combine the two scopes in a `Promise.all` branch. Cache hits avoid AI
+provider work but do not promise one database round-trip or fixed latency:
+metadata can still resolve missing vernacular names through GBIF, and lookalike
+reads retain their existing validation/migration work.
 
-The historic load path (`load(from:)`) computes `needsMetadata` and
-`needsLookalikes` separately and forwards them as arguments so only the missing
-scope is requested:
+The
+[canonical enrichment API contract](../backend-and-data/05-api-contracts.md#deno-enrich-scan-edge-node)
+owns validation, quota attribution, response examples, and legacy
+null/omission/placeholder behavior. Run the
+[native focused matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification)
+for endpoint and caller changes.
 
-```swift
-let needsMetadata  = record.habitatDescription == nil || record.gbifTaxonKey == nil
-let needsLookalikes = record.lookalikesData == nil || lookalikesHaveNoCommonNames
-await fetchAndApplyEnrichment(modelContext:, needsMetadata:, needsLookalikes:)
-```
+**Enrichment Completion and Optional Background Work:** On both provider-miss
+paths, `enrich-scan/index.ts` awaits `updateSpeciesEnrichment` before resolving
+its in-flight promise and returning the response. This orders the update attempt
+before waiting requests re-read the cache. The handler separately uses
+`runBackground(...)` for the cache-hit alternative-name refresh invocation and
+the successful-lookalike attempted-flag update. Those optional calls are not a
+blanket policy for all enrichment writes.
 
-**`EdgeRuntime.waitUntil` for Post-Response Writes (`enrich-scan/index.ts`):**
-Each scope defers its `updateSpeciesEnrichment` / `lookalikes_flash_attempted`
-write via `EdgeRuntime.waitUntil(...)`. The response payload is fully formed
-before either write begins; the client does not need to wait for them. Deferring
-these writes removes ~40–60 ms of cumulative Postgres round-trip time from the
-cold-path response latency.
-
-**`updateSpeciesEnrichment` Error Visibility:** `updateSpeciesEnrichment` issues
-multiple persist operations via `Promise.allSettled`. It inspects every settled
-result and calls `console.error` for any rejected promise, making individual
-field-write failures visible in Deno edge logs without aborting the other
-persist operations. This follows the `Promise.allSettled` pattern mandated for
-background writes — a single rejected upsert (e.g., a transient Postgres
-timeout) no longer silently swallows the error.
-
-Rule: A `db.ts` write may be deferred only when it is required by neither the
-response payload nor the endpoint's success contract. The
-`lookalikes_flash_attempted` flag update and the `updateSpeciesEnrichment` call
-are canonical optional examples. Moderation state, required media promotion,
-scan creation, and owner read-back for `/identify-multimodal` are not.
+`updateSpeciesEnrichment` uses `Promise.allSettled` and logs rejected
+operations. Awaiting it preserves the current completion order; it does not turn
+that helper into an all-or-nothing transaction or strengthen its error contract.
+A write may be deferred only when neither the response nor another completion
+dependency requires it. Required join resolution, moderation state, media
+promotion, scan creation, and owner read-back must remain awaited at their
+owning boundaries.
 
 **Strategic Thinking Budget Rule — `@google/genai@1.0.0`:** `thinkingConfig` is
 a first-class typed field in `@google/genai@1.0.0` (the SDK pinned in

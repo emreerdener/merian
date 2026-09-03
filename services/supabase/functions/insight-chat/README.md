@@ -161,11 +161,23 @@ public post metadata, or Darwin Core export payloads to the prompt.
 
 ## Safety
 
-The system prompt states the assistant has no raw image access and answers only
-from saved scan evidence. Local deterministic guards refuse or redirect
-edible/foraging certainty, medical or veterinary treatment, dangerous handling,
-illegal collection, pesticide/poison instructions, and human-subject
-identification.
+The system prompt states the assistant has no raw image access. Shared
+`_shared/fieldChatSpeciesKnowledge.ts` rules allow well-established species
+knowledge to answer general questions, such as typical flower fragrance, even
+when the saved scan or dictionary does not contain that detail. Answers preserve
+identification uncertainty and relevant individual or cultivar variation; claims
+about this observation require recorded evidence or an explicit user
+observation. General knowledge does not authorize current/local claims, invented
+citations, or claims of live source retrieval.
+
+Local deterministic guards refuse or redirect edible/foraging certainty, medical
+or veterinary treatment, dangerous handling, illegal collection,
+pesticide/poison instructions, and human-subject identification.
+
+`buildFieldNotesSummaryPrompt` limits drafts to recorded scan evidence and
+explicit observations reported by the user. General species facts from the
+dictionary or assistant answers, unanswered questions, hypotheticals, and
+suggested checks must not become recorded observations.
 
 Field-note summaries remove canonical internal UUIDs across all UUID versions,
 including the UUIDv7 identifiers used by current scan and chat flows. iOS

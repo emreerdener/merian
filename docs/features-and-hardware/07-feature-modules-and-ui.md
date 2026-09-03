@@ -1504,26 +1504,30 @@ dependency composition.
   asset-catalog images, and grouped bullet sections. The surface is
   intentionally local-only for v1: no Supabase feed, unread badge, launch sheet,
   or remote config.
-- **Beta Feedback Survey (`FeedbackSurveyView`)**: The one-time
-  `beta_feedback_2026_06` campaign opens with a short intro screen, then asks
-  satisfaction, recommendation, usage, most-useful area, bugs/crashes, and
-  free-text polish questions. `CaptureWorkspaceView` can arm the survey once
-  after onboarding, at least three completed biological scans, and another
-  accepted foreground biological result. Restored or launch-time synchronized
-  history counts toward meaningful use but never arms the survey by itself. The
-  proactive sheet is presented only after the active Insight/result sheet has
-  closed so it never competes with scan results. `FeedbackSurveyPromptPolicy`
-  suppresses the prompt after the campaign is dismissed or submitted. The
-  Settings Resources section also exposes a manual "Feedback survey" row while
-  the campaign is active. After a successful manual submission, the thank-you
-  state remains during a 24-hour cooldown and then resets to a fresh form so
-  testers can send more feedback without the proactive prompt returning.
-  `FeedbackSurveyViewModel` owns draft, validation, exclusive-choice,
-  single-flight submission, and error state. The view owns step animation and
-  focus timing, and `FeedbackSurveyDependencies` is the only survey owner that
-  invokes `/submit-feedback-survey`. A competing submit is rejected without
-  clearing or replacing the active request's draft and feedback. Responses are
-  stored as private product feedback in Supabase.
+- **Beta Feedback Survey (`FeedbackSurveyView`)**: The `beta_feedback_2026_06`
+  campaign opens with a short intro screen, then asks satisfaction,
+  recommendation, usage, most-useful area, bugs/crashes, and free-text polish
+  questions. `CaptureWorkspaceView` can arm the survey once after onboarding, at
+  least three completed biological scans, and another accepted foreground
+  biological result. Restored or launch-time synchronized history counts toward
+  meaningful use but never arms the survey by itself. The proactive sheet is
+  presented only after the active Insight/result sheet has closed so it never
+  competes with scan results. `FeedbackSurveyPromptPolicy` suppresses the prompt
+  after the campaign is dismissed or submitted. The Settings Resources section
+  also exposes a manual "Feedback survey" row while the campaign is active.
+  After a successful manual submission, the thank-you state remains during a
+  24-hour cooldown and then resets to a fresh form so testers can send more
+  feedback without the proactive prompt returning. `FeedbackSurveyViewModel`
+  owns draft, validation, exclusive-choice, single-flight submission, and error
+  state. The view owns step animation and focus timing, and
+  `FeedbackSurveyDependencies` is the feature's live submit adapter. It
+  delegates `/submit-feedback-survey` HTTP work to
+  `Core/Network/Endpoints/MerianNetworkClient+ProductFeedback.swift`; prompt
+  suppression and the submitted-state interval remain
+  [Settings policy](../../apps/ios/Merian/Features/Profile/Settings/README.md#feedback-campaign-policy),
+  not transport or server-wide submission limits. A competing submit is rejected
+  without clearing or replacing the active request's draft and feedback.
+  Responses are stored as private product feedback in Supabase.
 - **System Haptics & Camera Roll**: Typed `AppSettings` bindings let
   `HapticManager` suppress feedback and let `PhotoLibraryManager` skip automatic
   photo/video writes when their preferences are disabled. Haptic interactions

@@ -83,17 +83,43 @@ Examples:
 Cross-feature wire operations can live in `Core/Network/Endpoints/` even when
 grouped by feature. Field Trips, Community Identification browsing/contribution,
 the eight Explore browsing reads, 12 Explore interaction methods, four
-notification methods, four public-profile methods, and six Explore
-post-management methods are extracted. Existing feature adapters, shared Profile
-state, Hardware push/badge owners, and Core's social guard retain their callers
-and state, while the existing network client retains private session, Auth,
-retry, and cancellation ownership behind typed-response and body-ignoring POST
-overloads. The typed bridge preserves optional idempotency keys and
-endpoint-specific decoding-error mapping without intercepting transport
-failures. Codable wire contracts remain in Core. Scan publication and media
-recovery remain together in the main client, alongside the remaining endpoint
-groups. See the [Core Network guide](Merian/Core/Network/README.md) for the
-endpoint, transport, and mirrored test boundaries.
+notification methods, four public-profile methods, six Explore post-management
+methods, 17 Field Chat methods, six Species Dictionary method variants, four
+scan lifecycle methods, two scan enrichment/context methods, one export method,
+two product feedback methods, and three media storage methods are extracted.
+Both raw `uploadToR2` overloads and foreground `uploadStagedVideoFiles` live in
+`Core/Network/Media/`, with stateless signed-request policy and immutable local
+video planning. Existing feature adapters, shared Profile state, Hardware
+push/badge owners, and Core's social guard retain their callers and state, while
+the existing network client retains private session, Auth, retry, and
+cancellation ownership behind typed-response, body-ignoring, encoded-body, and
+raw-response JSON POST bridges. Dictionary detail/stats use fixed-result
+cache-aware bridges whose GET helper stays private. The typed POST bridge
+preserves optional idempotency keys and endpoint-specific decoding-error mapping
+without intercepting transport failures. Field Chat's encoded-body bridge
+returns bytes to its stateless `Decoding/FieldChatResponseDecoder.swift`; it
+does not own another retry policy. Dictionary schema/identity checks live in
+`Decoding/SpeciesDictionaryResponseValidator.swift`; its two locked per-client
+memos live in `Caching/SpeciesDictionaryResponseCache.swift`. The client keeps
+that cache instance private; only its fixed-result bridges can populate it,
+after authenticated loading and schema/identity validation. The internal
+configuration guard preserves URL-validation-before-cache ordering without
+exposing transport state. Scan status DTOs live in
+`ScanLifecycleAPIModels.swift`; `Decoding/ScanLifecycleResponseDecoder.swift`
+owns explicit-key decoding, single/bulk identity checks, and deletion
+confirmation. The raw-response bridge forwards the recovery owner's UUID to the
+existing private Auth boundary. Enrichment's prepared-JSON bridge preserves
+serialization-before-UUID validation and exact body bytes. Signing and
+scan-image inspection DTOs move unchanged to `MediaStorageAPIModels.swift`. The
+account-bound encoded bridge preserves signing's frozen body/transport UUID; raw
+PUT bridges reuse the private session without adding Auth or replay. Queue
+manifest/task authority, live inference attempt fencing, image repair, and
+avatar promotion remain caller-owned. Other wire-model owners stay unchanged:
+enrichment responses remain hand-written in Core AI, while survey requests
+remain Settings Feedback-owned. Scan publication and media recovery remain
+together in the main client, alongside the remaining endpoint groups. See the
+[Core Network guide](Merian/Core/Network/README.md) for the endpoint, transport,
+and mirrored test boundaries.
 
 ## Onboarding Ownership
 
@@ -124,9 +150,9 @@ adapters, asynchronous state, and rendering.
 Only Field Chat Services resolve the live network client, haptics, telemetry,
 clipboard, clock, or request-ID factory. Host features own eligibility,
 entitlement, navigation, and their presentation slot; Core Network owns Codable
-DTOs, strict wire validation, and transport. Stable `InsightChat...` type names
-remain compatibility names and do not place the shared implementation under
-Insights.
+DTOs, the shared Field Chat endpoint extension and stateless response decoder,
+and private transport. Stable `InsightChat...` type names remain compatibility
+names and do not place the shared implementation under Insights.
 
 ## Scans Ownership
 

@@ -160,6 +160,20 @@ iOS cannot execute it directly and never receives a server key.
 
 ## Verification
 
+Native inspect/repair methods live in
+`Core/Network/Endpoints/MerianNetworkClient+MediaStorage.swift`, with unchanged
+hand-written DTOs in `MediaStorageAPIModels.swift`. They forward raw source/key
+values, require the `data` envelope and known status, default missing/null
+counts to zero, and preserve 30-second deadlines, plain decoding errors,
+classified refresh, and ambiguous-replay refusal.
+`Core/Data/Images/LocalImageLoader.swift` retains inspect → validate surviving
+local image → sign → file-backed upload → repair, plus cache and event handling.
+The endpoint does not infer workflow success from decoding alone. Raw upload
+policy and file planning live in `Core/Network/Media/` without owning another
+session or retry loop. Run the
+[native media storage matrix](../../../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification)
+alongside these handler checks for cross-boundary changes.
+
 ```bash
 deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/repair-scan-image/validation_test.ts \

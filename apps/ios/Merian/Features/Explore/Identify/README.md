@@ -164,6 +164,13 @@ generation.
   adapter still supplies the exact post ID and fixed report context; its state
   owner retains feedback and presentation. Reports ignore successful bodies and
   do not replay ambiguous failures.
+- `Core/Network/Endpoints/MerianNetworkClient+ProductFeedback.swift` owns
+  `submitCommunityFeedback`. Its existing `CommunityFeedbackSubmission` model
+  retains trimming, metadata, and wire keys in `ExploreAPIModels.swift`;
+  Identify's Services/ViewModel retain draft validation and submission state.
+  The
+  [Network matrix](../../../Core/Network/README.md#enrichment-export-and-feedback-verification)
+  verifies the 30-second request, ignored success body, and replay refusal.
 - `Core/Utilities/ExploreErrorFormatter.swift` owns generic and Recent
   activity-specific error copy.
 - `Explore/Shell/Models/ExploreShellNavigationModels.swift` owns initial
@@ -205,7 +212,10 @@ stable pagination. See:
 - `apps/ios/MerianTests/Features/Explore/Identify/`
 - `apps/ios/MerianTests/Features/Explore/Shell/ExploreShellNavigationPolicyTests.swift`
 - `apps/ios/MerianTests/Features/SpeciesDictionary/Catalog/`
-- `apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift`
+- `apps/ios/MerianTests/Core/Network/Endpoints/SpeciesDictionaryDetailEndpointTests.swift`
+- `apps/ios/MerianTests/Core/Network/Endpoints/SpeciesDictionaryCatalogEndpointTests.swift`
+- `apps/ios/MerianTests/Core/Network/Decoding/SpeciesDictionaryAPIModelsTests.swift`
+- `apps/ios/MerianTests/Core/Network/Caching/SpeciesDictionaryResponseCacheTests.swift`
 - `apps/ios/MerianTests/Core/Network/Endpoints/CommunityIdentificationEndpointTests.swift`
 - `apps/ios/MerianTests/Core/Network/Endpoints/ExploreInteractionEndpointTests.swift`
 - `apps/ios/MerianTests/Core/Network/Endpoints/ExploreInteractionEndpointTransportTests.swift`
@@ -229,20 +239,17 @@ allowlist, and pre-dispatch cancellation. Distinct lifecycle fixtures verify
 withdrawal/restoration timestamps; repeated failures verify the replay ceiling
 and generic handler denials forbid auth refresh. Coordinate forwarding uses
 nonzero, out-of-range sentinels rather than observed locations. Its scoped
-client/transport and type-preserving JSON comparison are shared with Field
-Trips, Explore browsing/interactions, notifications, and public-profile
-endpoints in
-`MerianTests/Core/Network/Endpoints/NetworkEndpointTestSupport.swift`; follow
-that feature's [test guide](../FieldTrips/README.md#tests) when changing those
-helpers or the shared JSON POST bridge, and also run the
-[Explore browsing matrix](../../../Core/Network/README.md#endpoint-verification)
-and the
-[interaction](../../../Core/Network/README.md#explore-interaction-verification)
-and
-[notification/public-profile matrices](../../../Core/Network/README.md#notification-and-public-profile-verification).
-No endpoint test touches the shared client's overrides or the legacy global
-handler registry. Core DTO decoding and feature interaction tests retain their
-respective owners.
+client/transport and type-preserving JSON comparison live in
+`MerianTests/Core/Network/Endpoints/NetworkEndpointTestSupport.swift`, shared
+across the extracted Core endpoint groups. The shared helper also captures
+body/key/timeout snapshots once for replay checks, with data- and stream-backed
+coverage in `NetworkEndpointTestSupportTests`. For helper or any shared JSON
+POST bridge changes, follow the
+[Core Network verification guide](../../../Core/Network/README.md#endpoint-verification):
+the helper suite, every linked endpoint matrix, and the complete unit target are
+required. No endpoint test touches the shared client's overrides or the legacy
+global handler registry. Core DTO decoding and feature interaction tests retain
+their respective owners.
 
 `ExploreInteractionEndpointTests.testReportExplorePost` owns the rehomed
 Community detail report regression: it requires the exact `post_id`, reason, and
@@ -259,19 +266,32 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/CommunityIDDetailViewModelTests \
   -only-testing:merianTests/CommunityTaxonomySearchViewModelTests \
   -only-testing:merianTests/CommunityFeedbackViewModelTests \
+  -only-testing:merianTests/ProductFeedbackEndpointTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackTransportTests \
+  -only-testing:merianTests/EnrichmentExportFeedbackBoundaryTests \
   -only-testing:merianTests/CommunityIdentificationModelsTests \
   -only-testing:merianTests/CommunityIdentificationEndpointTests \
   -only-testing:merianTests/ExploreInteractionEndpointTests \
   -only-testing:merianTests/ExploreInteractionEndpointTransportTests \
+  -only-testing:merianTests/NetworkEndpointTestSupportTests \
   -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/ExploreShellNavigationPolicyTests \
-  -only-testing:merianTests/SpeciesDictionaryCatalogContractTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogRouteTests \
   -only-testing:merianTests/SpeciesCatalogPresentationTests \
   -only-testing:merianTests/SpeciesDictionaryCatalogViewModelTests \
   -only-testing:merianTests/SpeciesDictionaryOverviewViewModelTests \
   -only-testing:merianTests/SpeciesDictionaryRegionMapViewModelTests \
   -only-testing:merianTests/SpeciesCatalogArchitectureTests \
-  -only-testing:merianTests/SpeciesDictionaryTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkTransportTests \
+  -only-testing:merianTests/SpeciesDictionaryDetailEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogEndpointTests \
+  -only-testing:merianTests/SpeciesObservationStatsEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseValidatorTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseCacheTests \
+  -only-testing:merianTests/SpeciesDictionaryAPIModelsTests \
+  -only-testing:merianTests/SpeciesDictionaryCatalogAPIModelsTests \
+  -only-testing:merianTests/SpeciesObservationStatsAPIModelsTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/MerianConfigTests test
 ```

@@ -36,6 +36,22 @@ the existing chart, habitat, heatmap, taxonomy, gallery, and image-fetcher
 initializer call sites source-compatible. Every production Swift file in this
 folder must remain at or below 600 lines.
 
+## Habitat and distribution
+
+Habitat descriptions are usable only when they contain non-whitespace text. The
+public card used by Dictionary retains an available GBIF map and shows **Habitat
+information is not available for this species yet.** when the description is
+missing. It does not request scan enrichment.
+
+Insight uses the same empty-text rule for loading, hydration, and the
+enriched-species cache. Its card polls active enrichment and makes at most five
+idle enrichment requests with exponential backoff. If those attempts return no
+usable text, the card shows the unavailable message and an explicit **Retry**
+action for eligible resolved non-Human scans. Retry timing remains view-local,
+keyed to the scan, scientific name, and presentation generation. Each delayed
+attempt rechecks identity, content, loading, and cancellation before requesting
+enrichment; a new presentation receives its own retry state.
+
 ## Observation Statistics
 
 `SpeciesObservationStatsDatabaseActor` fetches narrow local `LocalScanRecord`
@@ -110,6 +126,14 @@ Services-only live resolution, platform-neutral Models, absence of feature-
 owned unchecked sendability, private map helpers, aggregate removal, and the
 600-line ceiling.
 
+Public stats wire/endpoint tests now live in Core Network; the validator and
+clock-injected cache suites cover schemas, identities, expiry, alias capacity,
+and reset independently of chart state. The stats endpoint remains in
+`MerianNetworkClient+SpeciesDictionary.swift`, while this feature retains local
+aggregation and presentation. Shared transport changes also require the
+[Core Network endpoint matrices](../../Core/Network/README.md#endpoint-verification)
+and the complete unit target.
+
 ```bash
 make xcodegen
 xcodebuild -project Merian.xcodeproj -scheme Merian \
@@ -119,6 +143,11 @@ xcodebuild -project Merian.xcodeproj -scheme Merian \
   -only-testing:merianTests/GBIFHeatmapViewModelTests \
   -only-testing:merianTests/SimilarSpeciesImageFetcherTests \
   -only-testing:merianTests/SpeciesReferenceArchitectureTests \
-  -only-testing:merianTests/SpeciesDictionaryTests \
+  -only-testing:merianTests/SpeciesObservationStatsEndpointTests \
+  -only-testing:merianTests/SpeciesObservationStatsAPIModelsTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseValidatorTests \
+  -only-testing:merianTests/SpeciesDictionaryResponseCacheTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkEndpointTests \
+  -only-testing:merianTests/SpeciesDictionaryNetworkTransportTests \
   -only-testing:merianTests/LocalImageLoaderTests test
 ```

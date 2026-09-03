@@ -37,6 +37,17 @@ The Community adapter calls `getExploreSpeciesPosts` in
 stateless request retains the quality-score cursor and typed Explore card page;
 it does not own Dictionary page validation/caching or Community loading state.
 
+The page adapter calls the two detail overloads in
+`Core/Network/Endpoints/MerianNetworkClient+SpeciesDictionary.swift`. Core's
+`SpeciesDictionaryResponseValidator` validates schema/identity and
+`SpeciesDictionaryResponseCache` owns response reuse. The cache instance remains
+private to `MerianNetworkClient`; its fixed-result request bridge owns lookup,
+authenticated loading, validation, and insertion. Detail injects endpoint
+closures, not a cache reference or a cache-population hook. The feature keeps
+page loading, retry, error classification, and presentation timing. See the
+[Core identity/cache contract](../../../Core/Network/README.md#species-dictionary-identity-and-cache-boundary)
+for TTL, alias, cancellation, and reset compatibility.
+
 ## Loading And Concurrency
 
 `SpeciesDictionaryPageViewModel` normalizes the route identity and classifies
@@ -140,9 +151,13 @@ Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Detail/`:
   separated root/content views, retired aggregate-file removal, and the 600-line
   ceiling.
 
-The aggregate `SpeciesDictionaryTests` suite retains wire decoding, strict
-schema and response-identity validation, UUID/name recovery, and cache
-compatibility.
+Core Network's `SpeciesDictionaryAPIModelsTests` retains wire decoding;
+`SpeciesDictionaryDetailEndpointTests` retains the existing request/recovery
+regressions. `SpeciesDictionaryResponseValidatorTests`,
+`SpeciesDictionaryResponseCacheTests`, and the Dictionary request/transport
+suites add deterministic boundary coverage. Run the
+[Core Dictionary matrix](../../../Core/Network/README.md#species-dictionary-verification)
+and the complete unit target for endpoint/cache changes.
 
 Species Community wire payload and quality-cursor regressions live in
 `MerianTests/Core/Network/Endpoints/ExploreBrowsingEndpointTests.swift`, rehomed
@@ -150,3 +165,13 @@ from the aggregate network suite, with failure/replay coverage in
 `ExploreBrowsingEndpointTransportTests.swift`. Wire changes require the
 [Core Network browsing matrix](../../../Core/Network/README.md#endpoint-verification)
 in addition to the feature's state/service tests.
+
+Field Chat wire and replay coverage lives in the shared Core suites, including
+the rehomed `SpeciesDictionaryChatEndpointTests`; strict response boundaries
+live in `FieldChatResponseDecoderTests`. Run the
+[Core Network Field Chat matrix](../../../Core/Network/README.md#field-chat-verification)
+and the complete unit target for chat endpoint or validation changes. That
+matrix joins the shared request/transport and single-read snapshot tests with
+`Features/FieldChat`'s source-adapter and state suites. These tests do not move
+chat state into Dictionary Detail or replace its loaded-species/presentation
+fences.

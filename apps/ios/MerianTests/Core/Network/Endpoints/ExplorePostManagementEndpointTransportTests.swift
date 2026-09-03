@@ -79,7 +79,7 @@ struct ExplorePostManagementEndpointTransportTests {
         let fixture = NetworkEndpointFixture()
         defer { fixture.close() }
         let attempts = OSAllocatedUnfairLock(initialState: 0)
-        let replayRequests = OSAllocatedUnfairLock(initialState: [ReplayRequest]())
+        let replayRequests = OSAllocatedUnfairLock(initialState: [NetworkEndpointRequestSnapshot]())
 
         await confirmation("One session refresh") { refreshed in
             fixture.client.overridingAuthSessionRefresh = {
@@ -87,8 +87,7 @@ struct ExplorePostManagementEndpointTransportTests {
                 return true
             }
             fixture.transport.register(path: testCase.path) { request in
-                try testCase.expectRequest(request)
-                let fingerprint = try ReplayRequest(request)
+                let fingerprint = try testCase.expectRequest(request)
                 replayRequests.withLock { $0.append(fingerprint) }
                 let attempt = attempts.withLock { count in
                     count += 1
@@ -126,10 +125,9 @@ struct ExplorePostManagementEndpointTransportTests {
         let fixture = NetworkEndpointFixture()
         defer { fixture.close() }
         let attempts = OSAllocatedUnfairLock(initialState: 0)
-        let replayRequests = OSAllocatedUnfairLock(initialState: [ReplayRequest]())
+        let replayRequests = OSAllocatedUnfairLock(initialState: [NetworkEndpointRequestSnapshot]())
         fixture.transport.register(path: testCase.path) { request in
-            try testCase.expectRequest(request)
-            let fingerprint = try ReplayRequest(request)
+            let fingerprint = try testCase.expectRequest(request)
             replayRequests.withLock { $0.append(fingerprint) }
             let attempt = attempts.withLock { count in
                 count += 1
@@ -165,10 +163,9 @@ struct ExplorePostManagementEndpointTransportTests {
         let fixture = NetworkEndpointFixture()
         defer { fixture.close() }
         let attempts = OSAllocatedUnfairLock(initialState: 0)
-        let replayRequests = OSAllocatedUnfairLock(initialState: [ReplayRequest]())
+        let replayRequests = OSAllocatedUnfairLock(initialState: [NetworkEndpointRequestSnapshot]())
         fixture.transport.register(path: testCase.path) { request in
-            try testCase.expectRequest(request)
-            let fingerprint = try ReplayRequest(request)
+            let fingerprint = try testCase.expectRequest(request)
             replayRequests.withLock { $0.append(fingerprint) }
             let attempt = attempts.withLock { count in
                 count += 1
@@ -303,15 +300,5 @@ struct ExplorePostManagementEndpointTransportTests {
             try await testCase.invoke(fixture.client)
         }
         #expect(keys.withLock { $0.count == 2 && Set($0).count == 2 })
-    }
-}
-
-private struct ReplayRequest: Equatable {
-    let body: Data
-    let idempotencyKey: String?
-
-    init(_ request: URLRequest) throws {
-        body = try #require(MockURLProtocol.bodyData(for: request))
-        idempotencyKey = request.value(forHTTPHeaderField: "Idempotency-Key")
     }
 }

@@ -83,6 +83,14 @@ The task is not proof of remote deletion: failed cloud work remains durably
 queued. See the
 [deletion contract](../../../../../docs/backend-and-data/01-offline-sync-pipeline.md#1-transactional-destruction-scanrepositoryeradicatescan).
 
+Network status and deletion calls live in
+[`Core/Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift`](../Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift).
+Its decoder requires explicit cloud-deletion confirmation; endpoint extraction
+does not move the local commit, pending-task persistence, drain latch, or capped
+retry scheduling out of Core Data. The
+[scan lifecycle matrix](../Network/README.md#scan-lifecycle-verification) joins
+endpoint checks with the existing queue and deletion-service tests.
+
 ## Offline Scan Durability Boundary
 
 `OfflineJobScheduler` owns persisted wake timing and the ordered drain: funding

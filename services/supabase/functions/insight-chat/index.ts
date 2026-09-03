@@ -47,6 +47,7 @@ import {
 } from "./guards.ts";
 import { isFieldChatEligibleScan } from "./eligibility.ts";
 import {
+  buildFieldNotesSummaryPrompt,
   buildPromptSuggestionsPrompt,
   buildSystemInstruction,
   buildUserPrompt,
@@ -164,16 +165,7 @@ async function generateFieldNotesSummary(
     },
     required: ["summary_text"],
   };
-  const userPrompt = `${
-    buildUserPrompt(messages, "Summarize this chat into private field notes.")
-  }
-
-[FIELD NOTES DRAFT REQUEST]
-Create a concise, factual field-notes draft from the saved scan context and chat.
-Use only observation-relevant details. Refer to the observation by common name,
-scientific name, or "this observation"; never include scan ids, UUIDs, storage
-ids, or other internal identifiers. Do not replace existing notes. Do not add
-medical, edible, legal, pesticide, or exact-location instructions.`;
+  const userPrompt = buildFieldNotesSummaryPrompt(messages);
 
   const result = await _genAI.models.generateContent({
     model,

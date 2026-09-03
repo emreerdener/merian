@@ -1392,6 +1392,7 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/FieldTripAPIModelsTests \
   -only-testing:merianTests/FieldTripCaptureContextModelsTests \
   -only-testing:merianTests/FieldTripEndpointTests \
+  -only-testing:merianTests/NetworkEndpointTestSupportTests \
   -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/FieldTripPresentationTests \
@@ -1441,15 +1442,14 @@ presentation and interaction tests stay under
 
 `Core/Network/Endpoints/NetworkEndpointTestSupport.swift` under `MerianTests`
 owns the isolated client/session fixture, handler-marked mock responses, and
-JSON comparison shared with Community Identification, Explore
-browsing/interactions, notifications, and public-profile endpoints. When
-changing this support or either shared JSON POST overload, also run the
-[Identify focused matrix](../../apps/ios/Merian/Features/Explore/Identify/README.md#verification),
-[Explore browsing matrix](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification),
-[Explore interaction matrix](../../apps/ios/Merian/Core/Network/README.md#explore-interaction-verification),
-and
-[notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification);
-the Field Trips matrix and complete unit target remain required.
+JSON comparison shared across the extracted Core endpoint groups. Its POST
+assertion returns the exact captured body bytes, key, and timeout so retry tests
+do not reread a consumed stream. `NetworkEndpointTestSupportTests` covers this
+helper with synthetic data- and stream-backed requests, not authenticated
+transport. When changing the support or any shared JSON POST bridge, follow the
+[Core Network verification guide](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification),
+including the helper suite and every linked endpoint matrix; the Field Trips
+matrix and complete unit target remain required.
 
 Request assertions compare canonical JSON so object-key ordering is irrelevant
 but Boolean/number/string and null/omission differences remain failures. The

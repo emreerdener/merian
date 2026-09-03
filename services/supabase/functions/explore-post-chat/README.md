@@ -1,11 +1,16 @@
 # explore-post-chat
 
 Private Pro Field Chat for any active Explore post visible to the viewer,
-including their own. Conversations are per viewer and post, and are grounded
-only in the same privacy-filtered public post projections returned by
-`get_explore_post` and `get_explore_post_detail`. Only the requesting viewer can
-load, send, delete, or rate messages in that conversation; it is not visible to
-other viewers.
+including their own. Conversations are per viewer and post. Observation evidence
+comes from the same privacy-filtered public post projections returned by
+`get_explore_post` and `get_explore_post_detail`, plus explicit observations
+reported by the viewer in chat. Shared `_shared/fieldChatSpeciesKnowledge.ts`
+rules also allow well-established general species knowledge when a detail is
+absent from the projection. Typical species traits must not be presented as
+observed in this individual, and the assistant cannot claim live retrieval or
+unsupported current/local facts. Only the requesting viewer can load, send,
+delete, or rate messages in that conversation; it is not visible to other
+viewers.
 
 Access requires the same durable server-side Pro projection as Insight Field
 Chat. An active store subscription, receipt-backed free trial, or explicitly

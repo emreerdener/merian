@@ -31,6 +31,10 @@ engine for presentation and queue cleanup.
   adapter persists locally before remote delivery and performs at most one
   remote retry after 500 ms; endpoint, transport, or task cancellation is
   terminal and does not trigger that retry.
+  `Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift` owns
+  deferred-context request construction and its 15-second HTTP boundary, not
+  persistence or the service's delayed retry. See the
+  [Network ownership and focused matrix](../../../Core/Network/README.md#enrichment-export-and-feedback-verification).
 - `ViewModels/` contains responsibility-specific `CaptureWorkspaceViewModel`
   extensions for visual, nonvisual, Describe, admission, and presentation
   orchestration. These extensions issue no endpoint calls.

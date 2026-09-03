@@ -905,11 +905,23 @@ actor:
 4. asks the same endpoint to promote the object and atomically replace the exact
    URL in scan, normalized-media, captured-media, and Explore snapshot metadata.
 
-The server derives ownership from the JWT, verifies both object states, and
-rolls back a newly promoted object if metadata repair fails. Client failures
-pause the in-memory queue for 15 minutes rather than spinning. Local rendering
-is therefore possible before cloud repair completes; a visible image on one
-device is not proof that the R2 object or Explore snapshot has been restored.
+The server derives ownership from the JWT and verifies both object states. It
+removes a newly promoted object only after a returned metadata rejection plus
+fresh proof that the source remains referenced and the replacement does not.
+Ambiguous persistence preserves the replacement; a fresh owner-reference read
+may prove the transaction committed despite a lost response. See the
+[repair contract](../backend-and-data/05-api-contracts.md#deno-repair-scan-image-edge-node).
+Client failures pause the in-memory queue for 15 minutes rather than spinning.
+Local rendering is therefore possible before cloud repair completes; a visible
+image on one device is not proof that the R2 object or Explore snapshot has been
+restored.
+
+LocalImageLoader's repair actor retains this workflow and its cache/event
+handling. Network's `Endpoints/MerianNetworkClient+MediaStorage.swift` owns the
+thin inspect/sign/repair requests, `MediaStorageAPIModels.swift` owns their wire
+DTOs, and `Media/` owns signed-request policy and file-backed PUTs. The
+[media storage verification matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification)
+joins endpoint/upload tests with the unchanged LocalImageLoader workflow suite.
 
 See the
 [July 2026 account-scoped R2 image-loss incident report](../incidents/2026-07-account-scoped-r2-image-loss.md)

@@ -156,21 +156,27 @@ write_test_tree() {
               "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay",
               "queueLessIdentifyRetainsOneReviewedInlineTransportReplay",
               "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry",
-              "testDeleteScanRejectsUnconfirmedSuccessResponse",
               "testExploreShareSendsStableAIIdempotencyKey",
               "testExploreShareRejectsContradictorySuccessResponses",
               "testExploreShareSendsMissingScanRecoveryPayload",
               "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion",
               "testExploreCloudScanRestoreUsesStableNotFoundCodeWithLegacyFallback",
               "testFieldChatCloudPreflightRejectsMismatchedRecordIdentity",
-              "testCheckScanStatusRejectsMalformedOrMismatchedSuccess",
-              "testBulkScanStatusRejectsDuplicateMissingOrForeignRows",
               "testExploreMediaIncidentsAndLifecycleNotificationsDecode",
               "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload",
-              "testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning",
               "testCommunityRequestSendsStableAIIdempotencyKey",
               "testCommunityRequestRejectsUnconfirmedSuccessResponse",
               "testMissingOwnerShareStateClearsStaleLocalPublication"
+            ]),
+            suite("Scan Deletion Endpoints"; [
+              "testDeleteScanRejectsUnconfirmedSuccessResponse"
+            ]),
+            suite("Scan Status Endpoints"; [
+              "testCheckScanStatusRejectsMalformedOrMismatchedSuccess",
+              "testBulkScanStatusRejectsDuplicateMissingOrForeignRows"
+            ]),
+            suite("Staged Video Uploads"; [
+              "testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning"
             ]),
             suite("Explore Media Incident Endpoints"; [
               "testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary",
@@ -412,6 +418,30 @@ required_cases=(
 for omitted_case in "${required_cases[@]}"; do
   write_test_tree "" "$omitted_case"
   assert_rejected "A result missing $omitted_case"
+done
+
+for rehomed_case in \
+  "testDeleteScanRejectsUnconfirmedSuccessResponse" \
+  "testCheckScanStatusRejectsMalformedOrMismatchedSuccess" \
+  "testBulkScanStatusRejectsDuplicateMissingOrForeignRows" \
+  "testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning"; do
+  write_test_tree
+  jq \
+    --arg rehomed_case "$rehomed_case" \
+    '
+      .testNodes |= (
+        [.[] | .children[]? | select(.name == ($rehomed_case + "()"))] as $moved
+        | map(
+            if .name == "Network Client Tests" then
+              .children += $moved
+            else
+              .children |= map(select(.name != ($rehomed_case + "()")))
+            end
+          )
+      )
+    ' "$test_tree_path" > "$tmp_dir/retired-owner-tests.json"
+  mv "$tmp_dir/retired-owner-tests.json" "$test_tree_path"
+  assert_rejected "$rehomed_case under its retired aggregate owner"
 done
 
 for skipped_case in "${required_cases[@]}"; do
