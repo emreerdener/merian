@@ -1,4 +1,9 @@
-import { assert, assertEquals, assertStringIncludes } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertRejects,
+  assertStringIncludes,
+} from "@std/assert";
 
 const repositoryRoot = new URL("../../../", import.meta.url);
 
@@ -109,7 +114,8 @@ async function unresolvedLocalMarkdownLinks(
       await Deno.stat(
         new URL(decodeURIComponent(destination), repositoryFile(relativePath)),
       );
-    } catch {
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
       unresolved.push(destination);
     }
   }
@@ -1331,6 +1337,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     candidateCardImplementationSource,
     namePreferencesImplementationSource,
     inferenceEngineImplementationSource,
+    inferenceWriteCoordinatorSource,
     insightContentImplementationSource,
     candidateSwipeImplementationSource,
     shareButtonImplementationSource,
@@ -1442,6 +1449,9 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       "apps/ios/Merian/Features/Insights/Content/ViewModels/InsightSheetViewModel+NamePreferences.swift",
     ),
     read("apps/ios/Merian/Core/AI/InferenceEngine.swift"),
+    read(
+      "apps/ios/Merian/Core/AI/Inference/State/InferenceWriteCoordinator.swift",
+    ),
     Promise.all([
       read(
         "apps/ios/Merian/Features/Insights/Shell/Views/InsightContentView.swift",
@@ -1782,7 +1792,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     testingStrategySource,
-    "`MerianNetworkClientTests.testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary`",
+    "`ExploreMediaIncidentEndpointTests.testExploreMediaIncidentsAcceptsLegacyEmptyArrayAtNetworkBoundary`",
   );
   assertStringIncludes(
     compact(changelogSource),
@@ -2067,7 +2077,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(inferenceEngineImplementationSource),
-    "identificationReviewWriteTail = Task",
+    "writeCoordinator.enqueueIdentificationWrite(",
   );
   assertStringIncludes(
     compact(inferenceEngineImplementationSource),
@@ -2081,14 +2091,26 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     compact(inferenceEngineImplementationSource),
     "presentationGeneration: historicPresentationGeneration, reviewActionGeneration: reviewActionGeneration",
   );
-  assertStringIncludes(
-    compact(inferenceEngineImplementationSource),
-    "private let pendingBackgroundWriteTaskCap = 8",
-  );
-  assertStringIncludes(
-    compact(inferenceEngineImplementationSource),
-    "guard pendingBackgroundTasks.count < pendingBackgroundWriteTaskCap else",
-  );
+  for (
+    const fragment of [
+      "static let activeBackgroundWriteCapacity = 8",
+      "static let pendingBackgroundWriteCapacity = 8",
+      "activeTaskCapacity: Int = InferenceResourceLimits.activeBackgroundWriteCapacity",
+      "pendingTaskCapacity: Int = InferenceResourceLimits.pendingBackgroundWriteCapacity",
+      "guard activeTasks.count < activeTaskCapacity else",
+      "guard pendingTasks.count < pendingTaskCapacity else",
+      "let predecessor = reviewWriteTail",
+      "_ = await predecessor?.value",
+      "self.presentationGeneration == generation",
+      "self.isIdentificationActionCurrent( scanId: scanId, generation: actionGeneration, channel: channel )",
+      "reviewWriteTail = task",
+      "while activeTasks.count < activeTaskCapacity, !pendingTasks.isEmpty",
+      "let next = pendingTasks.removeFirst()",
+      "guard next.generation == presentationGeneration else { continue }",
+    ]
+  ) {
+    assertStringIncludes(compact(inferenceWriteCoordinatorSource), fragment);
+  }
   assertStringIncludes(
     compact(testingStrategySource),
     "bounded inference metadata-write backlog",
@@ -3011,7 +3033,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "Gemini `SAFETY` and `PROHIBITED_CONTENT` instead return the exact stable `400 observation_rejected` envelope and a terminal policy ledger",
       "A transport retry never creates a replacement UUID for the same user action.",
       "Inline image bytes are authoritative. A current foreground still sends `imageBase64s` and `r2ObjectKeys: []`.",
-      "A malformed or partial signing response starts no upload.",
+      "A malformed or partial signing response starts no queue upload.",
+      "The shared Network signer only serializes and decodes that exchange; this whole-response policy remains queue-owned.",
       "every requested file declares `scan_share_restore`",
       "proves the row absent for guarded reconstruction; tombstoned or foreign rows fail closed",
       "contradictory aliases fail before lifecycle registration",
@@ -3340,7 +3363,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   }
   assertStringIncludes(
     compact(generateUploadSource),
-    "A partial, extra, malformed, cross-owner, or media-incompatible response starts no upload.",
+    "A partial, extra, malformed, cross-owner, or media-incompatible response starts no queue upload.",
   );
   assertStringIncludes(
     compact(generateUploadSource),
@@ -5082,6 +5105,20 @@ Deno.test("production consent documentation preserves the release hold and exit 
     compact(privacyChoices),
     "Turn optional Analytics &amp; diagnostics on or off in Naturebook Settings",
   );
+});
+
+Deno.test({
+  name: "local Markdown link checks preserve filesystem permission errors",
+  permissions: {
+    read: [repositoryFile("apps/ios/Merian/Core/Network/README.md")],
+  },
+  fn: async () => {
+    await assertRejects(
+      () =>
+        unresolvedLocalMarkdownLinks("apps/ios/Merian/Core/Network/README.md"),
+      Deno.errors.NotCapable,
+    );
+  },
 });
 
 Deno.test("maintained contract documentation has no unresolved local file links", async () => {

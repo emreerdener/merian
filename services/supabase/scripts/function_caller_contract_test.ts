@@ -73,6 +73,7 @@ function literalFunctionNames(source: string): string[] {
   for (
     const pattern of [
       /\bendpointURL\(\s*["']([a-z0-9-]+)["']/g,
+      /\b(?:performAuthenticatedJSONPost|performAuthenticatedEncodedJSONPost|performAccountBoundEncodedJSONPost|performAuthenticatedJSONDataPost|performAuthenticatedPreparedJSONPost|performAuthenticatedJSONGet)\(\s*function:\s*["']([a-z0-9-]+)["']/g,
       /\bfunctions\.invoke\(\s*["']([a-z0-9-]+)["']/g,
       /\/functions\/v1\/([a-z0-9-]+)/g,
     ]
@@ -83,6 +84,44 @@ function literalFunctionNames(source: string): string[] {
   }
   return [...names];
 }
+
+Deno.test("static Function caller extraction includes every Swift transport bridge", () => {
+  for (
+    const bridge of [
+      "performAuthenticatedJSONPost",
+      "performAuthenticatedEncodedJSONPost",
+      "performAccountBoundEncodedJSONPost",
+      "performAuthenticatedJSONDataPost",
+      "performAuthenticatedPreparedJSONPost",
+      "performAuthenticatedJSONGet",
+    ]
+  ) {
+    for (const whitespace of ["", "\n    "]) {
+      assertEquals(
+        literalFunctionNames(
+          `try await ${bridge}(${whitespace}function: "unconfigured-edge-route", payload: [:])`,
+        ),
+        ["unconfigured-edge-route"],
+        `${bridge} must expose even an unknown target to the entrypoint check.`,
+      );
+    }
+  }
+});
+
+Deno.test("static Function caller extraction preserves direct calls and excludes unrelated labels", () => {
+  assertEquals(
+    literalFunctionNames(`
+      endpointURL("identify-multimodal")
+      client.functions.invoke('insight-chat', {})
+      fetch("https://example.test/functions/v1/identify-multimodal")
+      fetch("https://example.test/functions/v1/submit-feedback-survey")
+      unrelatedCallback(function: "not-an-edge-route")
+      performAuthenticatedJSONPost(function: dynamicName, payload: [:])
+      performAuthenticatedJSONPost(function: "\\(dynamicName)", payload: [:])
+    `).sort(),
+    ["identify-multimodal", "insight-chat", "submit-feedback-survey"],
+  );
+});
 
 Deno.test("every static production Edge Function caller targets a configured entrypoint", async () => {
   const config = await Deno.readTextFile(join(supabaseRoot, "config.toml"));

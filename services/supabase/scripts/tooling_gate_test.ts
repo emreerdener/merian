@@ -172,7 +172,7 @@ Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", asyn
   );
   assertMatch(
     gate,
-    /--allow-read=services\/supabase,\.github\/workflows,\.github\/actions\/setup-deno,\.github\/CODEOWNERS,\.github\/dependabot\.yml,\.agents,AGENTS\.md,Makefile,README\.md,CHANGELOG\.md,docs,apps,skills,scripts\/check-ios-release-prep\.sh,scripts\/validate-ios-archive\.sh/,
+    /--allow-read=services\/supabase,\.github\/workflows,\.github\/actions\/setup-deno,\.github\/CODEOWNERS,\.github\/dependabot\.yml,\.agents,AGENTS\.md,Makefile,README\.md,CHANGELOG\.md,docs,apps,skills,scripts\/check-ios-release-prep\.sh,scripts\/validate-ios-archive\.sh,scripts\/validate-ios-critical-test-results\.sh,scripts\/test-validate-ios-critical-test-results\.sh/,
   );
   assertMatch(gate, /--allow-run=bash/);
 });

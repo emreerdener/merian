@@ -136,6 +136,12 @@ protects that discovery policy. The same test locks
 entrypoint shared by `make validate-supabase-migrations` and the production
 deploy lane.
 
+Documentation link checks need explicit Deno read access to their repository
+targets, including the iOS critical-result validator and its adversarial fixture
+script. A missing target is reported as an unresolved link; a filesystem
+permission failure remains a permission error so it cannot be mistaken for a
+broken documentation path.
+
 `_tests/workflowSecurity.test.ts` scans every checked-in GitHub Actions
 workflow. It rejects mutable third-party action tags, missing explicit
 workflow-level permissions, secret references outside individual steps, and
@@ -3207,13 +3213,16 @@ dependency-policy, docs, and test-only changes.
 batch retries only its own members and rejects malformed function names.
 `scripts/function_caller_contract_test.ts` scans literal iOS, web, workflow,
 Function-to-Function, operator-script, and migration callers; every target must
-exist in both `config.toml` and the entrypoint graph. Reviewed historical
-retirements require exact later unschedule evidence instead of silently allowing
-stale names. `_tests/workflowSecurity.test.ts` independently locks immutable
-action SHAs, least-privilege workflow permissions, and step-scoped secrets
-across the whole workflow directory. This suite exists specifically to prevent
-local checks from passing against a parent config that the remote function
-bundler does not discover.
+exist in both `config.toml` and the entrypoint graph. Swift coverage includes
+direct `endpointURL(...)` calls and `function:` literals passed to the
+authenticated transport bridges. Adding a bridge requires matching extractor
+coverage; unrelated `function:` labels do not count as routes. Reviewed
+historical retirements require exact later unschedule evidence instead of
+silently allowing stale names. `_tests/workflowSecurity.test.ts` independently
+locks immutable action SHAs, least-privilege workflow permissions, and
+step-scoped secrets across the whole workflow directory. This suite exists
+specifically to prevent local checks from passing against a parent config that
+the remote function bundler does not discover.
 
 JSON ingress and public error behavior have four complementary Deno checks:
 
