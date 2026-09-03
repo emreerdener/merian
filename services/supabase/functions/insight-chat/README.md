@@ -170,6 +170,15 @@ about this observation require recorded evidence or an explicit user
 observation. General knowledge does not authorize current/local claims, invented
 citations, or claims of live source retrieval.
 
+The answer rules follow the complete saved-context block. They explicitly treat
+casual pronouns in questions such as `Do they smell good?` as species-level when
+the user did not ask about the current individual, define `Unavailable` as a
+record limitation rather than a knowledge limitation, and require the direct
+species fact before any qualification. Few-shot examples demonstrate the
+difference between a general fragrance question and the unobservable scent of a
+particular flower. Field-note summaries and generated prompt chips use a
+separate support instruction without chat-answer examples or response schema.
+
 Local deterministic guards refuse or redirect edible/foraging certainty, medical
 or veterinary treatment, dangerous handling, illegal collection,
 pesticide/poison instructions, and human-subject identification.
@@ -208,18 +217,40 @@ scan—or an incomplete replay—from becoming a false local success.
 deno test --frozen --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/fieldChatReservation_test.ts \
   services/supabase/functions/_shared/fieldChatResponse_test.ts \
+  services/supabase/functions/_shared/fieldChatReply_test.ts \
   services/supabase/functions/insight-chat/eligibility_test.ts \
   services/supabase/functions/insight-chat/guards_test.ts \
   services/supabase/functions/insight-chat/prompt_test.ts \
   services/supabase/functions/insight-chat/promptSuggestions_test.ts
 
 deno test --frozen --config services/supabase/functions/deno.json \
+  services/supabase/scripts/evaluate_field_chat_answers_test.ts
+
+deno test --frozen --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/migrations \
   services/supabase/functions/_tests/fieldChatReservationMigrationContract.test.ts
 
 deno check --frozen --config services/supabase/functions/deno.json \
-  services/supabase/functions/insight-chat/index.ts
+services/supabase/functions/insight-chat/index.ts
 ```
+
+After local checks pass, run the optional provider behavior check with the
+approved paid Gemini test key configured outside chat:
+
+```bash
+deno run --frozen --config services/supabase/functions/deno.json \
+  --allow-env=GEMINI_PAID_API_KEY,GOOGLE_SDK_NODE_LOGGING,GOOGLE_GENAI_USE_VERTEXAI,GOOGLE_API_KEY,GOOGLE_CLOUD_PROJECT,GOOGLE_CLOUD_LOCATION,GOOGLE_VERTEX_BASE_URL,GOOGLE_GEMINI_BASE_URL \
+  --allow-net=generativelanguage.googleapis.com \
+  services/supabase/scripts/evaluate_field_chat_answers.ts --live
+```
+
+The check makes nine paid calls using synthetic Desert Rose context: a general
+fragrance question, the same question after a prior context-only deflection, and
+an individual-scent question across all three routes. It reports only case IDs
+and stable failure codes; it never prints or stores provider answers. A missing
+key exits before the SDK is imported or any call is made. This smoke check
+detects the reported response pattern but does not replace factual review or the
+hosted authenticated-wrapper release evidence.
 
 The upstream owner-row, retry, recovery, and deployment guarantees are
 documented in

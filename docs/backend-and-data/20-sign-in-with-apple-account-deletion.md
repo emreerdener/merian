@@ -1,8 +1,11 @@
 # Sign in with Apple Account-Deletion Revocation
 
-**Status:** implemented in source on 2026-08-06; production promotion remains
-gated on hosted secrets, fresh-catalog replay, an Apple staging smoke, and an
-enforceable minimum-supported-build gate or an independent server-delivered
+**Status:** Apple credential capture and provider revocation were implemented in
+source on 2026-08-06. Protocol-v2 native preparation is not currently
+operational because the checked-in server response omits a field required by iOS
+receipt decoding. Production promotion also remains gated on hosted secrets,
+fresh-catalog replay, an Apple staging smoke, and an enforceable
+minimum-supported-build gate or an independent server-delivered
 manual-revocation fallback for older iOS binaries.
 
 This is the normative engineering and rollout contract for revoking Sign in with
@@ -155,6 +158,17 @@ returns `account_deletion_recovery_expired` and authorizes conservative local
 cleanup while forcing the manual Apple notice. This acknowledgement never claims
 automatic Apple-provider revocation.
 
+The intended client sequence currently stops after the server persists v2
+preparation: that HTTP response omits `manual_provider_revocation_required`,
+while native `AccountDeletionReceipt` requires it before evaluating prepared
+status. iOS therefore returns `invalidResponse`, never records
+`capability_prepared_pending`, and cannot dispatch normal commit. This mismatch
+predates the Core Network extraction and must be reconciled as coordinated
+server/native contract work. The
+[native finding and integration checklist](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
+are the evidence boundary; separate handler and synthetic decoder tests do not
+prove the round trip.
+
 ## Private data and authorization boundary
 
 - `internal.apple_sign_in_revocation_credentials` maps one Auth user to one
@@ -219,7 +233,9 @@ not intentionally exercise account deletion until the affected bundles are
 deployed and the post-deploy checks pass.
 
 Repository completion is not production completion. Promotion requires all of
-the following on one immutable release SHA:
+the following on one immutable release SHA. First resolve the native preparation
+mismatch above; the remaining checks cannot compensate for a client that never
+reaches destructive commit:
 
 - exact Supabase CLI `2.109.1` fresh-catalog migration replay and the complete
   account-deletion pgTAP fixture;
@@ -291,8 +307,22 @@ provider attempt successful from an Apple error response.
   provider completion, secret removal, legacy disposition, Auth fencing, retry,
   terminal completion, expired-preparation retirement, and a two-device commit
   proving an expired proof never becomes a committed recovery capability.
+- Core Network's `AccountDeletionEndpointTests`,
+  `AccountDeletionRecoveryEndpointTests`, and
+  `AccountDeletionRecoveryTransportTests`: isolated legacy/v2 wire mapping,
+  strict receipt handling, public-only recovery headers, retries, bounds, and
+  cancellation. `AccountDeletionAPIModelsTests`,
+  `AccountDeletionRecoveryValidationTests`, and
+  `AccountDeletionResponseDecoderTests` cover exact DTOs and fixed-clock
+  phase/status/expiry rules; `AccountDeletionBoundaryTests` guards private
+  transport, owner forwarding, and test ownership. See the
+  [native verification matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification)
+  for the accepted-owner integration evidence boundary and manual checklist.
+  Current synthetic preparation fixtures include the required provider Boolean;
+  they do not reproduce the checked-in handler response and therefore mask the
+  mismatch described above.
 - `SupabaseManagerTests`, `MerianNetworkClientTests`, and `AppDIContainerTests`:
-  bounded registration retry, strict deletion receipt, subject-bound
+  bounded registration retry, shared Auth refresh policy, subject-bound
   credential-state handling, durable notice persistence, recovery phase order,
   ambiguous-response retention, and terminal capability retirement.
 - `AccountDeletionRecoveryCapabilityTests`: secure randomness, Keychain

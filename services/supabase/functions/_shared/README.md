@@ -169,9 +169,14 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
 - **`fieldChatSpeciesKnowledge.ts`**: Shared Insight/Explore/Species Dictionary
   prompt rules for stable species knowledge. Missing reference prose must not
   block a general species answer, but typical traits must remain distinct from
-  recorded observations. The rules preserve identification uncertainty, source
-  privacy, and the absence of live search; they do not authorize current/local
-  claims or invented citations.
+  recorded observations. The answer rules follow each route's context block so
+  repeated `Unavailable` record fields cannot become the final instruction. The
+  rules preserve identification uncertainty, source privacy, and the absence of
+  live search; they do not authorize current/local claims or invented citations.
+- **`fieldChatReply.ts`**: Shared Gemini request and JSON-extraction contract
+  for Insight/Explore/Species Dictionary replies. Keep all three routes on this
+  helper so the synthetic live-answer check exercises the deployed model,
+  temperature, output budget, thinking setting, and response schema.
 - **`fieldChatResponse.ts`**: Shared Insight/Explore/Species Dictionary Field
   Chat success-envelope builders. Every thread and action payload echoes the
   exact requested scan, post, or species as `subject_id`; thread builders also

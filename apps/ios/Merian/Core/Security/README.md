@@ -28,6 +28,10 @@ remote URLs before network/media frameworks see them. See the
 
 - `DeviceIdentityManager` persists the stable IDFV-backed device identity used
   before Supabase establishes the canonical account UUID.
+- `AccountDeletionRecoveryCapabilityStore` owns device-only deletion proofs:
+  secure generation, atomic v2 envelope storage, legacy proof decoding, verified
+  reads/removal, and pre-Auth-bootstrap barrier restoration. HTTP payloads and
+  receipt validation belong to Core Network, not this store.
 - `RevenueCatManager` owns customer identity, paid and paid-offline access,
   offerings, and purchase/restore entry points. Its `isSubscribed` value—not
   functional complimentary access—drives public Pro badges.
@@ -109,6 +113,35 @@ remote URLs before network/media frameworks see them. See the
   Endpoint extraction does not move social state into transport.
 - `CircuitBreakerManager` stops repeated failing requests from turning poor
   connectivity into continuous foreground retries.
+
+## Account-deletion recovery authority
+
+`AccountDeletionRecoveryCapability.swift` keeps two independent 256-bit v2
+proofs in one read-after-write-verified Keychain envelope using
+`WhenUnlockedThisDeviceOnly`. The compatibility-named key continues to accept
+legacy 32-byte v1 data. The store does not send requests, select an account, or
+decide whether a receipt permits local erasure. A present or unreadable proof
+restores the conservative barrier before Auth bootstrap; verified absence can
+resolve that lookup barrier without deleting data.
+
+`SupabaseManager` retains the exact-session transition, durable phase ordering,
+receipt/error decisions, and local sign-out. `AppDIContainer` and the Settings
+purge adapter retain private-map/SwiftData cleanup composition. Only the
+workflow owner requests proof retirement; the store verifies Keychain removal
+before the workflow clears its marker. A definitive uncommitted v2 intent can
+retire its proof without signing out or purging, unlike accepted-deletion
+cleanup.
+
+The
+[Keychain contract](../../../../../docs/development-guides/05-keychain-and-secrets.md)
+owns the key/envelope and privacy requirements; the
+[Apple deletion contract](../../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md#client-crash-recovery)
+owns recovery semantics. Core Network's
+[ownership guide](../Network/README.md#account-deletion-and-recovery-ownership)
+and
+[verification matrix](../Network/README.md#account-deletion-and-recovery-verification)
+separate endpoint/decoder tests from secure-store, workflow, and real-session
+evidence, including the outstanding preparation-receipt mismatch.
 
 ## Required-consent launch restoration
 

@@ -1438,6 +1438,25 @@ consults that Keychain entry.
   [ownership guide](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-ownership)
   and
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification).
+- `MerianNetworkClient+AccountDeletion.swift` is the fifteenth endpoint owner:
+  six legacy/v2 intake, preparation/commit, and public recovery/acknowledgement
+  methods retain their signatures and wire shape. `AccountDeletionAPIModels`
+  owns unchanged receipt/status DTOs and v2 preparation/commit payloads; three
+  request-only DTOs remain private to the endpoint file.
+  `AccountDeletionRecoveryValidation` and
+  `Decoding/AccountDeletionResponseDecoder` own pure syntax/timestamp and
+  operation-specific admission. Two fixed-route value bridges preserve legacy
+  configuration-before-proof ordering, exact transition-owner forwarding, and
+  the private capability-only transport's 20-second timeout, post-read 64 KiB
+  cap, one bounded retry, and cancellation behavior. `SupabaseManager`, Core
+  Security, and `AppDIContainer` still own durable transitions and local
+  cleanup; the wire layer adds no Auth bypass or cleanup authority. See the
+  [ownership guide](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-ownership)
+  and
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification).
+  The matrix also records the pre-existing v2 preparation-receipt mismatch;
+  current handler/native integration stops before commit despite separate green
+  fixtures.
 - The browsing owner preserves Feed's category-priority order, Map's lexical
   filter order, independently forwarded Feed coordinates/ranking cursor, paired
   author/hashtag cursors, and the distinct species quality cursor. Map and
@@ -1716,10 +1735,11 @@ consults that Keychain entry.
     keeps StoreKit access there; beta/promotion/support grants remain attached
     to their account owner. Legacy mode uses `/transfer-signout-purchases` and
     receipt sync until the supported-client rollback window closes. Account
-    deletion owns its own transition and atomically verifies distinct recovery
-    and acknowledgement capabilities in one device-only Keychain envelope. It
-    records `capability_preparation_pending`, completes non-destructive server
-    prepare, records `capability_prepared_pending`, and only then records
+    deletion owns its own transition. It records
+    `capability_preparation_pending`, then atomically verifies distinct recovery
+    and acknowledgement capabilities in one device-only Keychain envelope before
+    the first network suspension. It is intended to complete non-destructive
+    server prepare, record `capability_prepared_pending`, and only then record
     `capability_intake_pending` before destructive commit. A lost response
     therefore replays only the same server-idempotent commit or uses the
     account-free public recovery route while all other account work stays
@@ -1728,12 +1748,17 @@ consults that Keychain entry.
     replacement or purchase transfer, purges SwiftData, acknowledges, verifies
     proof removal, and removes the marker last. Foreground and cold launch
     present a blocking recovery surface and retry the exact interrupted phase.
-    Only the server's explicit `409 purchase_continuity_pending` may move an
-    unaccepted intake into the durable `capability_rejection_retirement_pending`
-    phase. That phase verifies removal of only the unused proof before removing
-    the marker and never signs out or purges local data; unknown or ambiguous
-    recovery never does. Global sign-out remains inappropriate because it would
-    revoke other active devices.
+    Definitive noncommit evidence may move an unaccepted intent into the durable
+    `capability_rejection_retirement_pending` phase. Legacy intake requires the
+    server's explicit `409 purchase_continuity_pending`; v2 accepts
+    `not_committed` or a genuinely unknown proof, and a live v2 `409` still
+    requires `not_committed`. That phase verifies removal of only the unused
+    proof before removing the marker and never signs out or purges local data;
+    ambiguous recovery never does. The checked-in prepare response currently
+    fails native receipt decoding; Core Network records the
+    [existing contract mismatch](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
+    Global sign-out remains inappropriate because it would revoke other active
+    devices.
   - `AppLifecycleManager` retries an unresolved purchase-identity binding on
     foreground activation, including while the required-consent gate is closed.
     The retry is bound to the exact current Auth generation and durable Keychain

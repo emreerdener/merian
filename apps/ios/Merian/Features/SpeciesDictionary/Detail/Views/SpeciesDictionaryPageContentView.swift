@@ -365,6 +365,7 @@ struct SpeciesDictionaryPageContentView: View {
                                 similarData: similarData,
                                 currentScientificName: species.scientificName,
                                 currentCommonName: species.commonName,
+                                currentSpeciesId: species.id,
                                 routeForSpecies: speciesDictionaryRoute
                             )
                         }

@@ -73,6 +73,13 @@ owns no JSON contract.
 
 ## External Reference Images
 
+Lookalike galleries exclude the current species and duplicates by canonical
+species UUID when available, with normalized scientific names as the fallback.
+Common names are display labels: distinct species sharing one remain visible.
+The repeated label can be omitted from a card while its scientific name and
+navigation remain available. Field Chat also retains those comparisons and uses
+their scientific names in suggestion chips.
+
 `SimilarSpeciesImageFetcher` is the observable fallback state owner for
 lookalikes and identification candidates that lack a usable `referenceImageUrl`.
 `SimilarSpeciesImageService` concurrently resolves Wikipedia and GBIF metadata,
@@ -126,6 +133,11 @@ Services-only live resolution, platform-neutral Models, absence of feature-
 owned unchecked sendability, private map helpers, aggregate removal, and the
 600-line ceiling.
 
+`MerianTests/Models/SpeciesDataTests.swift` separately owns lookalike identity
+filtering and the shared-common-name regression.
+`MerianTests/Features/FieldChat/FieldChatPresentationTests.swift` verifies that
+the corresponding suggestion chip uses the scientific name.
+
 Public stats wire/endpoint tests now live in Core Network; the validator and
 clock-injected cache suites cover schemas, identities, expiry, alias capacity,
 and reset independently of chart state. The stats endpoint remains in
@@ -142,6 +154,8 @@ xcodebuild -project Merian.xcodeproj -scheme Merian \
   -only-testing:merianTests/SpeciesObservationStatsViewModelTests \
   -only-testing:merianTests/GBIFHeatmapViewModelTests \
   -only-testing:merianTests/SimilarSpeciesImageFetcherTests \
+  -only-testing:merianTests/SpeciesDataTests \
+  -only-testing:merianTests/FieldChatPresentationTests \
   -only-testing:merianTests/SpeciesReferenceArchitectureTests \
   -only-testing:merianTests/SpeciesObservationStatsEndpointTests \
   -only-testing:merianTests/SpeciesObservationStatsAPIModelsTests \

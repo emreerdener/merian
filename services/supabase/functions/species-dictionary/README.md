@@ -292,7 +292,16 @@ deno check --config services/supabase/functions/deno.json services/supabase/func
 deno test --allow-env --allow-net --allow-read=. --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/externalImagePolicy_test.ts services/supabase/functions/_shared/external_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/_shared/identify/db_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary/handler_test.ts services/supabase/functions/_tests/speciesDictionaryPublicEligibilityMigrationContract.test.ts
 supabase --workdir services db push --local
 supabase --workdir services test db --local services/supabase/tests/species_dictionary_public_eligibility.sql
+deno check --frozen --config services/supabase/functions/refresh-species-model-content/deno.json services/supabase/functions/refresh-species-model-content/index.ts
+deno test --frozen --config services/supabase/functions/deno.json --allow-env --allow-read=. services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/refresh-species-model-content/lookalikeCandidates.test.ts services/supabase/functions/_tests/speciesLookalikeRecoveryMigrationContract.test.ts
+bash services/supabase/scripts/test_database_catalogs.sh
 ```
+
+The catalog runner discovers `species_lookalike_recovery.sql` in addition to the
+public-eligibility fixture. Follow the worker-specific rollout, retry, and
+verification contract in
+[`refresh-species-model-content`](../refresh-species-model-content/README.md). A
+skipped or connection-refused database fixture is not passing evidence.
 
 ## Related Endpoint
 

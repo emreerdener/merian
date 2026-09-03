@@ -86,5 +86,15 @@ Deno.test("dictionary chat permits species knowledge when reference text is miss
   assertStringIncludes(prompt, "Do not provide edible certainty");
   assertStringIncludes(prompt, "Do not claim current facts beyond");
   assertStringIncludes(prompt, "Do not invent citations");
+  assertStringIncludes(prompt, '"Do they smell good?"');
+  assertStringIncludes(
+    prompt,
+    "Do not substitute an explanation of missing scan context",
+  );
+  assertEquals(
+    prompt.lastIndexOf("[ANSWERING RULES]") >
+      prompt.lastIndexOf("[END UNTRUSTED SPECIES DICTIONARY DATA]"),
+    true,
+  );
   assertFalse(prompt.includes("using only the bounded public"));
 });

@@ -259,6 +259,12 @@ individual, acknowledge uncertainty and relevant variation, and retain the
 existing safety and privacy limits. This does not add live search, media access,
 or evidence for current/local conditions.
 
+The answer rules follow the complete dictionary context. `Unavailable` limits
+the stored reference field rather than the assistant's stable species knowledge,
+and casual pronouns in typical-trait questions refer to the dictionary species.
+The shared synthetic provider check exercises this behavior across Dictionary,
+Insight, and Explore without using user content.
+
 The shared implementation is owned by `Features/FieldChat`, not Insights.
 `FieldChatEndpoint` selects the Dictionary adapter, and `InsightChatViewModel`
 consumes its injected dependencies. Dictionary Detail retains only eligibility,
@@ -944,6 +950,11 @@ Lookalikes:
 - Cards show only the common/scientific names over the image. Relation rationale
   and visual-trait explanation copy are intentionally hidden in the UI even
   though the payload remains additive for future curation views.
+- Identity filtering excludes the current species by canonical UUID and then by
+  normalized scientific name. It does not treat a shared common name as a
+  duplicate: distinct `Pyracantha` species may all be labeled “Firethorn.” When
+  that repeated label would be ambiguous, Field Chat uses the scientific name in
+  its comparison suggestion.
 - The page renders the section as same-stack navigation in V1.
 
 Provenance:
@@ -959,7 +970,11 @@ Provenance:
 - `refresh-species-model-content` claims `habitat`, `lookalikes`, and
   `group_tags` jobs from the same queue and reuses the species-level biology
   primitives behind `enrich-scan` without pretending a user rescanned the
-  organism.
+  organism. It verifies up to three lookalike identities against exact accepted
+  GBIF taxa, retains provider and partial failures for retry, remembers valid
+  empty outcomes, and gives legacy empty/exhausted lookalike jobs with no
+  nonrejected relation one versioned recovery attempt. Candidate materialization
+  is directional and cannot recursively grow another model lookalike job.
 - Common-name overrides, IUCN status, and hazard type remain curation-owned and
   are not overwritten by either scheduled worker.
 - Reference image refreshes update both the legacy comma-separated cache and
@@ -1018,6 +1033,9 @@ deno check --config services/supabase/functions/deno.json services/supabase/func
 deno test --allow-env --allow-net --allow-read=. --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/externalImagePolicy_test.ts services/supabase/functions/_shared/external_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/_shared/fieldChatDailyUsage_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary/handler_test.ts services/supabase/functions/_tests/speciesDictionaryPublicEligibilityMigrationContract.test.ts services/supabase/functions/species-dictionary-chat/handler_test.ts services/supabase/functions/species-dictionary-chat/eligibility_test.ts services/supabase/functions/species-dictionary-chat/prompt_test.ts services/supabase/functions/species-dictionary-chat/promptSuggestions_test.ts services/supabase/functions/species-dictionary-chat/refusal_test.ts services/supabase/functions/_tests/speciesDictionaryChatRouteContract.test.ts services/supabase/functions/_tests/speciesDictionaryChatMigrationContract.test.ts services/supabase/functions/_tests/fieldChatDurableDailyUsageMigrationContract.test.ts
 supabase --workdir services db push --local
 supabase --workdir services test db --local services/supabase/tests/species_dictionary_public_eligibility.sql
+deno check --frozen --config services/supabase/functions/refresh-species-model-content/deno.json services/supabase/functions/refresh-species-model-content/index.ts
+deno test --frozen --config services/supabase/functions/deno.json --allow-env --allow-read=. services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/refresh-species-model-content/lookalikeCandidates.test.ts services/supabase/functions/_tests/speciesLookalikeRecoveryMigrationContract.test.ts
+bash services/supabase/scripts/test_database_catalogs.sh
 ```
 
 The route-contract file inspects source structure and wrapper registration.
@@ -1029,7 +1047,10 @@ fully migrated catalog and executes rather than reporting a connection-refused
 skip. Candidate Validation discovers the no-empty-conversation, three real
 admission-branch, and full merge-orchestrator cases; before release, require
 their non-skipped execution plus the hosted authenticated wrapper boundary on
-the same SHA.
+the same SHA. The database catalog runner discovers
+`species_lookalike_recovery.sql`; its transactional assertions cover claim
+ordering, retry/backoff, one-time repair, trigger suppression, curation
+preservation, identity conflicts, and settled-empty behavior.
 
 iOS:
 
@@ -1044,6 +1065,7 @@ xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<booted sim
   -only-testing:merianTests/SpeciesReferenceArchitectureTests \
   -only-testing:merianTests/LocalImageLoaderTests \
   -only-testing:merianTests/SpeciesDataTests \
+  -only-testing:merianTests/FieldChatPresentationTests \
   -only-testing:merianTests/SpeciesDictionaryCatalogRouteTests \
   -only-testing:merianTests/SpeciesCatalogPresentationTests \
   -only-testing:merianTests/SpeciesDictionaryCatalogViewModelTests \

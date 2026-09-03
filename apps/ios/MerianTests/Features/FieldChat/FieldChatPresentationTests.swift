@@ -145,6 +145,27 @@ struct FieldChatPresentationTests {
         #expect(chips.first == "How do I tell it apart from Hottentot Fig?")
     }
 
+    @Test func testSuggestionChipsUseScientificNameForLookalikesWithTheSameCommonName() {
+        let species = SpeciesData(
+            commonName: "Firethorn",
+            scientificName: "Pyracantha angustifolia",
+            insightData: InsightData(aiReasoning: "", hazardType: "none"),
+            confidenceScore: 0.82,
+            similarSpecies: SimilarSpecies(entries: [
+                SimilarSpeciesEntry(
+                    scientificName: "Pyracantha coccinea",
+                    commonName: "Firethorn",
+                    referenceImageUrl: nil,
+                    iucnRedListStatus: nil
+                )
+            ])
+        )
+
+        let chips = InsightChatViewModel.suggestionChips(for: species, timestamp: nil)
+
+        #expect(chips.first == "How do I tell it apart from Pyracantha coccinea?")
+    }
+
     @Test func testSuggestionChipsPreferInvasiveAndTraitPrompts() {
         let species = SpeciesData(
             scanId: "chat_scan",
@@ -544,4 +565,3 @@ private func promptLabelScalarValue(_ label: String) -> UInt32? {
     guard label.hasPrefix("U+") else { return nil }
     return UInt32(label.dropFirst(2), radix: 16)
 }
-

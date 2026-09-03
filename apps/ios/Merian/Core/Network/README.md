@@ -1,7 +1,8 @@
 # Core Network
 
-This directory owns Merian's authenticated, certificate-pinned foreground
-network client. Durable background uploads and replay scheduling live under
+This directory owns Merian's certificate-pinned foreground network client,
+including authenticated endpoints, capability-only deletion recovery, and signed
+uploads. Durable background uploads and replay scheduling live under
 `Core/Data/OfflineSync`.
 
 ## Environment selection
@@ -58,12 +59,12 @@ mount the Ready approval screen before refresh completes.
 Field Trips, Community Identification browsing/contribution, Explore browsing,
 Explore interactions, notifications, public-profile operations, Explore post
 management, Field Chat, Species Dictionary, scan lifecycle, scan enrichment and
-deferred context, exports, product feedback, and media storage live below
-`Endpoints/`. Raw signed uploads and foreground video planning live in `Media/`.
-Remaining endpoint groups stay in `MerianNetworkClient.swift`, which retains
-private session, endpoint construction, Auth lease, refresh, retry, and
-cancellation implementation. Endpoint extensions use narrow internal JSON
-bridges to construct the endpoint, serialize the payload, and invoke the
+deferred context, exports, product feedback, media storage, and account deletion
+live below `Endpoints/`. Raw signed uploads and foreground video planning live
+in `Media/`. Remaining endpoint groups stay in `MerianNetworkClient.swift`,
+which retains private session, endpoint construction, Auth lease, refresh,
+retry, and cancellation implementation. Endpoint extensions use narrow internal
+JSON bridges to construct the endpoint, serialize the payload, and invoke the
 existing authenticated POST. Typed calls decode with the existing snake-case
 decoder; body-ignoring calls preserve HTTP-only success without decoding. The
 typed bridge can forward an existing idempotency key and replace decoding
@@ -573,6 +574,55 @@ See the canonical
 [image repair contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-repair-scan-image-edge-node),
 and [focused matrix](#media-storage-and-upload-verification).
 
+### Account deletion and recovery ownership
+
+- [`Endpoints/MerianNetworkClient+AccountDeletion.swift`](Endpoints/MerianNetworkClient+AccountDeletion.swift)
+  owns the six existing legacy intake, v2 preparation/commit, and public
+  recovery/acknowledgement methods. Three request-only payloads remain private
+  to that file. Legacy no-capability intake still sends a nil body; v2 recovery
+  and acknowledgement omit the other operation's proof key rather than sending
+  null. No caller signatures or wire fields change.
+- [`AccountDeletionAPIModels.swift`](AccountDeletionAPIModels.swift) owns the
+  unchanged receipt/status DTOs and v2 preparation/commit payloads. The manual
+  provider-revocation Boolean remains required; optional expiry,
+  acknowledgement, and version fields retain their decoding behavior.
+- [`Decoding/AccountDeletionResponseDecoder.swift`](Decoding/AccountDeletionResponseDecoder.swift)
+  owns operation-specific receipt admission and maps decoding/receipt failures
+  to `invalidResponse`. Intake/commit require matching pending/202 or
+  completed/200; v2 preparation requires prepared/200 and protocol 2. Public
+  recovery retains its existing status acceptance, with expired timestamps
+  accepted only for acknowledged receipts or v2 `not_committed` receipts.
+  Acknowledgement requests still require `recovery_acknowledged: true`.
+- [`AccountDeletionRecoveryValidation.swift`](AccountDeletionRecoveryValidation.swift)
+  owns exact 43-byte base64url proof syntax and 20–40-byte ISO timestamp parsing
+  through cached `DateUtilities` formatters. Its injected clock is read only
+  after successful parsing and preserves the strict five-minute tolerance. The
+  three client static validators remain compatibility forwards.
+
+The two route-fixed, nonescaping client bridges return only response bytes and
+HTTP status. `performAccountDeletionJSONPost` resolves configuration before
+building the body and forwards the exact optional transition owner to private
+authenticated transport. Legacy proof validation remains inside that builder; v2
+preparation/commit validate before calling it, preserving failure precedence.
+`performAccountDeletionRecoveryJSONPost` delegates to the unchanged private
+capability-only transport: publishable `apikey`, no user Bearer token, 20-second
+timeout, and at most one two-second retry for the existing transient URL errors
+or 5xx responses. Its 64 KiB response check occurs after URLSession has read the
+data, before status handling; it is not a streaming memory bound. No new Auth
+admission, replay policy, task owner, or singleton is introduced.
+
+`SupabaseManager`, Core Security, and `AppDIContainer` retain transition
+ownership, Keychain proofs/markers, lost-response decisions, verified local
+sign-out, SwiftData cleanup, and proof retirement. The decoder cannot authorize
+cleanup or reinterpret a 404/410 error.
+[Core Security](../Security/README.md#account-deletion-recovery-authority) owns
+secure proof storage;
+[Settings](../../Features/Profile/Settings/README.md#account-deletion) continues
+to delegate deletion and recovery to the retained owners. See the canonical
+[account-deletion API](../../../../../docs/backend-and-data/05-api-contracts.md#deno-safe-delete-edge-node),
+[Apple deletion lifecycle](../../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md),
+and [focused matrix](#account-deletion-and-recovery-verification).
+
 ### Endpoint verification
 
 This section owns the shared endpoint-test requirements. Feature guides link
@@ -604,7 +654,9 @@ the [post-management matrix](#explore-post-management-verification), the
 [Dictionary matrix](#species-dictionary-verification), the
 [scan lifecycle matrix](#scan-lifecycle-verification), the
 [enrichment/export/feedback matrix](#enrichment-export-and-feedback-verification),
-and the [media storage/upload matrix](#media-storage-and-upload-verification).
+the [media storage/upload matrix](#media-storage-and-upload-verification), and
+the
+[account-deletion/recovery matrix](#account-deletion-and-recovery-verification).
 Every endpoint slice also requires the complete `merianTests` target, generic
 Simulator build, generated-project/source membership checks, strict
 affected-source lint, Markdown formatting, and diff checks. The focused browsing
@@ -1193,6 +1245,126 @@ behavior. Record fresh-build/runtime and manual results separately from native
 pure/source tests and cached-dependency typechecking in the
 [cleanup record](../../../../../docs/rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits).
 No hosted mutation or deployment is part of this refactor.
+
+### Account deletion and recovery verification
+
+Eight existing aggregate tests now live in `AccountDeletionEndpointTests`,
+`AccountDeletionRecoveryEndpointTests`, and `AccountDeletionAPIModelsTests`.
+Endpoint cases use a private client and scoped session, never the shared client.
+New coverage locks legacy nil-body behavior, exact proof fields, strict receipt
+decoding, validation-before-dispatch, stale transition-owner rejection,
+classified Auth refresh, ambiguous-intake replay refusal, and cancellation.
+`AccountDeletionRecoveryTransportTests` exercises all four public operations,
+including no-current-account success, absent user Auth headers, exact optional
+key omission, one identical retry, response-size ordering, raw non-200 errors,
+and task-owned versus independent transport cancellation.
+
+`AccountDeletionRecoveryValidationTests` and
+`AccountDeletionResponseDecoderTests` use a fixed clock for syntax, expiry,
+phase/status/version, acknowledgement, and terminal replay checks.
+`AccountDeletionBoundaryTests` guards ownership, validation/bridge ordering,
+private public-recovery policy, private request DTOs, and the eight rehomes. The
+existing shared-auth tests and protected critical selector remain in
+`MerianNetworkClientTests`; no CI selector or protected-case count changes.
+
+The injected transport does not admit a valid Auth transition owner. V2
+prepare/commit success is therefore covered by exact payload tests and the pure
+receipt decoder, with stale-owner no-dispatch tests at the endpoint. Accepted
+transition workflows remain in `SupabaseManagerTests`; neither those injected
+workflow tests nor source guards replace real-session integration. Never add an
+Auth bypass to make these endpoint fixtures succeed.
+
+#### Known preparation-receipt mismatch
+
+The documentation audit on 2026-09-03 found a pre-existing contract mismatch:
+the `prepare` branch of
+[`safe-delete/handler.ts`](../../../../../services/supabase/functions/safe-delete/handler.ts)
+returns `success`, `status`, `protocol_version`, and
+`recovery_capability_expires_at`, but no `manual_provider_revocation_required`.
+The native [`AccountDeletionReceipt`](AccountDeletionAPIModels.swift) requires
+that Boolean, and `AccountDeletionResponseDecoder` decodes the same receipt for
+preparation. Consequently, that checked-in server response fails native decoding
+with `invalidResponse` before the manager can dispatch commit.
+
+The split preserves this behavior; it did not introduce or fix it. Existing
+native preparation fixtures supply the Boolean, while backend tests exercise the
+server response separately. Passing those suites is not evidence of a compatible
+prepare/commit round trip. Reconcile the preparation response and native decoder
+in a dedicated contract fix, preserve the required provider disposition on
+accepted-deletion/recovery receipts, and add a regression that decodes the
+actual handler response shape before claiming integration complete.
+
+#### Focused command
+
+Build and run fresh candidate products:
+
+```sh
+xcodebuild test \
+  -scheme Merian \
+  -project merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -derivedDataPath .build/ios-account-deletion-tests \
+  CODE_SIGNING_ALLOWED=NO \
+  -only-testing:merianTests/AccountDeletionEndpointTests \
+  -only-testing:merianTests/AccountDeletionRecoveryEndpointTests \
+  -only-testing:merianTests/AccountDeletionRecoveryTransportTests \
+  -only-testing:merianTests/AccountDeletionAPIModelsTests \
+  -only-testing:merianTests/AccountDeletionRecoveryValidationTests \
+  -only-testing:merianTests/AccountDeletionResponseDecoderTests \
+  -only-testing:merianTests/AccountDeletionBoundaryTests \
+  -only-testing:merianTests/NetworkEndpointTestSupportTests \
+  -only-testing:merianTests/MerianNetworkArchitectureTests \
+  -only-testing:merianTests/MerianNetworkClientTests \
+  -only-testing:merianTests/SupabaseManagerTests \
+  -only-testing:merianTests/AccountDeletionRecoveryCapabilityTests \
+  -only-testing:merianTests/AppDIContainerTests
+```
+
+Also run the shared endpoint requirements and complete `merianTests` target. The
+existing safe-delete protocol, hashing, recovery-handler, and account-deletion
+source/migration-contract tests remain backend-owned; this extraction changes no
+Function, database, or release control.
+
+#### Account deletion integration checklist
+
+Resolve the preparation-receipt mismatch above before running the accepted v2
+path. Use separately authorized disposable accounts and a named non-production
+target; these checks can delete data and revoke provider authorization. The
+hygiene pass itself authorizes no live deletion or deployment.
+
+- Verify a real-session v2 preparation is non-destructive, the prepared marker
+  is durable before commit, and pending/202 or completed/200 acceptance reaches
+  the existing cleanup owner. An arbitrary `2xx` or prepared/200 response is not
+  deletion acceptance.
+- Terminate and relaunch before prepare, after prepare, after a dropped commit
+  response, and during each local cleanup/acknowledgement/retirement boundary.
+  Recovery must reuse the existing proof, work without cached Auth, and retain
+  the barrier on ambiguous transport or decoding failures.
+- Distinguish v2 `not_committed` and genuinely unknown-proof cancellation
+  (unused proof/intent retirement only) from legacy unknown-proof ambiguity
+  (barrier retained). A preparation-expired `410` cannot authorize local
+  erasure; only a matched committed-capability
+  `account_deletion_recovery_expired` may take the conservative cleanup path.
+- Check `409 purchase_continuity_pending` and exact-session cancellation without
+  admitting another account's response. V2 rejection retirement also requires
+  recovery to establish `not_committed`; rejection-retirement relaunch must not
+  sign out or purge data.
+- Verify the manual-provider notice is durable before sign-out, private-map
+  reset precedes SwiftData purge, and acknowledgement follows verified local
+  cleanup. V2 acknowledgement uses its independent proof; acknowledged or
+  matched-expired recovery must remain safely replayable. Verified Keychain
+  removal precedes marker clearing.
+- Exercise legacy stored proofs and pre-capability cleanup markers without
+  changing their fallback behavior. Verify Settings confirmation, pending/error
+  presentation, relaunch recovery, and manual-notice dismissal, including
+  VoiceOver and large Dynamic Type.
+
+Record fresh iOS build/runtime results and authorized manual results separately
+from native pure/source execution and cached-dependency typechecking in the
+[cleanup record](../../../../../docs/rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits).
+This checklist supplements, but does not replace, the Apple/provider and
+older-client release evidence in the
+[canonical deletion contract](../../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 ### Media storage and upload verification
 
@@ -2133,14 +2305,15 @@ Account deletion retains ownerless exact scientific facts under the
 `signOut()` must not imply that every submitted observation is erased. The
 provider-specific lifecycle is canonical in the
 [`Sign in with Apple account-deletion contract`](../../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
-Before `/safe-delete` can commit, iOS generates an atomic Keychain envelope with
-independent 256-bit recovery and acknowledgement capabilities and verifies the
-exact encoded bytes. It writes `capability_preparation_pending`, performs the
-server's non-destructive v2 preparation, writes `capability_prepared_pending`,
-then writes `capability_intake_pending` before destructive commit. This closes
-both lost-request and lost-response windows: a relaunch from either preparation
-phase re-enters the deletion transition; a crash before commit publicly cancels
-as `not_committed` without erasing Auth or SwiftData, while a crash after commit
+Before `/safe-delete` can commit, iOS writes `capability_preparation_pending`,
+then synchronously generates an atomic Keychain envelope with independent
+256-bit recovery and acknowledgement capabilities and verifies the exact encoded
+bytes before the first network suspension. Its intended next steps are the
+server's non-destructive v2 preparation, `capability_prepared_pending`, and
+`capability_intake_pending` before destructive commit. This ordering closes both
+lost-request and lost-response windows: a relaunch from either preparation phase
+re-enters the deletion transition; a crash before commit publicly cancels as
+`not_committed` without erasing Auth or SwiftData, while a crash after commit
 recovers the job receipt. If another device commits first, the database
 atomically binds every still-live prepared proof to the same deletion job and
 tombstones expired proof hashes as committed. No expired preparation is promoted
@@ -2150,6 +2323,11 @@ session is gone, the app submits only the recovery capability to
 `/recover-account-deletion`; acknowledgement after verified cleanup uses only
 its distinct proof. Neither request contains an account, job, provider, or
 purchase identity.
+
+The checked-in prepare-response mismatch described in the
+[focused matrix](#known-preparation-receipt-mismatch) currently prevents the
+normal path from reaching the prepared marker or commit; this paragraph defines
+the required behavior after that contract is reconciled.
 
 A returned durable receipt promotes the marker to `capability_cleanup_pending`;
 only then may iOS sign out locally and purge SwiftData. After cleanup, iOS

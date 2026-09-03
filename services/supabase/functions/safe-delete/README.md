@@ -24,6 +24,11 @@ transaction as intake, and exposes recovery through the separate public
 `/recover-account-deletion` route. The proof never identifies or selects an
 account.
 
+Migration `20260813142638_prepare_account_deletion_recovery_v2.sql` adds
+non-destructive two-proof preparation before destructive intake. Its recovery
+and acknowledgement hashes are domain-separated from one another and from the
+legacy v1 hash.
+
 Migration `20260810034953_guard_empty_ghost_account_cleanup.sql` adds a second,
 operator-only intake for prelaunch anonymous shells. It does not change this
 state machine or expose `/safe-delete` to arbitrary UUIDs. After an offline
@@ -110,28 +115,29 @@ normally returns `202` because delayed storage verification is deliberately
 asynchronous; `200` is possible only when an already verified idempotent job can
 finish immediately. Both are successful responses and contain the required
 boolean `manual_provider_revocation_required`. The iOS client persists a legacy
-Apple notice before it signs out locally and purges its local store. Before
-dispatch, supporting clients atomically persist and verify distinct 256-bit
-recovery and acknowledgement capabilities. They persist
-`capability_preparation_pending`, invoke the non-destructive v2 prepare, persist
-`capability_prepared_pending`, then persist `capability_intake_pending` before
-commit. A crash before commit publicly cancels the preparation as
-`not_committed` without signing out or erasing local data. A received durable
-receipt advances the marker to `capability_cleanup_pending`; only then may iOS
-sign out locally and purge SwiftData. After both finish, the public recovery
-route records acknowledgement, iOS advances to `capability_retirement_pending`,
-read-after-delete verifies Keychain removal, and finally clears the marker. The
-Edge boundary hashes the two v2 values in separate recovery and acknowledgement
-domains; neither hash can be replayed through the legacy v1 namespace or through
-the other v2 operation. For legacy v1, `500`, transport failure, public-recovery
-`404`, or unknown proof never proves that intake failed: the database mutation
-may still be committing, so the client retains both proof and barrier. In v2, an
-unknown proof proves no commit because destructive intake requires the
-preparation. If another device commits first, the deletion-job insert trigger
-converts only still-live preparations into receipts. Expired proof hashes move
-to a permanent identity-free tombstone and can never be reused. An expired
-preparation with no committed deletion returns `not_committed`; one retired
-during another device's deletion commit returns the distinct fail-closed
+Apple notice before it signs out locally and purges its local store. Supporting
+clients first persist `capability_preparation_pending`, then atomically persist
+and verify distinct 256-bit recovery and acknowledgement capabilities before the
+first network suspension. They are intended to invoke the non-destructive v2
+prepare, persist `capability_prepared_pending`, then persist
+`capability_intake_pending` before commit. A crash before commit publicly
+cancels the preparation as `not_committed` without signing out or erasing local
+data. A received durable receipt advances the marker to
+`capability_cleanup_pending`; only then may iOS sign out locally and purge
+SwiftData. After both finish, the public recovery route records acknowledgement,
+iOS advances to `capability_retirement_pending`, read-after-delete verifies
+Keychain removal, and finally clears the marker. The Edge boundary hashes the
+two v2 values in separate recovery and acknowledgement domains; neither hash can
+be replayed through the legacy v1 namespace or through the other v2 operation.
+For legacy v1, `500`, transport failure, public-recovery `404`, or unknown proof
+never proves that intake failed: the database mutation may still be committing,
+so the client retains both proof and barrier. In v2, an unknown proof proves no
+commit because destructive intake requires the preparation. If another device
+commits first, the deletion-job insert trigger converts only still-live
+preparations into receipts. Expired proof hashes move to a permanent
+identity-free tombstone and can never be reused. An expired preparation with no
+committed deletion returns `not_committed`; one retired during another device's
+deletion commit returns the distinct fail-closed
 `410 account_deletion_recovery_preparation_expired`, which does not authorize
 local erasure. Only a 180-day capability actually bound to a job returns
 `410 account_deletion_recovery_expired`; that positive match permits
@@ -139,13 +145,15 @@ conservative local erasure but not pre-cleanup inspection. Post-cleanup
 acknowledgement uses only the independent second proof, remains valid after
 expiry, and converts the row to a permanent replay receipt. Late duplicate
 authenticated intake returns that permanent receipt without clearing
-acknowledgement or extending its original expiry. Only explicit
-`409 purchase_continuity_pending` proves this intake did not win. iOS first
-persists `capability_rejection_retirement_pending`, then read-after-delete
-verifies removal of the unused proof before removing the marker. Relaunch from
-that phase performs no local sign-out or data purge. Pre-capability
-`intake_pending` and `cleanup_pending` markers remain supported for
-installed-client compatibility.
+acknowledgement or extending its original expiry. For an authenticated
+rejection, only explicit `409 purchase_continuity_pending` can authorize
+retirement. V2 first requires recovery to return `not_committed`; legacy
+rejection may retire directly. Independent v2 recovery may also prove no commit
+through `not_committed` or a genuinely unknown proof. iOS persists
+`capability_rejection_retirement_pending`, then read-after-delete verifies
+removal of the unused proof before removing the marker. Relaunch from that phase
+performs no local sign-out or data purge. Pre-capability `intake_pending` and
+`cleanup_pending` markers remain supported for installed-client compatibility.
 
 This response addition is not usable by older binaries that do not decode the
 boolean. They can accept the deletion response while silently omitting Apple's
@@ -153,6 +161,17 @@ manual-removal notice. Public rollout is therefore blocked until either a
 minimum-supported-build control gives those clients a clear update path back to
 in-app deletion, or an independent server-delivered fallback durably supplies
 the instructions. Publishing the supporting build alone is not rollout evidence.
+
+There is also a checked-in v2 integration blocker: the prepare branch returns no
+`manual_provider_revocation_required`, while native `AccountDeletionReceipt`
+requires that field before evaluating prepared status. The server can persist
+preparation successfully, but current iOS maps its HTTP response to
+`invalidResponse` and never advances to normal commit. This predates the Core
+Network file split. Resolve it through coordinated server/native contract work
+and add a handler-response-to-native-decoder regression before claiming v2
+prepare/commit integration. The canonical evidence boundary is in the native
+matrix's
+[known preparation-receipt mismatch](../../../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
 
 The scheduled `reconcile-account-deletions` function resumes due account jobs
 and storage pages every five minutes. It performs a bounded account pass,
@@ -306,3 +325,13 @@ monitor parsing, thresholds, severity, and recovery guidance are covered by
 See the
 [canonical Sign in with Apple deletion contract](../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md)
 for secret provisioning, rotation, client rollout, and production smokes.
+
+The iOS request methods live in
+`Core/Network/Endpoints/MerianNetworkClient+AccountDeletion.swift`; unchanged
+DTOs and pure receipt/proof validation have separate Core Network owners.
+Private transport stays in the client, while `SupabaseManager`, Core Security,
+and `AppDIContainer` retain Auth transition, Keychain, and local cleanup
+authority. See the
+[native ownership and verification matrix](../../../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification)
+for endpoint, decoder, transport, and workflow coverage. This native extraction
+does not change this Function or its release controls.

@@ -86,19 +86,20 @@ the eight Explore browsing reads, 12 Explore interaction methods, four
 notification methods, four public-profile methods, six Explore post-management
 methods, 17 Field Chat methods, six Species Dictionary method variants, four
 scan lifecycle methods, two scan enrichment/context methods, one export method,
-two product feedback methods, and three media storage methods are extracted.
-Both raw `uploadToR2` overloads and foreground `uploadStagedVideoFiles` live in
-`Core/Network/Media/`, with stateless signed-request policy and immutable local
-video planning. Existing feature adapters, shared Profile state, Hardware
-push/badge owners, and Core's social guard retain their callers and state, while
-the existing network client retains private session, Auth, retry, and
-cancellation ownership behind typed-response, body-ignoring, encoded-body, and
-raw-response JSON POST bridges. Dictionary detail/stats use fixed-result
-cache-aware bridges whose GET helper stays private. The typed POST bridge
-preserves optional idempotency keys and endpoint-specific decoding-error mapping
-without intercepting transport failures. Field Chat's encoded-body bridge
-returns bytes to its stateless `Decoding/FieldChatResponseDecoder.swift`; it
-does not own another retry policy. Dictionary schema/identity checks live in
+two product feedback methods, three media storage methods, and six account
+deletion/recovery methods are extracted. Both raw `uploadToR2` overloads and
+foreground `uploadStagedVideoFiles` live in `Core/Network/Media/`, with
+stateless signed-request policy and immutable local video planning. Existing
+feature adapters, shared Profile state, Hardware push/badge owners, and Core's
+social guard retain their callers and state, while the existing network client
+retains private session, Auth, retry, and cancellation ownership behind
+typed-response, body-ignoring, encoded-body, and raw-response JSON POST bridges.
+Dictionary detail/stats use fixed-result cache-aware bridges whose GET helper
+stays private. The typed POST bridge preserves optional idempotency keys and
+endpoint-specific decoding-error mapping without intercepting transport
+failures. Field Chat's encoded-body bridge returns bytes to its stateless
+`Decoding/FieldChatResponseDecoder.swift`; it does not own another retry policy.
+Dictionary schema/identity checks live in
 `Decoding/SpeciesDictionaryResponseValidator.swift`; its two locked per-client
 memos live in `Caching/SpeciesDictionaryResponseCache.swift`. The client keeps
 that cache instance private; only its fixed-result bridges can populate it,
@@ -114,12 +115,20 @@ scan-image inspection DTOs move unchanged to `MediaStorageAPIModels.swift`. The
 account-bound encoded bridge preserves signing's frozen body/transport UUID; raw
 PUT bridges reuse the private session without adding Auth or replay. Queue
 manifest/task authority, live inference attempt fencing, image repair, and
-avatar promotion remain caller-owned. Other wire-model owners stay unchanged:
-enrichment responses remain hand-written in Core AI, while survey requests
-remain Settings Feedback-owned. Scan publication and media recovery remain
-together in the main client, alongside the remaining endpoint groups. See the
-[Core Network guide](Merian/Core/Network/README.md) for the endpoint, transport,
-and mirrored test boundaries.
+avatar promotion remain caller-owned. Account deletion uses two route-fixed
+value bridges for authenticated intake and capability-only recovery. Its
+receipt/status DTOs and v2 preparation/commit payloads live unchanged in
+`AccountDeletionAPIModels.swift`; three request-only DTOs remain private to its
+endpoint file. Pure receipt and proof/timestamp validation live in
+`Decoding/AccountDeletionResponseDecoder.swift` and
+`AccountDeletionRecoveryValidation.swift`. Auth transition admission, durable
+Keychain markers, local cleanup, and proof retirement remain with
+`SupabaseManager`, Core Security, and `AppDIContainer`. Other wire-model owners
+stay unchanged: enrichment responses remain hand-written in Core AI, while
+survey requests remain Settings Feedback-owned. Scan publication and media
+recovery remain together in the main client, alongside the remaining endpoint
+groups. See the [Core Network guide](Merian/Core/Network/README.md) for the
+endpoint, transport, and mirrored test boundaries.
 
 ## Onboarding Ownership
 

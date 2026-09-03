@@ -6165,7 +6165,10 @@ independently arriving projections.
   trigger (`trg_link_taxonomy_lookalikes`) auto-populates `species_lookalikes`
   with same-genus links whenever a new species row is inserted, but only when
   both rows have a real genus and matching kingdom. Placeholder taxonomy such as
-  `"Unknown"` is normalized away and never participates in trigger linking.
+  `"Unknown"` is normalized away and never participates in trigger linking. The
+  trigger is transaction-scoped off while the scheduled model worker
+  materializes an exact-GBIF candidate; that path writes only its explicit
+  directional relation.
 - **Layer 2 — Gemini Flash for cross-family visual mimics**:
   `fetchSimilarSpecies` requires usable primary taxonomy and an unsatisfied
   lookalike cache gate. That gate accepts at least one resolved non-null common
@@ -6187,14 +6190,19 @@ different orders). `resolveLookalikesToJoinTable` now requires a real
 `primaryKingdom` and at least one higher-rank discriminator (`primaryOrder` or
 `primaryFamily`). Each resolved candidate must have a real matching `kingdom`,
 and then either a matching `order` or, if order is unavailable on both sides, a
-matching `family`. Candidates with missing taxonomy or no `species_dictionary`
-row are dropped rather than returned as provisional stubs. **Early-exit on
-insufficient taxonomy**: On a lookalike cache miss, missing usable primary
-taxonomy prevents a Flash call. The response still uses the scoped formatter's
-legacy-name fallback, or `similar_species: null` when no fallback exists.
-`lookalikes_flash_attempted` is **only** set to `true` when
-`resolveLookalikesToJoinTable` returns `persisted: true`, ensuring the flag
-never locks before validated data is in the join table.
+matching `family`. The foreground path omits candidates with missing taxonomy or
+no existing `species_dictionary` row. The scheduled model worker can create a
+missing row only after exact accepted GBIF resolution and repeats the same
+taxonomy checks inside `persist_species_model_lookalikes(...)`. **Early-exit on
+insufficient taxonomy**: On a foreground lookalike cache miss, missing usable
+primary taxonomy prevents a Flash call. The response still uses the scoped
+formatter's legacy-name fallback, or `similar_species: null` when no fallback
+exists. Foreground `enrich-scan` sets `lookalikes_flash_attempted` only when
+`resolveLookalikesToJoinTable` returns `persisted: true`. The scheduled worker
+also sets it for a resolution-complete empty, incompatible, duplicate, or
+reviewed-rejected outcome. A partial result that writes at least one relation
+sets the flag while leaving the queue job retryable; a retryable failure with no
+persisted relation leaves it false.
 
 **Automatic Stale Contamination Detection**: On each `lookalikes` scope request,
 `index.ts` compares the primary species' normalized `order` or `family` against
@@ -6206,19 +6214,15 @@ automatically cleared via `clearLookalikesForSpecies`,
 can run. This is self-healing for the characteristic contamination signature
 created by old placeholder-taxonomy writes.
 
-**Manual Cache Invalidation**: For one-off fixes, cross-order (or cross-kingdom)
-lookalikes cached before the automatic detection was introduced can still be
-cleared manually:
-
-```sql
-DELETE FROM species_lookalikes
-WHERE species_id = (SELECT id FROM species_dictionary WHERE scientific_name = '<scientific_name>');
-UPDATE species_dictionary SET similar_species = NULL, lookalikes_flash_attempted = FALSE
-WHERE scientific_name = '<scientific_name>';
-```
-
-The next `enrich-scan` call will re-run Flash only after the species has usable
-taxonomy.
+**Recovery ownership**: Do not infer a failed attempt from an empty
+`species_lookalikes` set or reset the attempt flag with a blanket data update.
+Empty is a valid terminal result after complete validation. Proven
+cross-order/cross-kingdom contamination is still cleared by the foreground
+stale-cache detector above. Legacy empty successes and exhausted failures are
+repaired by the versioned scheduled-worker claim, which grants one attempt only
+when no nonrejected relation exists and records the version atomically at claim
+time. The worker's `dry_run` preview uses the same eligibility predicate without
+locks, writes, or marker changes.
 
 **Migration Path**: If the join table is empty but `similar_species TEXT[]` has
 legacy name strings (populated by older pipeline versions), they are resolved to
@@ -6704,6 +6708,16 @@ individual or cultivar variation. Claims about a particular observation still
 require supplied observation evidence or explicit observations reported by the
 user. General knowledge cannot establish current/local facts or justify invented
 citations or claims of live retrieval.
+
+Each route appends those rules after its bounded context block. The rule defines
+`Unavailable` as a missing record field rather than a missing species fact,
+resolves casual pronouns in typical-trait questions to the identified species,
+and requires a direct one-to-three-sentence answer before relevant variation.
+Few-shot examples distinguish a general fragrance question from a claim about
+the current individual. `_shared/fieldChatReply.ts` owns the common Gemini model
+request and JSON extraction so all three routes and the synthetic provider check
+exercise one configuration. Insight summary and prompt-generation actions use
+the context and safety instruction without chat-answer examples or schema.
 
 Insight field-note summary prompts admit only recorded scan evidence and
 explicit user observations. General species facts in dictionary text or
@@ -7929,13 +7943,30 @@ submitted observation.
 The exact retained-versus-cleared field boundary is normative in the
 [scientific-observation retention contract](./17-scientific-observation-retention.md).
 
+The iOS wire methods live in
+`Core/Network/Endpoints/MerianNetworkClient+AccountDeletion.swift`, with
+unchanged receipt/status DTOs and v2 preparation/commit payloads in
+`AccountDeletionAPIModels.swift`. Three request-only DTOs remain private to the
+endpoint file; pure receipt/proof validation lives in
+`Decoding/AccountDeletionResponseDecoder.swift` and
+`AccountDeletionRecoveryValidation.swift`. Route-fixed client bridges retain
+private transport; `SupabaseManager`, Core Security, and `AppDIContainer` retain
+durable transition and cleanup authority. The
+[native ownership and verification guide](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-ownership)
+also covers public recovery. This file split changes no payload or lifecycle
+contract.
+
 ### Request Payload
 
-Legacy clients send either the exact empty object or one exact capability field:
+Legacy intake accepts an absent body or this exact empty object. Existing iOS
+requests without a recovery capability send an absent body, which the handler
+normalizes to an empty object:
 
 ```json
 {}
 ```
+
+When a recovery capability is supplied, the request is exactly:
 
 ```json
 {
@@ -8061,6 +8092,13 @@ race.
   cleanup, provider revocation, or Auth mutation has started. If another device
   had already committed deletion, the proof is instead bound to that existing
   job and the subsequent idempotent commit returns its receipt.
+
+  This is the checked-in handler shape, but it is not currently compatible with
+  iOS: native `AccountDeletionReceipt` requires
+  `manual_provider_revocation_required` for every operation, including prepare.
+  The server's persisted preparation therefore decodes as `invalidResponse`, so
+  the app cannot advance to its prepared marker or normal commit. See the
+  [native contract finding](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
 - `200 OK`,
   `{ "success": true, "status": "completed",
   "manual_provider_revocation_required": false,
@@ -8088,38 +8126,40 @@ race.
   same JWT-derived request. It must not infer that destructive work did not
   begin.
 
-`manual_provider_revocation_required` is a required wire field, but it is not a
-backwards-compatible delivery mechanism for clients that predate it. Those
-clients ignore the field and cannot persist or present the manual Apple-removal
-notice. Public promotion therefore requires either an enforceable
-minimum-supported-build gate with a clear update path back to in-app deletion,
-or an independent server-delivered manual-revocation fallback for older iOS
-binaries. App Store availability of the supporting build does not satisfy this
-compatibility gate.
+`manual_provider_revocation_required` is required on accepted-deletion and
+public-recovery receipts, but it is not a backwards-compatible delivery
+mechanism for clients that predate it. It is currently absent from the prepare
+response as noted above. Older clients ignore the accepted-receipt field and
+cannot persist or present the manual Apple-removal notice. Public promotion
+therefore requires either an enforceable minimum-supported-build gate with a
+clear update path back to in-app deletion, or an independent server-delivered
+manual-revocation fallback for older iOS binaries. App Store availability of the
+supporting build does not satisfy this compatibility gate.
 
-Before dispatch, supporting iOS clients atomically read-after-write verify a
-protocol-v2 Keychain envelope containing two independent 256-bit capabilities
-under `WhenUnlockedThisDeviceOnly` protection. They persist
-`capability_preparation_pending`, call the non-destructive prepare operation,
-persist `capability_prepared_pending`, then persist `capability_intake_pending`
-before destructive commit. They retain the exact cached session and permit only
-an owner-token commit replay until a receipt arrives. Relaunch from either
-preparation marker is admitted only to that same deletion-owned recovery
-transition. A crash before commit uses public v2 recovery: `not_committed`
-retires only the proof and marker and preserves Auth and SwiftData;
-pending/completed proves another device or the interrupted commit created the
-job and proceeds to cleanup. An unknown v2 proof is also evidence of no commit
-because v2 commit cannot run without a server preparation. Legacy v1 unknown
-proofs remain ambiguous and fail closed. Transport, Auth, gateway, `5xx`,
-cancellation, or decode failure cannot reopen normal account work or cause a
-different account to inherit cleanup. The explicit
-`409 purchase_continuity_pending` is the only authenticated rejection that
-retires an uncommitted intent immediately. iOS first persists
+Supporting iOS clients first persist `capability_preparation_pending`, then
+atomically read-after-write verify a protocol-v2 Keychain envelope containing
+two independent 256-bit capabilities under `WhenUnlockedThisDeviceOnly`
+protection before the first network suspension. The intended path then calls the
+non-destructive prepare operation, persists `capability_prepared_pending`, and
+persists `capability_intake_pending` before destructive commit. They retain the
+exact cached session and permit only an owner-token commit replay until a
+receipt arrives. Relaunch from either preparation marker is admitted only to
+that same deletion-owned recovery transition. A crash before commit uses public
+v2 recovery: `not_committed` retires only the proof and marker and preserves
+Auth and SwiftData; pending/completed proves another device or the interrupted
+commit created the job and proceeds to cleanup. An unknown v2 proof is also
+evidence of no commit because v2 commit cannot run without a server preparation.
+Legacy v1 unknown proofs remain ambiguous and fail closed. Transport, Auth,
+gateway, `5xx`, cancellation, or decode failure cannot reopen normal account
+work or cause a different account to inherit cleanup. The explicit
+`409 purchase_continuity_pending` is the only authenticated rejection that can
+authorize rejection retirement. V2 first requires public recovery to establish
+`not_committed`; legacy rejection may retire directly. iOS persists
 `capability_rejection_retirement_pending`, then read-after-delete verifies the
 unused proof is gone before clearing the marker. Relaunch in this phase performs
 neither local sign-out nor local data erasure.
 
-After either success response, iOS advances the marker to
+After a validated pending/completed receipt, iOS advances the marker to
 `capability_cleanup_pending`, persists any manual Apple disposition, performs
 verified local Supabase sign-out, and drops all local SQLite `ModelContext`
 state through `ScanRepository.purgeAllData(modelContext:resetDerivedState:)`.
@@ -9308,6 +9348,30 @@ species-level biology primitives behind `enrich-scan`, persists results to
 job succeeded or failed. It does not attach media to species and does not change
 scan identity; scan-to-species attachment remains owner publish through
 `confirmed_species_id`.
+
+Lookalike generation is capped at three model candidates per job. Every
+candidate must resolve through GBIF as an exact accepted species (or an exact
+synonym whose accepted identity is then fetched), match the primary kingdom and
+order/family, and pass the same checks again in
+`persist_species_model_lookalikes(target_species_id uuid, candidates jsonb, resolution_complete boolean)`.
+That service-only RPC returns exactly one row containing `persisted_count`,
+`unresolved_count`, and `rejected_count`; the worker rejects malformed or
+incomplete accounting. Provider errors, unresolved identities, partial results,
+and database identity conflicts fail the job for retry. A verified empty result
+or candidates proven incompatible/rejected complete as `no_data` and set the
+existing attempt flag so foreground enrichment does not repeat the request.
+
+`claim_species_model_enrichment_jobs(max_rows integer, as_of timestamptz, target_content_groups text[], preview_only boolean)`
+is the paired service-only claim RPC. It applies one priority-ordered limit
+across the three model groups, keeps preview read-only, and writes a version
+marker only as a job is claimed. Legacy empty successes and exhausted failures
+without a nonrejected relation receive one fresh attempt; ordinary backoff and
+running leases remain unchanged. The migration can therefore precede the new
+worker without exposing recovered jobs to an old worker. Candidate
+materialization suppresses recursive lookalike jobs and automatic same-genus
+fan-out while preserving every other hydration group, reviewed relationships,
+curated provenance, and all nonrejected entries in the legacy compatibility
+cache.
 
 ---
 

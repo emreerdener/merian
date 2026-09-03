@@ -752,7 +752,8 @@ struct SimilarSpeciesEntry: Codable {
 
     static func normalizeScientificName(_ value: String?) -> String {
         value?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
             .lowercased() ?? ""
     }
 
@@ -777,25 +778,28 @@ struct SimilarSpecies {
     /// Backwards-compatible accessor returning the flat array of scientific names.
     var lookalikes: [String] { entries.map(\.scientificName) }
 
-    func filteredEntries(excludingScientificName scientificName: String?, excludingCommonName: String? = nil) -> [SimilarSpeciesEntry] {
+    func filteredEntries(
+        excludingScientificName scientificName: String?,
+        excludingSpeciesId speciesId: String? = nil
+    ) -> [SimilarSpeciesEntry] {
         let excludedScientificName = SimilarSpeciesEntry.normalizeScientificName(scientificName)
-        let excludedCommonName = excludingCommonName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        
+        let excludedSpeciesId = SpeciesDictionaryIdentity.canonicalSpeciesID(speciesId)
+        var seenSpeciesIds = Set<String>()
         var seenScientificNames = Set<String>()
 
         return entries.compactMap { entry in
             let normalizedScientificName = SimilarSpeciesEntry.normalizeScientificName(entry.scientificName)
             guard !normalizedScientificName.isEmpty else { return nil }
             guard normalizedScientificName != excludedScientificName else { return nil }
-            
-            if let excludedCommonName = excludedCommonName,
-               let entryCommon = entry.commonName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-               !entryCommon.isEmpty,
-               entryCommon == excludedCommonName {
-                return nil
+
+            let entrySpeciesId = SpeciesDictionaryIdentity.canonicalSpeciesID(entry.speciesId)
+            if let entrySpeciesId {
+                guard entrySpeciesId != excludedSpeciesId,
+                      !seenSpeciesIds.contains(entrySpeciesId) else { return nil }
             }
-            
+
             guard seenScientificNames.insert(normalizedScientificName).inserted else { return nil }
+            if let entrySpeciesId { seenSpeciesIds.insert(entrySpeciesId) }
             return entry
         }
     }

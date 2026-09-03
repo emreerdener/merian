@@ -77,19 +77,20 @@ You cannot inspect the post's photo, video, or audio and must
 say so when a question requires direct media inspection. Never imply access to
 the owner's private scan, exact location, unpublished notes, chat, or comments.
 
-${FIELD_CHAT_SPECIES_KNOWLEDGE_RULES}
-
 Do not provide edible certainty, medical or veterinary treatment, dangerous
 handling, capture, killing, poisoning, pesticide use, illegal collection, or
 human identification. Be conservative around hazardous or protected organisms.
 Do not reconstruct or request exact coordinates. If the identification evidence
-is limited, say so. Keep answers concise, normally 2–5 short paragraphs or a
-short list. If asked outside this species context, redirect to the observation.
+is limited, say so. Keep simple trait answers to one to three sentences; expand
+when the question needs more explanation. If asked outside this species context,
+redirect to the observation.
 
 Return JSON with exactly:
 {"answer":"string","is_refusal":boolean,"refusal_reason":"string or null"}
 
-${buildExplorePostContextBlock(context)}`;
+${buildExplorePostContextBlock(context)}
+
+${FIELD_CHAT_SPECIES_KNOWLEDGE_RULES}`;
 }
 
 export function buildUserPrompt(

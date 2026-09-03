@@ -513,18 +513,25 @@ results, not dictionary taxa.
 - `similar_species` (Text Array): Legacy flat array of validated similar-species
   scientific names. Kept only as a compatibility cache alongside the
   authoritative `species_lookalikes` join table. Raw Gemini Flash output is no
-  longer persisted here; `enrich-scan` writes this field only after the names
-  have been resolved back to `species_dictionary` rows and passed taxonomy
-  validation. Added as `diagnostic_lookalike_name TEXT` in
+  longer persisted here. Foreground `enrich-scan` writes this field only after
+  the names resolve to existing `species_dictionary` rows and pass taxonomy
+  validation. The scheduled model worker rebuilds it from every nonrejected
+  directional relation after its exact-GBIF transaction. Added as
+  `diagnostic_lookalike_name TEXT` in
   `20260326200000_add_diagnostic_comparison.sql`, converted to
   `diagnostic_lookalikes TEXT[]` in
   `20260329062600_add_lookalike_species_array.sql`, and renamed to
   `similar_species` in `20260329070941_rename_similar_species.sql`.
 - `lookalikes_flash_attempted` (BOOLEAN, DEFAULT `FALSE`): Species-level memo
-  that a validated Flash lookalike generation attempt has already been persisted
-  for this species. It is only flipped to `TRUE` when
-  `resolveLookalikesToJoinTable` actually writes validated rows; failed or
-  taxonomy-insufficient attempts leave it `FALSE` so enrichment can retry later.
+  that at least one validated relation exists or bounded lookalike resolution
+  reached a terminal empty outcome. Foreground `enrich-scan` flips it only when
+  `resolveLookalikesToJoinTable` writes a validated relation. The scheduled
+  worker flips it after any persisted relation and also when its candidate set
+  is resolution-complete but empty, incompatible, duplicate, or
+  reviewed-rejected. A partial result may therefore set the flag while its queue
+  job remains retryable. Provider failures, incomplete identities, taxonomy
+  gaps, and database identity conflicts with no persisted relation leave it
+  false.
 - ~~`diagnostic_primary_rationale`~~: Dropped in
   `20260329070941_rename_similar_species.sql`. Previously stored the primary
   identification rationale for low-confidence scans.
@@ -1051,7 +1058,12 @@ original trigger after `"Unknown"` genus values were found mass-linking
 unrelated species. Migration
 `20260513060000_add_species_lookalike_relation_metadata.sql` adds relation
 metadata to these automatic rows with `source = taxonomy_trigger`, modest
-confidence, and `sort_order = 100`.
+confidence, and `sort_order = 100`. Migration
+`20260903163744_recover_species_lookalike_enrichment.sql` suppresses this
+trigger only while the scheduled model worker materializes a verified candidate.
+The worker writes one explicit directional relation after validating it,
+avoiding reciprocal same-genus fan-out. Ordinary dictionary inserts still use
+the trigger.
 
 **Rich hydration**: The `/enrich-scan` and `/species-dictionary` Deno paths
 resolve entries via an explicit embedded PostgREST join — `species_lookalikes`
@@ -1079,13 +1091,17 @@ and private-field contract checks. Explore detail uses matching SQL helpers
 `public.public_species_similar_species`) so SQL-hydrated lookalikes follow the
 same public projection rules.
 
-**Taxonomy validation guard**: `resolveLookalikesToJoinTable` only persists rows
-when the primary species has usable taxonomy (`kingdom` plus either `order` or
-`family`). Each candidate lookalike must also have a real matching `kingdom`,
-and then either a matching `order` or, if order is unavailable, a matching
-`family`. Candidates with missing taxonomy, placeholder taxonomy, or no
-`species_dictionary` row are dropped rather than returned as provisional stubs.
-This prevents cross-kingdom and cross-clade hallucinations from becoming durable
+**Taxonomy validation guard**: Foreground enrichment through
+`resolveLookalikesToJoinTable` only persists rows when the primary species has
+usable taxonomy (`kingdom` plus either `order` or `family`). Each candidate
+lookalike must also have a real matching `kingdom`, and then either a matching
+`order` or, if order is unavailable, a matching `family`. Candidates with
+missing taxonomy, placeholder taxonomy, or no matching `species_dictionary` row
+are not persisted by that foreground path. The scheduled model worker
+additionally resolves every candidate to an exact accepted GBIF species, creates
+a missing dictionary row from that proof, and rechecks the same
+kingdom/order/family boundary inside one database transaction. These guards
+prevent cross-kingdom and cross-clade hallucinations from becoming durable
 cache.
 
 ### `species_content_provenance`
@@ -1151,13 +1167,19 @@ Operational queue for species-level hydration work. Added in
 - `priority`, `attempts`, `max_attempts`, `next_run_at`, `locked_at`,
   `completed_at`: Retry and scheduling controls.
 - `source_trigger`, `last_error`, `metadata`: Debuggable cause and failure
-  context.
+  context. A claimed legacy lookalike repair stores
+  `lookalike_resolution_version = 1` in `metadata`; applying the migration alone
+  does not write this marker or reopen work for an older worker.
 
 `refresh-species-content` claims `gbif_wikipedia_reference` jobs first and uses
 the older provenance queue only as a fallback. That group also refreshes the
 normalized GBIF country-occurrence index and its provenance clock.
 `refresh-species-model-content` claims `habitat`, `lookalikes`, and `group_tags`
-jobs and reuses the same species-level primitives behind `enrich-scan`. New
+jobs through `claim_species_model_enrichment_jobs(...)`. This RPC enforces one
+global limit across those groups, uses `FOR UPDATE SKIP LOCKED` for real claims,
+and runs previews as a pure select. A versioned one-time path reopens only
+legacy empty successes or exhausted failures with no nonrejected relation;
+normal retry budgets, future backoff, and running leases remain intact. New
 GBIF-backed species materialized from Community ID publish enqueue all four
 content groups so external refresh and model-heavy enrichment can proceed
 independently. `20260707153931_species_dictionary_enrichment_queue_backfill.sql`
@@ -1165,6 +1187,11 @@ adds an insert trigger on `species_dictionary` so every future species row,
 regardless of creator, queues only the enrichment groups it is missing. The same
 migration backfills existing sparse rows into `species_enrichment_jobs` with
 `source_trigger = 'species_dictionary_sparse_backfill'`.
+`persist_species_model_lookalikes(...)` is the bounded service-role RPC for at
+most three exact-GBIF candidate proofs. It preserves reviewed relations and
+curated provenance, fills only missing/placeholder taxonomy, rebuilds the legacy
+`similar_species` cache from every nonrejected directional relation, and records
+valid empty outcomes without recursively expanding the lookalike graph.
 `community-taxonomy-status` exposes queue counts, next queued jobs, and recent
 failures for service-role monitoring.
 

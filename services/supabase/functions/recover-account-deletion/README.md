@@ -1,10 +1,11 @@
 # Account Deletion Recovery
 
 `recover-account-deletion` is the public, capability-authenticated continuation
-for a deletion that `/safe-delete` already authorized. It exists because the
-account's Supabase Auth identity may be removed before the initiating device
-receives the HTTP receipt. It cannot initiate deletion and accepts no account,
-job, provider, or purchase identity.
+for a deletion that `/safe-delete` already authorized or for a protocol-v2
+preparation that may not have reached commit. It exists because the account's
+Supabase Auth identity may be removed before the initiating device receives the
+HTTP receipt. It cannot initiate deletion and accepts no account, job, provider,
+or purchase identity.
 
 The request is an exact object:
 
@@ -41,9 +42,11 @@ retained until acknowledgement and returns the distinctive bounded
 server-side hash match, iOS may conservatively finish the already-requested
 local sign-out and erasure and show the manual Apple notice. The same expired
 proof remains valid for the post-cleanup `acknowledge` operation; only after
-that durable receipt may iOS retire its proof. An unknown `404` never authorizes
-local cleanup or marker removal: an earlier authenticated request may still be
-committing after an ambiguous transport failure.
+that durable receipt may iOS retire its proof. An unknown legacy-v1 `404` never
+authorizes local cleanup or marker removal: an earlier authenticated request may
+still be committing after an ambiguous transport failure. An unknown v2 proof
+also cannot authorize cleanup, but it definitively permits unused proof/intent
+retirement because destructive commit requires a prior server preparation.
 
 Preparation expiry is not capability expiry. Expired v2 preparation hashes are
 first moved to the permanent private, identity-free
@@ -85,3 +88,17 @@ Executable coverage lives in `handler_test.ts`,
 `../safe-delete/protocol_test.ts`, `../safe-delete/db_recovery_test.ts`,
 `../_tests/accountDeletionMigrationContract.test.ts`, and
 `../../tests/account_deletion_security.sql`.
+
+On iOS, `Core/Network/Endpoints/MerianNetworkClient+AccountDeletion.swift` owns
+the public legacy/v2 recovery and acknowledgement calls. A fixed-route bridge
+delegates to the existing private capability-only transport; pure receipt and
+timestamp validation do not own Keychain retirement or local cleanup. See the
+[native ownership and verification matrix](../../../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification)
+for the mirrored suites and separate real-session evidence requirement.
+
+The checked-in v2 prepare handler currently omits
+`manual_provider_revocation_required`, which the shared native receipt requires.
+That incompatibility prevents iOS from reaching normal commit even though this
+recovery route's v2 contract is implemented. See the matrix's
+[known preparation-receipt mismatch](../../../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
+before treating separate native/backend test results as end-to-end evidence.

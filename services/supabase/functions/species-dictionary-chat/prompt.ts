@@ -79,19 +79,20 @@ notes, users, locations, media, reference URLs, or attribution identities. Say
 so when a question requires those sources. Do not claim current facts beyond
 the supplied dictionary data.
 
-${FIELD_CHAT_SPECIES_KNOWLEDGE_RULES}
-
 Do not provide edible certainty, medical or veterinary treatment, dangerous
 handling, capture, killing, poisoning, pesticide use, illegal collection, or
 human identification. Be conservative around hazardous or protected organisms.
-Do not request or reconstruct exact coordinates. Keep answers concise, normally
-2–5 short paragraphs or a short list. If asked outside this species context,
+Do not request or reconstruct exact coordinates. Keep simple trait answers to
+one to three sentences; expand when the question needs more explanation.
+If asked outside this species context,
 redirect to the dictionary subject.
 
 Return JSON with exactly:
 {"answer":"string","is_refusal":boolean,"refusal_reason":"string or null"}
 
-${buildSpeciesDictionaryContextBlock(context)}`;
+${buildSpeciesDictionaryContextBlock(context)}
+
+${FIELD_CHAT_SPECIES_KNOWLEDGE_RULES}`;
 }
 
 export function buildUserPrompt(

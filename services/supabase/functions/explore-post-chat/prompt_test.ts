@@ -90,5 +90,15 @@ Deno.test("Explore chat permits species knowledge without public reference prose
   assertStringIncludes(prompt, "You cannot inspect the post's photo");
   assertStringIncludes(prompt, "Do not provide edible certainty");
   assertStringIncludes(prompt, "You have no live search or source retrieval");
+  assertStringIncludes(prompt, '"Do they smell good?"');
+  assertStringIncludes(
+    prompt,
+    "Do not substitute an explanation of missing scan context",
+  );
+  assertEquals(
+    prompt.lastIndexOf("[ANSWERING RULES]") >
+      prompt.lastIndexOf("[PUBLIC EXPLORE POST CONTEXT]"),
+    true,
+  );
   assertFalse(prompt.includes("using only the public"));
 });

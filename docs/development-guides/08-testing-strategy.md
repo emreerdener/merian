@@ -3990,34 +3990,59 @@ device-evidence checks:
   identity key is skipped only for the source profile row. This is the shared
   identity-lifecycle boundary needed by account deletion; its broader merge
   assertions remain part of the separate Ghost release gate.
-- `MerianNetworkClientTests` returns `202 Accepted` from the mock route,
-  strictly requires the manual-provider disposition, and rejects a missing
-  field. `SupabaseManagerTests` proves the registration retry is bounded while
-  reusing one durable request. It also locks the credential-state matrix:
-  `.authorized` preserves the session, revoked/not-found/transferred states
-  clear it, and a lookup failure fails closed. Static source coverage requires
-  the provider-specific subject lookup and stale-identity fence.
-  Account-deletion transition tests separately prove the atomic two-proof
-  Keychain envelope is read-after-write verified before
-  `capability_preparation_pending`, non-destructive server prepare precedes
-  `capability_prepared_pending`, and the latter precedes destructive commit.
-  Both preparation markers admit only the deletion-owned recovery transition
-  after relaunch. Persistence failure makes no request; ambiguous/lost-response
+- `AccountDeletionEndpointTests` returns `202 Accepted` from its isolated mock
+  route, preserves the legacy nil body, strictly requires the manual-provider
+  disposition, and rejects a missing field.
+  `AccountDeletionRecoveryEndpointTests` owns the rehomed public recovery
+  regressions; `AccountDeletionRecoveryTransportTests` covers exact legacy/v2
+  proof keys, no user Auth, one bounded replay, response-size ordering, and
+  cancellation. `AccountDeletionAPIModelsTests`,
+  `AccountDeletionRecoveryValidationTests`, and
+  `AccountDeletionResponseDecoderTests` own exact payload/receipt decoding and
+  fixed-clock phase/status/expiry rules. `AccountDeletionBoundaryTests` protects
+  private transport, owner forwarding, validation order, and rehomes. The
+  existing protected shared-auth selector stays in `MerianNetworkClientTests`.
+  Run the
+  [account-deletion matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification).
+  V2 accepted-owner endpoint success is not simulated by weakening Auth: exact
+  payload/decoder tests and stale-owner rejection complement the existing
+  injected `SupabaseManagerTests` workflow coverage, with real-session
+  integration still required separately. `SupabaseManagerTests` proves the
+  registration retry is bounded while reusing one durable request. It also locks
+  the credential-state matrix: `.authorized` preserves the session,
+  revoked/not-found/transferred states clear it, and a lookup failure fails
+  closed. Static source coverage requires the provider-specific subject lookup
+  and stale-identity fence. Account-deletion transition tests separately prove
+  `capability_preparation_pending` precedes atomic creation/read-back
+  verification of the two-proof Keychain envelope and the first network
+  suspension; a valid non-destructive server prepare would then precede
+  `capability_prepared_pending`, which precedes destructive commit. Both
+  preparation markers admit only the deletion-owned recovery transition after
+  relaunch. Persistence failure makes no request; ambiguous/lost-response
   failures and legacy unknown recovery retain both authority and barrier; v2
-  `not_committed`/unknown recovery retires only unused intent; only explicit
-  `409 purchase_continuity_pending` advances an unaccepted intake through the
-  durable non-destructive `capability_rejection_retirement_pending` phase, a
-  receipt is owner-verified before `capability_cleanup_pending`, local sign-out
-  precedes purge, acknowledgement precedes capability retirement, verified
-  Keychain deletion precedes marker removal, accepted-retirement relaunch
-  repeats local cleanup, rejection-retirement relaunch removes only the unused
-  proof and marker, and matched-expired recovery takes only the conservative
-  cleanup-then-acknowledge path. `AppDIContainerTests` proves legacy Boolean and
-  pre-capability markers remain compatible, unknown future states fail closed
-  before local erasure, and the manual notice survives until explicit
-  resolution. `AccountDeletionRecoveryCapabilityTests` cover randomness,
-  existing-proof reuse, locked/unreadable Keychain, write verification, and
-  read-after-delete verification.
+  `not_committed`/unknown recovery retires only unused intent; explicit legacy
+  `409 purchase_continuity_pending` and definitive v2 noncommit evidence advance
+  an unaccepted intent through the durable non-destructive
+  `capability_rejection_retirement_pending` phase, a receipt is owner-verified
+  before `capability_cleanup_pending`, local sign-out precedes purge,
+  acknowledgement precedes capability retirement, verified Keychain deletion
+  precedes marker removal, accepted-retirement relaunch repeats local cleanup,
+  rejection-retirement relaunch removes only the unused proof and marker, and
+  matched-expired recovery takes only the conservative cleanup-then-acknowledge
+  path. `AppDIContainerTests` proves legacy Boolean and pre-capability markers
+  remain compatible, unknown future states fail closed before local erasure, and
+  the manual notice survives until explicit resolution.
+  `AccountDeletionRecoveryCapabilityTests` cover randomness, existing-proof
+  reuse, locked/unreadable Keychain, write verification, and read-after-delete
+  verification.
+- Those synthetic preparation fixtures include
+  `manual_provider_revocation_required`, while the checked-in handler's prepare
+  response does not. The native DTO requires that field and therefore rejects
+  the real response before commit. Passing the separate backend/native suites is
+  not round-trip evidence. See the
+  [known mismatch and integration checklist](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
+  and resolve it through coordinated wire-contract work before accepting v2
+  integration results.
 - Release evidence must separately exercise the chosen older-binary control.
   Either an old client follows a clear enforced-update path back to in-app
   deletion, or an independent server fallback durably delivers Apple's manual
@@ -5401,10 +5426,22 @@ and detail seeking still behaves as documented.
   refresh safety rules.
 - **Scheduled species model-content worker**:
   `refresh-species-model-content/db.test.ts` verifies request validation,
-  service-role job claiming, habitat/lookalike/group-tag persistence, and
-  provenance/job completion behavior with a mocked Supabase client. It should be
-  updated whenever the model-heavy `content_group` set or retry semantics
-  change.
+  service-role job claiming, outage recovery, partial-resolution retry,
+  persistence accounting, and job completion with a mocked Supabase client.
+  `lookalikeCandidates.test.ts` owns exact GBIF/synonym identity, response
+  bounds, taxonomy compatibility, deduplication, and provider-failure
+  classification. `_tests/speciesLookalikeRecoveryMigrationContract.test.ts`
+  locks service-only RPCs, read-only preview, versioned repair, and trigger
+  suppression. `tests/species_lookalike_recovery.sql` is the transactional
+  fresh-catalog evidence for queue ordering/backoff, one-time recovery,
+  curation/provenance preservation, identity conflicts, bounded fan-out, and
+  settled-empty behavior. It must execute through the database catalog runner; a
+  connection-refused skip is not passing evidence.
+- **Native similar-species identity**: `SpeciesDataTests` covers canonical
+  self/duplicate IDs, normalized scientific names, missing or malformed IDs, and
+  distinct species sharing one common name. `FieldChatPresentationTests`
+  verifies the matching comparison prompt uses the scientific name when the
+  common label repeats.
 - **Species dictionary enrichment migration contract**:
   `_tests/speciesContentMigrationContract.test.ts` reads
   `20260707153931_species_dictionary_enrichment_queue_backfill.sql` directly and

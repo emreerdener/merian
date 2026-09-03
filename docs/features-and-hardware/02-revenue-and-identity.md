@@ -52,18 +52,21 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   its token may adopt a destination or mutate the SDK session. Competing
   controls disable, stale provider/controller callbacks are ignored, and every
   account-bound write rechecks the live source/destination after suspension.
-  Confirmed deletion additionally verifies an atomic device-only envelope with
-  distinct recovery and acknowledgement capabilities. It persists
-  `capability_preparation_pending`, completes the server's non-destructive
-  prepare, persists `capability_prepared_pending`, and then persists
-  `capability_intake_pending` before destructive commit. It fences every other
-  account operation and replays only the JWT-derived idempotent commit or
-  account-free proof recovery after a lost response. `not_committed` preserves
-  the account and retires only local intent; a success receipt advances through
-  cleanup, independent acknowledgement, and capability retirement. Verified
-  Keychain envelope removal precedes marker clearing. The blocking
-  foreground/cold-launch recovery UI never stores or displays an internal user,
-  job, provider, request, or purchase identity.
+  Confirmed deletion first persists `capability_preparation_pending`, then
+  verifies an atomic device-only envelope with distinct recovery and
+  acknowledgement capabilities before the first network suspension. It is
+  intended to complete the server's non-destructive prepare, persist
+  `capability_prepared_pending`, and then persist `capability_intake_pending`
+  before destructive commit. It fences every other account operation and replays
+  only the JWT-derived idempotent commit or account-free proof recovery after a
+  lost response. `not_committed` preserves the account and retires only local
+  intent; a success receipt advances through cleanup, independent
+  acknowledgement, and capability retirement. Verified Keychain envelope removal
+  precedes marker clearing. The blocking foreground/cold-launch recovery UI
+  never stores or displays an internal user, job, provider, request, or purchase
+  identity. The current prepare response is incompatible with native receipt
+  decoding; see the
+  [Core Network contract finding](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
 - **Identity Resolution & OAuth**: Merian uses standard Apple
   (`ASAuthorizationAppleIDProvider`) and Google (`GIDSignIn`) iOS libraries to
   authenticate without web-view redirects.

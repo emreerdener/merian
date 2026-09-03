@@ -12,6 +12,11 @@ unsupported current/local facts. Only the requesting viewer can load, send,
 delete, or rate messages in that conversation; it is not visible to other
 viewers.
 
+The answer rules follow the public context projection, so an `Unavailable`
+projection field limits only claims about the post. Casual pronouns in a typical
+trait question refer to the identified species unless the user explicitly asks
+about the individual in the post.
+
 Access requires the same durable server-side Pro projection as Insight Field
 Chat. An active store subscription, receipt-backed free trial, or explicitly
 approved finite RevenueCat beta promotion qualifies only after it reaches

@@ -15,6 +15,9 @@ Status: UUID-based iOS/Edge/web routing and readable public slugs implemented.
 - [x] Include `species_id` in hydrated similar-species payloads from
       `/enrich-scan`, `/get-explore-post-detail`, and `/species-dictionary` when
       the entry is backed by `species_dictionary`.
+- [x] Filter the current species and duplicate lookalikes by canonical UUID,
+      with normalized scientific name as the historical fallback. A shared
+      common name remains a display label rather than an identity match.
 - [x] Ship stable UUID web/deep-link routing at `/species/{speciesId}`.
 - [x] Add readable canonical paths at `/species/{speciesId}/{slug}` without
       replacing the stable UUID identity. Slugs are derived from the current
@@ -104,6 +107,15 @@ Current rules:
 - `refresh-species-model-content` runs through the same service-role cron
   pattern with `limit = 12` and claims `habitat`, `lookalikes`, and `group_tags`
   jobs.
+- Its lookalike path validates at most three exact accepted GBIF identities,
+  materializes missing dictionary candidates through one bounded transaction,
+  and preserves reviewed relations and curated provenance.
+- Provider, partial-resolution, taxonomy, and identity-race failures retain
+  normal retry/backoff. Resolution-complete empty, incompatible, duplicate, or
+  reviewed-rejected results settle without repeated model calls.
+- Eligible legacy empty successes and exhausted failures with no nonrejected
+  relation receive one versioned recovery attempt. Candidate materialization
+  cannot recursively enqueue lookalike generation or trigger same-genus fan-out.
 - New species dictionary inserts enqueue only missing enrichment groups with
   `source_trigger = 'species_dictionary_insert'`; the sparse-row backfill uses
   `source_trigger = 'species_dictionary_sparse_backfill'`.
@@ -117,8 +129,9 @@ data deliberately instead of overwriting fields blindly.
 
 ## Scope 5 — Stronger Lookalike Modeling
 
-Status: SQL/Edge/iOS additive metadata implemented; curation workflow still
-planned.
+Status: SQL/Edge/iOS additive metadata, exact-identity materialization, bounded
+legacy recovery, and client identity filtering implemented; curation workflow
+still planned.
 
 - [x] Extend `species_lookalikes` with relation metadata: `reason`,
       `visual_traits`, `confidence`, `source`, `review_status`,
@@ -127,6 +140,12 @@ planned.
       public `reason` and `visual_traits` fields.
 - [x] Keep relation direction explicit; do not assume every lookalike
       relationship is symmetric.
+- [x] Resolve scheduled candidates through exact GBIF identity and repeat the
+      kingdom/order-or-family boundary in the database transaction.
+- [x] Distinguish retryable provider or incomplete-resolution failures from
+      verified terminal empty results.
+- [x] Preserve reviewed relationships and curated provenance while rebuilding
+      the compatibility cache from all nonrejected directional relations.
 - [ ] Build review/curation tooling for approving, rejecting, reordering, and
       manually editing lookalike relationships.
 

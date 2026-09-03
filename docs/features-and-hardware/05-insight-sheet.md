@@ -64,6 +64,13 @@ individual or cultivar variation. General knowledge is not evidence that a trait
 was observed in this specimen, and does not provide live search, current/local
 facts, or additional access to media or private data.
 
+The backend places these answer rules after the saved scan context. It treats
+`Unavailable` as a record limitation and casual pronouns in typical-trait
+questions as references to the identified species. Straightforward questions
+receive the direct species fact first; only questions explicitly about the
+current individual require observation evidence. Chat answers share one Gemini
+request contract across Insight, Explore, and Dictionary hosts.
+
 Field-note drafts use recorded scan evidence and explicit observations reported
 by the user. General species facts in assistant replies or dictionary prose,
 questions, hypotheticals, and suggested checks must not become recorded

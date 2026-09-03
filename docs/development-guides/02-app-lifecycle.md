@@ -109,11 +109,11 @@ AVFoundation hardware.
 
 Before any ordinary active-phase work, the app root checks the identity-free
 `pendingLocalAccountDeletionCleanup.v1` barrier. A backend-accepted deletion
-uses capability preparation, intake, cleanup, and retirement phases. Before the
-first request suspension, iOS atomically read-after-write verifies distinct
-recovery and acknowledgement capabilities in device-only Keychain. It records
-`capability_preparation_pending`, calls the non-destructive server prepare,
-records `capability_prepared_pending`, and then records
+uses capability preparation, intake, cleanup, and retirement phases. iOS first
+records `capability_preparation_pending`, then atomically read-after-write
+verifies distinct recovery and acknowledgement capabilities in device-only
+Keychain before the first request suspension. It is intended to call the
+non-destructive server prepare, record `capability_prepared_pending`, and record
 `capability_intake_pending` before destructive commit. It keeps the exact cached
 session solely so that JWT-derived, idempotent commit can be replayed after a
 crash or lost response. Both preparation markers are admitted back into that
@@ -125,8 +125,10 @@ SwiftData purge. Acknowledgement then advances to
 `capability_retirement_pending`; verified proof removal precedes marker removal.
 Retirement relaunches re-run verified local sign-out and idempotent purge before
 proof removal. Launch and foreground show a blocking recovery surface and retry
-with bounded backoff. Only explicit `409 purchase_continuity_pending` may retire
-an unaccepted intent. The app first persists
+with bounded backoff. Unused-intent retirement requires definitive noncommit
+evidence: legacy intake needs explicit `409 purchase_continuity_pending`; v2
+accepts `not_committed` or a genuinely unknown proof, and a live v2 `409` must
+still be confirmed as `not_committed`. The app first persists
 `capability_rejection_retirement_pending`, then verifies removal of the unused
 Keychain proof before clearing the barrier. Relaunch in that phase never signs
 out or purges local data. Legacy unknown proofs and all ambiguous failures
@@ -139,6 +141,9 @@ anonymous/account kind must match exactly. A tombstoned expired preparation
 retired during another device's commit is non-authorizing and retains the
 barrier. Only a server-matched expired committed capability permits conservative
 local erasure. Legacy `intake_pending` and `cleanup_pending` remain readable.
+The checked-in prepare response is currently incompatible with native receipt
+decoding; see Core Network's
+[known mismatch](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
 This prevents a terminated deletion from restoring the source account or later
 erasing a newly signed-in account's cache.
 

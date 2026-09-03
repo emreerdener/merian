@@ -522,6 +522,47 @@ struct SpeciesDataTests {
         #expect(entry.displayCommonName(comparedTo: "Cane Cholla") == "Texas Prickly Pear")
     }
 
+    @Test func testSimilarSpeciesKeepsDistinctSpeciesWithTheSameCommonName() {
+        let similar = SimilarSpecies(entries: [
+            SimilarSpeciesEntry(scientificName: "Pyracantha angustifolia", commonName: "Firethorn", referenceImageUrl: nil, iucnRedListStatus: nil),
+            SimilarSpeciesEntry(scientificName: "Pyracantha coccinea", commonName: "Firethorn", referenceImageUrl: nil, iucnRedListStatus: nil),
+            SimilarSpeciesEntry(scientificName: "Pyracantha fortuneana", commonName: " firethorn ", referenceImageUrl: nil, iucnRedListStatus: nil),
+            SimilarSpeciesEntry(scientificName: " PYRACANTHA\n  COCCINEA ", commonName: "Duplicate", referenceImageUrl: nil, iucnRedListStatus: nil)
+        ])
+
+        let filtered = similar.filteredEntries(excludingScientificName: "Pyracantha angustifolia")
+
+        #expect(filtered.map(\.scientificName) == ["Pyracantha coccinea", "Pyracantha fortuneana"])
+        #expect(filtered.allSatisfy { $0.displayCommonName(comparedTo: "Firethorn") == nil })
+    }
+
+    @Test func testSimilarSpeciesExcludesCanonicalSelfAndDuplicateIdentitiesAcrossNames() {
+        let currentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        let relatedId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        let similar = SimilarSpecies(entries: [
+            SimilarSpeciesEntry(scientificName: "Current species alias", commonName: "Shared label", referenceImageUrl: nil, iucnRedListStatus: nil, speciesId: currentId.uppercased()),
+            SimilarSpeciesEntry(scientificName: "Related species", commonName: "Shared label", referenceImageUrl: nil, iucnRedListStatus: nil, speciesId: relatedId),
+            SimilarSpeciesEntry(scientificName: "Related species alias", commonName: "Another label", referenceImageUrl: nil, iucnRedListStatus: nil, speciesId: " \(relatedId.uppercased()) ")
+        ])
+
+        let filtered = similar.filteredEntries(
+            excludingScientificName: "Current species",
+            excludingSpeciesId: currentId
+        )
+
+        #expect(filtered.map(\.scientificName) == ["Related species"])
+    }
+
+    @Test func testSimilarSpeciesFallsBackToScientificNamesForMissingOrInvalidIDs() {
+        let similar = SimilarSpecies(entries: [
+            SimilarSpeciesEntry(scientificName: "Pyracantha coccinea", commonName: "Firethorn", referenceImageUrl: nil, iucnRedListStatus: nil, speciesId: "unresolved"),
+            SimilarSpeciesEntry(scientificName: "Pyracantha fortuneana", commonName: "Firethorn", referenceImageUrl: nil, iucnRedListStatus: nil, speciesId: "unresolved"),
+            SimilarSpeciesEntry(scientificName: "Pyracantha koidzumii", commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)
+        ])
+
+        #expect(similar.filteredEntries(excludingScientificName: "Pyracantha angustifolia").count == 3)
+    }
+
     // MARK: - Identification Review: aiScientificName & override fields
 
     @Test func testAIScientificNameSetFromEdgeResponseInit() throws {

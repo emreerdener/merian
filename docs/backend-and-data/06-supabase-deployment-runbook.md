@@ -1144,6 +1144,62 @@ consumer, which requires schema version 1 and matching response identity before
 caching. Roll back with forward migrations/functions only; do not hand-edit or
 remove the generated column from an applied environment.
 
+### Species Lookalike Recovery Release Gate
+
+Migration `20260903163744_recover_species_lookalike_enrichment.sql` must land
+before the matching `refresh-species-model-content` bundle. The new worker
+requires `claim_species_model_enrichment_jobs(...)` and
+`persist_species_model_lookalikes(...)`. The migration does not requeue legacy
+rows by itself; it writes the recovery marker only when the new worker claims an
+eligible job, so applying it while the previous worker is still deployed is
+safe. The iOS UUID/scientific-name filtering change is rollout-independent and
+remains compatible with older payloads.
+
+Preflight:
+
+```bash
+deno check --frozen \
+  --config services/supabase/functions/refresh-species-model-content/deno.json \
+  services/supabase/functions/refresh-species-model-content/index.ts
+
+deno test --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-env --allow-read=. \
+  services/supabase/functions/refresh-species-model-content/db.test.ts \
+  services/supabase/functions/refresh-species-model-content/lookalikeCandidates.test.ts \
+  services/supabase/functions/_tests/speciesLookalikeRecoveryMigrationContract.test.ts
+
+make validate-supabase-migrations
+make test-supabase-privileged-routines
+```
+
+The database gate must execute
+`services/supabase/tests/species_lookalike_recovery.sql` against a disposable,
+fully migrated catalog. It verifies exact service-role ACLs, preview/claim
+ordering, normal backoff, running-job exclusion, one-time versioning, bounded
+candidate writes, same-genus trigger suppression, other hydration queues,
+review/provenance preservation, idempotence, identity conflicts, and terminal
+empty outcomes. A skipped or connection-refused fixture is not passing evidence.
+
+After the authorized Function deployment, send a service-role `dry_run` limited
+to `content_groups: ["lookalikes"]`. Confirm its preview is priority ordered and
+does not change attempts, locks, status, or
+`metadata.lookalike_resolution_version`. Then run one explicitly bounded worker
+batch and inspect only aggregate queue health: a provider or identity-resolution
+failure must remain failed/retryable, a partial result may persist usable
+relations while remaining retryable, and a resolution-complete empty result may
+finish as `no_data`. Confirm newly materialized candidates receive reference,
+habitat, and group-tag jobs without a lookalike job or automatic same-genus
+fan-out.
+
+Stop the rollout if the RPCs are absent, executable by an API role, return
+malformed accounting, overwrite reviewed relations/curated provenance, or if
+lookalike failures are completing as `no_data`. Use a forward migration or
+Function rollback tied to the reviewed SHA. Never infer failure from an empty
+relation set, blanket-reset `lookalikes_flash_attempted`, or manually reopen
+legacy rows; a verified empty result is terminal and the versioned claim is the
+only recovery owner.
+
 ### Public Species Observation Stats Release Gate
 
 Migration `20260724170709_harden_species_observation_stats.sql` must land before
@@ -1354,6 +1410,14 @@ a critical monitor result. Its current transport sends a modern `sb_secret_...`
 Vault key only in `apikey`, or a legacy service-role JWT in both `apikey` and
 Bearer Authorization. The value must match an active project server key. Do not
 replace only the Vault value; rotate it and the project key together.
+
+This release unit is not currently promotable: the checked-in v2 prepare
+response omits `manual_provider_revocation_required`, which the native receipt
+decoder requires. A successful server preparation therefore becomes
+`invalidResponse` on iOS and normal commit is never dispatched. Resolve the
+[known server/native contract mismatch](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
+and add an actual handler-response-to-native-decoder regression before using the
+remaining checks as release evidence.
 
 The release must also satisfy the normative
 [scientific-observation retention contract](./17-scientific-observation-retention.md),
@@ -1820,11 +1884,11 @@ before token capture was deployed. Confirm:
     disposable matched-expired fixture permits conservative local erasure,
     expiry-tolerant cleanup acknowledgement, and proof retirement without
     falsely claiming Apple-provider revocation;
-20. for protocol v2, terminate after the two-proof Keychain envelope, after
-    non-destructive prepare but before commit, and after commit loses its HTTP
-    response. The first two cases must recover as `not_committed` and preserve
-    Auth/SwiftData; the committed case must recover pending/completed and
-    perform cleanup exactly once;
+20. after resolving the preparation-receipt mismatch, for protocol v2, terminate
+    after the two-proof Keychain envelope, after non-destructive prepare but
+    before commit, and after commit loses its HTTP response. The first two cases
+    must recover as `not_committed` and preserve Auth/SwiftData; the committed
+    case must recover pending/completed and perform cleanup exactly once;
 21. prepare deletion from two devices for the same staging account, commit from
     one device (including the legacy authenticated intake path), and prove both
     recovery proofs resolve the same deletion job. Neither device may observe

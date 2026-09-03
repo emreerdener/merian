@@ -162,35 +162,60 @@ are complete.
 
 `DeleteAccountSheet` delegates confirmation state to `DeleteAccountViewModel`.
 Its injected `AccountDeletionDependencies` delegates the authenticated
-`safe-delete` request and recovery ordering to `SupabaseManager`, while the
-separate local-purge adapter owns repository access. Every successful `2xx`
-response remains an accepted deletion. A `200` means relational cleanup, delayed
-R2 verification, and Auth removal were already fully complete; a new request
-normally returns `202` because the durable server-side reaper must sweep and
-later verify storage before deleting Auth. Both responses are safe points for
-local sign-out and device-data cleanup. While sign-out purchase continuity is
-pending, the Settings action and confirmation button remain disabled. The server
-independently returns `409 purchase_continuity_pending` so a stale or second
-client cannot delete the source or exact bound anonymous destination; the user
-must finish sign-out first.
+`safe-delete` preparation/commit and recovery ordering to `SupabaseManager`,
+while the separate local-purge adapter owns repository access. A validated
+pending/`202` or completed/`200` receipt accepts deletion; prepared/`200` and an
+arbitrary successful `2xx` do not. Completed means relational cleanup, delayed
+R2 verification, provider disposition, and Auth removal are confirmed. A new
+commit normally returns pending/`202` because the durable server-side reaper
+must sweep and later verify storage before deleting Auth. Accepted pending and
+completed receipts are safe points for local sign-out and device-data cleanup.
+While sign-out purchase continuity is pending, the Settings action and
+confirmation button remain disabled. The server independently returns
+`409 purchase_continuity_pending` so a stale or second client cannot delete the
+source or exact bound anonymous destination; the user must finish sign-out
+first.
 
-Before the request is dispatched, the confirmation flow creates and verifies a
-random device-only Keychain capability, then records the identity-free
-`capability_intake_pending` marker. It blocks every other Auth transition and
-account-bound request, but retains the exact cached session so `/safe-delete`
-can be replayed after a crash or ambiguous response. When Auth is unavailable,
-the app recovers through the capability-only public route. The recovery overlay
-remains visible and retries with bounded backoff. A valid receipt advances
-through `capability_cleanup_pending`, local Supabase sign-out, synchronous
+The manager's v2 path first persists `capability_preparation_pending`, then
+creates or loads the read-after-write-verified device-only Keychain envelope.
+New envelopes contain separate recovery and acknowledgement proofs. Before any
+destructive commit, it sends both proofs through non-destructive prepare,
+requires a valid prepared receipt, persists `capability_prepared_pending`, and
+then persists `capability_intake_pending`. The transition blocks ordinary Auth
+and account work while retaining its exact cached session. Relaunch uses public
+proof recovery rather than starting another deletion. Existing v1 proofs keep
+their legacy intake/replay path; they are not rewritten into v2 mid-recovery.
+
+A valid accepted receipt advances through `capability_cleanup_pending`, durable
+manual-provider notice recording, verified local Supabase sign-out, synchronous
 private-map derived-state reset, SwiftData purge, server acknowledgement, and
-`capability_retirement_pending`; verified Keychain removal precedes marker
-clearing. A received `409 purchase_continuity_pending` proves intake did not win
-and clears the pre-request marker/proof so the sheet can direct the user to
-finish sign-out. An unknown proof or ambiguous error never does. A
-server-matched expired proof permits conservative local erasure, followed by an
-expiry-tolerant acknowledgement and verified proof retirement.
+`capability_retirement_pending`. V2 acknowledgement uses only its independent
+second proof after local cleanup. Verified Keychain removal precedes marker
+clearing; the recovery overlay remains visible with bounded retry while a phase
+is unresolved.
 
-Every successful response must also contain
+Definitive cancellation is separate from accepted-deletion cleanup. For v2,
+`not_committed` or a genuinely unknown proof retires only the unused proof and
+intent, preserving local data and restoring only the same eligible cached
+session. Legacy unknown proofs and ambiguous errors retain the barrier. A
+received `409 purchase_continuity_pending` permits legacy rejection retirement;
+v2 additionally requires recovery to establish `not_committed`. The workflow
+persists `capability_rejection_retirement_pending` before verified proof removal
+and clears the marker last, without signing out or purging. A matched committed
+capability's `account_deletion_recovery_expired` permits conservative cleanup
+with the manual notice and expiry-tolerant acknowledgement; the distinct
+`account_deletion_recovery_preparation_expired` never authorizes erasure.
+
+Core Network owns the six wire methods and pure receipt/proof validation, not
+Settings or the Keychain store. See its
+[ownership guide](../../../Core/Network/README.md#account-deletion-and-recovery-ownership),
+[known preparation-receipt mismatch](../../../Core/Network/README.md#known-preparation-receipt-mismatch),
+and
+[integration checklist](../../../Core/Network/README.md#account-deletion-integration-checklist).
+The checked-in preparation response currently fails native decoding; the
+required workflow above is not a claim of successful end-to-end execution.
+
+Every accepted-deletion or public-recovery receipt must also contain
 `manual_provider_revocation_required`. When true, `SupabaseManager` records the
 durable app-level notice before sign-out. The root app then presents Apple's
 Settings/support instructions on launch and foreground until the user explicitly
@@ -198,9 +223,9 @@ confirms removal. New Apple accounts normally use automatic server-side
 revocation; this fallback exists for accounts authorized before a refresh token
 could be captured. The confirmation sheet explains both paths.
 
-Older binaries do not implement the required receipt field or durable notice.
-App Store availability of the supporting build is not proof that those clients
-received the fallback. Public promotion requires either an enforceable
+Older binaries do not implement the required accepted-receipt field or durable
+notice. App Store availability of the supporting build is not proof that those
+clients received the fallback. Public promotion requires either an enforceable
 minimum-supported-build control with a clear update path back to this in-app
 deletion flow, or an independent server-delivered manual fallback.
 

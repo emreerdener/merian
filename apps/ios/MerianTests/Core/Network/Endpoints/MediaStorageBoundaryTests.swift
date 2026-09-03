@@ -30,7 +30,7 @@ struct MediaStorageBoundaryTests {
             #expect(client.contains(token))
         }
         for method in ["shareScanToExplore", "requestCommunityIdentification", "ensureCloudScanAvailableForFieldChat",
-                       "recoverMissingOwnedCloudScan", "restoreExploreMediaObjectKeys", "safeDeleteAccount", "identifyMultiModal"] {
+                       "recoverMissingOwnedCloudScan", "restoreExploreMediaObjectKeys", "identifyMultiModal"] {
             #expect(client.contains("func \(method)("), "Leave caller workflow in its existing owner: \(method)")
         }
     }

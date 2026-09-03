@@ -338,7 +338,8 @@ behavior.
   orchestrator), `resolveLookalikesToJoinTable` (maps Gemini-generated
   scientific names to join-table rows, back-fills `common_names`, and only
   persists entries that resolve to real `species_dictionary` rows with matching
-  taxonomy), `clearLookalikesForSpecies(speciesId, supabase)` (deletes all
+  taxonomy on the foreground path),
+  `clearLookalikesForSpecies(speciesId, supabase)` (deletes all
   `species_lookalikes` join table rows for a species, used for stale-cache
   invalidation), and `updateSpeciesEnrichment` (dictionary update attempts).
   Lookalike thumbnail URLs prefer `species_reference_images` and fall back to
@@ -346,7 +347,10 @@ behavior.
   now requires a real primary `kingdom` plus either `order` or `family`, then
   rejects any candidate lacking a matching real `kingdom` and matching `order`
   or fallback `family`. Candidates with missing taxonomy or no dictionary row
-  are dropped rather than returned as provisional Flash stubs. **Stale cache
+  are omitted from the foreground response. The scheduled
+  `refresh-species-model-content` worker separately resolves candidates through
+  exact GBIF identities and can materialize a missing dictionary row through the
+  bounded `persist_species_model_lookalikes(...)` transaction. **Stale cache
   detection** (`index.ts`): after fetching from the join table, if the primary
   species has a known `order` and all cached lookalikes carry a different known
   order, or if order is unavailable but family is known and all cached
@@ -393,13 +397,13 @@ retain admission, scheduling, presentation, and persistence. The hand-written
    available. The wire formatter also retains the legacy TEXT[] fallback
    described in the API contract; historical hydration separately supports old
    local string arrays.
-   - **Client-side filtering:** `SimilarSpeciesGallery` removes entries whose
-     scientific name matches the active species and deduplicates repeated
-     scientific names before rendering. If a remaining lookalike shares the
-     active species' common name, the card suppresses the duplicate common-name
-     label so the scientific name remains the primary differentiator.
+   - **Client-side filtering:** `SimilarSpeciesGallery` removes the active
+     species and duplicates by canonical species UUID when available, then by
+     normalized scientific name. A shared common name is not an identity match.
+     The card suppresses a repeated common-name label and leaves the scientific
+     name as the primary differentiator.
 
-   **Common name resolution for lookalike species — three-tier priority:**
+   **Lookalike identity and common-name resolution:**
    - **Tier 1 (dictionary):** `fetchLookalikesFromJoinTable` reads
      `species_dictionary.common_names["en"]` via the embedded PostgREST join.
      This is the fast, zero-Flash path for all species that have been scanned at
@@ -413,21 +417,28 @@ retain admission, scheduling, presentation, and persistence. The hand-written
      `COALESCE(common_names, '{}') || jsonb_build_object('en', p_en_name)` with
      a `NOT (common_names ? 'en')` guard so it is always a safe no-op for
      species that already have English.
-   - **Tier 3 (drop-on-miss):** If the lookalike species is not yet in
-     `species_dictionary` at all, or if its taxonomy cannot validate against the
-     primary species, the entry is dropped. The long-term fix deliberately
-     prefers "no card yet" over provisional unrelated cards.
+   - **Scheduled exact-identity recovery:** The scheduled model worker validates
+     at most three candidates through an exact accepted GBIF species identity,
+     following an exact synonym once to its accepted identity. It creates a
+     missing dictionary row from that proof, rechecks kingdom and order/family
+     in the database transaction, and writes one directional relation. Provider
+     failures, incomplete identities, and database identity races remain
+     retryable. Proven incompatibility and reviewed rejection are settled
+     outcomes.
 
    **`lookalikes_flash_attempted` flag**
    (`species_dictionary.lookalikes_flash_attempted BOOLEAN NOT NULL DEFAULT false`,
-   migration `20260330160000`): Set to `true` in `enrich-scan/index.ts` after a
-   Flash-sourced `resolveLookalikesToJoinTable` call completes — **only when
-   `resolveResult.persisted === true`** (i.e. rows were actually written to the
-   `species_lookalikes` join table). The flag is NOT set when the function
-   returned early without writing (for example, missing usable primary taxonomy
-   or all-failed validation). This is a critical guard: locking the flag when
-   the join table was skipped would permanently prevent future enrichment
-   retries for species whose taxonomy had not yet been enriched.
+   migration `20260330160000`): Foreground `enrich-scan` sets the flag only when
+   a Flash-sourced `resolveLookalikesToJoinTable` call returns
+   `resolveResult.persisted === true`. The scheduled worker also sets it after a
+   relation is persisted or after a resolution-complete result proves that the
+   bounded candidate set is empty, incompatible, duplicate, or
+   reviewed-rejected. A partial result remains a failed/retryable queue job; if
+   it persisted at least one valid relation, the flag is still true so
+   foreground scans use that cache while the scheduled worker retries the
+   unresolved candidates. Missing taxonomy, provider outages, incomplete
+   identities, and database identity races with no persisted relation leave the
+   flag false.
    ```typescript
    const hasLookalikes = lookalikes.some((l) => l.common_name !== null) ||
      cachedSpecies?.lookalikes_flash_attempted === true;
@@ -439,14 +450,12 @@ retain admission, scheduling, presentation, and persistence. The hand-written
    **not** set by the legacy TEXT[] migration path so those species still
    trigger Flash once.
 
-   **Recovery query for species incorrectly flagged before this guard was
-   added** (covers both the empty-array case and the null-kingdom early-exit):
-   ```sql
-   UPDATE species_dictionary
-   SET lookalikes_flash_attempted = false
-   WHERE lookalikes_flash_attempted = true
-     AND id NOT IN (SELECT DISTINCT species_id FROM species_lookalikes);
-   ```
+   An empty relation set can therefore be a valid terminal result. Do not use an
+   empty join table as a blanket reset signal. Migration
+   `20260903163744_recover_species_lookalike_enrichment.sql` gives eligible
+   legacy empty successes and exhausted failures with no nonrejected relation
+   one versioned queue attempt. The marker is written only when the new worker
+   claims the job, so the migration can safely precede the worker deployment.
 5. Each child queues only its own field snapshots through
    `executeSpeciesMetadataWrite` and
    `BackgroundDatabaseActor.updateScanWithEnrichment`. The lookalike child
@@ -658,8 +667,11 @@ provider dispatch:
     `species_enrichment_jobs`, falls back to `species_content_provenance`, and
     refreshes GBIF/Wikipedia-backed public fields. The paired
     `refresh-species-model-content` worker handles queued habitat, lookalikes,
-    and group tags; IUCN status, hazard type, and common-name overrides remain
-    curation-owned.
+    and group tags. Its lookalike path distinguishes retryable provider or
+    identity failures from verified empty outcomes, validates candidates through
+    GBIF, and uses a bounded database transaction that preserves reviewed
+    relations and curated provenance. IUCN status, hazard type, and common-name
+    overrides remain curation-owned.
 - **Flat Object Schema (Non-Biological Bounds)**: `merianModelContract` in
   `services/supabase/functions/_shared/identify/contract.ts` generates a single
   flat `OBJECT` provider schema — not a top-level `anyOf` with discriminated

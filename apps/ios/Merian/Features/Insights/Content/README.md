@@ -37,6 +37,17 @@ Mirrored tests under `MerianTests/Features/Insights/Content` enforce the
 directory boundary, Services-only live resolution, view networking ban,
 platform-neutral Models, legacy-owner removal, and the line ceiling.
 
+## Similar Species
+
+`BiologicalView` renders the shared `SimilarSpeciesGallery` at card entrance
+index 8 and uses `isLookalikesLoading` for its independent skeleton transition.
+It supplies `activeConfirmedSpeciesId` as the current canonical identity;
+normalized scientific name remains the fallback for historical records without
+one. Shared common names never remove a distinct species. Gallery filtering,
+image fallback, and navigation behavior remain owned by
+`Features/SpeciesReference`, while `SpeciesDataTests` owns the identity
+regressions.
+
 ## Audio Subject Routing
 
 Audio results use the existing `SpeciesData` and content router. Human-only

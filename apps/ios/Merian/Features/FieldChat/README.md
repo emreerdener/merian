@@ -319,6 +319,10 @@ instruction-like, emoji, control-bearing, or U+FEFF-bearing input. Swift and
 Deno execute the same fixture vectors for ASCII hyphen, U+2013 EN DASH,
 punctuation, combining marks, non-BMP input, U+FEFF, and U+0085.
 
+Lookalike suggestion chips use the same UUID/scientific-name identity boundary
+as the gallery. A distinct lookalike sharing the current species' common name is
+retained and named by scientific name so the comparison remains unambiguous.
+
 See:
 
 - [`insight-chat` route contract](../../../../../services/supabase/functions/insight-chat/README.md)
@@ -349,7 +353,8 @@ See:
   its existing protected selector.
 - Presentation, view-model state, preparation, dependency routing, stale-work
   fencing, and architecture coverage live under
-  `MerianTests/Features/FieldChat/`.
+  `MerianTests/Features/FieldChat/`. `FieldChatPresentationTests` includes the
+  shared-common-name lookalike prompt regression.
 - `FieldChatArchitectureTests` enforces the cross-feature owner,
   platform-neutral Models, Services-only live resolution, and the 600-line
   production-file ceiling.

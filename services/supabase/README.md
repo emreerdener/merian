@@ -486,6 +486,10 @@ transaction writes the idempotent storage job, tombstones relational data, and
 verifies that the public profile and original scan ownership are gone. Auth
 Admin deletion is forbidden until R2 erasure is durably verified.
 
+Migration `20260813142638_prepare_account_deletion_recovery_v2.sql` adds a
+non-destructive two-proof preparation before destructive intake. Recovery and
+acknowledgement hashes are domain-separated from each other and legacy v1.
+
 Migration `20260725035737_repair_tombstone_profile_seed.sql` is an intentional
 no-op compatibility bridge for production run 1461, where the attempted
 public-only tombstone profile correctly failed the existing
@@ -597,6 +601,14 @@ can become 180-day capabilities. Tombstones cannot be reused. A proof that
 expired without a commit remains `not_committed`, while a proof retired during a
 different device's deletion commit returns the distinct non-authorizing
 `account_deletion_recovery_preparation_expired` state.
+
+The checked-in v2 prepare response is not currently compatible with iOS. The
+handler omits `manual_provider_revocation_required`; native
+`AccountDeletionReceipt` requires it and maps that successfully persisted
+preparation response to `invalidResponse`, preventing normal commit. Separate
+backend and synthetic native suites do not prove this round trip. Resolve the
+[known server/native contract mismatch](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
+before promotion or live deletion verification.
 
 Production deployment validates the reaper with one authenticated exact
 `{"dry_run":true}` request. It returns before creating a client, claiming work,
@@ -2504,7 +2516,8 @@ From the repo root, point the Supabase CLI at the backend service directory:
 supabase --workdir services start
 
 # Serve edge functions locally
-supabase --workdir services functions serve <function_name>
+FUNCTION_NAME=your-function-name
+supabase --workdir services functions serve "$FUNCTION_NAME"
 ```
 
 ### Ghost User Audit

@@ -186,6 +186,21 @@ Deno.test("Insight chat permits species facts absent from saved evidence", () =>
     instruction,
     "You have no live search or source retrieval",
   );
+  assertStringIncludes(instruction, '"Do they smell good?"');
+  assertStringIncludes(
+    instruction,
+    "Do not substitute an explanation of missing scan context",
+  );
+  assertEquals(
+    instruction.lastIndexOf("[ANSWERING RULES]") >
+      instruction.lastIndexOf("[SAVED SCAN CONTEXT]"),
+    true,
+  );
+  assertEquals(
+    instruction.lastIndexOf("[RESPONSE FORMAT]") >
+      instruction.lastIndexOf("[ANSWERING RULES]"),
+    true,
+  );
   assertEquals(instruction.includes("initial AI reasoning only"), false);
 });
 

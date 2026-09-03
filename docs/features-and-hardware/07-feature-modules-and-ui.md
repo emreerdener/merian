@@ -1626,7 +1626,11 @@ dependency composition.
   only in supporting binaries. Public promotion remains blocked until older
   clients are covered by an enforceable minimum-supported-build control or an
   independent server-delivered fallback; publishing the new build alone is
-  insufficient.
+  insufficient. The current protocol-v2 prepare response is also incompatible
+  with native receipt decoding, so iOS stops before normal commit. See the
+  [Core Network finding](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch);
+  the intended presentation/workflow above is not end-to-end completion evidence
+  until that contract is reconciled.
 - **Individual Scan Deletion**: Every single and batch deletion confirmation
   explains that a published scan owns its Explore post and that proceeding
   permanently removes the post, likes, and comments. This explicit destructive

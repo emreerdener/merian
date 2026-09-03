@@ -363,22 +363,26 @@ mutation orchestration; SwiftUI retains animation and sheet timing.
 `Features/SpeciesReference/Components/Lookalikes/SimilarSpeciesGallery.swift`
 
 A horizontally scrolling carousel of ecologically similar lookalike species,
-rendered in `BiologicalView` at card entrance index 4. Sourced from
+rendered in `BiologicalView` at card entrance index 8. Sourced from
 `speciesData.similarSpecies` (a `SimilarSpecies` struct with an
 `entries: [SimilarSpeciesEntry]` array), which is populated asynchronously by
 `fetchAndApplyEnrichment` and persisted to
 `LocalScanRecord.lookalikesData: Data?`.
 
 - **Visibility gate**: Shown when `inferenceEngine.speciesData?.similarSpecies`
-  is non-nil. While enrichment is in-flight
-  (`inferenceEngine.isEnrichmentLoading == true`) and `similarSpecies` is still
+  contains at least one displayable entry after identity filtering. While the
+  independent lookalike scope is in-flight
+  (`inferenceEngine.isLookalikesLoading == true`) and `similarSpecies` is still
   nil, `SimilarSpeciesGallery.Skeleton` renders in its place at the same index.
-  The transition is animated via
-  `.animation(.easeInOut, value: inferenceEngine.isEnrichmentLoading)`.
+  A validated terminal empty result leaves the section absent. The transition is
+  animated with `isLookalikesLoading`.
 - **Entry filtering**: `validEntries` delegates to
   `SimilarSpecies.filteredEntries(...)`, removing blank scientific names, the
-  active species, duplicate scientific names, and duplicate active common-name
-  labels. Image load failure never removes a card.
+  active species and duplicates by canonical species UUID (when available) or
+  normalized scientific name. Distinct species sharing a common name remain
+  visible; only the repeated common-name label is suppressed on their cards.
+  Field Chat uses the same scientific-name filter and names those comparisons by
+  scientific name. Image load failure never removes a card.
 - **Tap behavior**: The gallery accepts an optional `routeForSpecies` builder
   and emits `NavigationLink(value:)` cards when a route is available. Insight,
   Explore detail, and Species Dictionary use this path so tapped lookalikes push

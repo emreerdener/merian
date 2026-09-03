@@ -237,8 +237,7 @@ extension InsightChatViewModel {
         }
 
         let lookalike = speciesData.similarSpecies?.filteredEntries(
-            excludingScientificName: speciesData.scientificName,
-            excludingCommonName: speciesData.commonName
+            excludingScientificName: speciesData.scientificName
         ).first
         return lookalike?.displayCommonName(comparedTo: speciesData.commonName)
             ?? lookalike?.scientificName

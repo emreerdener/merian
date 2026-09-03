@@ -103,6 +103,9 @@ Gemini's provider schema.
   Explore-post, and Species Dictionary prompts share
   `_shared/fieldChatSpeciesKnowledge.ts` to distinguish general species
   knowledge from recorded observation evidence without adding source access.
+  `_shared/fieldChatReply.ts` owns their common Gemini reply request and parser;
+  `scripts/evaluate_field_chat_answers.ts` reuses that contract for bounded,
+  synthetic provider checks without user content.
 - `field-trips/`: follows the same `index.ts` / `db.ts` split. `index.ts`
   validates the action payload, user identity, UUIDs, cursor pairs, pin arrays,
   habitat tags, comment lengths, and optional preferred-goal pair; `db.ts` is
@@ -546,39 +549,32 @@ Two conditions, either of which skips Flash:
 
 1. **`lookalikes.some(...)`**: at least one entry has a known common name — the
    species is enriched.
-2. **`lookalikes_flash_attempted`**: Flash was previously attempted for this
-   species and returned all-null common names. This covers legitimately obscure
-   lookalike species (e.g. rare subspecies, newly described taxa) that have no
-   widely-recognised English common name. Without this flag, `.some()` would
-   never become true and Flash would re-run on every `enrich-scan` call
-   indefinitely, wasting tokens without ever resolving a name.
+2. **`lookalikes_flash_attempted`**: Lookalike generation reached a terminal
+   validated outcome. Foreground enrichment uses it after persisting relations,
+   including relations with all-null common names. The scheduled worker also
+   uses it for a resolution-complete empty or fully rejected candidate set.
+   Without this memo, legitimately obscure species or verified empty results
+   would re-run Flash on every `enrich-scan` call indefinitely.
 
 `lookalikes_flash_attempted` (`BOOLEAN NOT NULL DEFAULT false` on
-`species_dictionary`) is set to `true` in `index.ts` after a Flash-sourced
-`resolveLookalikesToJoinTable` call completes — **only when
-`persisted === true`**. This is a critical guard: the flag must not be written
-when the join-table write was skipped (e.g., the null-kingdom early-exit).
-Previously the flag was written unconditionally after the function returned,
-permanently locking out future Flash retries for species whose enrichment was
-skipped due to replication lag. Setting the flag only on a confirmed join-table
-write ensures those species are retried on the next `enrich-scan` call. The flag
-is also **not** set by the legacy TEXT[] migration path (which passes
-`common_name: null` for all entries) so that species with legacy-only data still
-trigger Flash at least once.
+`species_dictionary`) is set by foreground `enrich-scan` only after a
+Flash-sourced `resolveLookalikesToJoinTable` call returns `persisted === true`.
+Missing taxonomy, unresolved candidates, and skipped join writes leave it false
+so a later scan can retry. The scheduled model worker sets the flag after any
+validated relation is persisted and also for a resolution-complete empty or
+entirely incompatible/reviewed-rejected result. A partial result with a
+persisted relation therefore leaves the queue job retryable while foreground
+scans use the valid cache. Unresolved work with no persisted relation leaves the
+flag false. This distinction settles a known empty dictionary page without
+classifying a provider outage as no data.
 
-**Recovery query for species incorrectly flagged before this guard was added**
-(covers both the empty-array case and the null-kingdom early-exit case — both
-result in the flag being set without any join-table rows):
-
-```sql
-UPDATE species_dictionary
-SET lookalikes_flash_attempted = false
-WHERE lookalikes_flash_attempted = true
-  AND id NOT IN (SELECT DISTINCT species_id FROM species_lookalikes);
-```
-
-This resets only species where the flag was set but no join-table rows were ever
-written, allowing the next `enrich-scan` call to retry Flash.
+Migration `20260903163744_recover_species_lookalike_enrichment.sql` performs the
+legacy repair through the durable queue rather than inferring failure from an
+empty join table. It grants one versioned attempt to eligible old empty or
+exhausted jobs and records the version at claim time. Empty join state alone can
+now be a valid terminal result and must not be used as a blanket reset signal.
+The legacy TEXT[] migration path still does not set the attempt flag, so
+legacy-only rows are eligible for one validated refresh.
 
 **`merge_common_name_en_batch` RPC — Batch Locale-Safe Common Name Back-fill:**
 `resolveLookalikesToJoinTable` back-fills English common names for matched

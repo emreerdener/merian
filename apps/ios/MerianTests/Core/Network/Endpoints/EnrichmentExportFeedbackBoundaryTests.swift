@@ -27,7 +27,7 @@ struct EnrichmentExportFeedbackBoundaryTests {
             ) == nil)
         }
         for method in ["buildIdentifyRequest", "identifyMultiModal",
-                       "shareScanToExplore", "requestCommunityIdentification", "safeDeleteAccount",
+                       "shareScanToExplore", "requestCommunityIdentification",
                        "recoverMissingOwnedCloudScan", "restoreExploreMediaObjectKeys"] {
             #expect(client.contains("func \(method)("), "Keep larger workflow ownership unchanged: \(method)")
         }

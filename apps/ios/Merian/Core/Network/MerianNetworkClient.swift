@@ -45,106 +45,6 @@ func missingScanRecoveryAction(
     }
 }
 
-enum AccountDeletionStatus: String, Decodable, Equatable, Sendable {
-    case prepared
-    case notCommitted = "not_committed"
-    case pending
-    case completed
-}
-
-struct AccountDeletionReceipt: Decodable, Equatable, Sendable {
-    let success: Bool
-    let status: AccountDeletionStatus
-    let manualProviderRevocationRequired: Bool
-    let recoveryCapabilityExpiresAt: String?
-    let recoveryAcknowledged: Bool?
-    let protocolVersion: Int?
-
-    init(
-        success: Bool,
-        status: AccountDeletionStatus,
-        manualProviderRevocationRequired: Bool,
-        recoveryCapabilityExpiresAt: String? = nil,
-        recoveryAcknowledged: Bool? = nil,
-        protocolVersion: Int? = nil
-    ) {
-        self.success = success
-        self.status = status
-        self.manualProviderRevocationRequired =
-            manualProviderRevocationRequired
-        self.recoveryCapabilityExpiresAt = recoveryCapabilityExpiresAt
-        self.recoveryAcknowledged = recoveryAcknowledged
-        self.protocolVersion = protocolVersion
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case success
-        case status
-        case manualProviderRevocationRequired = "manual_provider_revocation_required"
-        case recoveryCapabilityExpiresAt = "recovery_capability_expires_at"
-        case recoveryAcknowledged = "recovery_acknowledged"
-        case protocolVersion = "protocol_version"
-    }
-}
-
-private struct AccountDeletionIntakePayload: Encodable {
-    let recoveryCapability: String
-
-    private enum CodingKeys: String, CodingKey {
-        case recoveryCapability = "recovery_capability"
-    }
-}
-
-private struct AccountDeletionRecoveryPayload: Encodable {
-    let operation: String
-    let recoveryCapability: String
-
-    private enum CodingKeys: String, CodingKey {
-        case operation
-        case recoveryCapability = "recovery_capability"
-    }
-}
-
-struct AccountDeletionPreparationPayload: Encodable {
-    let protocolVersion = 2
-    let operation = "prepare"
-    let recoveryCapability: String
-    let acknowledgementCapability: String
-
-    private enum CodingKeys: String, CodingKey {
-        case protocolVersion = "protocol_version"
-        case operation
-        case recoveryCapability = "recovery_capability"
-        case acknowledgementCapability = "acknowledgement_capability"
-    }
-}
-
-struct AccountDeletionCommitPayload: Encodable {
-    let protocolVersion = 2
-    let operation = "commit"
-    let recoveryCapability: String
-
-    private enum CodingKeys: String, CodingKey {
-        case protocolVersion = "protocol_version"
-        case operation
-        case recoveryCapability = "recovery_capability"
-    }
-}
-
-private struct AccountDeletionRecoveryV2Payload: Encodable {
-    let protocolVersion = 2
-    let operation: String
-    let recoveryCapability: String?
-    let acknowledgementCapability: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case protocolVersion = "protocol_version"
-        case operation
-        case recoveryCapability = "recovery_capability"
-        case acknowledgementCapability = "acknowledgement_capability"
-    }
-}
-
 private extension String {
     var nilIfEmpty: String? {
         isEmpty ? nil : self
@@ -1363,6 +1263,37 @@ final class MerianNetworkClient {
         return data
     }
 
+    /// Fixed-route deletion bridge. Resolve configuration before the nonescaping
+    /// body builder and forward the exact transition owner to private Auth transport.
+    func performAccountDeletionJSONPost(
+        ownedBy authTransitionOwner: AuthTransitionToken?,
+        body: () throws -> Data?
+    ) async throws -> (data: Data, statusCode: Int) {
+        let url = try endpointURL("safe-delete")
+        let bodyData = try body()
+        let (data, response) = try await performAuthenticatedRequest(
+            url: url,
+            method: "POST",
+            body: bodyData,
+            authTransitionOwner: authTransitionOwner
+        )
+        return (data, response.statusCode)
+    }
+
+    /// Capability-only continuation deliberately bypasses user Auth. Its private
+    /// transport retains the existing response bound, retry, and cancellation rules.
+    func performAccountDeletionRecoveryJSONPost(
+        body: () throws -> Data
+    ) async throws -> (data: Data, statusCode: Int) {
+        let url = try endpointURL("recover-account-deletion")
+        let bodyData = try body()
+        let (data, response) = try await performPublicAccountDeletionRecoveryRequest(
+            url: url,
+            body: bodyData
+        )
+        return (data, response.statusCode)
+    }
+
     /// Preserves endpoint-configuration failure precedence before validation or
     /// cache lookup. The URL builder and authenticated transport remain private.
     func validateEndpointConfiguration(_ function: String) throws {
@@ -2303,247 +2234,7 @@ final class MerianNetworkClient {
         return data
     }
 
-    // MARK: - Account Deletion
-
-    func safeDeleteAccount(
-        recoveryCapability: String? = nil,
-        ownedBy authTransitionOwner: AuthTransitionToken? = nil
-    ) async throws -> AccountDeletionReceipt {
-        let functionUrl = try endpointURL("safe-delete")
-        if let recoveryCapability {
-            guard Self.isValidAccountDeletionRecoveryCapability(
-                recoveryCapability
-            ) else {
-                throw MerianError.invalidResponse
-            }
-        }
-        let body = try recoveryCapability.map {
-            try JSONEncoder().encode(
-                AccountDeletionIntakePayload(recoveryCapability: $0)
-            )
-        }
-        let (data, httpResponse) = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: body,
-            authTransitionOwner: authTransitionOwner
-        )
-        let receipt: AccountDeletionReceipt
-        do {
-            receipt = try JSONDecoder().decode(AccountDeletionReceipt.self, from: data)
-        } catch {
-            throw MerianError.invalidResponse
-        }
-        guard receipt.success,
-              (receipt.status == .pending && httpResponse.statusCode == 202)
-                || (receipt.status == .completed && httpResponse.statusCode == 200),
-              recoveryCapability == nil ||
-                Self.isValidAccountDeletionRecoveryExpiry(
-                    receipt.recoveryCapabilityExpiresAt
-                ) else {
-            throw MerianError.invalidResponse
-        }
-        MerianLog.network.debug("Account deletion accepted.")
-        return receipt
-    }
-
-    /// Registers both protocol-v2 proofs without creating a deletion job.
-    /// Destructive commit is a separate authenticated request and is rejected
-    /// unless this exact preparation exists server-side.
-    func prepareAccountDeletionRecoveryV2(
-        recoveryCapability: String,
-        acknowledgementCapability: String,
-        ownedBy authTransitionOwner: AuthTransitionToken
-    ) async throws -> AccountDeletionReceipt {
-        guard Self.isValidAccountDeletionRecoveryCapability(
-            recoveryCapability
-        ), Self.isValidAccountDeletionRecoveryCapability(
-            acknowledgementCapability
-        ), recoveryCapability != acknowledgementCapability else {
-            throw MerianError.invalidResponse
-        }
-        let functionUrl = try endpointURL("safe-delete")
-        let body = try JSONEncoder().encode(
-            AccountDeletionPreparationPayload(
-                recoveryCapability: recoveryCapability,
-                acknowledgementCapability: acknowledgementCapability
-            )
-        )
-        let (data, response) = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: body,
-            authTransitionOwner: authTransitionOwner
-        )
-        let receipt = try decodeAccountDeletionReceipt(data)
-        guard response.statusCode == 200,
-              receipt.success,
-              receipt.status == .prepared,
-              receipt.protocolVersion == 2,
-              Self.isValidAccountDeletionRecoveryExpiry(
-                  receipt.recoveryCapabilityExpiresAt
-              ) else {
-            throw MerianError.invalidResponse
-        }
-        return receipt
-    }
-
-    func commitPreparedAccountDeletionV2(
-        recoveryCapability: String,
-        ownedBy authTransitionOwner: AuthTransitionToken
-    ) async throws -> AccountDeletionReceipt {
-        guard Self.isValidAccountDeletionRecoveryCapability(
-            recoveryCapability
-        ) else {
-            throw MerianError.invalidResponse
-        }
-        let functionUrl = try endpointURL("safe-delete")
-        let body = try JSONEncoder().encode(
-            AccountDeletionCommitPayload(
-                recoveryCapability: recoveryCapability
-            )
-        )
-        let (data, response) = try await performAuthenticatedRequest(
-            url: functionUrl,
-            method: "POST",
-            body: body,
-            authTransitionOwner: authTransitionOwner
-        )
-        let receipt = try decodeAccountDeletionReceipt(data)
-        guard receipt.success,
-              receipt.protocolVersion == 2,
-              (receipt.status == .pending && response.statusCode == 202)
-                || (receipt.status == .completed && response.statusCode == 200),
-              Self.isValidAccountDeletionRecoveryExpiry(
-                  receipt.recoveryCapabilityExpiresAt
-              ) else {
-            throw MerianError.invalidResponse
-        }
-        return receipt
-    }
-
-    /// Recovers or acknowledges an already-authorized deletion after the Auth
-    /// identity may have been removed. The device capability is the only input;
-    /// this route cannot initiate deletion or select an account.
-    func recoverAcceptedAccountDeletion(
-        recoveryCapability: String,
-        acknowledge: Bool
-    ) async throws -> AccountDeletionReceipt {
-        guard Self.isValidAccountDeletionRecoveryCapability(
-            recoveryCapability
-        ) else {
-            throw MerianError.invalidResponse
-        }
-        let functionUrl = try endpointURL("recover-account-deletion")
-        let body = try JSONEncoder().encode(
-            AccountDeletionRecoveryPayload(
-                operation: acknowledge ? "acknowledge" : "recover",
-                recoveryCapability: recoveryCapability
-            )
-        )
-        let (data, httpResponse) = try await
-            performPublicAccountDeletionRecoveryRequest(
-                url: functionUrl,
-                body: body
-            )
-        let receipt: AccountDeletionReceipt
-        do {
-            receipt = try JSONDecoder().decode(
-                AccountDeletionReceipt.self,
-                from: data
-            )
-        } catch {
-            throw MerianError.invalidResponse
-        }
-        let recoveryTimestampIsValid = receipt.recoveryAcknowledged == true
-            ? Self.isValidAccountDeletionRecoveryTimestamp(
-                receipt.recoveryCapabilityExpiresAt
-            )
-            : Self.isValidAccountDeletionRecoveryExpiry(
-                receipt.recoveryCapabilityExpiresAt
-            )
-        guard httpResponse.statusCode == 200,
-              receipt.success,
-              recoveryTimestampIsValid,
-              !acknowledge || receipt.recoveryAcknowledged == true else {
-            throw MerianError.invalidResponse
-        }
-        return receipt
-    }
-
-    func recoverPreparedAccountDeletionV2(
-        recoveryCapability: String
-    ) async throws -> AccountDeletionReceipt {
-        try await performAccountDeletionRecoveryV2(
-            operation: "recover",
-            capability: recoveryCapability
-        )
-    }
-
-    func acknowledgeAccountDeletionRecoveryV2(
-        acknowledgementCapability: String
-    ) async throws -> AccountDeletionReceipt {
-        try await performAccountDeletionRecoveryV2(
-            operation: "acknowledge",
-            capability: acknowledgementCapability
-        )
-    }
-
-    private func performAccountDeletionRecoveryV2(
-        operation: String,
-        capability: String
-    ) async throws -> AccountDeletionReceipt {
-        guard operation == "recover" || operation == "acknowledge",
-              Self.isValidAccountDeletionRecoveryCapability(capability) else {
-            throw MerianError.invalidResponse
-        }
-        let functionUrl = try endpointURL("recover-account-deletion")
-        let body = try JSONEncoder().encode(
-            AccountDeletionRecoveryV2Payload(
-                operation: operation,
-                recoveryCapability:
-                    operation == "recover" ? capability : nil,
-                acknowledgementCapability:
-                    operation == "acknowledge" ? capability : nil
-            )
-        )
-        let (data, response) = try await
-            performPublicAccountDeletionRecoveryRequest(
-                url: functionUrl,
-                body: body
-            )
-        let receipt = try decodeAccountDeletionReceipt(data)
-        let timestampIsValid = receipt.status == .notCommitted
-            || receipt.recoveryAcknowledged == true
-            ? Self.isValidAccountDeletionRecoveryTimestamp(
-                receipt.recoveryCapabilityExpiresAt
-            )
-            : Self.isValidAccountDeletionRecoveryExpiry(
-                receipt.recoveryCapabilityExpiresAt
-            )
-        guard response.statusCode == 200,
-              receipt.success,
-              receipt.protocolVersion == 2,
-              timestampIsValid,
-              operation != "acknowledge"
-                || receipt.recoveryAcknowledged == true else {
-            throw MerianError.invalidResponse
-        }
-        return receipt
-    }
-
-    private func decodeAccountDeletionReceipt(
-        _ data: Data
-    ) throws -> AccountDeletionReceipt {
-        do {
-            return try JSONDecoder().decode(
-                AccountDeletionReceipt.self,
-                from: data
-            )
-        } catch {
-            throw MerianError.invalidResponse
-        }
-    }
+    // MARK: - Account Deletion Recovery Transport
 
     private func performPublicAccountDeletionRecoveryRequest(
         url: URL,
@@ -2607,44 +2298,6 @@ final class MerianNetworkClient {
             )
         }
         return (data, httpResponse)
-    }
-
-    static func isValidAccountDeletionRecoveryCapability(
-        _ value: String
-    ) -> Bool {
-        value.utf8.count == 43 && value.unicodeScalars.allSatisfy {
-            ($0.value >= 48 && $0.value <= 57) ||
-                ($0.value >= 65 && $0.value <= 90) ||
-                ($0.value >= 97 && $0.value <= 122) ||
-                $0.value == 95 || $0.value == 45
-        }
-    }
-
-    static func isValidAccountDeletionRecoveryExpiry(
-        _ value: String?
-    ) -> Bool {
-        guard let date = accountDeletionRecoveryDate(value) else {
-            return false
-        }
-        return date > Date().addingTimeInterval(-5 * 60)
-    }
-
-    static func isValidAccountDeletionRecoveryTimestamp(
-        _ value: String?
-    ) -> Bool {
-        accountDeletionRecoveryDate(value) != nil
-    }
-
-    private static func accountDeletionRecoveryDate(
-        _ value: String?
-    ) -> Date? {
-        guard let value,
-              value.utf8.count >= 20,
-              value.utf8.count <= 40 else {
-            return nil
-        }
-        return DateUtilities.iso8601FractionalFormatter.date(from: value)
-            ?? DateUtilities.iso8601Formatter.date(from: value)
     }
 
     // MARK: - Explore

@@ -77,6 +77,23 @@ The
 documents why structured-task cancellation is paired with generation and
 identity checks.
 
+## Similar Species
+
+`SpeciesDictionaryPageContentView` passes the loaded dictionary UUID and
+scientific name into the shared `SimilarSpeciesGallery`. The gallery excludes
+the current species and duplicate entries by canonical UUID when available, then
+by normalized scientific name. Common names remain display labels, so distinct
+`Pyracantha` species called “Firethorn” stay navigable; a repeated common-name
+label is omitted and the scientific name carries the distinction.
+
+`similarSpeciesData == nil` or an empty post-filter result leaves the section
+absent. The page does not infer whether that state came from a pending job,
+provider failure, or a validated empty result. The scheduled backend worker owns
+retry and legacy recovery, and the public Dictionary payload remains the page's
+only source of relation state. Taps preserve same-stack navigation and prefer
+the candidate's canonical `speciesId`, falling back to its scientific name only
+for legacy payloads.
+
 ## Field Chat
 
 Every loaded detail whose returned `SpeciesDictionaryEntry.id` is a valid UUID
@@ -144,6 +161,9 @@ Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Detail/`:
   and reference-image behavior/ownership is guarded by
   `SpeciesDictionarySharedPresentationTests` and the sibling Shared architecture
   suite.
+- `SpeciesDataTests` owns lookalike identity filtering, including canonical self
+  IDs, normalized-name duplicates, invalid or missing IDs, and distinct species
+  that share one common name.
 - `SpeciesDictionaryDetailServiceTests` owns both UUID-first and scientific-name
   endpoint-adapter paths plus failure classification.
 - `SpeciesDictionaryDetailArchitectureTests` enforces directory ownership,

@@ -1009,6 +1009,14 @@ Key rules:
 - The scheduled job runs with `{ "limit": 12 }`; manual service-role calls may
   use `dry_run`, `as_of`, `limit`, and `content_groups`.
 - Refresh work runs with a concurrency cap of 2 to avoid stampeding Gemini.
+- Lookalike jobs verify at most three model candidates as exact accepted GBIF
+  species before one bounded database write. Provider or identity-resolution
+  failures remain retryable; confirmed empty results are remembered.
+- The claim RPC gives only legacy empty/exhausted lookalike outcomes with no
+  nonrejected relation one new versioned attempt. It preserves normal backoff,
+  excludes active leases, and keeps previews read-only. Materialized candidates
+  do not recursively generate more lookalike jobs or automatic same-genus
+  relations.
 - The worker never attaches media to a species and never changes scan identity;
   scan-to-species attachment remains owner publish through
   `confirmed_species_id`.
@@ -2349,19 +2357,20 @@ database routines are granted only to `service_role`, call
 `internal.require_service_role()`, use an empty `search_path`, and expose no
 direct job-table privileges to API roles.
 
-**Retry and crash handling**: The request tries its own job immediately and
-normally returns `202` while durable R2 work remains. Both success responses
-include `manual_provider_revocation_required`. A `200` means relational cleanup,
-delayed storage verification, provider disposition, and Auth removal are all
-complete. An older binary that does not decode this required field cannot
-deliver the manual fallback; publishing the supporting build is not proof that
-installed clients adopted it. Production remains blocked until a
-minimum-supported-build control or independent server-delivered fallback covers
-those clients. The scheduled `reconcile-account-deletions` route leases due
-account jobs and storage jobs every five minutes. Each storage claim processes
-at most one 50-key keyset page from one of the five canonical user prefixes.
-Progress and failures are persisted under a UUID claim token with bounded
-backoff.
+**Retry and crash handling**: Destructive intake tries its own job immediately
+and normally returns `202` while durable R2 work remains. Pending/`202` and
+completed/`200` receipts include `manual_provider_revocation_required`; the
+separate prepared/`200` response is not deletion acceptance. Completed means
+relational cleanup, delayed storage verification, provider disposition, and Auth
+removal are all complete. An older binary that does not decode the required
+accepted-receipt field cannot deliver the manual fallback; publishing the
+supporting build is not proof that installed clients adopted it. Production
+remains blocked until a minimum-supported-build control or independent
+server-delivered fallback covers those clients. The scheduled
+`reconcile-account-deletions` route leases due account jobs and storage jobs
+every five minutes. Each storage claim processes at most one 50-key keyset page
+from one of the five canonical user prefixes. Progress and failures are
+persisted under a UUID claim token with bounded backoff.
 
 After the first sweep reaches the end of all prefixes, the job waits at least 25
 hours and starts a complete verification sweep. Only an empty delayed pass marks
@@ -2372,6 +2381,13 @@ leaves the fully-erased job at `auth_pending` with bounded backoff. HTTP `404`
 and Auth code `user_not_found` are idempotent success, so a lost completion
 response is recoverable. Expired claim tokens cannot clear or finish a newer
 attempt.
+
+The checked-in v2 prepare response currently omits that provider Boolean, while
+the native shared receipt requires it for preparation too. A persisted server
+preparation therefore becomes `invalidResponse` on iOS and normal commit is not
+dispatched. This pre-existing integration blocker and its required cross-runtime
+regression are tracked in the
+[Core Network finding](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
 
 The terminal transition re-verifies cleanup, storage, provider resolution, and
 credential absence; records Auth deletion; clears the claim; and sets the
@@ -2516,13 +2532,19 @@ dictionary match, all-failed kingdom validation) set `persisted: false`. Both
 call sites in `enrich-scan/index.ts` destructure `{ lookalikes, persisted }`.
 
 **`lookalikes_flash_attempted` flag gating**: The flag is now set only when
-`persisted === true`. Previously the flag was written even when
-`resolveLookalikesToJoinTable` returned without writing any rows (e.g., the
-null-kingdom early-exit). This permanently locked out future Flash retries for
-species whose enrichment was skipped due to replication lag, causing
-`similar_species` to never appear. Setting the flag only on a confirmed
-join-table write ensures that skipped enrichment paths can be retried on the
-next call.
+`persisted === true` on the foreground `enrich-scan` path. Previously that path
+wrote the flag even when `resolveLookalikesToJoinTable` returned without a row,
+permanently locking out retries after taxonomy or replication gaps. The
+scheduled model worker has a second terminal case: its service-only transaction
+sets the flag when a bounded candidate set is resolution-complete but contains
+no persistable candidate because it is empty, incompatible, duplicate, or
+reviewed-rejected. Provider outages, unresolved identities, partial results,
+taxonomy gaps, and database identity conflicts fail the job for retry instead.
+If a partial result persisted at least one valid relation, the flag is true even
+though the queue job remains retryable; otherwise retryable failures leave it
+false. An empty relation set alone is not evidence of failure; legacy repair is
+owned by the versioned claim path in
+`20260903163744_recover_species_lookalike_enrichment.sql`.
 
 **Singleflight In-Flight Deduplication**: Two module-level maps
 (`_enrichmentInFlight`, `_lookalikesInFlight`) prevent thundering herd on

@@ -574,31 +574,41 @@ foreground video upload; `Media/PresignedMediaUpload.swift` owns exact
 signed-header and HTTP-200 policy; `Media/StagedVideoUploadPlan.swift` owns
 immutable file/manifest planning. Queue manifest validation and background jobs,
 live inference attempt fencing, LocalImageLoader repair, and Profile avatar
-promotion stay caller-owned. `MerianNetworkClient.swift` retains private
-session, Auth, retry, and cancellation ownership behind typed-response,
-body-ignoring, encoded-body, and raw-response JSON POST bridges, plus scan
-publication and media recovery. Fixed-result Dictionary/stats bridges
-exclusively access the client's private cache instance, validating each loaded
-response before insertion; their typed GET helper remains private. The internal
-configuration guard preserves Dictionary validation/cache ordering without
-exposing URLs. The typed POST bridge forwards optional idempotency keys and
-selectively replaces decoding errors without catching transport failures. Wire
-DTOs remain in `FieldTripAPIModels.swift`, `ExploreAPIModels.swift`,
+promotion stay caller-owned.
+`Endpoints/MerianNetworkClient+AccountDeletion.swift` owns six legacy/v2 intake
+and public recovery operations plus three private request-only DTOs.
+`AccountDeletionAPIModels.swift` owns unchanged receipt/status DTOs and v2
+preparation/commit payloads. `AccountDeletionRecoveryValidation.swift` and
+`Decoding/AccountDeletionResponseDecoder.swift` own only stateless
+proof/timestamp and receipt validation. Two fixed-route value bridges retain
+private authenticated or capability-only transport. `SupabaseManager`, Core
+Security, and `AppDIContainer` retain transition, Keychain, cleanup, and
+retirement authority. `MerianNetworkClient.swift` retains private session, Auth,
+retry, and cancellation ownership behind typed-response, body-ignoring,
+encoded-body, and raw-response JSON POST bridges, plus scan publication and
+media recovery. Fixed-result Dictionary/stats bridges exclusively access the
+client's private cache instance, validating each loaded response before
+insertion; their typed GET helper remains private. The internal configuration
+guard preserves Dictionary validation/cache ordering without exposing URLs. The
+typed POST bridge forwards optional idempotency keys and selectively replaces
+decoding errors without catching transport failures. Wire DTOs remain in
+`FieldTripAPIModels.swift`, `ExploreAPIModels.swift`,
 `InsightChatAPIModels.swift`, `SpeciesDictionaryAPIModels.swift`,
 `SpeciesObservationStatsAPIModels.swift`, `ScanLifecycleAPIModels.swift`, and
-`MediaStorageAPIModels.swift`. The encoded-body bridge preserves typed request
-encoding and returns bytes for Field Chat's strict decoder. The raw-response
-bridge keeps scan recovery bound to its expected Auth owner through the private
-transport. The prepared-JSON bridge forwards enrichment's serialized body and
-stable key after its configuration/serialization/UUID validation sequence. The
-account-bound encoded bridge keeps signing's lowercase body owner bound to the
-same private transport UUID without bypassing current-session resolution. Two
-raw PUT bridges expose only request/file inputs and response values, adding no
-Auth/retry policy. The mirrored `MerianTests/Core/Network/Endpoints/` folder
-owns request/transport regression and architectural boundary tests, using shared
-per-case fixtures, type-preserving JSON comparison, and immutable single-read
-request snapshots for replay checks. `NetworkEndpointTestSupportTests.swift`
-protects those shared assertions for data- and stream-backed request bodies;
+`MediaStorageAPIModels.swift`, plus `AccountDeletionAPIModels.swift`. The
+encoded-body bridge preserves typed request encoding and returns bytes for Field
+Chat's strict decoder. The raw-response bridge keeps scan recovery bound to its
+expected Auth owner through the private transport. The prepared-JSON bridge
+forwards enrichment's serialized body and stable key after its
+configuration/serialization/UUID validation sequence. The account-bound encoded
+bridge keeps signing's lowercase body owner bound to the same private transport
+UUID without bypassing current-session resolution. Two raw PUT bridges expose
+only request/file inputs and response values, adding no Auth/retry policy. The
+mirrored `MerianTests/Core/Network/Endpoints/` folder owns request/transport
+regression and architectural boundary tests, using shared per-case fixtures,
+type-preserving JSON comparison, and immutable single-read request snapshots for
+replay checks. `NetworkEndpointTestSupportTests.swift` protects those shared
+assertions for data- and stream-backed request bodies;
 `MerianTests/Core/Network/Decoding/` owns chat validation, Dictionary DTO and
 schema/identity tests, and scan lifecycle wire/strict-response tests;
 `Core/Network/Caching/` owns deterministic Dictionary
@@ -608,6 +618,17 @@ regressions. `MediaUploadTests.swift` keeps its held-request cancellation
 transport, per-session signals, and bounded completion/cleanup helpers private
 to that file; it does not add a production task or session owner.
 `MediaStorageAPIModelsTests.swift` owns signing/inspection wire decoding.
+Account-deletion endpoint/recovery/transport and boundary suites live under
+`Endpoints/`; DTO/receipt tests live under `Decoding/`, and pure recovery
+syntax/expiry tests remain directly under `Core/Network/`. Their isolated
+fixtures do not bypass valid-transition admission. Workflow and secure-proof
+tests stay with `SupabaseManagerTests`, `AppDIContainerTests`, and Core
+Security. The synthetic native preparation fixtures include a provider Boolean
+that the checked-in v2 handler response omits; the shared native receipt
+requires it, so separate green suites do not prove the prepare/commit round
+trip. The
+[Network matrix](../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
+tracks that existing blocker and the required cross-runtime regression.
 `StagedVideoUploadTests` now owns the protected empty-file-before-signing CI
 regression. Feature Services and ViewModels retain presentation adapters and
 interaction state. See the
@@ -621,6 +642,7 @@ interaction state. See the
 [scan lifecycle verification matrix](../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-verification),
 [enrichment/export/feedback verification matrix](../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification),
 [media storage/upload verification matrix](../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification),
+[account-deletion/recovery verification matrix](../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification),
 [Identify verification matrix](../apps/ios/Merian/Features/Explore/Identify/README.md#verification),
 and
 [Field Trips verification matrix](features-and-hardware/25-field-trips.md#verification).
@@ -1189,7 +1211,11 @@ Data lifecycle, identity, and exports:
 Scheduled/background workers:
 
 - `refresh-species-content`
-- `refresh-species-model-content`
+- `refresh-species-model-content` — priority-ordered model-content worker for
+  habitat, lookalikes, and group tags. `lookalikeCandidates.ts` owns bounded
+  exact-GBIF identity and taxonomy validation; `db.ts` separates retryable
+  provider/partial failures from terminal empty results and persists validated
+  candidates through service-only claim/write RPCs.
 - `refresh-taxonomy-nodes`
 - `community-taxonomy-status`
 - `sync-community-taxonomy-index`

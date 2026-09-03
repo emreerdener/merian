@@ -1,4 +1,3 @@
-import { Type } from "@google/genai";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
 import { AIQuotaError, reserveAIProviderCall } from "../_shared/aiQuota.ts";
@@ -9,6 +8,10 @@ import {
 } from "../_shared/edgeHandler.ts";
 import { resolveTierForUser } from "../_shared/entitlement.ts";
 import { requireUuid } from "../_shared/explore.ts";
+import {
+  buildFieldChatReplyRequest,
+  extractFieldChatReplyJson,
+} from "../_shared/fieldChatReply.ts";
 import { countAllFieldChatSendsToday } from "../_shared/fieldChatDailyUsage.ts";
 import {
   fieldChatFeedbackPayload,
@@ -22,7 +25,7 @@ import {
   fieldChatDeploymentContractHeaders,
   recoverStaleFieldChatQuota,
 } from "../_shared/fieldChatReservation.ts";
-import { _genAI, extractJson } from "../_shared/gemini.ts";
+import { _genAI } from "../_shared/gemini.ts";
 import {
   parseJsonBody,
   publicErrorResponse,
@@ -121,26 +124,9 @@ async function generateAssistantReply(
   model = INSIGHT_CHAT_MODEL,
 ): Promise<ModelChatResult> {
   const result = await _genAI.models.generateContent({
-    model,
-    contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-    config: {
-      systemInstruction,
-      temperature: 0.2,
-      maxOutputTokens: 700,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          answer: { type: Type.STRING },
-          is_refusal: { type: Type.BOOLEAN },
-          refusal_reason: { type: Type.STRING, nullable: true },
-        },
-        required: ["answer", "is_refusal", "refusal_reason"],
-      },
-      thinkingConfig: { thinkingBudget: 0 },
-    },
+    ...buildFieldChatReplyRequest(systemInstruction, userPrompt, model),
   });
-  const parsed = extractJson<{
+  const parsed = extractFieldChatReplyJson<{
     answer?: unknown;
     is_refusal?: unknown;
     refusal_reason?: unknown;
@@ -148,7 +134,7 @@ async function generateAssistantReply(
   return {
     answer: normalizeAssistantAnswer(
       parsed.answer,
-      "I could not produce a useful answer from the Species Dictionary context.",
+      "I could not produce a useful answer. Please try asking again.",
     ),
     isRefusal: parsed.is_refusal === true,
     refusalReason: typeof parsed.refusal_reason === "string"

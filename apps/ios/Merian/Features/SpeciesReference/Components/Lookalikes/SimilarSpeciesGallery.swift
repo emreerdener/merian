@@ -4,6 +4,7 @@ struct SimilarSpeciesGallery: View {
     let similarData: SimilarSpecies
     let currentScientificName: String?
     let currentCommonName: String?
+    var currentSpeciesId: String? = nil
     var routeForSpecies: ((SimilarSpeciesEntry) -> SpeciesDictionaryRoute)?
     var onSpeciesSelected: ((SimilarSpeciesEntry) -> Void)?
     var dependencies: SimilarSpeciesGalleryDependencies = .live
@@ -11,7 +12,7 @@ struct SimilarSpeciesGallery: View {
     private var validEntries: [SimilarSpeciesEntry] {
         similarData.filteredEntries(
             excludingScientificName: currentScientificName,
-            excludingCommonName: currentCommonName
+            excludingSpeciesId: currentSpeciesId
         )
     }
 

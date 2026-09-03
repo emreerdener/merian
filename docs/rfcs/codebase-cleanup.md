@@ -127,11 +127,11 @@ push toggles in `Profile/Settings/Notifications/`, bundled release notes in
 
 Suggested first targets:
 
-| File                                                     | Cleanup Direction                                                                                                                                                                                                                                                                                                   |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                         |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Fourteen endpoint owners now cover the extracted feature, lifecycle, enrichment, feedback/export, and storage operations; signed transfers and foreground video planning live in `Media/`. Transport/state remain private, and scan publication stays with media recovery. Continue with cohesive remaining groups. |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                                                                                                                                                             |
+| File                                                     | Cleanup Direction                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                          |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Fifteen endpoint owners now cover the extracted feature, lifecycle, enrichment, feedback/export, storage, and account-deletion operations; signed transfers and foreground video planning live in `Media/`. Transport/state remain private, and scan publication stays with media recovery. Continue with cohesive remaining groups. |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                                                                                                                                                                              |
 
 Rules for this phase:
 
@@ -333,6 +333,73 @@ Implemented Core slices:
 
 Implemented Core Network slices:
 
+- The 2026-09-03 account-deletion/recovery pass moves six existing methods into
+  `Endpoints/MerianNetworkClient+AccountDeletion.swift`, unchanged receipt and
+  v2 payload DTOs into `AccountDeletionAPIModels.swift`, and pure admission into
+  `AccountDeletionRecoveryValidation.swift` and
+  `Decoding/AccountDeletionResponseDecoder.swift`. The main client shrinks from
+  3,659 to 3,312 lines; each new production owner is below 600 lines. Two
+  fixed-route, nonescaping bridges expose only response bytes/status and retain
+  private Auth/session ownership. Legacy nil-body and validation order, exact v2
+  proof-key omission, required provider disposition, status/expiry rules,
+  20-second public recovery timeout, post-read 64 KiB bound, one two-second
+  retry, and cancellation policy remain unchanged. Transition admission,
+  Keychain markers/proofs, local sign-out/purge, and retirement stay with
+  `SupabaseManager`, Core Security, and `AppDIContainer`. There is no backend,
+  schema, persistence, feature-flag, UI, or release-control change.
+- Eight aggregate tests move to account-deletion endpoint/recovery and DTO
+  suites, with isolated per-client fixtures. Seven focused suites now cover
+  payloads, required/optional fields, fixed-clock syntax/expiry, receipt
+  phase/status/version rules, Auth refresh and stale-owner refusal, public
+  recovery retry/bounds/cancellation, and source ownership. The aggregate drops
+  from 3,181 to 2,907 lines, including empty-line cleanup; shared Auth tests and
+  protected CI selectors remain in place. V2 success uses exact payload and pure
+  decoder tests plus existing injected manager workflow tests, not a new Auth
+  bypass. Real-session integration remains a separate requirement. See the
+  [account-deletion ownership guide](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-ownership)
+  and
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification).
+- Account-deletion verification passes iOS frontend typechecking for 28 current
+  production sources and 14 test/support files against cached dependencies, 53
+  native pure/architecture tests in seven suites, and 35 focused deletion
+  protocol/adapter/handler/source-contract tests. The iOS CI-tooling and Edge
+  DTO gates, Swift parsing, strict affected-file lint, project/source
+  membership, Markdown and Edge-fleet formatting, documentation links/selectors,
+  and whitespace checks pass. XcodeGen is byte-stable; removing only the 13 new
+  source-file references reproduces the baseline project. Exact comparisons
+  preserve the remaining main-client code, private public-recovery transport,
+  seven DTO declarations, six method signatures, and eight rehomes, allowing
+  only fixture adaptation, the added nil-body oracle, and test whitespace
+  cleanup. `project.yml` and the retained deletion workflow/Function
+  implementations are unchanged. Typecheck/native copies match current source
+  apart from test imports and end-of-file whitespace.
+- The post-outage review confirmed the extraction and eight rehomes survived;
+  verification and documentation had not finished. Independent read-only
+  production and test reviews found no parity or security regression. The
+  follow-up added the missing nil-body oracle, corrected throwing test closures
+  found by compilation, and compared URL error codes rather than
+  URLSession-added error metadata. Documentation review corrected the legacy
+  absent-body contract wording and distinguished shared DTOs from the three
+  private endpoint payloads. Fresh generic Simulator and full-unit
+  `build-for-testing` attempts stop before compilation with exit 74 at the
+  restricted SwiftPM manifest diagnostic cache; CoreSimulatorService also
+  remains unavailable. Focused/full iOS runtime and manual deletion integration
+  are not claimed. Local checks use synthetic fixtures only; no live account
+  action, deployment, or external publication is part of this pass.
+- The documentation follow-up found a pre-existing cross-contract failure that
+  the isolated suites do not expose. The v2 `safe-delete` prepare handler omits
+  `manual_provider_revocation_required`; native `AccountDeletionReceipt`
+  requires it and therefore maps the persisted server preparation response to
+  `invalidResponse` before `SupabaseManager` can write
+  `capability_prepared_pending` or dispatch commit. Independent read-only review
+  confirmed the handler and required-field decode both predate the extraction;
+  native fixtures add the missing field while backend tests inspect the handler
+  separately. Documentation now marks v2 round-trip integration and promotion
+  incomplete, corrects the actual marker-before-Keychain-envelope ordering,
+  distinguishes intended workflow from checked-in behavior, and centralizes the
+  authorized disposable-account checklist in the
+  [Network matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-integration-checklist).
+  This record does not choose or implement the necessary API-contract fix.
 - The 2026-09-03 media storage/upload pass extracts six existing client method
   variants into five focused files: `MerianNetworkClient+MediaStorage.swift` (65
   lines), `MediaStorageAPIModels.swift` (43), and `Media/`'s

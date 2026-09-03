@@ -300,6 +300,7 @@ struct BiologicalView: View {
                                 similarData: similarData,
                                 currentScientificName: inferenceEngine.speciesData?.scientificName,
                                 currentCommonName: inferenceEngine.speciesData?.commonName,
+                                currentSpeciesId: viewModel.activeConfirmedSpeciesId,
                                 routeForSpecies: insightSimilarSpeciesRoute
                             )
                             .transition(.opacity)

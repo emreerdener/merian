@@ -46,6 +46,12 @@ general facts were observed in a particular specimen. This adds no live search
 or source retrieval and does not authorize unsupported current/local facts or
 invented citations.
 
+The answer rules follow the canonical data block. An `Unavailable` reference
+field therefore does not become the final instruction or block a direct
+species-level answer. Casual pronouns in typical-trait questions refer to the
+dictionary species; questions about a particular individual still require
+observation evidence that this route does not receive.
+
 The prompt and database projection exclude Community sightings, observation
 charts or counts, scans, field notes, users, locations, media, reference URLs,
 licenses, and attribution identities. The route never receives raw image, video,

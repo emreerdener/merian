@@ -3,16 +3,23 @@ import {
   fetchGroupTags,
   fetchSimilarSpecies,
   fetchStaticEncyclopedicData,
-  type SimilarSpeciesEntry,
 } from "../_shared/biology.ts";
 import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
 import { updateGroupTags } from "../_shared/identify/db.ts";
 import { hasUsableLookalikeTaxonomy } from "../_shared/taxonomy.ts";
 import {
   getCachedSpecies,
-  resolveLookalikesToJoinTable,
   updateSpeciesEnrichment,
 } from "../enrich-scan/db.ts";
+import {
+  type LookalikeTaxonFetcher,
+  prepareLookalikeCandidates,
+} from "./lookalikeCandidates.ts";
+
+export interface SpeciesModelContentDependencies {
+  fetchSimilarSpecies?: typeof fetchSimilarSpecies;
+  fetchLookalikeTaxon?: LookalikeTaxonFetcher;
+}
 
 export const DEFAULT_MODEL_REFRESH_LIMIT = 12;
 export const MAX_MODEL_REFRESH_LIMIT = 50;
@@ -109,10 +116,9 @@ export function parseSpeciesModelContentRefreshRequest(
 export async function runSpeciesModelContentRefresh(
   request: SpeciesModelContentRefreshRequest,
   supabaseAdmin: SupabaseClient,
+  dependencies: SpeciesModelContentDependencies = {},
 ): Promise<SpeciesModelContentRefreshRunResult> {
-  const jobs = request.dryRun
-    ? await fetchPendingSpeciesModelJobs(supabaseAdmin, request)
-    : await claimSpeciesModelJobs(supabaseAdmin, request);
+  const jobs = await claimSpeciesModelJobs(supabaseAdmin, request);
 
   if (request.dryRun) {
     return {
@@ -132,7 +138,11 @@ export async function runSpeciesModelContentRefresh(
     };
   }
 
-  const results = await refreshModelJobsWithConcurrency(jobs, supabaseAdmin);
+  const results = await refreshModelJobsWithConcurrency(
+    jobs,
+    supabaseAdmin,
+    dependencies,
+  );
   return {
     queued_count: jobs.length,
     refreshed_count: results.filter((result) => result.status === "refreshed")
@@ -149,11 +159,13 @@ export async function runSpeciesModelContentRefresh(
 export async function refreshSpeciesModelContentJob(
   job: SpeciesModelEnrichmentJobRow,
   supabaseAdmin: SupabaseClient,
+  dependencies: SpeciesModelContentDependencies = {},
 ): Promise<SpeciesModelContentRefreshResult> {
   try {
     const result = await refreshSpeciesModelContentJobUnchecked(
       job,
       supabaseAdmin,
+      dependencies,
     );
     await completeSpeciesEnrichmentJob(
       job.job_id,
@@ -185,12 +197,13 @@ export async function refreshSpeciesModelContentJob(
 async function refreshSpeciesModelContentJobUnchecked(
   job: SpeciesModelEnrichmentJobRow,
   supabaseAdmin: SupabaseClient,
+  dependencies: SpeciesModelContentDependencies,
 ): Promise<SpeciesModelContentRefreshResult> {
   switch (job.content_group) {
     case "habitat":
       return await refreshHabitat(job, supabaseAdmin);
     case "lookalikes":
-      return await refreshLookalikes(job, supabaseAdmin);
+      return await refreshLookalikes(job, supabaseAdmin, dependencies);
     case "group_tags":
       return await refreshGroupTags(job, supabaseAdmin);
   }
@@ -225,12 +238,13 @@ async function refreshHabitat(
 async function refreshLookalikes(
   job: SpeciesModelEnrichmentJobRow,
   supabaseAdmin: SupabaseClient,
+  dependencies: SpeciesModelContentDependencies,
 ): Promise<SpeciesModelContentRefreshResult> {
   const cachedSpecies = await getCachedSpecies(
     job.scientific_name,
     supabaseAdmin,
   );
-  if (!cachedSpecies) {
+  if (!cachedSpecies || cachedSpecies.id !== job.species_id) {
     return baseResult(job, "failed", false, "Species row not found.");
   }
 
@@ -244,17 +258,18 @@ async function refreshLookalikes(
     return baseResult(job, "failed", false, "Lookalike taxonomy is not ready.");
   }
 
-  const similarResult = await fetchSimilarSpecies(
-    "system:refresh-species-model-content",
-    job.scientific_name,
-    {
-      kingdom: cachedSpecies.kingdom,
-      class: cachedSpecies.class,
-      order: cachedSpecies.order,
-      family: cachedSpecies.family,
-    },
-    "gemini-2.5-flash",
-  );
+  const similarResult =
+    await (dependencies.fetchSimilarSpecies ?? fetchSimilarSpecies)(
+      "system:refresh-species-model-content",
+      job.scientific_name,
+      {
+        kingdom: cachedSpecies.kingdom,
+        class: cachedSpecies.class,
+        order: cachedSpecies.order,
+        family: cachedSpecies.family,
+      },
+      "gemini-2.5-flash",
+    );
 
   if (similarResult?.usage) {
     recordAIUsageBestEffort(supabaseAdmin, {
@@ -265,48 +280,63 @@ async function refreshLookalikes(
     });
   }
 
-  if (!similarResult?.similar_species?.length) {
-    return baseResult(job, "no_data", false);
+  if (!similarResult || !Array.isArray(similarResult.similar_species)) {
+    return baseResult(
+      job,
+      "failed",
+      false,
+      "Lookalike generation did not return a candidate list.",
+    );
   }
-
-  const resolveResult = await resolveLookalikesToJoinTable(
-    cachedSpecies.id,
-    similarResult.similar_species,
-    supabaseAdmin,
-    cachedSpecies.kingdom,
-    cachedSpecies.order,
-    cachedSpecies.family,
-  );
-
-  const persistedLookalikes = resolveResult.lookalikes.filter((entry) =>
-    entry.species_id
-  );
-  const validatedSimilarResult = persistedLookalikes.length > 0
-    ? {
-      similar_species: persistedLookalikes.map((entry) => ({
-        scientific_name: entry.scientific_name,
-        common_name: entry.common_name,
-      })) satisfies SimilarSpeciesEntry[],
-    }
-    : null;
-
-  await updateSpeciesEnrichment(
+  const prepared = await prepareLookalikeCandidates(
     job.scientific_name,
-    null,
-    validatedSimilarResult,
-    supabaseAdmin,
+    cachedSpecies,
+    similarResult.similar_species,
+    dependencies.fetchLookalikeTaxon,
   );
-
-  if (resolveResult.persisted && persistedLookalikes.length > 0) {
-    const { error } = await supabaseAdmin
-      .from("species_dictionary")
-      .update({ lookalikes_flash_attempted: true })
-      .eq("id", cachedSpecies.id);
-    if (error) throw error;
-    return baseResult(job, "refreshed", true);
+  let persistedCount = 0;
+  let unresolvedCount = prepared.unresolvedCount;
+  if (prepared.candidates.length > 0 || unresolvedCount === 0) {
+    const { data, error } = await supabaseAdmin.rpc(
+      "persist_species_model_lookalikes",
+      {
+        target_species_id: job.species_id,
+        candidates: prepared.candidates,
+        resolution_complete: unresolvedCount === 0,
+      },
+    );
+    if (error) {
+      throw new Error("Failed to persist validated lookalike candidates.");
+    }
+    const counts = Array.isArray(data) && data.length === 1 ? data[0] : null;
+    if (
+      !counts ||
+      ![counts.persisted_count, counts.unresolved_count, counts.rejected_count]
+        .every((value) =>
+          Number.isSafeInteger(value) && value >= 0 && value <= 3
+        ) ||
+      counts.persisted_count + counts.unresolved_count +
+            counts.rejected_count !==
+        prepared.candidates.length
+    ) {
+      throw new Error("Lookalike persistence returned an invalid outcome.");
+    }
+    persistedCount = counts.persisted_count;
+    unresolvedCount += counts.unresolved_count;
   }
-
-  return baseResult(job, "no_data", false);
+  if (unresolvedCount > 0) {
+    return baseResult(
+      job,
+      "failed",
+      persistedCount > 0,
+      "Lookalike candidates remain unresolved.",
+    );
+  }
+  return baseResult(
+    job,
+    persistedCount > 0 ? "refreshed" : "no_data",
+    persistedCount > 0,
+  );
 }
 
 async function refreshGroupTags(
@@ -332,76 +362,25 @@ async function claimSpeciesModelJobs(
   supabaseAdmin: SupabaseClient,
   request: SpeciesModelContentRefreshRequest,
 ): Promise<SpeciesModelEnrichmentJobRow[]> {
-  const jobs: SpeciesModelEnrichmentJobRow[] = [];
-  const groups = request.contentGroups ?? MODEL_CONTENT_GROUPS;
-
-  for (const group of groups) {
-    const remaining = request.limit - jobs.length;
-    if (remaining <= 0) break;
-
-    const { data, error } = await supabaseAdmin.rpc(
-      "claim_species_enrichment_jobs",
-      {
-        max_rows: remaining,
-        as_of: request.asOf,
-        target_content_group: group,
-      },
-    );
-    if (error) {
-      throw new Error(
-        `claim_species_enrichment_jobs failed for ${group}: ${error.message}`,
-      );
-    }
-
-    jobs.push(...((data ?? []) as SpeciesModelEnrichmentJobRow[]));
-  }
-
-  return jobs;
-}
-
-async function fetchPendingSpeciesModelJobs(
-  supabaseAdmin: SupabaseClient,
-  request: SpeciesModelContentRefreshRequest,
-): Promise<SpeciesModelEnrichmentJobRow[]> {
-  const { data, error } = await supabaseAdmin
-    .from("species_enrichment_jobs")
-    .select(
-      "job_id:id,species_id,content_group,priority,attempts,max_attempts,source_trigger,metadata,species:species_dictionary!inner(scientific_name)",
-    )
-    .in("content_group", request.contentGroups ?? MODEL_CONTENT_GROUPS)
-    .in("status", ["queued", "failed"])
-    .lte("next_run_at", request.asOf)
-    .order("priority", { ascending: true })
-    .order("next_run_at", { ascending: true })
-    .limit(request.limit);
-
+  const { data, error } = await supabaseAdmin.rpc(
+    "claim_species_model_enrichment_jobs",
+    {
+      max_rows: request.limit,
+      as_of: request.asOf,
+      target_content_groups: request.contentGroups ?? MODEL_CONTENT_GROUPS,
+      preview_only: request.dryRun,
+    },
+  );
   if (error) {
-    throw new Error(
-      `species_enrichment_jobs dry-run query failed: ${error.message}`,
-    );
+    throw new Error("Failed to read species model enrichment jobs.");
   }
-
-  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-    job_id: String(row.job_id),
-    species_id: String(row.species_id),
-    scientific_name: String(
-      (row.species as { scientific_name?: string } | undefined)
-        ?.scientific_name ?? "",
-    ),
-    content_group: row.content_group as SpeciesModelContentGroup,
-    priority: Number(row.priority ?? 100),
-    attempts: Number(row.attempts ?? 0),
-    max_attempts: Number(row.max_attempts ?? 5),
-    source_trigger: String(row.source_trigger ?? "unknown"),
-    metadata: row.metadata && typeof row.metadata === "object"
-      ? row.metadata as Record<string, unknown>
-      : {},
-  }));
+  return (data ?? []) as SpeciesModelEnrichmentJobRow[];
 }
 
 async function refreshModelJobsWithConcurrency(
   jobs: SpeciesModelEnrichmentJobRow[],
   supabaseAdmin: SupabaseClient,
+  dependencies: SpeciesModelContentDependencies,
 ): Promise<SpeciesModelContentRefreshResult[]> {
   const results = new Array<SpeciesModelContentRefreshResult>(jobs.length);
   let nextIndex = 0;
@@ -413,6 +392,7 @@ async function refreshModelJobsWithConcurrency(
       results[index] = await refreshSpeciesModelContentJob(
         jobs[index],
         supabaseAdmin,
+        dependencies,
       );
     }
   }

@@ -324,9 +324,14 @@ single-responsibility functions under `/services/supabase/functions/`.
     removing Auth. Legacy Apple accounts carry an explicit manual-fallback
     disposition for supporting clients. Older binaries cannot consume that
     response field, so their minimum-build or independent server-delivery
-    control remains a production gate. The database claim requires the matching
-    cleaned-up `storage_pending` job and rejects live profiles or owned scans;
-    the storage outbox is never sufficient authority.
+    control remains a production gate. Separately, the checked-in protocol-v2
+    prepare response omits a provider-disposition field required by native
+    receipt decoding, preventing current iOS from reaching normal commit. See
+    the
+    [Core Network finding](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
+    The database claim requires the matching cleaned-up `storage_pending` job
+    and rejects live profiles or owned scans; the storage outbox is never
+    sufficient authority.
   - `/reconcile-account-deletions`: Five-minute service-role reaper with
     claim-token fencing, persisted storage cursors, provider-before-Auth
     ordering, backoff, and idempotent Auth-not-found recovery. An offset GitHub
