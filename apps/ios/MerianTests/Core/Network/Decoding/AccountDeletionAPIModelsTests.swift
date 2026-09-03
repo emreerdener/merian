@@ -43,6 +43,61 @@ struct AccountDeletionAPIModelsTests {
         #expect(commit["acknowledgement_capability"] == nil)
     }
 
+    @Test func preparationReceiptDecodesTheExactEdgeHandlerShape() throws {
+        let data = try AccountDeletionTestSupport
+            .preparationHandlerResponseData()
+
+        let preparation = try JSONDecoder().decode(
+            AccountDeletionPreparationReceipt.self,
+            from: data
+        )
+
+        #expect(preparation.success)
+        #expect(preparation.status == .prepared)
+        #expect(preparation.protocolVersion == 2)
+        #expect(
+            preparation.recoveryCapabilityExpiresAt
+                == AccountDeletionTestSupport.futureExpiry
+        )
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(AccountDeletionReceipt.self, from: data)
+        }
+    }
+
+    @Test(
+        arguments: [
+            "success",
+            "status",
+            "protocol_version",
+            "recovery_capability_expires_at"
+        ],
+        ["missing", "null", "wrongType"]
+    )
+    func preparationReceiptRequiresEveryWireField(
+        key: String,
+        corruption: String
+    ) throws {
+        var payload: [String: Any] = [
+            "success": true,
+            "status": "prepared",
+            "protocol_version": 2,
+            "recovery_capability_expires_at":
+                AccountDeletionTestSupport.futureExpiry
+        ]
+        switch corruption {
+        case "missing": payload.removeValue(forKey: key)
+        case "null": payload[key] = NSNull()
+        default: payload[key] = ["invalid"]
+        }
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(
+                AccountDeletionPreparationReceipt.self,
+                from: data
+            )
+        }
+    }
+
     @Test(arguments: [AccountDeletionStatus.prepared, .notCommitted, .pending, .completed])
     func statusAndRequiredDispositionDecodeWithoutDefaults(status: AccountDeletionStatus) throws {
         let data = try AccountDeletionTestSupport.receiptData(status: status)

@@ -19,6 +19,7 @@ extension MerianNetworkClient {
             payload["semantic_location"] = locationName
         }
         guard payload.count > 1 else { return }
+        try Self.validateJSONPayload(payload)
 
         try await performAuthenticatedJSONPost(
             function: "update-scan-context",
@@ -42,6 +43,7 @@ extension MerianNetworkClient {
             "inference_tier": inferenceTier,
             "scope": scope
         ]
+        try Self.validateJSONPayload(payload)
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         // Scan IDs are UUIDs and remain stable across foreground, offline, and
         // server-recovery retries. The database namespaces idempotency by
@@ -55,5 +57,11 @@ extension MerianNetworkClient {
             idempotencyKey: idempotencyKey
         )
         return try JSONDecoder().decode(EnrichScanResponse.self, from: data)
+    }
+
+    private static func validateJSONPayload(_ payload: [String: Any]) throws {
+        guard JSONSerialization.isValidJSONObject(payload) else {
+            throw CocoaError(.propertyListReadCorrupt)
+        }
     }
 }

@@ -53,11 +53,32 @@ struct AccountDeletionBoundaryTests {
         try expectOrder(["performAccountDeletionJSONPost(ownedBy: authTransitionOwner)", "if let recoveryCapability",
                          "isValidAccountDeletionRecoveryCapability", "return try recoveryCapability.map",
                          "AccountDeletionIntakePayload", "AccountDeletionResponseDecoder.decode", "Account deletion accepted."], in: legacy)
-        for name in ["prepareAccountDeletionRecoveryV2", "commitPreparedAccountDeletionV2"] {
-            let operation = try method("func \(name)(", in: endpoint)
-            try expectOrder(["isValidAccountDeletionRecoveryCapability", "performAccountDeletionJSONPost(ownedBy: authTransitionOwner)",
-                             "JSONEncoder().encode", "AccountDeletionResponseDecoder.decode"], in: operation)
-        }
+        let preparation = try method(
+            "func prepareAccountDeletionRecoveryV2(",
+            in: endpoint
+        )
+        try expectOrder(
+            [
+                "isValidAccountDeletionRecoveryCapability",
+                "performAccountDeletionJSONPost(ownedBy: authTransitionOwner)",
+                "JSONEncoder().encode",
+                "AccountDeletionResponseDecoder.decodePreparation"
+            ],
+            in: preparation
+        )
+        let commit = try method(
+            "func commitPreparedAccountDeletionV2(",
+            in: endpoint
+        )
+        try expectOrder(
+            [
+                "isValidAccountDeletionRecoveryCapability",
+                "performAccountDeletionJSONPost(ownedBy: authTransitionOwner)",
+                "JSONEncoder().encode",
+                "AccountDeletionResponseDecoder.decode"
+            ],
+            in: commit
+        )
         #expect(endpoint.contains("recoveryCapability != acknowledgementCapability"))
         let legacyRecovery = try method("func recoverAcceptedAccountDeletion(", in: endpoint)
         let recovery = try method("private func performAccountDeletionRecoveryV2(", in: endpoint)
@@ -93,11 +114,26 @@ struct AccountDeletionBoundaryTests {
         let endpoint = try networkSource("Endpoints/MerianNetworkClient+AccountDeletion.swift")
         let models = try networkSource("AccountDeletionAPIModels.swift")
         let validation = try networkSource("AccountDeletionRecoveryValidation.swift")
-        for type in ["enum AccountDeletionStatus:", "struct AccountDeletionReceipt:", "struct AccountDeletionPreparationPayload:",
+        for type in ["enum AccountDeletionStatus:", "struct AccountDeletionReceipt:",
+                     "struct AccountDeletionPreparationReceipt:", "struct AccountDeletionPreparationPayload:",
                      "struct AccountDeletionCommitPayload:"] {
             #expect(models.contains(type) && !client.contains(type))
         }
         #expect(models.contains("let manualProviderRevocationRequired: Bool\n"))
+        let preparationReceiptStart = try #require(
+            models.range(of: "struct AccountDeletionPreparationReceipt:")
+        )
+        let preparationPayloadStart = try #require(
+            models.range(of: "struct AccountDeletionPreparationPayload:")
+        )
+        let preparationReceipt = models[
+            preparationReceiptStart.lowerBound..<preparationPayloadStart.lowerBound
+        ]
+        #expect(
+            !preparationReceipt.contains(
+                "manualProviderRevocationRequired"
+            )
+        )
         #expect(!models.contains("init(from decoder:"))
         for type in ["AccountDeletionIntakePayload", "AccountDeletionRecoveryPayload", "AccountDeletionRecoveryV2Payload"] {
             #expect(endpoint.contains("private struct \(type): Encodable"))

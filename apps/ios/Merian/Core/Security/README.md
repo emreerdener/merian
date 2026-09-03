@@ -141,7 +141,10 @@ owns recovery semantics. Core Network's
 and
 [verification matrix](../Network/README.md#account-deletion-and-recovery-verification)
 separate endpoint/decoder tests from secure-store, workflow, and real-session
-evidence, including the outstanding preparation-receipt mismatch.
+evidence. The operation-specific
+[preparation receipt contract](../Network/README.md#preparation-receipt-contract)
+is source-verified; authorized real-session deletion remains separate release
+evidence.
 
 ## Required-consent launch restoration
 

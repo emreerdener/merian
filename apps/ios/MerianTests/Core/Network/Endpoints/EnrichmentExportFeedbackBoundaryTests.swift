@@ -42,7 +42,8 @@ struct EnrichmentExportFeedbackBoundaryTests {
         let enrichment = try method("fetchEnrichment", in: endpoint)
         try expectOrder([
             #"try validateEndpointConfiguration("enrich-scan")"#,
-            "let payload:", "try JSONSerialization.data(withJSONObject: payload)",
+            "let payload:", "try Self.validateJSONPayload(payload)",
+            "try JSONSerialization.data(withJSONObject: payload)",
             "UUID(uuidString: scanId)?.uuidString.lowercased()", "throw MerianError.invalidResponse",
             "try await performAuthenticatedPreparedJSONPost(", "idempotencyKey: idempotencyKey",
             "try JSONDecoder().decode(EnrichScanResponse.self, from: data)"
@@ -62,7 +63,8 @@ struct EnrichmentExportFeedbackBoundaryTests {
         try expectOrder([
             #"try validateEndpointConfiguration("update-scan-context")"#,
             "var payload:", "guard payload.count > 1 else { return }",
-            "try await performAuthenticatedJSONPost(", "timeoutInterval: 15"
+            "try Self.validateJSONPayload(payload)", "try await performAuthenticatedJSONPost(",
+            "timeoutInterval: 15"
         ], in: context)
         for field in ["gpsElevation", "weatherCondition", "weatherTemperatureF", "locationName"] {
             #expect(context.contains("telemetry.\(field)"))
@@ -72,6 +74,8 @@ struct EnrichmentExportFeedbackBoundaryTests {
         }
         let caller = try source("apps/ios/Merian/Features/Capture/Submission/Services/CaptureSubmissionDeferredContextService.swift")
         try expectOrder(["persistLocally(scanId, telemetry)", "try await endpoint.update", "try await waitBeforeRetry()"], in: caller)
+        #expect(endpoint.contains("JSONSerialization.isValidJSONObject(payload)"))
+        #expect(endpoint.contains("throw CocoaError(.propertyListReadCorrupt)"))
     }
 
     @Test func exportAndFeedbackKeepExistingEncodingAndFeatureModelOwnership() throws {

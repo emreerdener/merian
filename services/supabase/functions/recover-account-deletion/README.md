@@ -96,9 +96,9 @@ timestamp validation do not own Keychain retirement or local cleanup. See the
 [native ownership and verification matrix](../../../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification)
 for the mirrored suites and separate real-session evidence requirement.
 
-The checked-in v2 prepare handler currently omits
-`manual_provider_revocation_required`, which the shared native receipt requires.
-That incompatibility prevents iOS from reaching normal commit even though this
-recovery route's v2 contract is implemented. See the matrix's
-[known preparation-receipt mismatch](../../../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
-before treating separate native/backend test results as end-to-end evidence.
+The v2 prepare handler's four-field non-destructive response is represented by a
+dedicated native preparation receipt and exercised through one shared Deno/Swift
+fixture. Accepted deletion and this public recovery route still require
+`manual_provider_revocation_required` on their receipts. See the
+[preparation receipt contract](../../../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract);
+source compatibility does not replace authorized real-session evidence.

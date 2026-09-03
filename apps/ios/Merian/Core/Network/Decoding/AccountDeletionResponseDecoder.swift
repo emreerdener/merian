@@ -4,7 +4,6 @@ import Foundation
 enum AccountDeletionResponseDecoder {
     enum Operation: Sendable {
         case intake(requiresRecoveryExpiry: Bool)
-        case preparation
         case commit
         case recovery(acknowledge: Bool)
         case recoveryV2(acknowledge: Bool)
@@ -29,14 +28,6 @@ enum AccountDeletionResponseDecoder {
                   isAcceptedDeletion(receipt, statusCode: statusCode),
                   !requiresRecoveryExpiry ||
                     AccountDeletionRecoveryValidation.isValidExpiry(receipt.recoveryCapabilityExpiresAt, now: now) else {
-                throw MerianError.invalidResponse
-            }
-        case .preparation:
-            guard statusCode == 200,
-                  receipt.success,
-                  receipt.status == .prepared,
-                  receipt.protocolVersion == 2,
-                  AccountDeletionRecoveryValidation.isValidExpiry(receipt.recoveryCapabilityExpiresAt, now: now) else {
                 throw MerianError.invalidResponse
             }
         case .commit:
@@ -68,6 +59,34 @@ enum AccountDeletionResponseDecoder {
                   !acknowledge || receipt.recoveryAcknowledged == true else {
                 throw MerianError.invalidResponse
             }
+        }
+        return receipt
+    }
+
+    static func decodePreparation(
+        _ data: Data,
+        statusCode: Int,
+        now: () -> Date = { Date() }
+    ) throws -> AccountDeletionPreparationReceipt {
+        let receipt: AccountDeletionPreparationReceipt
+        do {
+            receipt = try JSONDecoder().decode(
+                AccountDeletionPreparationReceipt.self,
+                from: data
+            )
+        } catch {
+            throw MerianError.invalidResponse
+        }
+
+        guard statusCode == 200,
+              receipt.success,
+              receipt.status == .prepared,
+              receipt.protocolVersion == 2,
+              AccountDeletionRecoveryValidation.isValidExpiry(
+                  receipt.recoveryCapabilityExpiresAt,
+                  now: now
+              ) else {
+            throw MerianError.invalidResponse
         }
         return receipt
     }

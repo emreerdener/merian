@@ -32,7 +32,7 @@ extension MerianNetworkClient {
         recoveryCapability: String,
         acknowledgementCapability: String,
         ownedBy authTransitionOwner: AuthTransitionToken
-    ) async throws -> AccountDeletionReceipt {
+    ) async throws -> AccountDeletionPreparationReceipt {
         guard Self.isValidAccountDeletionRecoveryCapability(recoveryCapability),
               Self.isValidAccountDeletionRecoveryCapability(acknowledgementCapability),
               recoveryCapability != acknowledgementCapability else {
@@ -44,8 +44,9 @@ extension MerianNetworkClient {
                 acknowledgementCapability: acknowledgementCapability
             ))
         }
-        return try AccountDeletionResponseDecoder.decode(
-            response.data, statusCode: response.statusCode, for: .preparation
+        return try AccountDeletionResponseDecoder.decodePreparation(
+            response.data,
+            statusCode: response.statusCode
         )
     }
 

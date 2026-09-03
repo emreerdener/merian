@@ -1411,13 +1411,14 @@ Vault key only in `apikey`, or a legacy service-role JWT in both `apikey` and
 Bearer Authorization. The value must match an active project server key. Do not
 replace only the Vault value; rotate it and the project key together.
 
-This release unit is not currently promotable: the checked-in v2 prepare
-response omits `manual_provider_revocation_required`, which the native receipt
-decoder requires. A successful server preparation therefore becomes
-`invalidResponse` on iOS and normal commit is never dispatched. Resolve the
-[known server/native contract mismatch](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
-and add an actual handler-response-to-native-decoder regression before using the
-remaining checks as release evidence.
+The checked-in v2 preparation source contract is aligned: native iOS uses the
+operation-specific four-field preparation receipt, accepted/recovery receipts
+retain their required provider disposition, and the handler plus native tests
+consume one shared identity-free fixture. See the
+[preparation receipt contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract).
+This source regression is necessary but not sufficient promotion evidence; the
+remaining real-session, old-client, deployment, and operational gates in this
+runbook still apply.
 
 The release must also satisfy the normative
 [scientific-observation retention contract](./17-scientific-observation-retention.md),
@@ -1884,11 +1885,12 @@ before token capture was deployed. Confirm:
     disposable matched-expired fixture permits conservative local erasure,
     expiry-tolerant cleanup acknowledgement, and proof retirement without
     falsely claiming Apple-provider revocation;
-20. after resolving the preparation-receipt mismatch, for protocol v2, terminate
-    after the two-proof Keychain envelope, after non-destructive prepare but
-    before commit, and after commit loses its HTTP response. The first two cases
-    must recover as `not_committed` and preserve Auth/SwiftData; the committed
-    case must recover pending/completed and perform cleanup exactly once;
+20. with the operation-specific preparation receipt in the candidate, for
+    protocol v2, terminate after the two-proof Keychain envelope, after
+    non-destructive prepare but before commit, and after commit loses its HTTP
+    response. The first two cases must recover as `not_committed` and preserve
+    Auth/SwiftData; the committed case must recover pending/completed and
+    perform cleanup exactly once;
 21. prepare deletion from two devices for the same staging account, commit from
     one device (including the legacy authenticated intake path), and prove both
     recovery proofs resolve the same deletion job. Neither device may observe

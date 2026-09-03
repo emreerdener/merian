@@ -1,12 +1,12 @@
 # Sign in with Apple Account-Deletion Revocation
 
 **Status:** Apple credential capture and provider revocation were implemented in
-source on 2026-08-06. Protocol-v2 native preparation is not currently
-operational because the checked-in server response omits a field required by iOS
-receipt decoding. Production promotion also remains gated on hosted secrets,
-fresh-catalog replay, an Apple staging smoke, and an enforceable
-minimum-supported-build gate or an independent server-delivered
-manual-revocation fallback for older iOS binaries.
+source on 2026-08-06. The protocol-v2 preparation producer/consumer contract was
+aligned in source on 2026-09-03 through an operation-specific native receipt and
+a shared Deno/Swift fixture. Production promotion remains gated on authorized
+real-session verification, hosted secrets, fresh-catalog replay, an Apple
+staging smoke, and an enforceable minimum-supported-build gate or an independent
+server-delivered manual-revocation fallback for older iOS binaries.
 
 This is the normative engineering and rollout contract for revoking Sign in with
 Apple authorization during Naturebook account deletion. It implements the
@@ -158,16 +158,14 @@ returns `account_deletion_recovery_expired` and authorizes conservative local
 cleanup while forcing the manual Apple notice. This acknowledgement never claims
 automatic Apple-provider revocation.
 
-The intended client sequence currently stops after the server persists v2
-preparation: that HTTP response omits `manual_provider_revocation_required`,
-while native `AccountDeletionReceipt` requires it before evaluating prepared
-status. iOS therefore returns `invalidResponse`, never records
-`capability_prepared_pending`, and cannot dispatch normal commit. This mismatch
-predates the Core Network extraction and must be reconciled as coordinated
-server/native contract work. The
-[native finding and integration checklist](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
-are the evidence boundary; separate handler and synthetic decoder tests do not
-prove the round trip.
+The non-destructive v2 preparation response is decoded through the dedicated
+`AccountDeletionPreparationReceipt`, which contains its exact four fields and no
+provider disposition. Accepted deletion and public recovery retain the stricter
+`AccountDeletionReceipt` with a required `manual_provider_revocation_required`
+field. The handler test and native DTO/decoder suites consume one identity-free
+fixture; the
+[native preparation contract and integration checklist](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract)
+separate that source-level proof from authorized real-session execution.
 
 ## Private data and authorization boundary
 
@@ -232,10 +230,9 @@ credential cannot fall through to Auth deletion during that short interval. Do
 not intentionally exercise account deletion until the affected bundles are
 deployed and the post-deploy checks pass.
 
-Repository completion is not production completion. Promotion requires all of
-the following on one immutable release SHA. First resolve the native preparation
-mismatch above; the remaining checks cannot compensate for a client that never
-reaches destructive commit:
+Repository completion is not production completion. The source-level preparation
+contract is aligned, but promotion still requires all of the following on one
+immutable release SHA:
 
 - exact Supabase CLI `2.109.1` fresh-catalog migration replay and the complete
   account-deletion pgTAP fixture;
@@ -318,12 +315,13 @@ provider attempt successful from an Apple error response.
   transport, owner forwarding, and test ownership. See the
   [native verification matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification)
   for the accepted-owner integration evidence boundary and manual checklist.
-  Current synthetic preparation fixtures include the required provider Boolean;
-  they do not reproduce the checked-in handler response and therefore mask the
-  mismatch described above.
+  Their preparation tests consume the same exact four-field fixture as the Deno
+  handler test and also prove it cannot decode as an accepted receipt.
 - `SupabaseManagerTests`, `MerianNetworkClientTests`, and `AppDIContainerTests`:
   bounded registration retry, shared Auth refresh policy, subject-bound
-  credential-state handling, durable notice persistence, recovery phase order,
-  ambiguous-response retention, and terminal capability retirement.
+  credential-state handling, durable notice persistence, exact
+  prepare/owner/marker/commit ordering, pre-commit owner/marker
+  short-circuiting, stale post-commit owner classification, recovery phase
+  order, ambiguous-response retention, and terminal capability retirement.
 - `AccountDeletionRecoveryCapabilityTests`: secure randomness, Keychain
   accessibility, write verification, reuse, and verified deletion.

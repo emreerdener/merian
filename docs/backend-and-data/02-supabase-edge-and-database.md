@@ -2382,12 +2382,13 @@ and Auth code `user_not_found` are idempotent success, so a lost completion
 response is recoverable. Expired claim tokens cannot clear or finish a newer
 attempt.
 
-The checked-in v2 prepare response currently omits that provider Boolean, while
-the native shared receipt requires it for preparation too. A persisted server
-preparation therefore becomes `invalidResponse` on iOS and normal commit is not
-dispatched. This pre-existing integration blocker and its required cross-runtime
-regression are tracked in the
-[Core Network finding](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
+The checked-in v2 prepare response intentionally omits a provider Boolean
+because preparation is non-destructive. Native iOS decodes its exact four fields
+through `AccountDeletionPreparationReceipt`; accepted deletion and public
+recovery continue to require the Boolean through `AccountDeletionReceipt`. One
+identity-free fixture is shared by the handler and native DTO/decoder tests; see
+the
+[Core Network preparation contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract).
 
 The terminal transition re-verifies cleanup, storage, provider resolution, and
 credential absence; records Auth deletion; clears the claim; and sets the

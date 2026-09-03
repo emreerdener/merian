@@ -209,11 +209,12 @@ with the manual notice and expiry-tolerant acknowledgement; the distinct
 Core Network owns the six wire methods and pure receipt/proof validation, not
 Settings or the Keychain store. See its
 [ownership guide](../../../Core/Network/README.md#account-deletion-and-recovery-ownership),
-[known preparation-receipt mismatch](../../../Core/Network/README.md#known-preparation-receipt-mismatch),
+[preparation receipt contract](../../../Core/Network/README.md#preparation-receipt-contract),
 and
 [integration checklist](../../../Core/Network/README.md#account-deletion-integration-checklist).
-The checked-in preparation response currently fails native decoding; the
-required workflow above is not a claim of successful end-to-end execution.
+The checked-in four-field preparation response has a dedicated native receipt
+and a shared Deno/Swift fixture. That source-level compatibility does not make
+the workflow above a claim of successful live end-to-end execution.
 
 Every accepted-deletion or public-recovery receipt must also contain
 `manual_provider_revocation_required`. When true, `SupabaseManager` records the

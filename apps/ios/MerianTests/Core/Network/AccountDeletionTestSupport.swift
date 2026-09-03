@@ -10,6 +10,25 @@ enum AccountDeletionTestSupport {
     static let expiredTimestamp = "2025-01-01T00:00:00Z"
     static let now = Date(timeIntervalSince1970: 1_893_456_000)
 
+    static func preparationHandlerResponseData() throws -> Data {
+        var directory = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+        while directory.path != "/" {
+            if FileManager.default.fileExists(
+                atPath: directory.appendingPathComponent("project.yml").path
+            ) {
+                return try Data(
+                    contentsOf: directory.appendingPathComponent(
+                        "services/supabase/functions/_tests/fixtures/" +
+                            "account-deletion-preparation-v2-success.json"
+                    )
+                )
+            }
+            directory.deleteLastPathComponent()
+        }
+        throw CocoaError(.fileNoSuchFile)
+    }
+
     static func receiptData(
         status: AccountDeletionStatus = .pending,
         success: Bool = true,

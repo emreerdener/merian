@@ -22,26 +22,50 @@ struct AccountDeletionResponseDecoderTests {
 
     @Test(arguments: [AccountDeletionStatus.prepared, .notCommitted, .pending, .completed], [200, 202])
     func preparationRequiresOnlyThePrepared200Receipt(status: AccountDeletionStatus, httpStatus: Int) throws {
-        let data = try AccountDeletionTestSupport.receiptData(status: status)
+        let data = try preparationData(status: status)
         if status == .prepared && httpStatus == 200 {
-            #expect(try decode(data, operation: .preparation).status == .prepared)
+            #expect(try decodePreparation(data).status == .prepared)
         } else {
-            #expect(throws: MerianError.invalidResponse) { try decode(data, statusCode: httpStatus, operation: .preparation) }
+            #expect(throws: MerianError.invalidResponse) {
+                try decodePreparation(data, statusCode: httpStatus)
+            }
         }
+    }
+
+    @Test func preparationAcceptsTheHandlerShapeWithoutProviderDisposition() throws {
+        let data = try AccountDeletionTestSupport
+            .preparationHandlerResponseData()
+
+        let preparation = try decodePreparation(data)
+
+        #expect(preparation.status == .prepared)
+        #expect(preparation.protocolVersion == 2)
+        #expect(
+            preparation.recoveryCapabilityExpiresAt
+                == AccountDeletionTestSupport.futureExpiry
+        )
     }
 
     @Test(arguments: [nil, 1, 2, 3] as [Int?])
     func versionTwoIsRequiredOnlyByVersionTwoOperations(version: Int?) throws {
         let pending = try AccountDeletionTestSupport.receiptData(protocolVersion: version)
-        let prepared = try AccountDeletionTestSupport.receiptData(status: .prepared, protocolVersion: version)
+        let prepared = try preparationData(protocolVersion: version)
         #expect(try decode(pending, statusCode: 202, operation: .intake(requiresRecoveryExpiry: true)).status == .pending)
         #expect(try decode(pending, operation: .recovery(acknowledge: false)).status == .pending)
-        for (operation, statusCode, data) in [(Operation.preparation, 200, prepared), (.commit, 202, pending),
-                                             (.recoveryV2(acknowledge: false), 200, pending)] {
+        for (operation, statusCode) in [(Operation.commit, 202), (.recoveryV2(acknowledge: false), 200)] {
             if version == 2 {
-                #expect(try decode(data, statusCode: statusCode, operation: operation).protocolVersion == 2)
+                #expect(try decode(pending, statusCode: statusCode, operation: operation).protocolVersion == 2)
             } else {
-                #expect(throws: MerianError.invalidResponse) { try decode(data, statusCode: statusCode, operation: operation) }
+                #expect(throws: MerianError.invalidResponse) {
+                    try decode(pending, statusCode: statusCode, operation: operation)
+                }
+            }
+        }
+        if version == 2 {
+            #expect(try decodePreparation(prepared).protocolVersion == 2)
+        } else {
+            #expect(throws: MerianError.invalidResponse) {
+                try decodePreparation(prepared)
             }
         }
     }
@@ -53,8 +77,10 @@ struct AccountDeletionResponseDecoderTests {
         for operation in [Operation.intake(requiresRecoveryExpiry: true), .commit] {
             #expect(throws: MerianError.invalidResponse) { try decode(pending, statusCode: 202, operation: operation) }
         }
-        let prepared = try AccountDeletionTestSupport.receiptData(status: .prepared, expiry: expiry)
-        #expect(throws: MerianError.invalidResponse) { try decode(prepared, operation: .preparation) }
+        let prepared = try preparationData(expiry: expiry)
+        #expect(throws: MerianError.invalidResponse) {
+            try decodePreparation(prepared)
+        }
     }
 
     @Test(arguments: [AccountDeletionStatus.prepared, .notCommitted, .pending, .completed], [false, true])
@@ -103,9 +129,13 @@ struct AccountDeletionResponseDecoderTests {
 
     @Test func everyOperationRejectsAnUnsuccessfulReceipt() throws {
         for (operation, status, httpStatus) in [(Operation.intake(requiresRecoveryExpiry: false), AccountDeletionStatus.pending, 202),
-                                              (.preparation, .prepared, 200), (.commit, .pending, 202)] {
+                                                (.commit, .pending, 202)] {
             let data = try AccountDeletionTestSupport.receiptData(status: status, success: false)
             #expect(throws: MerianError.invalidResponse) { try decode(data, statusCode: httpStatus, operation: operation) }
+        }
+        let preparation = try preparationData(success: false)
+        #expect(throws: MerianError.invalidResponse) {
+            try decodePreparation(preparation)
         }
         let data = try AccountDeletionTestSupport.receiptData(success: false, acknowledged: true)
         for operation in publicOperations {
@@ -124,8 +154,11 @@ struct AccountDeletionResponseDecoderTests {
     @Test(arguments: ["", "null", "[]", "{}", #"{"success":true,"status":"pending"}"#,
                       #"{"success":true,"status":"other","manual_provider_revocation_required":false}"#])
     func decodingFailuresAreMappedToInvalidResponse(json: String) {
-        for operation in [Operation.intake(requiresRecoveryExpiry: false), .preparation, .commit] + publicOperations {
+        for operation in [Operation.intake(requiresRecoveryExpiry: false), .commit] + publicOperations {
             #expect(throws: MerianError.invalidResponse) { try decode(Data(json.utf8), operation: operation) }
+        }
+        #expect(throws: MerianError.invalidResponse) {
+            try decodePreparation(Data(json.utf8))
         }
     }
 
@@ -138,5 +171,35 @@ struct AccountDeletionResponseDecoderTests {
         try AccountDeletionResponseDecoder.decode(data, statusCode: statusCode, for: operation) {
             AccountDeletionTestSupport.now
         }
+    }
+
+    private func decodePreparation(
+        _ data: Data,
+        statusCode: Int = 200
+    ) throws -> AccountDeletionPreparationReceipt {
+        try AccountDeletionResponseDecoder.decodePreparation(
+            data,
+            statusCode: statusCode
+        ) {
+            AccountDeletionTestSupport.now
+        }
+    }
+
+    private func preparationData(
+        status: AccountDeletionStatus = .prepared,
+        success: Bool = true,
+        expiry: String? = AccountDeletionTestSupport.futureExpiry,
+        protocolVersion: Int? = 2
+    ) throws -> Data {
+        var payload: [String: Any] = [
+            "success": success,
+            "status": status.rawValue
+        ]
+        payload["protocol_version"] = protocolVersion
+        payload["recovery_capability_expires_at"] = expiry
+        return try JSONSerialization.data(
+            withJSONObject: payload,
+            options: [.sortedKeys]
+        )
     }
 }

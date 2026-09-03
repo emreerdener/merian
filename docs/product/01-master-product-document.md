@@ -932,7 +932,7 @@ key rather than a plain hash, JWT secret, or fallback salt. Export policy should
 be tested against current schema and ecology rules rather than relying on older
 blanket claims about domesticated observations.
 
-## 10.3 Deletion - Server implemented; native v2 integration blocked
+## 10.3 Deletion - Source integration complete; live verification pending
 
 Account deletion uses `/safe-delete` to persist deletion intent before any
 destructive action. A claim-fenced database transaction queues object-store
@@ -961,14 +961,14 @@ independent scheduled health check alerts when the reaper is disabled or
 misconfigured, deletion work is overdue, leases expire, storage work is
 orphaned, or queue age/backlog breaches the deletion SLA.
 
-The checked-in protocol-v2 prepare response omits
-`manual_provider_revocation_required`, which native receipt decoding currently
-requires even before destructive commit. As a result, the server can persist a
-non-destructive preparation but current iOS stops with `invalidResponse` before
-commit. Account deletion must not be presented as end-to-end complete or
-promotable until the
-[server/native mismatch](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
-is resolved and the real response shape passes native decoding.
+The checked-in protocol-v2 prepare response has a dedicated native receipt for
+its four non-destructive fields. A shared identity-free fixture is emitted by
+the handler test and decoded by native DTO/decoder tests; accepted deletion and
+public recovery receipts still require the provider-disposition Boolean. See the
+[preparation receipt contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract).
+This resolves the checked-in source-contract blocker, but account deletion is
+not live end-to-end evidence or promotable until the authorized staging matrix,
+older-client delivery control, and remaining release gates pass.
 
 The provider-specific implementation and production exit criteria are normative
 in the

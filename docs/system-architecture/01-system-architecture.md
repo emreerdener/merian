@@ -324,11 +324,11 @@ single-responsibility functions under `/services/supabase/functions/`.
     removing Auth. Legacy Apple accounts carry an explicit manual-fallback
     disposition for supporting clients. Older binaries cannot consume that
     response field, so their minimum-build or independent server-delivery
-    control remains a production gate. Separately, the checked-in protocol-v2
-    prepare response omits a provider-disposition field required by native
-    receipt decoding, preventing current iOS from reaching normal commit. See
-    the
-    [Core Network finding](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
+    control remains a production gate. The checked-in protocol-v2 preparation
+    response has a dedicated four-field native receipt and one shared
+    handler/decoder fixture; accepted and recovery receipts retain their
+    required provider disposition. See the
+    [Core Network preparation contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract).
     The database claim requires the matching cleaned-up `storage_pending` job
     and rejects live profiles or owned scans; the storage outbox is never
     sufficient authority.

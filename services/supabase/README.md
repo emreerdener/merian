@@ -602,13 +602,14 @@ expired without a commit remains `not_committed`, while a proof retired during a
 different device's deletion commit returns the distinct non-authorizing
 `account_deletion_recovery_preparation_expired` state.
 
-The checked-in v2 prepare response is not currently compatible with iOS. The
-handler omits `manual_provider_revocation_required`; native
-`AccountDeletionReceipt` requires it and maps that successfully persisted
-preparation response to `invalidResponse`, preventing normal commit. Separate
-backend and synthetic native suites do not prove this round trip. Resolve the
-[known server/native contract mismatch](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
-before promotion or live deletion verification.
+The checked-in v2 prepare response is represented by the dedicated native
+`AccountDeletionPreparationReceipt`; provider disposition remains mandatory only
+on accepted deletion and public recovery receipts. The handler and native
+DTO/decoder suites consume one identity-free four-field fixture, proving the
+checked-in source contract without changing the response. See the
+[preparation receipt contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract).
+Promotion and live deletion verification still require the authorized staging
+evidence below.
 
 Production deployment validates the reaper with one authenticated exact
 `{"dry_run":true}` request. It returns before creating a client, claiming work,

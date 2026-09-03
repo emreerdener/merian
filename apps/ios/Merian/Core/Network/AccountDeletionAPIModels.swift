@@ -42,6 +42,22 @@ struct AccountDeletionReceipt: Decodable, Equatable, Sendable {
     }
 }
 
+/// Confirms that protocol-v2 recovery proofs were registered without accepting
+/// account deletion. Provider revocation is decided only by destructive intake.
+struct AccountDeletionPreparationReceipt: Decodable, Equatable, Sendable {
+    let success: Bool
+    let status: AccountDeletionStatus
+    let protocolVersion: Int
+    let recoveryCapabilityExpiresAt: String
+
+    private enum CodingKeys: String, CodingKey {
+        case success
+        case status
+        case protocolVersion = "protocol_version"
+        case recoveryCapabilityExpiresAt = "recovery_capability_expires_at"
+    }
+}
+
 struct AccountDeletionPreparationPayload: Encodable {
     let protocolVersion = 2
     let operation = "prepare"

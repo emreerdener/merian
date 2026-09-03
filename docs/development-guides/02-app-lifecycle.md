@@ -141,11 +141,12 @@ anonymous/account kind must match exactly. A tombstoned expired preparation
 retired during another device's commit is non-authorizing and retains the
 barrier. Only a server-matched expired committed capability permits conservative
 local erasure. Legacy `intake_pending` and `cleanup_pending` remain readable.
-The checked-in prepare response is currently incompatible with native receipt
-decoding; see Core Network's
-[known mismatch](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
-This prevents a terminated deletion from restoring the source account or later
-erasing a newly signed-in account's cache.
+The checked-in prepare response is decoded by the dedicated non-destructive
+preparation receipt and locked to the handler through a shared fixture; see Core
+Network's
+[preparation contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract).
+The lifecycle barriers above still prevent a terminated deletion from restoring
+the source account or later erasing a newly signed-in account's cache.
 
 At runtime, Apple, Google, Sign out, anonymous bootstrap, 401 recovery, and
 deletion share one Auth-transition owner. Ordinary account-bound work acquires

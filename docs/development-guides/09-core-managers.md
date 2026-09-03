@@ -1440,9 +1440,11 @@ consults that Keychain entry.
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification).
 - `MerianNetworkClient+AccountDeletion.swift` is the fifteenth endpoint owner:
   six legacy/v2 intake, preparation/commit, and public recovery/acknowledgement
-  methods retain their signatures and wire shape. `AccountDeletionAPIModels`
-  owns unchanged receipt/status DTOs and v2 preparation/commit payloads; three
-  request-only DTOs remain private to the endpoint file.
+  methods retain their wire shape and feature-facing workflow entry points. The
+  internal preparation method now returns its operation-specific receipt;
+  `AccountDeletionAPIModels` owns that dedicated preparation receipt, the strict
+  accepted/recovery receipt, status DTOs, and v2 preparation/commit payloads.
+  Three request-only DTOs remain private to the endpoint file.
   `AccountDeletionRecoveryValidation` and
   `Decoding/AccountDeletionResponseDecoder` own pure syntax/timestamp and
   operation-specific admission. Two fixed-route value bridges preserve legacy
@@ -1454,9 +1456,12 @@ consults that Keychain entry.
   [ownership guide](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-ownership)
   and
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification).
-  The matrix also records the pre-existing v2 preparation-receipt mismatch;
-  current handler/native integration stops before commit despite separate green
-  fixtures.
+  The matrix records the operation-specific v2 preparation receipt and shared
+  handler/native fixture. `SupabaseManagerTests` separately locks preparation,
+  owner verification, both durable markers, commit, and accepted-receipt owner
+  verification in that order. It also locks the no-commit short circuit and
+  persistence error for stale preparation ownership or either marker failure,
+  plus `signOutSessionChanged` for stale commit ownership.
 - The browsing owner preserves Feed's category-priority order, Map's lexical
   filter order, independently forwarded Feed coordinates/ranking cursor, paired
   author/hashtag cursors, and the distinct species quality cursor. Map and
@@ -1754,11 +1759,11 @@ consults that Keychain entry.
     `not_committed` or a genuinely unknown proof, and a live v2 `409` still
     requires `not_committed`. That phase verifies removal of only the unused
     proof before removing the marker and never signs out or purges local data;
-    ambiguous recovery never does. The checked-in prepare response currently
-    fails native receipt decoding; Core Network records the
-    [existing contract mismatch](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
-    Global sign-out remains inappropriate because it would revoke other active
-    devices.
+    ambiguous recovery never does. The checked-in prepare response is admitted
+    by its dedicated four-field receipt; Core Network records the
+    [preparation contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract)
+    and the remaining real-session evidence boundary. Global sign-out remains
+    inappropriate because it would revoke other active devices.
   - `AppLifecycleManager` retries an unresolved purchase-identity binding on
     foreground activation, including while the required-consent gate is closed.
     The retry is bound to the exact current Auth generation and durable Keychain

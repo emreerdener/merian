@@ -4015,7 +4015,7 @@ device-evidence checks:
   and stale-identity fence. Account-deletion transition tests separately prove
   `capability_preparation_pending` precedes atomic creation/read-back
   verification of the two-proof Keychain envelope and the first network
-  suspension; a valid non-destructive server prepare would then precede
+  suspension; a valid non-destructive server prepare then precedes
   `capability_prepared_pending`, which precedes destructive commit. Both
   preparation markers admit only the deletion-owned recovery transition after
   relaunch. Persistence failure makes no request; ambiguous/lost-response
@@ -4035,14 +4035,21 @@ device-evidence checks:
   `AccountDeletionRecoveryCapabilityTests` cover randomness, existing-proof
   reuse, locked/unreadable Keychain, write verification, and read-after-delete
   verification.
-- Those synthetic preparation fixtures include
-  `manual_provider_revocation_required`, while the checked-in handler's prepare
-  response does not. The native DTO requires that field and therefore rejects
-  the real response before commit. Passing the separate backend/native suites is
-  not round-trip evidence. See the
-  [known mismatch and integration checklist](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
-  and resolve it through coordinated wire-contract work before accepting v2
-  integration results.
+- The identity-free
+  `services/supabase/functions/_tests/fixtures/account-deletion-preparation-v2-success.json`
+  fixture is consumed by the Deno handler test and native
+  `AccountDeletionAPIModelsTests`/`AccountDeletionResponseDecoderTests`. It
+  proves the exact four-field preparation response decodes through
+  `AccountDeletionPreparationReceipt` and cannot decode through the stricter
+  accepted-deletion receipt. `SupabaseManagerTests` separately proves prepare,
+  owner verification, prepared-marker persistence, intake-marker persistence,
+  commit, and accepted-receipt owner verification in that order. It verifies
+  that stale preparation ownership or either marker failure short-circuits
+  before commit with the persistence error, and that stale commit ownership
+  retains `signOutSessionChanged`. See the
+  [preparation contract and integration checklist](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract).
+  These source and simulator regressions do not replace authorized real-session
+  testing.
 - Release evidence must separately exercise the chosen older-binary control.
   Either an old client follows a clear enforced-update path back to in-app
   deletion, or an independent server fallback durably delivers Apple's manual

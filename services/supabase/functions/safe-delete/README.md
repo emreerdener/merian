@@ -162,16 +162,15 @@ minimum-supported-build control gives those clients a clear update path back to
 in-app deletion, or an independent server-delivered fallback durably supplies
 the instructions. Publishing the supporting build alone is not rollout evidence.
 
-There is also a checked-in v2 integration blocker: the prepare branch returns no
-`manual_provider_revocation_required`, while native `AccountDeletionReceipt`
-requires that field before evaluating prepared status. The server can persist
-preparation successfully, but current iOS maps its HTTP response to
-`invalidResponse` and never advances to normal commit. This predates the Core
-Network file split. Resolve it through coordinated server/native contract work
-and add a handler-response-to-native-decoder regression before claiming v2
-prepare/commit integration. The canonical evidence boundary is in the native
-matrix's
-[known preparation-receipt mismatch](../../../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
+The prepare branch returns the four fields appropriate to non-destructive
+registration and intentionally omits a provider disposition. Native iOS decodes
+that response as `AccountDeletionPreparationReceipt`; accepted deletion and
+public recovery continue to require `manual_provider_revocation_required` in
+`AccountDeletionReceipt`. The handler test and native DTO/decoder tests consume
+the same identity-free response fixture, closing the prior source-level
+integration gap without changing this handler. The canonical evidence boundary
+is the native matrix's
+[preparation receipt contract](../../../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract).
 
 The scheduled `reconcile-account-deletions` function resumes due account jobs
 and storage pages every five minutes. It performs a bounded account pass,

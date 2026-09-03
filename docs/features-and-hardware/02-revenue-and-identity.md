@@ -64,9 +64,11 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   acknowledgement, and capability retirement. Verified Keychain envelope removal
   precedes marker clearing. The blocking foreground/cold-launch recovery UI
   never stores or displays an internal user, job, provider, request, or purchase
-  identity. The current prepare response is incompatible with native receipt
-  decoding; see the
-  [Core Network contract finding](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
+  identity. The checked-in four-field prepare response is decoded by the
+  operation-specific native receipt and locked to the handler through a shared
+  fixture; see the
+  [Core Network preparation contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract).
+  Authorized real-session deletion remains separate release evidence.
 - **Identity Resolution & OAuth**: Merian uses standard Apple
   (`ASAuthorizationAppleIDProvider`) and Google (`GIDSignIn`) iOS libraries to
   authenticate without web-view redirects.

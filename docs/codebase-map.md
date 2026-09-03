@@ -577,22 +577,23 @@ live inference attempt fencing, LocalImageLoader repair, and Profile avatar
 promotion stay caller-owned.
 `Endpoints/MerianNetworkClient+AccountDeletion.swift` owns six legacy/v2 intake
 and public recovery operations plus three private request-only DTOs.
-`AccountDeletionAPIModels.swift` owns unchanged receipt/status DTOs and v2
+`AccountDeletionAPIModels.swift` owns the operation-specific preparation
+receipt, strict accepted/recovery receipt, status DTOs, and v2
 preparation/commit payloads. `AccountDeletionRecoveryValidation.swift` and
 `Decoding/AccountDeletionResponseDecoder.swift` own only stateless
-proof/timestamp and receipt validation. Two fixed-route value bridges retain
-private authenticated or capability-only transport. `SupabaseManager`, Core
-Security, and `AppDIContainer` retain transition, Keychain, cleanup, and
-retirement authority. `MerianNetworkClient.swift` retains private session, Auth,
-retry, and cancellation ownership behind typed-response, body-ignoring,
-encoded-body, and raw-response JSON POST bridges, plus scan publication and
-media recovery. Fixed-result Dictionary/stats bridges exclusively access the
-client's private cache instance, validating each loaded response before
-insertion; their typed GET helper remains private. The internal configuration
-guard preserves Dictionary validation/cache ordering without exposing URLs. The
-typed POST bridge forwards optional idempotency keys and selectively replaces
-decoding errors without catching transport failures. Wire DTOs remain in
-`FieldTripAPIModels.swift`, `ExploreAPIModels.swift`,
+proof/timestamp and operation-specific receipt validation. Two fixed-route value
+bridges retain private authenticated or capability-only transport.
+`SupabaseManager`, Core Security, and `AppDIContainer` retain transition,
+Keychain, cleanup, and retirement authority. `MerianNetworkClient.swift` retains
+private session, Auth, retry, and cancellation ownership behind typed-response,
+body-ignoring, encoded-body, and raw-response JSON POST bridges, plus scan
+publication and media recovery. Fixed-result Dictionary/stats bridges
+exclusively access the client's private cache instance, validating each loaded
+response before insertion; their typed GET helper remains private. The internal
+configuration guard preserves Dictionary validation/cache ordering without
+exposing URLs. The typed POST bridge forwards optional idempotency keys and
+selectively replaces decoding errors without catching transport failures. Wire
+DTOs remain in `FieldTripAPIModels.swift`, `ExploreAPIModels.swift`,
 `InsightChatAPIModels.swift`, `SpeciesDictionaryAPIModels.swift`,
 `SpeciesObservationStatsAPIModels.swift`, `ScanLifecycleAPIModels.swift`, and
 `MediaStorageAPIModels.swift`, plus `AccountDeletionAPIModels.swift`. The
@@ -623,12 +624,13 @@ Account-deletion endpoint/recovery/transport and boundary suites live under
 syntax/expiry tests remain directly under `Core/Network/`. Their isolated
 fixtures do not bypass valid-transition admission. Workflow and secure-proof
 tests stay with `SupabaseManagerTests`, `AppDIContainerTests`, and Core
-Security. The synthetic native preparation fixtures include a provider Boolean
-that the checked-in v2 handler response omits; the shared native receipt
-requires it, so separate green suites do not prove the prepare/commit round
-trip. The
-[Network matrix](../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
-tracks that existing blocker and the required cross-runtime regression.
+Security. The identity-free
+`services/supabase/functions/_tests/fixtures/account-deletion-preparation-v2-success.json`
+fixture is shared by the Deno handler and native DTO/decoder tests. It locks the
+exact four-field preparation shape and proves that shape cannot decode as the
+strict accepted/recovery receipt. The
+[Network matrix](../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract)
+tracks the source contract and separate real-session evidence boundary.
 `StagedVideoUploadTests` now owns the protected empty-file-before-signing CI
 regression. Feature Services and ViewModels retain presentation adapters and
 interaction state. See the

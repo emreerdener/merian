@@ -1963,7 +1963,7 @@ final class AuthTransitionSingleFlight {
             AuthTransitionToken,
             String,
             String
-        ) async throws -> AccountDeletionReceipt = {
+        ) async throws -> AccountDeletionPreparationReceipt = {
             try await MerianNetworkClient.shared
                 .prepareAccountDeletionRecoveryV2(
                     recoveryCapability: $1,
@@ -2046,31 +2046,36 @@ final class AuthTransitionSingleFlight {
             if preparedCapability.supportsPreparedCommit,
                let acknowledgementCapability =
                 preparedCapability.acknowledgementValue {
-                let preparation = try await prepareDeletionV2(
-                    transition,
-                    preparedCapability.recoveryValue,
-                    acknowledgementCapability
-                )
-                guard ownsAuthTransition(transition),
-                      preparation.status == .prepared,
-                      preparation.protocolVersion == 2,
-                      AccountDeletionLocalCleanupStore
-                        .recordCapabilityPreparedPending(),
-                      AccountDeletionLocalCleanupStore.recordIntakePending()
-                else {
-                    throw SupabaseAuthTransitionError
-                        .accountDeletionRecoveryPersistenceFailed
-                }
-                receipt = try await commitDeletionV2(
-                    transition,
-                    preparedCapability.recoveryValue
-                )
-                guard ownsAuthTransition(transition),
-                      receipt.protocolVersion == 2,
-                      receipt.status == .pending ||
-                        receipt.status == .completed else {
-                    throw SupabaseAuthTransitionError.signOutSessionChanged
-                }
+                receipt = try await Self
+                    .performPreparedAccountDeletionIntake(
+                        prepareDeletion: {
+                            try await prepareDeletionV2(
+                                transition,
+                                preparedCapability.recoveryValue,
+                                acknowledgementCapability
+                            )
+                        },
+                        verifyPreparationOwner: {
+                            self.ownsAuthTransition(transition)
+                        },
+                        recordCapabilityPreparedPending: {
+                            AccountDeletionLocalCleanupStore
+                                .recordCapabilityPreparedPending()
+                        },
+                        recordIntakePending: {
+                            AccountDeletionLocalCleanupStore
+                                .recordIntakePending()
+                        },
+                        commitDeletion: {
+                            try await commitDeletionV2(
+                                transition,
+                                preparedCapability.recoveryValue
+                            )
+                        },
+                        verifyCommitOwner: {
+                            self.ownsAuthTransition(transition)
+                        }
+                    )
             } else {
                 receipt = try await Self.performDurableAccountDeletionIntake(
                     recordIntakePending: {
@@ -2830,6 +2835,37 @@ final class AuthTransitionSingleFlight {
             }
             throw error
         }
+    }
+
+    /// Promotes a non-destructive protocol-v2 preparation into destructive
+    /// intake only after both recovery markers are durably persisted.
+    static func performPreparedAccountDeletionIntake(
+        prepareDeletion: @MainActor () async throws
+            -> AccountDeletionPreparationReceipt,
+        verifyPreparationOwner: @MainActor () -> Bool,
+        recordCapabilityPreparedPending: @MainActor () -> Bool,
+        recordIntakePending: @MainActor () -> Bool,
+        commitDeletion: @MainActor () async throws
+            -> AccountDeletionReceipt,
+        verifyCommitOwner: @MainActor () -> Bool
+    ) async throws -> AccountDeletionReceipt {
+        let preparation = try await prepareDeletion()
+        guard verifyPreparationOwner(),
+              preparation.status == .prepared,
+              preparation.protocolVersion == 2,
+              recordCapabilityPreparedPending(),
+              recordIntakePending() else {
+            throw SupabaseAuthTransitionError
+                .accountDeletionRecoveryPersistenceFailed
+        }
+
+        let receipt = try await commitDeletion()
+        guard verifyCommitOwner(),
+              receipt.protocolVersion == 2,
+              receipt.status == .pending || receipt.status == .completed else {
+            throw SupabaseAuthTransitionError.signOutSessionChanged
+        }
+        return receipt
     }
 
     static func isDefinitiveAccountDeletionIntakeRejection(

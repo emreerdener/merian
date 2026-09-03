@@ -117,9 +117,10 @@ PUT bridges reuse the private session without adding Auth or replay. Queue
 manifest/task authority, live inference attempt fencing, image repair, and
 avatar promotion remain caller-owned. Account deletion uses two route-fixed
 value bridges for authenticated intake and capability-only recovery. Its
-receipt/status DTOs and v2 preparation/commit payloads live unchanged in
-`AccountDeletionAPIModels.swift`; three request-only DTOs remain private to its
-endpoint file. Pure receipt and proof/timestamp validation live in
+dedicated preparation receipt, strict accepted/recovery receipt, status DTOs,
+and v2 preparation/commit payloads live in `AccountDeletionAPIModels.swift`;
+three request-only DTOs remain private to its endpoint file. Pure
+operation-specific receipt and proof/timestamp validation live in
 `Decoding/AccountDeletionResponseDecoder.swift` and
 `AccountDeletionRecoveryValidation.swift`. Auth transition admission, durable
 Keychain markers, local cleanup, and proof retirement remain with

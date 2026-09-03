@@ -487,10 +487,12 @@ non-destructive: it cannot sign out or purge local data. This capability cannot
 select, restore, or authenticate an account and is never reused for sign-in or
 purchase identity.
 
-The checked-in v2 prepare response currently omits a field required by native
-receipt decoding, so this intended path stops before the prepared marker. The
-[Core Network finding and integration checklist](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch)
-are authoritative until coordinated server/native contract work resolves it.
+The checked-in four-field v2 prepare response is decoded by a dedicated
+non-destructive native receipt. The handler and native tests consume the same
+identity-free fixture, while accepted deletion and recovery receipts keep their
+required provider-disposition field. The
+[Core Network preparation contract and integration checklist](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract)
+separate that source-level evidence from authorized real-session testing.
 
 In legacy mode, the same UX uses the one-use proof in
 `Merian_PendingSignOutPurchaseHandoff_v1`. The server stores only its SHA-256

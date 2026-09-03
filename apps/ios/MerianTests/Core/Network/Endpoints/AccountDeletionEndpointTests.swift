@@ -127,15 +127,17 @@ struct AccountDeletionEndpointTests {
             fixture.transport.register(path: "/safe-delete") { _ in sent(); throw URLError(.badServerResponse) }
             await #expect(throws: SupabaseAuthTransitionError.signOutSessionChanged) {
                 if preparing {
-                    return try await fixture.client.prepareAccountDeletionRecoveryV2(
+                    _ = try await fixture.client.prepareAccountDeletionRecoveryV2(
                         recoveryCapability: AccountDeletionTestSupport.recovery,
                         acknowledgementCapability: AccountDeletionTestSupport.acknowledgement,
                         ownedBy: owner
                     )
+                } else {
+                    _ = try await fixture.client.commitPreparedAccountDeletionV2(
+                        recoveryCapability: AccountDeletionTestSupport.recovery,
+                        ownedBy: owner
+                    )
                 }
-                return try await fixture.client.commitPreparedAccountDeletionV2(
-                    recoveryCapability: AccountDeletionTestSupport.recovery, ownedBy: owner
-                )
             }
         }
     }

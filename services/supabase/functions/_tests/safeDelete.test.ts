@@ -6,6 +6,14 @@ import { AccountDeletionIntakeError } from "../safe-delete/db.ts";
 import { processAccountDeletionJobs } from "../safe-delete/worker.ts";
 
 const supabaseAdmin = {} as SupabaseClient;
+const preparationV2SuccessFixture = JSON.parse(
+  await Deno.readTextFile(
+    new URL(
+      "./fixtures/account-deletion-preparation-v2-success.json",
+      import.meta.url,
+    ),
+  ),
+) as Record<string, unknown>;
 
 function pendingClaim(): AccountDeletionClaim {
   return {
@@ -399,7 +407,7 @@ Deno.test("safe-delete protocol v2 preparation is non-destructive", async () => 
         assertEquals(acknowledgementHash, "acknowledgement-hash");
         return Promise.resolve({
           prepared: true,
-          recoveryExpiresAt: "2026-08-14T00:00:00.000Z",
+          recoveryExpiresAt: "2099-01-01T00:00:00Z",
         });
       },
       request: () => {
@@ -426,12 +434,7 @@ Deno.test("safe-delete protocol v2 preparation is non-destructive", async () => 
   );
 
   assertEquals(response.status, 200);
-  assertEquals(await response.json(), {
-    success: true,
-    status: "prepared",
-    protocol_version: 2,
-    recovery_capability_expires_at: "2026-08-14T00:00:00.000Z",
-  });
+  assertEquals(await response.json(), preparationV2SuccessFixture);
   assertEquals(requestCalled, false);
   assertEquals(processCalled, false);
 });

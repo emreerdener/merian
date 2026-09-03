@@ -581,18 +581,21 @@ and [focused matrix](#media-storage-and-upload-verification).
   recovery/acknowledgement methods. Three request-only payloads remain private
   to that file. Legacy no-capability intake still sends a nil body; v2 recovery
   and acknowledgement omit the other operation's proof key rather than sending
-  null. No caller signatures or wire fields change.
+  null. No wire field or feature-facing workflow signature changes.
 - [`AccountDeletionAPIModels.swift`](AccountDeletionAPIModels.swift) owns the
-  unchanged receipt/status DTOs and v2 preparation/commit payloads. The manual
-  provider-revocation Boolean remains required; optional expiry,
-  acknowledgement, and version fields retain their decoding behavior.
+  four-field `AccountDeletionPreparationReceipt`, strict accepted/recovery
+  `AccountDeletionReceipt`, status DTOs, and v2 preparation/commit payloads. The
+  manual provider-revocation Boolean remains required for accepted deletion and
+  recovery; optional expiry, acknowledgement, and version fields on that receipt
+  retain their decoding behavior.
 - [`Decoding/AccountDeletionResponseDecoder.swift`](Decoding/AccountDeletionResponseDecoder.swift)
   owns operation-specific receipt admission and maps decoding/receipt failures
   to `invalidResponse`. Intake/commit require matching pending/202 or
-  completed/200; v2 preparation requires prepared/200 and protocol 2. Public
-  recovery retains its existing status acceptance, with expired timestamps
-  accepted only for acknowledged receipts or v2 `not_committed` receipts.
-  Acknowledgement requests still require `recovery_acknowledged: true`.
+  completed/200; `decodePreparation` requires the dedicated preparation receipt
+  to be prepared/200, successful, protocol 2, and unexpired. Public recovery
+  retains its existing status acceptance, with expired timestamps accepted only
+  for acknowledged receipts or v2 `not_committed` receipts. Acknowledgement
+  requests still require `recovery_acknowledged: true`.
 - [`AccountDeletionRecoveryValidation.swift`](AccountDeletionRecoveryValidation.swift)
   owns exact 43-byte base64url proof syntax and 20–40-byte ISO timestamp parsing
   through cached `DateUtilities` formatters. Its injected clock is read only
@@ -1274,25 +1277,32 @@ transition workflows remain in `SupabaseManagerTests`; neither those injected
 workflow tests nor source guards replace real-session integration. Never add an
 Auth bypass to make these endpoint fixtures succeed.
 
-#### Known preparation-receipt mismatch
+#### Preparation receipt contract
 
-The documentation audit on 2026-09-03 found a pre-existing contract mismatch:
-the `prepare` branch of
+Protocol-v2 preparation has its own non-destructive response contract. The
+`prepare` branch of
 [`safe-delete/handler.ts`](../../../../../services/supabase/functions/safe-delete/handler.ts)
-returns `success`, `status`, `protocol_version`, and
-`recovery_capability_expires_at`, but no `manual_provider_revocation_required`.
-The native [`AccountDeletionReceipt`](AccountDeletionAPIModels.swift) requires
-that Boolean, and `AccountDeletionResponseDecoder` decodes the same receipt for
-preparation. Consequently, that checked-in server response fails native decoding
-with `invalidResponse` before the manager can dispatch commit.
+returns exactly `success`, `status`, `protocol_version`, and
+`recovery_capability_expires_at`. Native
+[`AccountDeletionPreparationReceipt`](AccountDeletionAPIModels.swift) represents
+that shape, and `AccountDeletionResponseDecoder.decodePreparation` admits only a
+successful HTTP-200 `prepared` response with protocol version 2 and a valid
+future expiry. Preparation intentionally has no provider disposition because no
+destructive intake, cleanup, or revocation decision has occurred.
 
-The split preserves this behavior; it did not introduce or fix it. Existing
-native preparation fixtures supply the Boolean, while backend tests exercise the
-server response separately. Passing those suites is not evidence of a compatible
-prepare/commit round trip. Reconcile the preparation response and native decoder
-in a dedicated contract fix, preserve the required provider disposition on
-accepted-deletion/recovery receipts, and add a regression that decodes the
-actual handler response shape before claiming integration complete.
+Accepted deletion and public recovery continue to decode
+`AccountDeletionReceipt`, where `manual_provider_revocation_required` remains a
+nonoptional wire field. The identity-free
+[`account-deletion-preparation-v2-success.json`](../../../../../services/supabase/functions/_tests/fixtures/account-deletion-preparation-v2-success.json)
+fixture is consumed by both the Deno handler test and native DTO/decoder tests;
+the native suite also proves the four-field preparation cannot decode as an
+accepted receipt. `SupabaseManagerTests` separately locks the workflow order:
+prepare, verify owner, persist the prepared marker, persist the intake marker,
+commit, then verify the accepted receipt owner. It also proves stale preparation
+ownership or either marker failure stops before commit with the persistence
+error, while stale commit ownership retains `signOutSessionChanged`. These
+source and simulator regressions prove the checked-in producer/consumer shape,
+but do not replace the authorized real-session integration checklist below.
 
 #### Focused command
 
@@ -1327,10 +1337,11 @@ Function, database, or release control.
 
 #### Account deletion integration checklist
 
-Resolve the preparation-receipt mismatch above before running the accepted v2
-path. Use separately authorized disposable accounts and a named non-production
-target; these checks can delete data and revoke provider authorization. The
-hygiene pass itself authorizes no live deletion or deployment.
+The checked-in preparation producer/consumer contract is source-verified. Use
+separately authorized disposable accounts and a named non-production target for
+the remaining real-session checks; these checks can delete data and revoke
+provider authorization. This contract fix authorizes no live deletion or
+deployment.
 
 - Verify a real-session v2 preparation is non-destructive, the prepared marker
   is durable before commit, and pending/202 or completed/200 acceptance reaches
@@ -2324,10 +2335,11 @@ session is gone, the app submits only the recovery capability to
 its distinct proof. Neither request contains an account, job, provider, or
 purchase identity.
 
-The checked-in prepare-response mismatch described in the
-[focused matrix](#known-preparation-receipt-mismatch) currently prevents the
-normal path from reaching the prepared marker or commit; this paragraph defines
-the required behavior after that contract is reconciled.
+The operation-specific preparation receipt described in the
+[focused matrix](#preparation-receipt-contract) admits the checked-in handler
+shape without weakening accepted-deletion or recovery receipts. Real-session
+execution of this workflow remains part of the integration checklist rather than
+source-test evidence.
 
 A returned durable receipt promotes the marker to `capability_cleanup_pending`;
 only then may iOS sign out locally and purge SwiftData. After cleanup, iOS

@@ -7945,9 +7945,10 @@ The exact retained-versus-cleared field boundary is normative in the
 
 The iOS wire methods live in
 `Core/Network/Endpoints/MerianNetworkClient+AccountDeletion.swift`, with
-unchanged receipt/status DTOs and v2 preparation/commit payloads in
-`AccountDeletionAPIModels.swift`. Three request-only DTOs remain private to the
-endpoint file; pure receipt/proof validation lives in
+accepted/recovery receipt and status DTOs, the operation-specific preparation
+receipt, and v2 preparation/commit payloads in `AccountDeletionAPIModels.swift`.
+Three request-only DTOs remain private to the endpoint file; pure
+operation-specific receipt/proof validation lives in
 `Decoding/AccountDeletionResponseDecoder.swift` and
 `AccountDeletionRecoveryValidation.swift`. Route-fixed client bridges retain
 private transport; `SupabaseManager`, Core Security, and `AppDIContainer` retain
@@ -8093,12 +8094,15 @@ race.
   had already committed deletion, the proof is instead bound to that existing
   job and the subsequent idempotent commit returns its receipt.
 
-  This is the checked-in handler shape, but it is not currently compatible with
-  iOS: native `AccountDeletionReceipt` requires
-  `manual_provider_revocation_required` for every operation, including prepare.
-  The server's persisted preparation therefore decodes as `invalidResponse`, so
-  the app cannot advance to its prepared marker or normal commit. See the
-  [native contract finding](../../apps/ios/Merian/Core/Network/README.md#known-preparation-receipt-mismatch).
+  This exact handler shape maps to native `AccountDeletionPreparationReceipt`.
+  Its four fields are nonoptional, and
+  `AccountDeletionResponseDecoder.decodePreparation` additionally requires HTTP
+  200, `success: true`, `status: prepared`, protocol version 2, and a valid
+  future expiry. Provider disposition is absent because preparation is
+  non-destructive. The handler test and native DTO/decoder tests consume
+  `services/supabase/functions/_tests/fixtures/account-deletion-preparation-v2-success.json`
+  as one cross-runtime source fixture. See the
+  [native preparation contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract).
 - `200 OK`,
   `{ "success": true, "status": "completed",
   "manual_provider_revocation_required": false,

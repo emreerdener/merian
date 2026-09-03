@@ -400,6 +400,32 @@ Implemented Core Network slices:
   authorized disposable-account checklist in the
   [Network matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-integration-checklist).
   This record does not choose or implement the necessary API-contract fix.
+- The 2026-09-03 account-deletion contract follow-up resolves that source-level
+  mismatch without changing the Edge response. Native
+  `AccountDeletionPreparationReceipt` owns the exact non-destructive four-field
+  shape, while `AccountDeletionReceipt` remains strict about
+  `manual_provider_revocation_required` for accepted deletion and public
+  recovery. `AccountDeletionResponseDecoder.decodePreparation` admits only
+  successful HTTP-200 prepared/protocol-v2/future-expiry responses. The Deno
+  handler test and native DTO/decoder suites consume one identity-free JSON
+  fixture, and a native negative test proves that preparation cannot masquerade
+  as an accepted receipt. A small injected `SupabaseManager` seam preserves and
+  tests prepare → owner verification → prepared marker → intake marker → commit
+  → accepted-receipt owner verification. Negative cases prove stale preparation
+  ownership or either marker failure cannot dispatch commit and preserves the
+  persistence-error classification; stale commit ownership retains
+  `signOutSessionChanged`. Focused native and backend suites, generic Simulator
+  build, strict affected-file lint, Swift parsing, project/source membership,
+  XcodeGen stability, and whitespace checks pass. The final complete
+  `merianTests` `test-without-building` run executed 2,788 tests: 2,778 passed,
+  while ten parameterized transport-replay cases across unrelated endpoint
+  suites were killed by the test runner. The failing set rotated from the
+  preceding full run, and all ten exact selectors—including the account-deletion
+  recovery case—passed together when rerun in isolation. The focused
+  account-deletion matrix is green, but this record does not claim a green
+  complete target. No handler payload, schema, persistence format, deployment,
+  live deletion, or external publication changes; authorized real-session and
+  older-client release evidence remain outstanding.
 - The 2026-09-03 media storage/upload pass extracts six existing client method
   variants into five focused files: `MerianNetworkClient+MediaStorage.swift` (65
   lines), `MediaStorageAPIModels.swift` (43), and `Media/`'s

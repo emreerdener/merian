@@ -1298,6 +1298,188 @@ final class SupabaseManagerTests: XCTestCase {
         XCTAssertEqual(events, ["record-intent", "request", "verify"])
     }
 
+    func testPreparedAccountDeletionPersistsMarkersBeforeCommit() async throws {
+        var events: [String] = []
+        let preparation = preparedAccountDeletionReceipt
+        let accepted = acceptedAccountDeletionReceipt
+
+        let receipt = try await SupabaseManager
+            .performPreparedAccountDeletionIntake(
+                prepareDeletion: {
+                    events.append("prepare")
+                    return preparation
+                },
+                verifyPreparationOwner: {
+                    events.append("verify-preparation-owner")
+                    return true
+                },
+                recordCapabilityPreparedPending: {
+                    events.append("record-prepared")
+                    return true
+                },
+                recordIntakePending: {
+                    events.append("record-intake")
+                    return true
+                },
+                commitDeletion: {
+                    events.append("commit")
+                    return accepted
+                },
+                verifyCommitOwner: {
+                    events.append("verify-commit-owner")
+                    return true
+                }
+            )
+
+        XCTAssertEqual(receipt, accepted)
+        XCTAssertEqual(
+            events,
+            [
+                "prepare",
+                "verify-preparation-owner",
+                "record-prepared",
+                "record-intake",
+                "commit",
+                "verify-commit-owner"
+            ]
+        )
+    }
+
+    func testPreparedAccountDeletionStopsBeforeCommitWhenPreparationCannotBecomeDurable() async {
+        let failureCases: [PreparedAccountDeletionIntakeFailureCase] = [
+            .init(
+                name: "stale preparation owner",
+                ownsPreparation: false,
+                recordsPrepared: true,
+                recordsIntake: true,
+                expectedEvents: ["prepare", "verify-preparation-owner"]
+            ),
+            .init(
+                name: "prepared marker failure",
+                ownsPreparation: true,
+                recordsPrepared: false,
+                recordsIntake: true,
+                expectedEvents: [
+                    "prepare",
+                    "verify-preparation-owner",
+                    "record-prepared"
+                ]
+            ),
+            .init(
+                name: "intake marker failure",
+                ownsPreparation: true,
+                recordsPrepared: true,
+                recordsIntake: false,
+                expectedEvents: [
+                    "prepare",
+                    "verify-preparation-owner",
+                    "record-prepared",
+                    "record-intake"
+                ]
+            )
+        ]
+        let preparation = preparedAccountDeletionReceipt
+        let accepted = acceptedAccountDeletionReceipt
+
+        for failureCase in failureCases {
+            var events: [String] = []
+            do {
+                _ = try await SupabaseManager
+                    .performPreparedAccountDeletionIntake(
+                        prepareDeletion: {
+                            events.append("prepare")
+                            return preparation
+                        },
+                        verifyPreparationOwner: {
+                            events.append("verify-preparation-owner")
+                            return failureCase.ownsPreparation
+                        },
+                        recordCapabilityPreparedPending: {
+                            events.append("record-prepared")
+                            return failureCase.recordsPrepared
+                        },
+                        recordIntakePending: {
+                            events.append("record-intake")
+                            return failureCase.recordsIntake
+                        },
+                        commitDeletion: {
+                            events.append("commit")
+                            return accepted
+                        },
+                        verifyCommitOwner: {
+                            events.append("verify-commit-owner")
+                            return true
+                        }
+                    )
+                XCTFail("Expected \(failureCase.name)")
+            } catch SupabaseAuthTransitionError
+                .accountDeletionRecoveryPersistenceFailed {
+                // Expected: no destructive commit follows a failed fence.
+            } catch {
+                XCTFail("Unexpected \(failureCase.name) error: \(error)")
+            }
+
+            XCTAssertEqual(
+                events,
+                failureCase.expectedEvents,
+                failureCase.name
+            )
+        }
+    }
+
+    func testPreparedAccountDeletionRejectsStaleCommitOwner() async {
+        var events: [String] = []
+        let preparation = preparedAccountDeletionReceipt
+        let accepted = acceptedAccountDeletionReceipt
+
+        do {
+            _ = try await SupabaseManager
+                .performPreparedAccountDeletionIntake(
+                    prepareDeletion: {
+                        events.append("prepare")
+                        return preparation
+                    },
+                    verifyPreparationOwner: {
+                        events.append("verify-preparation-owner")
+                        return true
+                    },
+                    recordCapabilityPreparedPending: {
+                        events.append("record-prepared")
+                        return true
+                    },
+                    recordIntakePending: {
+                        events.append("record-intake")
+                        return true
+                    },
+                    commitDeletion: {
+                        events.append("commit")
+                        return accepted
+                    },
+                    verifyCommitOwner: {
+                        events.append("verify-commit-owner")
+                        return false
+                    }
+                )
+            XCTFail("Expected stale commit owner")
+        } catch SupabaseAuthTransitionError.signOutSessionChanged {
+            // Expected: an accepted receipt cannot cross transition ownership.
+        } catch {
+            XCTFail("Unexpected stale-owner error: \(error)")
+        }
+
+        XCTAssertEqual(
+            events,
+            [
+                "prepare",
+                "verify-preparation-owner",
+                "record-prepared",
+                "record-intake",
+                "commit",
+                "verify-commit-owner"
+            ]
+        )
+    }
+
     func testPendingAccountDeletionSignsOutBeforePurgeAndResolvesLast() async {
         var events: [String] = []
 
@@ -2725,6 +2907,27 @@ final class SupabaseManagerTests: XCTestCase {
         ])
     }
 
+    private var preparedAccountDeletionReceipt: AccountDeletionPreparationReceipt {
+        AccountDeletionPreparationReceipt(
+            success: true,
+            status: .prepared,
+            protocolVersion: 2,
+            recoveryCapabilityExpiresAt:
+                AccountDeletionTestSupport.futureExpiry
+        )
+    }
+
+    private var acceptedAccountDeletionReceipt: AccountDeletionReceipt {
+        AccountDeletionReceipt(
+            success: true,
+            status: .pending,
+            manualProviderRevocationRequired: false,
+            recoveryCapabilityExpiresAt:
+                AccountDeletionTestSupport.futureExpiry,
+            protocolVersion: 2
+        )
+    }
+
     private func makeAdultReceipt(
         ownerUserId: UUID,
         syncedUserId: UUID?,
@@ -2840,6 +3043,14 @@ final class SupabaseManagerTests: XCTestCase {
             .replacingOccurrences(of: "=", with: "")
         return "header.\(payloadSegment).signature"
     }
+}
+
+private struct PreparedAccountDeletionIntakeFailureCase {
+    let name: String
+    let ownsPreparation: Bool
+    let recordsPrepared: Bool
+    let recordsIntake: Bool
+    let expectedEvents: [String]
 }
 
 private actor SupabaseManagerTestGate {
