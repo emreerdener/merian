@@ -79,6 +79,8 @@ Examples:
   Profile, and Species Dictionary consume them.
 - `Core/Data/OfflineSync` owns sync infrastructure rather than a
   feature-specific scan screen.
+- `Core/Data/SpeciesPreferences` owns the cross-feature SwiftData and cloud
+  reconciliation boundary for preferred species display names.
 
 Cross-feature wire operations can live in `Core/Network/Endpoints/` even when
 grouped by feature. Field Trips, Community Identification browsing/contribution,
@@ -176,6 +178,34 @@ through injected closures. `get-filtered-discovery-feed` remains a documented
 backend function but is intentionally absent from the iOS replay set because the
 app has no endpoint owner or caller for it. See the
 [integration-audit contract](Merian/Core/Network/README.md#core-network-integration-audit).
+
+## Core Preferences Ownership
+
+[Core Preferences](Merian/Core/Preferences/README.md) owns the observable
+`AppSettings` boundary plus the small Explore-share, field-note, and legacy
+species-name `UserDefaults` stores. It also owns the exact, read-back-verified
+account-cache inventory composed into accepted account deletion. These extracted
+owners preserve their existing type names, initializers, defaults, key strings,
+and call sites while remaining free of SwiftData, Supabase, networking, and
+app-container lookup. Audited repairs persist the normalized 1...3 grid count
+and prevent account-derived caches or process-local gamification/badge/image
+projections from surviving the complete active-schema purge. Badge refresh is
+generation-fenced across deletion; device preferences and deletion recovery
+fences remain.
+
+`Core/Utilities/UserDefaultsKeys.swift` remains the exact persisted-key
+registry. The SwiftData-backed `SpeciesPreferredNameRepository`, conflict
+policy, wire values, injected PostgREST client, and single-flight coordinator
+now live in
+[Core Data/Species Preferences](Merian/Core/Data/SpeciesPreferences/README.md).
+Only that narrow live client resolves Supabase; feature consumers continue to
+use the unchanged repository surface. Its paging now has a deterministic
+scientific-name tie-breaker, and its freshness check treats future timestamps as
+clock skew. Account-deletion recovery state and the Keychain registry remain in
+the Utilities aggregate for their separately reviewed security slice. Mirrored
+Preferences and Species Preferences tests enforce these dependency boundaries,
+purge inventories, and the 600-line ceiling without treating the legacy store as
+durable or server authority.
 
 ## Onboarding Ownership
 
@@ -684,12 +714,15 @@ Tests that mutate a process-global resource must also claim its keyed gate from
 `MerianTests/Support/SharedProcessStateTestTrait.swift`. Swift Testing's
 `.serialized` trait orders descendants only within one suite; it does not
 exclude a peer suite. Use `.sharedProcessState(.networkClientOverrides)` for
-temporary `MerianNetworkClient` or shared request-interceptor ownership. Inject
-a private `AppRouteCoordinator` through the available route-request closure when
-testing notification routing; do not drain the app-host process singleton. Apply
-a keyed gate at suite scope when every case owns the resource and at test scope
-for isolated cases. Queue fixtures claim `.offlineQueueManager`; cases needing
-both resources claim them together in one trait. The underlying
+temporary `MerianNetworkClient` or shared request-interceptor ownership,
+`.sharedProcessState(.offlineQueueManager)` for queue fixtures,
+`.sharedProcessState(.gamificationManager)` for the shared gamification owner,
+and `.sharedProcessState(.appIconBadgeCoordinator)` for persisted/OS badge
+state. Inject a private `AppRouteCoordinator` through the available
+route-request closure when testing notification routing; do not drain the
+app-host process singleton. Apply a keyed gate at suite scope when every case
+owns the resource and at test scope for isolated cases. Cases needing multiple
+resources claim them together in one trait. The underlying
 `SharedProcessStateGate` leases complete resource sets atomically and handles
 cancelled waiters. Capture's `OfflineQueueTestCase` base joins the same gate
 across XCTest setup/teardown. Queue scopes restore the previous model context;

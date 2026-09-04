@@ -142,21 +142,28 @@ After Auth is gone, `/recover-account-deletion` uses only the proof to return
 the already-recorded manual Apple disposition and pending/completed state. It
 does not reauthenticate the deleted account or accept a user, Apple subject,
 job, or provider identifier. iOS must persist the manual notice before local
-sign-out, purge, and proof retirement. It acknowledges only after local cleanup
-succeeds and only with the independent acknowledgement proof. A legacy unknown
-proof leaves cleanup blocked because intake may still be committing. A v2
-`not_committed` or genuinely unknown proof retires only the unused local intent
-because commit cannot run without a server preparation. After that definitive
-cancellation, the transition owner retires the unused proof, adopts only the
-same unexpired cached Supabase session while the durable barrier remains, then
-clears the barrier before republishing that exact UUID and anonymous/account
-kind or reopening ordinary account work. An expired preparation retired during a
-different device's commit returns the distinct non-authorizing
-`account_deletion_recovery_preparation_expired` response and keeps cleanup
-blocked. Only a retained committed capability matched after its 180-day window
-returns `account_deletion_recovery_expired` and authorizes conservative local
-cleanup while forcing the manual Apple notice. This acknowledgement never claims
-automatic Apple-provider revocation.
+sign-out, purge, and proof retirement. The purge explicitly removes every
+current SwiftData model and read-back verifies the classified account-derived
+preferences while retaining device settings, consent, this recovery marker, and
+the manual notice. It then resets process-local settings, gamification, badge,
+and image projections; badge requests admitted before deletion are
+generation-fenced from restoring stale state. That synchronous cleanup does not
+claim whole-store-file replacement or unreferenced app-container traversal;
+broader file erasure requires an explicit storage-owner inventory. It
+acknowledges only after local cleanup succeeds and only with the independent
+acknowledgement proof. A legacy unknown proof leaves cleanup blocked because
+intake may still be committing. A v2 `not_committed` or genuinely unknown proof
+retires only the unused local intent because commit cannot run without a server
+preparation. After that definitive cancellation, the transition owner retires
+the unused proof, adopts only the same unexpired cached Supabase session while
+the durable barrier remains, then clears the barrier before republishing that
+exact UUID and anonymous/account kind or reopening ordinary account work. An
+expired preparation retired during a different device's commit returns the
+distinct non-authorizing `account_deletion_recovery_preparation_expired`
+response and keeps cleanup blocked. Only a retained committed capability matched
+after its 180-day window returns `account_deletion_recovery_expired` and
+authorizes conservative local cleanup while forcing the manual Apple notice.
+This acknowledgement never claims automatic Apple-provider revocation.
 
 The non-destructive v2 preparation response is decoded through the dedicated
 `AccountDeletionPreparationReceipt`, which contains its exact four fields and no
@@ -250,7 +257,8 @@ immutable release SHA:
   relaunch, and the Apple support/settings path opens;
 - physical-device termination at each recovery boundary: before authenticated
   intake, after server commit with a dropped response, after local Auth
-  sign-out, after SwiftData purge, after recovery acknowledgement, and after
+  sign-out, after the SwiftData commit but before preferences cleanup, after
+  verified preferences/runtime reset, after recovery acknowledgement, and after
   Keychain removal. Each relaunch must converge with the same proof without
   restoring an account or losing the manual-provider disposition;
 - public recovery with no cached Auth session, using publishable `apikey` plus
@@ -323,5 +331,14 @@ provider attempt successful from an Apple error response.
   prepare/owner/marker/commit ordering, pre-commit owner/marker
   short-circuiting, stale post-commit owner classification, recovery phase
   order, ambiguous-response retention, and terminal capability retirement.
+- `ScanRepositoryPurgeTests` and `AccountScopedPreferencesTests`: exact
+  `CurrentSchema` deletion inventory, actual repository delete calls,
+  idempotence, classified defaults cleanup, read-back verification, device-state
+  preservation, and runtime reset delegation.
+- `GamificationManagerTests` and `AppIconBadgeCoordinatorTests`: observable and
+  persisted gamification reset plus cancellation/account-generation rejection of
+  an unread-count result admitted before cleanup. The badge test covers the
+  coordinator's persisted state; OS badge presentation remains an integration
+  checklist item.
 - `AccountDeletionRecoveryCapabilityTests`: secure randomness, Keychain
   accessibility, write verification, reuse, and verified deletion.

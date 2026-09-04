@@ -1003,16 +1003,18 @@ Added in migration `20260407000000_add_alternative_common_names.sql`.
 - RLS: users can only read and write their own rows.
 
 > **iOS implementation note**: `SpeciesPreferredNameRepository` uses SwiftData
-> `UserSpeciesPreference` as the local source of truth and syncs directly to
-> this table through the authenticated Supabase client. `MerianApp` promotes
-> legacy `speciesPreferredName_*` `UserDefaults` keys at startup, then clears
-> them after SwiftData saves. Local clears are queued as pending delete
-> timestamps until the cloud tombstone upsert succeeds. Preferred-name sync is
-> single-flight on the repository boundary, records a trailing follow-up request
-> for mid-flight triggers, and persists lightweight diagnostics
+> `UserSpeciesPreference` as the local source of truth. The narrow
+> `SpeciesPreferredNameCloudClient` is the only owner that resolves the
+> authenticated Supabase client and accesses this table, while
+> `SpeciesPreferredNameCloudSyncCoordinator` owns single-flight reconciliation,
+> account leases, deterministic pagination, freshness, and one coalesced
+> trailing request for mid-flight triggers. `MerianApp` promotes legacy
+> `speciesPreferredName_*` `UserDefaults` keys at startup, then clears them
+> after SwiftData saves. Local clears are queued as pending delete timestamps
+> until the cloud tombstone upsert succeeds. Lightweight diagnostics
 > (`lastAttemptAt`, `lastSuccessAt`, status/message, last pushed/pulled counts)
-> in `UserDefaults`; those diagnostics are not database state and should not be
-> modeled in Postgres.
+> remain in `UserDefaults`; those diagnostics are not database state and should
+> not be modeled in Postgres.
 
 ### `species_lookalikes`
 

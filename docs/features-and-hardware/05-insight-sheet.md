@@ -473,17 +473,25 @@ result. The local programmatic share guard returns
 
 `SpeciesPreferredNameRepository` intentionally remains separate from
 `AppSettings`: preferred names are per-species keyed data, not global UI state.
-`MerianApp` runs `migrateLegacyPreferences(modelContext:)` after SwiftData
-bootstraps, promoting all legacy `speciesPreferredName_*` keys and deleting them
-only after a successful database save. The repository then syncs SwiftData rows
-to Supabase `user_species_preferences`; clears are retained as pending local
-delete timestamps until a remote `deleted_at` tombstone is confirmed. Sync
-triggers from auth restore, foreground activation, and local edits are
-single-flight, so only one preferred-name cloud reconciliation is active at a
-time; mid-flight triggers record a trailing follow-up request so edits saved
-after the active sync's local fetch still flush before the coalesced task
-completes. Clean lifecycle/auth syncs skip when a successful sync completed in
-the last 60 seconds, while local edits force the sync path.
+The repository and its conflict policy live in `Core/Data/SpeciesPreferences`;
+the initializer-injected cloud client and single-flight coordinator own
+PostgREST/Auth work, pagination, and lifecycle coalescing outside the
+repository's local CRUD surface. `MerianApp` runs
+`migrateLegacyPreferences(modelContext:)` after SwiftData bootstraps, promoting
+all legacy `speciesPreferredName_*` keys and deleting them only after a
+successful database save. The coordinator then syncs SwiftData rows to Supabase
+`user_species_preferences`; clears are retained as pending local delete
+timestamps until a remote `deleted_at` tombstone is confirmed. Sync triggers
+from auth restore, foreground activation, and local edits are single-flight, so
+only one preferred-name cloud reconciliation is active at a time; the
+coordinator records a trailing follow-up request so edits saved after the active
+sync's local fetch still flush before the coalesced task completes. Clean
+lifecycle/auth syncs skip when a successful sync completed in the last 60
+seconds, while local edits force the sync path. A success timestamp in the
+future is treated as clock skew and also forces reconciliation. Cloud pages use
+timestamp plus scientific-name ordering, equal-time local values consistently
+win over remote tombstones, and repository fetch failures leave legacy values
+untouched rather than treating the row as missing.
 `SpeciesPreferredNameStore.syncDiagnostics` records the latest
 attempt/success/status/message plus pushed/pulled counts for support. Explore
 feed, map, detail, comments, and share text resolve display names through an

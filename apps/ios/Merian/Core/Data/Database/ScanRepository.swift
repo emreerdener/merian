@@ -460,30 +460,54 @@ final class ScanRepository {
         return cleanupTask
     }
 
-    /// Completely eradicates all local database caches and queued data. Use only for full account deletion or hard resets.
+    /// Deletes every active SwiftData row plus verified account preferences and
+    /// process-local projections. This does not replace the store file or scan
+    /// the app container for unreferenced filesystem artifacts.
+    /// Use only for full account deletion or hard resets.
     @discardableResult
     func purgeAllData(
         modelContext: ModelContext,
-        resetDerivedState: @MainActor () -> Void
+        userDefaults: UserDefaults = .standard,
+        resetDerivedState: @MainActor () -> Void,
+        resetRuntimeState: @MainActor () -> Void = {
+            AccountScopedRuntimeState.reset()
+        }
     ) -> Bool {
         resetDerivedState()
         do {
+            try modelContext.delete(model: CapturedMediaEntry.self)
             try modelContext.delete(model: LocalScanRecord.self)
             try modelContext.delete(model: ScanCollection.self)
             try modelContext.delete(model: OfflineQueuedScan.self)
             try modelContext.delete(model: ActiveOfflineQueuedScanGoalHint.self)
             try modelContext.delete(model: PendingCloudDeletionTask.self)
+            try modelContext.delete(model: UserSpeciesPreference.self)
+            try modelContext.delete(model: OfflineJobRecord.self)
+            try modelContext.delete(model: OfflineQueueEvent.self)
             try modelContext.save()
-            ExploreShareStateStore.clearAll()
-            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
-            MerianLog.data.debug("✅ Successfully purged all SwiftData records natively.")
-            return true
         } catch {
             modelContext.rollback()
             AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             MerianLog.data.error("🚨 Failed to erase local ModelContainer: \(error.localizedDescription, privacy: .private)")
             return false
         }
+
+        guard AccountScopedPreferences.purgeAndVerify(
+            userDefaults: userDefaults
+        ) else {
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
+            MerianLog.data.error(
+                "Failed to verify account-scoped preference cleanup."
+            )
+            return false
+        }
+
+        resetRuntimeState()
+        AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
+        MerianLog.data.debug(
+            "✅ Successfully purged all SwiftData records and account-scoped preferences."
+        )
+        return true
     }
 }
 

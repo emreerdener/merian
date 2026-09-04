@@ -120,15 +120,22 @@ crash or lost response. Both preparation markers are admitted back into that
 single deletion-owned recovery transition on relaunch; every other SDK Auth
 event, background sync, OAuth callback, and scene-phase operation remains
 closed. A successful or publicly recovered receipt advances to
-`capability_cleanup_pending`, which authorizes verified local sign-out and
-SwiftData purge. Acknowledgement then advances to
-`capability_retirement_pending`; verified proof removal precedes marker removal.
-Retirement relaunches re-run verified local sign-out and idempotent purge before
-proof removal. Launch and foreground show a blocking recovery surface and retry
-with bounded backoff. Unused-intent retirement requires definitive noncommit
-evidence: legacy intake needs explicit `409 purchase_continuity_pending`; v2
-accepts `not_committed` or a genuinely unknown proof, and a live v2 `409` must
-still be confirmed as `not_committed`. The app first persists
+`capability_cleanup_pending`, which authorizes verified local sign-out and the
+accepted-cleanup sequence. `ScanRepository.purgeAllData` synchronously resets
+sensitive private-map projections, deletes every active SwiftData model, saves,
+and read-back verifies the classified account-derived `UserDefaults` inventory.
+Only then does it reset observable settings, gamification, the generation-fenced
+app badge, and the RAM image cache. Device settings, consent, the deletion
+marker, and the manual Apple-revocation notice remain; this boundary does not
+replace the SQLite store file or traverse unreferenced app-container files.
+Acknowledgement then advances to `capability_retirement_pending`; verified proof
+removal precedes marker removal. Retirement relaunches re-run verified local
+sign-out and the idempotent SwiftData/preferences cleanup before proof removal.
+Launch and foreground show a blocking recovery surface and retry with bounded
+backoff. Unused-intent retirement requires definitive noncommit evidence: legacy
+intake needs explicit `409 purchase_continuity_pending`; v2 accepts
+`not_committed` or a genuinely unknown proof, and a live v2 `409` must still be
+confirmed as `not_committed`. The app first persists
 `capability_rejection_retirement_pending`, then verifies removal of the unused
 Keychain proof before clearing the barrier. Relaunch in that phase never signs
 out or purges local data. Legacy unknown proofs and all ambiguous failures

@@ -116,8 +116,10 @@ production Shell and Library file remains below the 600-line review guard.
   alert, toast, and export-progress presentation. Grid options (1x1, 2x2, 3x3)
   are structured as horizontal quick actions using a `ControlGroup` of exclusive
   `Toggle` elements, writing through `AppSettings.gridColumns` and instantly
-  reflowing the `ScansGrid` geometry. "Select multiple" transitions the entire
-  UI into `isSelectionMode = true`.
+  reflowing the `ScansGrid` geometry. The settings boundary clamps and persists
+  the supported 1...3 range, so reconstructed grid state matches the active
+  layout. "Select multiple" transitions the entire UI into
+  `isSelectionMode = true`.
 - **Contextual Batch Toolbars**: Entering `isSelectionMode` replaces the global
   toolbar. The header displays a selection count with "Cancel" and "Select All"
   actions. The bottom bar unhides, mounting `Share`, `Download`, and `Delete`
@@ -1618,10 +1620,13 @@ dependency composition.
   delayed-verifies every canonical R2 prefix, revokes a stored Apple credential,
   and removes Auth only after verification. A legacy Apple disposition is saved
   by `SupabaseManager` before the client signs out; the injected adapter then
-  purges the device SQLite boundary through
-  `ScanRepository.purgeAllData(modelContext:resetDerivedState:)`, passing the
-  required synchronous private-map derived-state reset before SwiftData
-  deletion; the app-root instructions remain visible across relaunch until the
+  deletes every active SwiftData row through
+  `ScanRepository.purgeAllData(modelContext:userDefaults:resetDerivedState:resetRuntimeState:)`,
+  passing the required synchronous private-map derived-state reset before every
+  active-schema model is deleted and verified account-derived defaults are
+  cleared. The injected post-persistence reset then refreshes observable
+  settings and clears legacy gamification, the generation-fenced app badge, and
+  RAM images; the app-root instructions remain visible across relaunch until the
   user confirms manual Apple removal. That receipt-and-notice behavior exists
   only in supporting binaries. Public promotion remains blocked until older
   clients are covered by an enforceable minimum-supported-build control or an

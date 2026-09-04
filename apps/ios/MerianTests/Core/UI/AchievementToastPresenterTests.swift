@@ -10,9 +10,9 @@ private var systemPresenter: MilestoneToastPresenter {
 }
 
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .sharedProcessState(.gamificationManager))
 struct AchievementToastPresenterTests {
-    private let unlockedAchievementsKey = "Merian_UnlockedAchievements"
+    private let unlockedAchievementsKey = UserDefaultsKeys.unlockedAchievements
 
     init() {
         systemPresenter.resetForTesting()

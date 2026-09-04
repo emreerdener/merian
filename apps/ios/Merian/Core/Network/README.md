@@ -1731,6 +1731,10 @@ xcodebuild test \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/SupabaseManagerTests \
   -only-testing:merianTests/AccountDeletionRecoveryCapabilityTests \
+  -only-testing:merianTests/ScanRepositoryPurgeTests \
+  -only-testing:merianTests/AccountScopedPreferencesTests \
+  -only-testing:merianTests/GamificationManagerTests \
+  -only-testing:merianTests/AppIconBadgeCoordinatorTests \
   -only-testing:merianTests/AppDIContainerTests
 ```
 
@@ -1765,10 +1769,14 @@ deployment.
   recovery to establish `not_committed`; rejection-retirement relaunch must not
   sign out or purge data.
 - Verify the manual-provider notice is durable before sign-out, private-map
-  reset precedes SwiftData purge, and acknowledgement follows verified local
-  cleanup. V2 acknowledgement uses its independent proof; acknowledged or
-  matched-expired recovery must remain safely replayable. Verified Keychain
-  removal precedes marker clearing.
+  reset precedes SwiftData purge, every `CurrentSchema` model is removed, and
+  the classified account-derived defaults are read-back verified before local
+  cleanup acknowledgement. Process-local settings, gamification, badge, and
+  image-cache projections reset only after those durable steps; badge work is
+  generation-fenced against stale completion. Device settings, consent, the
+  deletion marker, and the manual notice must survive. V2 acknowledgement uses
+  its independent proof; acknowledged or matched-expired recovery must remain
+  safely replayable. Verified Keychain removal precedes marker clearing.
 - Exercise legacy stored proofs and pre-capability cleanup markers without
   changing their fallback behavior. Verify Settings confirmation, pending/error
   presentation, relaunch recovery, and manual-notice dismissal, including
@@ -2755,12 +2763,14 @@ execution of this workflow remains part of the integration checklist rather than
 source-test evidence.
 
 A returned durable receipt promotes the marker to `capability_cleanup_pending`;
-only then may iOS sign out locally and purge SwiftData. After cleanup, iOS
-acknowledges recovery, records `capability_retirement_pending`,
+only then may iOS sign out locally, purge every active SwiftData model, and
+read-back verify account-derived `UserDefaults` cleanup. It then resets
+process-local settings, gamification, badge, and image-cache projections. After
+cleanup, iOS acknowledges recovery, records `capability_retirement_pending`,
 read-after-delete verifies Keychain removal, and clears the marker last.
 Relaunch from retirement re-verifies local Auth absence and repeats the
-idempotent SwiftData purge before proof removal, so a marker-writing durability
-failure cannot skip either cleanup boundary. A definitive
+idempotent SwiftData/preferences purge before proof removal, so a marker-writing
+durability failure cannot skip either cleanup boundary. A definitive
 `409 purchase_continuity_pending` first records
 `capability_rejection_retirement_pending`, then read-after-delete verifies the
 unused proof is gone, and clears the marker last. Relaunch in this phase

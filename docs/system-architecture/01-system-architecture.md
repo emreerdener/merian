@@ -476,8 +476,10 @@ single-responsibility functions under `/services/supabase/functions/`.
 
 ### 6. Continuous Gamification Ecosystem (`GamificationManager`)
 
-- Tracks device-native state (`UserDefaults`), tying species identifications to
-  profile persona progression and achievement milestones.
+- Tracks account-derived compatibility state in `UserDefaults`, tying species
+  identifications to profile persona progression and achievement milestones.
+  Accepted account deletion clears those keys and resets the observable
+  projection only after durable SwiftData and preference cleanup succeeds.
 - Returns typed presentation-eligible awards to `ScanMilestoneCoordinator`; the
   domain manager never reaches into the in-app feedback presenter.
 - Binds global haptics to success triggers and interactions.

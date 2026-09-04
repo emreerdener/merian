@@ -10,6 +10,25 @@ configurations, the `HistoricalDatabaseActor` for cloud sync reconciliation, and
 the `OfflineQueuedScan` persistence mechanism. It ensures that data remains
 durable even when inference fails or network connectivity is absent.
 
+`SpeciesPreferences/` owns the smaller cross-feature preferred-common-name data
+boundary. Its repository performs local SwiftData CRUD and legacy promotion; its
+policy owns normalization and timestamp conflicts; and its injected client and
+main-actor coordinator isolate the existing `user_species_preferences` PostgREST
+reconciliation. Only the live client resolves Supabase. See the
+[Species Preferences README](SpeciesPreferences/README.md) for ownership and
+verification details.
+
+Accepted account deletion routes through `ScanRepository.purgeAllData`, which
+explicitly deletes every model in `CurrentSchema` and then invokes the verified
+`Core/Preferences/AccountScopedPreferences` cleanup. A schema-inventory test
+fails when a newly active model is not added to that erasure boundary. Only
+after both durable steps succeed does the repository invoke the injected
+`AccountScopedRuntimeState` reset for observable settings, gamification, app
+badge, and RAM image-cache projections. This synchronous boundary deletes rows;
+it does not replace the SQLite store file or traverse unreferenced files in the
+app container. Any broader disk-erasure policy needs a separate inventory of
+file owners and must not infer ownership from a broad directory alone.
+
 V50 introduced `OfflineQueuedScanGoalHint`, a scan-keyed companion that stores
 the optional standard-outing and checklist-item IDs selected in a qualifying
 live Capture. Keeping this separate preserved the released V49 queue entity. The

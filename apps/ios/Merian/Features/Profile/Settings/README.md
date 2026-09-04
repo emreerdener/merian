@@ -188,11 +188,15 @@ their legacy intake/replay path; they are not rewritten into v2 mid-recovery.
 
 A valid accepted receipt advances through `capability_cleanup_pending`, durable
 manual-provider notice recording, verified local Supabase sign-out, synchronous
-private-map derived-state reset, SwiftData purge, server acknowledgement, and
-`capability_retirement_pending`. V2 acknowledgement uses only its independent
-second proof after local cleanup. Verified Keychain removal precedes marker
-clearing; the recovery overlay remains visible with bounded retry while a phase
-is unresolved.
+private-map derived-state reset, complete active-schema purge, verified
+account-derived preferences cleanup, server acknowledgement, and
+`capability_retirement_pending`. The cleanup preserves device settings, consent,
+the deletion marker, and the manual Apple notice. After durable local cleanup,
+the shared runtime-reset owner refreshes observable settings and clears legacy
+gamification, the generation-fenced Explore app badge, and RAM image state. V2
+acknowledgement uses only its independent second proof after local cleanup.
+Verified Keychain removal precedes marker clearing; the recovery overlay remains
+visible with bounded retry while a phase is unresolved.
 
 Definitive cancellation is separate from accepted-deletion cleanup. For v2,
 `not_committed` or a genuinely unknown proof retires only the unused proof and

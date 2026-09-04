@@ -358,17 +358,25 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
 
 @MainActor
 enum AppIconBadgeCoordinator {
-    private static let exploreUnreadNotificationCountKey = "exploreUnreadNotificationBadgeCount"
     private static let refreshReuseInterval: TimeInterval = 10
     private static var activeExploreUnreadRefreshTask: Task<Int?, Never>?
     private static var lastExploreUnreadRefreshAt: Date?
+    private static var accountGeneration: UInt = 0
 
     static var exploreUnreadNotificationCount: Int {
-        max(0, UserDefaults.standard.integer(forKey: exploreUnreadNotificationCountKey))
+        max(
+            0,
+            UserDefaults.standard.integer(
+                forKey: UserDefaultsKeys.exploreUnreadNotificationBadgeCount
+            )
+        )
     }
 
     static func setExploreUnreadNotificationCount(_ count: Int) {
-        UserDefaults.standard.set(max(0, count), forKey: exploreUnreadNotificationCountKey)
+        UserDefaults.standard.set(
+            max(0, count),
+            forKey: UserDefaultsKeys.exploreUnreadNotificationBadgeCount
+        )
         updateAppIconBadge()
     }
 
@@ -376,7 +384,13 @@ enum AppIconBadgeCoordinator {
         setExploreUnreadNotificationCount(0)
     }
 
-    static func refreshExploreUnreadNotificationCount(force: Bool = false) async -> Int? {
+    static func refreshExploreUnreadNotificationCount(
+        force: Bool = false,
+        loadUnreadCount: @escaping @MainActor () async throws -> Int = {
+            try await MerianNetworkClient.shared
+                .getUnreadExploreNotificationCount()
+        }
+    ) async -> Int? {
         if let activeExploreUnreadRefreshTask {
             return await activeExploreUnreadRefreshTask.value
         }
@@ -387,9 +401,14 @@ enum AppIconBadgeCoordinator {
             return exploreUnreadNotificationCount
         }
 
+        let generation = accountGeneration
         let refreshTask = Task<Int?, Never> { @MainActor in
             do {
-                let count = try await MerianNetworkClient.shared.getUnreadExploreNotificationCount()
+                let count = try await loadUnreadCount()
+                guard !Task.isCancelled,
+                      generation == accountGeneration else {
+                    return nil
+                }
                 setExploreUnreadNotificationCount(count)
                 return count
             } catch is CancellationError {
@@ -406,11 +425,26 @@ enum AppIconBadgeCoordinator {
         activeExploreUnreadRefreshTask = refreshTask
 
         let count = await refreshTask.value
-        activeExploreUnreadRefreshTask = nil
-        if count != nil {
+        if generation == accountGeneration {
+            activeExploreUnreadRefreshTask = nil
+        }
+        if count != nil, generation == accountGeneration {
             lastExploreUnreadRefreshAt = Date()
         }
         return count
+    }
+
+    /// Invalidates account-bound badge work and clears both persisted and
+    /// presented state after accepted account deletion.
+    static func resetAccountState() {
+        accountGeneration &+= 1
+        activeExploreUnreadRefreshTask?.cancel()
+        activeExploreUnreadRefreshTask = nil
+        lastExploreUnreadRefreshAt = nil
+        UserDefaults.standard.removeObject(
+            forKey: UserDefaultsKeys.exploreUnreadNotificationBadgeCount
+        )
+        updateAppIconBadge()
     }
 
     static func updateAppIconBadge() {

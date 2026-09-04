@@ -85,10 +85,17 @@ asynchronously to the main queue before entering the main actor. Do not apply it
 to `AppEventPublisher`: app-event delivery is intentionally synchronous and
 reentrant on `@MainActor`.
 
-`UserDefaultsKeys.swift` is the one Utilities-owned NotificationCenter boundary.
-It retains the exact observer token, captures its owner weakly, hops explicitly
-to the main actor, and removes the token during teardown. Application-defined
-notification names and posts are forbidden.
+`Core/Preferences/AppSettings.swift` is the one Preferences-owned
+`UserDefaults.didChangeNotification` boundary. It retains the exact observer
+token, captures its owner weakly, hops explicitly to the main actor, and removes
+the token during teardown. `UserDefaultsKeys.swift` remains the exact key
+registry plus the staged account-deletion and Keychain compatibility owner; it
+no longer imports Observation, UIKit, Supabase, or SwiftData. Durable species
+preference reconciliation lives in `Core/Data/SpeciesPreferences`; verified
+cleanup of account-derived defaults lives in
+`Core/Preferences/AccountScopedPreferences.swift` and deliberately leaves the
+Utilities-owned deletion marker and manual Apple notice intact.
+Application-defined notification names and posts are forbidden.
 
 See the canonical
 [Event and Presentation Routing contract](../../../../../docs/system-architecture/10-event-and-presentation-routing.md).

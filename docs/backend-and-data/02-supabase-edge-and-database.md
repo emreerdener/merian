@@ -2434,13 +2434,19 @@ service-role JWTs are sent in both `apikey` and Bearer Authorization. The Edge
 route compares either format against its platform-managed environment set.
 
 On `200 OK` or durable `202 Accepted`, the iOS client performs local Supabase
-sign-out for the current device, tears down the local SQLite database via
-`ScanRepository.purgeAllData(modelContext:resetDerivedState:)`, and supplies the
-app-owned private-map reset closure before deletion. That closure synchronously
-empties and fences exact-coordinate snapshots, index work, and preview rendering
-and advances the active-map presentation reset generation. The client then
-clears all cached image files from disk. Ordinary in-app sign-out also uses
-local scope so another simulator or device session is not revoked.
+sign-out for the current device and deletes every active SwiftData row via
+`ScanRepository.purgeAllData(modelContext:userDefaults:resetDerivedState:resetRuntimeState:)`,
+and supplies the app-owned private-map reset closure before deletion. That
+closure synchronously empties and fences exact-coordinate snapshots, index work,
+and preview rendering and advances the active-map presentation reset generation.
+The purge explicitly removes all `CurrentSchema` rows and read-back verifies
+classified account-derived defaults while retaining device settings and durable
+deletion/manual-Apple-notice fences. It then refreshes observable settings and
+clears legacy gamification, the generation-fenced Explore unread badge, and the
+RAM image cache. This synchronous boundary does not replace the SQLite store
+file or traverse unreferenced filesystem artifacts; those require a separately
+owned storage-lifecycle contract. Ordinary in-app sign-out also uses local scope
+so another simulator or device session is not revoked.
 
 ## Scan Erasure & The Deletion Pipeline (`delete-scan`)
 
@@ -2626,15 +2632,21 @@ PostgREST rather than through an Edge Function. RLS scopes every row to
 - Clears upsert a tombstone (`preferred_common_name = NULL`, `deleted_at = now`)
   so another device can distinguish a deliberate clear from a species that never
   had a preference.
-- `SpeciesPreferredNameRepository` reconciles all local SwiftData
+- `Core/Data/SpeciesPreferences/SpeciesPreferredNameRepository.swift` owns local
+  SwiftData CRUD and legacy promotion. Its
+  `SpeciesPreferredNameCloudSyncCoordinator` reconciles all local
   `UserSpeciesPreference` rows plus pending local delete timestamps against the
   remote table on auth restore, foreground activation, and after local edits.
 - iOS keeps this reconciliation single-flight inside the `@MainActor`
-  repository: duplicate lifecycle/auth/edit triggers await the active sync task
+  coordinator: duplicate lifecycle/auth/edit triggers await the active sync task
   rather than issuing overlapping remote reads and upserts. If a trigger arrives
-  while a sync is running, the repository stores a trailing follow-up request
+  while a sync is running, the coordinator stores the latest trailing request
   and reruns reconciliation until no follow-up remains, so local edits made
   after the active task's local fetch are not left for a later lifecycle event.
+  Its initializer-injected client is the only direct Supabase/Auth-lease owner;
+  repository and coordinator logic remain independently testable. A failed local
+  fetch or remote-application save fails the reconciliation and retains
+  convergence markers rather than recording a clean sync.
   `SpeciesPreferredNameStore.syncDiagnostics` persists last
   attempt/success/status/message and last pushed/pulled counts in `UserDefaults`
   for supportability; these keys are diagnostic only and do not participate in
@@ -2643,12 +2655,21 @@ PostgREST rather than through an Edge Function. RLS scopes every row to
   SwiftData, newer remote tombstones delete the local row, newer local rows push
   back to Supabase, and pending local clears remain queued until their tombstone
   upsert succeeds.
+- Select pages use `(updated_at, scientific_name)` order so equal-timestamp rows
+  have a stable offset order. A persisted success timestamp later than the
+  current clock is not fresh and cannot suppress a pull.
 - A matching normalized active value is already converged even when local and
   remote timestamps differ, and two tombstones are already converged as well.
-  The repository clears stale legacy/pending markers without rewriting the
-  matching remote row. For a real active-value conflict, the newer timestamp
-  wins; local-newer or equal values push, while remote-newer values replace the
-  SwiftData row. This avoids two devices repeatedly echoing the same value.
+  Historical rows whose scientific names differ only by surrounding whitespace
+  are collapsed before conflict planning; the newest valid timestamp is used so
+  a malformed duplicate cannot terminate client reconciliation. The repository
+  clears stale legacy/pending markers without rewriting the matching remote row.
+  For a real active-value conflict, the newer timestamp wins; local-newer or
+  equal values push, while remote-newer values replace the SwiftData row. This
+  avoids two devices repeatedly echoing the same value.
+- Accepted local account cleanup deletes `UserSpeciesPreference` rows and clears
+  legacy names, pending tombstones, and sync diagnostics before the client
+  acknowledges device cleanup.
 
 ## Privileged Database RPC Boundary
 

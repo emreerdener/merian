@@ -3,6 +3,8 @@ import Testing
 
 /// Process-wide mutable resources that require exclusive ownership in tests.
 enum SharedProcessStateResource: Hashable, Sendable {
+    case appIconBadgeCoordinator
+    case gamificationManager
     case networkClientOverrides
     case offlineQueueManager
 }

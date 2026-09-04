@@ -11,15 +11,15 @@ import os
 
     var unlockedSpeciesCount: Int
     var hasFireflyBadge: Bool
-    var showTerrariumSheet: Bool = false
     var unlockedAchievements: Set<AchievementType>
 
     // MARK: - Storage Keys
 
     private let defaults = UserDefaults.standard
-    private let speciesCountKey        = "Merian_UnlockedSpeciesCount"
-    private let fireflyBadgeKey        = "Merian_HasFireflyBadge"
-    private let unlockedAchievementsKey = "Merian_UnlockedAchievements"
+    private let speciesCountKey = UserDefaultsKeys.unlockedSpeciesCount
+    private let fireflyBadgeKey = UserDefaultsKeys.hasFireflyBadge
+    private let unlockedAchievementsKey =
+        UserDefaultsKeys.unlockedAchievements
     // 2026-07-04 00:00:00 UTC: cat/dog achievements shipped after users already
     // had scan history, so legacy completions should be seeded without a toast.
     private let retroactiveAchievementNotificationCutoffs: [AchievementType: Date] = [
@@ -97,5 +97,16 @@ import os
         defaults.set(true, forKey: fireflyBadgeKey)
         MerianLog.general.debug("Firefly Badge unlocked.")
         HapticManager.shared.triggerSelectionPulse()
+    }
+
+    /// Clears state derived from the authenticated account after accepted
+    /// deletion. Device settings and server-authoritative awards are separate.
+    func resetAccountState() {
+        unlockedSpeciesCount = 0
+        hasFireflyBadge = false
+        unlockedAchievements = []
+        defaults.removeObject(forKey: speciesCountKey)
+        defaults.removeObject(forKey: fireflyBadgeKey)
+        defaults.removeObject(forKey: unlockedAchievementsKey)
     }
 }

@@ -601,8 +601,9 @@ unrelated views that mutate the same preference.
 
 ### ✅ The Pattern: `UserDefaultsKeys` + `AppSettings`
 
-- Keep storage names in `UserDefaultsKeys`.
-- Expose typed, observable properties through `AppSettings`.
+- Keep storage names in `Core/Utilities/UserDefaultsKeys.swift`.
+- Expose typed, observable properties through
+  `Core/Preferences/AppSettings.swift`.
 - Inject `AppSettings` via environment, or through the owning view model/manager
   initializer for tests.
 - Use `diContainer.appSettings` inside `CaptureWorkspaceViewModel` and related
@@ -613,6 +614,9 @@ unrelated views that mutate the same preference.
   `AppSettings`.
 - Use `refreshFromDefaults()` on foreground when a background delegate may have
   written persisted state while SwiftUI was suspended.
+- Normalize bounded settings before persisting them. `gridColumns`, for example,
+  must store the same 1...3-clamped value exposed in memory so a reconstructed
+  settings owner cannot revive stale invalid state.
 - Reserve direct `UserDefaults` access for typed keyed stores
   (`FieldNotesStore`, `ExploreShareStateStore`, `SpeciesPreferredNameStore`),
   migrations, throttle timestamps, synchronous system delegates that cannot hop
@@ -621,8 +625,22 @@ unrelated views that mutate the same preference.
   stale legacy keys only after save succeeds. Network DTOs and SwiftUI
   presentation models should not read legacy mirrors directly; hydrate
   view-model state from the repository with an explicit `ModelContext` instead.
+- Keep cross-feature repository and cloud-reconciliation logic in
+  `Core/Data/SpeciesPreferences`, not in the defaults key registry. Only its
+  narrow live client may resolve Supabase; the repository and coordinator use
+  local data and injected effects.
 - Per-entity stores should expose small static helpers and namespace-safe
   `clearAll` methods rather than letting view models concatenate key prefixes.
+- Accepted account deletion is the exception that composes these owners:
+  `AccountScopedPreferences.purgeAndVerify` clears and verifies all classified
+  account-derived defaults only after the complete `CurrentSchema` purge saves.
+  Keep device settings and the deletion-recovery/manual-Apple-notice fences out
+  of that inventory. Add any new account-local model or defaults cache to the
+  corresponding exact-inventory test in the same change.
+- Reset process-local projections only after persistent cleanup succeeds.
+  `AccountScopedRuntimeState` composes the observable settings refresh,
+  gamification reset, generation-fenced app badge reset, and RAM image-cache
+  clear without moving those domain effects into feature views.
 
 ## 15. Detached Work Should Be Routed Through A Named Bridge
 
@@ -750,10 +768,10 @@ with `UserTagsDependencies`, `OfflineQueueManager.flushOfflineQueuedScan(...)`,
 `OfflineQueueManager.enqueueNonVisualCapture(...)`,
 `BackgroundDatabaseActor.markScansAsUploading(...)`, `MerianMigrationPlan`
 custom saves, `ScanRepository.eradicateScan(...)`,
-`ScanRepository.purgeAllData(modelContext:resetDerivedState:)`, and historical
-`updateExistingScans` / `ingestScans` / `syncCollections` follow this
-containment pattern. For custom tags, each successful local commit enqueues an
-immutable cloud snapshot behind its predecessor; do not restore independent
+`ScanRepository.purgeAllData(modelContext:userDefaults:resetDerivedState:resetRuntimeState:)`,
+and historical `updateExistingScans` / `ingestScans` / `syncCollections` follow
+this containment pattern. For custom tags, each successful local commit enqueues
+an immutable cloud snapshot behind its predecessor; do not restore independent
 fire-and-forget RPC tasks, because an older add may otherwise finish after a
 newer removal. The snapshot must retain the authoring account ID and acquire an
 exact `beginUnownedAccountBoundWork(expectedUserID:)` lease before using the
@@ -763,7 +781,12 @@ additionally requires its `resetDerivedState` closure. Callers must pass the
 app-owned private-map sensitive reset so exact-coordinate snapshots, actor
 indexes, and preview renders are detached and the active-map presentation reset
 generation advances before the destructive SwiftData transaction begins; an
-eventual library event is not the erasure boundary.
+eventual library event is not the erasure boundary. The purge explicitly names
+every `CurrentSchema` model and then read-back verifies account-scoped defaults.
+Its test compares the type inventory to `CurrentSchema.models` and inspects the
+actual delete calls; adding or omitting a model without an erasure decision must
+fail the suite rather than leave data behind after accepted account deletion.
+Its injected runtime reset runs only after both durable operations succeed.
 
 That video-aware signature is shorthand for media adoption. Any inference-owned
 finalization must additionally supply its exact foreground or background

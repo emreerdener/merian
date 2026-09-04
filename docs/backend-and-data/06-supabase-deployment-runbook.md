@@ -1873,10 +1873,11 @@ before token capture was deployed. Confirm:
     subject while collecting this evidence;
 17. terminate the supporting iOS build after capability/marker persistence but
     before `/safe-delete`, after server acceptance but before the receipt, after
-    local Auth sign-out, after SwiftData purge, after acknowledgement, and after
-    Keychain proof removal. At every boundary, relaunch must remain on the
-    blocking recovery surface, use the same proof, avoid restoring or creating
-    an account, and converge exactly once;
+    local Auth sign-out, after the SwiftData commit but before preferences
+    cleanup, after verified preferences/runtime reset, after acknowledgement,
+    and after Keychain proof removal. At every boundary, relaunch must remain on
+    the blocking recovery surface, use the same proof, avoid restoring or
+    creating an account, and converge exactly once;
 18. repeat the lost-receipt case after removing the cached Auth session. The
     public `/recover-account-deletion` route must recover using only publishable
     `apikey` plus the capability, without a user Bearer token or any identity in

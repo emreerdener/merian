@@ -54,6 +54,11 @@ Tracks device-local discovery milestones and achievement notification state.
   `onDismiss`, preventing a navigation push during cover teardown.
 - Triggers `HapticManager.shared.triggerSelectionPulse()` when an achievement
   (`hasFireflyBadge`) activates after 5 taxonomic finds.
+- Treats the persisted species count, Firefly flag, and typed achievement set as
+  account-derived compatibility state. Accepted account deletion removes their
+  centralized `UserDefaultsKeys` values and resets the observable manager
+  through `AccountScopedRuntimeState` only after active-schema and classified
+  preference cleanup succeeds.
 - The profile `Terrarium` presents bundled asset-catalog artwork selected by
   `UserPersona` for the user's current unique-species count.
 - **Erasure mechanics**: PostgreSQL stores one private

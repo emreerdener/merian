@@ -1,18 +1,13 @@
-import Testing
-@testable import Merian
 import Foundation
+@testable import Merian
+import Testing
 
 @MainActor
+@Suite(.serialized, .sharedProcessState(.gamificationManager))
 struct GamificationManagerTests {
 
     init() {
-        // Reset UserDefaults for a clean state each run
-        UserDefaults.standard.removeObject(forKey: "Merian_UnlockedSpeciesCount")
-        UserDefaults.standard.removeObject(forKey: "Merian_HasFireflyBadge")
-        
-        // Ensure GamificationManager resets to zero for this run
-        GamificationManager.shared.unlockedSpeciesCount = 0
-        GamificationManager.shared.hasFireflyBadge = false
+        GamificationManager.shared.resetAccountState()
     }
 
     @Test func testRecordNewSpeciesDiscoveredIncrementsCount() {
@@ -62,5 +57,39 @@ struct GamificationManagerTests {
         // Assert
         #expect(manager.hasFireflyBadge == true, "Badge should remain unlocked")
         #expect(manager.unlockedSpeciesCount == 6, "Unlocked species count should be exactly 6")
+    }
+
+    @Test func resetAccountStateClearsMemoryAndPersistedValues() {
+        let manager = GamificationManager.shared
+        manager.unlockedSpeciesCount = 12
+        manager.hasFireflyBadge = true
+        manager.unlockedAchievements = [.domesticCat]
+        UserDefaults.standard.set(
+            12,
+            forKey: UserDefaultsKeys.unlockedSpeciesCount
+        )
+        UserDefaults.standard.set(
+            true,
+            forKey: UserDefaultsKeys.hasFireflyBadge
+        )
+        UserDefaults.standard.set(
+            [AchievementType.domesticCat.rawValue],
+            forKey: UserDefaultsKeys.unlockedAchievements
+        )
+
+        manager.resetAccountState()
+
+        #expect(manager.unlockedSpeciesCount == 0)
+        #expect(!manager.hasFireflyBadge)
+        #expect(manager.unlockedAchievements.isEmpty)
+        #expect(UserDefaults.standard.object(
+            forKey: UserDefaultsKeys.unlockedSpeciesCount
+        ) == nil)
+        #expect(UserDefaults.standard.object(
+            forKey: UserDefaultsKeys.hasFireflyBadge
+        ) == nil)
+        #expect(UserDefaults.standard.object(
+            forKey: UserDefaultsKeys.unlockedAchievements
+        ) == nil)
     }
 }

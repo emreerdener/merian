@@ -5311,7 +5311,10 @@ successful count may be reused for 10 seconds. Explore-post activity uses
 Realtime as the primary refresh path, while routine five-minute polling also
 covers Field trip-only rows, missed events, and subscription failure. Realtime
 events and notification-sheet dismissal force a fresh count. Keep the server
-endpoint side-effect-free so this deduplication remains safe.
+endpoint side-effect-free so this deduplication remains safe. Accepted account
+cleanup cancels the active load, advances the coordinator's account generation,
+clears its cached timestamp and persisted count, and refreshes the OS badge. A
+stale result is rejected even when its loader does not honor cancellation.
 
 ### `/mark-explore-notifications-read`
 
@@ -5633,7 +5636,10 @@ notification therefore does not intentionally create a second presented push.
 
 Preferred species display names are not part of the Explore endpoint payload.
 The iOS client syncs `user_species_preferences` directly through PostgREST under
-Supabase RLS, hydrates
+Supabase RLS. The exact row/upsert models and sole direct client live in
+`Core/Data/SpeciesPreferences/Models` and `Services`; the initializer-injected
+`SpeciesPreferredNameCloudSyncCoordinator` owns pagination, account fencing, and
+convergence without changing the table or JSON contract. Explore hydrates
 `ExploreFeedViewModel.preferredSpeciesNamesByScientificName` from local
 SwiftData, and applies those names in feed cards, map previews, comments, detail
 titles, and share text.
@@ -8205,22 +8211,32 @@ neither local sign-out nor local data erasure.
 
 After a validated pending/completed receipt, iOS advances the marker to
 `capability_cleanup_pending`, persists any manual Apple disposition, performs
-verified local Supabase sign-out, and drops all local SQLite `ModelContext`
-state through `ScanRepository.purgeAllData(modelContext:resetDerivedState:)`.
+verified local Supabase sign-out, and deletes every active-schema SwiftData row
+through
+`ScanRepository.purgeAllData(modelContext:userDefaults:resetDerivedState:resetRuntimeState:)`.
 The required app-owned private-map reset closure empties and epoch-fences
 exact-coordinate snapshots, index work, and preview rendering and advances the
-active-map presentation reset generation before SwiftData deletion. It then
+active-map presentation reset generation before SwiftData deletion. After the
+database save, the purge read-back verifies removal of account-derived
+`UserDefaults` caches, including field notes, Explore share state, species-name
+legacy/tombstone/diagnostic values, account-keyed goal and achievement
+envelopes, collection state, Explore state and unread count, legacy
+gamification, sync throttles, and account-keyed recovery-dismissal signatures.
+Device settings, consent, the deletion marker, and the manual Apple-revocation
+notice remain. An injected post-persistence owner then resets observable
+settings, gamification, the generation-fenced app badge, and RAM images. It then
 acknowledges through the public recovery route using only the independent
 acknowledgement capability, records `capability_retirement_pending`, verifies
-local Auth absence and idempotent SwiftData purge again on relaunch, verifies
-Keychain proof removal, and clears the marker last. Foreground and cold-launch
-recovery repeat the exact phase behind a blocking screen. Only a matched
-committed capability's `account_deletion_recovery_expired` `410` permits
-conservative local cleanup; the subsequent independent acknowledgement remains
-valid after expiry and converts the row to a permanent replay receipt before
-local retirement. An unknown legacy proof does not. An authenticated duplicate
-that arrives after acknowledgement returns the same permanent receipt and cannot
-clear acknowledgement or extend its expiry. The app establishes its ordinary
+local Auth absence and repeats the idempotent SwiftData/preferences cleanup on
+relaunch, verifies Keychain proof removal, and clears the marker last.
+Foreground and cold-launch recovery repeat the exact phase behind a blocking
+screen. Only a matched committed capability's
+`account_deletion_recovery_expired` `410` permits conservative local cleanup;
+the subsequent independent acknowledgement remains valid after expiry and
+converts the row to a permanent replay receipt before local retirement. An
+unknown legacy proof does not. An authenticated duplicate that arrives after
+acknowledgement returns the same permanent receipt and cannot clear
+acknowledgement or extend its expiry. The app establishes its ordinary
 signed-out state only after this sequence. Neither marker nor proof contains an
 account, job, provider, or request identifier. Legacy `intake_pending` and
 `cleanup_pending` remain supported during the installed-client compatibility

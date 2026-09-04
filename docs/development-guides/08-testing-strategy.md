@@ -748,15 +748,17 @@ Swift Testing's `.serialized` trait serializes descendants within one suite; it
 does not prevent a different suite from mutating the same process-wide resource
 at the same time. Tests that temporarily own shared network-client overrides
 must use `.sharedProcessState(.networkClientOverrides)`; queue fixtures use
-`.sharedProcessState(.offlineQueueManager)`. The recursive trait lives in
-`MerianTests/Support/SharedProcessStateTestTrait.swift`. Claim both resources in
-one `.sharedProcessState(.networkClientOverrides, .offlineQueueManager)` when
-needed; never nest overlapping traits or acquire the resources separately. Apply
-the trait at suite scope when every case uses the resource, or only on
-individual tests otherwise. `SharedProcessStateGate` admits whole resource sets
-atomically, preserves FIFO among overlapping requests, removes cancelled
-waiters, and rejects stale/double releases. Disjoint resource sets may execute
-concurrently. `SharedProcessStateGateTests` covers those contracts.
+`.sharedProcessState(.offlineQueueManager)`; gamification suites use
+`.sharedProcessState(.gamificationManager)`; and badge suites use
+`.sharedProcessState(.appIconBadgeCoordinator)`. The recursive trait lives in
+`MerianTests/Support/SharedProcessStateTestTrait.swift`. Claim every required
+resource in one trait when a case owns more than one; never nest overlapping
+traits or acquire resources separately. Apply the trait at suite scope when
+every case uses the resource, or only on individual tests otherwise.
+`SharedProcessStateGate` admits whole resource sets atomically, preserves FIFO
+among overlapping requests, removes cancelled waiters, and rejects stale/double
+releases. Disjoint resource sets may execute concurrently.
+`SharedProcessStateGateTests` covers those contracts.
 
 Capture's XCTest fixture inherits `Support/OfflineQueueTestCase.swift`, which
 holds the same two-resource lease from async setup through synchronous teardown
@@ -1019,7 +1021,9 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   [first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 - **`GamificationManagerTests.swift`**: Validates persistence, asserting correct
   math updates against user local scores so UI progression trackers do not skew
-  unexpectedly.
+  unexpectedly. It directly locks the account reset's observable and persisted
+  state; account-cleanup coverage separately locks the exact key inventory and
+  post-persistence runtime delegation.
 - **`UsageManagerTests.swift`**: Validates the advisory daily capture meter
   without treating it as a live API constraint. The suite exercises the normal
   default plus DEBUG override; `FieldTripsAvailabilityTests` locks the shipped
@@ -1657,6 +1661,11 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   with an injected route-request closure backed by a private
   `AppRouteCoordinator`. They validate Explore, Community, and scan tap payloads
   without clearing or consuming the live app-host route queue.
+- **`AppIconBadgeCoordinatorTests.swift`**: Suspends an injected unread-count
+  load across accepted account cleanup and proves cancellation plus the account
+  generation fence reject the stale result instead of restoring the
+  coordinator's persisted unread count. The production reset continues through
+  the existing OS badge-update path.
 - **`EventDeliveryTests.swift`**: Locks synchronous and reentrant `AppEvent`
   delivery, cancellation behavior, main-actor ordering for framework publisher
   bridges, and generation-fenced media observation after player replacement and
@@ -1665,6 +1674,36 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   event publishers, route coordinators, milestone presenters, and host
   registries. The event-routing source guard separately rejects any shared
   feedback host that bypasses this isolation through `AppDIContainer.shared`.
+- **`Core/Preferences` suites**: `AppSettingsTests` owns typed defaults,
+  normalized persistence, explicit reload behavior, and external-change
+  observation; `KeyedPreferenceStoreTests` owns Explore-share and field-note
+  normalization plus prefix isolation; `SpeciesPreferredNameStoreTests` owns
+  legacy species scoping, safe clearing, pending-delete values, and sync
+  diagnostics; `AccountScopedPreferencesTests` locks the direct account-cache
+  key/prefix inventory, read-back erasure, preservation of device settings, and
+  exact process-state reset delegation; and `PreferencesArchitectureTests` locks
+  the exact extracted-file production inventory, declaration ownership,
+  dependency exclusions, and 600-line extracted-owner ceiling.
+- **`Core/Data/SpeciesPreferences` suites**:
+  `SpeciesPreferredNameRepositoryTests` retains the SwiftData CRUD, migration,
+  display-map, and conflict-policy coverage formerly embedded in
+  `AppDIContainerTests`; `SpeciesPreferenceCloudModelsTests` locks the exact
+  decoded row and explicit-null upsert shape;
+  `SpeciesPreferredNameCloudSyncCoordinatorTests` uses an injected client,
+  clock, page size, and account leases to cover push, pagination, remote
+  application, freshness, future-clock recovery, unavailable/failing sessions,
+  post-upsert account invalidation, confirmed and equal-time tombstones,
+  recovery, and deterministic trailing reconciliation;
+  `SpeciesPreferredNameCloudCanonicalizationTests` proves malformed local and
+  remote whitespace aliases select one newest normalized row without a
+  dictionary-key trap or duplicate upsert; and
+  `SpeciesPreferencesArchitectureTests` freezes file and declaration ownership,
+  imports, Supabase resolution, endpoint strings, deterministic page order, and
+  the 600-line production-file ceiling. `ScanRepositoryPurgeTests` exercises the
+  complete `CurrentSchema` plus account-preference cleanup and compares the
+  explicit purge type inventory with `CurrentSchema.models` and the repository's
+  actual delete calls so a later schema addition or implementation omission
+  cannot silently survive account deletion.
 - **`ToastPayloadTests.swift`**: Locks typed title/body splitting, severity and
   action identity, plus a fresh presentation UUID when equivalent copy replaces
   an existing toast. It also proves milestone suppression applies only when the
@@ -2855,9 +2894,11 @@ import, and permission-denial UI require the physical-device checklist in
   and unrelated scans plus Favorites, then verifies `collectionSyncPayloads()`
   returns only the non-Favorites collection's direct, deterministically sorted
   membership IDs.
-- **`AppDIContainerTests.swift` preferred-name coverage**: Verifies matching
-  normalized cloud values and existing tombstones are converged without an
-  upsert, while real conflicts retain timestamp ordering.
+- **`Core/Data/SpeciesPreferences/SpeciesPreferredNameRepositoryTests.swift`
+  preferred-name coverage**: Verifies matching normalized cloud values and
+  existing tombstones are converged without an upsert, while real conflicts
+  retain timestamp ordering. This coverage no longer belongs to
+  `AppDIContainerTests`.
 - **`Features/Onboarding` suites**: `OnboardingViewModelTests`,
   `OnboardingDependencyTests`, `ReadyStepViewModelTests`, and
   `ReadyConsentPresentationTests` validate ordered progression, expected-step
@@ -4210,9 +4251,10 @@ Run the pgTAP fixture only against the disposable local stack. It inserts and
 deletes Auth fixtures inside a transaction and rolls everything back. Source and
 catalog success do not replace the physical-device kill matrix: terminate before
 intake, after server commit with the response dropped, after Auth sign-out,
-after SwiftData purge, after acknowledgement, and after Keychain removal. Repeat
-with no cached Auth session and confirm public capability recovery converges
-without restoring an account or exposing an identity.
+after the SwiftData commit but before preferences cleanup, after verified
+preferences/runtime reset, after acknowledgement, and after Keychain removal.
+Repeat with no cached Auth session and confirm public capability recovery
+converges without restoring an account or exposing an identity.
 
 Owned scan-image recovery has five complementary boundaries:
 
@@ -5062,7 +5104,7 @@ hardware. Description-first must render the input, open **Prompts** through
 `DescribePrompts`, scroll vertically, dismiss the keyboard on drag, and stop
 dictation when changing modes. It must also keep the editor clear of the prompt,
 submit, and dictation row rather than letting those controls straddle its bottom
-edge. `AppDIContainerTests` verifies the presentation preference defaults on and
+edge. `AppSettingsTests` verifies the presentation preference defaults on and
 persists an explicit opt-out. `AppTelemetryTests` locks the coarse
 action/source-only event shape and prevents goal content or identifiers from
 entering analytics. Debug-only `UITestSeedCoordinator` snapshots drive focused

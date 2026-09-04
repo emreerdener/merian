@@ -118,9 +118,13 @@ in `MerianTests/Core/Hardware/PushNotificationManagerTests.swift` and
 Push registration, notification catalog/count, and mark-read wire requests live
 in `Core/Network/Endpoints/MerianNetworkClient+Notifications.swift`.
 `PushNotificationManager` still owns permissions, token synchronization, and
-registration lifecycle; `AppIconBadgeCoordinator` still owns badge refresh/cache
-policy. Endpoint extraction does not move OS integration or badge state into
-Network. `NotificationEndpointTests` covers request fields and count
+registration lifecycle; `AppIconBadgeCoordinator` still owns badge refresh,
+cache, account-generation fencing, and post-deletion reset. Endpoint extraction
+does not move OS integration or badge state into Network.
+`AppIconBadgeCoordinatorTests` suspends an injected unread-count load across an
+account reset and proves its stale result cannot restore the coordinator's
+persisted unread count. The production reset retains the existing OS
+badge-update call. `NotificationEndpointTests` covers request fields and count
 projections, and `NotificationAndPublicProfileEndpointTransportTests` covers
 replay, cancellation, and body-ignoring registration success. Run the
 [Core Network notification/public-profile matrix](../Network/README.md#notification-and-public-profile-verification)

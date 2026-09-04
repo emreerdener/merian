@@ -426,7 +426,10 @@ triggering excessive SwiftUI view rebuilds.
   update path and polls every five minutes to cover Field trip-only activity,
   missed events, and subscription failure. Realtime events and notification-
   sheet dismissal use `force: true`. Failed or cancelled refreshes do not start
-  the reuse window or erase the last persisted count.
+  the reuse window or erase the last persisted count. Accepted account cleanup
+  cancels the active task, advances an account generation, clears the reuse
+  timestamp and persisted unread count, and updates the OS badge. A loader that
+  ignores cancellation still cannot publish after the generation changes.
 
 ## AI & Offline Synchronization
 
@@ -1190,8 +1193,10 @@ consults that Keychain entry.
 
 ### `SpeciesPreferredNameRepository`
 
-- `@MainActor` SwiftData-backed repository living beside the typed preference
-  stores in `Core/Utilities/UserDefaultsKeys.swift`.
+- `@MainActor` SwiftData-backed repository in
+  `Core/Data/SpeciesPreferences/SpeciesPreferredNameRepository.swift`. The typed
+  legacy/pending-delete/diagnostics store remains in
+  `Core/Preferences/Stores/SpeciesPreferredNameStore.swift`.
 - Uses `UserSpeciesPreference` as the source of truth for Insight load/set/clear
   operations.
 - `MerianApp` calls `migrateLegacyPreferences(modelContext:)` immediately after
@@ -1203,22 +1208,28 @@ consults that Keychain entry.
   only as a safety net, promoting that legacy value into SwiftData and clearing
   the key after save.
 - Syncs with Supabase `user_species_preferences` on auth restore, foreground
-  activation, and after local set/clear edits. Sync is single-flight on the
-  main-actor repository boundary, so repeated lifecycle/auth/edit triggers
-  coalesce behind the active task instead of issuing overlapping PostgREST reads
-  and upserts; if a trigger arrives while a sync is already running, the
-  repository records a trailing follow-up request so edits saved after the
-  active task's local fetch are flushed before the coalesced task completes.
-  Clean lifecycle/auth syncs also use a 60-second freshness gate after a
-  successful sync so cold launch does not perform an auth-restore sync followed
-  immediately by an identical foreground sync. Local edits bypass that freshness
-  gate, and local clears are queued in `pendingSpeciesPreferredNameDeletes`
-  until a remote `deleted_at` tombstone upsert succeeds.
+  activation, and after local set/clear edits. The initializer-injected
+  `SpeciesPreferredNameCloudClient` is the sole PostgREST/Auth-lease owner, and
+  `SpeciesPreferredNameCloudSyncCoordinator` contains the main-actor active task
+  and trailing request. Repeated lifecycle/auth/edit triggers therefore coalesce
+  instead of issuing overlapping reads and upserts; a trigger received while a
+  sync is running records the latest context so edits saved after the active
+  task's local fetch flush before the coalesced task completes. Clean
+  lifecycle/auth syncs also use a 60-second freshness gate after a successful
+  sync so cold launch does not perform an auth-restore sync followed immediately
+  by an identical foreground sync. A future success timestamp is treated as
+  clock skew and cannot suppress the next pull. Local edits bypass that
+  freshness gate, and local clears are queued in
+  `pendingSpeciesPreferredNameDeletes` until a remote `deleted_at` tombstone
+  upsert succeeds, including when the local row is already absent.
 - Treat normalized equality as convergence before comparing timestamps. A
   matching active name never upserts merely to copy a timestamp, and an existing
   remote tombstone satisfies a pending local delete. Only a real value/tombstone
   conflict uses last-write-wins: remote-newer pulls, while local-newer or equal
   pushes. This prevents devices from echoing an already-matching value.
+- Remote pages use timestamp order plus scientific name as a deterministic
+  tie-breaker. Local fetch failures preserve legacy values and abort the
+  operation rather than being interpreted as an absent row.
 - Persists lightweight support diagnostics in `UserDefaults`: last attempt time,
   last success time, current status (`running`, `success`, `failure`, or
   `skipped`), failure/skip message, and last successful pushed/pulled row
@@ -1231,16 +1242,45 @@ consults that Keychain entry.
 - Dog/cat pet labels bypass this repository. They are scan-level
   `PetIdentification` metadata, not user-selected species common-name
   preferences, and must never be written to `UserSpeciesPreference`.
+- The repository and coordinator resolve no network singleton. The static
+  compatibility sync entry delegates to one private live coordinator, while
+  deterministic tests construct coordinators with injected closures, clocks,
+  page sizes, and limits.
 - Successful SwiftData writes clear stale legacy keys instead of mirroring back
   to `UserDefaults`, so SwiftData is the only live source of truth.
 - This is intentionally not part of `AppSettings`: preferred common names are
   per-species data with local SwiftData durability and eventual cloud backing,
   not global UI preference state.
 
+### `AccountScopedPreferences` and `AccountScopedRuntimeState`
+
+- Foundation-only cleanup owner in
+  `Core/Preferences/AccountScopedPreferences.swift`, called by
+  `ScanRepository.purgeAllData` only after the full SwiftData delete saves.
+- Clears the typed Explore-share, field-note, and species stores plus the
+  explicit account-cache inventory: local badge/collection/Explore state, unread
+  notification count, legacy gamification state, feedback markers,
+  historical-sync throttling, account-keyed Capture goal and first-Field-trip
+  progress, and media/profile recovery-dismissal signatures.
+- Read-back verification must succeed before accepted account deletion can
+  acknowledge local cleanup. `ScanRepositoryPurgeTests` separately compares its
+  explicit SwiftData purge types and actual delete calls with every model in
+  `CurrentSchema`.
+- After persistent cleanup succeeds, the repository invokes an injected
+  `AccountScopedRuntimeState` reset. The live composer refreshes `AppSettings`,
+  clears `GamificationManager`, invalidates and clears the Explore app badge,
+  and empties `ImageCache`. The badge generation guard rejects any network
+  completion admitted before deletion.
+- Device choices and durable protocol fences are deliberately outside the purge:
+  theme/camera/haptic/notification settings, onboarding and consent, APNs token,
+  the account-deletion recovery marker, and the manual Apple revocation notice
+  survive.
+
 ### `AppSettings`
 
-- `@MainActor @Observable` service living alongside `UserDefaultsKeys` in
-  `Core/Utilities`.
+- `@MainActor @Observable` service living in
+  `Core/Preferences/AppSettings.swift`; the exact key registry remains in
+  `Core/Utilities/UserDefaultsKeys.swift`.
 - Owns the typed, in-memory representation of high-churn persisted settings such
   as `themeMode`, `isMultiCaptureEnabled`, `requiresScanConfirmation`,
   `showsCaptureGoalProgress`, `gridColumns`, `saveToCameraRoll`, and
@@ -1249,6 +1289,9 @@ consults that Keychain entry.
   `UserDefaults.didChangeNotification`, and exposes `refreshFromDefaults()` for
   foreground reconciliation after background delegates or extensions mutate
   persisted values while SwiftUI is suspended.
+- Normalizes `gridColumns` to 1...3 before persistence. Invalid runtime writes
+  therefore cannot leave a stale out-of-range value to be restored by a later
+  `AppSettings` instance.
 - Injected through `AppDIContainer` and SwiftUI environment. Settings-first
   views should bind `@Environment(AppSettings.self)` and use the typed
   properties directly instead of declaring local `@AppStorage` wrappers.
@@ -1268,6 +1311,9 @@ consults that Keychain entry.
   (`FieldNotesStore`, `ExploreShareStateStore`, `SpeciesPreferredNameStore`),
   migrations, throttle timestamps, and synchronous system delegates that cannot
   hop to `@MainActor`.
+- Mirrored `MerianTests/Core/Preferences/` suites own defaults, persistence,
+  keyed-store prefix isolation, sync diagnostics, declaration ownership,
+  dependency boundaries, and the 600-line extracted-owner ceiling.
 - `OfflineQueueManager` owns an injectable `hardwareOrchestrator` reference for
   the expedition-mode upload gate. Tests that exercise sync gating should
   replace that reference temporarily instead of mutating
@@ -1827,17 +1873,19 @@ consults that Keychain entry.
     account-free public recovery route while all other account work stays
     fenced. `not_committed` retires only the proof/marker; a successful receipt
     advances through cleanup and capability retirement; iOS signs out without
-    replacement or purchase transfer, purges SwiftData, acknowledges, verifies
-    proof removal, and removes the marker last. Foreground and cold launch
-    present a blocking recovery surface and retry the exact interrupted phase.
-    Definitive noncommit evidence may move an unaccepted intent into the durable
-    `capability_rejection_retirement_pending` phase. Legacy intake requires the
-    server's explicit `409 purchase_continuity_pending`; v2 accepts
-    `not_committed` or a genuinely unknown proof, and a live v2 `409` still
-    requires `not_committed`. That phase verifies removal of only the unused
-    proof before removing the marker and never signs out or purges local data;
-    ambiguous recovery never does. The checked-in prepare response is admitted
-    by its dedicated four-field receipt; Core Network records the
+    replacement or purchase transfer, deletes every active SwiftData row,
+    verifies account-derived preferences, resets process-local projections,
+    acknowledges, verifies proof removal, and removes the marker last.
+    Foreground and cold launch present a blocking recovery surface and retry the
+    exact interrupted phase. Definitive noncommit evidence may move an
+    unaccepted intent into the durable `capability_rejection_retirement_pending`
+    phase. Legacy intake requires the server's explicit
+    `409 purchase_continuity_pending`; v2 accepts `not_committed` or a genuinely
+    unknown proof, and a live v2 `409` still requires `not_committed`. That
+    phase verifies removal of only the unused proof before removing the marker
+    and never signs out or purges local data; ambiguous recovery never does. The
+    checked-in prepare response is admitted by its dedicated four-field receipt;
+    Core Network records the
     [preparation contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract)
     and the remaining real-session evidence boundary. Global sign-out remains
     inappropriate because it would revoke other active devices.
@@ -2107,8 +2155,10 @@ consults that Keychain entry.
   is called (by `InferenceEngine` when `isNewDiscovery == true`).
 - `hasFireflyBadge` — unlocked when `unlockedSpeciesCount >= 5`; persists the
   discovery milestone and triggers a selection haptic when first unlocked.
-- `unlockedAchievements: Set<String>` — type keys of all completed awards,
-  persisted across sessions.
+- `unlockedAchievements: Set<AchievementType>` — typed identities of all
+  completed awards, persisted as their raw string values across sessions.
+- Accepted account deletion clears all three persisted values and resets the
+  observable singleton before the fresh signed-out identity can use it.
 - `evaluateAchievementsForNotifications(awards:)` — called after
   `ProfileDatabaseActor.calculateAwards()` completes after every inference. That
   entry point refreshes its projection before evaluating in-place inference

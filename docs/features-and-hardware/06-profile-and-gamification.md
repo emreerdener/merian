@@ -461,11 +461,18 @@ persists lightweight gamification state in `UserDefaults`:
 - `unlockedSpeciesCount` — incremented each time `recordNewSpeciesDiscovered()`
   is called
 - `hasFireflyBadge` — unlocked when `unlockedSpeciesCount >= 5`
-- `unlockedAchievements: Set<String>` — type keys of all completed awards
+- `unlockedAchievements: Set<AchievementType>` — typed identities of all
+  completed awards, persisted as raw string values
 
 `recordNewSpeciesDiscovered()` is called by `InferenceEngine` when
 `isNewDiscovery == true`. It increments `unlockedSpeciesCount`, persists it, and
 checks the firefly badge threshold.
+
+These three values are account-derived compatibility state, not device
+preferences. Accepted account deletion removes their centralized
+`UserDefaultsKeys` entries and calls `resetAccountState()` through the shared
+post-persistence runtime-reset boundary so a newly established identity cannot
+inherit the old count, badge, or notification history.
 
 `evaluateAchievementsForNotifications(awards:)` is called after
 `calculateAwards()` completes. It iterates `[AwardPayload]`, checks if any
