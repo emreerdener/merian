@@ -728,8 +728,8 @@ replacement API and cannot select a target user from HTTP.
 Coverage lives in `functions/repair-scan-image/worker_test.ts`,
 `functions/repair-scan-image/validation_test.ts`,
 `_tests/migrationMediaContract.test.ts`, `tests/scan_image_repair_security.sql`,
-and the iOS `MerianNetworkClientTests`/`LocalImageLoaderTests` recovery suites.
-Operational deployment and incident exit criteria are in
+and the iOS `ScanImageCloudEndpointTests`/`LocalImageLoaderTests` recovery
+suites. Operational deployment and incident exit criteria are in
 [`docs/backend-and-data/06-supabase-deployment-runbook.md`](../../docs/backend-and-data/06-supabase-deployment-runbook.md)
 and the
 [July 2026 incident report](../../docs/incidents/2026-07-account-scoped-r2-image-loss.md).

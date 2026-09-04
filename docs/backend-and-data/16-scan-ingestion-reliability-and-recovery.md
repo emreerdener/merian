@@ -645,11 +645,23 @@ Recovery must preserve richer work and deletion intent:
 iOS scan status request mapping lives in
 `Core/Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift`;
 `ScanLifecycleAPIModels.swift` and `ScanLifecycleResponseDecoder` own unchanged
-wire and strict response decoding. `MerianNetworkClient` still constructs
-`OwnedScanRecoveryPayload`, classifies missing-row recovery, and owns the
-private account-bound transport. Core Data retains queue authority. See the
+wire and strict response decoding. `Core/Network/Recovery/` constructs
+`OwnedScanRecoveryPayload`, classifies and orchestrates missing-row recovery,
+and obtains only a value owner UUID through the main client bridge into the
+authenticated dispatcher's private Auth boundary; the scan-lifecycle endpoint
+binds that UUID back to the private account-bound transport.
+`Core/Network/Media/` owns publication-media restoration. Core Data retains
+queue authority. See the
 [endpoint ownership and verification guide](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-endpoints-and-decoding);
 the extraction does not alter the server eligibility rules below.
+
+The record-based compatibility poller is caller-cancellation-owned. Canceling an
+Explore share, Ask the Community request, or Field Chat preflight during a retry
+delay or status request, or immediately after a successful status response,
+propagates cancellation instead of mapping it to deferred recovery or service
+unavailability. A canceled poll cannot interpret the late response, start
+owner-row recovery, or issue a later status request. The bounded polling delays
+and server eligibility rules are unchanged.
 
 A single `check-scan-status` request or `share-scan-to-explore` may include
 `recovery_scan`. It contains bounded non-media state only. The server:
@@ -1432,14 +1444,26 @@ The focused regression inventory includes:
 - `BackgroundDatabaseActorTests`;
 - `InferenceEngineTests`, including visual and nonvisual transport/retirement
   races;
-- `MerianNetworkClientTests`, including queue-backed no-inline-replay request
-  count and bounded timing;
+- `InferenceEndpointTransportTests`, including queue-backed no-transient-
+  transport-replay request count and bounded timing, pre-dispatch cancellation,
+  header/body-free prewarm, plus the direct 90-second/replay control;
+- `DetachedWorkTests`, proving parent cancellation reaches the detached request-
+  preparation handle used before queue-backed dispatch;
+- `InferencePayloadBuilderTests`, `InferenceMediaPolicyTests`, and
+  `InferenceRequestPolicyTests` for payload, media budget, account binding,
+  staged-owner, and recoverable-conflict policy;
 - `ScanStatusEndpointTests`, `ScanDeletionEndpointTests`, and the five
   `ScanLifecycle*Tests` suites in the
   [scan lifecycle matrix](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-verification),
   covering raw wire mapping, strict confirmation, bounded replay, cancellation,
   and source ownership; scoped DEBUG transport does not exercise live Auth
   leases;
+- `ScanPublicationEndpointTests`, `ScanPublicationEndpointTransportTests`,
+  `OwnedScanRecoveryPolicyTests`, `ScanPublicationMediaRestorePolicyTests`, and
+  `ScanPublicationRecoveryArchitectureTests` in the
+  [publication/recovery matrix](../../apps/ios/Merian/Core/Network/README.md#scan-publication-and-owned-recovery-verification),
+  covering direct publication integrity, retry identity, missing-row admission,
+  media budgets, cancellation, and source ownership;
 - `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, and
   `InsightQueuedRetryPresentationTests`, including exact-ID queued binding and
   **Analysis delayed** placeholder routing;

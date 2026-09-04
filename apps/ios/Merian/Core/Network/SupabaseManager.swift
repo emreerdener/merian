@@ -2745,7 +2745,7 @@ final class AuthTransitionSingleFlight {
                 return false
             }
         } catch {
-            let code = MerianNetworkClient.stableEdgeErrorCode(from: error)
+            let code = EdgeFunctionErrorPolicy.stableCode(from: error)
             if Self.isAcceptedExpiredAccountDeletionRecovery(error) {
                 // The server emits this code only after the hash matched a
                 // durable deletion job. The expired proof cannot inspect the
@@ -2879,7 +2879,7 @@ final class AuthTransitionSingleFlight {
         // authenticated handler has proved that durable intake did not win.
         // Auth/gateway 4xx responses cannot exclude an earlier lost-response
         // commit and therefore remain fenced for recovery.
-        return MerianNetworkClient.stableEdgeErrorCode(from: error)
+        return EdgeFunctionErrorPolicy.stableCode(from: error)
             == "purchase_continuity_pending"
     }
 
@@ -2890,7 +2890,7 @@ final class AuthTransitionSingleFlight {
               statusCode == 410 else {
             return false
         }
-        return MerianNetworkClient.stableEdgeErrorCode(from: error)
+        return EdgeFunctionErrorPolicy.stableCode(from: error)
             == "account_deletion_recovery_expired"
     }
 
@@ -2901,7 +2901,7 @@ final class AuthTransitionSingleFlight {
               statusCode == 404 else {
             return false
         }
-        return MerianNetworkClient.stableEdgeErrorCode(from: error)
+        return EdgeFunctionErrorPolicy.stableCode(from: error)
             == "account_deletion_recovery_invalid"
     }
 

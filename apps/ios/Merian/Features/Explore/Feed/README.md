@@ -76,8 +76,9 @@ reply, mention, like, report, and blocking requests live in
 does not move Feed state into Core: Services retain live adapters, ViewModels
 retain loading and interaction state, and `SocialGuardManager` retains shared
 blocking state. Composer-media reads, both public-notes/content edits, and
-unsharing use `MerianNetworkClient+ExplorePostManagement.swift`; publication and
-media recovery remain together in the main client. The
+unsharing use `MerianNetworkClient+ExplorePostManagement.swift`; direct
+publication, owned-row recovery, and media restoration use the dedicated Core
+Network Endpoint, Recovery, and Media owners. The
 [post-management matrix](../../../Core/Network/README.md#explore-post-management-verification)
 covers wire/retry behavior separately from Feed state. Codable wire models
 remain in Core Network.

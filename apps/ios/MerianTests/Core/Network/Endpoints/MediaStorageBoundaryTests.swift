@@ -24,15 +24,39 @@ struct MediaStorageBoundaryTests {
                 #expect(!source.contains(token), "Owner must not acquire \(token)")
             }
         }
-        for token in ["private var activeSession", "private lazy var session", "private func endpointURL(",
-                      "private func requestPayloadAuthUserID(", "private func performAuthenticatedRequest(",
-                      "private func performAuthenticatedTransport(", "private func acquireAccountWorkLeaseIfRequired("] {
+        for token in [
+            "private let sessionTransport: PinnedNetworkTransport",
+            "private let authenticatedTransport: AuthenticatedTransportDispatcher",
+            "private func endpointURL(",
+            "private func performAuthenticatedRequest("
+        ] {
             #expect(client.contains(token))
         }
-        for method in ["shareScanToExplore", "requestCommunityIdentification", "ensureCloudScanAvailableForFieldChat",
-                       "recoverMissingOwnedCloudScan", "restoreExploreMediaObjectKeys", "identifyMultiModal"] {
-            #expect(client.contains("func \(method)("), "Leave caller workflow in its existing owner: \(method)")
+        let dispatcher = try networkSource(
+            "Transport/AuthenticatedTransportDispatcher.swift"
+        )
+        #expect(
+            dispatcher.contains("private func acquireAccountWorkLeaseIfRequired(")
+        )
+        let recovery = try networkSource(
+            "Recovery/MerianNetworkClient+OwnedScanRecovery.swift"
+        )
+        for method in [
+            "shareScanToExplore", "requestCommunityIdentification",
+            "ensureCloudScanAvailableForFieldChat", "recoverMissingOwnedCloudScan"
+        ] {
+            #expect(recovery.contains("func \(method)("))
+            #expect(!client.contains("func \(method)("))
         }
+        let inference = try networkSource(
+            "Endpoints/MerianNetworkClient+Inference.swift"
+        )
+        #expect(inference.contains("func identifyMultiModal("))
+        #expect(!client.contains("func identifyMultiModal("))
+        #expect(
+            try networkSource("Media/ScanPublicationMediaRestorer.swift")
+                .contains("func restore(")
+        )
     }
 
     @Test func accountBoundEncodingPreservesConfigurationIdentityAndTransportOrder() throws {
@@ -40,7 +64,8 @@ struct MediaStorageBoundaryTests {
         let bridge = try method("func performAccountBoundEncodedJSONPost<", in: client)
         try expectOrder([
             "try endpointURL(function)", "if let expectedAuthUserID", "authUserID = expectedAuthUserID",
-            "authUserID = try await requestPayloadAuthUserID()", "try JSONEncoder().encode(body(authUserID))",
+            "authUserID = try await authenticatedTransport", ".requestPayloadAuthUserID()",
+            "try JSONEncoder().encode(body(authUserID))",
             "try await performAuthenticatedRequest(", "body: bodyData", "expectedAuthUserID: authUserID", "return data"
         ], in: bridge)
         #expect(bridge.contains("body: (UUID) -> Body"))
@@ -75,8 +100,12 @@ struct MediaStorageBoundaryTests {
         let client = try networkSource("MerianNetworkClient.swift")
         let data = try method("func performPresignedUpload(request: URLRequest)", in: client)
         let file = try method("func performPresignedUpload(request: URLRequest, fileURL:", in: client)
-        #expect(data.contains("try await activeSession.data(for: request)"))
-        #expect(file.contains("try await activeSession.upload(for: request, fromFile: fileURL)"))
+        #expect(data.contains("try await sessionTransport.data(for: request)"))
+        #expect(
+            file.contains(
+                "try await sessionTransport.upload(for: request, fromFile: fileURL)"
+            )
+        )
         for bridge in [data, file] {
             #expect(bridge.contains("-> (Data, URLResponse)"))
             for token in ["catch", "Task", "Auth", "retry", "JSON", "Data(contentsOf:", "URLSession("] {
@@ -149,8 +178,16 @@ struct MediaStorageBoundaryTests {
             #expect(!test.contains("MerianNetworkClient.shared") && !test.contains("MockURLProtocol.mockEndpoints"))
             for name in names { #expect(test.contains("func \(name)(") && !aggregate.contains("func \(name)(")) }
         }
-        #expect(aggregate.contains("func testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload("))
-        #expect(aggregate.contains("func testFieldChatCloudPreflightRejectsMismatchedRecordIdentity("))
+        let restore = try source(
+            "apps/ios/MerianTests/Core/Network/Media/ScanPublicationMediaRestorePolicyTests.swift"
+        )
+        let recovery = try source(
+            "apps/ios/MerianTests/Core/Network/Recovery/OwnedScanRecoveryPolicyTests.swift"
+        )
+        #expect(restore.contains("func testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload("))
+        #expect(recovery.contains("func testFieldChatCloudPreflightRejectsMismatchedRecordIdentity("))
+        #expect(!aggregate.contains("func testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload("))
+        #expect(!aggregate.contains("func testFieldChatCloudPreflightRejectsMismatchedRecordIdentity("))
         let validator = try source("scripts/validate-ios-critical-test-results.sh")
         try expectOrder([#""Foreground video empty-file rejection""#, #""StagedVideoUploadTests""#,
                          #""Staged Video Uploads""#, #""testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning""#], in: validator)

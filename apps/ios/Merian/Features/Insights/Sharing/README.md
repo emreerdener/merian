@@ -41,9 +41,10 @@ Composer-media reads, content/field-note mutations, and authoritative
 share-state reads use
 [Core Network's post-management extension](../../../Core/Network/README.md#explore-post-management-endpoints).
 It retains request construction and response validation only; Sharing retains
-drafts, cache reconciliation, callbacks, and generation/revision fencing.
-Publication and recovery transport remain together in the main network client.
-The
+drafts, cache reconciliation, callbacks, and generation/revision fencing. Direct
+publication, owned-row recovery, and local-media restoration live in the
+dedicated Core Network Endpoint, Recovery, and Media owners; the main client
+retains the private authenticated transport they reuse. The
 [post-management matrix](../../../Core/Network/README.md#explore-post-management-verification)
 joins endpoint regression and existing Sharing state coverage.
 
@@ -143,7 +144,8 @@ preserve the optimistic cache.
 
 Normal publication:
 
-1. snapshot the local record into value-only `ExploreShareMediaSnapshot`;
+1. snapshot the local record into the private value-only
+   `ScanPublicationSnapshot`;
 2. send the exact scan UUID, user-authored public field notes, normalized
    hashtags, post-level location sharing, and ordered public media selection;
 3. let `/share-scan-to-explore` bind ownership to the user JWT;
@@ -357,6 +359,10 @@ For shared post-detail transport changes, also run the
 [Core Network browsing matrix](../../../Core/Network/README.md#endpoint-verification).
 It includes Sharing's publication and cache-refresh state suites alongside the
 endpoint request/response and transport tests.
+
+For publication, owner-row recovery, or restored-media changes, run the
+[Core Network scan-publication matrix](../../../Core/Network/README.md#scan-publication-and-owned-recovery-verification)
+as well as this feature matrix.
 
 ## Privacy and Security
 

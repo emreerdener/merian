@@ -162,15 +162,17 @@ orphaned object does not reconstruct its relational context.
   WeatherKit/geocoding, then continues with available coordinates and cached
   telemetry. That budget covers context waiting only; bounded telemetry
   preparation may still precede provider dispatch. The inline request's
-  body-upload callback releases the queue row; a two-second fail-safe, request
-  failure, connectivity loss, app backgrounding, or relaunch also makes it
-  eligible. Late context is merged locally and through `/update-scan-context`
-  without another model call. Unconsumed context work is cancelled when no
-  foreground attempt owns it. Gallery, audio-bearing, and video submissions
-  remain instrumented but retain their prior context wait and upload scheduling
-  behavior. Queue eligibility is separate from the open Insight's exact-ID
-  presentation handoff; source and protected transport tests enforce the split,
-  while exact-SHA and device acceptance remain release-gated by the
+  body-upload callback releases the queue row idempotently, including when more
+  than one transport attempt notifies the same logical request; a two-second
+  fail-safe, request failure, connectivity loss, app backgrounding, or relaunch
+  also makes it eligible. Late context is merged locally and through
+  `/update-scan-context` without another model call. Unconsumed context work is
+  cancelled when no foreground attempt owns it. Gallery, audio-bearing, and
+  video submissions remain instrumented but retain their prior context wait and
+  upload scheduling behavior. Queue eligibility is separate from the open
+  Insight's exact-ID presentation handoff; source and protected transport tests
+  enforce the split, while exact-SHA and device acceptance remain release-gated
+  by the
   [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - `NWPathMonitor` observes off-grid boundaries, debouncing signals for 3 seconds
   when connectivity returns. `OfflineJobScheduler` then drains runnable scan
@@ -423,7 +425,8 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/get-filtered-discovery-feed`: Paginates public discovery queries from
     post-owned sharing fields, handles blocking mechanisms, and uses scrubbed or
     rounded public coordinates when Explore surfaces are allowed to expose
-    location.
+    location. It remains a backend route, but current iOS Explore feed loading
+    uses `/get-explore-feed`; no iOS endpoint owner calls this route.
   - `/block-user`: Removes blocked-user content and interactions from the
     requesting user's Explore surfaces.
   - `/report-explore-post`: Authenticated public-content moderation ingress. It

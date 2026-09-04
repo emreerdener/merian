@@ -87,6 +87,7 @@ struct InferenceArchitectureTests {
             "private static let networkTimeoutRecoveryReason",
             "makeErrorSpeciesData(",
             "MerianNetworkClient.stableEdgeErrorCode(",
+            "EdgeFunctionErrorPolicy.stableCode(",
             "MerianNetworkClient.isRecoverableInferenceConflict("
         ] {
             #expect(

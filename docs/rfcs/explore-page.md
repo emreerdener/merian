@@ -1396,9 +1396,9 @@ Recommended feature module:
 - `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationReplyThreadSheet.swift`
 
 Stateless wire construction and response projection live in
-`Core/Network/Endpoints/`; the main client retains private authenticated
-transport, refresh, retry, and cancellation. Notification
-catalog/count/read-state and push registration use
+`Core/Network/Endpoints/`; Core Network Transport owns authenticated dispatch,
+refresh, retry, and cancellation while the main client injects its focused
+owners. Notification catalog/count/read-state and push registration use
 `MerianNetworkClient+Notifications.swift`. Feature Services and ViewModels
 retain catalog state, while Hardware's `PushNotificationManager` and
 `AppIconBadgeCoordinator` retain token/permission and badge lifecycle.
@@ -1408,11 +1408,14 @@ identity state/events and avatar signing/upload orchestration. Composer media,
 share-state and incident reads, unshare, and public-notes/content edits use
 `MerianNetworkClient+ExplorePostManagement.swift`. Feed, Insights Sharing, and
 Scans Shell retain adapters, draft/reconciliation state, and account fences;
-publication and cloud/media recovery remain in the main client. All 17 Insight,
-Explore-post, and Species Dictionary chat methods use
-`MerianNetworkClient+FieldChat.swift` with strict candidate-success validation
-in `Decoding/FieldChatResponseDecoder.swift`; the cross-feature
-`Features/FieldChat` owner retains source adapters and conversation state. The
+direct publication uses `MerianNetworkClient+ScanPublication.swift`, owned-row
+orchestration lives in `Core/Network/Recovery/`, and restored-media work lives
+in `Core/Network/Media/`. The main client injects the private pinned and
+authenticated transport owners. All 17 Insight, Explore-post, and Species
+Dictionary chat methods use `MerianNetworkClient+FieldChat.swift` with strict
+candidate-success validation in `Decoding/FieldChatResponseDecoder.swift`; the
+cross-feature `Features/FieldChat` owner retains source adapters and
+conversation state. The
 [Core Network guide](../../apps/ios/Merian/Core/Network/README.md) documents the
 extracted endpoint owners. Its
 [shared verification requirements](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification)

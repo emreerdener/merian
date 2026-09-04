@@ -2081,8 +2081,11 @@ public feeds. It also joins `users!inner(is_shadowbanned)` with
 server-side, since the service role key bypasses RLS. The query uses an explicit
 column list rather than `select("*")`, omitting telemetry and analytics columns
 (`device_locale`, `current_month`, `time_of_day`, `depth_scale_text`, `llm_*`
-token counts, `extracted_visual_traits`, `ai_reasoning`, etc.) that the client
-never renders. This reduces per-row payload size by approximately 60% at scale.
+token counts, `extracted_visual_traits`, `ai_reasoning`, etc.) that feed
+consumers never render. This reduces per-row payload size by approximately 60%
+at scale. The route remains in the Edge fleet, but the current iOS app has no
+owner or caller for it; native Explore feed loading uses `get-explore-feed`
+instead.
 
 **Graceful Degradation**: Scans whose media is missing because of user deletion,
 moderation, historical cleanup, or transient CDN failure render the archived

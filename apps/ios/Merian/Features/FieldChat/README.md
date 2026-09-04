@@ -29,8 +29,13 @@ methods in
 [`Endpoints/MerianNetworkClient+FieldChat.swift`](../../Core/Network/Endpoints/MerianNetworkClient+FieldChat.swift),
 and stateless candidate-success validation in
 [`Decoding/FieldChatResponseDecoder.swift`](../../Core/Network/Decoding/FieldChatResponseDecoder.swift).
-The main client keeps private authenticated transport, replay, and cloud/media
-readiness. Scan status preflight delegates to
+[`Transport/AuthenticatedRequestRetryPolicy.swift`](../../Core/Network/Transport/AuthenticatedRequestRetryPolicy.swift)
+owns replay decisions, and the request-scoped executor applies them.
+`PinnedNetworkTransport` owns the sole session/TLS boundary,
+`AuthenticatedTransportDispatcher` owns each authenticated attempt, and the main
+client injects both. Cloud readiness lives in
+[`Recovery/MerianNetworkClient+OwnedScanRecovery.swift`](../../Core/Network/Recovery/MerianNetworkClient+OwnedScanRecovery.swift)
+and delegates status requests to
 [`MerianNetworkClient+ScanLifecycle.swift`](../../Core/Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift);
 its strict decoder and account-bound raw-response bridge do not move recovery
 orchestration into Field Chat. These Core owners do not replace this feature's
@@ -165,7 +170,9 @@ transient `Copied` badge and never calls the parent `onToast`; this shared rule
 covers Insight, Explore, and Species Dictionary threads. The separate field-note
 confirmation toast cannot block underlying controls.
 
-The preflight:
+`Core/Network/Recovery/MerianNetworkClient+OwnedScanRecovery.swift` owns the
+preflight and its private payload-building/status-recovery helpers. The
+preflight:
 
 1. polls `/check-scan-status` using the stable scan UUID;
 2. returns immediately when the exact owner row is found;
@@ -349,8 +356,10 @@ See:
 - `Core/Network/Decoding/FieldChatResponseDecoderTests.swift` owns pure
   candidate-success boundaries: byte/character limits, subject/message binding,
   send acknowledgement, confirmation, summary trimming, and safe suggestions.
-  `MerianNetworkClientTests` retains cloud preflight/recovery integration and
-  its existing protected selector.
+- `Core/Network/Recovery/OwnedScanRecoveryPolicyTests.swift` owns the Field Chat
+  local/cloud identity fence and deterministic missing-row admission policy;
+  `Core/Network/Endpoints/ScanPublicationRecoveryArchitectureTests.swift`
+  protects the relocated preflight and private recovery boundary.
 - Presentation, view-model state, preparation, dependency routing, stale-work
   fencing, and architecture coverage live under
   `MerianTests/Features/FieldChat/`. `FieldChatPresentationTests` includes the
@@ -361,8 +370,10 @@ See:
 
 Run the
 [Core Network Field Chat matrix](../../Core/Network/README.md#field-chat-verification)
-and the complete unit target on fresh candidate products. That matrix joins the
-new Core suites to these unchanged feature suites; native decoder/source checks
+and the
+[scan-publication/recovery matrix](../../Core/Network/README.md#scan-publication-and-owned-recovery-verification)
+with the complete unit target on fresh candidate products. Those matrices join
+the Core suites to these unchanged feature suites; native decoder/source checks
 do not replace iOS transport execution or manual three-source regression.
 
 The canonical endpoint and privacy contract remains

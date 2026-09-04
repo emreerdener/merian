@@ -126,7 +126,7 @@ enum InferenceLiveFailurePolicy {
 
     private static func providerPolicyFailure(for error: Error) -> Failure? {
         guard case let MerianError.httpError(statusCode, _) = error,
-              let code = MerianNetworkClient.stableEdgeErrorCode(from: error) else {
+              let code = EdgeFunctionErrorPolicy.stableCode(from: error) else {
             return nil
         }
         switch (statusCode, code) {

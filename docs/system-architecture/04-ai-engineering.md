@@ -539,11 +539,19 @@ field inside the description payload:
    projection's observation contexts, preserves its aligned audio and owner-
    timeline descriptors, uploads staged video when present, and invokes
    `MerianNetworkClient.identifyMultiModal(...)` once.
-   `MerianNetworkClient.buildMultiModalRequestBody(...)` and
-   `buildMultiModalRequest(...)` deserialize the resulting JSON into
-   `observation_contexts` objects alongside camelCase telemetry (`gpsLatitude`,
-   `deviceTimeZone`, `currentMonth`, etc.). This is the canonical live request
-   contract.
+   `Core/Network/Endpoints/MerianNetworkClient+Inference.swift` owns that entry
+   point and `buildMultiModalRequest(...)`, while
+   `Core/Network/Inference/InferencePayloadBuilder.swift` serializes the
+   resulting JSON into `observation_contexts` objects alongside camelCase
+   telemetry (`gpsLatitude`, `deviceTimeZone`, `currentMonth`, etc.). This is
+   the canonical live request contract. Off-main JSON/audio body preparation
+   uses the cancellation-propagating `.inferenceRequestPreparation` detached-
+   work category and an overflow-safe, non-concatenating media budget.
+   `Core/Network/Transport/` owns replay and value-only Auth-recovery decisions;
+   its request-scoped executor applies them and owns logical retry state, its
+   pinned transport owns the sole session/TLS boundary, and its authenticated
+   dispatcher owns per-attempt Auth/session validation and upload progress. The
+   main network client injects both stateful transport owners.
 
 3. **Edge function**: `/identify-multimodal` merges `observation_contexts` into
    the Gemini context preamble while forwarding the structured value to
@@ -1472,11 +1480,12 @@ insight sheet display.
   image encoder, which uses `withTaskGroup` at `.userInitiated` priority so the
   CPU-bound work is not deprioritized behind background system tasks on a loaded
   device.
-- **Inference request timeout 90s** (`MerianNetworkClient.identifyMultiModal` /
-  `buildMultiModalRequest(...)`): The `URLRequest.timeoutInterval` for inference
-  calls was raised from 30s (the shared default) to 90s, matching
-  `timeoutIntervalForResource`. `gemini-2.5-pro` responses can reach 25–30s on
-  slow connections; the previous 30s idle-timeout margin was too thin.
+- **Inference request timeout 90s**
+  (`Core/Network/Endpoints/MerianNetworkClient+Inference.swift`): The
+  `URLRequest.timeoutInterval` for direct inference calls was raised from 30s
+  (the shared default) to 90s, matching `timeoutIntervalForResource`.
+  `gemini-2.5-pro` responses can reach 25–30s on slow connections; the previous
+  30s idle-timeout margin was too thin.
 - **Queue-backed transport retry ownership**: The generic authenticated helper
   retains one selected transient `URLError` replay after two seconds when the
   caller permits ambiguous replay. `identifyMultiModal` now exposes a per-call

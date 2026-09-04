@@ -26,11 +26,34 @@ struct EnrichmentExportFeedbackBoundaryTests {
                 of: #"(?m)^    (?:private )?(?:static )?(?:let|var)\s"#, options: .regularExpression
             ) == nil)
         }
-        for method in ["buildIdentifyRequest", "identifyMultiModal",
-                       "shareScanToExplore", "requestCommunityIdentification",
-                       "recoverMissingOwnedCloudScan", "restoreExploreMediaObjectKeys"] {
-            #expect(client.contains("func \(method)("), "Keep larger workflow ownership unchanged: \(method)")
+        let inference = try networkSource(
+            "Endpoints/MerianNetworkClient+Inference.swift"
+        )
+        for method in ["buildIdentifyRequest", "identifyMultiModal"] {
+            #expect(inference.contains("func \(method)("))
+            #expect(!client.contains("func \(method)("))
         }
+        let publication = try networkSource(
+            "Endpoints/MerianNetworkClient+ScanPublication.swift"
+        )
+        for method in ["shareScanToExplore", "requestCommunityIdentification"] {
+            #expect(publication.contains("func \(method)("))
+            #expect(!client.contains("func \(method)("))
+        }
+        let recovery = try networkSource(
+            "Recovery/MerianNetworkClient+OwnedScanRecovery.swift"
+        )
+        for method in [
+            "shareScanToExplore", "requestCommunityIdentification",
+            "recoverMissingOwnedCloudScan"
+        ] {
+            #expect(recovery.contains("func \(method)("))
+            #expect(!client.contains("func \(method)("))
+        }
+        #expect(
+            try networkSource("Media/ScanPublicationMediaRestorer.swift")
+                .contains("func restore(")
+        )
         let storage = try networkSource("Endpoints/MerianNetworkClient+MediaStorage.swift")
         let uploads = try networkSource("Media/MerianNetworkClient+MediaUploads.swift")
         #expect(storage.contains("func generateUploadURLs(") && !client.contains("func generateUploadURLs("))
@@ -108,11 +131,19 @@ struct EnrichmentExportFeedbackBoundaryTests {
                       "SupabaseManager", "@escaping", "isRetry:", "expectedAuthUserID:"] {
             #expect(!bridge.contains(token), "Prepared-body bridge must not add \(token)")
         }
-        for token in ["private var activeSession", "private lazy var session", "private func endpointURL(",
-                      "private func performAuthenticatedRequest(", "private func performAuthenticatedTransport(",
-                      "private func acquireAccountWorkLeaseIfRequired("] {
+        for token in [
+            "private let sessionTransport: PinnedNetworkTransport",
+            "private let authenticatedTransport: AuthenticatedTransportDispatcher",
+            "private func endpointURL(",
+            "private func performAuthenticatedRequest("
+        ] {
             #expect(client.contains(token))
         }
+        #expect(
+            try networkSource(
+                "Transport/AuthenticatedTransportDispatcher.swift"
+            ).contains("private func acquireAccountWorkLeaseIfRequired(")
+        )
     }
 
     @Test func rehomedEndpointTestsLeaveFeaturePolicyAndSharedAuthInPlace() throws {

@@ -27,10 +27,12 @@ The shared wire implementation lives in
 `Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift`, which owns
 request actions, payload construction, and typed response projections for this
 feature and its cross-feature callers. Feature Services adapt those operations;
-they do not own the shared transport. `MerianNetworkClient.swift` retains
-private session, Auth, retry, and cancellation behavior behind one narrow JSON
-POST bridge. See the [Core Network guide](../../../Core/Network/README.md) for
-that boundary.
+they do not own the shared transport. `Core/Network/Transport/` owns pure
+route/error/replay policy, the request-scoped executor that applies retry and
+injected Auth effects, the sole pinned session/TLS owner, and the per-attempt
+authenticated dispatcher. `MerianNetworkClient.swift` injects those owners
+behind one narrow JSON POST bridge. See the
+[Core Network guide](../../../Core/Network/README.md) for that boundary.
 
 ## Shared feature flows
 

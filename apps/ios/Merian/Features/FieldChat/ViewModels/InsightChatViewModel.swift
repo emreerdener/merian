@@ -169,7 +169,7 @@ final class InsightChatViewModel {
             return false
         }
 
-        let code = MerianNetworkClient.stableEdgeErrorCode(from: error)
+        let code = EdgeFunctionErrorPolicy.stableCode(from: error)
         if source == .speciesDictionary {
             return statusCode == 404 && code == "species_not_available"
         }

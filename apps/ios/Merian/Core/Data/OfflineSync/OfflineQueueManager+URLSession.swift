@@ -1781,7 +1781,7 @@ extension OfflineQueueManager {
                 _ = OfflineQueueManager.shared.softDeleteQueuedScan(
                     scanId: scanId,
                     reason: "We couldn’t process this queued observation. Please retry it or cancel it.",
-                    errorCode: MerianNetworkClient.stableEdgeErrorCode(
+                    errorCode: EdgeFunctionErrorPolicy.stableCode(
                         responseData: resultData ?? Data()
                     ) ?? "inference_http_\(code)",
                     httpStatus: statusCode,
@@ -2007,7 +2007,7 @@ extension OfflineQueueManager {
               let functionRouteEvidence else {
             return false
         }
-        return MerianNetworkClient.isPlatformFunctionRouteUnavailable(
+        return EdgeFunctionRoutePolicy.isUnavailable(
             evidence: functionRouteEvidence,
             responseData: responseData
         )
@@ -2044,12 +2044,12 @@ extension OfflineQueueManager {
             return .retry
         }
         if statusCode == 403,
-           MerianNetworkClient.stableEdgeErrorCode(responseData: responseData)
+           EdgeFunctionErrorPolicy.stableCode(responseData: responseData)
             == "ai_consent_required" {
             return .consentRequired
         }
         if statusCode == 400,
-           MerianNetworkClient.stableEdgeErrorCode(responseData: responseData)
+           EdgeFunctionErrorPolicy.stableCode(responseData: responseData)
             == "observation_rejected" {
             return .terminal
         }

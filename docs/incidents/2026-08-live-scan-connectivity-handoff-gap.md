@@ -198,10 +198,12 @@ by the path monitor, waits for durable generation metadata to clear, and only
 then releases path-loss transport errors. The timeout branch deliberately skips
 that retirement, proves the queue owner and generation metadata are still
 current, then releases `.timedOut` and requires the handoff itself to retire
-them. Companion network-client tests prove queue-backed Identify carries the
+them. `InferenceEndpointTransportTests` proves queue-backed Identify carries the
 15-second request bound and returns after one request, while the reviewed
 queue-less path retains the 90-second bound and one stable-idempotency-key
-replay.
+replay. `InferenceRequestPolicyTests` separately owns immutable
+inference-request account binding; `AuthenticatedRequestRetryPolicyTests` owns
+transport retry-account policy.
 
 ## Closure Gates
 

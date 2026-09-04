@@ -1588,10 +1588,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `MerianNetworkArchitectureTests` guards the 17-method endpoint inventory,
   contained validation constants, encoded-body bridge, and private transport.
   `FieldChatAPIModelsTests` keeps standalone wire decoding, while
-  `MerianNetworkClientTests` keeps cloud preflight/recovery integration. Their
-  protected CI selectors do not move. Run the
+  `OwnedScanRecoveryPolicyTests` keeps the cloud identity fence and recovery
+  admission policy. `ScanPublicationRecoveryArchitectureTests` guards the
+  relocated preflight. Run the
   [Core Network Field Chat matrix](../../apps/ios/Merian/Core/Network/README.md#field-chat-verification)
-  and the complete unit target on fresh candidate products; native decoder and
+  plus the
+  [publication/recovery matrix](../../apps/ios/Merian/Core/Network/README.md#scan-publication-and-owned-recovery-verification)
+  and complete unit target on fresh candidate products; native decoder and
   source tests do not replace iOS URLSession/host execution.
 
   The remaining aggregate Network tests prove malformed Community enums become
@@ -2002,6 +2005,11 @@ xcodebuild test-without-building \
   -derivedDataPath '<build-for-testing-derived-data>' \
   -destination "$inference_test_destination" \
   -parallel-testing-enabled NO \
+  -only-testing:merianTests/InferenceEndpointTransportTests \
+  -only-testing:merianTests/InferencePayloadBuilderTests \
+  -only-testing:merianTests/InferenceMediaPolicyTests \
+  -only-testing:merianTests/InferenceRequestPolicyTests \
+  -only-testing:merianTests/InferenceNetworkArchitectureTests \
   -only-testing:merianTests/InferenceLiveRequestServiceTests \
   -only-testing:merianTests/InferenceLiveResultServiceTests \
   -only-testing:merianTests/InferenceLiveResultIntegrationTests \
@@ -2107,9 +2115,10 @@ functional, format changed Markdown with `deno fmt`, and finish with
   non-cooperative still-capture and video-admission continuations after a
   lifecycle interruption to prove neither can publish stale work.
   `CaptureScanTemporaryFileLeaseTests` proves unaccepted artifacts are deleted
-  and accepted artifacts survive ownership transfer. `DetachedWorkTests` proves
-  parent cancellation reaches a detached media worker and is observed by its
-  caller. `CaptureScanArchitectureTests` enforces the
+  and accepted artifacts survive ownership transfer. The shared Core Utilities
+  `DetachedWorkTests` proves parent cancellation reaches a detached value worker
+  and is observed by its caller; Capture media and inference request preparation
+  both rely on that boundary. `CaptureScanArchitectureTests` enforces the
   Models/Services/ViewModels/Views/Components/Modifiers ownership tree, removes
   the former aggregate `Capture.swift`, rejects direct service resolution,
   including `CameraManager.shared`, keeps Models platform-neutral, and caps
@@ -2397,10 +2406,33 @@ import, and permission-denial UI require the physical-device checklist in
   `make test-ios-ci-tooling`. DEBUG mocks bypass live Auth leases: signing tests
   prove payload selection, not real-session fencing. The existing
   `SupabaseManagerTests` exact-session lease tests and
-  `MerianNetworkClientTests` retry-account policy tests retain that pure
-  state/policy coverage. Native pure/source tests plus cached-dependency
+  `AuthenticatedRequestRetryPolicyTests` retry-account policy tests retain that
+  pure state/policy coverage. Native pure/source tests plus cached-dependency
   typechecking do not replace candidate iOS URLSession, background transfer, or
   real-session account-switch execution.
+- **Inference endpoint and request policy**: `InferenceEndpointTransportTests`
+  owns eight regressions moved from the aggregate network suite: pinned-session
+  prewarming, request-body completion, consent admission/mapping, `/identify`
+  dispatch and budget refusal, and the queue-backed 15-second/no-transient-
+  transport-replay versus direct 90-second/one-replay contract. An additional
+  cancellation regression proves an already-cancelled owner cannot dispatch,
+  while the prewarm case locks its header/body-free `OPTIONS` shape.
+  `InferencePayloadBuilderTests`, `InferenceMediaPolicyTests`, and
+  `InferenceRequestPolicyTests` cover the exact telemetry/media/timeline JSON,
+  geoprivacy, body and WAV limits, request-account binding, staged-object owner,
+  and stable `409` allowlist without a session.
+  `InferenceNetworkArchitectureTests` protects the endpoint/stateless owners,
+  five narrow main-client bridges, cancellation-propagating detached-work seam,
+  non-concatenating overflow-safe byte accumulator, 600-line ceiling, and exact
+  rehome. `DetachedWorkTests` separately proves parent cancellation reaches the
+  detached value-operation handle. The critical-result gate keeps all three
+  existing protected case names under `InferenceEndpointTransportTests` /
+  `Inference Endpoint Transport`; adversarial fixtures reject their retired
+  `MerianNetworkClientTests` owner. Run the
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#inference-verification),
+  the broader live-inference matrix above, `make test-ios-ci-tooling`, and the
+  complete unit target. DEBUG transports do not prove a real-session switch,
+  device upload-progress callbacks, or live connectivity handoff.
 - **Scan enrichment, export, and product feedback endpoints**:
   `ScanEnrichmentEndpointTests` rehomes three aggregate regressions and adds
   optional/raw context, early no-context return, serialization/UUID/cancellation
@@ -2429,14 +2461,15 @@ import, and permission-denial UI require the physical-device checklist in
   `testBulkScanStatusRejectsDuplicateMissingOrForeignRows`, and
   `testDeleteScanRejectsUnconfirmedSuccessResponse`; adversarial fixtures reject
   those results if placed back under `MerianNetworkClientTests`. The aggregate
-  retains shared Auth and missing-row recovery policy tests.
-  `ScanLifecycleNetworkEndpointTests` adds 18 independent request cases, raw
-  caller-key/out-of-order bulk mapping, empty/invalid input short circuits, and
-  recovery encoding failures. `ScanLifecycleNetworkTransportTests` locks
-  exact-body replay snapshots, unclassified denials without refresh,
-  classified-401 refresh, bounded status retries, deletion's ambiguous-replay
-  refusal, and pre-dispatch/in-flight/independent cancellation. The scoped DEBUG
-  transport bypasses live Auth lease acquisition; source guards for expected
+  retains shared Auth tests; missing-row recovery policy now lives in
+  `OwnedScanRecoveryPolicyTests`. `ScanLifecycleNetworkEndpointTests` adds 18
+  independent request cases, raw caller-key/out-of-order bulk mapping,
+  empty/invalid input short circuits, and recovery encoding failures.
+  `ScanLifecycleNetworkTransportTests` locks exact-body replay snapshots,
+  unclassified denials without refresh, classified-401 refresh, bounded status
+  retries, deletion's ambiguous-replay refusal, and
+  pre-dispatch/in-flight/independent cancellation. The scoped DEBUG transport
+  bypasses live Auth lease acquisition; source guards for expected
   recovery-owner forwarding do not replace real-session integration tests.
   `Core/Network/Decoding/ScanLifecycleAPIModelsTests.swift` owns explicit wire
   keys, optional state, and the legacy failure alias;
@@ -2449,6 +2482,84 @@ import, and permission-denial UI require the physical-device checklist in
   complete unit target, and `make test-ios-ci-tooling`. Native pure/source and
   cached-dependency frontend checks are supplemental, not candidate iOS runtime
   evidence.
+- **Core Network integration architecture boundary**:
+  `MerianTests/Core/Network/Endpoints/CoreNetworkIntegrationArchitectureTests.swift`
+  protects the cross-slice inventory after the focused endpoint extractions. It
+  requires exactly 17 endpoint owners, rejects duplicate endpoint entry points
+  in `MerianNetworkClient.swift`, applies the 600-line ceiling to every Swift
+  owner in `Endpoints/`, `Inference/`, `Media/`, `Recovery/`, and `Transport/`
+  plus the client façade, and requires exactly six Transport files: three
+  stateless policies, one request-scoped executor, one pinned session, and one
+  authenticated dispatcher. The suite also freezes the disjoint safe-read and
+  idempotency-aware ambiguous-replay sets, requires exactly one endpoint owner
+  for each classified route, and records the exact owners allowed to acquire the
+  pinned session, private transport, request executor, consent/profile context,
+  Auth manager, recovery Species Dictionary query, or detached preparation
+  bridge. The eleven policy tests own URL/route/error classification,
+  unavailable-route scheduling, retry account binding, value-only Auth-recovery
+  selection, and replay allowlists. Nine request-executor tests cover exact
+  body/account replay, ordinary, transition-owned, and missing-guest Auth
+  recovery, payment and consent effects, bounded route recovery, failed-attempt
+  upload release plus successful-attempt response fallback, and cancellation.
+  The body-release case expects two callback invocations across a failed attempt
+  followed by a successful replay, proving the logical-request callback must be
+  idempotent while each attempt retains its own delegate fence. Seven
+  pinned-transport tests cover configuration, SHA-256 pins, exact Supabase host
+  matching, concurrent single-session initialization, full-chain matching,
+  missing/empty/unmatched-chain rejection, rejection when platform trust fails
+  despite a known pin, and the DEBUG session seam; one dispatcher test covers
+  value-only account resolution and exact request construction. Supabase manager
+  suites retain transition ownership and exact-session invariants. The source
+  guard rejects actor/async/global effects in stateless Transport policies,
+  prevents the executor from acquiring a session/client singleton, keeps session
+  construction in `PinnedNetworkTransport` and per-attempt Auth leasing in
+  `AuthenticatedTransportDispatcher`, and verifies both executor refresh
+  branches. Run the guard for every endpoint inventory, shared bridge,
+  replay-policy, or live-dependency ownership change, followed by all affected
+  endpoint matrices and the complete `merianTests` target. The backend
+  `get-filtered-discovery-feed` route is deliberately absent from these iOS
+  classifications because no iOS endpoint owns or calls it; this does not remove
+  or change the Edge Function. Final pre-extraction audit evidence included 53
+  focused Core Network tests and the complete 2,802-test `merianTests` target.
+  The Transport candidate's fresh generic Simulator build, focused selector
+  matrix with 202 passed XCResult cases, and complete 2,809-case target pass
+  with zero failures, skips, or expected failures. After the final pure-target
+  correction, an arm64 generic Simulator `build-for-testing` compiled the full
+  app and test bundles and a native probe executed both selection branches;
+  CoreSimulatorService was unavailable, so those prior XCResults are not labeled
+  as post-fix runtime evidence. This is a source architecture guard, not proof
+  of a live backend request or real-session account transition. The subsequent
+  executor review corrected its successful attempt's transport fake and the
+  architecture guard's `/functions/v1/` source token, then ran the production
+  executor/policies through a native deterministic harness: all nine executor
+  and five architecture tests passed. A fresh Xcode attempt was blocked before
+  compilation by the host SwiftPM sandbox while CoreSimulatorService remained
+  unavailable, so the previous XCResults remain the latest Simulator/full-target
+  evidence. The final transport-ownership candidate and its
+  concurrency/domain/trust follow-ups then passed native typechecking, all seven
+  pinned-transport cases, the dispatcher case, and all 50 affected architecture
+  cases. The trust review made platform trust a prerequisite for pin acceptance
+  and added its negative assertion without changing the seven-case inventory.
+  Byte-stable XcodeGen, project/source membership, event routing, CI-tooling,
+  transport security, strict SwiftLint, Swift parsing, documentation contracts,
+  Markdown formatting, and whitespace validation also passed. Fresh Xcode
+  attempts again stopped before compilation on denied SwiftPM manifest-cache
+  writes and unavailable CoreSimulatorService, so they add no new Simulator or
+  complete-target runtime evidence. See the
+  [Core Network integration audit](../../apps/ios/Merian/Core/Network/README.md#core-network-integration-audit).
+  The closure audit also gives the shared URLProtocol fixtures a dedicated
+  `Core/Network/NetworkTransportTestSupport.swift` owner. The architecture suite
+  rejects those declarations in the aggregate client suite; endpoint-specific
+  request assertions remain in `Endpoints/NetworkEndpointTestSupport.swift`.
+  Closure verification typechecked all 980 current production sources plus the
+  affected aggregate/support/publication test sources and executed all 50
+  current Network architecture tests across eight suites in a native harness.
+  Project, source, routing, CI-tooling, DTO, transport-security, lint, parse,
+  Supabase-tooling, documentation, formatting, and whitespace gates passed.
+  Fresh device-specific and generic Simulator builds both stopped before
+  compilation because CoreSimulatorService disconnected and the host denied
+  SwiftPM's nested `sandbox-exec`; no new Simulator or complete-target runtime
+  result is inferred from the direct typechecks.
 - **Field Trips endpoint boundary**:
   `Core/Network/Endpoints/FieldTripEndpointTests.swift` owns 48 request-mapping
   cases across every Field Trips client operation, including optional fields,
@@ -2468,8 +2579,9 @@ import, and permission-denial UI require the physical-device checklist in
   `Features/Explore/FieldTrips`. Run the canonical
   [Field Trips focused matrix](../features-and-hardware/25-field-trips.md#verification)
   and the complete `merianTests` target after changing this boundary. Its
-  per-case fixture and JSON comparison now live in
-  `NetworkEndpointTestSupport.swift`, shared with Community Identification,
+  per-case client and JSON comparison now live in
+  `NetworkEndpointTestSupport.swift`, composed over the scoped transport in
+  `NetworkTransportTestSupport.swift` and shared with Community Identification,
   Explore browsing/interactions, notifications, public-profile, post-management,
   Field Chat, Species Dictionary, scan lifecycle, enrichment, export, and
   product feedback endpoints. Changes to that support, a shared JSON bridge, or
@@ -2502,10 +2614,11 @@ import, and permission-denial UI require the physical-device checklist in
   type-preserving JSON assertion with Field Trips, Explore
   browsing/interactions, notifications, public-profile, post-management, Field
   Chat, Species Dictionary, scan lifecycle, enrichment, export, and product
-  feedback endpoints; no extracted endpoint suite writes the shared client's
-  overrides or legacy global endpoint handlers. The architecture suites keep all
-  extracted endpoint owners below 600 lines and leave scan publication/media
-  recovery in the main client. Run the
+  feedback and scan-publication endpoints; no extracted endpoint suite writes
+  the shared client's overrides or legacy global endpoint handlers. The
+  architecture suites keep all extracted endpoint owners below 600 lines;
+  scan-publication mapping, owned-row recovery, and media restoration have
+  dedicated Endpoint, Recovery, and Media owners. Run the
   [Identify focused matrix](../../apps/ios/Merian/Features/Explore/Identify/README.md#verification)
   and the complete unit target. Shared helper, JSON bridge, or
   configuration-guard changes also require the full
@@ -2643,23 +2756,31 @@ import, and permission-denial UI require the physical-device checklist in
   - **MockURLProtocol Contamination & shared-state isolation:** Swift Testing
     may execute suites concurrently under the current Xcode toolchain. Generic
     static closures and `MerianNetworkClient.shared` overrides can therefore
-    race while intercepting requests and corrupt expectations. Keep each such
-    suite `.serialized` for its own descendants and apply
+    race while intercepting requests and corrupt expectations. The legacy
+    interceptor is owned by `Core/Network/NetworkTransportTestSupport.swift`;
+    new endpoint suites should use its scoped transport through
+    `NetworkEndpointTestSupport.swift`. Keep each suite that still uses the
+    process-global interceptor `.serialized` for its own descendants and apply
     `.sharedProcessState(.networkClientOverrides)` to every suite that owns the
     same global client state; `.serialized` alone does not exclude a peer suite.
   - **`testEndpointURLPathContainsFunctionsV1Segment`**: Verifies
     `endpointURL(_:)` produces the full `/functions/v1/<endpoint>` path
     structure by capturing the outbound URL in a mock handler. Guards against
     `supabaseUrl` misconfiguration producing a silent wrong-URL path.
-  - **TLS chain-walking tests
-    (`testTLSChainWalkingAcceptsIntermediateCertWhenLeafIsUnknown`,
-    `testTLSChainWalkingRejectsUnknownChain`)**: Documents and validates the
-    `certChain.contains { ... }` refactor that replaced `certChain.first`. The
-    intermediate-CA test is the key regression guard: if someone reverts to
-    `certChain.first`, the intermediate CA backup hash becomes dead code and
-    this test fails. `testPinnedHashesAreNonEmptyValidBase64` guards against the
-    `pinnedCertHashes` set accidentally being cleared (which would silently
-    disable pinning in Release builds).
+- **`PinnedNetworkTransportTests.swift`**: Owns seven focused transport cases.
+  The three regressions moved from `MerianNetworkClientTests` protect
+  intermediate-CA fallback, missing/empty/unmatched or platform-untrusted chain
+  rejection, and nonempty valid SHA-256 pins. Two additional cases lock the
+  30/90-second configuration, six-connection/cookie/cache policy, and the DEBUG
+  injected-session dispatch seam. The remaining cases prove exact Supabase
+  hostname admission—including suffix-lookalike rejection—and concurrent first
+  use retains one production session. The architecture suite separately locks
+  the Release `SecTrustEvaluateWithError` call and cancellation paths.
+- **`AuthenticatedTransportDispatcherTests.swift`**: Uses an injected session
+  and account UUID to verify value-only owner resolution and exact authenticated
+  JSON request construction without live Auth or network access. Auth lease and
+  transition correctness remain covered by `SupabaseManagerTests`; executor
+  replay/effect behavior remains in `AuthenticatedRequestExecutorTests`.
 - **`DeviceIdentityManagerTests.swift`, `PurchasePrincipalResolverTests.swift`,
   `EntitlementManagerTests.swift`, `RevenueCatManagerTests.swift`**: Isolates
   authentication loops away from live production identifiers.
@@ -3038,8 +3159,12 @@ iOS focused coverage:
   `/report-explore-post`, preventing scan/request identifiers from re-entering
   that report path. Its transport suite guards body-ignoring success and
   mutation replay refusal; both are in the Identify matrix.
-- `Core/Network/MerianNetworkClientTests.swift` retains scan-publication and
-  media-recovery coverage.
+- `Core/Network/Endpoints/ScanPublicationEndpointTests.swift` and
+  `ScanPublicationEndpointTransportTests.swift` own direct publication mapping,
+  response integrity, replay, and cancellation. The mirrored Recovery and Media
+  policy suites own missing-row admission and restore budgets; the architecture
+  suite protects the source boundaries. Run the
+  [scan-publication matrix](../../apps/ios/Merian/Core/Network/README.md#scan-publication-and-owned-recovery-verification).
   `Core/Network/CommunityIdentificationModelsTests.swift` retains standalone
   DTO/model compatibility tests.
 - `Core/Utilities/MerianConfigTests.swift` verifies a temporary service failure
@@ -4369,20 +4494,32 @@ Identification latency has focused contract coverage at each boundary:
   RPC's server-canonicalized upload-session ids, checksums, stage, and
   already-complete state. `dwca_download_and_scan_finalization_security.sql`
   exercises the same invariants against a fresh PostgreSQL catalog with pgTAP.
-- `MerianNetworkClientTests` verifies pinned-session `OPTIONS` prewarming,
-  idempotent inline request-body completion, queue-owned 15-second versus
-  direct-caller 90-second Identify deadlines, and owner-scoped
-  `/update-scan-context` construction. It also verifies single-status recovery,
-  combined Explore recovery/media restoration, and the Ask/Field Chat repair
-  seams. Its route-retry coverage also cancels a replayable request after its
-  first dispatch and proves no second request is issued or noncanonical
-  `URLError.cancelled` escapes the task-owned transport boundary. Establish the
-  first dispatch through a bounded `ContinuousClock` wait for the observable
-  mock request, not a fixed number of `Task.yield()` calls: URLSession protocol
-  scheduling is not coupled to executor-yield count on a loaded hosted
-  simulator. The test must still assert an exact count of one immediately before
-  cancellation and again after canonical `CancellationError` exits the retry
-  delay. `MerianConfigTests` locks customer-facing Explore error translation;
+- `InferenceEndpointTransportTests` verifies pinned-session `OPTIONS`
+  prewarming, idempotent inline request-body completion, and queue-owned
+  15-second versus direct-caller 90-second Identify deadlines. It also locks the
+  prewarm request's absent Auth/entitlement/content-type/body state and
+  pre-dispatch owner cancellation; `DetachedWorkTests` proves cancellation
+  reaches the detached preparation handle. `InferencePayloadBuilderTests`,
+  `InferenceMediaPolicyTests`, and `InferenceRequestPolicyTests` lock the
+  request-body, byte/WAV, account, object-owner, and conflict policies;
+  `ScanEnrichmentEndpointTests` owns `/update-scan-context` construction.
+  `ScanPublicationEndpointTests`, `ScanPublicationEndpointTransportTests`,
+  `OwnedScanRecoveryPolicyTests`, and `ScanPublicationMediaRestorePolicyTests`
+  own the publication, status-recovery, Ask/Field Chat, and restore-policy
+  seams. Publication transport coverage also cancels a replayable request after
+  its first dispatch and proves no second request is issued or noncanonical
+  `URLError.cancelled` escapes the task-owned transport boundary. A second case
+  enters owned-scan recovery through a handler-owned `404`, observes one
+  `processing` status response, cancels before the 250 ms retry window expires,
+  and requires canonical `CancellationError` with no second status request. The
+  recovery architecture guard separately requires cancellation to be rechecked
+  immediately after each successful status response, before its value is
+  interpreted. Establish each first dispatch through a bounded `ContinuousClock`
+  wait for the observable mock request, not a fixed number of `Task.yield()`
+  calls: URLSession protocol scheduling is not coupled to executor-yield count
+  on a loaded hosted simulator. Each case must assert its exact request count
+  both immediately before cancellation and after the retry delay exits.
+  `MerianConfigTests` locks customer-facing Explore error translation;
   `FieldChatViewModelStateTests` locks retryable still-syncing feedback.
 
 Before production percentage increases, run a device/simulator lifecycle matrix
@@ -4454,7 +4591,7 @@ The current source implements this matrix with the gated
 `queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual`,
 `queueBackedAttemptRequiresForegroundGenerationForAllMedia`, which rejects a
 durable scan ID without its exact queue-generation token before either pipeline
-can start, the network-client request-count controls
+can start, the `InferenceEndpointTransportTests` request-count controls
 `queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay` and
 `queueLessIdentifyRetainsOneReviewedInlineTransportReplay`, the queue-less
 engine presentation control, the server-failure separation test,

@@ -21,16 +21,19 @@ RevenueCat entitlement or paid badge.
 
 The shared iOS conversation implementation is owned by
 `apps/ios/Merian/Features/FieldChat/`. Insight Shell owns scan eligibility,
-owner-row readiness, dismissal handoffs, and its typed presentation slot;
+readiness-task lifecycle, dismissal handoffs, and its typed presentation slot;
 `FieldChatEndpoint` and `InsightChatViewModel` own source adaptation and
 subject-fenced conversation state. Core Network retains the Codable wire
-contracts, the shared endpoint extension and strict response decoder, and
-private authenticated transport. See the
+contracts, the shared endpoint extension and strict response decoder, private
+authenticated transport, and the owned-row readiness/recovery mechanics. See the
 [Core Field Chat ownership guide](../../apps/ios/Merian/Core/Network/README.md#field-chat-endpoints-and-validation)
 for those boundaries. Chat endpoint or validation changes require the
 [Core Field Chat matrix](../../apps/ios/Merian/Core/Network/README.md#field-chat-verification)
-alongside the host's feature regressions; cloud-readiness coverage remains in
-`MerianNetworkClientTests`, not the rehomed direct chat endpoint suites.
+alongside the host's feature regressions. Insight cloud-readiness and
+missing-owner admission are covered by `OwnedScanRecoveryPolicyTests` and
+`ScanPublicationRecoveryArchitectureTests` in the
+[scan-publication/recovery matrix](../../apps/ios/Merian/Core/Network/README.md#scan-publication-and-owned-recovery-verification),
+not by the direct chat endpoint suites or the aggregate network suite.
 
 Availability preparation is same-subject single-flight; subject replacement or
 clearing invalidates older readiness. Prompt refresh is latest-trigger-wins, and
@@ -644,7 +647,8 @@ withdrawn vote history. A write-time `needs_id` recheck also prevents a
 concurrent direct share from returning success after a Community request wins.
 
 If an Insight-originated action finds that the authenticated owner's cloud row
-is absent, `MerianNetworkClient` first polls `/check-scan-status`. Active or
+is absent, `Core/Network/Recovery/MerianNetworkClient+OwnedScanRecovery.swift`
+first polls `/check-scan-status` through the existing network client. Active or
 retryable ingestion remains authoritative, and known moderation/provider-policy
 rejection is not repaired. Eligible legacy drift uses the single-request
 `recovery_scan` contract to recreate only bounded non-media fields; server

@@ -152,8 +152,10 @@ as their permanent engineering identity.
 - **iOS transport security (2026-08-05)**: The broad ATS exception is removed.
   Shared URL validation admits only credential-free HTTPS remote origins while
   preserving app-owned local files, and source/archive/exported-IPA guardrails
-  reject ATS exceptions or insecure Supabase configuration. Production still
-  requires exact-SHA archive evidence containing
+  reject ATS exceptions or insecure Supabase configuration. Release Supabase
+  traffic additionally requires both platform trust and an exact-domain
+  certificate-chain pin; unreadable, untrusted, or unmatched chains fail closed.
+  Production still requires exact-SHA archive evidence containing
   `transport_security: "ats-default"`. See the
   [`canonical transport contract`](./development-guides/17-ios-transport-security.md).
 - **Current backend release verdict**: DwC-A exports are default-off for the

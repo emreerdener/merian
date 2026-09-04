@@ -156,9 +156,14 @@ generation.
 - `Core/Network/Endpoints/MerianNetworkClient+CommunityIdentification.swift`
   constructs the eight request/activity/detail/edit/search and
   submit/withdraw/restore payloads and projects their typed responses through
-  the shared JSON POST bridge. `MerianNetworkClient.swift` retains private Auth,
-  transport, retry, and cancellation ownership, plus scan publication and media
-  recovery. See the [Core Network guide](../../../Core/Network/README.md).
+  the shared JSON POST bridge. Direct Ask-the-Community publication lives in
+  `MerianNetworkClient+ScanPublication.swift`; record recovery lives in
+  `Core/Network/Recovery/`, and publication-media repair lives in
+  `Core/Network/Media/`. `Core/Network/Transport/` owns pure route/error/replay
+  policy, the request-scoped executor that applies retry and injected Auth
+  effects, the sole pinned session/TLS owner, and the per-attempt authenticated
+  dispatcher. `MerianNetworkClient.swift` injects those owners. See the
+  [Core Network guide](../../../Core/Network/README.md#scan-publication-and-owned-recovery).
 - `Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift` owns
   the `reportExplorePost` payload used by Community detail. The Identify live
   adapter still supplies the exact post ID and fixed report context; its state
@@ -219,6 +224,11 @@ stable pagination. See:
 - `apps/ios/MerianTests/Core/Network/Endpoints/CommunityIdentificationEndpointTests.swift`
 - `apps/ios/MerianTests/Core/Network/Endpoints/ExploreInteractionEndpointTests.swift`
 - `apps/ios/MerianTests/Core/Network/Endpoints/ExploreInteractionEndpointTransportTests.swift`
+- `apps/ios/MerianTests/Core/Network/Endpoints/ScanPublicationEndpointTests.swift`
+- `apps/ios/MerianTests/Core/Network/Endpoints/ScanPublicationEndpointTransportTests.swift`
+- `apps/ios/MerianTests/Core/Network/Recovery/OwnedScanRecoveryPolicyTests.swift`
+- `apps/ios/MerianTests/Core/Network/Media/ScanPublicationMediaRestorePolicyTests.swift`
+- `apps/ios/MerianTests/Core/Network/Endpoints/ScanPublicationRecoveryArchitectureTests.swift`
 - `apps/ios/MerianTests/Core/Network/Endpoints/MerianNetworkArchitectureTests.swift`
 - `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift`
 - `apps/ios/MerianTests/Core/Utilities/MerianConfigTests.swift`
@@ -273,6 +283,11 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/CommunityIdentificationEndpointTests \
   -only-testing:merianTests/ExploreInteractionEndpointTests \
   -only-testing:merianTests/ExploreInteractionEndpointTransportTests \
+  -only-testing:merianTests/ScanPublicationEndpointTests \
+  -only-testing:merianTests/ScanPublicationEndpointTransportTests \
+  -only-testing:merianTests/OwnedScanRecoveryPolicyTests \
+  -only-testing:merianTests/ScanPublicationMediaRestorePolicyTests \
+  -only-testing:merianTests/ScanPublicationRecoveryArchitectureTests \
   -only-testing:merianTests/NetworkEndpointTestSupportTests \
   -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/ExploreShellNavigationPolicyTests \

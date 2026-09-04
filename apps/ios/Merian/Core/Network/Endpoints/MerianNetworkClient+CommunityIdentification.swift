@@ -1,7 +1,9 @@
 import Foundation
 
 // Community request browsing and contributions share the authenticated JSON transport.
-// Scan publication and its media-recovery orchestration remain in the main client.
+// Scan publication and its recovery orchestration have dedicated Endpoint,
+// Recovery, and Media owners; this file contains Community browsing and
+// contribution operations only.
 extension MerianNetworkClient {
     func getCommunityIdentificationFeed(
         limit: Int = 30,

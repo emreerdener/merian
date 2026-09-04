@@ -3449,13 +3449,14 @@ authenticated GET's ordered ID/name query. The client's fixed-result stats
 bridge retains the 20-second deadline and exclusively accesses its private memo
 through lookup, authenticated load, validation, and insertion.
 `SpeciesDictionaryResponseValidator` checks typed schema/identity before cache
-insertion; raw wire-decoding errors are not remapped. The shared client retains
-private Auth, retry, and cancellation implementation.
-`Services/SpeciesObservationStatsDependencies.swift` is the live endpoint
-adapter; `SpeciesObservationStatsViewModel` never resolves the network client
-directly. The view model combines that public baseline with local SwiftData
-aggregates for `SpeciesObservationChartsCard`, which currently renders
-seasonality, history, and life-stage series.
+insertion; raw wire-decoding errors are not remapped. Core Network's
+authenticated dispatcher retains private per-attempt Auth/session dispatch, and
+its request-scoped executor retains the shared retry, cancellation-checkpoint,
+and Auth-recovery behavior. `Services/SpeciesObservationStatsDependencies.swift`
+is the live endpoint adapter; `SpeciesObservationStatsViewModel` never resolves
+the network client directly. The view model combines that public baseline with
+local SwiftData aggregates for `SpeciesObservationChartsCard`, which currently
+renders seasonality, history, and life-stage series.
 
 ---
 
@@ -5396,6 +5397,11 @@ The Explore iOS mapping, state, and presentation layers are:
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+CommunityIdentification.swift`
   for Community request/activity feeds, detail, request editing, taxonomy
   search, and submit/withdraw/restore payloads and typed response projections
+- `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ScanPublication.swift`
+  for the direct Explore-share and Ask-the-Community payloads, stable
+  idempotency keys, typed response projection, and strict success validation;
+  record-based compatibility orchestration lives in `Core/Network/Recovery/`,
+  and local publication-media planning/upload lives in `Core/Network/Media/`
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExplorePostManagement.swift`
   for composer media, authoritative share state, owner media incidents, unshare,
   legacy public-notes edits, and full post edits. It preserves existing payload
@@ -5491,10 +5497,12 @@ one internal JSON POST bridge. The typed overload preserves optional idempotency
 keys and endpoint-specific decoding failures without catching transport
 failures; private session, Auth lease, refresh, retry, and cancellation behavior
 remains in `MerianNetworkClient.swift`. The two `requestCommunityIdentification`
-scan-publication overloads remain there with media recovery. This is a source
-ownership split, not a change to these API contracts. Feed, Insights Sharing,
-and Scans Shell retain composer/edit, reconciliation, and private incident
-state. See the
+scan-publication overloads are split between
+`Endpoints/MerianNetworkClient+ScanPublication.swift` and
+`Recovery/MerianNetworkClient+OwnedScanRecovery.swift`; restored local media is
+owned by `Media/ScanPublicationMediaRestorer.swift`. This is a source ownership
+split, not a change to these API contracts. Feed, Insights Sharing, and Scans
+Shell retain composer/edit, reconciliation, and private incident state. See the
 [Core Network guide](../../apps/ios/Merian/Core/Network/README.md#meriannetworkclient)
 for the endpoint and test boundaries.
 
@@ -5650,6 +5658,20 @@ observation contexts, and `ownerMediaTimeline`. `Capture/Staging` owns only the
 ephemeral draft and chronological nodes. These request descriptors are separate
 from the generated response DTOs in `Core/AI/InferenceEdgeDTOs.swift`; moving
 their owner does not change the payload below or the executable Deno contract.
+`Core/Network/Endpoints/MerianNetworkClient+Inference.swift` owns the native
+`/identify` and `/identify-multimodal` entry points. Its sibling
+`Core/Network/Inference/InferencePayloadBuilder.swift` owns the shared JSON
+mapping, while the media/request policy and immutable value files own local
+budgets, staged-key account checks, conflict classification, and request
+binding. `Core/Network/Transport/` owns pure route/error/replay and Auth
+recovery policy, including value-only refresh-target selection, plus the
+request-scoped executor that applies bounded retry, cancellation checkpoints,
+and injected effects. `PinnedNetworkTransport` owns the single configured
+session/TLS boundary, and `AuthenticatedTransportDispatcher` owns per-attempt
+Auth/session validation and upload progress. `MerianNetworkClient.swift` injects
+both behind narrow bridges. The endpoint separately owns cancellation-aware
+off-main request-body preparation; this source split changes no key,
+optionality, header, timeout, or server contract.
 
 ```json
 {
@@ -5884,15 +5906,16 @@ their owner does not change the payload below or the executable Deno contract.
 - The canonical request contract is camelCase telemetry (`gpsLatitude`,
   `semanticLocation`, `publicLocationLabel`, `geoprivacy`, `deviceTimeZone`,
   etc.), `ownerMediaTimeline`, plus `observation_contexts: [{ freeText }]`,
-  matching `MerianNetworkClient.buildMultiModalRequest(...)` and the iOS
-  `ObservationContext` model. The same Swift inference payload builder also
-  backs `/identify` so visual and multimodal requests share telemetry
-  formatting, user context, and pre-serialization inline media budget
-  validation. Legacy `addedAt`/`added_at` input is accepted only for rolling
-  compatibility and discarded before replay intent or scan persistence. New
-  `scan_ingestion_intents` use schema version 3 and persist text-only contexts;
-  schema-v2 rows remain readable and are normalized through the same discard
-  path during replay.
+  matching `MerianNetworkClient.buildMultiModalRequest(...)` in
+  `Endpoints/MerianNetworkClient+Inference.swift` and the iOS
+  `ObservationContext` model. `InferencePayloadBuilder` in the sibling
+  `Inference/` folder also backs `/identify` so visual and multimodal requests
+  share telemetry formatting, user context, and pre-serialization inline media
+  budget validation. Legacy `addedAt`/`added_at` input is accepted only for
+  rolling compatibility and discarded before replay intent or scan persistence.
+  New `scan_ingestion_intents` use schema version 3 and persist text-only
+  contexts; schema-v2 rows remain readable and are normalized through the same
+  discard path during replay.
 - If `geoprivacy` is missing, invalid, or supplied by an old queued payload, the
   Edge insert helper resolves the scan privacy from `users.default_geoprivacy`.
   Private scans clear `public_location_label` server-side even if a stale client
@@ -6384,9 +6407,16 @@ verification atomically with quota and model selection.
 Core Network owns the Codable wire DTOs in `InsightChatAPIModels.swift`, the 17
 source methods in `Endpoints/MerianNetworkClient+FieldChat.swift`, and strict
 stateless response validation in `Decoding/FieldChatResponseDecoder.swift`.
-`MerianNetworkClient.swift` retains private authenticated transport, replay,
-cancellation, and cloud/media recovery. Its narrow encoded-body POST bridge
-returns bytes to the decoder without adding a retry or task owner. See the
+`Core/Network/Transport/` owns stateless replay, route/error classification,
+retry-account binding, and value-only Auth-recovery decisions through
+`UnauthorizedRefreshTarget`. Its request-scoped executor applies those decisions
+and injected effects. `PinnedNetworkTransport` owns the single session/TLS
+boundary, `AuthenticatedTransportDispatcher` owns per-attempt Auth validation
+and its upload delegate, and `MerianNetworkClient.swift` injects both. Field
+Chat cloud-readiness and eligible owned-row recovery live in
+`Recovery/MerianNetworkClient+OwnedScanRecovery.swift`; Field Chat does not
+restore public media. The narrow encoded-body POST bridge returns bytes to the
+decoder without adding a retry or task owner. See the
 [Core endpoint guide](../../apps/ios/Merian/Core/Network/README.md#field-chat-endpoints-and-validation)
 for the unchanged per-action timeout and idempotency policies.
 `Features/FieldChat/Services/FieldChatEndpoint.swift` adapts `FieldChatSource`
@@ -7136,9 +7166,14 @@ iOS request mapping lives in
 explicit-key DTOs in `ScanLifecycleAPIModels.swift` and strict response checks
 in `Decoding/ScanLifecycleResponseDecoder.swift`. The raw-response JSON bridge
 preserves recovery-owner binding through the client's private authenticated
-transport. Recovery payload construction and missing-row classification stay in
-the main client; durable scheduling stays in Core Data. See the
+transport. `Core/Network/Recovery/` owns recovery payload construction,
+missing-row classification, and record-based compatibility orchestration;
+durable scheduling stays in Core Data. See the
 [iOS ownership and verification guide](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-endpoints-and-decoding).
+The compatibility poller propagates caller cancellation before interpreting a
+late successful status response or launching another probe or recovery action;
+it does not translate cancellation into a recovery outcome. This is an iOS
+lifecycle guarantee and does not change the request or response contract below.
 
 ### Request Payload
 
@@ -7272,6 +7307,11 @@ or repair errors are caught by `index.ts` and mapped to a structured
 Fetches the global social feed of public biological captures, excluding the
 requesting user and any users they have blocked.
 
+This remains a deployed backend route, but the current iOS app has no endpoint
+owner or caller for it. Native Explore feed loading uses `/get-explore-feed`.
+Keeping this section documents the backend contract; it does not make
+`get-filtered-discovery-feed` part of the iOS replay allowlist.
+
 ### Feed Query Strategy
 
 Block list and feed are fetched in **parallel** via `Promise.all`:
@@ -7301,12 +7341,12 @@ parameter that required manual escaping.
 The endpoint extracts user identity from the `Authorization: Bearer` header via
 `supabaseAdmin.auth.getUser()`, ignoring any `userId` in the request body.
 
-**Raw-client header requirement**: Because `MerianNetworkClient` uses
-`URLSession` instead of the Supabase Swift SDK, requests send both
+**Raw-client header requirement**: Any direct `URLSession` client must send both
 `Authorization: Bearer <user JWT>` and `apikey: <public project key>`. The
 gateway can reject a request that does not identify the project, while the
-handler independently validates the Bearer user JWT. Do not describe this as the
-gateway stripping Authorization.
+handler independently validates the Bearer user JWT. The current iOS
+`MerianNetworkClient` does not expose this route. Do not describe the gateway as
+stripping Authorization.
 
 Any request with a manipulated JSON body but no valid JWT signature in the
 header returns `401 Unauthorized`.

@@ -101,7 +101,8 @@ ambiguous transport/`5xx` replay fails closed unless the route is an audited
 read or carries a server-supported idempotency key.
 
 The Dictionary send carries a server-supported idempotency key and
-`species-dictionary-chat` is in `idempotencyAwareFunctionNames`. Its regression
+`species-dictionary-chat` is in
+`AuthenticatedRequestRetryPolicy.idempotencyAwareFunctionNames`. Its regression
 loses the first retryable response, automatically replays the identical UUID,
 and accepts one saved pair. The focused deploy gate also runs the source route
 contract and post-authenticated handler-core coverage for action, ownership,

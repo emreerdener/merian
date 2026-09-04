@@ -2963,7 +2963,11 @@ This ensures:
   parent cancellation to that handle, and checks cancellation before and after
   awaiting its result. Native synchronous work is not force-preempted, so each
   worker still checks cancellation between expensive stages and owns any
-  temporary output until handoff.
+  temporary output until handoff. Inference request serialization uses the
+  dedicated `.inferenceRequestPreparation` category and checks cancellation
+  around JSON construction and between bounded inline-audio reads, preserving
+  the offline queue's preparation deadline without moving file work onto the
+  main actor.
 - **Typed settings boundary**: settings-first UI surfaces now read and mutate
   `AppSettings` rather than owning `@AppStorage` strings directly. Storage keys
   remain centralized, while the view layer binds to typed state.

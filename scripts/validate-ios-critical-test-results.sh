@@ -410,18 +410,18 @@ assert_suite_has_passed_test_case \
   "testDeleteScanRejectsUnconfirmedSuccessResponse"
 assert_suite_has_passed_test_case \
   "Foreground scan submission" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "InferenceEndpointTransportTests" \
+  "Inference Endpoint Transport" \
   "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON"
 assert_suite_has_passed_test_case \
   "Queue-backed transport replay suppression" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "InferenceEndpointTransportTests" \
+  "Inference Endpoint Transport" \
   "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay"
 assert_suite_has_passed_test_case \
   "Queue-less reviewed transport replay" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "InferenceEndpointTransportTests" \
+  "Inference Endpoint Transport" \
   "queueLessIdentifyRetainsOneReviewedInlineTransportReplay"
 assert_suite_has_passed_test_case \
   "Stable auth-session refresh before request replay" \
@@ -430,33 +430,33 @@ assert_suite_has_passed_test_case \
   "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry"
 assert_suite_has_passed_test_case \
   "Explore share idempotency" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ScanPublicationEndpointTests" \
+  "Scan Publication Endpoints" \
   "testExploreShareSendsStableAIIdempotencyKey"
 assert_suite_has_passed_test_case \
   "Explore share response integrity" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ScanPublicationEndpointTests" \
+  "Scan Publication Endpoints" \
   "testExploreShareRejectsContradictorySuccessResponses"
 assert_suite_has_passed_test_case \
   "Existing Explore scan recovery payload" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ScanPublicationEndpointTests" \
+  "Scan Publication Endpoints" \
   "testExploreShareSendsMissingScanRecoveryPayload"
 assert_suite_has_passed_test_case \
   "Existing Explore scan recovery safety" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "OwnedScanRecoveryPolicyTests" \
+  "Owned Scan Recovery Policy" \
   "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion"
 assert_suite_has_passed_test_case \
   "Existing Explore stable missing-scan classifier" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "OwnedScanRecoveryPolicyTests" \
+  "Owned Scan Recovery Policy" \
   "testExploreCloudScanRestoreUsesStableNotFoundCodeWithLegacyFallback"
 assert_suite_has_passed_test_case \
   "Field Chat local/cloud identity fence" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "OwnedScanRecoveryPolicyTests" \
+  "Owned Scan Recovery Policy" \
   "testFieldChatCloudPreflightRejectsMismatchedRecordIdentity"
 assert_suite_has_passed_test_case \
   "Presented record stale-binding invalidation" \
@@ -565,8 +565,8 @@ assert_suite_has_passed_test_case \
   "testExploreMediaIncidentsRejectsUnknownSuccessShape"
 assert_suite_has_passed_test_case \
   "Explore repair preflight budget" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ScanPublicationMediaRestorePolicyTests" \
+  "Scan Publication Media Restore" \
   "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload"
 assert_suite_has_passed_test_case \
   "Foreground video empty-file rejection" \
@@ -575,13 +575,13 @@ assert_suite_has_passed_test_case \
   "testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning"
 assert_suite_has_passed_test_case \
   "Community all-media recovery" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ScanPublicationEndpointTests" \
+  "Scan Publication Endpoints" \
   "testCommunityRequestSendsStableAIIdempotencyKey"
 assert_suite_has_passed_test_case \
   "Community response integrity" \
-  "MerianNetworkClientTests" \
-  "Network Client Tests" \
+  "ScanPublicationEndpointTests" \
+  "Scan Publication Endpoints" \
   "testCommunityRequestRejectsUnconfirmedSuccessResponse"
 assert_suite_has_passed_test_case \
   "Explore reconciliation integrity" \

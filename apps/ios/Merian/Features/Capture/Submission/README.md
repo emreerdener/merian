@@ -278,14 +278,17 @@ upload, `InferenceLiveRequestService` signals that provider dispatch is ready;
 request-body completion callback that the service forwards unchanged. Either
 release path opens the queue row for normal background upload only when the
 expected foreground generation still matches. Request failure, connectivity
-loss, or app backgrounding synchronously retires that exact generation, and
-relaunch naturally clears process-local upload suppression. Live success deletes
-the queue only with a matching foreground-generation expectation. Recovery media
-may finish staging while the live request awaits Gemini, but the durable
-foreground claim prevents the queue from dispatching a second identification
-call. Failure, cancellation, or backgrounding releases that claim and replays
-any staged row. Staged replay checks the server ingestion ledger first and polls
-an already-processing foreground job instead of issuing a duplicate model call.
+loss, or app backgrounding synchronously retires that exact generation. A
+network replay may invoke the callback for more than one transport attempt, so
+both queue release and the local-analysis start gate remain idempotent for the
+logical request. Relaunch naturally clears process-local upload suppression.
+Live success deletes the queue only with a matching foreground-generation
+expectation. Recovery media may finish staging while the live request awaits
+Gemini, but the durable foreground claim prevents the queue from dispatching a
+second identification call. Failure, cancellation, or backgrounding releases
+that claim and replays any staged row. Staged replay checks the server ingestion
+ledger first and polls an already-processing foreground job instead of issuing a
+duplicate model call.
 
 That same request-body completion callback is the earliest point at which the
 injected Foundation visual-cue provider may start. The callback only marks the

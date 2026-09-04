@@ -194,6 +194,7 @@ enum DetachedWorkCategory: String {
     case thirdPartyBootstrap
     case imagePreparation
     case audioPreparation
+    case inferenceRequestPreparation
     case fileSystemCleanup
     case backgroundDatabaseMutation
 }

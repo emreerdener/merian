@@ -152,21 +152,29 @@ write_test_tree() {
               "queuedSnapshotRecoveryRespectsDurableAndNetworkPolicy"
             ]),
             suite("Network Client Tests"; [
+              "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry",
+              "testExploreMediaIncidentsAndLifecycleNotificationsDecode",
+              "testMissingOwnerShareStateClearsStaleLocalPublication"
+            ]),
+            suite("Inference Endpoint Transport"; [
               "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON",
               "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay",
-              "queueLessIdentifyRetainsOneReviewedInlineTransportReplay",
-              "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry",
+              "queueLessIdentifyRetainsOneReviewedInlineTransportReplay"
+            ]),
+            suite("Scan Publication Endpoints"; [
               "testExploreShareSendsStableAIIdempotencyKey",
               "testExploreShareRejectsContradictorySuccessResponses",
               "testExploreShareSendsMissingScanRecoveryPayload",
+              "testCommunityRequestSendsStableAIIdempotencyKey",
+              "testCommunityRequestRejectsUnconfirmedSuccessResponse"
+            ]),
+            suite("Owned Scan Recovery Policy"; [
               "testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion",
               "testExploreCloudScanRestoreUsesStableNotFoundCodeWithLegacyFallback",
-              "testFieldChatCloudPreflightRejectsMismatchedRecordIdentity",
-              "testExploreMediaIncidentsAndLifecycleNotificationsDecode",
-              "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload",
-              "testCommunityRequestSendsStableAIIdempotencyKey",
-              "testCommunityRequestRejectsUnconfirmedSuccessResponse",
-              "testMissingOwnerShareStateClearsStaleLocalPublication"
+              "testFieldChatCloudPreflightRejectsMismatchedRecordIdentity"
+            ]),
+            suite("Scan Publication Media Restore"; [
+              "testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload"
             ]),
             suite("Scan Deletion Endpoints"; [
               "testDeleteScanRejectsUnconfirmedSuccessResponse"
@@ -273,12 +281,12 @@ write_test_tree
 jq '
   (
     .testNodes[]
-    | select(.name == "Network Client Tests")
+    | select(.name == "Inference Endpoint Transport")
     | .children
   ) += [
     (
       .testNodes[]
-      | select(.name == "Network Client Tests")
+      | select(.name == "Inference Endpoint Transport")
       | .children[]
       | select(
           .name ==
@@ -306,6 +314,7 @@ write_summary "Passed" 4 4 0
 for omitted_suite in \
   "CameraManagerTests" \
   "Inference Engine Tests" \
+  "Inference Endpoint Transport" \
   "OfflineQueueManagerTests" \
   "SyncStateManagerTests" \
   "Explore Media Incident Endpoints" \
@@ -421,6 +430,9 @@ for omitted_case in "${required_cases[@]}"; do
 done
 
 for rehomed_case in \
+  "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON" \
+  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay" \
+  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay" \
   "testDeleteScanRejectsUnconfirmedSuccessResponse" \
   "testCheckScanStatusRejectsMalformedOrMismatchedSuccess" \
   "testBulkScanStatusRejectsDuplicateMissingOrForeignRows" \

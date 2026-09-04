@@ -50,9 +50,10 @@ navigation mode.
 - `Core/Network/SpeciesDictionaryAPIModels.swift` remains the owner of Codable
   DTOs and JSON compatibility. The Species Dictionary endpoint extension owns
   catalog/overview payloads, `SpeciesDictionaryResponseValidator` requires exact
-  `schema_version = 1`, and `MerianNetworkClient` retains private shared
-  transport. Catalog and overview do not use the separate detail/stats memos;
-  Catalog Services adapt their calls for observable state.
+  `schema_version = 1`, and `MerianNetworkClient` injects Core Network's private
+  pinned and authenticated transport owners. Catalog and overview do not use the
+  separate detail/stats memos; Catalog Services adapt their calls for observable
+  state.
 - Explore Shell owns the shared `NavigationPath`, Identify/Index selection, and
   route destination registration. Catalog owns the category route value and
   emits species-detail routes without creating another navigation stack.

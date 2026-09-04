@@ -21,9 +21,13 @@ struct AccountDeletionBoundaryTests {
                      "AccountDeletionRecoveryValidation.swift", "Decoding/AccountDeletionResponseDecoder.swift"] {
             #expect(try networkSource(path).split(separator: "\n", omittingEmptySubsequences: false).count <= 600)
         }
-        for declaration in ["private var activeSession", "private lazy var session", "private func endpointURL(",
-                            "private func performAuthenticatedTransport(", "private func performAuthenticatedRequest(",
-                            "private func performPublicAccountDeletionRecoveryRequest("] {
+        for declaration in [
+            "private let sessionTransport: PinnedNetworkTransport",
+            "private let authenticatedTransport: AuthenticatedTransportDispatcher",
+            "private func endpointURL(",
+            "private func performAuthenticatedRequest(",
+            "private func performPublicAccountDeletionRecoveryRequest("
+        ] {
             #expect(client.contains(declaration))
         }
     }
@@ -96,7 +100,7 @@ struct AccountDeletionBoundaryTests {
         try expectOrder(["try Task.checkCancellation()", "cachePolicy: .reloadIgnoringLocalCacheData", "timeoutInterval: 20",
                          #"forHTTPHeaderField: "Content-Type""#, #"forHTTPHeaderField: "Accept""#,
                          #"request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")"#, "request.httpBody = body",
-                         "activeSession.data(for: request)", "catch let urlError as URLError", "try Task.checkCancellation()",
+                         "sessionTransport.data(for: request)", "catch let urlError as URLError", "try Task.checkCancellation()",
                          "transientCodes.contains(urlError.code), !isRetry", "Task.sleep(for: .seconds(2))", "isRetry: true",
                          "throw urlError", "try Task.checkCancellation()", "data.count <= 64 * 1024",
                          "response as? HTTPURLResponse", "httpResponse.statusCode == 200", "httpResponse.statusCode >= 500, !isRetry",
@@ -169,7 +173,11 @@ struct AccountDeletionBoundaryTests {
             for name in names { #expect(test.contains("func \(name)(") && !aggregate.contains("func \(name)(")) }
             #expect(!test.contains("MerianNetworkClient.shared") && !test.contains("MockURLProtocol.mockEndpoints"))
         }
-        #expect(aggregate.contains("func testUnauthorizedRefreshStaysInsideItsAuthTransitionOwner("))
+        let retryPolicy = try source(
+            "apps/ios/MerianTests/Core/Network/Transport/AuthenticatedRequestRetryPolicyTests.swift"
+        )
+        #expect(retryPolicy.contains("func testUnauthorizedRefreshStaysInsideItsAuthTransitionOwner("))
+        #expect(!aggregate.contains("func testUnauthorizedRefreshStaysInsideItsAuthTransitionOwner("))
         #expect(aggregate.contains("func testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry("))
         let manager = try networkSource("SupabaseManager.swift")
         #expect(manager.contains("prepareAccountDeletionRecoveryV2(") && manager.contains("commitPreparedAccountDeletionV2("))

@@ -21,7 +21,11 @@ release evidence are documented in the
 
 Transport security is an independent connection boundary. The app retains ATS
 defaults and uses `SecureTransportPolicy` to reject non-HTTPS or credentialed
-remote URLs before network/media frameworks see them. See the
+remote URLs before network/media frameworks see them. Core Network's Release
+transport then requires both platform trust and a matching certificate-chain pin
+for the exact Supabase domain boundary; it fails closed on an unreadable,
+untrusted, or unmatched chain. This directory does not own that URLSession or
+pin lifecycle. See the
 [iOS App Transport Security Contract](../../../../../docs/development-guides/17-ios-transport-security.md).
 
 ## Components

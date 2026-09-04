@@ -186,9 +186,13 @@ for the surface they are changing:
   operations live in
   `Core/Network/Endpoints/MerianNetworkClient+CommunityIdentification.swift`;
   Codable responses and cursor values remain in `ExploreAPIModels.swift`. The
-  main network client retains private Auth/transport/retry ownership and the
-  separate scan-publication/media-recovery flow. Mirrored Core endpoint tests
-  cover payload and transport parity; feature tests retain interaction state.
+  Core Network request executor owns logical retry and injected Auth effects;
+  its pinned transport and authenticated dispatcher own the sole session/TLS and
+  per-attempt Auth boundaries, and the main client injects both. Direct
+  publication, owned-row compatibility recovery, and restored-media work live in
+  the dedicated Core Network Endpoint, Recovery, and Media owners. Mirrored Core
+  endpoint tests cover payload and transport parity; feature tests retain
+  interaction state.
 - `apps/ios/Merian/Features/Explore/FieldTrips/` owns public Field trip Outings
   and Events, Seasonal Challenges cards/detail, guided template detail, progress
   cards, publication and challenge entry detail pages, profile modules,

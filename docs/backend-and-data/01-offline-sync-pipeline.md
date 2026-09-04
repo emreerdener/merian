@@ -11,9 +11,13 @@ The iOS status and deletion wire methods live in
 `Core/Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift`.
 `ScanLifecycleAPIModels.swift` owns status DTOs, and
 `Decoding/ScanLifecycleResponseDecoder.swift` owns strict response validation.
-The main network client retains private authenticated transport and owner-row
-recovery orchestration; Core Data retains durable state, generation checks,
-scheduling, and deletion retries. The
+`Core/Network/Transport/` owns pure route/error/replay and value-only
+Auth-recovery policy, the request-scoped executor that applies retry and
+injected effects, the sole pinned session/TLS owner, and the per-attempt
+authenticated dispatcher. The main network client injects those transport
+owners; owner-row recovery orchestration stays in `Core/Network/Recovery/`, and
+Core Data retains durable state, generation checks, scheduling, and deletion
+retries. The
 [scan lifecycle verification matrix](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-verification)
 joins endpoint tests with the queue and deletion-service tests described here.
 
@@ -220,10 +224,11 @@ initially. The durable background path is handed off as soon as the inline
 request body has finished sending:
 
 - **Deferred background start**: `OfflineQueueManager` excludes the active live
-  `scanId` from normal pending batches. `MerianRequestUploadDelegate` observes
-  request-body progress and releases the row when all bytes are sent. A
-  two-second fail-safe handles transports that do not provide progress
-  callbacks.
+  `scanId` from normal pending batches. Each URLSession attempt's
+  `MerianRequestUploadDelegate` observes request-body progress and releases the
+  row when all bytes are sent. A two-second fail-safe handles transports that do
+  not provide progress callbacks. A replayed logical request may notify again on
+  a later attempt; generation-scoped queue release is intentionally idempotent.
 - **Single inference owner**: recovery media may stage after that handoff, but
   `foregroundInferenceGenerations[scanId]` prevents staged replay from
   dispatching a second identification while the exact foreground generation

@@ -1022,9 +1022,10 @@ See the
 [iOS App Privacy Manifest Contract](../development-guides/16-ios-privacy-manifest.md).
 
 The main app also retains App Transport Security defaults and accepts configured
-origins or remotely supplied media only as credential-free HTTPS. Source,
-archive, and exported-IPA checks reject broad or domain-scoped exceptions; see
-the
+origins or remotely supplied media only as credential-free HTTPS. Release
+Supabase traffic further requires successful platform trust plus a matching
+certificate-chain pin for the exact service domain. Source, archive, and
+exported-IPA checks reject broad or domain-scoped exceptions; see the
 [iOS App Transport Security Contract](../development-guides/17-ios-transport-security.md).
 
 The repository also cannot establish jurisdiction-specific consent sufficiency

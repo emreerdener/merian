@@ -966,10 +966,12 @@ split by responsibility:
 The shared wire implementation lives in
 `Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift`. It constructs
 Field Trips payloads and maps typed responses through the client's narrow JSON
-POST bridge; `MerianNetworkClient.swift` keeps the session, Auth, retry, and
-cancellation implementation private. This Core owner serves the feature's
-Services and existing cross-feature callers without moving presentation policy
-or changing endpoint behavior.
+POST bridge; `Core/Network/Transport/` owns pure route/error/replay policy, the
+request-scoped executor that applies bounded retry, cancellation, and injected
+Auth effects, the sole pinned session/TLS owner, and the per-attempt
+authenticated dispatcher. `MerianNetworkClient.swift` injects those owners. This
+Core owner serves the feature's Services and existing cross-feature callers
+without moving presentation policy or changing endpoint behavior.
 
 `FieldTripPublishedContent` normalizes outing publications and Event entries for
 one detail renderer and interaction view model while

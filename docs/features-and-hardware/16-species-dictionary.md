@@ -272,8 +272,10 @@ entitlement, loaded-species identity, and typed presentation ownership. Codable
 DTOs remain in `Core/Network/InsightChatAPIModels.swift`. Shared chat request
 construction lives in `Endpoints/MerianNetworkClient+FieldChat.swift`, and
 strict response validation lives in `Decoding/FieldChatResponseDecoder.swift`.
-The main client retains private authenticated transport and replay policy; the
-anonymous Dictionary read and its identity/cache rules are separate.
+`Core/Network/Transport/` owns replay policy, the request-scoped executor that
+applies it, the sole pinned session/TLS owner, and the per-attempt authenticated
+dispatcher. The main client injects those owners. The anonymous Dictionary read
+and its identity/cache rules are separate.
 
 The detail host serializes gallery, author profile, Field Chat, and paywall as
 cases of one `SpeciesDictionaryPresentation` value. Its sheet and full-screen

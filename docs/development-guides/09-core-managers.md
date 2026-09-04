@@ -1342,30 +1342,41 @@ consults that Keychain entry.
 - Routes all Deno function endpoints via `MerianEnvironment.supabaseUrl`; if
   Supabase config is incomplete, endpoint construction throws
   `MerianError.invalidURL` and no fallback network request is attempted.
-- Keeps session state, Auth leases, refresh/retry policy, and authenticated
-  transport private in `MerianNetworkClient.swift`. Feature wire operations can
-  live in `Core/Network/Endpoints/` without acquiring their own transport or
-  mutable state. `MerianNetworkClient+FieldTrips.swift` owns the Field Trips
-  methods; `MerianNetworkClient+CommunityIdentification.swift` owns the eight
-  Community browsing/contribution methods;
-  `MerianNetworkClient+ExploreBrowsing.swift` owns the eight Feed, Map,
-  post/detail, author, hashtag, and species reads; and
+- Keeps endpoint configuration, shared response/cache bridges, and the
+  capability-only account-deletion recovery transport in the
+  `MerianNetworkClient.swift` façade. `Core/Network/Transport/` owns the
+  stateless Edge URL, unavailable-route/error classification, replay
+  allowlists/account binding, and value-only Auth-recovery decisions. Its
+  request-scoped executor owns bounded retry state and cancellation checkpoints,
+  then applies ordinary or transition-owned refresh and the other injected
+  response effects. `PinnedNetworkTransport` owns the only configured session,
+  TLS delegate, raw dispatch, and DEBUG override;
+  `AuthenticatedTransportDispatcher` owns per-attempt Auth leases/headers,
+  transition validation, constrained-network headers, and its file-local upload
+  delegate. Feature wire operations can live in `Core/Network/Endpoints/`
+  without acquiring their own transport or mutable state.
+  `MerianNetworkClient+FieldTrips.swift` owns the Field Trips methods;
+  `MerianNetworkClient+CommunityIdentification.swift` owns the eight Community
+  browsing/contribution methods; `MerianNetworkClient+ExploreBrowsing.swift`
+  owns the eight Feed, Map, post/detail, author, hashtag, and species reads; and
   `MerianNetworkClient+ExploreInteractions.swift` owns 12 comment/reply/mention,
   like/follow, comment mutation, reporting, and blocking methods.
   `MerianNetworkClient+Notifications.swift` owns four notification/push methods,
   and `MerianNetworkClient+PublicProfile.swift` owns four public-identity
   update/availability methods. `MerianNetworkClient+ExplorePostManagement.swift`
   owns six composer-media/share-state/incident reads and unshare/notes/content
-  edits. Those seven use narrow internal `performAuthenticatedJSONPost`
-  overloads. Typed results use the existing decoder; five interaction `Void`
-  methods, push registration, and unshare ignore successful bodies without
-  adding JSON validation. Codable contracts remain in `FieldTripAPIModels.swift`
-  and `ExploreAPIModels.swift`, and feature Services retain their injected
-  presentation adapters. Scan publication and its media recovery remain together
-  in the main client. Shared retry policy stays private; existing per-endpoint
-  payload normalization stays with its endpoint owner. The typed bridge forwards
-  an optional idempotency key and can replace decoding failures only after
-  transport succeeds, with nil defaults for both options.
+  edits. Those endpoint owners use narrow internal
+  `performAuthenticatedJSONPost` overloads. Typed results use the existing
+  decoder; five interaction `Void` methods, push registration, and unshare
+  ignore successful bodies without adding JSON validation. Codable contracts
+  remain in `FieldTripAPIModels.swift` and `ExploreAPIModels.swift`, and feature
+  Services retain their injected presentation adapters. Direct scan publication
+  uses `MerianNetworkClient+ScanPublication.swift`; owned-row orchestration
+  lives in `Recovery/`, and publication-media restoration lives in `Media/`.
+  Shared retry policy stays private; existing per-endpoint payload normalization
+  stays with its endpoint owner. The typed bridge forwards an optional
+  idempotency key and can replace decoding failures only after transport
+  succeeds, with nil defaults for both options.
 - `MerianNetworkClient+FieldChat.swift` owns 17 Insight, Explore-post, and
   Species Dictionary chat methods. The eighth endpoint owner preserves the three
   source-specific request keys and existing timeout/idempotency policies through
@@ -1373,9 +1384,12 @@ consults that Keychain entry.
   bytes without catching encoding or transport errors.
   `Decoding/FieldChatResponseDecoder.swift` owns stateless strict conversation,
   feedback, summary, and prompt validation; `InsightChatAPIModels.swift` remains
-  the Codable contract owner. Private auth/retry/cancellation, cloud preflight,
-  and recovery stay in the main client, while `Features/FieldChat/Services` and
-  `ViewModels` retain presentation adaptation and lifecycle state. See the
+  the Codable contract owner. The request-scoped executor retains shared
+  retry/recovery behavior, while per-attempt Auth/session dispatch stays in
+  `AuthenticatedTransportDispatcher`; cloud preflight and eligible owner-row
+  recovery live in `Recovery/MerianNetworkClient+OwnedScanRecovery.swift`, while
+  `Features/FieldChat/Services` and `ViewModels` retain presentation adaptation
+  and lifecycle state. See the
   [Field Chat endpoint and validation guide](../../apps/ios/Merian/Core/Network/README.md#field-chat-endpoints-and-validation)
   and
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#field-chat-verification).
@@ -1391,8 +1405,9 @@ consults that Keychain entry.
   memos live in `Caching/SpeciesDictionaryResponseCache.swift`. Their
   10-/5-minute insertion-time TTLs, 64-alias-key caps, identity fallback,
   resets, and cache-hit cancellation behavior remain unchanged. Feature Services
-  retain their adapters, and the main client still owns
-  Auth/retries/cancellation. See the
+  retain their adapters; shared logical retry/recovery stays in the request
+  executor and per-attempt Auth/session dispatch stays in
+  `AuthenticatedTransportDispatcher`. See the
   [Dictionary boundary and focused matrix](../../apps/ios/Merian/Core/Network/README.md#species-dictionary-verification).
 - `MerianNetworkClient+ScanLifecycle.swift` is the tenth endpoint owner:
   detailed and bulk status, the compatibility status string, and scan deletion
@@ -1402,8 +1417,9 @@ consults that Keychain entry.
   `performAuthenticatedJSONDataPost` returns response bytes while forwarding the
   recovery owner's UUID into the private Auth lease boundary. Status keeps its
   bounded ambiguous replay; deletion requires Boolean `success: true` and
-  refuses ambiguous replay. Recovery orchestration/payloads and queue/deletion
-  scheduling do not move. See the
+  refuses ambiguous replay. Recovery orchestration/payloads live in
+  `Core/Network/Recovery/`; queue/deletion scheduling remains in Core Data. See
+  the
   [scan lifecycle ownership and matrix](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-endpoints-and-decoding).
 - `MerianNetworkClient+ScanEnrichment.swift` owns deferred context and
   enrichment, `MerianNetworkClient+Exports.swift` owns export intake, and
@@ -1433,8 +1449,9 @@ consults that Keychain entry.
   limits before signing. File PUTs re-stat before request validation and stay
   file-backed through two raw session bridges, without new Auth, retries, or
   cancellation mapping. Queue manifest validation/task binding, inference
-  attempt fencing, LocalImageLoader repair, Profile avatar promotion, and
-  main-client publication/restore orchestration retain their owners. See the
+  attempt fencing, LocalImageLoader repair, and Profile avatar promotion retain
+  their owners. Publication's Recovery owner coordinates the dedicated Media
+  restorer through the same signing and PUT primitives. See the
   [ownership guide](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-ownership)
   and
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification).
@@ -1462,6 +1479,54 @@ consults that Keychain entry.
   verification in that order. It also locks the no-commit short circuit and
   persistence error for stale preparation ownership or either marker failure,
   plus `signOutSessionChanged` for stale commit ownership.
+- `MerianNetworkClient+ScanPublication.swift` is the sixteenth endpoint owner:
+  its two direct scan-ID methods preserve Explore-share and Ask-the-Community
+  payloads, stable idempotency keys, and strict success validation.
+  `Recovery/MerianNetworkClient+OwnedScanRecovery.swift` owns the record-based
+  overloads, status polling, immutable local-record snapshot, payload building,
+  species lookup, and Field Chat preflight. `OwnedScanRecoveryPolicy` owns
+  deterministic admission. Its polling loop propagates caller cancellation
+  before probes, from in-flight probes, and from retry sleeps; cancellation is
+  never converted into deferred recovery. The mirrored transport regression
+  requires no request after cancellation. Meanwhile,
+  `Media/ScanPublicationMediaRestorer.swift` owns local-file planning, MIME
+  inspection, signed restore uploads, and bounded image concurrency. The main
+  client exposes only value bridges into its private Auth and transport
+  boundaries. See the
+  [ownership guide](../../apps/ios/Merian/Core/Network/README.md#scan-publication-and-owned-recovery)
+  and
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#scan-publication-and-owned-recovery-verification).
+- `MerianNetworkClient+Inference.swift` is the seventeenth endpoint owner. It
+  retains the existing prewarm, `/identify` compatibility request, multimodal
+  request construction, consent boundary, 90-second direct path, and 15-second
+  queue-backed path that suppresses the shared transient-`URLError` replay.
+  Handler-owned Auth refresh, route propagation, and idempotent 5xx handling
+  remain in the shared transport. Its bounded off-main body work uses the
+  cancellation-propagating `.inferenceRequestPreparation` detached-work
+  category. `Core/Network/Inference/` owns immutable request values plus
+  stateless payload, inline-media, staged-owner, and stable-conflict policy.
+  Five narrow bridges return only UUID/request/data values. Endpoint URL and
+  logical refresh/replay state stay in Transport policy and its request-scoped
+  executor; `PinnedNetworkTransport` owns the single session/TLS boundary and
+  `AuthenticatedTransportDispatcher` owns per-attempt Auth/session validation
+  and upload progress. The main client injects both owners. See the
+  [ownership guide](../../apps/ios/Merian/Core/Network/README.md#inference-endpoints-payloads-and-policies)
+  and
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#inference-verification).
+- `CoreNetworkIntegrationArchitectureTests` owns the cross-slice Network source
+  contract. It freezes the exact 17 endpoint owners, rejects aggregate method
+  duplication, enforces the 600-line owner ceiling across Endpoint, Inference,
+  Media, Recovery, Transport, and the client façade, and requires exactly six
+  Transport files: three stateless policies, one request-scoped executor, one
+  pinned session, and one authenticated dispatcher. It also requires exactly one
+  endpoint owner for every safe-read or idempotency-aware replay classification,
+  keeps async/global refresh effects out of stateless Transport policies, and
+  verifies the executor applies both `UnauthorizedRefreshTarget` branches
+  without constructing another session or client singleton. The backend
+  `get-filtered-discovery-feed` function is intentionally not in the iOS replay
+  set because the app has no endpoint owner or caller for it. Its backend
+  contract is unchanged. See the
+  [integration audit](../../apps/ios/Merian/Core/Network/README.md#core-network-integration-audit).
 - The browsing owner preserves Feed's category-priority order, Map's lexical
   filter order, independently forwarded Feed coordinates/ranking cursor, paired
   author/hashtag cursors, and the distinct species quality cursor. Map and
@@ -1499,27 +1564,32 @@ consults that Keychain entry.
   [post-management matrix](../../apps/ios/Merian/Core/Network/README.md#explore-post-management-verification)
   and retain feature-owned Feed, Sharing, and Scans state coverage.
 - Centralizes authenticated Edge requests in `performAuthenticatedRequest`.
-- Prewarms `/identify-multimodal` with `OPTIONS` through the same TLS-pinned
-  `URLSession` used by the real request; the Supabase auth SDK's connection pool
-  is not treated as an inference connection prewarm.
+- The inference endpoint owner prewarms `/identify-multimodal` with `OPTIONS`
+  through the main client's bridge backed by `PinnedNetworkTransport`; the
+  Supabase auth SDK's connection pool is not treated as an inference connection
+  prewarm.
 - `performAuthenticatedRequest` accepts an optional request-body completion
-  callback. A per-task `URLSessionTaskDelegate` fires it from upload progress;
-  receiving a response is the fallback for transports/test protocols without
-  progress events, and transport errors fire it immediately. Inference requests
-  also attach the aggregate `X-Merian-Constrained-Network` diagnostic tag and
-  log `Server-Timing` plus the Edge region.
+  callback that must be idempotent across one logical request. Every transport
+  attempt receives a separate file-local `URLSessionTaskDelegate` from
+  `AuthenticatedTransportDispatcher`; it fires from upload progress and
+  suppresses a duplicate response fallback within that attempt. Transport errors
+  fire the logical callback immediately, and a successful replay may invoke it
+  again through progress or response fallback. Inference requests also attach
+  the aggregate `X-Merian-Constrained-Network` diagnostic tag and log
+  `Server-Timing` plus the Edge region.
 - Calls `getValidAuthHeaders()` with `try` (not `try?`) so authentication errors
   propagate to callers rather than being silently dropped. Previously, using
   `try?` made network failures impossible to diagnose.
 - Extracts `DeviceIdentityManager.shared.deviceId` without depending on
   arbitrary session state.
-- Traps `.401 Unauthorized` responses in `performAuthenticatedRequest` by
-  delegating to `SupabaseManager.shared.getValidAuthHeaders()`, which handles
-  Ghost session refresh.
-- `restoreExploreMediaObjectKeys` now uploads via
-  `URLSession.upload(for:fromFile:)` with bounded concurrency, and MIME type
-  detection prefers file extension plus a small header read instead of inflating
-  full image or video files into RAM.
+- `AuthenticatedRequestExecutor` classifies refreshable `.401 Unauthorized`
+  responses and applies the policy-selected ordinary or transition-owned refresh
+  through its live dependencies. Those dependencies delegate the actual session
+  refresh or eligible Ghost replacement to `SupabaseManager`; an unclassified
+  401 preserves the current identity and fails closed.
+- `ScanPublicationMediaRestorer` uploads via the client's file-backed PUT bridge
+  with bounded concurrency, and MIME type detection prefers file extension plus
+  a small header read instead of inflating full image or video files into RAM.
 - Single `checkScanStatusDetails` calls may attach `OwnedScanRecoveryPayload`
   for eligible older/interrupted missing owner rows; bulk probes never do.
   Record-based Explore sharing polls status, defers to active/retryable
@@ -1540,13 +1610,17 @@ consults that Keychain entry.
   through this private helper. It throws `MerianError.invalidURL` if
   `supabaseUrl` is misconfigured, rather than crashing the process with a
   force-unwrap (`URL(string: "...")!`).
-- **Dedicated Supabase `URLSession`**: A private `lazy var session` handles all
-  Supabase Edge and R2 calls. Configuration: `timeoutIntervalForRequest = 30`,
+- **Dedicated Supabase `URLSession`**: `PinnedNetworkTransport` creates its
+  private production session on first use behind a lock, so concurrent initial
+  requests cannot construct competing sessions. The DEBUG replacement uses the
+  same synchronized state boundary. This transport handles all Supabase Edge and
+  R2 calls. Configuration: `timeoutIntervalForRequest = 30`,
   `timeoutIntervalForResource = 90` (hard cap — Gemini cannot bypass this
   regardless of the per-request timeout), `httpMaximumConnectionsPerHost = 6`,
   `httpShouldSetCookies = false`, `urlCache = nil`. TLS pinning via
-  `MerianTLSDelegate` is applied to `*.supabase.co` only. **Media and external
-  API calls use their own isolated sessions** (never `URLSession.shared`):
+  `MerianTLSDelegate` is applied only to `supabase.co` and hosts ending in
+  `.supabase.co`; suffix lookalikes are excluded. **Media and external API calls
+  use their own isolated sessions** (never `URLSession.shared`):
   `LocalImageLoader`, `ArchiveManager`, and the private actor behind
   `MediaExportService` each own an isolated media session. The export session is
   ephemeral and cookie-free, uses 30 s / 300 s timeouts, accepts remote media
@@ -1558,16 +1632,19 @@ consults that Keychain entry.
   timeouts) for Wikipedia/GBIF best-effort enrichment fetches. Their SwiftUI
   consumers own no `URLSession`.
 - **TLS certificate pinning (`MerianTLSDelegate`)**: A private
-  `URLSessionDelegate` validates the server certificate chain for
-  `*.supabase.co`. The check walks the full chain (leaf → intermediate → root):
-  a connection is accepted if **any** certificate in the chain matches a pinned
-  hash. This means the intermediate CA hash acts as a genuine fallback across
-  leaf rotations, not just a backup placeholder. `pinnedCertHashes` contains two
-  active hashes: the leaf cert (`OYvM4tmVyyPLCSqTe1tYvZW0CKRfv4mre7EUA0eJrn0=`)
-  and the intermediate CA (`HfwWBfutNY2LyET3bRUgP6ycpcGnn9SFf/ryhk++v5Y=`).
-  Other hosts (e.g. R2) fall through to default ATS validation. Pinning is
-  skipped in `DEBUG` builds. **Rotation runbook**: before the leaf expires,
-  compute the new hash with
+  `URLSessionDelegate` validates the server certificate chain for `supabase.co`
+  and its true subdomains. The check walks the full chain (leaf → intermediate →
+  root): a connection is accepted if **any** certificate in the chain matches a
+  pinned hash. This means the intermediate CA hash acts as a genuine fallback
+  across leaf rotations, not just a backup placeholder. Pinning augments rather
+  than replaces platform trust: a Supabase server-trust challenge fails closed
+  when ordinary trust validation fails, its chain cannot be read, or no pin
+  matches. Unrelated hosts and non-server-trust challenges retain default ATS
+  handling. `pinnedCertificateHashes` contains two active hashes: the leaf cert
+  (`OYvM4tmVyyPLCSqTe1tYvZW0CKRfv4mre7EUA0eJrn0=`) and the intermediate CA
+  (`HfwWBfutNY2LyET3bRUgP6ycpcGnn9SFf/ryhk++v5Y=`). Other hosts (e.g. R2) fall
+  through to default ATS validation. Pinning is skipped in `DEBUG` builds.
+  **Rotation runbook**: before the leaf expires, compute the new hash with
   `openssl s_client -connect qlarqavoqhkuwzmevrmf.supabase.co:443 </dev/null | openssl x509 -outform DER | openssl dgst -sha256 -binary | base64`,
   add it to the set alongside the current one, ship the update. Remove the stale
   hash after the old cert has expired everywhere. The intermediate CA hash only

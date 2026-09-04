@@ -646,9 +646,12 @@ two independent requests through a task group and applies each result as it
 arrives. The stateless
 `Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift` extension owns
 request construction and plain decoding of the hand-written
-`EnrichScanResponse`; the existing private client owns Auth, timeout, replay,
-and cancellation. Scheduling, result application, and stale-presentation checks
-stay in the engine and its hydration/write coordinators.
+`EnrichScanResponse`; `Core/Network/Transport/` owns replay decisions, while the
+request-scoped executor owns timeout/retry state and applies injected Auth
+effects. Its pinned transport owns the sole session/TLS boundary, its
+authenticated dispatcher owns per-attempt Auth/session dispatch, and the client
+façade injects both. Scheduling, result application, and stale-presentation
+checks stay in the engine and its hydration/write coordinators.
 
 The engine keeps separate `isEnrichmentLoading` and `isLookalikesLoading` flags
 for the metadata and gallery surfaces. Historical `load(from:)` derives

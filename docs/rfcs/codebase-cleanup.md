@@ -127,11 +127,11 @@ push toggles in `Profile/Settings/Notifications/`, bundled release notes in
 
 Suggested first targets:
 
-| File                                                     | Cleanup Direction                                                                                                                                                                                                                                                                                                                    |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                          |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Fifteen endpoint owners now cover the extracted feature, lifecycle, enrichment, feedback/export, storage, and account-deletion operations; signed transfers and foreground video planning live in `Media/`. Transport/state remain private, and scan publication stays with media recovery. Continue with cohesive remaining groups. |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                                                                                                                                                                              |
+| File                                                     | Cleanup Direction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Complete for this hygiene round. Seventeen endpoint owners cover the extracted feature, inference, publication, lifecycle, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport. |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 Rules for this phase:
 
@@ -333,6 +333,235 @@ Implemented Core slices:
 
 Implemented Core Network slices:
 
+- The 2026-09-04 Network-wide closure audit confirms the final 17 endpoint and
+  six Transport owners, the single pinned-session/Auth boundary, and the
+  extracted-owner 600-line production ceiling. It removes the unused
+  self-recursive private `performPublicGETRequest`, leaving the client façade at
+  545 lines, and adds that declaration to the retired-source guard. The audit
+  also fixes a pre-existing cancellation leak in owned-scan persistence polling:
+  cancellation now throws through Explore publication, Ask the Community, and
+  Field Chat preflight instead of becoming deferred recovery, including when it
+  arrives immediately after a successful status response. A deterministic
+  transport test cancels before the first 250 ms retry window expires and proves
+  recovery cannot issue a second status request. Reusable legacy and scoped
+  URLProtocol fixtures also move unchanged from the aggregate client suite into
+  `Core/Network/NetworkTransportTestSupport.swift`; the architecture guard locks
+  that shared test owner. Request and response bytes, endpoint signatures, retry
+  eligibility/delays, Auth and idempotency rules, DTO/schema, persistence,
+  backend, and deployment contracts do not change. Closure verification
+  typechecked all 980 current production sources and the affected
+  aggregate/support/publication test sources, then executed all 50 current
+  Network architecture cases across eight suites. Byte-stable XcodeGen after
+  regeneration, project/source membership, routing and CI-tooling, DTO,
+  transport-security, strict lint, recursive parsing, Supabase tooling,
+  documentation, formatting, and whitespace gates passed. Fresh device-specific
+  and generic Simulator builds stopped before compilation on
+  CoreSimulatorService disconnection and nested SwiftPM sandbox denial, so the
+  preceding 2,809-case XCResult remains the latest full-target runtime evidence.
+- The 2026-09-04 final transport-ownership pass moves the configured production
+  session, certificate-pin policy, TLS delegate, and DEBUG session seam into
+  `Transport/PinnedNetworkTransport.swift`, while
+  `Transport/AuthenticatedTransportDispatcher.swift` owns per-attempt Auth
+  leasing and headers, transition/session validation, constrained-network
+  signaling, dispatch, and its file-local upload delegate. The main client
+  constructs one pinned transport, injects that same instance into the
+  dispatcher, and shrinks from 949 to the pass's 600-line ceiling. The
+  cross-slice audit now freezes six focused Transport owners and prevents
+  session/TLS, upload-delegate, or Auth-attempt ownership from drifting back
+  into the façade. A follow-up replaced the unsynchronized lazy production
+  session with lock-backed first-use initialization and narrowed hostname
+  admission to `supabase.co` plus true subdomains. Seven pinned-transport tests
+  and one dispatcher test cover production configuration, rotation-tolerant pin
+  validity, exact host admission, concurrent single-session initialization,
+  full-chain matching and missing/empty/unmatched or platform-untrusted chain
+  rejection, injected dispatch, value-only account resolution, and exact request
+  construction. Native typechecking and deterministic execution passed all eight
+  focused cases and all 50 affected architecture cases; byte-stable XcodeGen,
+  project/source membership, event-routing, CI-tooling, transport-security,
+  strict SwiftLint, Swift parsing, documentation-contract, Markdown, and
+  whitespace gates also passed. Fresh Xcode attempts stopped before compilation
+  because this host denied SwiftPM manifest-cache writes and
+  CoreSimulatorService was unavailable, so the prior 2,809-case XCResult remains
+  the latest Simulator/full-target runtime baseline. Request bytes, routes,
+  retry/Auth semantics, DTO/schema, persistence, hosted service, and deployment
+  behavior are unchanged. The TLS hardening deliberately changes unreadable or
+  platform-untrusted Supabase server-trust challenges from default
+  fallback/pin-only acceptance to fail-closed cancellation; unmatched chains
+  were already cancelled.
+- The 2026-09-04 authenticated-request-executor pass moves one logical request's
+  recursive attempt state, cancellation checkpoints, request/header
+  construction, bounded transient/route/5xx replay, response mapping, and
+  injected Auth/entitlement/consent effects into
+  `Transport/AuthenticatedRequestExecutor.swift`. The main client retains the
+  only pinned URLSession, DEBUG overrides, per-attempt Auth headers and account
+  lease, constrained-network header, upload delegate, and post-dispatch
+  transition/session validation. `MerianNetworkClient.swift` shrinks from 1,216
+  to 949 lines and its non-growth cap drops from 1,250 to 975. Nine
+  deterministic executor tests cover body/account preservation, ordinary and
+  transition-owned refresh, missing-guest replacement, payment and consent
+  effects, the 1/2/4-second route schedule, per-attempt body release across
+  transient replay, and cancellation. The cross-slice audit freezes four
+  Transport owners while requiring the other three to remain stateless and
+  preventing the executor from constructing a second session, client singleton,
+  or detached task. A follow-up review corrected the successful-attempt
+  transport fake and the architecture guard's `/functions/v1/` source token; a
+  native harness then ran all nine executor and five architecture cases with 14
+  passes. The fresh Xcode attempt remained blocked before compilation by the
+  host SwiftPM sandbox and unavailable CoreSimulatorService, so the earlier
+  2,809-case XCResult remains the latest full-target runtime baseline. No
+  request bytes, routes, retry counts, Auth effects, DTO/schema, persistence,
+  hosted service, or deployment behavior change.
+- The 2026-09-03 transport-policy pass adds three focused production owners
+  under `Core/Network/Transport/`: `EdgeFunctionRoutePolicy` owns validated Edge
+  URL construction, unavailable-route evidence, and the unchanged 1/2/4-second
+  retry schedule; `EdgeFunctionErrorPolicy` owns stable-code and
+  refreshable-Auth response classification; and
+  `AuthenticatedRequestRetryPolicy` owns the exact safe-read/idempotency-aware
+  allowlists, retry-account binding, and pure Auth recovery decisions, including
+  an `UnauthorizedRefreshTarget` value that the stateful client applies. The
+  1,216-line `MerianNetworkClient.swift` still owns all mutable session/Auth
+  state, performs refresh/regeneration and retries, maps cancellation, and owns
+  upload delegates. The architecture audit now has five cases, requires exactly
+  these three policy files, extends the 600-line ceiling to `Transport/`, and
+  lowers the remaining-client ceiling to 1,250 lines. Eleven mirrored policy
+  tests rehome five existing route/replay/Auth/account cases and add six
+  deterministic URL, schedule, stable-code, and Auth-evidence cases. A fresh
+  generic Simulator `build-for-testing`, focused selector matrix with 202 passed
+  XCResult cases, and complete 2,809-case `merianTests` target pass with zero
+  failures, skips, or expected failures. Final review then replaced the policy's
+  async injected-refresh executor with the pure `UnauthorizedRefreshTarget` and
+  kept both refresh effects in the main client. The strengthened source guard
+  rejects actor/async/global-effect policy dependencies and locks the client's
+  ordinary and transition-owned application branches. A post-fix arm64 generic
+  Simulator `build-for-testing` compiled the complete app and test bundles, and
+  a native probe executed both target choices; CoreSimulatorService was
+  unavailable for a post-fix runtime rerun, so the preceding XCResults remain
+  the green baseline rather than post-fix execution evidence. No request bytes,
+  routes, attempt counts, Auth effects, API/DTO/schema, persistence, hosted
+  service, or deployment behavior changes. The following slice separated the
+  stateful authenticated request executor while preserving the single
+  pinned-session/Auth boundary.
+- The 2026-09-03 Core Network integration audit reconciles all 17 endpoint
+  extensions with the shared client, Inference, Media, Recovery, focused tests,
+  and generated project. At that checkpoint, a four-case
+  `CoreNetworkIntegrationArchitectureTests` suite freezes the exact endpoint
+  inventory, prevents duplicate aggregate endpoint declarations, applies the
+  600-line review ceiling across all extracted owners, and places a temporary
+  1,500-line non-growth cap on the remaining 1,432-line shared transport. It
+  also freezes the disjoint safe-read and idempotency-aware replay sets,
+  requires exactly one endpoint owner for every classified route, and records
+  the exact reviewed owners of URLSession/private transport, Auth,
+  consent/profile request context, recovery Species Dictionary lookup, and
+  detached inference preparation. Follow-up verification removed the stale
+  `get-filtered-discovery-feed` safe-read classification because iOS has no
+  endpoint owner or caller for that backend route; its Edge Function and backend
+  contract remain unchanged, and the strengthened guard now rejects any future
+  unowned classification. The guard and complete `merianTests` target passed on
+  the booted iOS 26.4 Simulator after a fresh full app/test-target compile. The
+  resulting XCResult records 2,802 passed test cases across 354 suite nodes,
+  with zero failures, skips, or expected failures; 214 dynamically parameterized
+  tests account for 2,198 argument runs. No payload, endpoint, retry, Auth,
+  schema, persistence, feature, hosted service, or deployment behavior changed.
+  The later transport-policy slice above completes the stateless part of that
+  recommendation.
+- The 2026-09-03 inference-network pass moves the pinned-session prewarm and
+  five existing Identify entry points into the 392-line
+  `Endpoints/MerianNetworkClient+Inference.swift`. Immutable request values and
+  stateless JSON, inline-media, staged-owner, and recoverable-conflict concerns
+  live in four `Core/Network/Inference/` files of 25–216 lines. The main client
+  shrinks from 2,025 to 1,432 lines and retains private endpoint URL, session,
+  Auth lease, classified refresh, retry, URLSession cancellation, and
+  upload-progress implementation behind five narrow value/prepared-request
+  bridges. Public method signatures/defaults, consent ordering, entitlement
+  protocol, request keys, telemetry and timeline JSON, 3.6 MB inline body and
+  WAV limits, stable idempotency, object-owner fencing, `409` policy, body-sent
+  callback, and the queue-backed 15-second/no-transient-transport-replay versus
+  direct 90-second/one-replay behavior are unchanged. Handler-owned Auth
+  refresh, route propagation, and idempotent 5xx handling remain shared. The
+  second-pass review replaced three raw detached blocks with the
+  cancellation-propagating `.inferenceRequestPreparation` bridge, added
+  cancellation checks around serialization and inline-audio reads, and made both
+  byte accumulators overflow-safe without changing accepted payload limits. No
+  backend, DTO, schema, persistence, feature-flag, UI, hosted mutation, or
+  deployment change is included.
+- Twenty-seven inference regressions move from the aggregate network suite into
+  `InferenceEndpointTransportTests`, `InferencePayloadBuilderTests`,
+  `InferenceMediaPolicyTests`, and `InferenceRequestPolicyTests`, shrinking the
+  aggregate from 2,907 to 1,308 lines. The architecture suite guards focused
+  ownership, private transport, the detached-work boundary, the 600-line
+  ceiling, and exact rehome. A new cancellation case verifies pre-dispatch owner
+  cancellation, while prewarm now locks its header/body-free `OPTIONS` shape.
+  The critical-result validator retains its three existing foreground/retry case
+  names under `Inference Endpoint Transport`; adversarial fixtures reject their
+  retired aggregate owner without changing the protected-case count. See the
+  [ownership guide](../../apps/ios/Merian/Core/Network/README.md#inference-endpoints-payloads-and-policies)
+  and
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#inference-verification).
+- Current-candidate verification passes byte-stable XcodeGen, project/resource
+  validation, recursive source membership, the iOS CI-tooling suite, Swift
+  parsing, repository-wide strict SwiftLint, the Edge DTO contract, Supabase
+  skill link validation, and the 25-test documentation contract. A generic
+  Simulator build and the complete unit-test `build-for-testing` action both
+  succeed with signing disabled. Runtime execution passes 57 focused inference
+  tests in seven suites, 95 adjacent Auth/queue/publication/recovery tests in
+  six suites, the final 53-test Core Network matrix, and the complete
+  `merianTests` target. The complete-result XCResult records 2,802 passed test
+  cases across 354 reported suite nodes, with zero failures, skips, or expected
+  failures; 214 dynamically parameterized tests account for 2,198 argument runs.
+  The review caught a publication fixture that asserted an exact latitude after
+  constructing a nil latitude; the fixture now accepts an explicit coordinate
+  while preserving nil as its default, and both focused and full reruns pass.
+  Repository-wide strict lint later exposed one unrelated redundant optional
+  `= nil` in `SimilarSpeciesGallery`; removing it preserves the synthesized nil
+  default, and a post-fix build plus 42 relevant Core Network and Species
+  Reference tests pass. CoreSimulator recovered after the temporary service
+  outage, so no runtime hold remains. Documentation closeout distinguishes
+  endpoint-owned request-preparation cancellation from main-client URLSession
+  cancellation and includes `DetachedWorkTests` in the canonical inference
+  matrix. No manual device, live backend, deployment, or external-publication
+  action is claimed.
+- The 2026-09-03 scan-publication and owned-recovery pass moves the two direct
+  scan-ID publication methods into the 153-line
+  `Endpoints/MerianNetworkClient+ScanPublication.swift`; record-based Explore
+  and Ask-the-Community overloads, Field Chat preflight, status polling, payload
+  construction, and missing-row orchestration into the 586-line
+  `Recovery/MerianNetworkClient+OwnedScanRecovery.swift`; the unchanged 71-line
+  recovery payload and 44-line admission policy into focused Recovery owners;
+  and local-media planning/upload plus count/byte/error policy into 454- and
+  99-line Media owners. The main client shrinks from 3,312 to 2,025 lines and
+  exposes only a value-returning owner-ID bridge into its existing private Auth
+  boundary. No new session, transport, singleton, protocol, task owner, retry,
+  JSON field, endpoint, persistence, UI, or backend behavior is introduced.
+- Twelve aggregate regressions retain their selectors under
+  `ScanPublicationEndpointTests`, `ScanPublicationEndpointTransportTests`,
+  `OwnedScanRecoveryPolicyTests`, and `ScanPublicationMediaRestorePolicyTests`,
+  using isolated endpoint fixtures or deterministic policy inputs.
+  `ScanPublicationRecoveryArchitectureTests` protects the direct endpoint,
+  recovery, media, Auth-bridge, rehome, and 600-line boundaries. The
+  critical-result validator and its adversarial fake result tree now require all
+  nine protected cases under their new suite/type owners. Existing shared Auth,
+  DTO, and feature-state tests keep their owners. See the
+  [ownership guide](../../apps/ios/Merian/Core/Network/README.md#scan-publication-and-owned-recovery)
+  and
+  [focused matrix](../../apps/ios/Merian/Core/Network/README.md#scan-publication-and-owned-recovery-verification).
+- Verification passes byte-stable XcodeGen, project/source membership,
+  event-routing and iOS CI-tooling gates, current-source parsing, strict
+  affected production/test lint, and compiler typechecking of all 969 current
+  iOS production sources. A testable module emitted from those same sources, and
+  all five new suites typecheck against it. That review also replaced one nested
+  Swift Testing `#require` in the transport suite with sequential URL and
+  response validation. The first generic Simulator build exposed a missing
+  private `EdgeErrorPayload` declaration during compilation; the declaration was
+  restored to the main transport owner before the successful full-source
+  typecheck. At that handoff, a subsequent ordinary build could not pass SwiftPM
+  resolution because the sandbox denied manifest-diagnostics cache writes, and
+  CoreSimulatorService was unavailable. The later combined-candidate build and
+  runtime matrix recorded above supersedes that local hold; manual
+  publication/recovery checks are still not claimed. Documentation follow-up
+  reconciles Insight cloud-readiness tests, Hashtags transport touchpoints, the
+  Recovery/Media test map, and Auth-boundary wording with the final owners.
+  Documentation contract, Deno/Markdown formatting, and whitespace checks also
+  pass. No hosted call, deployment, or external publication was performed.
 - The 2026-09-03 account-deletion/recovery pass moves six existing methods into
   `Endpoints/MerianNetworkClient+AccountDeletion.swift`, unchanged receipt and
   v2 payload DTOs into `AccountDeletionAPIModels.swift`, and pure admission into
@@ -440,8 +669,10 @@ Implemented Core Network slices:
   sequential foreground video behavior remain unchanged. Queue manifest and
   background-task authority, inference attempt fencing, LocalImageLoader repair,
   Profile avatar promotion, and main-client publication/restore orchestration do
-  not move. No API, schema, persistence, backend, feature-flag, UI, hosted
-  mutation, or deployment change is included.
+  not move in that storage slice; the later scan-publication slice above moves
+  the publication owners without changing these primitives. No API, schema,
+  persistence, backend, feature-flag, UI, hosted mutation, or deployment change
+  is included.
 - Six aggregate regressions move intact to `MediaStorageEndpointTests`,
   `ScanImageCloudEndpointTests`, and `StagedVideoUploadTests`, shrinking the
   aggregate from 3,448 to 3,181 lines. Per-client fixtures and unique disposable
@@ -496,14 +727,15 @@ Implemented Core Network slices:
 - The media-storage second pass found no production regression. It corrected the
   signing test's name and documentation to describe explicit/resolved
   payload-owner mapping, not live Auth lease enforcement; the existing
-  `SupabaseManagerTests` exact-session lease and `MerianNetworkClientTests`
-  retry-account policy suites remain the pure state/policy owners. The focused
-  matrix now includes both. A private per-session held-request transport adds
-  task-owned cancellation coverage for both Data and file PUTs, preserving raw
-  `URLError.cancelled` and requiring the underlying request to stop. Independent
-  start/completion/stop bounds and session invalidation on completion timeout
-  prevent a cancellation regression from hanging the suite. These are test and
-  documentation fixes; production source remains unchanged in the second pass.
+  `SupabaseManagerTests` exact-session lease and
+  `AuthenticatedRequestRetryPolicyTests` retry-account policy suites remain the
+  pure state/policy owners. The focused matrix now includes both. A private
+  per-session held-request transport adds task-owned cancellation coverage for
+  both Data and file PUTs, preserving raw `URLError.cancelled` and requiring the
+  underlying request to stop. Independent start/completion/stop bounds and
+  session invalidation on completion timeout prevent a cancellation regression
+  from hanging the suite. These are test and documentation fixes; production
+  source remains unchanged in the second pass.
 - Second-pass verification repeated current-source iOS frontend typechecking,
   all 88 native pure/source tests, the complete iOS CI-tooling gate, the Edge
   DTO gate, and 65 backend unit tests. A supplemental native Foundation probe
@@ -513,10 +745,12 @@ Implemented Core Network slices:
   directly, not the app client or live Auth. Strict lint, Swift parsing,
   project/source membership, byte-stable XcodeGen, exact rehome/source-copy
   comparisons, Markdown/Edge-fleet formatting, documentation references, and
-  `git diff --check` also pass. Fresh generic Simulator and full-unit
-  `build-for-testing` attempts again stop before compilation with exit 74 at the
-  restricted SwiftPM manifest cache; CoreSimulatorService remains unavailable.
-  Focused/full iOS runtime and manual integration remain unrun.
+  `git diff --check` also pass. At that second-pass handoff, fresh generic
+  Simulator and full-unit `build-for-testing` attempts stopped before
+  compilation with exit 74 at the restricted SwiftPM manifest cache, and
+  CoreSimulatorService was unavailable. The later combined-candidate build and
+  runtime matrix recorded above supersedes that local hold; manual integration
+  remains unrun.
 - Documentation follow-up makes the remaining
   [media storage integration checklist](../../apps/ios/Merian/Core/Network/README.md#media-storage-integration-checklist)
   explicit: real Data/file bytes and stored length, foreground video failure
@@ -880,7 +1114,8 @@ Implemented Core Network slices:
   Signatures, defaults, 30-second deadlines, DTOs, payloads, semantic
   share-state checks, legacy incident-array compatibility, callers, backend,
   persistence, and `project.yml` remain unchanged. Publication, uploads, and
-  cloud/media recovery stay together in the main client.
+  cloud/media recovery stayed together at that checkpoint; the later
+  scan-publication slice above records their dedicated owners.
 - `ExplorePostManagementEndpointTests` owns 36 request cases and composer/edit
   projections; `ExploreShareStateEndpointTests` and
   `ExploreMediaIncidentEndpointTests` own strict reconciliation and
@@ -1097,7 +1332,8 @@ Implemented Core Network slices:
   POST bridge. Signatures/defaults, raw text, null/omission, cursor pairing,
   coordinate forwarding, DTO projections, 30-second timeouts, and the ambiguous-
   replay allowlist remain unchanged. Scan-publication overloads and media
-  recovery stay together in the main client; no backend, UI, schema, or feature
+  recovery did not move in that Community slice; the later scan-publication
+  slice above records their dedicated owners. No backend, UI, schema, or feature
   adapter changes are part of this slice.
 - `CommunityIdentificationEndpointTests` adds 32 independent payload cases and
   typed-response, malformed-success, denial, auth-refresh, replay-allowlist, and

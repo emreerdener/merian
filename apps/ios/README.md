@@ -84,18 +84,25 @@ Cross-feature wire operations can live in `Core/Network/Endpoints/` even when
 grouped by feature. Field Trips, Community Identification browsing/contribution,
 the eight Explore browsing reads, 12 Explore interaction methods, four
 notification methods, four public-profile methods, six Explore post-management
-methods, 17 Field Chat methods, six Species Dictionary method variants, four
-scan lifecycle methods, two scan enrichment/context methods, one export method,
-two product feedback methods, three media storage methods, and six account
-deletion/recovery methods are extracted. Both raw `uploadToR2` overloads and
-foreground `uploadStagedVideoFiles` live in `Core/Network/Media/`, with
-stateless signed-request policy and immutable local video planning. Existing
-feature adapters, shared Profile state, Hardware push/badge owners, and Core's
-social guard retain their callers and state, while the existing network client
-retains private session, Auth, retry, and cancellation ownership behind
-typed-response, body-ignoring, encoded-body, and raw-response JSON POST bridges.
-Dictionary detail/stats use fixed-result cache-aware bridges whose GET helper
-stays private. The typed POST bridge preserves optional idempotency keys and
+methods, six inference entry points, two direct scan-publication methods, 17
+Field Chat methods, six Species Dictionary method variants, four scan lifecycle
+methods, two scan enrichment/context methods, one export method, two product
+feedback methods, three media storage methods, and six account deletion/recovery
+methods are extracted. Both raw `uploadToR2` overloads, foreground
+`uploadStagedVideoFiles`, and publication-media restoration live in
+`Core/Network/Media/`; owned-row publication and Field Chat recovery live in
+`Core/Network/Recovery/`. Existing feature adapters, shared Profile state,
+Hardware push/badge owners, and Core's social guard retain their callers and
+state. `Core/Network/Transport/` owns stateless route/error/replay and Auth
+recovery policy, including the value-only `UnauthorizedRefreshTarget`, the
+request-scoped executor that applies those decisions, the sole pinned
+`URLSession`/TLS owner, and the per-attempt Auth dispatcher. The dispatcher owns
+account leases and headers, transition validation, constrained-network headers,
+URLSession cancellation, and its file-local upload delegate. The network client
+is the façade that injects those two stateful transports behind typed-response,
+body-ignoring, encoded-body, and raw-response JSON POST bridges. Dictionary
+detail/stats use fixed-result cache-aware bridges whose GET helper stays
+private. The typed POST bridge preserves optional idempotency keys and
 endpoint-specific decoding-error mapping without intercepting transport
 failures. Field Chat's encoded-body bridge returns bytes to its stateless
 `Decoding/FieldChatResponseDecoder.swift`; it does not own another retry policy.
@@ -108,28 +115,67 @@ configuration guard preserves URL-validation-before-cache ordering without
 exposing transport state. Scan status DTOs live in
 `ScanLifecycleAPIModels.swift`; `Decoding/ScanLifecycleResponseDecoder.swift`
 owns explicit-key decoding, single/bulk identity checks, and deletion
-confirmation. The raw-response bridge forwards the recovery owner's UUID to the
-existing private Auth boundary. Enrichment's prepared-JSON bridge preserves
-serialization-before-UUID validation and exact body bytes. Signing and
-scan-image inspection DTOs move unchanged to `MediaStorageAPIModels.swift`. The
-account-bound encoded bridge preserves signing's frozen body/transport UUID; raw
-PUT bridges reuse the private session without adding Auth or replay. Queue
-manifest/task authority, live inference attempt fencing, image repair, and
-avatar promotion remain caller-owned. Account deletion uses two route-fixed
-value bridges for authenticated intake and capability-only recovery. Its
-dedicated preparation receipt, strict accepted/recovery receipt, status DTOs,
-and v2 preparation/commit payloads live in `AccountDeletionAPIModels.swift`;
-three request-only DTOs remain private to its endpoint file. Pure
-operation-specific receipt and proof/timestamp validation live in
-`Decoding/AccountDeletionResponseDecoder.swift` and
+confirmation. `Endpoints/MerianNetworkClient+Inference.swift` owns prewarm and
+the `/identify` and `/identify-multimodal` request entry points;
+`Core/Network/Inference/` owns immutable request values plus stateless payload,
+inline-media, staged-owner, and recoverable-conflict policy. The endpoint owns
+cancellation-aware off-main body preparation through
+`.inferenceRequestPreparation`; its narrow bridges reuse the shared request
+executor, pinned transport, and authenticated dispatcher. The raw-response
+bridge forwards the recovery owner's UUID to the existing private Auth boundary.
+Enrichment's prepared-JSON bridge preserves serialization-before-UUID validation
+and exact body bytes. Signing and scan-image inspection DTOs move unchanged to
+`MediaStorageAPIModels.swift`. The account-bound encoded bridge preserves
+signing's frozen body/transport UUID; raw PUT bridges reuse the private session
+without adding Auth or replay. Queue manifest/task authority, live inference
+attempt fencing, image repair, and avatar promotion remain caller-owned. Account
+deletion uses two route-fixed value bridges for authenticated intake and
+capability-only recovery. Its dedicated preparation receipt, strict
+accepted/recovery receipt, status DTOs, and v2 preparation/commit payloads live
+in `AccountDeletionAPIModels.swift`; three request-only DTOs remain private to
+its endpoint file. Pure operation-specific receipt and proof/timestamp
+validation live in `Decoding/AccountDeletionResponseDecoder.swift` and
 `AccountDeletionRecoveryValidation.swift`. Auth transition admission, durable
 Keychain markers, local cleanup, and proof retirement remain with
 `SupabaseManager`, Core Security, and `AppDIContainer`. Other wire-model owners
 stay unchanged: enrichment responses remain hand-written in Core AI, while
-survey requests remain Settings Feedback-owned. Scan publication and media
-recovery remain together in the main client, alongside the remaining endpoint
-groups. See the [Core Network guide](Merian/Core/Network/README.md) for the
-endpoint, transport, and mirrored test boundaries.
+survey requests remain Settings Feedback-owned. `Core/Network/Transport/` owns
+stateless HTTPS endpoint construction, unavailable-route/error classification,
+retry allowlists and account binding, and value-only Auth-recovery decisions.
+Its request-scoped `AuthenticatedRequestExecutor` applies those policies and
+injected Auth, entitlement, and consent effects across one logical request.
+`PinnedNetworkTransport` owns the single configured session and TLS delegate;
+its lock-backed first-use path prevents concurrent callers from constructing
+multiple production sessions, and its host policy matches only `supabase.co` and
+true subdomains. A matching server-trust challenge cancels when its certificate
+chain is unreadable, fails platform validation, or is unmatched instead of
+falling through to ordinary ATS. `AuthenticatedTransportDispatcher` owns each
+attempt's Auth/session fence and injects that same session transport. The client
+façade owns neither implementation nor a second session. Publication, recovery,
+and restore orchestration do not acquire another transport; record-recovery
+polling propagates caller cancellation without resuming a later status probe.
+The closure audit leaves the façade at 545 lines after removing an unused
+self-recursive public-GET helper. Shared legacy and scoped URLProtocol fixtures
+now have a dedicated
+`MerianTests/Core/Network/NetworkTransportTestSupport.swift` owner instead of
+living in the aggregate client suite. See the
+[Core Network guide](Merian/Core/Network/README.md) for the endpoint, transport,
+and mirrored test boundaries.
+
+`CoreNetworkIntegrationArchitectureTests` owns the cross-slice source guard: it
+freezes the 17 endpoint owners, prevents duplicate aggregate entry points,
+enforces the 600-line ceiling across extracted Endpoint, Inference, Media,
+Recovery, and Transport owners, and applies the same ceiling to the client
+façade. It also requires exactly one endpoint owner for every safe-read or
+idempotency-aware replay classification and exactly six Transport owners: three
+stateless policies, the request-scoped executor, the pinned session, and the
+authenticated dispatcher. The guard freezes sole-session injection and keeps
+per-attempt Auth leasing out of both the façade and executor while the executor
+owns bounded retry state and applies ordinary versus transition-owned refresh
+through injected closures. `get-filtered-discovery-feed` remains a documented
+backend function but is intentionally absent from the iOS replay set because the
+app has no endpoint owner or caller for it. See the
+[integration-audit contract](Merian/Core/Network/README.md#core-network-integration-audit).
 
 ## Onboarding Ownership
 
@@ -694,11 +740,17 @@ The main application uses App Transport Security defaults and has no broad or
 domain-scoped exception. `SecureTransportPolicy` accepts backend-provided remote
 URLs only when they are credential-free HTTPS; app-owned file URLs and local
 paths remain available for captured media. The Supabase origin is validated
-under the same rule before client construction.
+under the same rule before client construction. Release requests to
+`supabase.co` and its true subdomains additionally require both Apple's platform
+trust evaluation and a matching certificate-chain pin; unreadable, untrusted, or
+unmatched chains are cancelled. Other HTTPS origins retain ordinary ATS
+handling, and Debug builds intentionally skip pinning for local test proxies.
 
 Run `make validate-ios-transport-security` for the tracked plist and
 `make test-ios-transport-security` for adversarial fixtures. Archive and IPA
 validation inspect the final built `Info.plist`, and hosted archive evidence
-must contain `transport_security: "ats-default"`. See the
+must contain `transport_security: "ats-default"`. That marker proves the plist
+contract, not pin freshness, so release candidates must also compile the Release
+TLS branch and pass the focused pinned-transport suite. See the
 [iOS App Transport Security Contract](../../docs/development-guides/17-ios-transport-security.md)
 for the complete boundary and release gate.

@@ -44,12 +44,14 @@ queue_sync_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueue
 queue_url_session_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
 background_database_actor_source="$repo_root/apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift"
 network_client_source="$repo_root/apps/ios/Merian/Core/Network/MerianNetworkClient.swift"
+inference_endpoint_source="$repo_root/apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Inference.swift"
 inference_engine_source="$repo_root/apps/ios/Merian/Core/AI/InferenceEngine.swift"
 scan_admission_source="$repo_root/apps/ios/Merian/Core/Security/ScanAdmissionManager.swift"
 capture_analysis_source="$repo_root/apps/ios/Merian/Features/Capture/Submission/ViewModels/CaptureWorkspaceViewModel+VisualSubmission.swift"
 image_cropper_source="$repo_root/apps/ios/Merian/Core/UI/Components/ImageCropperView.swift"
 capture_workspace_source="$repo_root/apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift"
-network_client_test_source="$repo_root/apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift"
+inference_endpoint_transport_test_source="$repo_root/apps/ios/MerianTests/Core/Network/Endpoints/InferenceEndpointTransportTests.swift"
+scan_publication_transport_test_source="$repo_root/apps/ios/MerianTests/Core/Network/Endpoints/ScanPublicationEndpointTransportTests.swift"
 inference_engine_test_source="$repo_root/apps/ios/MerianTests/Core/AI/InferenceEngineTests.swift"
 capture_workspace_test_source="$repo_root/apps/ios/MerianTests/Features/Capture/Submission/CaptureWorkspaceSubmissionTests.swift"
 ios_test_sources="$repo_root/apps/ios/MerianTests"
@@ -725,33 +727,33 @@ assert_file_contains \
   "$insight_presentation_identity_source" \
   "func revealBottomBarTools("
 assert_file_contains \
-  "$network_client_test_source" \
+  "$scan_publication_transport_test_source" \
   "testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay()"
-assert_file_contains "$network_client_test_source" "defer { requestTask.cancel() }"
+assert_file_contains "$scan_publication_transport_test_source" "defer { requestTask.cancel() }"
 assert_file_contains \
-  "$network_client_test_source" \
+  "$scan_publication_transport_test_source" \
   "let firstRequestDeadline = ContinuousClock.now.advanced(by: .seconds(5))"
 assert_file_contains \
-  "$network_client_test_source" \
+  "$scan_publication_transport_test_source" \
   "while probe.isEmpty && ContinuousClock.now < firstRequestDeadline"
 assert_file_contains \
-  "$network_client_test_source" \
+  "$scan_publication_transport_test_source" \
   "try await Task.sleep(for: .milliseconds(10))"
-assert_file_count "$network_client_test_source" 0 "for _ in 0..<100 {"
+assert_file_count "$scan_publication_transport_test_source" 0 "for _ in 0..<100 {"
 assert_file_contains \
-  "$network_client_source" \
+  "$inference_endpoint_source" \
   "private static let directIdentifyRequestTimeout: TimeInterval = 90"
 assert_file_contains \
-  "$network_client_source" \
+  "$inference_endpoint_source" \
   "private static let queueBackedForegroundIdentifyRequestTimeout: TimeInterval = 15"
 assert_file_contains \
-  "$network_client_source" \
+  "$inference_endpoint_source" \
   "durableQueueOwnsRecovery: Bool = false"
 assert_file_contains \
-  "$network_client_source" \
+  "$inference_endpoint_source" \
   "allowsTransientTransportRetry: !durableQueueOwnsRecovery"
 assert_file_count \
-  "$network_client_source" \
+  "$inference_endpoint_source" \
   0 \
   "allowsInlineTransportRetry"
 assert_file_count \
@@ -773,10 +775,10 @@ durable_queue_generation_bindings="$(
   || fail \
     "Both live Identify call sites must bind durable queue recovery to foreground generation ownership."
 assert_file_contains \
-  "$network_client_test_source" \
+  "$inference_endpoint_transport_test_source" \
   "request.timeoutInterval == 15"
 assert_file_contains \
-  "$network_client_test_source" \
+  "$inference_endpoint_transport_test_source" \
   "request.timeoutInterval == 90"
 assert_file_contains \
   "$inference_engine_test_source" \

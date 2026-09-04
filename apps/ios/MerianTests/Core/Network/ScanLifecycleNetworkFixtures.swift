@@ -40,11 +40,16 @@ enum ScanLifecycleNetworkFixtures {
     }
     """
 
-    static func recoveryScan(confidence: Double = 0.75) -> OwnedScanRecoveryPayload {
+    static func recoveryScan(
+        id: String = scanID,
+        userId: String = userID,
+        confidence: Double = 0.75,
+        gpsLatExact: Double? = nil
+    ) -> OwnedScanRecoveryPayload {
         OwnedScanRecoveryPayload(
-            id: scanID, userId: userID, speciesId: nil, confirmedSpeciesId: nil,
+            id: id, userId: userId, speciesId: nil, confirmedSpeciesId: nil,
             imageStorageUrls: [], timestamp: "2026-09-01T12:00:00Z",
-            gpsLatExact: nil, gpsLongExact: nil, gpsLatPublic: nil, gpsLongPublic: nil,
+            gpsLatExact: gpsLatExact, gpsLongExact: nil, gpsLatPublic: nil, gpsLongPublic: nil,
             gpsElevation: nil, geoprivacy: "private", weatherCondition: nil,
             weatherTemperatureF: nil, aiConfidenceScore: confidence, ecologyType: "wild",
             isInvasive: false, invasiveStatusRegion: nil, invasiveRationale: nil,

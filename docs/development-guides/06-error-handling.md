@@ -346,15 +346,16 @@ must not delete the Application Support inbox copy. See
 `docs/features-and-hardware/26-photos-share-import.md`.
 
 The platform `404` row above is deliberately narrower than HTTP status alone.
-The response must omit `X-Merian-Handler: 1` and match Supabase's stable
-`SB-Error-Code: NOT_FOUND` header, official missing-function envelope, or
-gateway-without-execution headers. A marked handler-owned `404` is an
-application response and must not be replayed by the route-propagation branch.
-Background inference applies this classification before general `4xx` handling.
-A platform route `404` preserves the queued scan for durable retry. Handler
-`401`, `408`, `409`, `425`, and `429` responses are also retryable and honor a
-bounded integer `Retry-After`. Other marked handler `4xx` responses retain local
-media as `queueNeedsAttention`; only exact `observation_rejected` is terminal.
+`EdgeFunctionRoutePolicy` owns this classification. The response must omit
+`X-Merian-Handler: 1` and match Supabase's stable `SB-Error-Code: NOT_FOUND`
+header, official missing-function envelope, or gateway-without-execution
+headers. A marked handler-owned `404` is an application response and must not be
+replayed by the route-propagation branch. Background inference applies this
+classification before general `4xx` handling. A platform route `404` preserves
+the queued scan for durable retry. Handler `401`, `408`, `409`, `425`, and `429`
+responses are also retryable and honor a bounded integer `Retry-After`. Other
+marked handler `4xx` responses retain local media as `queueNeedsAttention`; only
+exact `observation_rejected` is terminal.
 
 For a foreground scan, never label an arbitrary `409` as connectivity loss. Only
 exact stable Identify codes `ai_request_in_progress`,
@@ -559,14 +560,17 @@ The complete error and recovery ordering contract is
 
 ## Handling `401 Unauthorized`
 
-`MerianNetworkClient.performAuthenticatedRequest` intercepts 401 responses:
+`MerianNetworkClient.performAuthenticatedRequest` enters the request-scoped
+`AuthenticatedRequestExecutor`, which classifies 401 responses and applies the
+selected recovery effect through injected live dependencies:
 
 1. A shared-auth stable code of `auth_session_missing` or
    `invalid_session_token` first calls the pinned Supabase Swift SDK's
    `refreshSession()`. The SDK coalesces concurrent refreshes, rotates the
-   access/refresh pair, and the client reconstructs the original request once
-   with the fresh access token. A handler auth rejection happens before the
-   endpoint's domain mutation, so this one replay is safe even for a POST.
+   access/refresh pair, and the executor reconstructs the original request once
+   with the fresh access token through the client's pinned per-attempt
+   transport. A handler auth rejection happens before the endpoint's domain
+   mutation, so this one replay is safe even for a POST.
 2. If refresh fails, account recovery remains identity-sensitive:
    - an authenticated OAuth account is preserved and the unresolved response
      becomes `MerianError.invalidResponse`; and
@@ -578,7 +582,11 @@ The complete error and recovery ordering contract is
    `MerianError.invalidResponse` without rotating the Supabase UUID or creating
    another RevenueCat customer.
 
-This logic is centralized in `performAuthenticatedRequest` — callers never need
-to handle JWT refresh themselves. In particular, `invalid_session_token` must
-not skip directly to anonymous identity replacement: an expired access JWT can
-coexist with a valid refresh token and account-owned first-scan state.
+This logic remains centralized behind `performAuthenticatedRequest` — callers
+never handle JWT refresh themselves. Transport policy selects a value-only
+ordinary or transition-owned refresh target, the executor applies it, the
+authenticated dispatcher owns each attempt's Auth lease/header and validation,
+and the pinned transport owns the sole `URLSession`. In particular,
+`invalid_session_token` must not skip directly to anonymous identity
+replacement: an expired access JWT can coexist with a valid refresh token and
+account-owned first-scan state.

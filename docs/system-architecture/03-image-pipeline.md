@@ -1005,11 +1005,11 @@ directly. Queue diagnostics export only job and event metadata, never private
 media paths or raw media bytes.
 
 The same file-backed rule now applies to explore-media restore.
-`MerianNetworkClient.restoreExploreMediaObjectKeys` validates each restorable
-local image/video path, derives MIME type from the file extension or file
-header, and uploads via `upload(for:fromFile:)` with bounded concurrency. The
-restore path must never materialize every media file into `Data` just to
-populate `httpBody`.
+`ScanPublicationMediaRestorer` validates each restorable local image/video path,
+derives MIME type from the file extension or file header, and delegates
+file-backed PUTs through `MerianNetworkClient+MediaUploads` with bounded image
+concurrency. The restore path must never materialize every media file into
+`Data` just to populate `httpBody`.
 
 **Offline queue image quality**: The offline queue stores inference-quality
 images only (768 px for Flash/free, 1024 px for Pro — whichever was applied at

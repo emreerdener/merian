@@ -22,10 +22,18 @@ struct ScanLifecycleNetworkArchitectureTests {
         }
         #expect(endpoint.range(of: #"(?m)^    (?:private )?(?:static )?(?:let|var)\s"#, options: .regularExpression) == nil)
         #expect(endpoint.split(separator: "\n", omittingEmptySubsequences: false).count <= 600)
-        for owner in ["MissingScanRecoveryAction", "OwnedScanRecoveryPayload", "recoverMissingOwnedCloudScan",
-                      "makeOwnedScanRecoveryPayload", "waitForScanPersistence", "shareScanToExplore", "requestCommunityIdentification"] {
-            #expect(client.contains(owner), "Recovery and publication ownership must remain unchanged: \(owner)")
+        let recovery = try source("Recovery/MerianNetworkClient+OwnedScanRecovery.swift")
+        let payload = try source("Recovery/OwnedScanRecoveryPayload.swift")
+        let policy = try source("Recovery/OwnedScanRecoveryPolicy.swift")
+        for owner in [
+            "recoverMissingOwnedCloudScan", "makeOwnedScanRecoveryPayload",
+            "waitForScanPersistence", "shareScanToExplore",
+            "requestCommunityIdentification"
+        ] {
+            #expect(recovery.contains(owner) && !client.contains(owner))
         }
+        #expect(payload.contains("struct OwnedScanRecoveryPayload"))
+        #expect(policy.contains("enum MissingScanRecoveryAction"))
     }
 
     @Test func requestOrderingAndRecoveryAccountBindingStayExplicit() throws {
@@ -76,10 +84,17 @@ struct ScanLifecycleNetworkArchitectureTests {
                       "timeoutInterval:", "idempotencyKey:", "isRetry:"] {
             #expect(!bridge.contains(token), "Raw bridge must not add \(token)")
         }
-        for token in ["private func endpointURL(", "private func performAuthenticatedRequest(",
-                      "private func performAuthenticatedTransport(", "private func acquireAccountWorkLeaseIfRequired("] {
+        for token in [
+            "private let authenticatedTransport: AuthenticatedTransportDispatcher",
+            "private func endpointURL(",
+            "private func performAuthenticatedRequest("
+        ] {
             #expect(client.contains(token))
         }
+        #expect(
+            try source("Transport/AuthenticatedTransportDispatcher.swift")
+                .contains("private func acquireAccountWorkLeaseIfRequired(")
+        )
     }
 
     @Test func DTOsAndStrictDecodingHaveContainedOwners() throws {
@@ -127,7 +142,14 @@ struct ScanLifecycleNetworkArchitectureTests {
             #expect(contents.contains("NetworkEndpointFixture()"))
             #expect(!contents.contains("MerianNetworkClient.shared") && !contents.contains("MockURLProtocol.mockEndpoints"))
         }
-        #expect(aggregate.contains("func testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion("))
+        let recovery = try String(
+            contentsOf: root.appendingPathComponent(
+                "Recovery/OwnedScanRecoveryPolicyTests.swift"
+            ),
+            encoding: .utf8
+        )
+        #expect(recovery.contains("func testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion("))
+        #expect(!aggregate.contains("func testMissingScanRecoveryNeverRacesActiveOrRetryableIngestion("))
         #expect(aggregate.contains("func testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry("))
     }
 

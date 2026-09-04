@@ -135,8 +135,17 @@ withholds location fields without hiding an otherwise visible tagged post.
 
 ## iOS Touchpoints
 
-- DTOs and network calls: `Core/Network/ExploreAPIModels.swift` and
-  `Core/Network/MerianNetworkClient.swift`
+- Wire DTOs: `Core/Network/ExploreAPIModels.swift`
+- Hashtag browse request mapping:
+  `Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`
+- Direct share request mapping and strict success validation:
+  `Core/Network/Endpoints/MerianNetworkClient+ScanPublication.swift`. Its
+  record-based compatibility flow lives in `Core/Network/Recovery/`, local-media
+  restoration lives in `Core/Network/Media/`, and `Core/Network/Transport/` owns
+  pure route/error/replay policy, the request-scoped executor that applies retry
+  and Auth effects, the sole pinned session/TLS owner, and the per-attempt Auth
+  dispatcher. `Core/Network/MerianNetworkClient.swift` injects those owners
+  behind its narrow bridge.
 - Feed chips: `Features/Explore/Feed/Components/Cards/ExplorePostCard.swift`
 - Detail chips:
   `Features/Explore/Feed/Components/Detail/ExplorePostDetailContentView.swift`
@@ -161,7 +170,12 @@ withholds location fields without hiding an otherwise visible tagged post.
   `MerianNetworkClient.getFieldTripChallengeHashtags(scanId:)`.
 - Regression tests:
   `MerianTests/Features/Explore/Feed/ExploreHashtagSuggestionTests.swift` and
-  `MerianTests/Features/Explore/Feed/ExploreHashtagPostsViewModelTests.swift`
+  `MerianTests/Features/Explore/Feed/ExploreHashtagPostsViewModelTests.swift`;
+  direct publication and browsing wire coverage lives in the Core Network
+  [scan-publication/recovery](../../apps/ios/Merian/Core/Network/README.md#scan-publication-and-owned-recovery-verification)
+  and
+  [Explore browsing](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification)
+  matrices.
 
 The feed `ExplorePost` DTO keeps `hashtags` optional for rollout tolerance. The
 updated feed-like Edge functions should still return `[]` for untagged posts so

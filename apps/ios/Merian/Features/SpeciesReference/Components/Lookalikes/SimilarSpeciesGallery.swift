@@ -4,7 +4,7 @@ struct SimilarSpeciesGallery: View {
     let similarData: SimilarSpecies
     let currentScientificName: String?
     let currentCommonName: String?
-    var currentSpeciesId: String? = nil
+    var currentSpeciesId: String?
     var routeForSpecies: ((SimilarSpeciesEntry) -> SpeciesDictionaryRoute)?
     var onSpeciesSelected: ((SimilarSpeciesEntry) -> Void)?
     var dependencies: SimilarSpeciesGalleryDependencies = .live

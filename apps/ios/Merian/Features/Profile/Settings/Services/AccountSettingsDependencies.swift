@@ -55,7 +55,7 @@ struct AccountDeletionDependencies {
                 )
             },
             stableErrorCode: { error in
-                MerianNetworkClient.stableEdgeErrorCode(from: error)
+                EdgeFunctionErrorPolicy.stableCode(from: error)
             },
             logFailure: { error in
                 MerianLog.general.error(

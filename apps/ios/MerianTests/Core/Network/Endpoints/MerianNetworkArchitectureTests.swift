@@ -33,18 +33,54 @@ struct MerianNetworkArchitectureTests {
     }
 
     @Test func sharedTransportImplementationRemainsPrivate() throws {
+        let root = try networkRoot()
         let client = try String(
-            contentsOf: networkRoot().appendingPathComponent("MerianNetworkClient.swift"),
+            contentsOf: root.appendingPathComponent("MerianNetworkClient.swift"),
+            encoding: .utf8
+        )
+        let dispatcher = try String(
+            contentsOf: root.appendingPathComponent(
+                "Transport/AuthenticatedTransportDispatcher.swift"
+            ),
+            encoding: .utf8
+        )
+        let pinnedTransport = try String(
+            contentsOf: root.appendingPathComponent(
+                "Transport/PinnedNetworkTransport.swift"
+            ),
             encoding: .utf8
         )
         for declaration in [
             "private let supabaseUrl", "private let supabaseAnonKey",
-            "private var activeSession:", "private lazy var session:",
+            "private let sessionTransport: PinnedNetworkTransport",
+            "private let authenticatedTransport: AuthenticatedTransportDispatcher",
             "private func endpointURL(", "private func makeExploreDecoder()",
-            "private func performAuthenticatedRequest(", "private func performAuthenticatedTransport(",
-            "private func requestPayloadAuthUserID(", "private func refreshActiveSessionForRetry()"
+            "private func performAuthenticatedRequest("
         ] {
             #expect(client.contains(declaration), "Transport boundary widened: \(declaration)")
+        }
+        for declaration in [
+            "private let sessionTransport: PinnedNetworkTransport",
+            "private func acquireAccountWorkLeaseIfRequired(",
+            "private func applyingAuthHeaders(",
+            "private func dispatch("
+        ] {
+            #expect(
+                dispatcher.contains(declaration),
+                "Dispatcher boundary widened: \(declaration)"
+            )
+        }
+        for declaration in [
+            "private let sessionLock = NSLock()",
+            "private var productionSession: URLSession?",
+            "private var activeSession: URLSession",
+            "private func resolveProductionSessionLocked()",
+            "private final class MerianTLSDelegate"
+        ] {
+            #expect(
+                pinnedTransport.contains(declaration),
+                "Pinned-session boundary widened: \(declaration)"
+            )
         }
         let start = try #require(client.range(of: "    func performAuthenticatedJSONPost<"))
         let end = try #require(client.range(of: "\n    }", range: start.upperBound..<client.endIndex))
@@ -133,7 +169,21 @@ struct MerianNetworkArchitectureTests {
         }
         #expect(endpoint.range(of: #"(?m)^    (?:private )?(?:static )?(?:let|var)\s"#, options: .regularExpression) == nil)
         #expect(!endpoint.contains("func requestCommunityIdentification("))
-        #expect(client.components(separatedBy: "    func requestCommunityIdentification(").count == 3)
+        let publication = try String(
+            contentsOf: root.appendingPathComponent(
+                "Endpoints/MerianNetworkClient+ScanPublication.swift"
+            ),
+            encoding: .utf8
+        )
+        let recovery = try String(
+            contentsOf: root.appendingPathComponent(
+                "Recovery/MerianNetworkClient+OwnedScanRecovery.swift"
+            ),
+            encoding: .utf8
+        )
+        #expect(publication.contains("func requestCommunityIdentification("))
+        #expect(recovery.contains("func requestCommunityIdentification("))
+        #expect(!client.contains("func requestCommunityIdentification("))
     }
 
     @Test func exploreBrowsingStaysInItsEndpointOwner() throws {
@@ -166,10 +216,15 @@ struct MerianNetworkArchitectureTests {
             #expect(!endpoint.contains(token), "Endpoint extensions must not own \(token)")
         }
         #expect(endpoint.range(of: #"(?m)^    (?:private )?(?:static )?(?:let|var)\s"#, options: .regularExpression) == nil)
-        for method in [
-            "shareScanToExplore", "requestCommunityIdentification"
-        ] {
-            #expect(client.contains("func \(method)("), "Keep non-browsing ownership unchanged: \(method)")
+        let publication = try String(
+            contentsOf: root.appendingPathComponent(
+                "Endpoints/MerianNetworkClient+ScanPublication.swift"
+            ),
+            encoding: .utf8
+        )
+        for method in ["shareScanToExplore", "requestCommunityIdentification"] {
+            #expect(publication.contains("func \(method)("))
+            #expect(!client.contains("func \(method)("))
         }
     }
 
@@ -205,10 +260,15 @@ struct MerianNetworkArchitectureTests {
             #expect(!endpoint.contains(token), "Endpoint extensions must not own \(token)")
         }
         #expect(endpoint.range(of: #"(?m)^    (?:private )?(?:static )?(?:let|var)\s"#, options: .regularExpression) == nil)
-        for method in [
-            "shareScanToExplore", "requestCommunityIdentification"
-        ] {
-            #expect(client.contains("func \(method)("), "Keep non-interaction ownership unchanged: \(method)")
+        let publication = try String(
+            contentsOf: root.appendingPathComponent(
+                "Endpoints/MerianNetworkClient+ScanPublication.swift"
+            ),
+            encoding: .utf8
+        )
+        for method in ["shareScanToExplore", "requestCommunityIdentification"] {
+            #expect(publication.contains("func \(method)("))
+            #expect(!client.contains("func \(method)("))
         }
     }
 
@@ -291,10 +351,18 @@ struct MerianNetworkArchitectureTests {
             #expect(!endpoint.contains(token), "Field Chat endpoints must not own \(token)")
         }
         #expect(endpoint.range(of: #"(?m)^    (?:private )?(?:static )?(?:let|var)\s"#, options: .regularExpression) == nil)
+        let recovery = try String(
+            contentsOf: root.appendingPathComponent(
+                "Recovery/MerianNetworkClient+OwnedScanRecovery.swift"
+            ),
+            encoding: .utf8
+        )
         for method in [
-            "ensureCloudScanAvailableForFieldChat", "shareScanToExplore", "requestCommunityIdentification"
+            "ensureCloudScanAvailableForFieldChat", "shareScanToExplore",
+            "requestCommunityIdentification"
         ] {
-            #expect(client.contains("func \(method)("), "Preserve existing recovery and non-chat ownership: \(method)")
+            #expect(recovery.contains("func \(method)("))
+            #expect(!client.contains("func \(method)("))
         }
         let storage = try String(contentsOf: root.appendingPathComponent("Endpoints/MerianNetworkClient+MediaStorage.swift"), encoding: .utf8)
         #expect(storage.contains("func generateUploadURLs(") && !client.contains("func generateUploadURLs("))
@@ -383,7 +451,8 @@ struct MerianNetworkArchitectureTests {
         ] { #expect(cache.contains(token), "Cache encapsulation or policy changed: \(token)") }
         #expect(client.contains("private let speciesDictionaryResponses = SpeciesDictionaryResponseCache()"))
         #expect(client.contains("speciesDictionaryResponses.resetForTesting()"))
-        #expect(client.contains("didSet { resetSpeciesDictionaryCacheForTesting() }"))
+        #expect(client.contains("var overridingSession: URLSession?"))
+        #expect(client.contains("sessionTransport.overridingSession = newValue"))
         for token in ["speciesDictionaryCacheLock", "speciesObservationStatsCacheLock", "SpeciesDictionaryCacheEntry"] {
             #expect(!client.contains(token), "Raw Dictionary cache state must not remain in the client")
         }
@@ -487,8 +556,15 @@ struct MerianNetworkArchitectureTests {
             #expect(!endpoint.contains(token), "Endpoint extensions must not own \(token)")
         }
         #expect(endpoint.range(of: #"(?m)^    (?:private )?(?:static )?(?:let|var)\s"#, options: .regularExpression) == nil)
+        let publication = try String(
+            contentsOf: root.appendingPathComponent(
+                "Endpoints/MerianNetworkClient+ScanPublication.swift"
+            ),
+            encoding: .utf8
+        )
         for method in ["shareScanToExplore", "requestCommunityIdentification"] {
-            #expect(client.contains("func \(method)("), "Keep publication and recovery ownership unchanged: \(method)")
+            #expect(publication.contains("func \(method)("))
+            #expect(!client.contains("func \(method)("))
         }
         let storage = try String(contentsOf: root.appendingPathComponent("Endpoints/MerianNetworkClient+MediaStorage.swift"), encoding: .utf8)
         #expect(storage.contains("func generateUploadURLs(") && !client.contains("func generateUploadURLs("))

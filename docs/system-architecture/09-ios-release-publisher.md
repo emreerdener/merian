@@ -118,6 +118,13 @@ backend-supplied remote URLs must be credential-free HTTPS before reaching a
 network/media framework. `SecureTransportPolicy` owns the shared application
 boundary; ATS remains an independent operating-system backstop.
 
+Release Supabase connections also require ordinary platform trust plus a
+matching certificate-chain pin on the exact `supabase.co` domain boundary.
+Untrusted, unreadable, or unmatched chains cancel. The archive's
+`transport_security: "ats-default"` evidence proves plist policy only, so the
+exact candidate must also compile the Release TLS branch and pass the focused
+transport/architecture suites.
+
 `scripts/validate-ios-transport-security.sh` parses both the configured source
 plist and the final built `Info.plist`. Project guardrails, the exact-SHA
 Release archive, and the Organizer IPA verifier all fail closed on an exception,

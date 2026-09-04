@@ -1328,7 +1328,8 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     networkSource,
     insightSharingSource,
     insightChatSource,
-    networkClientImplementationSource,
+    networkTransportImplementationSource,
+    scanPublicationRecoveryImplementationSource,
     insightViewModelImplementationSource,
     recordBindingImplementationSource,
     exploreSharingImplementationSource,
@@ -1391,7 +1392,15 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read("apps/ios/Merian/Core/Network/README.md"),
     read("apps/ios/Merian/Features/Insights/Sharing/README.md"),
     read("apps/ios/Merian/Features/FieldChat/README.md"),
-    read("apps/ios/Merian/Core/Network/MerianNetworkClient.swift"),
+    Promise.all([
+      read("apps/ios/Merian/Core/Network/MerianNetworkClient.swift"),
+      read(
+        "apps/ios/Merian/Core/Network/Transport/AuthenticatedRequestExecutor.swift",
+      ),
+    ]).then((sources) => sources.join("\n")),
+    read(
+      "apps/ios/Merian/Core/Network/Recovery/MerianNetworkClient+OwnedScanRecovery.swift",
+    ),
     read(
       "apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel.swift",
     ),
@@ -1770,18 +1779,18 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   for (
     const benchmarkField of [
-      "status=\\(httpResponse.statusCode",
-      "requestBytes=\\(body?.count ?? 0",
-      "responseBytes=\\(data.count",
+      "status=\\(response.statusCode",
+      "requestBytes=\\(request.body?.count ?? 0",
+      "responseBytes=\\(responseData.count",
     ]
   ) {
     assertStringIncludes(
-      networkClientImplementationSource,
+      networkTransportImplementationSource,
       benchmarkField,
     );
   }
   assert(
-    !networkClientImplementationSource.includes(
+    !networkTransportImplementationSource.includes(
       'transfer+server=\\(String(format: "%.3f", responseCompletedAt - authCompletedAt), privacy: .public)s bytes=\\(body?.count ?? 0',
     ),
     "The ambiguous request-body `bytes` benchmark must not return.",
@@ -1977,11 +1986,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     "malformed `2xx` bodies fail as `invalidResponse`",
   );
 
-  const localShareStart = networkClientImplementationSource.indexOf(
+  const localShareStart = scanPublicationRecoveryImplementationSource.indexOf(
     "func shareScanToExplore(\n        scan: LocalScanRecord",
   );
-  const localShareEnd = networkClientImplementationSource.indexOf(
-    "func requestCommunityIdentification(",
+  const localShareEnd = scanPublicationRecoveryImplementationSource.indexOf(
+    "func requestCommunityIdentification(\n        scan: LocalScanRecord",
     localShareStart,
   );
   assert(
@@ -1989,10 +1998,13 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     "Local Explore-share implementation could not be isolated.",
   );
   const localShare = compact(
-    networkClientImplementationSource.slice(localShareStart, localShareEnd),
+    scanPublicationRecoveryImplementationSource.slice(
+      localShareStart,
+      localShareEnd,
+    ),
   );
   const restorePlanIndex = localShare.indexOf(
-    "let restorePlan = try makeExploreRestoreMediaPlan(",
+    "let preparedMedia = try mediaRestorer.prepare(",
   );
   const recoveryPayloadIndex = localShare.indexOf(
     "let recoveryScan = try await makeOwnedScanRecoveryPayload(",
@@ -2001,7 +2013,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     "let recovered = try await recoverMissingOwnedCloudScan(",
   );
   const restoreSigningIndex = localShare.indexOf(
-    "let restoredObjectKeys = try await restoreExploreMediaObjectKeys(",
+    "let restoredObjectKeys = try await mediaRestorer.restore(",
   );
   assert(
     restorePlanIndex >= 0 &&
@@ -2016,11 +2028,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(localShare, "recoveryScan: recoveryScan");
   assertStringIncludes(
-    compact(networkClientImplementationSource),
-    'if let code = stableEdgeErrorCode(from: error) { return code == "not_found" }',
+    compact(scanPublicationRecoveryImplementationSource),
+    'if let code = EdgeFunctionErrorPolicy.stableCode(from: error) { return code == "not_found" }',
   );
   assertStringIncludes(
-    compact(networkClientImplementationSource),
+    compact(scanPublicationRecoveryImplementationSource),
     "snapshot.scanId.caseInsensitiveCompare(expectedScanId) == .orderedSame",
   );
   assertStringIncludes(
@@ -2582,11 +2594,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "Establish the first dispatch through a bounded `ContinuousClock` wait for the observable mock request, not a fixed number of `Task.yield()` calls",
+    "Establish each first dispatch through a bounded `ContinuousClock` wait for the observable mock request, not a fixed number of `Task.yield()` calls",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "assert an exact count of one immediately before cancellation and again after canonical `CancellationError` exits the retry delay",
+    "Each case must assert its exact request count both immediately before cancellation and after the retry delay exits",
   );
   assertStringIncludes(
     compact(networkSource),
@@ -5009,6 +5021,9 @@ Deno.test("production consent documentation preserves the release hold and exit 
     const fragment of [
       "NSAllowsArbitraryLoads",
       "SecureTransportPolicy",
+      "Supabase certificate-pinning boundary",
+      "SecTrustEvaluateWithError",
+      "platform-untrusted chains",
       'transport_security": "ats-default',
       "make validate-ios-transport-security",
       "make test-ios-transport-security",
@@ -5017,6 +5032,14 @@ Deno.test("production consent documentation preserves the release hold and exit 
   ) {
     assertStringIncludes(transportContract, fragment);
   }
+  assertStringIncludes(
+    compact(transportContract),
+    "`supabase.co` and its true subdomains",
+  );
+  assertStringIncludes(
+    compact(transportContract),
+    "those validators do not prove pin freshness",
+  );
   for (
     const source of [
       root,
