@@ -39,7 +39,7 @@ struct CoreNetworkIntegrationArchitectureTests {
     @Test func extractedOwnersStayBelowTheReviewCeiling() throws {
         let root = try networkRoot()
         for directoryName in [
-            "Endpoints", "Inference", "Media", "Recovery", "Transport"
+            "Auth", "Endpoints", "Inference", "Media", "Recovery", "Transport"
         ] {
             let directory = root.appendingPathComponent(directoryName)
             for file in try swiftFiles(below: directory) {
@@ -56,6 +56,161 @@ struct CoreNetworkIntegrationArchitectureTests {
             lineCount(aggregate) <= 600,
             "The Core Network facade exceeded the shared review ceiling"
         )
+    }
+
+    @Test func authFoundationHasFocusedOwnersAndRehomedTests() throws {
+        let authRoot = try networkRoot().appendingPathComponent("Auth")
+        let prefix = authRoot.path + "/"
+        let actualPaths = try Set(swiftFiles(below: authRoot).map {
+            String($0.path.dropFirst(prefix.count))
+        })
+        #expect(actualPaths == Self.authFoundationPaths)
+
+        let aggregate = try networkSource("SupabaseManager.swift")
+        let models = try networkSource(
+            "Auth/Models/SupabaseAuthTransitionModels.swift"
+        )
+        let presentationPolicy = try networkSource(
+            "Auth/Policies/AccountPresentationPolicy.swift"
+        )
+        let transitionPolicy = try networkSource(
+            "Auth/Policies/AuthTransitionPolicy.swift"
+        )
+        let coordinators = try networkSource(
+            "Auth/Coordinators/AuthTransitionCoordinators.swift"
+        )
+
+        for declaration in [
+            "enum SupabaseAuthTransitionError",
+            "enum AuthTransitionProvider",
+            "enum AuthTransitionKind",
+            "enum AuthTransitionPhase",
+            "enum AuthSessionAdoption",
+            "struct AuthTransitionSession",
+            "struct AuthTransitionToken",
+            "struct AuthTransitionState",
+            "struct AccountBoundWorkLease"
+        ] {
+            #expect(models.contains(declaration))
+            #expect(!aggregate.contains(declaration))
+        }
+        for signature in [
+            "enum SupabaseAuthTransitionError: LocalizedError",
+            "enum AuthTransitionProvider: String, Equatable, Sendable",
+            "enum AuthTransitionKind: Equatable, Sendable",
+            "enum AuthTransitionPhase: String, Equatable, Sendable",
+            "enum AuthSessionAdoption: Equatable",
+            "struct AuthTransitionSession: Equatable, Sendable",
+            "struct AuthTransitionToken: Equatable, Sendable",
+            "struct AuthTransitionState: Equatable, Sendable",
+            "struct AccountBoundWorkLease: Equatable, Sendable"
+        ] {
+            #expect(models.contains(signature))
+        }
+        #expect(
+            presentationPolicy.contains("enum AccountPresentationPolicy")
+        )
+        #expect(!aggregate.contains("enum AccountPresentationPolicy"))
+        #expect(
+            transitionPolicy.contains("@MainActor\nenum AuthTransitionPolicy")
+        )
+        for name in [
+            "allowsAuthTransitionDuringAccountDeletionRecovery",
+            "allowsAuthenticatedRequest",
+            "shouldDeferAuthListenerSideEffects",
+            "shouldAcceptAppleSignInCallback",
+            "shouldClearOAuthSessionAfterFailure",
+            "allowsOAuthMetadataMutation",
+            "acceptsAuthenticationCallbackTarget",
+            "authSessionAdoption",
+            "shouldDeferExternalIdentityLink",
+            "shouldRestoreSourceIdentityAfterFailedSignOut"
+        ] {
+            #expect(transitionPolicy.contains("func \(name)("))
+            #expect(!aggregate.contains("func \(name)("))
+        }
+        #expect(
+            transitionPolicy.contains(
+                "nonisolated static func shouldRestoreSourceIdentityAfterFailedSignOut"
+            )
+        )
+        for declaration in [
+            "struct AccountBoundWorkCoordinator",
+            "struct AuthTransitionCoordinator",
+            "final class AuthTransitionSingleFlight"
+        ] {
+            #expect(coordinators.contains(declaration))
+            #expect(!aggregate.contains(declaration))
+        }
+
+        for source in [models, presentationPolicy, transitionPolicy, coordinators] {
+            for forbiddenToken in [
+                "import AuthenticationServices", "import GoogleSignIn",
+                "import RevenueCat", "import Supabase", ".shared",
+                "Task.detached", "@unchecked Sendable", "nonisolated(unsafe)"
+            ] {
+                #expect(
+                    !source.contains(forbiddenToken),
+                    "Auth foundation acquired a forbidden construct: \(forbiddenToken)"
+                )
+            }
+        }
+        #expect(!models.contains("Task {"))
+        #expect(!presentationPolicy.contains("Task {"))
+        #expect(!transitionPolicy.contains("Task {"))
+        #expect(
+            coordinators.components(separatedBy: "Task {").count == 2,
+            "Auth foundation must retain exactly one structured task owner"
+        )
+        #expect(
+            coordinators.contains(
+                "@MainActor\nfinal class AuthTransitionSingleFlight"
+            )
+        )
+        #expect(coordinators.contains("private var task: Task<Bool, Never>?"))
+        #expect(coordinators.contains("let task = Task { @MainActor in"))
+
+        let foundationTests = try source(
+            "apps/ios/MerianTests/Core/Network/Auth/AuthTransitionFoundationTests.swift"
+        )
+        let aggregateTests = try source(
+            "apps/ios/MerianTests/Core/Network/SupabaseManagerTests.swift"
+        )
+        let policyTests = try source(
+            "apps/ios/MerianTests/Core/Network/Auth/AuthTransitionPolicyTests.swift"
+        )
+        #expect(
+            foundationTests.contains("private actor AuthTransitionTestGate")
+        )
+        #expect(!foundationTests.contains("SupabaseManagerTestGate"))
+        for name in [
+            "testBackgroundAccountWorkQuiescenceFailurePreservesProductLanguage",
+            "testAuthTransitionCoordinatorSerializesAllSessionMutations",
+            "testDoubleSignOutCallsShareOneTransitionOperationAndResult",
+            "testSimultaneousAppleGoogleAndSignOutStartsHaveExactlyOneOwner",
+            "testAuthTransitionCoordinatorRejectsStaleCallbacksAndSessions",
+            "testAuthTransitionCoordinatorAdvancesOnlyForExpectedSignedOutEvent",
+            "testAccountBoundWorkLeasesRemainSessionBoundUntilEveryLeaseFinishes",
+            "testAccountPresentationPolicyShowsOnlyAnonymousUsersAsGuests"
+        ] {
+            #expect(foundationTests.contains("func \(name)("))
+            #expect(!aggregateTests.contains("func \(name)("))
+        }
+        for name in [
+            "testAuthSessionAdoptionDistinguishesRefreshFromSignOut",
+            "testAppleCallbackRequiresMatchingControllerAndTransition",
+            "testOAuthFailureClearsOnlyAChangedOrObservedSession",
+            "testOAuthMetadataMutationRequiresTheExactTransitionSessionBeforeAndAfterUpdate",
+            "testActiveTransitionOwnsListenerSideEffectsAndAuthenticatedRequests",
+            "testFallbackAuthenticationCallbackNeverReplacesAnAnonymousOrDifferentAccount",
+            "testEveryDeletionRecoveryPhaseAdmitsOnlyItsOwnedTransition",
+            "testEveryExternalIdentityLinkWaitsForPurchaseHandoffBinding",
+            "testFailedSignOutRestoresOnlyTheExactUnfencedSourceAccount",
+            "testNilSessionAndOwnerlessPolicyBoundariesRemainExplicit"
+        ] {
+            #expect(policyTests.contains("func \(name)("))
+            #expect(!aggregateTests.contains("func \(name)("))
+        }
     }
 
     @Test func transportAndLiveDependenciesKeepTheirReviewedOwners() throws {
@@ -432,6 +587,13 @@ struct CoreNetworkIntegrationArchitectureTests {
         "EdgeFunctionErrorPolicy.swift",
         "EdgeFunctionRoutePolicy.swift",
         "PinnedNetworkTransport.swift"
+    ]
+
+    private static let authFoundationPaths: Set<String> = [
+        "Coordinators/AuthTransitionCoordinators.swift",
+        "Models/SupabaseAuthTransitionModels.swift",
+        "Policies/AccountPresentationPolicy.swift",
+        "Policies/AuthTransitionPolicy.swift"
     ]
 
     private static let safelyReplayableReadFunctionNames: Set<String> = [

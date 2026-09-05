@@ -42,31 +42,37 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   missing/invalid-session contract after a Supabase SDK refresh also fails. This
   prevents a failing route from creating a chain of Supabase Ghost users and
   matching RevenueCat customer shells.
-- Exposes `isGuestUser` through `AccountPresentationPolicy`. It is true only
-  when the active Supabase session is anonymous or no session is available. A
-  linked session is always presented as linked. This is an internal state name;
-  product errors and controls say signed out and never render “Ghost” or “guest
-  session.”
-- Apple, Google, Sign out, anonymous recovery, credential revocation, and
-  account deletion share one generation-bound `AuthTransitionCoordinator`. Only
-  its token may adopt a destination or mutate the SDK session. Competing
-  controls disable, stale provider/controller callbacks are ignored, and every
-  account-bound write rechecks the live source/destination after suspension.
-  Confirmed deletion first persists `capability_preparation_pending`, then
-  verifies an atomic device-only envelope with distinct recovery and
-  acknowledgement capabilities before the first network suspension. It is
-  intended to complete the server's non-destructive prepare, persist
-  `capability_prepared_pending`, and then persist `capability_intake_pending`
-  before destructive commit. It fences every other account operation and replays
-  only the JWT-derived idempotent commit or account-free proof recovery after a
-  lost response. `not_committed` preserves the account and retires only local
-  intent; a success receipt advances through cleanup, independent
-  acknowledgement, and capability retirement. Verified Keychain envelope removal
-  precedes marker clearing. The blocking foreground/cold-launch recovery UI
-  never stores or displays an internal user, job, provider, request, or purchase
-  identity. The checked-in four-field prepare response is decoded by the
-  operation-specific native receipt and locked to the handler through a shared
-  fixture; see the
+- `Core/Network/Auth/Policies/AccountPresentationPolicy.swift` owns the
+  deterministic Guest-presentation decision that `SupabaseManager` exposes as
+  `isGuestUser`. It is true only when the active Supabase session is anonymous
+  or no session is available. A linked session is always presented as linked.
+  This is an internal state name; product errors and controls say signed out and
+  never render “Ghost” or “guest session.”
+- `Core/Network/Auth/Coordinators/` owns the value-state coordinator shared by
+  Apple, Google, Sign out, anonymous recovery, credential revocation, and
+  account deletion. `Core/Network/Auth/Policies/AuthTransitionPolicy.swift` owns
+  the deterministic admission, listener/request fence, callback, OAuth
+  rollback/metadata, session-adoption, and purchase-handoff decisions.
+  `SupabaseManager` stores and advances the generation-bound coordinator and
+  applies those decisions while retaining every provider, SDK-session, consent,
+  purchase-identity, recovery, and deletion effect. Only its token may adopt a
+  destination or mutate the SDK session. Competing controls disable, stale
+  provider/controller callbacks are ignored, and every account-bound write
+  rechecks the live source/destination after suspension. Confirmed deletion
+  first persists `capability_preparation_pending`, then verifies an atomic
+  device-only envelope with distinct recovery and acknowledgement capabilities
+  before the first network suspension. It is intended to complete the server's
+  non-destructive prepare, persist `capability_prepared_pending`, and then
+  persist `capability_intake_pending` before destructive commit. It fences every
+  other account operation and replays only the JWT-derived idempotent commit or
+  account-free proof recovery after a lost response. `not_committed` preserves
+  the account and retires only local intent; a success receipt advances through
+  cleanup, independent acknowledgement, and capability retirement. Verified
+  Keychain envelope removal precedes marker clearing. The blocking
+  foreground/cold-launch recovery UI never stores or displays an internal user,
+  job, provider, request, or purchase identity. The checked-in four-field
+  prepare response is decoded by the operation-specific native receipt and
+  locked to the handler through a shared fixture; see the
   [Core Network preparation contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract).
   Authorized real-session deletion remains separate release evidence.
 - **Identity Resolution & OAuth**: Merian uses standard Apple

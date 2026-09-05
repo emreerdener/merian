@@ -763,9 +763,10 @@ Implemented Core Network slices:
 - The media-storage second pass found no production regression. It corrected the
   signing test's name and documentation to describe explicit/resolved
   payload-owner mapping, not live Auth lease enforcement; the existing
-  `SupabaseManagerTests` exact-session lease and
-  `AuthenticatedRequestRetryPolicyTests` retry-account policy suites remain the
-  pure state/policy owners. The focused matrix now includes both. A private
+  `AuthTransitionFoundationTests` exact-session lease,
+  `AuthTransitionPolicyTests` transition-admission, and
+  `AuthenticatedRequestRetryPolicyTests` retry-account suites remain the pure
+  state/policy owners. The focused matrix now includes all three. A private
   per-session held-request transport adds task-owned cancellation coverage for
   both Data and file PUTs, preserving raw `URLError.cancelled` and requiring the
   underlying request to stop. Independent start/completion/stop bounds and
@@ -1885,6 +1886,69 @@ SwiftData/tombstone mutations before batching, while timestamp-conditional
 acknowledgement and a post-upsert local refetch preserve edits made during a
 network suspension. These corrections do not change the PostgREST payload, RLS
 policy, schema, route, or UI contract.
+
+### SupabaseManager Auth-transition Foundation
+
+The first `SupabaseManager` hygiene slice moves its value-only Auth transition
+and account-work lease models, existing error copy, Guest-presentation policy,
+two state coordinators, and main-actor sign-out single-flight into the mirrored
+`Core/Network/Auth/{Models,Policies,Coordinators}` owners. The 6,039-line live
+manager falls to 5,814 lines while retaining every Supabase SDK call, observable
+property, transition state instance, OAuth callback, durable Keychain journal,
+purchase-identity effect, consent effect, account-deletion workflow, public
+signature, and actor boundary.
+
+Seven deterministic tests retain their assertions and behavior while moving from
+the aggregate manager suite to
+`Core/Network/Auth/AuthTransitionFoundationTests`.
+
+The second slice moves ten deterministic decisions into the main-actor
+`Policies/AuthTransitionPolicy.swift`: deletion-recovery admission,
+transition-owned request and listener fencing, Apple callback acceptance, OAuth
+rollback and metadata guards, authentication-callback target validation,
+cold-start session adoption, external-identity handoff deferral, and failed
+sign-out purchase-identity restoration. `AuthSessionAdoption` joins the
+transition models. Every function body is byte-identical to its former manager
+implementation; `SupabaseManager` now applies the policy while retaining the
+live Auth listener, provider SDKs, transition state, and effects. The manager
+falls again from 5,814 to 5,691 lines.
+
+Nine tests initially move assertion-identically from the aggregate suite to
+`Core/Network/Auth/AuthTransitionPolicyTests`. A follow-up adversarial audit
+removes the behavior-neutral `isAnonymous` input that the external-identity
+handoff policy discarded and adds explicit nil-session and ownerless-request
+boundary coverage. It also locks the coordinator's nil expected-session path so
+an unexpected still-signed-in SDK event cannot advance sign-out generation. The
+follow-up leaves the manager at 5,690 lines and expands focused ownership to
+eight foundation tests and ten policy tests. The Core Network architecture guard
+freezes all four production paths, declarations and value conformances, the
+exact policy-function inventory, the single main-actor task owner, and the
+absence of provider SDK imports, live singleton resolution, and detached tasks.
+It also prevents the aggregate from redeclaring the extracted types/functions
+and extends the 600-line review ceiling to the new folder. Both slices and the
+follow-up preserve Auth behavior, wire payloads, persistence schemas, feature
+flags, backend contracts, and release controls.
+
+Candidate verification passed byte-stable XcodeGen regeneration, generated
+project/resource and source-membership validation, generic iOS Simulator build,
+Swift parsing, strict SwiftLint with zero violations, Markdown formatting, and
+whitespace validation. The focused Auth-transition, aggregate-manager, and Core
+Network architecture matrix passed 78 tests; the complete `merianTests` target
+passed 2,873 tests with zero failures on an iPhone 17 Pro iOS 26.5 Simulator.
+After the policy extraction, the generic simulator build and complete
+build-for-testing passed again. The final-tree focused foundation, policy,
+manager, consent-restoration, and architecture matrix passed 85 tests with zero
+failures. The complete `merianTests` target passed 2,873 tests with zero
+failures on an iPhone 17 Pro iOS 26.4.1 Simulator.
+
+The follow-up audit passed byte-stable XcodeGen, generated-project and source
+membership, event-routing and transport-security guards, strict SwiftLint,
+recursive parsing, strict-concurrency executable policy/coordinator probes,
+Markdown formatting, and whitespace validation. Fresh Xcode build and test
+reruns could not start because CoreSimulatorService became unavailable and the
+host denied SwiftPM's nested manifest sandbox. The 2,873-case result above
+therefore remains the latest complete runtime baseline; it is not presented as
+post-follow-up execution evidence.
 
 ## Phase 3: Ownership Cleanup
 

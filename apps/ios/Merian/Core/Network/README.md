@@ -34,8 +34,9 @@ the
 `MerianSupabaseClientFactory` enables `emitLocalSessionAsInitialSession`. The
 pinned Supabase Swift SDK therefore emits the cached session immediately,
 including a session whose access token is expired, and refreshes an expired
-session in the background. `SupabaseManager` classifies the initial value before
-mutating observable auth state:
+session in the background. `AuthTransitionPolicy.authSessionAdoption` classifies
+the initial value, and `SupabaseManager` applies it before mutating observable
+auth state:
 
 - no session is `.signedOut` and may resolve required-consent restoration as
   unauthenticated;
@@ -53,6 +54,18 @@ readiness without creating a provider-anonymous customer, and only then
 establishes that no active account remains. Never route an expired cached
 session through sign-out cleanup: doing so can briefly resolve restoration and
 mount the Ready approval screen before refresh completes.
+
+## Auth-transition foundation
+
+[`Auth/`](Auth/README.md) owns the value-only transition models and errors,
+Guest-presentation and transition-decision policies, exact-session account-work
+lease coordinator, exclusive transition coordinator, and main-actor sign-out
+single-flight. `SupabaseManager` remains the live Supabase Auth and workflow
+orchestrator; it stores and advances that state, applies the extracted
+admission/adoption/callback decisions, and retains OAuth, Auth-listener,
+consent, purchase-identity, durable recovery, and account-deletion effects. The
+extracted owners import no provider SDK, resolve no singleton, and change no
+externally consumed signature, error copy, actor isolation, or state transition.
 
 ## `MerianNetworkClient`
 
@@ -717,10 +730,11 @@ or 5xx responses. Its 64 KiB response check occurs after URLSession has read the
 data, before status handling; it is not a streaming memory bound. No new Auth
 admission, replay policy, task owner, or singleton is introduced.
 
-`SupabaseManager`, Core Security, and `AppDIContainer` retain transition
-ownership, Keychain proofs/markers, lost-response decisions, verified local
-sign-out, SwiftData cleanup, and proof retirement. The decoder cannot authorize
-cleanup or reinterpret a 404/410 error.
+`Core/Network/Auth/` owns deterministic transition admission; `SupabaseManager`,
+Core Security, and `AppDIContainer` retain live transition effects, Keychain
+proofs/markers, lost-response decisions, verified local sign-out, SwiftData
+cleanup, and proof retirement. The decoder cannot authorize cleanup or
+reinterpret a 404/410 error.
 [Core Security](../Security/README.md#account-deletion-recovery-authority) owns
 secure proof storage;
 [Settings](../../Features/Profile/Settings/README.md#account-deletion) continues
@@ -734,8 +748,9 @@ and [focused matrix](#account-deletion-and-recovery-verification).
 `CoreNetworkIntegrationArchitectureTests` protects the complete boundary across
 the individually extracted slices. It requires exactly 17 endpoint-extension
 owners, rejects an endpoint entry point duplicated in the remaining aggregate,
-and applies the 600-line review ceiling to every Swift owner under `Endpoints/`,
-`Inference/`, `Media/`, `Recovery/`, and `Transport/`, plus the client façade.
+and applies the 600-line review ceiling to every Swift owner under `Auth/`,
+`Endpoints/`, `Inference/`, `Media/`, `Recovery/`, and `Transport/`, plus the
+client façade.
 
 The audit also makes the remaining live-dependency exceptions explicit:
 
@@ -766,9 +781,13 @@ The audit also makes the remaining live-dependency exceptions explicit:
 - `Inference/InferenceIdentificationReviewService.swift` alone owns the live
   review dictionary projections and review RPC, both fenced by an account-work
   lease; and
-- `SupabaseManager` retains Auth-transition, consent, and application-container
-  coordination. No unlisted extracted owner may acquire these globals or create
-  a detached task.
+- `Auth/` owns the transition/lease values, presentation and transition-decision
+  policies, state coordinators, and sign-out single-flight without provider SDK
+  or singleton access. Its guard also freezes the policy-function inventory,
+  single structured task owner, and actor isolation. `SupabaseManager` retains
+  the live Auth listener, provider/SDK effects, consent, and application-
+  container coordination. No unlisted extracted owner may acquire these globals
+  or create a detached task.
 
 The suite freezes exactly six production Transport owners—three stateless
 policies, the request-scoped executor, the pinned session, and the authenticated
@@ -907,13 +926,17 @@ xcodebuild test-without-building \
   -derivedDataPath '<build-for-testing-derived-data>' \
   -destination 'id=<booted-simulator-id>' \
   -parallel-testing-enabled NO \
+  -only-testing:merianTests/AuthTransitionFoundationTests \
+  -only-testing:merianTests/AuthTransitionPolicyTests \
   -only-testing:merianTests/CoreNetworkIntegrationArchitectureTests \
   -only-testing:merianTests/PinnedNetworkTransportTests \
   -only-testing:merianTests/AuthenticatedTransportDispatcherTests \
   -only-testing:merianTests/AuthenticatedRequestExecutorTests \
   -only-testing:merianTests/AuthenticatedRequestRetryPolicyTests \
   -only-testing:merianTests/EdgeFunctionRoutePolicyTests \
-  -only-testing:merianTests/EdgeFunctionErrorPolicyTests
+  -only-testing:merianTests/EdgeFunctionErrorPolicyTests \
+  -only-testing:merianTests/SupabaseManagerTests \
+  -only-testing:merianTests/ConsentManagerRestorationTests
 ```
 
 Any endpoint inventory, transport bridge, replay classification, or reviewed
@@ -1813,9 +1836,10 @@ envelopes, and malformed counts. `MediaStorageTransportTests` covers all three
 operations' handler denials, classified refresh with identical single-read body
 snapshots, ambiguous-replay refusal, and cancellation. Private DEBUG transports
 bypass live Auth leases; these tests do not prove real-session account-switch
-fencing. The existing `SupabaseManagerTests` exact-session lease tests and
-`AuthenticatedRequestRetryPolicyTests` retry-account policy tests remain the
-pure state/policy owners; neither substitutes for live-session integration.
+fencing. The existing `AuthTransitionFoundationTests` exact-session lease tests,
+`AuthTransitionPolicyTests` transition-admission tests, and
+`AuthenticatedRequestRetryPolicyTests` retry-account tests remain the pure
+state/policy owners; none substitutes for live-session integration.
 
 `MediaStorageAPIModelsTests` owns strict wire fields, optional lifecycle IDs,
 snake-case inspection projection, and default counts.
@@ -1867,6 +1891,8 @@ xcodebuild test \
   -only-testing:merianTests/NetworkEndpointTestSupportTests \
   -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/MerianNetworkClientTests \
+  -only-testing:merianTests/AuthTransitionFoundationTests \
+  -only-testing:merianTests/AuthTransitionPolicyTests \
   -only-testing:merianTests/SupabaseManagerTests \
   -only-testing:merianTests/OfflineQueueManagerTests \
   -only-testing:merianTests/InferenceLiveRequestServiceTests \
@@ -2552,9 +2578,13 @@ User-facing logout is **Sign out**. `ProfileViewModel.signOut()` and the
 Settings danger-zone action call `transitionToGhostSession()`; user-facing copy
 does not expose internal Ghost or guest-session terminology. Apple, Google, Sign
 out, anonymous recovery, Apple credential revocation, and account deletion all
-enter one `AuthTransitionCoordinator`. Its operation token owns the source
-session, expected destination, phase, and Auth-event generation. A second
-operation cannot start while one owns the SDK; late provider callbacks and
+enter one `AuthTransitionCoordinator`. `Core/Network/Auth/` owns that
+value-state coordinator and the deterministic transition policy;
+`SupabaseManager` stores and advances the coordinator, applies those decisions,
+and retains all live Supabase SDK, provider, consent, purchase-identity,
+recovery, and deletion effects. The operation token owns the source session,
+expected destination, phase, and Auth-event generation. A second operation
+cannot start while one owns the SDK; late provider callbacks and
 wrong-controller Apple callbacks are discarded. SDK events for an unadopted
 intermediate or destination session cannot link RevenueCat, refresh entitlement,
 write metadata, or change account routes ahead of the operation owner. The

@@ -137,15 +137,18 @@ accepted/recovery receipt, status DTOs, and v2 preparation/commit payloads live
 in `AccountDeletionAPIModels.swift`; three request-only DTOs remain private to
 its endpoint file. Pure operation-specific receipt and proof/timestamp
 validation live in `Decoding/AccountDeletionResponseDecoder.swift` and
-`AccountDeletionRecoveryValidation.swift`. Auth transition admission, durable
-Keychain markers, local cleanup, and proof retirement remain with
-`SupabaseManager`, Core Security, and `AppDIContainer`. Other wire-model owners
-stay unchanged: enrichment responses remain hand-written in Core AI, while
-survey requests remain Settings Feedback-owned. `Core/Network/Transport/` owns
-stateless HTTPS endpoint construction, unavailable-route/error classification,
-retry allowlists and account binding, and value-only Auth-recovery decisions.
-Its request-scoped `AuthenticatedRequestExecutor` applies those policies and
-injected Auth, entitlement, and consent effects across one logical request.
+`AccountDeletionRecoveryValidation.swift`. `Core/Network/Auth/` owns value-only
+transition and lease models, presentation and transition-decision policies,
+coordinators, and the sign-out single-flight. `SupabaseManager` applies those
+decisions and, with Core Security and `AppDIContainer`, retains live transition
+state, provider/SDK effects, durable Keychain markers, local cleanup, and proof
+retirement. Other wire-model owners stay unchanged: enrichment responses remain
+hand-written in Core AI, while survey requests remain Settings Feedback-owned.
+`Core/Network/Transport/` owns stateless HTTPS endpoint construction,
+unavailable-route/error classification, retry allowlists and account binding,
+and value-only Auth-recovery decisions. Its request-scoped
+`AuthenticatedRequestExecutor` applies those policies and injected Auth,
+entitlement, and consent effects across one logical request.
 `PinnedNetworkTransport` owns the single configured session and TLS delegate;
 its lock-backed first-use path prevents concurrent callers from constructing
 multiple production sessions, and its host policy matches only `supabase.co` and
@@ -166,17 +169,20 @@ and mirrored test boundaries.
 
 `CoreNetworkIntegrationArchitectureTests` owns the cross-slice source guard: it
 freezes the 17 endpoint owners, prevents duplicate aggregate entry points,
-enforces the 600-line ceiling across extracted Endpoint, Inference, Media,
+enforces the 600-line ceiling across extracted Auth, Endpoint, Inference, Media,
 Recovery, and Transport owners, and applies the same ceiling to the client
-façade. It also requires exactly one endpoint owner for every safe-read or
-idempotency-aware replay classification and exactly six Transport owners: three
-stateless policies, the request-scoped executor, the pinned session, and the
-authenticated dispatcher. The guard freezes sole-session injection and keeps
-per-attempt Auth leasing out of both the façade and executor while the executor
-owns bounded retry state and applies ordinary versus transition-owned refresh
-through injected closures. `get-filtered-discovery-feed` remains a documented
-backend function but is intentionally absent from the iOS replay set because the
-app has no endpoint owner or caller for it. See the
+façade. It freezes ownership of the exact four Auth paths, relocated
+declarations and policy functions, the sole main-actor task owner, and the
+provider-SDK/singleton exclusion. It also requires exactly one endpoint owner
+for every safe-read or idempotency-aware replay classification and exactly six
+Transport owners: three stateless policies, the request-scoped executor, the
+pinned session, and the authenticated dispatcher. The guard freezes sole-session
+injection and keeps per-attempt Auth leasing out of both the façade and executor
+while the executor owns bounded retry state and applies ordinary versus
+transition-owned refresh through injected closures.
+`get-filtered-discovery-feed` remains a documented backend function but is
+intentionally absent from the iOS replay set because the app has no endpoint
+owner or caller for it. See the
 [integration-audit contract](Merian/Core/Network/README.md#core-network-integration-audit).
 
 ## Core Preferences Ownership

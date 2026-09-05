@@ -325,9 +325,11 @@ provider attempt successful from an Apple error response.
   for the accepted-owner integration evidence boundary and manual checklist.
   Their preparation tests consume the same exact four-field fixture as the Deno
   handler test and also prove it cannot decode as an accepted receipt.
-- `SupabaseManagerTests`, `MerianNetworkClientTests`, and `AppDIContainerTests`:
-  bounded registration retry, shared Auth refresh policy, subject-bound
-  credential-state handling, durable notice persistence, exact
+- `AuthTransitionFoundationTests`, `AuthTransitionPolicyTests`,
+  `SupabaseManagerTests`, `MerianNetworkClientTests`, and `AppDIContainerTests`:
+  exclusive transition/lease state, recovery-phase admission, transition-owned
+  request fencing, bounded registration retry, shared Auth refresh policy,
+  subject-bound credential-state handling, durable notice persistence, exact
   prepare/owner/marker/commit ordering, pre-commit owner/marker
   short-circuiting, stale post-commit owner classification, recovery phase
   order, ambiguous-response retention, and terminal capability retirement.

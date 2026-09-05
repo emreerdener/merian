@@ -115,7 +115,8 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
     restoration
   - `Hardware/`: `CameraManager`, `HardwareOrchestrator`,
     `EnvironmentContextManager`, `AudioCaptureManager`, `SpectrogramActor`
-  - `Network/`: `MerianNetworkClient`, `SupabaseManager`
+  - `Network/`: `MerianNetworkClient`, the live `SupabaseManager` orchestrator,
+    and `Auth/` value models, policies, and coordinators
   - `Security/`: `CircuitBreakerManager`, `DeviceIdentityManager`,
     `EntitlementManager`, `RevenueCatManager`, `SocialGuardManager`
   - `SpeciesReference/`: shared non-UI Wikipedia mobile-sections and GBIF

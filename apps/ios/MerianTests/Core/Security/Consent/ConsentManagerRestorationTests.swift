@@ -1,5 +1,5 @@
-@testable import Merian
 import Foundation
+@testable import Merian
 import XCTest
 
 @MainActor
@@ -25,7 +25,7 @@ final class ConsentManagerRestorationTests: ConsentManagerTestCase {
             analyticsPermissionApplier: { _, _ in }
         )
 
-        let adoption = SupabaseManager.authSessionAdoption(
+        let adoption = AuthTransitionPolicy.authSessionAdoption(
             userId: ownerUserId,
             isExpired: true
         )

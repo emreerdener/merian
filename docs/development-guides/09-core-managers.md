@@ -1586,10 +1586,13 @@ consults that Keychain entry.
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#inference-verification).
 - `CoreNetworkIntegrationArchitectureTests` owns the cross-slice Network source
   contract. It freezes the exact 17 endpoint owners, rejects aggregate method
-  duplication, enforces the 600-line owner ceiling across Endpoint, Inference,
-  Media, Recovery, Transport, and the client façade, and requires exactly six
-  Transport files: three stateless policies, one request-scoped executor, one
-  pinned session, and one authenticated dispatcher. It also requires exactly one
+  duplication, enforces the 600-line owner ceiling across Auth, Endpoint,
+  Inference, Media, Recovery, Transport, and the client façade, and requires the
+  exact four Auth foundation paths plus six Transport files. The Auth guard
+  freezes relocated declaration and policy-function ownership, main-actor task
+  isolation, and the provider-SDK/singleton exclusion. The six Transport files
+  remain three stateless policies, one request-scoped executor, one pinned
+  session, and one authenticated dispatcher. The suite also requires exactly one
   endpoint owner for every safe-read or idempotency-aware replay classification,
   keeps async/global refresh effects out of stateless Transport policies, and
   verifies the executor applies both `UnauthorizedRefreshTarget` branches
@@ -1767,12 +1770,14 @@ consults that Keychain entry.
   auth state listener task is stored rather than fire-and-forget, consistent
   with the task handle pattern used across the engine layer. This allows the
   task to be cancelled on deinit and prevents duplicate listener registration.
-- **Cold-start session adoption**: `AuthSessionAdoption` distinguishes no
-  session, a valid session, and an expired cached session awaiting SDK refresh.
-  The awaiting-refresh path leaves `isAuthenticated` false and `currentUser`
-  unset, but passes the cached user ID to `ConsentManager` so required-consent
-  restoration cannot briefly resolve to Ready. The subsequent `tokenRefreshed`
-  or `signedOut` event completes the decision.
+- **Cold-start session adoption**:
+  `Core/Network/Auth/Policies/AuthTransitionPolicy.swift` classifies no session,
+  a valid session, and an expired cached session awaiting SDK refresh as an
+  `AuthSessionAdoption`. `SupabaseManager` applies that value. The awaiting-
+  refresh path leaves `isAuthenticated` false and `currentUser` unset, but
+  passes the cached user ID to `ConsentManager` so required-consent restoration
+  cannot briefly resolve to Ready. The subsequent `tokenRefreshed` or
+  `signedOut` event completes the live workflow.
 - **Purchase-principal resolver**: each usable Auth session outside a pending
   protocol-3 stable sign-out passes through one single-flight
   `resolveAndLinkPurchasePrincipal` operation. A pending fresh-anonymous
@@ -1785,14 +1790,22 @@ consults that Keychain entry.
   server rejects older intents, while Auth-event generation checks before and
   after the serialized SDK identity mutation prevent a late result from an old
   session from installing paid readiness for a new one.
-- **Unified Auth-transition ownership**: one `AuthTransitionCoordinator` owns
-  Apple, Google, Sign out, recovery, Apple credential revocation, and account
-  deletion. Its token records kind, phase, source, expected destination, and
-  Auth generation. Competing operations cannot begin; stale provider callbacks
-  and wrong Apple controllers are ignored. Account-bound metadata, purchase,
-  entitlement, and routing writes verify token ownership plus the live session
-  after suspension. The Auth listener observes basic SDK state but cannot run
-  identity side effects ahead of the active owner.
+- **Unified Auth-transition ownership**: `Core/Network/Auth/` owns the
+  value-only transition models and errors, Guest-presentation policy,
+  deterministic transition policy, exact-session work lease coordinator,
+  exclusive transition coordinator, and main-actor sign-out single-flight.
+  `AuthTransitionPolicy` decides recovery admission, request/listener fencing,
+  provider-callback acceptance, OAuth cleanup and metadata guards, cold-start
+  adoption, and purchase-handoff restoration. `SupabaseManager` applies those
+  decisions, retains live transition state, and uses the one
+  `AuthTransitionCoordinator` for Apple, Google, Sign out, recovery, Apple
+  credential revocation, and account deletion. Its token records kind, phase,
+  source, expected destination, and Auth generation. Competing operations cannot
+  begin; stale provider callbacks and wrong Apple controllers are ignored.
+  Account-bound metadata, purchase, entitlement, and routing writes verify token
+  ownership plus the live session after suspension. The extracted foundation
+  imports no provider SDK or singleton; the Auth listener and provider-dependent
+  Apple credential-state decision remain manager-owned.
 - **Stable versus legacy identity**: stable mode passes the immutable
   server-issued purchase-principal ID and binding generation to
   `RevenueCatManager`. It clears and synchronizes legacy account attributes,

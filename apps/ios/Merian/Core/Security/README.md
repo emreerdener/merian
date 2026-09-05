@@ -128,13 +128,15 @@ decide whether a receipt permits local erasure. A present or unreadable proof
 restores the conservative barrier before Auth bootstrap; verified absence can
 resolve that lookup barrier without deleting data.
 
-`SupabaseManager` retains the exact-session transition, durable phase ordering,
-receipt/error decisions, and local sign-out. `AppDIContainer` and the Settings
-purge adapter retain private-map/SwiftData cleanup composition. Only the
-workflow owner requests proof retirement; the store verifies Keychain removal
-before the workflow clears its marker. A definitive uncommitted v2 intent can
-retire its proof without signing out or purging, unlike accepted-deletion
-cleanup.
+`Core/Network/Auth/` owns the value-only transition/session/lease models,
+deterministic admission and restoration policy, and exact-session coordinators.
+`SupabaseManager` applies those decisions and retains live transition state,
+durable phase ordering, receipt/error decisions, and local sign-out.
+`AppDIContainer` and the Settings purge adapter retain private-map/SwiftData
+cleanup composition. Only the workflow owner requests proof retirement; the
+store verifies Keychain removal before the workflow clears its marker. A
+definitive uncommitted v2 intent can retire its proof without signing out or
+purging, unlike accepted-deletion cleanup.
 
 The
 [Keychain contract](../../../../../docs/development-guides/05-keychain-and-secrets.md)

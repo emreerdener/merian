@@ -94,24 +94,28 @@ generation, and a server-captured fence over every resolver intent issued before
 preparation.
 
 iOS also has one generation-bound `AuthTransitionCoordinator` for Apple, Google,
-Sign out, recovery, credential revocation, and account deletion. The owner token
-records the source session and expected destination. Competing controls are
-disabled, stale provider/controller callbacks are discarded, and Auth-listener
-side effects cannot overtake the operation that owns the SDK. Every
-account-bound metadata, RevenueCat, entitlement, and routing write revalidates
-that token and the live session after its last suspension point. Ordinary direct
-Supabase and HTTP work additionally holds an exact-session lease. Transition
-admission closes before the drain begins; the owner cancels and awaits consent
-synchronization, waits for all admitted leases and collection work, and changes
-the SDK session only after that boundary is empty. 401 recovery runs only after
-the failed request releases its lease. Realtime channels stop while a transition
-is active and restart only for the verified final account. Inference requests
-bind their body, JWT, and expected Auth UUID in one typed value, and background
-dispatch holds the exact-session lease through task resume. Offline media
-signing and upload dispatch use the same captured UUID, reject a returned object
-key for any other canonical owner, and hold the lease through task resume.
-Anonymous session restore/creation is a coordinator-owned transition, not a
-parallel bootstrap exception.
+Sign out, recovery, credential revocation, and account deletion. The value-state
+owner and deterministic `AuthTransitionPolicy` live under `Core/Network/Auth/`;
+`SupabaseManager` stores and advances the coordinator, applies the policy, and
+retains provider, SDK-session, purchase-identity, recovery, and deletion
+effects. The owner token records the source session and expected destination.
+Competing controls are disabled, stale provider/controller callbacks are
+discarded, and the extracted listener/request fence prevents Auth-listener side
+effects from overtaking the operation that owns the SDK. Every account-bound
+metadata, RevenueCat, entitlement, and routing write revalidates that token and
+the live session after its last suspension point. Ordinary direct Supabase and
+HTTP work additionally holds an exact-session lease. Transition admission closes
+before the drain begins; the owner cancels and awaits consent synchronization,
+waits for all admitted leases and collection work, and changes the SDK session
+only after that boundary is empty. 401 recovery runs only after the failed
+request releases its lease. Realtime channels stop while a transition is active
+and restart only for the verified final account. Inference requests bind their
+body, JWT, and expected Auth UUID in one typed value, and background dispatch
+holds the exact-session lease through task resume. Offline media signing and
+upload dispatch use the same captured UUID, reject a returned object key for any
+other canonical owner, and hold the lease through task resume. Anonymous session
+restore/creation is a coordinator-owned transition, not a parallel bootstrap
+exception.
 
 RevenueCat webhooks and reconciliation first resolve the private stable mapping
 and only then use legacy UUID fallback. StoreKit state, legacy provider state,

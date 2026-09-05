@@ -292,9 +292,10 @@ A structured schema built on native SwiftData migrations:
 ## Identity Pipeline
 
 - `DeviceIdentityManager` reads `identifierForVendor` as an install/analytics
-  fallback. It is not billing authority. `SupabaseManager` creates and restores
-  anonymous Supabase sessions independently, under the serialized
-  `AuthTransitionCoordinator`.
+  fallback. It is not billing authority. `Core/Network/Auth/` owns the
+  value-only `AuthTransitionCoordinator` and deterministic transition policy;
+  `SupabaseManager` stores and advances the coordinator, applies the policy, and
+  creates or restores anonymous Supabase sessions independently.
 - Stable purchase identity uses a separate random 256-bit
   `WhenUnlockedThisDeviceOnly` installation capability. The authenticated
   `/resolve-purchase-principal` route stores only SHA-256, derives the Auth user
