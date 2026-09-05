@@ -53,9 +53,29 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   account deletion. `Core/Network/Auth/Policies/AuthTransitionPolicy.swift` owns
   the deterministic admission, listener/request fence, callback, OAuth
   rollback/metadata, session-adoption, and purchase-handoff decisions.
-  `SupabaseManager` stores and advances the generation-bound coordinator and
-  applies those decisions while retaining every provider, SDK-session, consent,
-  purchase-identity, recovery, and deletion effect. Only its token may adopt a
+  `Core/Network/Auth/Coordinators/PurchaseIdentitySignOutWorkflow.swift` owns
+  deterministic ordinary and purchase-safe sign-out phase ordering, including
+  cancellation before the legacy server destination bind and after every
+  asynchronous completion phase. `SupabaseManager` stores and advances the
+  generation-bound coordinator and applies those decisions while retaining every
+  live provider, SDK-session, consent, and purchase-identity effect. The exact
+  legacy/stable journal models, validation, and verified device-only Keychain
+  storage live in `Core/Security/PurchaseIdentity/`; the manager injects the
+  live Keychain adapter rather than duplicating that persistence policy.
+  `Core/Network/Auth/Policies/GhostProfileMergePolicy.swift` owns deterministic
+  ghost-handoff replacement and terminal-code classification, and
+  `Core/Network/Auth/Coordinators/GhostProfileMergeWorkflow.swift` owns server,
+  purchase, local-evidence, and proof-removal order with cancellation fences.
+  The exact handoff/queue models, legacy migration, validation, and verified
+  device-only Keychain storage live in `Core/Security/GhostProfileMerge/`; the
+  manager injects that store's live adapter and retains the endpoint, session,
+  provider, consent, retry, lifecycle, and logging effects.
+  `Core/Network/Auth/Policies/AccountDeletionTransitionPolicy.swift` owns
+  deterministic deletion error/session classification, while
+  `Core/Network/Auth/Coordinators/AccountDeletionWorkflow.swift` owns
+  closure-injected intake, cleanup, restoration, and retirement ordering. The
+  manager applies the deletion decisions and retains their live endpoint,
+  Keychain, Auth, purge, and lifecycle effects. Only its token may adopt a
   destination or mutate the SDK session. Competing controls disable, stale
   provider/controller callbacks are ignored, and every account-bound write
   rechecks the live source/destination after suspension. Confirmed deletion
@@ -122,6 +142,9 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     sessions, the live Ghost session requests a one-use `/merge-ghost-profile`
     handoff bound to the exact OAuth provider subject and persists its 256-bit
     secret in a versioned, foreground-accessible, device-only Keychain queue.
+    `GhostProfileMergeStore` is the sole codec and storage-policy owner for that
+    queue. It preserves the legacy single-record proof when migration cannot be
+    verified and rejects malformed evidence without interpreting it as absence.
     The proof remains valid for 30 days. After sign-in, only the permanent
     account that owns that provider identity can consume it. PostgreSQL locks
     both users, resolves uniqueness conflicts, and transfers ownership in one
@@ -148,9 +171,13 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     source's active finite or lifetime Pro horizon, and only then allows
     obsolete source Auth deletion. The iOS durable completion then calls
     `syncPurchases()` under the required **Transfer to new App User ID** project
-    behavior before rebinding local evidence and removing its proof. The worker
-    repeats server preservation before cleanup if the client disappears. Beta
-    grants accept both verified active Ghost and linked Auth identities.
+    behavior before rebinding local evidence and removing its proof.
+    `GhostProfileMergeWorkflow` makes that proof removal the final phase and
+    checks cancellation before the server call and after each asynchronous
+    phase. Only terminal server codes—not the device clock—permit proof
+    retirement without successful completion. The service-role worker repeats
+    server preservation before cleanup if the client disappears. Beta grants
+    accept both verified active Ghost and linked Auth identities.
   - The schema-aware conflict fallback remains release-gated until that durable
     queue behavior, RevenueCat and Community lock ordering, both scan-ledger
     error mappings, exact-version catalog replay, and staging concurrency probes
@@ -214,6 +241,17 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     activation retries this exact binding after transient resolver,
     account-cleanup, Keychain, or provider failure, so recovery does not depend
     on another Auth callback and never rotates the capability or provider ID.
+    `PurchaseIdentityHandoffStore` owns both journals' explicit camel-case local
+    JSON fields, fail-closed validation before writes and after reads, exact key
+    and accessibility, byte read-back, and verified removal.
+    `PurchaseIdentitySignOutWorkflow` owns the
+    preparation/sign-out/replacement/completion order; `SupabaseManager`
+    supplies the live server, Auth, RevenueCat, entitlement, session, logging,
+    and retry effects. Before an operation may replace the Auth identity, the
+    manager rereads both durable journal types and treats either unavailable
+    secure read as still pending. Paid actions consume that derived projection;
+    cached UI state is not absence authority for identity replacement. No
+    payload or provider behavior moves into the store or workflow.
   - While the rollout response is `mode: legacy`, sign-out retains the existing
     `/transfer-signout-purchases` compatibility flow: prepare StoreKit-only
     state, verify a device-only proof before local sign-out, bind exactly one

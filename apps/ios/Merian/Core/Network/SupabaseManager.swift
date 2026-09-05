@@ -22,68 +22,6 @@ private struct RevenueCatPublicIdentity: Decodable {
     }
 }
 
-private struct LegacyPrincipalRotation: Codable, Equatable {
-    let sourceUserId: String
-    let purchasePrincipalId: String
-    let revenueCatAppUserId: String
-    let installationCapabilityFingerprint: String
-    let startedAt: String
-}
-
-private enum PrincipalRotationLocalState: String, Codable {
-    case preparing
-    case prepared
-}
-
-private struct ServerPrincipalRotation: Codable, Equatable {
-    let protocolVersion: Int
-    let localState: PrincipalRotationLocalState
-    let rotationId: String
-    let rotationSecret: String
-    let sourceUserId: String
-    let purchasePrincipalId: String
-    let revenueCatAppUserId: String
-    let bindingGeneration: Int64
-    let installationCapabilityFingerprint: String
-    let startedAt: String
-    let expiresAt: String?
-}
-
-private enum PendingPurchasePrincipalAuthRotation: Equatable {
-    case legacy(LegacyPrincipalRotation)
-    case server(ServerPrincipalRotation)
-
-    var sourceUserId: String {
-        switch self {
-        case let .legacy(rotation): rotation.sourceUserId
-        case let .server(rotation): rotation.sourceUserId
-        }
-    }
-
-    var purchasePrincipalId: String {
-        switch self {
-        case let .legacy(rotation): rotation.purchasePrincipalId
-        case let .server(rotation): rotation.purchasePrincipalId
-        }
-    }
-
-    var revenueCatAppUserId: String {
-        switch self {
-        case let .legacy(rotation): rotation.revenueCatAppUserId
-        case let .server(rotation): rotation.revenueCatAppUserId
-        }
-    }
-
-    var installationCapabilityFingerprint: String {
-        switch self {
-        case let .legacy(rotation):
-            rotation.installationCapabilityFingerprint
-        case let .server(rotation):
-            rotation.installationCapabilityFingerprint
-        }
-    }
-}
-
 // MARK: - Supabase Manager
 
 /// Manages the global Supabase connection, auth state, and OAuth sign-in flows.
@@ -136,25 +74,6 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         let operation = "refresh_identity"
     }
 
-    struct PendingGhostProfileMerge: Codable, Equatable {
-        let ghostUserId: String
-        let provider: String
-        let providerSubject: String
-        let handoffId: String
-        let handoffSecret: String
-        let expiresAt: String
-    }
-
-    struct PendingGhostProfileMergeQueue: Codable, Equatable {
-        let version: Int
-        var handoffs: [PendingGhostProfileMerge]
-
-        init(handoffs: [PendingGhostProfileMerge]) {
-            self.version = 1
-            self.handoffs = handoffs
-        }
-    }
-
     private struct GhostProfileMergeErrorPayload: Decodable {
         let code: String?
     }
@@ -191,19 +110,14 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         let code: String?
     }
 
-    struct PendingSignOutPurchaseHandoff: Codable, Equatable {
-        let sourceUserId: String
-        let handoffId: String
-        let handoffSecret: String
-        let expiresAt: String
-    }
-
     // MARK: - Singleton Architecture
     static let shared = SupabaseManager()
 
     // MARK: - Client
     let client: SupabaseClient
     private let purchasePrincipalResolver: PurchasePrincipalResolver
+    private let ghostProfileMergeStore: GhostProfileMergeStore
+    private let purchaseIdentityHandoffStore: PurchaseIdentityHandoffStore
 
     // MARK: - State
     var currentUser: User?
@@ -397,13 +311,20 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         self.purchasePrincipalResolver = PurchasePrincipalResolver(
             client: client
         )
+        let keychain = KeychainManager.shared
+        self.ghostProfileMergeStore = GhostProfileMergeStore(
+            dependencies: .live(keychain: keychain)
+        )
+        self.purchaseIdentityHandoffStore = PurchaseIdentityHandoffStore(
+            dependencies: .live(keychain: keychain)
+        )
 
         super.init()
 
         // Remove the retired presentation-only logout marker. Linked sessions
         // must restore as linked accounts; ordinary logout creates a new
         // anonymous session instead of masking an authenticated one.
-        KeychainManager.shared.removeObject(forKey: KeychainKeys.legacyGhostModeUserID)
+        keychain.removeObject(forKey: KeychainKeys.legacyGhostModeUserID)
         do {
             let pendingLegacyHandoff = try loadPendingSignOutPurchaseHandoff()
             let pendingStableRotation = try loadPendingPurchasePrincipalAuthRotation()
@@ -1212,8 +1133,9 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
     ) async -> Bool {
         let accountWorkLease: AccountBoundWorkLease?
         if let transition {
-            guard ownsAuthTransition(transition),
-                  client.auth.currentSession?.user.id == user.id else {
+            guard currentSessionMatchesAuthTransition(transition),
+                  transitionSession(from: client.auth.currentSession?.user) ==
+                    transitionSession(from: user) else {
                 return false
             }
             accountWorkLease = nil
@@ -1252,8 +1174,9 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         }
         let didLink = await ensureTelemetryLinkedIfNeeded(for: user)
         if let transition {
-            guard ownsAuthTransition(transition),
-                  client.auth.currentSession?.user.id == user.id else {
+            guard currentSessionMatchesAuthTransition(transition),
+                  transitionSession(from: client.auth.currentSession?.user) ==
+                    transitionSession(from: user) else {
                 return false
             }
         } else if let accountWorkLease {
@@ -1696,8 +1619,8 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
             if preparedCapability.supportsPreparedCommit,
                let acknowledgementCapability =
                 preparedCapability.acknowledgementValue {
-                receipt = try await Self
-                    .performPreparedAccountDeletionIntake(
+                receipt = try await AccountDeletionWorkflow
+                    .performPreparedIntake(
                         prepareDeletion: {
                             try await prepareDeletionV2(
                                 transition,
@@ -1705,8 +1628,8 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                                 acknowledgementCapability
                             )
                         },
-                        verifyPreparationOwner: {
-                            self.ownsAuthTransition(transition)
+                        verifyPreparationContext: {
+                            self.currentSessionMatchesAuthTransition(transition)
                         },
                         recordCapabilityPreparedPending: {
                             AccountDeletionLocalCleanupStore
@@ -1722,12 +1645,12 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                                 preparedCapability.recoveryValue
                             )
                         },
-                        verifyCommitOwner: {
-                            self.ownsAuthTransition(transition)
+                        verifyCommitContext: {
+                            self.currentSessionMatchesAuthTransition(transition)
                         }
                     )
             } else {
-                receipt = try await Self.performDurableAccountDeletionIntake(
+                receipt = try await AccountDeletionWorkflow.performDurableIntake(
                     recordIntakePending: {
                         AccountDeletionLocalCleanupStore.recordIntakePending()
                     },
@@ -1737,15 +1660,17 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                             preparedCapability.recoveryValue
                         )
                     },
-                    verifyReceiptOwner: {
-                        guard self.ownsAuthTransition(transition) else {
+                    verifyResultContext: {
+                        guard self.currentSessionMatchesAuthTransition(
+                            transition
+                        ) else {
                             throw SupabaseAuthTransitionError
                                 .signOutSessionChanged
                         }
                     },
                     clearIntakeAfterDefinitiveRejection: {
-                        _ = Self
-                            .performDefinitiveAccountDeletionIntakeRejectionRetirement(
+                        _ = AccountDeletionWorkflow
+                            .performDefinitiveIntakeRejectionRetirement(
                                 recordRejectionRetirementPending: {
                                     AccountDeletionLocalCleanupStore
                                         .recordCapabilityRejectionRetirementPending()
@@ -1768,12 +1693,13 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
             }
         } catch {
             if preparedCapability.protocolVersion == 2,
-               Self.isDefinitiveAccountDeletionIntakeRejection(error),
+               AccountDeletionTransitionPolicy.isDefinitiveIntakeRejection(error),
                let cancellation = try? await recoverDeletionV2(
                    preparedCapability.recoveryValue
-               ), cancellation.status == .notCommitted {
-                _ = Self
-                    .performDefinitiveAccountDeletionIntakeRejectionRetirement(
+               ), self.currentSessionMatchesAuthTransition(transition),
+               cancellation.status == .notCommitted {
+                _ = AccountDeletionWorkflow
+                    .performDefinitiveIntakeRejectionRetirement(
                         recordRejectionRetirementPending: {
                             AccountDeletionLocalCleanupStore
                                 .recordCapabilityRejectionRetirementPending()
@@ -1799,7 +1725,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         }
 
         _ = updateAuthTransition(transition, phase: .finalizing)
-        let didPurge = await Self.performAcceptedAccountDeletionCleanup(
+        let didPurge = await AccountDeletionWorkflow.performAcceptedCleanup(
             receipt: receipt,
             recordCleanupPending: {
                 AccountDeletionLocalCleanupStore.recordCleanupPending()
@@ -1824,6 +1750,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                         )
                     }
                     return acknowledgement.recoveryAcknowledged == true
+                        && self.currentSessionMatchesAuthTransition(transition)
                 } catch {
                     MerianLog.auth.error(
                         "Account deletion cleanup acknowledgement remains pending; kind=\(MerianLog.errorKind(error), privacy: .public)."
@@ -1855,43 +1782,6 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         return receipt
     }
 
-    nonisolated static func canRestoreDeferredDeletionBarrierSession(
-        markerIsPending: Bool,
-        sourceSession: AuthTransitionSession?,
-        cachedUserID: UUID?,
-        cachedUserIsAnonymous: Bool,
-        cachedSessionIsExpired: Bool
-    ) -> Bool {
-        guard markerIsPending,
-              !cachedSessionIsExpired,
-              let sourceSession,
-              let cachedUserID else {
-            return false
-        }
-        return sourceSession.userID == cachedUserID
-            && sourceSession.isAnonymous == cachedUserIsAnonymous
-    }
-
-    /// The transition coordinator must adopt the exact cached source before
-    /// the durable deletion barrier is removed. Observable account state is
-    /// published only after marker removal is read back successfully. Because
-    /// every closure is synchronous on MainActor, ordinary account work cannot
-    /// enter between these steps.
-    static func performDeferredDeletionBarrierSessionRestoration(
-        markerIsPending: @MainActor () -> Bool,
-        adoptCachedSession: @MainActor () -> Bool,
-        resolveCleanup: @MainActor () -> Bool,
-        publishCachedSession: @MainActor () -> Bool
-    ) -> Bool {
-        guard markerIsPending(),
-              adoptCachedSession(),
-              resolveCleanup(),
-              !markerIsPending() else {
-            return false
-        }
-        return publishCachedSession()
-    }
-
     /// An account-deletion barrier intentionally suppresses SDK Auth events.
     /// When recovery proves that no destructive commit won, adopt the exact
     /// cached source session while the cleanup transition still owns Auth. Do
@@ -1911,7 +1801,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         } catch {
             return false
         }
-        guard Self.canRestoreDeferredDeletionBarrierSession(
+        guard AccountDeletionTransitionPolicy.canRestoreDeferredBarrierSession(
             markerIsPending: AccountDeletionLocalCleanupStore.isPending(),
             sourceSession: sourceSession,
             cachedUserID: session.user.id,
@@ -1924,8 +1814,8 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
             return false
         }
 
-        let didRestore = Self
-            .performDeferredDeletionBarrierSessionRestoration(
+        return AccountDeletionWorkflow
+            .restoreDeferredBarrierSession(
                 markerIsPending: {
                     AccountDeletionLocalCleanupStore.isPending()
                 },
@@ -1942,19 +1832,16 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                         for: transition
                     )
                 },
+                validateCachedSession: {
+                    self.client.auth.currentSession?.user.id == session.user.id
+                        && self.client.auth.currentSession?.user.isAnonymous ==
+                        session.user.isAnonymous
+                        && self.currentSessionMatchesAuthTransition(transition)
+                },
                 resolveCleanup: {
                     AccountDeletionLocalCleanupStore.resolve()
                 },
                 publishCachedSession: {
-                    guard self.ownsAuthTransition(transition),
-                          self.client.auth.currentSession?.user.id ==
-                            session.user.id,
-                          self.client.auth.currentSession?.user.isAnonymous ==
-                            session.user.isAnonymous,
-                          self.currentSessionMatchesAuthTransition(transition)
-                    else {
-                        return false
-                    }
                     if self.currentUser?.id != session.user.id {
                         self.activePurchasePrincipalBinding = nil
                         self.lastLinkedUserId = nil
@@ -1967,32 +1854,8 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                     self.schedulePublicAuthorIdentityRefreshIfNeeded(
                         for: session.user
                     )
-                    return true
                 }
             )
-        guard didRestore else {
-            return false
-        }
-
-        if !TestExecutionCoordinator.isRunningTests {
-            _ = await ensureTelemetryLinkedWhenSafe(
-                for: session.user,
-                ownedBy: transition
-            )
-        }
-        guard ownsAuthTransition(transition),
-              currentSessionMatchesAuthTransition(transition),
-              currentUser?.id == session.user.id else {
-            return false
-        }
-        await EntitlementManager.shared.beginSession(
-            userID: session.user.id,
-            client: client
-        )
-        return ownsAuthTransition(transition)
-            && currentSessionMatchesAuthTransition(transition)
-            && currentUser?.id == session.user.id
-            && isAuthenticated
     }
 
     /// Resumes the local half of a server-accepted deletion before any cached
@@ -2052,8 +1915,8 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         defer { finishAuthTransition(transition) }
 
         if recoveryState == .capabilityRejectionRetirementPending {
-            let didRetireProof = Self
-                .performRejectedAccountDeletionRecoveryProofRetirement(
+            let didRetireProof = AccountDeletionWorkflow
+                .retireRejectedRecoveryProof(
                 retireRecoveryCapability: {
                     do {
                         try recoveryCapabilityStore.clearVerified()
@@ -2070,7 +1933,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         }
 
         if recoveryState == .capabilityRetirementPending {
-            return await Self.performAccountDeletionRecoveryRetirement(
+            return await AccountDeletionWorkflow.performRecoveryRetirement(
                 performLocalSignOut: {
                     await self.performVerifiedLocalSignOut(
                         ownedBy: transition
@@ -2186,7 +2049,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
             )
         }
 
-        return await Self.performPendingAccountDeletionLocalCleanup(
+        return await AccountDeletionWorkflow.performPendingLocalCleanup(
             performLocalSignOut: {
                 await self.performVerifiedLocalSignOut(ownedBy: transition)
             },
@@ -2220,18 +2083,21 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
             receipt = try await recoverDeletion(
                 capability.recoveryValue
             )
-            guard ownsAuthTransition(transition),
+            guard currentSessionMatchesAuthTransition(transition),
                   receipt.protocolVersion == 2 else {
                 return false
             }
         } catch {
-            if Self.isUnknownAccountDeletionRecovery(error) {
+            guard currentSessionMatchesAuthTransition(transition) else {
+                return false
+            }
+            if AccountDeletionTransitionPolicy.isUnknownRecovery(error) {
                 // A v2 destructive commit cannot run until its durable
                 // preparation exists. Unknown proof therefore proves there is
                 // no committed deletion receipt and authorizes proof-only
                 // retirement after a missing or never-completed preparation.
-                let didRetireProof = Self
-                    .performDefinitiveAccountDeletionIntakeRejectionProofRetirement(
+                let didRetireProof = AccountDeletionWorkflow
+                    .retireDefinitiveIntakeRejectionProof(
                         recordRejectionRetirementPending: {
                             AccountDeletionLocalCleanupStore
                                 .recordCapabilityRejectionRetirementPending()
@@ -2250,7 +2116,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                     ownedBy: transition
                 )
             }
-            if Self.isAcceptedExpiredAccountDeletionRecovery(error) {
+            if AccountDeletionTransitionPolicy.isAcceptedExpiredRecovery(error) {
                 receipt = AccountDeletionReceipt(
                     success: true,
                     status: .pending,
@@ -2263,8 +2129,8 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         }
 
         if receipt.status == .notCommitted {
-            let didRetireProof = Self
-                .performDefinitiveAccountDeletionIntakeRejectionProofRetirement(
+            let didRetireProof = AccountDeletionWorkflow
+                .retireDefinitiveIntakeRejectionProof(
                     recordRejectionRetirementPending: {
                         AccountDeletionLocalCleanupStore
                             .recordCapabilityRejectionRetirementPending()
@@ -2288,7 +2154,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         }
 
         _ = updateAuthTransition(transition, phase: .finalizing)
-        return await Self.performAcceptedAccountDeletionCleanup(
+        return await AccountDeletionWorkflow.performAcceptedCleanup(
             receipt: receipt,
             recordCleanupPending: {
                 AccountDeletionLocalCleanupStore.recordCleanupPending()
@@ -2304,6 +2170,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                         acknowledgementCapability
                     )
                     return acknowledgement.recoveryAcknowledged == true
+                        && self.currentSessionMatchesAuthTransition(transition)
                 } catch {
                     return false
                 }
@@ -2364,9 +2231,13 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                         capability
                     )
                 } catch {
-                    if Self.isDefinitiveAccountDeletionIntakeRejection(error) {
-                        let didRetireProof = Self
-                            .performDefinitiveAccountDeletionIntakeRejectionProofRetirement(
+                    guard currentSessionMatchesAuthTransition(transition) else {
+                        return false
+                    }
+                    if AccountDeletionTransitionPolicy
+                        .isDefinitiveIntakeRejection(error) {
+                        let didRetireProof = AccountDeletionWorkflow
+                            .retireDefinitiveIntakeRejectionProof(
                                 recordRejectionRetirementPending: {
                                     AccountDeletionLocalCleanupStore
                                         .recordCapabilityRejectionRetirementPending()
@@ -2391,12 +2262,15 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
             } else {
                 receipt = try await recoverDeletion(capability, false)
             }
-            guard ownsAuthTransition(transition) else {
+            guard currentSessionMatchesAuthTransition(transition) else {
                 return false
             }
         } catch {
+            guard currentSessionMatchesAuthTransition(transition) else {
+                return false
+            }
             let code = EdgeFunctionErrorPolicy.stableCode(from: error)
-            if Self.isAcceptedExpiredAccountDeletionRecovery(error) {
+            if AccountDeletionTransitionPolicy.isAcceptedExpiredRecovery(error) {
                 // The server emits this code only after the hash matched a
                 // durable deletion job. The expired proof cannot inspect the
                 // job, but that positive match is sufficient to
@@ -2420,7 +2294,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         }
 
         _ = updateAuthTransition(transition, phase: .finalizing)
-        return await Self.performAcceptedAccountDeletionCleanup(
+        return await AccountDeletionWorkflow.performAcceptedCleanup(
             receipt: receipt,
             recordCleanupPending: {
                 AccountDeletionLocalCleanupStore.recordCleanupPending()
@@ -2437,6 +2311,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                         true
                     )
                     return acknowledgement.recoveryAcknowledged == true
+                        && self.currentSessionMatchesAuthTransition(transition)
                 } catch {
                     return false
                 }
@@ -2457,197 +2332,6 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                 AccountDeletionLocalCleanupStore.resolve()
             }
         )
-    }
-
-    /// Persists an identity-free intent before the first network suspension.
-    /// A lost response therefore replays the server's idempotent intake instead
-    /// of restoring the cached account. Only the received, definitive
-    /// `409 purchase_continuity_pending` response may retire the intent without
-    /// a server receipt; every ambiguous outcome stays fenced for foreground or
-    /// cold-launch recovery.
-    static func performDurableAccountDeletionIntake(
-        recordIntakePending: @MainActor () -> Bool,
-        requestDeletion: @MainActor () async throws -> AccountDeletionReceipt,
-        verifyReceiptOwner: @MainActor () throws -> Void,
-        clearIntakeAfterDefinitiveRejection: @MainActor () -> Void
-    ) async throws -> AccountDeletionReceipt {
-        guard recordIntakePending() else {
-            throw SupabaseAuthTransitionError
-                .accountDeletionRecoveryPersistenceFailed
-        }
-        do {
-            let receipt = try await requestDeletion()
-            try verifyReceiptOwner()
-            return receipt
-        } catch {
-            if isDefinitiveAccountDeletionIntakeRejection(error) {
-                clearIntakeAfterDefinitiveRejection()
-            }
-            throw error
-        }
-    }
-
-    /// Promotes a non-destructive protocol-v2 preparation into destructive
-    /// intake only after both recovery markers are durably persisted.
-    static func performPreparedAccountDeletionIntake(
-        prepareDeletion: @MainActor () async throws
-            -> AccountDeletionPreparationReceipt,
-        verifyPreparationOwner: @MainActor () -> Bool,
-        recordCapabilityPreparedPending: @MainActor () -> Bool,
-        recordIntakePending: @MainActor () -> Bool,
-        commitDeletion: @MainActor () async throws
-            -> AccountDeletionReceipt,
-        verifyCommitOwner: @MainActor () -> Bool
-    ) async throws -> AccountDeletionReceipt {
-        let preparation = try await prepareDeletion()
-        guard verifyPreparationOwner(),
-              preparation.status == .prepared,
-              preparation.protocolVersion == 2,
-              recordCapabilityPreparedPending(),
-              recordIntakePending() else {
-            throw SupabaseAuthTransitionError
-                .accountDeletionRecoveryPersistenceFailed
-        }
-
-        let receipt = try await commitDeletion()
-        guard verifyCommitOwner(),
-              receipt.protocolVersion == 2,
-              receipt.status == .pending || receipt.status == .completed else {
-            throw SupabaseAuthTransitionError.signOutSessionChanged
-        }
-        return receipt
-    }
-
-    static func isDefinitiveAccountDeletionIntakeRejection(
-        _ error: Error
-    ) -> Bool {
-        guard case let MerianError.httpError(statusCode, _) = error,
-              statusCode == 409 else {
-            return false
-        }
-        // This is the only public safe-delete rejection emitted after the
-        // authenticated handler has proved that durable intake did not win.
-        // Auth/gateway 4xx responses cannot exclude an earlier lost-response
-        // commit and therefore remain fenced for recovery.
-        return EdgeFunctionErrorPolicy.stableCode(from: error)
-            == "purchase_continuity_pending"
-    }
-
-    static func isAcceptedExpiredAccountDeletionRecovery(
-        _ error: Error
-    ) -> Bool {
-        guard case let MerianError.httpError(statusCode, _) = error,
-              statusCode == 410 else {
-            return false
-        }
-        return EdgeFunctionErrorPolicy.stableCode(from: error)
-            == "account_deletion_recovery_expired"
-    }
-
-    static func isUnknownAccountDeletionRecovery(
-        _ error: Error
-    ) -> Bool {
-        guard case let MerianError.httpError(statusCode, _) = error,
-              statusCode == 404 else {
-            return false
-        }
-        return EdgeFunctionErrorPolicy.stableCode(from: error)
-            == "account_deletion_recovery_invalid"
-    }
-
-    /// Once the server accepts deletion, record recovery state before the next
-    /// suspension. A terminated task can then finish local erasure on launch.
-    static func performAcceptedAccountDeletionCleanup(
-        receipt: AccountDeletionReceipt,
-        recordCleanupPending: @MainActor () -> Bool,
-        recordManualProviderRevocation: @MainActor () -> Void,
-        performLocalSignOut: @MainActor () async -> Bool,
-        purgeLocalData: @MainActor () -> Bool,
-        acknowledgeRecovery: @MainActor () async -> Bool = { true },
-        recordRecoveryRetirementPending: @MainActor () -> Bool = { true },
-        retireRecoveryCapability: @MainActor () -> Bool = { true },
-        resolveCleanup: @MainActor () -> Bool
-    ) async -> Bool {
-        guard recordCleanupPending() else { return false }
-        if receipt.manualProviderRevocationRequired {
-            recordManualProviderRevocation()
-        }
-        guard await performLocalSignOut() else { return false }
-        guard purgeLocalData() else { return false }
-        guard await acknowledgeRecovery() else { return false }
-        guard recordRecoveryRetirementPending() else { return false }
-        guard retireRecoveryCapability() else { return false }
-        return resolveCleanup()
-    }
-
-    static func performAccountDeletionRecoveryRetirement(
-        performLocalSignOut: @MainActor () async -> Bool = { true },
-        purgeLocalData: @MainActor () -> Bool = { true },
-        retireRecoveryCapability: @MainActor () -> Bool,
-        resolveCleanup: @MainActor () -> Bool
-    ) async -> Bool {
-        guard await performLocalSignOut() else { return false }
-        guard purgeLocalData() else { return false }
-        guard retireRecoveryCapability() else { return false }
-        return resolveCleanup()
-    }
-
-    /// A definitive pre-commit rejection authorizes retirement of the unused
-    /// proof only. Keeping this separate from accepted-deletion retirement is
-    /// what prevents a crash from turning a rejected request into local data
-    /// erasure on the next launch.
-    static func performRejectedAccountDeletionRecoveryProofRetirement(
-        retireRecoveryCapability: @MainActor () -> Bool
-    ) -> Bool {
-        retireRecoveryCapability()
-    }
-
-    static func performRejectedAccountDeletionRecoveryRetirement(
-        retireRecoveryCapability: @MainActor () -> Bool,
-        resolveCleanup: @MainActor () -> Bool
-    ) -> Bool {
-        guard performRejectedAccountDeletionRecoveryProofRetirement(
-            retireRecoveryCapability: retireRecoveryCapability
-        ) else { return false }
-        return resolveCleanup()
-    }
-
-    /// A definitive intake rejection can retire the unused recovery proof, but
-    /// the retirement phase must reach durable storage first. If the process is
-    /// terminated after proof deletion and before marker removal, launch can
-    /// then finish the proof-only cleanup instead of treating the absent proof
-    /// as an ambiguous accepted deletion.
-    static func performDefinitiveAccountDeletionIntakeRejectionProofRetirement(
-        recordRejectionRetirementPending: @MainActor () -> Bool,
-        retireRecoveryCapability: @MainActor () -> Bool
-    ) -> Bool {
-        guard recordRejectionRetirementPending() else { return false }
-        return performRejectedAccountDeletionRecoveryProofRetirement(
-            retireRecoveryCapability: retireRecoveryCapability
-        )
-    }
-
-    static func performDefinitiveAccountDeletionIntakeRejectionRetirement(
-        recordRejectionRetirementPending: @MainActor () -> Bool,
-        retireRecoveryCapability: @MainActor () -> Bool,
-        resolveCleanup: @MainActor () -> Bool
-    ) -> Bool {
-        guard performDefinitiveAccountDeletionIntakeRejectionProofRetirement(
-            recordRejectionRetirementPending:
-                recordRejectionRetirementPending,
-            retireRecoveryCapability: retireRecoveryCapability
-        ) else { return false }
-        return resolveCleanup()
-    }
-
-    static func performPendingAccountDeletionLocalCleanup(
-        performLocalSignOut: @MainActor () async -> Bool,
-        purgeLocalData: @MainActor () -> Bool,
-        resolveCleanup: @MainActor () -> Bool
-    ) async -> Bool {
-        guard await performLocalSignOut() else { return false }
-        guard purgeLocalData() else { return false }
-        return resolveCleanup()
     }
 
     private func performLocalSignOut(
@@ -2874,7 +2558,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         }
 
         guard let startingUser, !startingUser.isAnonymous else {
-            return await Self.performUserSignOutTransition(
+            return await PurchaseIdentitySignOutWorkflow.performUserSignOutTransition(
                 performSignOut: { [weak self] in
                     await self?.performLocalSignOut(ownedBy: transition)
                 },
@@ -2916,7 +2600,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                 return false
             }
             RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            let completed = await Self.performPurchaseSafeSignOutTransition(
+            let completed = await PurchaseIdentitySignOutWorkflow.performPurchaseSafeSignOutTransition(
                 prepareAndPersistHandoff: { [weak self] in
                     guard let self else {
                         throw SupabaseAuthTransitionError.signOutSessionChanged
@@ -2962,6 +2646,11 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                         throw SupabaseAuthTransitionError
                             .signOutPurchaseContinuityPending
                     }
+                },
+                reportFailure: { error in
+                    MerianLog.auth.debug(
+                        "Purchase-safe sign-out remains incomplete; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                    )
                 }
             )
             if !completed {
@@ -2981,7 +2670,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
 
         let sourceUserId = startingUser.id.uuidString.lowercased()
         RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-        let completed = await Self.performPurchaseSafeSignOutTransition(
+        let completed = await PurchaseIdentitySignOutWorkflow.performPurchaseSafeSignOutTransition(
             prepareAndPersistHandoff: { [weak self] in
                 guard let self else {
                     throw SupabaseAuthTransitionError.signOutSessionChanged
@@ -3011,6 +2700,11 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                     throw SupabaseAuthTransitionError
                         .signOutPurchaseContinuityPending
                 }
+            },
+            reportFailure: { error in
+                MerianLog.auth.debug(
+                    "Purchase-safe sign-out remains incomplete; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                )
             }
         )
 
@@ -3045,75 +2739,6 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
             expectedDestinationUserId: session.user.id.uuidString,
             ownedBy: transition
         )
-    }
-
-    /// Test seam for the user-facing composite transition. The lower-level
-    /// sign-out and anonymous-session routines retain their own single-flight
-    /// guards; this boundary proves their order and propagates readiness.
-    static func performUserSignOutTransition(
-        performSignOut: @MainActor () async -> Void,
-        initializeAnonymousSession: @MainActor () async -> Bool
-    ) async -> Bool {
-        await performSignOut()
-        return await initializeAnonymousSession()
-    }
-
-    /// Testable ordering contract for linked-account sign-out. Preparation is
-    /// the commit point: if it fails, the original session is never closed; if
-    /// any later step fails, the persisted proof is deliberately retained.
-    static func performPurchaseSafeSignOutTransition(
-        prepareAndPersistHandoff: @MainActor () async throws -> Void,
-        performSignOut: @MainActor () async -> Void,
-        initializeAnonymousSession: @MainActor () async -> Bool,
-        completeHandoff: @MainActor () async throws -> Void
-    ) async -> Bool {
-        do {
-            try await prepareAndPersistHandoff()
-            await performSignOut()
-            guard await initializeAnonymousSession() else { return false }
-            try await completeHandoff()
-            return true
-        } catch {
-            MerianLog.auth.debug(
-                "Purchase-safe sign-out remains incomplete; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-            return false
-        }
-    }
-
-    /// Exact post-sign-out ordering. The durable proof is the final mutation;
-    /// every provider/server/session check must succeed before it is removed.
-    static func finalizeSignOutPurchaseHandoff(
-        bindDestination: @MainActor () async throws -> Void,
-        verifyBoundDestinationSession: @MainActor () async throws -> Void,
-        linkProviderIdentity: @MainActor () async throws -> Void,
-        verifyLinkedDestinationSession: @MainActor () async throws -> Void,
-        synchronizeStorePurchases: @MainActor () async throws -> Void,
-        completeServerHandoff: @MainActor () async throws -> Void,
-        refreshServerEntitlement: @MainActor () async throws -> Bool,
-        verifyFinalDestinationSession: @MainActor () async throws -> Void,
-        clearPendingHandoff: @MainActor () throws -> Void
-    ) async throws {
-        try await bindDestination()
-        try Task.checkCancellation()
-        try await verifyBoundDestinationSession()
-        try Task.checkCancellation()
-        try await linkProviderIdentity()
-        try Task.checkCancellation()
-        try await verifyLinkedDestinationSession()
-        try Task.checkCancellation()
-        try await synchronizeStorePurchases()
-        try Task.checkCancellation()
-        try await completeServerHandoff()
-        try Task.checkCancellation()
-        guard try await refreshServerEntitlement() else {
-            throw SupabaseAuthTransitionError
-                .signOutPurchaseContinuityPending
-        }
-        try Task.checkCancellation()
-        try await verifyFinalDestinationSession()
-        try Task.checkCancellation()
-        try clearPendingHandoff()
     }
 
     @discardableResult
@@ -3164,22 +2789,27 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
     private func refreshActiveSessionForRetry(
         ownedBy transition: AuthTransitionToken
     ) async -> Bool {
-        guard ownsAuthTransition(transition), !isSigningOut else {
+        guard ownsAuthTransition(transition), !isSigningOut,
+              let expectedSession = activeAuthTransition?.expectedSession else {
             return false
         }
         guard await awaitAccountBoundWorkQuiescenceForAuthTransition()
         else { return false }
-        guard ownsAuthTransition(transition), !isSigningOut else {
+        guard ownsAuthTransition(transition), !isSigningOut,
+              activeAuthTransition?.expectedSession == expectedSession else {
             return false
         }
 
         do {
             let session = try await client.auth.refreshSession()
             guard ownsAuthTransition(transition), !isSigningOut,
+                  transitionSession(from: session.user) == expectedSession,
                   adoptAuthTransitionSession(
                     session.user,
                     for: transition
-                  ) else { return false }
+                  ), currentSessionMatchesAuthTransition(transition) else {
+                return false
+            }
             currentUser = session.user
             isAuthenticated = true
             schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
@@ -3187,6 +2817,9 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                 for: session.user,
                 ownedBy: transition
             )
+            guard currentSessionMatchesAuthTransition(transition) else {
+                return false
+            }
             MerianLog.auth.debug("Supabase session refreshed after auth failure.")
             return true
         } catch {
@@ -3687,7 +3320,25 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                     credentials: credentials
                 )
                 didMutateSession()
-                guard ownsAuthTransition(transition) else {
+                // A direct link may retire durable provider-bound recovery only
+                // after the SDK exposes and this transition adopts the exact
+                // anonymous-to-permanent UUID upgrade.
+                let linkedSession = try await client.auth.session
+                guard let sourceSession = transitionSession(
+                    from: previousSession?.user
+                ),
+                    let targetSession = transitionSession(
+                        from: linkedSession.user
+                    ),
+                    AuthTransitionPolicy.acceptsLinkedIdentityUpgrade(
+                        sourceSession: sourceSession,
+                        targetSession: targetSession
+                    ),
+                    adoptAuthTransitionSession(
+                        linkedSession.user,
+                        for: transition
+                    ),
+                    currentSessionMatchesAuthTransition(transition) else {
                     throw SupabaseAuthTransitionError.signOutSessionChanged
                 }
                 if let previousUserId {
@@ -3924,7 +3575,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
             expiresAt: response.expires_at
         )
         let existingHandoffs = try loadPendingGhostProfileMergeQueue()
-        let queue = Self.enqueuingPendingGhostProfileMerge(
+        let queue = GhostProfileMergePolicy.enqueuing(
             pending,
             in: existingHandoffs
         )
@@ -4047,7 +3698,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                     guard let ghostUUID = UUID(uuidString: pending.ghostUserId) else {
                         throw SupabaseAuthTransitionError.guestMergeSessionChanged
                     }
-                    try await Self.finalizeGhostProfileHandoff(
+                    try await GhostProfileMergeWorkflow.finalizeHandoff(
                         completeServerHandoff: {
                             guard self.currentUser?.id == targetUUID,
                                   self.client.auth.currentSession?.user.id
@@ -4293,7 +3944,9 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                 : nil)
         let accountWorkLease: AccountBoundWorkLease?
         if let transition {
-            guard ownsAuthTransition(transition) else { return false }
+            guard currentSessionMatchesAuthTransition(transition) else {
+                return false
+            }
             accountWorkLease = nil
         } else {
             let expectedUserID = normalizedExpected.flatMap {
@@ -4521,7 +4174,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
 
-            try await Self.finalizeSignOutPurchaseHandoff(
+            try await PurchaseIdentitySignOutWorkflow.finalizeSignOutPurchaseHandoff(
                 bindDestination: {
                     let bound: SignOutPurchaseBindResponse = try await self.client.functions.invoke(
                         "transfer-signout-purchases",
@@ -4659,124 +4312,50 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
 
     private func loadPendingSignOutPurchaseHandoff() throws
         -> PendingSignOutPurchaseHandoff? {
-        guard let data = try KeychainManager.shared.dataOrThrow(
-            forKey: KeychainKeys.pendingSignOutPurchaseHandoff
-        ) else {
-            return nil
-        }
-        guard let pending = try? JSONDecoder().decode(
-            PendingSignOutPurchaseHandoff.self,
-            from: data
-        ),
-        UUID(uuidString: pending.sourceUserId) != nil,
-        UUID(uuidString: pending.handoffId) != nil,
-        pending.handoffSecret.range(
-            of: #"^[A-Za-z0-9_-]{43}$"#,
-            options: .regularExpression
-        ) != nil,
-        ISO8601DateFormatter().date(from: pending.expiresAt) != nil else {
+        do {
+            return try purchaseIdentityHandoffStore
+                .loadPendingSignOutPurchaseHandoff()
+        } catch is PurchaseIdentityHandoffStoreError {
             throw SupabaseAuthTransitionError
                 .signOutPurchaseHandoffPersistenceFailed
         }
-        return pending
     }
 
     private func persistPendingSignOutPurchaseHandoff(
         _ pending: PendingSignOutPurchaseHandoff
     ) throws {
-        let encoded = try JSONEncoder().encode(pending)
-        guard KeychainManager.shared.set(
-            encoded,
-            forKey: KeychainKeys.pendingSignOutPurchaseHandoff,
-            accessibility: .whenUnlockedThisDeviceOnly
-        ),
-        try KeychainManager.shared.dataOrThrow(
-            forKey: KeychainKeys.pendingSignOutPurchaseHandoff
-        ) == encoded else {
+        do {
+            try purchaseIdentityHandoffStore
+                .persistPendingSignOutPurchaseHandoff(pending)
+        } catch is PurchaseIdentityHandoffStoreError {
             throw SupabaseAuthTransitionError
                 .signOutPurchaseHandoffPersistenceFailed
         }
     }
 
     private func clearPendingSignOutPurchaseHandoff() throws {
-        try KeychainManager.shared.removeObjectVerified(
-            forKey: KeychainKeys.pendingSignOutPurchaseHandoff
-        )
+        try purchaseIdentityHandoffStore
+            .clearPendingSignOutPurchaseHandoff()
     }
 
     private func loadPendingPurchasePrincipalAuthRotation() throws
         -> PendingPurchasePrincipalAuthRotation? {
-        guard let data = try KeychainManager.shared.dataOrThrow(
-            forKey: KeychainKeys.pendingPurchasePrincipalAuthRotation
-        ) else {
-            return nil
+        do {
+            return try purchaseIdentityHandoffStore
+                .loadPendingPurchasePrincipalAuthRotation()
+        } catch is PurchaseIdentityHandoffStoreError {
+            throw SupabaseAuthTransitionError
+                .purchasePrincipalRotationPersistenceFailed
         }
-        if let pending = try? JSONDecoder().decode(
-            ServerPrincipalRotation.self,
-            from: data
-        ) {
-            guard pending.protocolVersion == 3,
-                  UUID(uuidString: pending.rotationId) != nil,
-                  pending.rotationSecret.range(
-                    of: #"^[A-Za-z0-9_-]{43}$"#,
-                    options: .regularExpression
-                  ) != nil,
-                  UUID(uuidString: pending.sourceUserId) != nil,
-                  UUID(uuidString: pending.purchasePrincipalId) != nil,
-                  pending.bindingGeneration > 0,
-                  PurchasePrincipalBinding.isValidRevenueCatAppUserId(
-                    pending.revenueCatAppUserId
-                  ),
-                  PurchasePrincipalCapabilityPolicy.isValidFingerprint(
-                    pending.installationCapabilityFingerprint
-                  ),
-                  ISO8601DateFormatter().date(from: pending.startedAt) != nil,
-                  (pending.localState == .preparing && pending.expiresAt == nil)
-                    || (
-                        pending.localState == .prepared
-                            && pending.expiresAt.map(
-                                PurchasePrincipalBinding.isValidServerTimestamp
-                            ) == true
-                    ) else {
-                throw SupabaseAuthTransitionError
-                    .purchasePrincipalRotationPersistenceFailed
-            }
-            return .server(pending)
-        }
-        if let legacy = try? JSONDecoder().decode(
-            LegacyPrincipalRotation.self,
-            from: data
-        ),
-        UUID(uuidString: legacy.sourceUserId) != nil,
-        UUID(uuidString: legacy.purchasePrincipalId) != nil,
-        PurchasePrincipalBinding.isValidRevenueCatAppUserId(
-            legacy.revenueCatAppUserId
-        ),
-        PurchasePrincipalCapabilityPolicy.isValidFingerprint(
-            legacy.installationCapabilityFingerprint
-        ),
-        ISO8601DateFormatter().date(from: legacy.startedAt) != nil {
-            // Protocol-v1 was client-only evidence. It may be retired only
-            // from its exact restored source; it can never authorize a new
-            // anonymous binding.
-            return .legacy(legacy)
-        }
-        throw SupabaseAuthTransitionError
-            .purchasePrincipalRotationPersistenceFailed
     }
 
     private func persistPendingPurchasePrincipalAuthRotation(
         _ pending: ServerPrincipalRotation
     ) throws {
-        let data = try JSONEncoder().encode(pending)
-        guard KeychainManager.shared.set(
-            data,
-            forKey: KeychainKeys.pendingPurchasePrincipalAuthRotation,
-            accessibility: .whenUnlockedThisDeviceOnly
-        ),
-        try KeychainManager.shared.dataOrThrow(
-            forKey: KeychainKeys.pendingPurchasePrincipalAuthRotation
-        ) == data else {
+        do {
+            try purchaseIdentityHandoffStore
+                .persistPendingPurchasePrincipalAuthRotation(pending)
+        } catch is PurchaseIdentityHandoffStoreError {
             throw SupabaseAuthTransitionError
                 .purchasePrincipalRotationPersistenceFailed
         }
@@ -4841,9 +4420,8 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
     }
 
     private func clearPendingPurchasePrincipalAuthRotation() throws {
-        try KeychainManager.shared.removeObjectVerified(
-            forKey: KeychainKeys.pendingPurchasePrincipalAuthRotation
-        )
+        try purchaseIdentityHandoffStore
+            .clearPendingPurchasePrincipalAuthRotation()
     }
 
     private func abandonPendingPurchasePrincipalRotationIfSourceRestored(
@@ -4898,7 +4476,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                                 rotation.installationCapabilityFingerprint
                         )
                 }
-                guard transition.map(ownsAuthTransition) ??
+                guard transition.map(currentSessionMatchesAuthTransition) ??
                         accountWorkLease.map(isAccountBoundWorkLeaseCurrent)
                         ?? false,
                       client.auth.currentSession?.user.id == sourceUserId,
@@ -4956,6 +4534,11 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
             return
         }
 
+        guard ownsAuthTransition(transition),
+              adoptAuthTransitionSession(session.user, for: transition),
+              currentSessionMatchesAuthTransition(transition) else {
+            return
+        }
         RevenueCatManager.shared.setPurchaseIdentityHandoffPending(false)
         currentUser = session.user
         isAuthenticated = true
@@ -4966,13 +4549,12 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
         ConsentManager.shared.observeSession(userId: sourceUserId)
         schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
 
-        let generation = authSessionGeneration
         _ = await ensureTelemetryLinkedWhenSafe(
             for: session.user,
             ownedBy: transition
         )
         guard currentUser?.id == sourceUserId,
-              authSessionGeneration == generation else {
+              currentSessionMatchesAuthTransition(transition) else {
             return
         }
         await EntitlementManager.shared.beginSession(
@@ -4980,6 +4562,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
             client: client,
             authTransitionOwner: transition
         )
+        guard currentSessionMatchesAuthTransition(transition) else { return }
         MerianLog.auth.debug(
             "Restored the linked purchase identity after local sign-out failed."
         )
@@ -5044,7 +4627,7 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
                   cancelled.handoff_id.caseInsensitiveCompare(
                     pending.handoffId
                   ) == .orderedSame,
-                  transition.map(ownsAuthTransition) ??
+                  transition.map(currentSessionMatchesAuthTransition) ??
                     accountWorkLease.map(isAccountBoundWorkLeaseCurrent)
                     ?? false,
                   client.auth.currentSession?.user.id == sourceUserUUID else {
@@ -5099,81 +4682,57 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
     }
 
     private func loadPendingGhostProfileMergeQueue() throws -> [PendingGhostProfileMerge] {
-        guard let data = try KeychainManager.shared.dataOrThrow(
-            forKey: KeychainKeys.pendingGhostProfileMerge
-        ) else {
-            return []
-        }
-
-        if let queue = try? JSONDecoder().decode(
-            PendingGhostProfileMergeQueue.self,
-            from: data
-        ), queue.version == 1 {
-            return queue.handoffs
-        }
-
-        // Backward compatibility for builds that stored one handoff record.
-        if let legacy = try? JSONDecoder().decode(
-            PendingGhostProfileMerge.self,
-            from: data
-        ) {
-            do {
-                try persistPendingGhostProfileMergeQueue([legacy])
-            } catch {
-                // The original record is still readable. Preserve it and retry
-                // the format migration after the next successful Keychain write.
+        do {
+            let result = try ghostProfileMergeStore.loadPendingHandoffs()
+            if result.legacyMigrationWasDeferred {
                 MerianLog.auth.error(
-                    "Could not migrate the signed-out profile handoff queue; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                    "Could not migrate the signed-out profile handoff queue; the original proof remains available."
                 )
             }
-            return [legacy]
+            return result.handoffs
+        } catch GhostProfileMergeStoreError.persistenceFailed {
+            MerianLog.auth.error(
+                "Retained an unreadable guest profile handoff queue; analytics remains suppressed."
+            )
+            throw SupabaseAuthTransitionError
+                .guestMergeHandoffPersistenceFailed
         }
-
-        MerianLog.auth.error(
-            "Retained an unreadable guest profile handoff queue; analytics remains suppressed."
-        )
-        throw SupabaseAuthTransitionError.guestMergeHandoffPersistenceFailed
     }
 
     private func persistPendingGhostProfileMergeQueue(
         _ handoffs: [PendingGhostProfileMerge]
     ) throws {
-        if handoffs.isEmpty {
-            try KeychainManager.shared.removeObjectVerified(
-                forKey: KeychainKeys.pendingGhostProfileMerge
-            )
-            return
-        }
-
-        let encoded = try JSONEncoder().encode(
-            PendingGhostProfileMergeQueue(handoffs: handoffs)
-        )
-        guard KeychainManager.shared.set(
-            encoded,
-            forKey: KeychainKeys.pendingGhostProfileMerge,
-            accessibility: .whenUnlockedThisDeviceOnly
-        ),
-        try KeychainManager.shared.dataOrThrow(
-            forKey: KeychainKeys.pendingGhostProfileMerge
-        ) == encoded else {
-            throw SupabaseAuthTransitionError.guestMergeHandoffPersistenceFailed
+        do {
+            try ghostProfileMergeStore.persistPendingHandoffs(handoffs)
+        } catch GhostProfileMergeStoreError.persistenceFailed {
+            throw SupabaseAuthTransitionError
+                .guestMergeHandoffPersistenceFailed
         }
     }
 
     private func clearPendingGhostProfileMerge(handoffId: String) throws {
-        let remaining = try loadPendingGhostProfileMergeQueue().filter {
-            $0.handoffId.caseInsensitiveCompare(handoffId) != .orderedSame
+        do {
+            try ghostProfileMergeStore.clearPendingHandoff(
+                handoffId: handoffId
+            )
+        } catch GhostProfileMergeStoreError.persistenceFailed {
+            throw SupabaseAuthTransitionError
+                .guestMergeHandoffPersistenceFailed
         }
-        try persistPendingGhostProfileMergeQueue(remaining)
     }
 
     private func clearPendingGhostProfileMerges(
         ghostUserId: String
     ) throws {
-        let remaining = try loadPendingGhostProfileMergeQueue().filter {
-            $0.ghostUserId.caseInsensitiveCompare(ghostUserId) != .orderedSame
+        let remaining: [PendingGhostProfileMerge]
+        do {
+            remaining = try ghostProfileMergeStore.clearPendingHandoffs(
+                ghostUserId: ghostUserId
+            )
+        } catch GhostProfileMergeStoreError.persistenceFailed {
+            throw SupabaseAuthTransitionError
+                .guestMergeHandoffPersistenceFailed
         }
-        try persistPendingGhostProfileMergeQueue(remaining)
         ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(
             !remaining.isEmpty
         )
@@ -5189,33 +4748,6 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
     nonisolated static func requiresProviderBoundGhostMerge(after error: Error) -> Bool {
         guard let authError = error as? AuthError else { return false }
         return authError.errorCode == .identityAlreadyExists
-    }
-
-    nonisolated static func enqueuingPendingGhostProfileMerge(
-        _ pending: PendingGhostProfileMerge,
-        in handoffs: [PendingGhostProfileMerge]
-    ) -> [PendingGhostProfileMerge] {
-        var updated = handoffs.filter {
-            $0.ghostUserId.caseInsensitiveCompare(pending.ghostUserId)
-                != .orderedSame
-        }
-        updated.append(pending)
-        return updated
-    }
-
-    static func finalizeGhostProfileHandoff(
-        completeServerHandoff: () async throws -> Void,
-        synchronizeProviderPurchases: () async throws -> Void,
-        rebindAndSynchronizeLocalEvidence: () async throws -> Void,
-        clearPendingHandoff: () throws -> Void
-    ) async throws {
-        try await completeServerHandoff()
-        try Task.checkCancellation()
-        try await synchronizeProviderPurchases()
-        try Task.checkCancellation()
-        try await rebindAndSynchronizeLocalEvidence()
-        try Task.checkCancellation()
-        try clearPendingHandoff()
     }
 
     static func performOAuthSessionReplacement<Value>(
@@ -5246,8 +4778,9 @@ private enum PendingPurchasePrincipalAuthRotation: Equatable {
             return false
         }
 
-        return payload.code == "handoff_expired"
-            || payload.code == "handoff_invalid"
+        return GhostProfileMergePolicy.shouldDiscardPendingHandoff(
+            serverCode: payload.code
+        )
     }
 
     nonisolated static func oauthProviderSubject(from idToken: String) throws -> String {

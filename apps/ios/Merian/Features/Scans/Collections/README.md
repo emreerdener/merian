@@ -95,7 +95,18 @@ and
 Smart collections are local projections. They never create `ScanCollection` rows
 or enter the cloud payload. `SmartCollectionSuggester` receives the public share
 lookup as an injected value, and hidden smart IDs remain device-local
-preferences.
+preferences. Authenticated historical scan sync reconciles each remote scan's
+active owner-readable Explore post relationship into that lookup behind a
+per-request revision fence. A later local publication mutation, deletion,
+account-scoped purge, or newer response wins over stale history. When the cache
+changes, the repository publishes one `exploreShareStateReconciled` invalidation
+for the batch; catalog and open smart-detail views rederive membership even when
+a subsequent history page or collection request fails. Eligible local biological
+scans therefore recover restored or cross-device publication intent without
+having been shared or opened on the current installation. Moderated or
+quarantined posts can remain members while their owner-preserved active intent
+exists, so this local collection is not an exact copy of the currently visible
+Profile grid.
 
 The Scan map card is also not a synchronized collection. Collections consumes
 the Scans-owned coordinate snapshot and appends

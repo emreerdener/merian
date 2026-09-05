@@ -71,8 +71,9 @@ Settings files that resolve endpoints, Supabase SDK writes, notification-center
 authorization, platform actions, repository purge, or RevenueCat actions. The
 Profile Shell composes the geoprivacy and hardware adapters that require its
 environment-owned managers; other state owners use their subarea's narrow live
-dependency value. `SupabaseManager` remains the account-deletion protocol and
-recovery authority.
+dependency value. `Core/Network/Auth/` owns deterministic account-deletion
+classification and phase sequencing; `SupabaseManager` retains live protocol,
+recovery, and durable Apple-fallback effect assembly.
 
 The geoprivacy picker updates the shared display binding optimistically while
 `GeoprivacySettingsViewModel` serializes server writes and coalesces rapid taps

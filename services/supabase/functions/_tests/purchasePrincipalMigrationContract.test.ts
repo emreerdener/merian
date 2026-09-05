@@ -676,12 +676,50 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
     supabaseManager,
     ".claimSignoutRotation(",
   );
-  assertStringIncludes(
-    supabaseManager,
-    "return purchaseIdentityHandoffPending",
-  );
   const compactSupabaseManager = supabaseManager.replaceAll(/\s+/g, " ")
     .trim();
+  const handoffReadinessStart = compactSupabaseManager.indexOf(
+    "func hasPendingPurchaseIdentityHandoffFailClosed",
+  );
+  const handoffReadinessEnd = compactSupabaseManager.indexOf(
+    "private func loadPendingSignOutPurchaseHandoff",
+    handoffReadinessStart,
+  );
+  assert(
+    handoffReadinessStart >= 0 && handoffReadinessEnd > handoffReadinessStart,
+    "the fail-closed purchase handoff readiness boundary must remain explicit",
+  );
+  const handoffReadiness = compactSupabaseManager.slice(
+    handoffReadinessStart,
+    handoffReadinessEnd,
+  );
+  const legacyRead = handoffReadiness.indexOf(
+    "loadPendingSignOutPurchaseHandoff()",
+  );
+  const stableRead = handoffReadiness.indexOf(
+    "loadPendingPurchasePrincipalAuthRotation()",
+  );
+  const pendingProjection = handoffReadiness.indexOf(
+    "let pending = pendingLegacyHandoff != nil || pendingStableRotation != nil",
+  );
+  const publishProjection = handoffReadiness.indexOf(
+    "setPurchaseIdentityHandoffPending(pending)",
+  );
+  const returnProjection = handoffReadiness.indexOf("return pending");
+  const publishFailure = handoffReadiness.indexOf(
+    "setPurchaseIdentityHandoffPending(true)",
+  );
+  const returnFailure = handoffReadiness.indexOf("return true", publishFailure);
+  assert(
+    legacyRead >= 0 &&
+      stableRead > legacyRead &&
+      pendingProjection > stableRead &&
+      publishProjection > pendingProjection &&
+      returnProjection > publishProjection &&
+      publishFailure > returnProjection &&
+      returnFailure > publishFailure,
+    "handoff readiness must re-read both durable proofs and fail closed when either read is unavailable",
+  );
   const compatibilityCompletion = compactSupabaseManager.slice(
     compactSupabaseManager.indexOf(
       "private func performPendingSignOutPurchaseHandoff",

@@ -295,7 +295,8 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
                 if !hasEvaluatedFeedbackSurveyPrompt {
                     feedbackSurveyForegroundCompletionScanId = scanId
                 }
-            case .exploreShareStateChanged:
+            case .exploreShareStateChanged,
+                 .exploreShareStateReconciled:
                 Task {
                     await MessageScanShareCacheWriter.refresh(
                         records: messageShareCacheRecords,

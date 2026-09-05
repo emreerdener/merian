@@ -178,6 +178,7 @@ struct ExplorePostDetailContentView: View {
 
     private var media: some View {
         ExploreDetailMediaView(
+            postId: post.id,
             imageUrl: post.heroImageUrl,
             mediaItems: post.resolvedMediaItems,
             reloadGeneration: viewModel.mediaReloadGeneration,
@@ -349,7 +350,11 @@ struct ExplorePostDetailContentView: View {
                 onFieldChat: onOpenFieldChat,
                 onBlockAuthor: { Task { await viewModel.blockAuthor(of: post) } },
                 onReportPost: { Task { await viewModel.report(post) } },
-                audioBoostEnabled: post.resolvedMediaItems.first?.kind == .audio
+                audioBoostEnabled: ExplorePostMediaCarouselPolicy
+                    .hasPrimaryStandaloneAudio(
+                        post.mediaItems,
+                        fallbackImageUrl: post.heroImageUrl
+                    )
                     ? $isAudioBoostEnabled
                     : nil,
                 onAudioBoostEnableRequested: {

@@ -143,9 +143,11 @@ allowing nonmutating use of the sheet.
 - Targeted reindexes coalesce pending scan IDs. A replacement task carries IDs
   from any superseded task, preventing a rapid A→B update from dropping A from
   the search index.
-- `AppEvent.scanSearchIndexInvalidated` and `exploreShareStateChanged` both
-  refresh the cached filter projection and rerun the current query so custom-tag
-  and Explore-share filters remain live.
+- `AppEvent.scanSearchIndexInvalidated` and `exploreShareStateChanged` perform a
+  targeted scan reindex. Historical sync instead emits one
+  `exploreShareStateReconciled` batch invalidation; the coordinator rebuilds the
+  Explore-bearing filter projection once and reruns the current query without
+  invalidating an unrelated text-index build.
 
 ## Focused tests
 

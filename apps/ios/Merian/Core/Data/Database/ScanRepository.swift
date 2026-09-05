@@ -22,6 +22,10 @@ enum HistoricalScanPageContractError: Error, Equatable {
 }
 
 enum HistoricalScanPageDecoder {
+    private enum RequiredRowKey: String, CodingKey {
+        case explore_posts
+    }
+
     static func decode(
         _ data: Data,
         using decoder: JSONDecoder = PostgrestClient.Configuration.jsonDecoder
@@ -38,6 +42,17 @@ enum HistoricalScanPageDecoder {
 
         for (index, row) in rows.enumerated() {
             do {
+                if let object = row as? [String: Any],
+                   !object.keys.contains(RequiredRowKey.explore_posts.rawValue) {
+                    throw DecodingError.keyNotFound(
+                        RequiredRowKey.explore_posts,
+                        .init(
+                            codingPath: [],
+                            debugDescription:
+                                "Historical scan projection omitted explore_posts."
+                        )
+                    )
+                }
                 let rowData = try JSONSerialization.data(withJSONObject: row)
                 responses.append(
                     try decoder.decode(HistoricalScanResponse.self, from: rowData)
@@ -69,9 +84,10 @@ enum HistoricalScanPageDecoder {
         switch error {
         case DecodingError.typeMismatch(_, let context),
              DecodingError.valueNotFound(_, let context),
-             DecodingError.keyNotFound(_, let context),
              DecodingError.dataCorrupted(let context):
             codingPath = context.codingPath
+        case DecodingError.keyNotFound(let key, let context):
+            codingPath = context.codingPath + [key]
         default:
             codingPath = []
         }
@@ -94,7 +110,7 @@ final class ScanRepository {
     // MARK: - Singleton
 
     static let shared = ScanRepository()
-    private static let historicalScanSelectColumns = "id, image_storage_urls, video_storage_urls, audio_storage_urls, captured_media, user_observation_context, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, is_biological_subject, ecology_type, is_invasive, invasive_status_region, invasive_rationale, invasive_confidence, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, pet_identification, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
+    private static let historicalScanSelectColumns = "id, image_storage_urls, video_storage_urls, audio_storage_urls, captured_media, user_observation_context, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, is_biological_subject, ecology_type, is_invasive, invasive_status_region, invasive_rationale, invasive_confidence, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, pet_identification, explore_posts(id, unshared_at), species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
 
     // MARK: - Dependencies
 
@@ -171,6 +187,7 @@ final class ScanRepository {
             SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
         }
         let userId = accountWorkLease.session.userID.uuidString
+        var didChangeExploreShareState = false
 
         do {
             let container = modelContext.container
@@ -203,6 +220,8 @@ final class ScanRepository {
             var totalNewRecords = 0
 
             while true {
+                let exploreShareStateSnapshot = ExploreShareStateStore
+                    .makeReconciliationSnapshot()
                 let rawPage = try await SupabaseManager.shared.client
                     .from("scans")
                     .select(Self.historicalScanSelectColumns)
@@ -226,9 +245,26 @@ final class ScanRepository {
                         MerianLog.data.debug("🔄 Merian Sync: Streaming remote scan pages (page size: \(scanPageSize, privacy: .public))…")
                     }
                     totalNewRecords += await dbActor.reconcileScanPage(responses: page)
+                    guard SupabaseManager.shared
+                        .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                        return
+                    }
+                    if reconcileExploreShareState(
+                        from: page,
+                        ifUnchangedSince: exploreShareStateSnapshot
+                    ) {
+                        didChangeExploreShareState = true
+                    }
                 }
                 if decodedPage.remoteRowCount < scanPageSize { break }
                 scanOffset += scanPageSize
+            }
+
+            if didChangeExploreShareState {
+                AppDIContainer.shared.appEventPublisher.send(
+                    .exploreShareStateReconciled
+                )
+                didChangeExploreShareState = false
             }
 
             // --- Paginated collections fetch ---
@@ -274,6 +310,14 @@ final class ScanRepository {
             }
 
         } catch {
+            if didChangeExploreShareState,
+               SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(
+                   accountWorkLease
+               ) {
+                AppDIContainer.shared.appEventPublisher.send(
+                    .exploreShareStateReconciled
+                )
+            }
             MerianLog.data.error("🚨 Failed reconciling historical scans from Supabase: \(error, privacy: .private)")
         }
     }
@@ -291,6 +335,8 @@ final class ScanRepository {
             SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
         }
         let userId = accountWorkLease.session.userID.uuidString
+        let exploreShareStateSnapshot = ExploreShareStateStore
+            .makeReconciliationSnapshot()
 
         let rawResponse: Data
         do {
@@ -346,11 +392,37 @@ final class ScanRepository {
             .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
             return .transientFailure
         }
+        if reconcileExploreShareState(
+            from: decodedPage.responses,
+            ifUnchangedSince: exploreShareStateSnapshot
+        ) {
+            AppDIContainer.shared.appEventPublisher.send(
+                .exploreShareStateReconciled
+            )
+        }
         MerianLog.data.debug(
             "syncHistoricalScanDown: reconciled scanId=\(scanId, privacy: .public) newRecords=\(newRecords, privacy: .public)"
         )
         AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
         return .reconciled
+    }
+
+    private func reconcileExploreShareState(
+        from responses: [HistoricalScanResponse],
+        ifUnchangedSince snapshot: ExploreShareStateStore
+            .ReconciliationSnapshot
+    ) -> Bool {
+        var postIdsByScanId: [String: String] = [:]
+        for response in responses {
+            if let postId = response.activeExplorePostId {
+                postIdsByScanId[response.id] = postId
+            }
+        }
+        return !ExploreShareStateStore.reconcileSharedPostIds(
+            postIdsByScanId,
+            forScanIds: responses.map(\.id),
+            ifUnchangedSince: snapshot
+        ).isEmpty
     }
 
     // MARK: - Queue Control
@@ -595,10 +667,24 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let user_confirmed_identification: Bool?
     let image_quality_score: Int?
     let species_dictionary: CloudSpeciesDictionary?
+    let explore_posts: HistoricalExplorePostResponse?
 
     var capturedMediaItems: [SerializedMediaItem]? {
         captured_media?.serializedMediaItems
     }
+
+    var activeExplorePostId: String? {
+        guard let explorePost = explore_posts,
+              explorePost.unshared_at == nil else {
+            return nil
+        }
+        return explorePost.id
+    }
+}
+
+struct HistoricalExplorePostResponse: Decodable, Sendable {
+    let id: String
+    let unshared_at: String?
 }
 
 struct CloudIdentificationCandidate: Decodable, Sendable {

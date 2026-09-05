@@ -271,6 +271,8 @@ final class ScansManager {
                 case .scanSearchIndexInvalidated(let scanID),
                      .exploreShareStateChanged(let scanID, _):
                     self?.handleSearchIndexInvalidation(scanID: scanID)
+                case .exploreShareStateReconciled:
+                    self?.handleExploreShareStateReconciliation()
                 default:
                     break
                 }
@@ -280,6 +282,11 @@ final class ScansManager {
 
     private func handleSearchIndexInvalidation(scanID: String) {
         guard searchCoordinator.forceReindex(scanID: scanID) else { return }
+        performSearch(query: searchQuery, category: activeCategoryFilter)
+    }
+
+    private func handleExploreShareStateReconciliation() {
+        searchCoordinator.refreshExploreShareState()
         performSearch(query: searchQuery, category: activeCategoryFilter)
     }
 

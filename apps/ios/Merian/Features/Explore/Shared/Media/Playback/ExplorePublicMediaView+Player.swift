@@ -4,6 +4,7 @@ import SwiftUI
 extension ExplorePublicMediaView {
     @discardableResult
     func configurePlayerIfNeeded(forceRebuildForRecovery: Bool = false) -> AVPlayer? {
+        guard isPlaybackActive else { return nil }
         guard let videoURLString = videoURLStringForPlayerConfiguration(forceRebuildForRecovery: forceRebuildForRecovery),
               let url = SecureTransportPolicy.httpsURL(
                   from: videoURLString
@@ -11,7 +12,9 @@ extension ExplorePublicMediaView {
             cleanupPlayer()
             return nil
         }
-        let shouldRebuildPlayer = forceRebuildForRecovery || playbackOverlayState.needsPlayerRebuildForRecovery
+        let shouldRebuildPlayer = forceRebuildForRecovery ||
+            playbackOverlayState.needsPlayerRebuildForRecovery ||
+            pendingRecoverySeekTime != nil
         guard configuredVideoURL != videoURLString || player == nil || shouldRebuildPlayer else { return player }
 
         let recoverySeekTime = shouldRebuildPlayer ? (pendingRecoverySeekTime ?? currentRecoverySeekTime()) : nil
@@ -63,7 +66,8 @@ extension ExplorePublicMediaView {
             "rebuild=\(playbackOverlayState.needsPlayerRebuildForRecovery)"
         ].joined(separator: " ")
         logPlayback("cleanup", extra: cleanupState)
-        if isVideoPlaybackHost,
+        let hasConfiguredPlayback = player != nil || configuredVideoURL != nil
+        if hasConfiguredPlayback,
            playbackCoordinator?.hasActiveOverlay == true ||
            playbackOverlayState.needsPlayerRebuildForRecovery {
             cleanupPlayerForOverlayRecovery()
@@ -101,7 +105,7 @@ extension ExplorePublicMediaView {
         deactivateAudioPlaybackSessionIfNeeded()
     }
 
-    private func currentRecoverySeekTime() -> CMTime? {
+    func currentRecoverySeekTime() -> CMTime? {
         guard let player else { return nil }
         let currentTime = player.currentTime()
         guard currentTime.isNumeric,

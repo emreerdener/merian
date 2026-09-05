@@ -33,12 +33,12 @@ Merian.
 | `SUPABASE_SERVICE_ROLE_KEY`                              | Supabase Edge secret, reviewed Vault reaper copy, or server-side web env only                       | Legacy service-role JWT migration fallback; never in iOS bundle or browser-exposed web config                                                                                                                                                                         |
 | `Merian_HasAuthenticatedOAuth`                           | `KeychainManager` (`kSecClassGenericPassword`)                                                      | Security-sensitive auth flag, migrated from `UserDefaults` on first run                                                                                                                                                                                               |
 | `Merian_GhostModeUserID_v1`                              | `KeychainManager` (`kSecClassGenericPassword`)                                                      | Retired presentation-only logout marker; upgraded clients delete it during startup and never use it to shape account UI                                                                                                                                               |
-| `Merian_PendingGhostProfileMerge`                        | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity                                                                                                                                                    |
-| `Merian_PendingSignOutPurchaseHandoff_v1`                | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | One-use sign-out purchase proof; written and read back before local sign-out, then retained until destination receipt/server verification completes                                                                                                                   |
+| `Merian_PendingGhostProfileMerge`                        | `GhostProfileMergeStore` via injected `KeychainManager` (`WhenUnlockedThisDeviceOnly`)              | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity                                                                                                                                                    |
+| `Merian_PendingSignOutPurchaseHandoff_v1`                | `PurchaseIdentityHandoffStore` via injected `KeychainManager` (`WhenUnlockedThisDeviceOnly`)        | One-use sign-out purchase proof; written and read back before local sign-out, then retained until destination receipt/server verification completes                                                                                                                   |
 | `Merian_PurchasePrincipalInstallationCapability_v1`      | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | Random 256-bit device capability for resolving the same server-owned stable purchase principal across local Auth rotation; Postgres stores only SHA-256                                                                                                               |
 | `Merian_PurchasePrincipalBindingIntentGeneration_v1`     | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | Positive monotonic ordinary-resolver intent; advanced/read-verified before network I/O so an older Auth request cannot overwrite a newer server binding                                                                                                               |
 | `Merian_PurchasePrincipalStableActivationFingerprint_v1` | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | Monotonic lowercase SHA-256 fingerprint of the local capability after first stable activation; prevents later legacy or missing-route identity fallback                                                                                                               |
-| `Merian_PendingPurchasePrincipalAuthRotation_v1`         | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | Protocol-3 write-ahead journal containing a raw one-use rotation secret and exact continuity metadata; paid mutations fail closed until verified claim or source cancellation removes it                                                                              |
+| `Merian_PendingPurchasePrincipalAuthRotation_v1`         | `PurchaseIdentityHandoffStore` via injected `KeychainManager` (`WhenUnlockedThisDeviceOnly`)        | Protocol-3 write-ahead journal containing a raw one-use rotation secret and exact continuity metadata; paid mutations fail closed until verified claim or source cancellation removes it                                                                              |
 | `Merian_AccountDeletionRecoveryCapability_v1`            | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | Protocol-v2 JSON envelope with distinct random 256-bit recovery/acknowledgement authorities; also decodes legacy raw 256-bit data. Edge stores only domain-separated hashes; iOS verifies envelope creation and removal around its identity-free durable phase marker |
 | `Merian_AnalyticsRevocationIntent_v1`                    | `KeychainManager` (`AfterFirstUnlockThisDeviceOnly`)                                                | Versioned write-ahead journal of exact analytics revocation events; keeps capture off until the atomic ledger write is verified                                                                                                                                       |
 | Consent ledger                                           | File-protected Application Support JSON                                                             | Atomically replaced and byte-verified append-only adult/Terms/Gemini/PostHog evidence; migrates the legacy `UserDefaults` copy                                                                                                                                        |
@@ -341,18 +341,41 @@ Currently stored keys:
 | `Merian_AccountDeletionRecoveryCapability_v1`            | Protocol-v2 JSON `Data`; legacy raw 32-byte `Data` | `WhenUnlockedThisDeviceOnly`     | One deletion-only envelope containing distinct recovery and acknowledgement authorities, generated and read-after-write verified before network suspension. Edge stores only domain-separated SHA-256 hashes. Accepted deletion retires it only after verified local cleanup and acknowledgement; definitive uncommitted v2 intent may retire it without erasing local data.                                                   |
 | `Merian_AnalyticsRevocationIntent_v1`                    | JSON `Data`                                        | `AfterFirstUnlockThisDeviceOnly` | Versioned journal containing exact immutable PostHog revocation events that have not yet crossed the verified primary-ledger boundary                                                                                                                                                                                                                                                                                          |
 
+`Core/Security/PurchaseIdentity/Stores/PurchaseIdentityHandoffStore.swift` is
+the sole codec and persistence-policy owner for the two purchase-continuity
+rows. Its live dependencies receive `KeychainManager` from `SupabaseManager`;
+the store itself resolves no singleton. It preserves explicit camel-case JSON
+field names, validates evidence before writes and after reads, selects the exact
+key and accessibility, verifies written bytes, and performs verified removal.
+Auth/server/provider phase order remains in Core Network Auth and
+`SupabaseManager`.
+
+`Core/Security/GhostProfileMerge/Stores/GhostProfileMergeStore.swift` is the
+sole codec and persistence-policy owner for the ghost-profile merge queue. Its
+live dependencies receive `KeychainManager` from `SupabaseManager`; the store
+itself resolves no singleton. It preserves explicit camel-case JSON field names,
+validates evidence before writes and after reads, selects the established key
+and device-only accessibility, verifies written bytes, and performs verified
+removal. Validation covers UUIDs, the provider allowlist, the provider subject's
+exact UTF-16/control-character bounds, the base64url capability shape, and both
+accepted server timestamp formats. It does not use the device clock to classify
+expiry.
+
 The merge queue is persisted and read back successfully before the app switches
-away from the anonymous session. A newer handoff replaces only another handoff
-for the same ghost UUID; unrelated pending upgrades remain queued. The decoder
-accepts the former single-record shape and rewrites it to version 1 without
-discarding the readable original if that Keychain write fails.
+away from the anonymous session. `GhostProfileMergePolicy` makes a newer handoff
+replace only another handoff for the same ghost UUID; unrelated pending upgrades
+remain queued. The store accepts the former single-record shape and rewrites it
+to version 1 without discarding the readable original if that Keychain write
+fails.
 
 Completion removes one queue item only after server success or the terminal
 codes `handoff_expired` and `handoff_invalid`. Network errors,
 `auth_cleanup_pending`, `merge_temporarily_unavailable`, and `handoff_forbidden`
 remain retryable. Sign-out cancels the in-flight task but does not erase proofs;
 a task-generation token prevents an older cancelled task from clearing the
-handle for a newer session.
+handle for a newer session. `GhostProfileMergeWorkflow` checks cancellation
+before the first server effect and between server completion, purchase
+synchronization, local-evidence synchronization, and final proof removal.
 
 `ThisDeviceOnly` items do not migrate through backups or device transfer. Never
 copy the merge proof into `UserDefaults`, logs, analytics, crash metadata, an

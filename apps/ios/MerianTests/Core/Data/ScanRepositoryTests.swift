@@ -1,7 +1,8 @@
-import Testing
-import SwiftData
 import Foundation
 import Supabase
+import SwiftData
+import Testing
+
 @testable import Merian
 
 @MainActor
@@ -53,10 +54,10 @@ struct ScanRepositoryTests {
         let payload = Data(
             """
             [
-              {"id":"numeric","captured_media":[{"description":{"_0":{"freeText":"Numeric","addedAt":807000000}}}]},
-              {"id":"iso","captured_media":[{"description":{"_0":{"freeText":"ISO","added_at":"2026-08-22T12:00:00.000Z"}}}]},
-              {"id":"missing","captured_media":[{"description":{"_0":{"free_text":"Missing"}}}]},
-              {"id":"malformed","captured_media":[{"description":{"_0":{"freeText":"Malformed","addedAt":{"unexpected":true}}}}]}
+              {"id":"numeric","explore_posts":null,"captured_media":[{"description":{"_0":{"freeText":"Numeric","addedAt":807000000}}}]},
+              {"id":"iso","explore_posts":null,"captured_media":[{"description":{"_0":{"freeText":"ISO","added_at":"2026-08-22T12:00:00.000Z"}}}]},
+              {"id":"missing","explore_posts":null,"captured_media":[{"description":{"_0":{"free_text":"Missing"}}}]},
+              {"id":"malformed","explore_posts":null,"captured_media":[{"description":{"_0":{"freeText":"Malformed","addedAt":{"unexpected":true}}}}]}
             ]
             """.utf8
         )
@@ -83,10 +84,10 @@ struct ScanRepositoryTests {
         let payload = Data(
             """
             [
-              {"id":"valid-image","captured_media":[{"image":{"_0":{"storage":"remoteURL","path":"https://cdn.example.com/image.webp"}}}]},
-              {"id":"unknown-wrapper","captured_media":[{"document":{"_0":{}}}]},
-              {"id":"multiple-wrappers","captured_media":[{"image":{"_0":{"storage":"remoteURL","path":"https://cdn.example.com/a.webp"}},"audio":{"_0":{"storage":"remoteURL","path":"https://cdn.example.com/a.wav"}}}]},
-              {"id":"valid-description","captured_media":[{"description":{"_0":{"freeText":"Still recoverable"}}}]}
+              {"id":"valid-image","explore_posts":null,"captured_media":[{"image":{"_0":{"storage":"remoteURL","path":"https://cdn.example.com/image.webp"}}}]},
+              {"id":"unknown-wrapper","explore_posts":null,"captured_media":[{"document":{"_0":{}}}]},
+              {"id":"multiple-wrappers","explore_posts":null,"captured_media":[{"image":{"_0":{"storage":"remoteURL","path":"https://cdn.example.com/a.webp"}},"audio":{"_0":{"storage":"remoteURL","path":"https://cdn.example.com/a.wav"}}}]},
+              {"id":"valid-description","explore_posts":null,"captured_media":[{"description":{"_0":{"freeText":"Still recoverable"}}}]}
             ]
             """.utf8
         )
@@ -101,6 +102,54 @@ struct ScanRepositoryTests {
         #expect(decoded.firstRejectedCodingPath != nil)
     }
 
+    @Test func testHistoricalDecoderProjectsActiveExploreShareState() throws {
+        let payload = Data(
+            """
+            [
+              {
+                "id":"active-scan",
+                "explore_posts":{
+                  "id":"active-post",
+                  "unshared_at":null
+                }
+              },
+              {
+                "id":"unshared-scan",
+                "explore_posts":{
+                  "id":"unshared-post",
+                  "unshared_at":"2026-08-30T12:00:00.000Z"
+                }
+              },
+              {
+                "id":"private-scan",
+                "explore_posts":null
+              }
+            ]
+            """.utf8
+        )
+
+        let decoded = try HistoricalScanPageDecoder.decode(
+            payload,
+            using: PostgrestClient.Configuration.jsonDecoder
+        )
+
+        #expect(decoded.rejectedRowCount == 0)
+        #expect(decoded.responses.map(\.activeExplorePostId) == [
+            "active-post", nil, nil
+        ])
+    }
+
+    @Test func testHistoricalDecoderRejectsRowsMissingExploreProjection() throws {
+        let payload = Data(#"[{"id":"missing-relation"}]"#.utf8)
+
+        let decoded = try HistoricalScanPageDecoder.decode(payload)
+
+        #expect(decoded.remoteRowCount == 1)
+        #expect(decoded.responses.isEmpty)
+        #expect(decoded.rejectedRowCount == 1)
+        #expect(decoded.firstRejectedCodingPath == "explore_posts")
+    }
+
     @Test func testHistoricalDecoderIgnoresLegacyLocalFileReferencesAndUsesCloudMedia() throws {
         let remoteImage = "https://cdn.example.com/durable.webp"
         let payload = Data(
@@ -108,6 +157,7 @@ struct ScanRepositoryTests {
             [
               {
                 "id":"legacy-local-file",
+                "explore_posts":null,
                 "image_storage_urls":["\(remoteImage)"],
                 "video_storage_urls":[],
                 "captured_media":[
@@ -913,12 +963,13 @@ struct ScanRepositoryTests {
         let ctx = try createPremiumFieldsContext()
 
         // Encode two-field JSON manually to simulate pre-migration cloud JSONB
-        let preMigrationJSON = """
+        let preMigrationJSONString = """
         [
             { "scientificName": "Procyon cancrivorus", "confidenceScore": 0.71 },
             { "scientificName": "Bassariscus astutus", "confidenceScore": 0.65 }
         ]
-        """.data(using: .utf8)!
+        """
+        let preMigrationJSON = Data(preMigrationJSONString.utf8)
 
         let record = LocalScanRecord(
             speciesId: "cand-pre-migration",

@@ -83,6 +83,21 @@ non-biological audio from being re-imported as biological without adding a
 SwiftData field, schema version, or migration, and the repository never infers
 the value from stored reasoning.
 
+Each accepted historical scan row also projects its owner-readable
+`explore_posts(id, unshared_at)` relationship. After the account work lease is
+revalidated, `ScanRepository` reconciles active post IDs into the existing
+per-scan Explore share-state cache and removes stale markers for rows proven
+unshared. The relation key is required but nullable: explicit `null` proves that
+the scan has no post, while an omitted key quarantines that row instead of
+clearing a valid cache entry. Each request captures a reconciliation revision; a
+later local share, unshare, deletion, purge, or newer history response fences
+out stale results. When that projection changes, a batched
+`exploreShareStateReconciled` invalidation is published as soon as reconciled
+scan pages are durable, including when a later page or collection request fails.
+The Scans filter and local **Explore posts** smart collection can therefore
+recover server-backed publication intent after reinstall without issuing one
+request per scan or waiting for unrelated collection sync.
+
 Live inference and offline replay build audio upload paths, `audioMediaItems`,
 observation contexts, video paths, and `ownerMediaTimeline` from one
 chronological projection. `audioInputIndex` names the matching raw upload

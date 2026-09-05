@@ -36,6 +36,19 @@ pin lifecycle. See the
   secure generation, atomic v2 envelope storage, legacy proof decoding, verified
   reads/removal, and pre-Auth-bootstrap barrier restoration. HTTP payloads and
   receipt validation belong to Core Network, not this store.
+- `PurchaseIdentity/` owns the legacy and protocol-3 sign-out journal models and
+  their injected secure store. It preserves exact local JSON fields, validates
+  restored evidence fail-closed, selects the two established Keychain keys,
+  writes with `WhenUnlockedThisDeviceOnly`, verifies exact bytes, and performs
+  verified removal. It owns no endpoint, provider, Auth transition, logger, or
+  task; see its [ownership guide](PurchaseIdentity/README.md).
+- `GhostProfileMerge/` owns the provider-bound ghost-profile handoff and
+  version-1 queue models plus their injected secure store. It preserves exact
+  local JSON fields, migrates the legacy single-record format without losing a
+  readable proof, validates restored evidence fail-closed, writes with
+  `WhenUnlockedThisDeviceOnly`, verifies exact bytes, and performs verified
+  removal. It owns no endpoint, provider, Auth transition, logger, or task; see
+  its [ownership guide](GhostProfileMerge/README.md).
 - `RevenueCatManager` owns customer identity, paid and paid-offline access,
   offerings, and purchase/restore entry points. Its `isSubscribed` value—not
   functional complimentary access—drives public Pro badges.
@@ -129,12 +142,18 @@ restores the conservative barrier before Auth bootstrap; verified absence can
 resolve that lookup barrier without deleting data.
 
 `Core/Network/Auth/` owns the value-only transition/session/lease models,
-deterministic admission and restoration policy, and exact-session coordinators.
-`SupabaseManager` applies those decisions and retains live transition state,
-durable phase ordering, receipt/error decisions, and local sign-out.
-`AppDIContainer` and the Settings purge adapter retain private-map/SwiftData
-cleanup composition. Only the workflow owner requests proof retirement; the
-store verifies Keychain removal before the workflow clears its marker. A
+deterministic admission and account-deletion classification policy, ghost-merge
+queue/error policy, exact-session coordinators, and closure-injected deletion,
+sign-out, and ghost-merge phase sequencing. `SupabaseManager` applies those
+decisions and retains live transition state, endpoint/SDK calls, injected
+secure-store adapters, marker effects, and local sign-out. `AppDIContainer` and
+the Settings purge adapter retain private-map/SwiftData cleanup composition.
+Only the workflow owner requests proof retirement; the store verifies Keychain
+removal before the workflow clears its marker. Every network result capable of
+advancing that sequence must still match the transition's exact UUID,
+anonymous/account kind, and Auth generation. Deferred noncommit restoration
+revalidates its cached source while the marker remains, then makes verified
+marker removal the last failable step before synchronous publication. A
 definitive uncommitted v2 intent can retire its proof without signing out or
 purging, unlike accepted-deletion cleanup.
 
@@ -151,6 +170,53 @@ evidence. The operation-specific
 [preparation receipt contract](../Network/README.md#preparation-receipt-contract)
 is source-verified; authorized real-session deletion remains separate release
 evidence.
+
+## Purchase-identity handoff storage
+
+`PurchaseIdentityHandoffStore` is the sole codec and secure-storage owner for
+`Merian_PendingSignOutPurchaseHandoff_v1` and
+`Merian_PendingPurchasePrincipalAuthRotation_v1`. It accepts injected load,
+persist, and verified-remove effects; its live adapter receives the existing
+`KeychainManager` instance from `SupabaseManager` instead of resolving a
+singleton. Both journals keep their existing camel-case JSON field names and
+`WhenUnlockedThisDeviceOnly` accessibility. Successful writes require an exact
+read-back match, malformed values are rejected before writes, malformed or
+unreadable restored evidence fails closed, and no journal value enters logs.
+
+`Core/Network/Auth/Coordinators/PurchaseIdentitySignOutWorkflow.swift` owns the
+deterministic phase order and checks cancellation before the legacy server
+destination bind and after each asynchronous phase. `SupabaseManager` retains
+server requests, Auth mutation, RevenueCat/StoreKit work, entitlement refresh,
+session checks, lifecycle recovery, logging, and conversion of store failures to
+the existing auth-transition errors. This split changes no Keychain key, JSON
+shape, API payload, or provider contract. Follow-up hardening rejects malformed
+values before secure-storage dispatch and stops already-cancelled finalization
+before the first server destination-bind request, leaving durable proof
+available for retry.
+
+## Ghost-profile merge storage
+
+`GhostProfileMergeStore` is the sole codec and secure-storage owner for
+`Merian_PendingGhostProfileMerge`. It accepts injected load, persist, and
+verified-remove effects; its live adapter receives the existing
+`KeychainManager` instance from `SupabaseManager` instead of resolving a
+singleton. The handoff and version-1 queue keep their existing camel-case JSON
+fields and `WhenUnlockedThisDeviceOnly` accessibility. Successful writes require
+an exact read-back match, malformed values are rejected before writes, and
+malformed or unreadable restored evidence fails closed without being treated as
+absence.
+
+The store migrates a valid legacy single-record proof to the queue format. A
+failed migration leaves the readable original proof active for the current
+attempt and retries migration later. It validates UUIDs, provider and provider
+subject bounds, the capability-secret shape, and accepted server timestamp
+formats; it deliberately does not compare expiry with the device clock.
+`GhostProfileMergePolicy` owns stable replacement and the two terminal server
+codes, while `GhostProfileMergeWorkflow` owns server → purchase → local-evidence
+→ proof-removal order with cancellation fences around every asynchronous phase.
+`SupabaseManager` retains every live Auth, endpoint, RevenueCat, consent,
+session-fence, retry, lifecycle, and logging effect. This split changes no
+Keychain key, JSON shape, API payload, or provider contract.
 
 ## Required-consent launch restoration
 

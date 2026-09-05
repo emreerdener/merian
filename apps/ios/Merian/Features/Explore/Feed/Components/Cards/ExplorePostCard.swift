@@ -77,6 +77,7 @@ struct ExplorePostCard: View {
 
     private var mediaView: some View {
         ExploreFeedMediaView(
+            postId: post.id,
             imageUrl: post.heroImageUrl,
             mediaItems: post.resolvedMediaItems,
             reloadGeneration: mediaReloadGeneration,
@@ -317,7 +318,10 @@ struct ExplorePostCard: View {
     }
 
     private var hasStandalonePrimaryAudio: Bool {
-        post.resolvedMediaItems.first?.kind == .audio
+        ExplorePostMediaCarouselPolicy.hasPrimaryStandaloneAudio(
+            post.mediaItems,
+            fallbackImageUrl: post.heroImageUrl
+        )
     }
 
     private func finishAudioBoostAction(_ token: UUID) {

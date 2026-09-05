@@ -34,6 +34,16 @@ identity linking cannot succeed:
 9. The client synchronizes the destination's App Store receipt, rebinds local
    evidence, and removes its durable proof only after every step succeeds.
 
+On iOS, `Core/Security/GhostProfileMerge/Stores/GhostProfileMergeStore.swift` is
+the sole handoff/queue codec, legacy-migration, validation, and verified
+Keychain owner. `Core/Network/Auth/Policies/GhostProfileMergePolicy.swift` owns
+stable replacement and terminal-code classification, and
+`Core/Network/Auth/Coordinators/GhostProfileMergeWorkflow.swift` owns the
+completion order and cancellation boundaries. `SupabaseManager` retains the live
+endpoint, Auth/session, RevenueCat, consent, retry, lifecycle, and logging
+effects. This ownership split does not change this Function's payload or
+idempotency contract.
+
 The completion call is idempotent for the same destination and secret. If the
 RevenueCat handoff or Auth cleanup fails after the data transaction, the
 function returns a retryable 503; repeating the same completion cannot move the
@@ -149,13 +159,15 @@ editing committed migration history. The RevenueCat preservation module and
 proof-bearing iOS receipt sync add the provider-continuity requirements. Static,
 Edge, and iOS tests cover their source contracts, and
 `ghostProfileMergeConcurrencyDb.test.ts` provides the two-session deadlock
-schedules. `ghostProfileMergeClientContract.test.ts` pins proof persistence
-before the session switch, retry on permanent-session restoration, provider sync
-before local evidence rebind/removal, device-only Keychain storage, and
-terminal-only deletion. Do not deploy or enable the existing-account conflict
-fallback until the production workflow's exact-CLI disposable replay, complete
-catalog and Edge suites, two-session schedules, strict lint, and advisors clear
-the release hold in the
+schedules. `ghostProfileMergeClientContract.test.ts` reads the extracted
+`GhostProfileMergeStore`, `GhostProfileMergePolicy`, and
+`GhostProfileMergeWorkflow` owners and pins proof persistence before the session
+switch, retry on permanent-session restoration, cancellation fences around each
+asynchronous finalization phase, provider sync before local evidence rebind,
+proof removal last, device-only Keychain storage, and terminal-only deletion. Do
+not deploy or enable the existing-account conflict fallback until the production
+workflow's exact-CLI disposable replay, complete catalog and Edge suites,
+two-session schedules, strict lint, and advisors clear the release hold in the
 [deployment runbook](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
 ## Operations

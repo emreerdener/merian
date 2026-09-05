@@ -24,7 +24,7 @@ extension ExplorePublicMediaView {
         applyAudioSeek(progress: progress, player: player)
         let shouldResume = playbackState.finishAudioSeek()
         HapticManager.shared.triggerSelectionPulse(source: "media.explore.detail.seek.commit")
-        if shouldResume {
+        if shouldResume, isPlaybackActive {
             playbackCoordinator?.activate(playerID: playerId, surface: surface)
             player.play()
         } else {

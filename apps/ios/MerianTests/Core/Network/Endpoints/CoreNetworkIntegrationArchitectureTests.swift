@@ -76,8 +76,23 @@ struct CoreNetworkIntegrationArchitectureTests {
         let transitionPolicy = try networkSource(
             "Auth/Policies/AuthTransitionPolicy.swift"
         )
+        let deletionPolicy = try networkSource(
+            "Auth/Policies/AccountDeletionTransitionPolicy.swift"
+        )
         let coordinators = try networkSource(
             "Auth/Coordinators/AuthTransitionCoordinators.swift"
+        )
+        let deletionWorkflow = try networkSource(
+            "Auth/Coordinators/AccountDeletionWorkflow.swift"
+        )
+        let purchaseSignOutWorkflow = try networkSource(
+            "Auth/Coordinators/PurchaseIdentitySignOutWorkflow.swift"
+        )
+        let ghostMergePolicy = try networkSource(
+            "Auth/Policies/GhostProfileMergePolicy.swift"
+        )
+        let ghostMergeWorkflow = try networkSource(
+            "Auth/Coordinators/GhostProfileMergeWorkflow.swift"
         )
 
         for declaration in [
@@ -114,7 +129,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(
             transitionPolicy.contains("@MainActor\nenum AuthTransitionPolicy")
         )
-        for name in [
+        let transitionPolicyFunctionNames: Set<String> = [
             "allowsAuthTransitionDuringAccountDeletionRecovery",
             "allowsAuthenticatedRequest",
             "shouldDeferAuthListenerSideEffects",
@@ -122,10 +137,16 @@ struct CoreNetworkIntegrationArchitectureTests {
             "shouldClearOAuthSessionAfterFailure",
             "allowsOAuthMetadataMutation",
             "acceptsAuthenticationCallbackTarget",
+            "acceptsLinkedIdentityUpgrade",
             "authSessionAdoption",
             "shouldDeferExternalIdentityLink",
             "shouldRestoreSourceIdentityAfterFailedSignOut"
-        ] {
+        ]
+        #expect(
+            try staticFunctionNames(in: transitionPolicy)
+                == transitionPolicyFunctionNames
+        )
+        for name in transitionPolicyFunctionNames {
             #expect(transitionPolicy.contains("func \(name)("))
             #expect(!aggregate.contains("func \(name)("))
         }
@@ -134,6 +155,111 @@ struct CoreNetworkIntegrationArchitectureTests {
                 "nonisolated static func shouldRestoreSourceIdentityAfterFailedSignOut"
             )
         )
+        #expect(
+            deletionPolicy.contains(
+                "@MainActor\nenum AccountDeletionTransitionPolicy"
+            )
+        )
+        let deletionPolicyFunctionNames: Set<String> = [
+            "canRestoreDeferredBarrierSession",
+            "isDefinitiveIntakeRejection",
+            "isAcceptedExpiredRecovery",
+            "isUnknownRecovery"
+        ]
+        #expect(
+            try staticFunctionNames(in: deletionPolicy)
+                == deletionPolicyFunctionNames
+        )
+        for name in deletionPolicyFunctionNames {
+            #expect(!aggregate.contains("func \(name)("))
+        }
+        #expect(
+            deletionPolicy.contains(
+                "nonisolated static func canRestoreDeferredBarrierSession"
+            )
+        )
+        #expect(
+            deletionWorkflow.contains("@MainActor\nenum AccountDeletionWorkflow")
+        )
+        let deletionWorkflowFunctionNames: Set<String> = [
+            "restoreDeferredBarrierSession",
+            "performDurableIntake",
+            "performPreparedIntake",
+            "performAcceptedCleanup",
+            "performRecoveryRetirement",
+            "retireRejectedRecoveryProof",
+            "retireDefinitiveIntakeRejectionProof",
+            "performDefinitiveIntakeRejectionRetirement",
+            "performPendingLocalCleanup"
+        ]
+        #expect(
+            try staticFunctionNames(in: deletionWorkflow)
+                == deletionWorkflowFunctionNames
+        )
+        #expect(
+            !deletionWorkflow.contains("= { true }"),
+            "Deletion cleanup stages must remain explicit at every call site"
+        )
+        for name in deletionWorkflowFunctionNames {
+            #expect(!aggregate.contains("func \(name)("))
+        }
+        for legacyName in [
+            "canRestoreDeferredDeletionBarrierSession",
+            "performDeferredDeletionBarrierSessionRestoration",
+            "performDurableAccountDeletionIntake",
+            "performPreparedAccountDeletionIntake",
+            "isDefinitiveAccountDeletionIntakeRejection",
+            "isAcceptedExpiredAccountDeletionRecovery",
+            "isUnknownAccountDeletionRecovery",
+            "performAcceptedAccountDeletionCleanup",
+            "performAccountDeletionRecoveryRetirement",
+            "performRejectedAccountDeletionRecoveryProofRetirement",
+            "performRejectedAccountDeletionRecoveryRetirement",
+            "performDefinitiveAccountDeletionIntakeRejectionProofRetirement",
+            "performDefinitiveAccountDeletionIntakeRejectionRetirement",
+            "performPendingAccountDeletionLocalCleanup"
+        ] {
+            #expect(!aggregate.contains("func \(legacyName)("))
+        }
+        #expect(
+            purchaseSignOutWorkflow.contains(
+                "@MainActor\nenum PurchaseIdentitySignOutWorkflow"
+            )
+        )
+        let purchaseSignOutWorkflowFunctionNames: Set<String> = [
+            "performUserSignOutTransition",
+            "performPurchaseSafeSignOutTransition",
+            "finalizeSignOutPurchaseHandoff"
+        ]
+        #expect(
+            try staticFunctionNames(in: purchaseSignOutWorkflow)
+                == purchaseSignOutWorkflowFunctionNames
+        )
+        for name in purchaseSignOutWorkflowFunctionNames {
+            #expect(!aggregate.contains("static func \(name)("))
+        }
+        #expect(ghostMergePolicy.contains("enum GhostProfileMergePolicy"))
+        let ghostMergePolicyFunctionNames: Set<String> = [
+            "enqueuing",
+            "shouldDiscardPendingHandoff"
+        ]
+        #expect(
+            try staticFunctionNames(in: ghostMergePolicy)
+                == ghostMergePolicyFunctionNames
+        )
+        for name in ghostMergePolicyFunctionNames {
+            #expect(!aggregate.contains("static func \(name)("))
+        }
+        #expect(
+            ghostMergeWorkflow.contains(
+                "@MainActor\nenum GhostProfileMergeWorkflow"
+            )
+        )
+        #expect(
+            try staticFunctionNames(in: ghostMergeWorkflow)
+                == ["finalizeHandoff"]
+        )
+        #expect(!aggregate.contains("static func finalizeHandoff("))
         for declaration in [
             "struct AccountBoundWorkCoordinator",
             "struct AuthTransitionCoordinator",
@@ -143,7 +269,17 @@ struct CoreNetworkIntegrationArchitectureTests {
             #expect(!aggregate.contains(declaration))
         }
 
-        for source in [models, presentationPolicy, transitionPolicy, coordinators] {
+        for source in [
+            models,
+            presentationPolicy,
+            transitionPolicy,
+            deletionPolicy,
+            coordinators,
+            deletionWorkflow,
+            purchaseSignOutWorkflow,
+            ghostMergePolicy,
+            ghostMergeWorkflow
+        ] {
             for forbiddenToken in [
                 "import AuthenticationServices", "import GoogleSignIn",
                 "import RevenueCat", "import Supabase", ".shared",
@@ -158,6 +294,13 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(!models.contains("Task {"))
         #expect(!presentationPolicy.contains("Task {"))
         #expect(!transitionPolicy.contains("Task {"))
+        #expect(!deletionPolicy.contains("Task {"))
+        #expect(!deletionWorkflow.contains("Task {"))
+        #expect(!purchaseSignOutWorkflow.contains("Task {"))
+        #expect(!ghostMergePolicy.contains("Task {"))
+        #expect(!ghostMergeWorkflow.contains("Task {"))
+        #expect(!purchaseSignOutWorkflow.contains("MerianLog"))
+        #expect(!ghostMergeWorkflow.contains("MerianLog"))
         #expect(
             coordinators.components(separatedBy: "Task {").count == 2,
             "Auth foundation must retain exactly one structured task owner"
@@ -178,6 +321,27 @@ struct CoreNetworkIntegrationArchitectureTests {
         )
         let policyTests = try source(
             "apps/ios/MerianTests/Core/Network/Auth/AuthTransitionPolicyTests.swift"
+        )
+        let deletionPolicyTests = try source(
+            "apps/ios/MerianTests/Core/Network/Auth/AccountDeletionTransitionPolicyTests.swift"
+        )
+        let deletionIntakeTests = try source(
+            "apps/ios/MerianTests/Core/Network/Auth/AccountDeletionIntakeWorkflowTests.swift"
+        )
+        let deletionCleanupTests = try source(
+            "apps/ios/MerianTests/Core/Network/Auth/AccountDeletionCleanupWorkflowTests.swift"
+        )
+        let purchaseSignOutTests = try source(
+            "apps/ios/MerianTests/Core/Network/Auth/PurchaseIdentitySignOutWorkflowTests.swift"
+        )
+        let ghostMergePolicyTests = try source(
+            "apps/ios/MerianTests/Core/Network/Auth/GhostProfileMergePolicyTests.swift"
+        )
+        let ghostMergeErrorAdapterTests = try source(
+            "apps/ios/MerianTests/Core/Network/Auth/GhostProfileMergeEndpointErrorAdapterTests.swift"
+        )
+        let ghostMergeWorkflowTests = try source(
+            "apps/ios/MerianTests/Core/Network/Auth/GhostProfileMergeWorkflowTests.swift"
         )
         #expect(
             foundationTests.contains("private actor AuthTransitionTestGate")
@@ -203,6 +367,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             "testOAuthMetadataMutationRequiresTheExactTransitionSessionBeforeAndAfterUpdate",
             "testActiveTransitionOwnsListenerSideEffectsAndAuthenticatedRequests",
             "testFallbackAuthenticationCallbackNeverReplacesAnAnonymousOrDifferentAccount",
+            "testLinkedIdentityUpgradeRequiresSameUUIDAndPermanentDestination",
             "testEveryDeletionRecoveryPhaseAdmitsOnlyItsOwnedTransition",
             "testEveryExternalIdentityLinkWaitsForPurchaseHandoffBinding",
             "testFailedSignOutRestoresOnlyTheExactUnfencedSourceAccount",
@@ -211,6 +376,375 @@ struct CoreNetworkIntegrationArchitectureTests {
             #expect(policyTests.contains("func \(name)("))
             #expect(!aggregateTests.contains("func \(name)("))
         }
+        for name in [
+            "testAccountDeletionTreatsOtherHTTPFailuresAsAmbiguous",
+            "testOnlyMatchedExpiredRecoveryProvesDeletionWasAccepted",
+            "testOnlyExactUnknownRecoveryIsClassified",
+            "testDeletionBarrierRestoresOnlyTheExactCachedSourceSession"
+        ] {
+            #expect(deletionPolicyTests.contains("func \(name)("))
+            #expect(!aggregateTests.contains("func \(name)("))
+        }
+        for name in [
+            "testAccountDeletionPersistsIntentBeforeRequestAndRetainsAmbiguousFailure",
+            "testAccountDeletionClearsIntentOnlyAfterDefinitiveClientRejection",
+            "testAccountDeletionDoesNotDispatchWhenIntentPersistenceFails",
+            "testAccountDeletionVerifiesTransitionContextAfterReceipt",
+            "testAccountDeletionKeepsIntentWhenFailureContextIsStale",
+            "testPreparedAccountDeletionPersistsMarkersBeforeCommit",
+            "testPreparedAccountDeletionStopsBeforeCommitWhenPreparationCannotBecomeDurable",
+            "testPreparedAccountDeletionRejectsStaleCommitContext",
+            "testPreparedAccountDeletionRejectsStalePreparationFailureContext",
+            "testPreparedAccountDeletionRejectsStaleCommitFailureContext"
+        ] {
+            #expect(deletionIntakeTests.contains("func \(name)("))
+            #expect(!aggregateTests.contains("func \(name)("))
+        }
+        for name in [
+            "testAcceptedAccountDeletionPersistsRecoveryBeforeSignOutAndClearsLast",
+            "testAccountDeletionAcknowledgementFailureRetainsProofAndMarker",
+            "testAccountDeletionRetirementReverifiesCleanupAndClearsProofBeforeMarker",
+            "testRejectedAccountDeletionRetiresOnlyProof",
+            "testDefinitiveDeletionRejectionPersistsRetirementBeforeProofRemoval",
+            "testAccountDeletionKeepsRecoveryPendingWhenMarkerRemovalFails",
+            "testFailedAccountDeletionPurgeLeavesRecoveryMarkerPending",
+            "testAcceptedAccountDeletionDoesNotEraseLocalStateWhenRecoveryPersistenceFails",
+            "testDeletionBarrierAdoptsCachedSessionBeforeMarkerRemovalAndPublication",
+            "testDeletionBarrierKeepsMarkerWhenAdoptedSessionCannotBeRevalidated",
+            "testDeletionBarrierDoesNotPublishWhenMarkerRemovalFails",
+            "testPendingAccountDeletionSignsOutBeforePurgeAndResolvesLast"
+        ] {
+            #expect(deletionCleanupTests.contains("func \(name)("))
+            #expect(!aggregateTests.contains("func \(name)("))
+        }
+        for name in [
+            "testUserSignOutTransitionInitializesOneAnonymousSessionAfterSignOut",
+            "testUserSignOutTransitionPropagatesAnonymousSessionFailure",
+            "testPurchaseSafeSignOutPersistsBeforeClosingAndCompletingIdentity",
+            "testPurchaseSafeSignOutNeverClosesSessionWhenPreparationFails",
+            "testPurchaseSafeSignOutPropagatesDurableCompletionFailure",
+            "testSignOutPurchaseFinalizationClearsProofOnlyAfterEveryCheck",
+            "testSignOutPurchaseFinalizationRetainsProofAfterSyncFailure",
+            "testSignOutPurchaseFinalizationRetainsProofAfterCancellation",
+            "testSignOutPurchaseFinalizationRejectsPreflightCancellationBeforeBinding",
+            "testSignOutPurchaseFinalizationRefusesStaleSessionBeforeProviderLink"
+        ] {
+            #expect(purchaseSignOutTests.contains("func \(name)("))
+            #expect(!aggregateTests.contains("func \(name)("))
+        }
+        for name in [
+            "replacementKeepsUnrelatedProofsInStableOrder",
+            "terminalServerCodesAloneDiscardDurableProof"
+        ] {
+            #expect(ghostMergePolicyTests.contains("func \(name)("))
+            #expect(!aggregateTests.contains("func \(name)("))
+        }
+        #expect(
+            ghostMergeErrorAdapterTests.contains(
+                "func testPendingMergeProofIsDiscardedOnlyForTerminalServerCodes("
+            )
+        )
+        #expect(
+            !aggregateTests.contains(
+                "func testPendingMergeProofIsDiscardedOnlyForTerminalServerCodes("
+            )
+        )
+        for name in [
+            "testGhostHandoffClearsQueueOnlyAfterServerAndLocalCompletion",
+            "testGhostHandoffRetainsQueueWhenServerOrLocalCompletionFails",
+            "testGhostHandoffRemovalFailureRemainsRetryable",
+            "testGhostHandoffRejectsPreflightCancellationBeforeServerWork",
+            "testGhostHandoffRetainsProofAfterEachAsyncPhaseCancellation",
+            "testGhostHandoffSessionFenceFailureStopsBeforeProviderWork"
+        ] {
+            #expect(ghostMergeWorkflowTests.contains("func \(name)("))
+            #expect(!aggregateTests.contains("func \(name)("))
+        }
+    }
+
+    @Test func ghostProfileMergeQueueHasOneSecureStorageOwner() throws {
+        let manager = try networkSource("SupabaseManager.swift")
+        let ghostMergeRoot = try repositoryRoot().appendingPathComponent(
+            "apps/ios/Merian/Core/Security/GhostProfileMerge"
+        )
+        let prefix = ghostMergeRoot.path + "/"
+        let actualPaths = try Set(swiftFiles(below: ghostMergeRoot).map {
+            String($0.path.dropFirst(prefix.count))
+        })
+        let models = try source(
+            "apps/ios/Merian/Core/Security/GhostProfileMerge/Models/GhostProfileMergeModels.swift"
+        )
+        let store = try source(
+            "apps/ios/Merian/Core/Security/GhostProfileMerge/Stores/GhostProfileMergeStore.swift"
+        )
+        let storeTests = try source(
+            "apps/ios/MerianTests/Core/Security/GhostProfileMerge/GhostProfileMergeStoreTests.swift"
+        )
+
+        #expect(
+            actualPaths == [
+                "Models/GhostProfileMergeModels.swift",
+                "Stores/GhostProfileMergeStore.swift"
+            ]
+        )
+        for declaration in [
+            "struct PendingGhostProfileMerge",
+            "struct PendingGhostProfileMergeQueue"
+        ] {
+            #expect(models.contains(declaration))
+            #expect(!manager.contains(declaration))
+        }
+        #expect(
+            models.contains(
+                "struct PendingGhostProfileMerge: Codable, Equatable, Sendable"
+            )
+        )
+        #expect(
+            models.contains(
+                "struct PendingGhostProfileMergeQueue: Codable, Equatable, Sendable"
+            )
+        )
+        #expect(
+            models.components(separatedBy: "private enum CodingKeys").count
+                == 3
+        )
+        for method in [
+            "loadPendingHandoffs",
+            "persistPendingHandoffs",
+            "clearPendingHandoff",
+            "clearPendingHandoffs"
+        ] {
+            #expect(store.contains("func \(method)("))
+        }
+        #expect(store.contains("struct Dependencies"))
+        #expect(store.contains("@MainActor\nstruct GhostProfileMergeStore"))
+        #expect(store.contains("enum GhostProfileMergeStoreError"))
+        #expect(store.contains(".whenUnlockedThisDeviceOnly"))
+        #expect(store.contains("try dependencies.loadData(key) == encoded"))
+        #expect(store.contains("value.utf16.count"))
+        #expect(store.contains("0x80...0x9F"))
+        #expect(store.contains(#"^[A-Za-z0-9_-]{43}$"#))
+        #expect(!store.contains("Date()"))
+        #expect(store.contains("(20...40).contains(value.utf8.count)"))
+        #expect(store.contains("DateUtilities.iso8601FractionalFormatter"))
+        #expect(store.contains("DateUtilities.iso8601Formatter"))
+        #expect(!store.contains("SupabaseAuthTransitionError"))
+        #expect(manager.contains("GhostProfileMergeStore("))
+        #expect(manager.contains("dependencies: .live(keychain: keychain)"))
+        #expect(store.contains("KeychainKeys.pendingGhostProfileMerge"))
+        #expect(!manager.contains("KeychainKeys.pendingGhostProfileMerge"))
+        for forbiddenToken in [
+            "import AuthenticationServices", "import GoogleSignIn",
+            "import RevenueCat", "import Supabase", ".shared",
+            "Task {", "Task.detached", "MerianLog"
+        ] {
+            #expect(
+                !models.contains(forbiddenToken),
+                "Ghost merge models acquired \(forbiddenToken)"
+            )
+            #expect(
+                !store.contains(forbiddenToken),
+                "Ghost merge store acquired \(forbiddenToken)"
+            )
+        }
+        #expect(lineCount(models) <= 600)
+        #expect(lineCount(store) <= 600)
+        for testName in [
+            "absentQueueRemainsAbsent",
+            "queueRoundTripsWithDeviceOnlyAccessibility",
+            "persistedFieldNamesRemainByteCompatible",
+            "legacyRecordMigratesToVersionedQueue",
+            "failedLegacyMigrationPreservesReadableProof",
+            "malformedOrUnsupportedQueueFailsClosed",
+            "invalidProofsAreRejectedBeforeSecureStorage",
+            "serverOwnsExpiryClassification",
+            "failedOrUnverifiedWriteFailsClosed",
+            "clearingUsesExactCaseInsensitiveIdentifiers",
+            "secureStoreFailuresPropagateWithoutBecomingAbsence"
+        ] {
+            #expect(storeTests.contains("@Test func \(testName)("))
+        }
+    }
+
+    @Test func purchaseIdentityJournalsHaveOneSecureStorageOwner() throws {
+        let manager = try networkSource("SupabaseManager.swift")
+        let purchaseIdentityRoot = try repositoryRoot().appendingPathComponent(
+            "apps/ios/Merian/Core/Security/PurchaseIdentity"
+        )
+        let prefix = purchaseIdentityRoot.path + "/"
+        let actualPaths = try Set(swiftFiles(below: purchaseIdentityRoot).map {
+            String($0.path.dropFirst(prefix.count))
+        })
+        let models = try source(
+            "apps/ios/Merian/Core/Security/PurchaseIdentity/Models/PurchaseIdentityHandoffModels.swift"
+        )
+        let store = try source(
+            "apps/ios/Merian/Core/Security/PurchaseIdentity/Stores/PurchaseIdentityHandoffStore.swift"
+        )
+        let storeTests = try source(
+            "apps/ios/MerianTests/Core/Security/PurchaseIdentity/PurchaseIdentityHandoffStoreTests.swift"
+        )
+
+        #expect(
+            actualPaths == [
+                "Models/PurchaseIdentityHandoffModels.swift",
+                "Stores/PurchaseIdentityHandoffStore.swift"
+            ]
+        )
+
+        for declaration in [
+            "struct PendingSignOutPurchaseHandoff",
+            "struct LegacyPrincipalRotation",
+            "enum PrincipalRotationLocalState",
+            "struct ServerPrincipalRotation",
+            "enum PendingPurchasePrincipalAuthRotation"
+        ] {
+            #expect(models.contains(declaration))
+            #expect(!manager.contains(declaration))
+        }
+        #expect(
+            models.components(separatedBy: "private enum CodingKeys").count
+                == 4
+        )
+        for method in [
+            "loadPendingSignOutPurchaseHandoff",
+            "persistPendingSignOutPurchaseHandoff",
+            "clearPendingSignOutPurchaseHandoff",
+            "loadPendingPurchasePrincipalAuthRotation",
+            "persistPendingPurchasePrincipalAuthRotation",
+            "clearPendingPurchasePrincipalAuthRotation"
+        ] {
+            #expect(store.contains("func \(method)("))
+        }
+        #expect(store.contains("struct Dependencies"))
+        #expect(store.contains("@MainActor\nstruct PurchaseIdentityHandoffStore"))
+        #expect(store.contains("enum PurchaseIdentityHandoffStoreError"))
+        #expect(store.contains(".whenUnlockedThisDeviceOnly"))
+        #expect(store.contains("try dependencies.loadData(key) == data"))
+        #expect(!store.contains("SupabaseAuthTransitionError"))
+        #expect(manager.contains("dependencies: .live(keychain: keychain)"))
+        for keyOwner in [
+            "KeychainKeys.pendingSignOutPurchaseHandoff",
+            "KeychainKeys.pendingPurchasePrincipalAuthRotation"
+        ] {
+            #expect(store.contains(keyOwner))
+            #expect(!manager.contains(keyOwner))
+        }
+        for forbiddenToken in [
+            "import AuthenticationServices", "import GoogleSignIn",
+            "import RevenueCat", "import Supabase", ".shared",
+            "Task {", "Task.detached", "MerianLog"
+        ] {
+            #expect(
+                !models.contains(forbiddenToken),
+                "Purchase handoff models acquired \(forbiddenToken)"
+            )
+            #expect(
+                !store.contains(forbiddenToken),
+                "Purchase handoff store acquired \(forbiddenToken)"
+            )
+        }
+        #expect(lineCount(models) <= 600)
+        #expect(lineCount(store) <= 600)
+        for testName in [
+            "absentJournalsRemainAbsent",
+            "legacyTransferRoundTripsWithDeviceOnlyAccessibility",
+            "persistedJournalFieldNamesRemainByteCompatible",
+            "malformedLegacyTransferFailsClosed",
+            "failedOrUnverifiedLegacyTransferWriteFailsClosed",
+            "invalidJournalsAreRejectedBeforeSecureStorage",
+            "preparingServerRotationRoundTripsWithoutManufacturedExpiry",
+            "preparedServerRotationRequiresServerExpiry",
+            "preparingServerRotationRejectsAnExpiry",
+            "legacyClientOnlyRotationRemainsReadable",
+            "malformedStableRotationFailsClosed",
+            "clearingEachJournalUsesItsExactVerifiedKey",
+            "secureStoreFailuresPropagateWithoutBecomingAbsence"
+        ] {
+            #expect(storeTests.contains("@Test func \(testName)("))
+        }
+    }
+
+    @Test func liveAuthRecoveryReusesTheExactSessionCoordinator() throws {
+        let manager = try networkSource("SupabaseManager.swift")
+        let telemetryLink = try sourceSection(
+            beginningWith: "    private func ensureTelemetryLinkedWhenSafe(",
+            endingBefore: "\n    /// Repairs a fail-closed purchase-identity",
+            in: manager
+        )
+        let ordinaryRefresh = try sourceSection(
+            beginningWith: "    private func refreshActiveSessionForRetry(",
+            endingBefore: "\n    /// Refreshes the JWT for an authenticated request",
+            in: manager
+        )
+        let failedSignOutRestoration = try sourceSection(
+            beginningWith:
+                "    private func restoreSourceIdentityAfterFailedSignOutIfPossible(",
+            endingBefore:
+                "\n    private func abandonPendingSignOutPurchaseHandoffIfSourceRestored(",
+            in: manager
+        )
+
+        #expect(!telemetryLink.contains("ownsAuthTransition(transition)"))
+        #expect(
+            telemetryLink.components(
+                separatedBy: "currentSessionMatchesAuthTransition(transition)"
+            ).count == 3
+        )
+        try expectOrder(
+            [
+                "let expectedSession = activeAuthTransition?.expectedSession",
+                "let session = try await client.auth.refreshSession()",
+                "transitionSession(from: session.user) == expectedSession",
+                "adoptAuthTransitionSession(",
+                "currentSessionMatchesAuthTransition(transition)"
+            ],
+            in: ordinaryRefresh
+        )
+        try expectOrder(
+            [
+                "shouldRestoreSourceIdentityAfterFailedSignOut(",
+                "adoptAuthTransitionSession(session.user, for: transition)",
+                "currentSessionMatchesAuthTransition(transition)",
+                "currentUser = session.user",
+                "ensureTelemetryLinkedWhenSafe("
+            ],
+            in: failedSignOutRestoration
+        )
+    }
+
+    @Test func directIdentityLinkRetiresRecoveryOnlyAfterExactUpgradeAdoption() throws {
+        let manager = try networkSource("SupabaseManager.swift")
+        let oauthFinalization = try sourceSection(
+            beginningWith: "    private func finalizeOAuthLogin(",
+            endingBefore: "\n    private func registerAppleRevocationCredential(",
+            in: manager
+        )
+        let directIdentityLink = try sourceSection(
+            beginningWith:
+                "            do {\n                _ = try await client.auth.linkIdentityWithIdToken(",
+            endingBefore: "\n            } catch {",
+            in: oauthFinalization
+        )
+
+        #expect(
+            directIdentityLink.components(
+                separatedBy: "clearPendingGhostProfileMerges("
+            ).count == 2
+        )
+
+        try expectOrder(
+            [
+                "linkIdentityWithIdToken(",
+                "let linkedSession = try await client.auth.session",
+                "acceptsLinkedIdentityUpgrade(",
+                "adoptAuthTransitionSession(",
+                "linkedSession.user,",
+                "currentSessionMatchesAuthTransition(transition)",
+                "clearPendingGhostProfileMerges("
+            ],
+            in: directIdentityLink
+        )
     }
 
     @Test func transportAndLiveDependenciesKeepTheirReviewedOwners() throws {
@@ -590,10 +1124,15 @@ struct CoreNetworkIntegrationArchitectureTests {
     ]
 
     private static let authFoundationPaths: Set<String> = [
+        "Coordinators/AccountDeletionWorkflow.swift",
         "Coordinators/AuthTransitionCoordinators.swift",
+        "Coordinators/GhostProfileMergeWorkflow.swift",
+        "Coordinators/PurchaseIdentitySignOutWorkflow.swift",
         "Models/SupabaseAuthTransitionModels.swift",
+        "Policies/AccountDeletionTransitionPolicy.swift",
         "Policies/AccountPresentationPolicy.swift",
-        "Policies/AuthTransitionPolicy.swift"
+        "Policies/AuthTransitionPolicy.swift",
+        "Policies/GhostProfileMergePolicy.swift"
     ]
 
     private static let safelyReplayableReadFunctionNames: Set<String> = [
@@ -648,6 +1187,22 @@ struct CoreNetworkIntegrationArchitectureTests {
         }
     }
 
+    private func staticFunctionNames(in source: String) throws -> Set<String> {
+        let modifiers =
+            #"private|fileprivate|internal|package|public|open|nonisolated|final|dynamic|override"#
+        let pattern =
+            #"(?m)^    (?:(?:\#(modifiers))\s+)*static\s+func\s+"#
+                + #"([A-Za-z0-9_]+)\("#
+        let expression = try NSRegularExpression(pattern: pattern)
+        return try Set(expression.matches(
+            in: source,
+            range: NSRange(source.startIndex..., in: source)
+        ).map { match in
+            let range = try #require(Range(match.range(at: 1), in: source))
+            return String(source[range])
+        })
+    }
+
     private func stringSet(named name: String, in source: String) throws
         -> Set<String> {
         let declaration = try #require(
@@ -670,6 +1225,31 @@ struct CoreNetworkIntegrationArchitectureTests {
             let range = try #require(Range(match.range(at: 1), in: contents))
             return String(contents[range])
         })
+    }
+
+    private func sourceSection(
+        beginningWith beginning: String,
+        endingBefore ending: String,
+        in source: String
+    ) throws -> String {
+        let start = try #require(source.range(of: beginning))
+        let end = try #require(
+            source.range(
+                of: ending,
+                range: start.upperBound..<source.endIndex
+            )
+        )
+        return String(source[start.lowerBound..<end.lowerBound])
+    }
+
+    private func expectOrder(_ tokens: [String], in source: String) throws {
+        var position = source.startIndex
+        for token in tokens {
+            let match = try #require(
+                source.range(of: token, range: position..<source.endIndex)
+            )
+            position = match.upperBound
+        }
     }
 
     private func expectOwners(

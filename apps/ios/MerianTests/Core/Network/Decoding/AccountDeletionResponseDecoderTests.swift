@@ -48,7 +48,10 @@ struct AccountDeletionResponseDecoderTests {
 
     @Test(arguments: [nil, 1, 2, 3] as [Int?])
     func versionTwoIsRequiredOnlyByVersionTwoOperations(version: Int?) throws {
-        let pending = try AccountDeletionTestSupport.receiptData(protocolVersion: version)
+        let pending = try AccountDeletionTestSupport.receiptData(
+            acknowledged: false,
+            protocolVersion: version
+        )
         let prepared = try preparationData(protocolVersion: version)
         #expect(try decode(pending, statusCode: 202, operation: .intake(requiresRecoveryExpiry: true)).status == .pending)
         #expect(try decode(pending, operation: .recovery(acknowledge: false)).status == .pending)
@@ -84,16 +87,69 @@ struct AccountDeletionResponseDecoderTests {
     }
 
     @Test(arguments: [AccountDeletionStatus.prepared, .notCommitted, .pending, .completed], [false, true])
-    func publicRecoveryDoesNotAddANewStatusAllowlist(status: AccountDeletionStatus, acknowledged: Bool) throws {
+    func publicRecoveryEnforcesEachOperationStatusContract(
+        status: AccountDeletionStatus,
+        acknowledged: Bool
+    ) throws {
         let data = try AccountDeletionTestSupport.receiptData(status: status, acknowledged: acknowledged)
-        for operation in [Operation.recovery(acknowledge: false), .recoveryV2(acknowledge: false)] {
-            #expect(try decode(data, operation: operation).status == status)
-        }
-        for operation in [Operation.recovery(acknowledge: true), .recoveryV2(acknowledge: true)] {
-            if acknowledged {
-                #expect(try decode(data, operation: operation).recoveryAcknowledged == true)
+        let isAcceptedDeletion = status == .pending || status == .completed
+        let expectations: [(Operation, Bool)] = [
+            (.recovery(acknowledge: false), isAcceptedDeletion),
+            (
+                .recovery(acknowledge: true),
+                isAcceptedDeletion && acknowledged
+            ),
+            (
+                .recoveryV2(acknowledge: false),
+                isAcceptedDeletion ||
+                    (status == .notCommitted && !acknowledged)
+            ),
+            (
+                .recoveryV2(acknowledge: true),
+                isAcceptedDeletion && acknowledged
+            )
+        ]
+
+        for (operation, isAccepted) in expectations {
+            if isAccepted {
+                #expect(try decode(data, operation: operation).status == status)
             } else {
-                #expect(throws: MerianError.invalidResponse) { try decode(data, operation: operation) }
+                #expect(throws: MerianError.invalidResponse) {
+                    try decode(data, operation: operation)
+                }
+            }
+        }
+    }
+
+    @Test func publicRecoveryRequiresExplicitAcknowledgementState() throws {
+        let data = try AccountDeletionTestSupport.receiptData(
+            acknowledged: nil
+        )
+
+        for operation in publicOperations {
+            #expect(throws: MerianError.invalidResponse) {
+                try decode(data, operation: operation)
+            }
+        }
+    }
+
+    @Test func nonCommitReceiptCannotClaimDeletionDisposition() throws {
+        let acknowledged = try AccountDeletionTestSupport.receiptData(
+            status: .notCommitted,
+            acknowledged: true
+        )
+        let manualDisposition = try AccountDeletionTestSupport.receiptData(
+            status: .notCommitted,
+            acknowledged: false,
+            manualProviderRevocationRequired: true
+        )
+
+        for data in [acknowledged, manualDisposition] {
+            #expect(throws: MerianError.invalidResponse) {
+                try decode(
+                    data,
+                    operation: .recoveryV2(acknowledge: false)
+                )
             }
         }
     }
@@ -103,8 +159,17 @@ struct AccountDeletionResponseDecoderTests {
         let data = try AccountDeletionTestSupport.receiptData(
             status: status, expiry: AccountDeletionTestSupport.expiredTimestamp, acknowledged: acknowledged
         )
-        for (operation, expected) in [(Operation.recovery(acknowledge: false), acknowledged),
-                                      (.recoveryV2(acknowledge: false), acknowledged || status == .notCommitted)] {
+        for (operation, expected) in [
+            (
+                Operation.recovery(acknowledge: false),
+                acknowledged && status != .notCommitted
+            ),
+            (
+                .recoveryV2(acknowledge: false),
+                (acknowledged && status != .notCommitted)
+                    || (!acknowledged && status == .notCommitted)
+            )
+        ] {
             if expected {
                 let receipt = try AccountDeletionResponseDecoder.decode(data, statusCode: 200, for: operation) {
                     Issue.record("Terminal replay must validate the timestamp without reading the clock")

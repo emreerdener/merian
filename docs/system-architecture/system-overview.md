@@ -293,9 +293,16 @@ A structured schema built on native SwiftData migrations:
 
 - `DeviceIdentityManager` reads `identifierForVendor` as an install/analytics
   fallback. It is not billing authority. `Core/Network/Auth/` owns the
-  value-only `AuthTransitionCoordinator` and deterministic transition policy;
-  `SupabaseManager` stores and advances the coordinator, applies the policy, and
-  creates or restores anonymous Supabase sessions independently.
+  value-only `AuthTransitionCoordinator`, deterministic transition policy,
+  account-deletion classification, ghost-merge queue/error policy,
+  closure-injected deletion phase sequencing, purchase-safe sign-out ordering,
+  and ghost-merge finalization order. `SupabaseManager` stores and advances the
+  coordinator, applies those decisions, assembles the live account-deletion and
+  purchase-identity effects, and creates or restores anonymous Supabase sessions
+  independently. A transition token does not authorize a suspended result by
+  itself: deletion, ordinary Auth refresh, purchase linking, and failed-sign-out
+  restoration revalidate the exact UUID, anonymous/account kind, and Auth
+  generation before publishing or retiring durable state.
 - Stable purchase identity uses a separate random 256-bit
   `WhenUnlockedThisDeviceOnly` installation capability. The authenticated
   `/resolve-purchase-principal` route stores only SHA-256, derives the Auth user
@@ -304,11 +311,14 @@ A structured schema built on native SwiftData migrations:
   monotonic device intent plus server completion fencing prevents a delayed old
   Auth request from overwriting a newer binding.
 - Apple/Google OAuth normally links the provider to the existing anonymous UUID.
-  If that provider already belongs to another permanent account, only the
-  source-proof fallback may move profile ownership into the permanent UUID. Its
-  server completion makes provider reconciliation due before obsolete source
-  Auth cleanup. PostHog identity remains a separate analytics-consent boundary;
-  account/profile identity never selects a stable RevenueCat customer.
+  The SDK must expose a permanent session for that same UUID and the active Auth
+  transition must adopt and revalidate it before durable provider-bound merge
+  recovery is retired. If that provider already belongs to another permanent
+  account, only the source-proof fallback may move profile ownership into the
+  permanent UUID. Its server completion makes provider reconciliation due before
+  obsolete source Auth cleanup. PostHog identity remains a separate
+  analytics-consent boundary; account/profile identity never selects a stable
+  RevenueCat customer.
 - In `legacy` mode, anonymous and permanent Auth UUIDs remain custom RevenueCat
   IDs and account attributes are written only to that compatibility customer.
   The explicit `/transfer-signout-purchases` protocol moves StoreKit receipt
@@ -327,6 +337,24 @@ A structured schema built on native SwiftData migrations:
   unchanged RevenueCat identity, a successful entitlement session, and the same
   anonymous Auth generation are verified. No stable sign-out receipt sync or
   customer transfer occurs.
+- `Core/Security/PurchaseIdentity/` owns the installed legacy and protocol-3
+  journal models plus their injected Keychain store. It validates values before
+  writes and after reads, preserves the existing device-only keys and JSON
+  fields, verifies writes and removals, and performs no network or provider
+  work. `PurchaseIdentitySignOutWorkflow` owns deterministic phase and
+  cancellation ordering; legacy completion rejects an already-cancelled task
+  before its server destination-bind request and retains proof after any later
+  failure.
+- `Core/Security/GhostProfileMerge/` owns the provider-bound handoff and
+  version-1 queue models plus their injected Keychain store. It validates values
+  before writes and after reads, preserves the established device-only key and
+  camel-case JSON fields, migrates the legacy single-record shape without
+  discarding readable proof after a failed rewrite, verifies writes and
+  removals, and performs no network or provider work. `GhostProfileMergePolicy`
+  owns stable queue replacement and terminal-code classification;
+  `GhostProfileMergeWorkflow` owns server → purchase → local-evidence → proof
+  removal ordering and its cancellation fences. The server, not the device
+  clock, classifies expiry.
 - RevenueCat webhook delivery is an external-provider boundary, so its Supabase
   JWT check is disabled only for that route. The handler replaces it with a
   configured bearer check and timestamped raw-body HMAC, then fetches

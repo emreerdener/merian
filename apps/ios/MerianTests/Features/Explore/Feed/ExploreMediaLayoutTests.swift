@@ -6,6 +6,21 @@ import XCTest
 
 @MainActor
 final class ExploreMediaLayoutTests: XCTestCase {
+    private func makeMediaItem(
+        kind: ExploreMediaKind,
+        url: String,
+        orderIndex: Int
+    ) -> ExploreMediaItem {
+        ExploreMediaItem(
+            kind: kind,
+            url: url,
+            thumbnailUrl: kind == .image ? url : "\(url)-poster",
+            orderIndex: orderIndex,
+            durationSeconds: kind == .image ? nil : 4,
+            hasAudio: kind != .image
+        )
+    }
+
     private func makeStripedImage(
         size: CGSize,
         topColor: UIColor,
@@ -111,6 +126,264 @@ final class ExploreMediaLayoutTests: XCTestCase {
         XCTAssertLessThanOrEqual(abs(Int(pixel.b) - Int(blue * 255)), tolerance, file: file, line: line)
     }
 
+    func testCarouselKeepsEveryMediaTypeInAuthoredOrder() {
+        let image = makeMediaItem(
+            kind: .image,
+            url: "https://example.com/image.jpg",
+            orderIndex: 2
+        )
+        let video = makeMediaItem(
+            kind: .video,
+            url: "https://example.com/video.mp4",
+            orderIndex: 1
+        )
+        let audio = makeMediaItem(
+            kind: .audio,
+            url: "https://example.com/audio.wav",
+            orderIndex: 0
+        )
+
+        let orderedItems = ExplorePostMediaCarouselPolicy.orderedItems(
+            [image, audio, video],
+            fallbackImageUrl: "https://example.com/fallback.jpg"
+        )
+
+        XCTAssertEqual(orderedItems, [audio, video, image])
+    }
+
+    func testCarouselUsesLegacyImageOnlyWhenMediaItemsAreUnavailable() {
+        let fallbackUrl = "https://example.com/fallback.jpg"
+
+        XCTAssertEqual(
+            ExplorePostMediaCarouselPolicy.orderedItems(
+                nil,
+                fallbackImageUrl: fallbackUrl
+            ),
+            [.legacyImage(url: fallbackUrl)]
+        )
+        XCTAssertEqual(
+            ExplorePostMediaCarouselPolicy.orderedItems(
+                [],
+                fallbackImageUrl: fallbackUrl
+            ),
+            [.legacyImage(url: fallbackUrl)]
+        )
+    }
+
+    func testCarouselPreservesSelectedMediaIdentityWhenOrderMetadataChanges() {
+        let image = makeMediaItem(
+            kind: .image,
+            url: "https://example.com/image.jpg",
+            orderIndex: 0
+        )
+        let video = makeMediaItem(
+            kind: .video,
+            url: "https://example.com/video.mp4",
+            orderIndex: 1
+        )
+        let reorderedVideo = makeMediaItem(
+            kind: .video,
+            url: video.url,
+            orderIndex: 0
+        )
+        let reorderedImage = makeMediaItem(
+            kind: .image,
+            url: image.url,
+            orderIndex: 1
+        )
+        let namespace = "post-cover"
+        let previousPages = ExplorePostMediaCarouselPolicy.pages(
+            for: [image, video],
+            namespace: namespace
+        )
+        let updatedPages = ExplorePostMediaCarouselPolicy.pages(
+            for: [reorderedVideo, reorderedImage],
+            namespace: namespace
+        )
+
+        XCTAssertEqual(
+            ExplorePostMediaCarouselPolicy.reconciledSelectedPageID(
+                currentID: previousPages[1].id,
+                previousPages: previousPages,
+                updatedPages: updatedPages
+            ),
+            updatedPages[0].id
+        )
+    }
+
+    func testCarouselFallsBackToCoverWhenSelectionIsRemoved() {
+        let image = makeMediaItem(
+            kind: .image,
+            url: "https://example.com/image.jpg",
+            orderIndex: 0
+        )
+        let video = makeMediaItem(
+            kind: .video,
+            url: "https://example.com/video.mp4",
+            orderIndex: 1
+        )
+        let previousPages = ExplorePostMediaCarouselPolicy.pages(
+            for: [image, video],
+            namespace: "post-cover"
+        )
+        let updatedPages = ExplorePostMediaCarouselPolicy.pages(
+            for: [image],
+            namespace: "post-cover"
+        )
+
+        XCTAssertEqual(
+            ExplorePostMediaCarouselPolicy.reconciledSelectedPageID(
+                currentID: previousPages[1].id,
+                previousPages: previousPages,
+                updatedPages: updatedPages
+            ),
+            updatedPages[0].id
+        )
+    }
+
+    func testCarouselResetsToCoverForANewPostIdentity() {
+        let image = makeMediaItem(
+            kind: .image,
+            url: "https://example.com/image.jpg",
+            orderIndex: 0
+        )
+        let video = makeMediaItem(
+            kind: .video,
+            url: "https://example.com/video.mp4",
+            orderIndex: 1
+        )
+        let previousPages = ExplorePostMediaCarouselPolicy.pages(
+            for: [image, video],
+            namespace: "post-1"
+        )
+        let updatedPages = ExplorePostMediaCarouselPolicy.pages(
+            for: [image, video],
+            namespace: "post-2"
+        )
+
+        XCTAssertEqual(
+            ExplorePostMediaCarouselPolicy.reconciledSelectedPageID(
+                currentID: previousPages[1].id,
+                previousPages: previousPages,
+                updatedPages: updatedPages
+            ),
+            updatedPages[0].id
+        )
+    }
+
+    func testCarouselAssignsDistinctIdentityToRepeatedMediaURLs() {
+        let firstAudio = makeMediaItem(
+            kind: .audio,
+            url: "https://example.com/repeated.wav",
+            orderIndex: 0
+        )
+        let secondAudio = makeMediaItem(
+            kind: .audio,
+            url: "https://example.com/repeated.wav",
+            orderIndex: 1
+        )
+        let pages = ExplorePostMediaCarouselPolicy.pages(
+            for: [firstAudio, secondAudio],
+            namespace: "post-cover"
+        )
+
+        XCTAssertEqual(Set(pages.map(\.id)).count, 2)
+        XCTAssertEqual(pages.map(\.id.occurrence), [0, 1])
+    }
+
+    func testMultiItemCarouselReservesHorizontalDragForPaging() {
+        XCTAssertEqual(
+            ExplorePostMediaCarouselPolicy.detailAudioSeekingMode(
+                mediaItemCount: 1
+            ),
+            .fullSpectrogram
+        )
+        XCTAssertEqual(
+            ExplorePostMediaCarouselPolicy.detailAudioSeekingMode(
+                mediaItemCount: 2
+            ),
+            .playmarkerOnly
+        )
+    }
+
+    func testOnlyPrimaryStandaloneAudioReceivesBoostControls() {
+        let audio = makeMediaItem(
+            kind: .audio,
+            url: "https://example.com/audio.wav",
+            orderIndex: 0
+        )
+        let image = makeMediaItem(
+            kind: .image,
+            url: "https://example.com/image.jpg",
+            orderIndex: 1
+        )
+
+        XCTAssertTrue(
+            ExplorePostMediaCarouselPolicy.allowsAudioBoost(
+                mediaItem: audio,
+                index: 0
+            )
+        )
+        XCTAssertFalse(
+            ExplorePostMediaCarouselPolicy.allowsAudioBoost(
+                mediaItem: audio,
+                index: 1
+            )
+        )
+        XCTAssertFalse(
+            ExplorePostMediaCarouselPolicy.allowsAudioBoost(
+                mediaItem: image,
+                index: 0
+            )
+        )
+    }
+
+    func testPrimaryStandaloneAudioDetectionUsesAuthoredOrder() {
+        let laterImage = makeMediaItem(
+            kind: .image,
+            url: "https://example.com/image.jpg",
+            orderIndex: 1
+        )
+        let primaryAudio = makeMediaItem(
+            kind: .audio,
+            url: "https://example.com/audio.wav",
+            orderIndex: 0
+        )
+        let primaryImage = makeMediaItem(
+            kind: .image,
+            url: "https://example.com/cover.jpg",
+            orderIndex: 0
+        )
+        let laterAudio = makeMediaItem(
+            kind: .audio,
+            url: "https://example.com/later-audio.wav",
+            orderIndex: 1
+        )
+
+        XCTAssertTrue(
+            ExplorePostMediaCarouselPolicy.hasPrimaryStandaloneAudio(
+                [laterImage, primaryAudio],
+                fallbackImageUrl: laterImage.url
+            )
+        )
+        XCTAssertFalse(
+            ExplorePostMediaCarouselPolicy.hasPrimaryStandaloneAudio(
+                [laterAudio, primaryImage],
+                fallbackImageUrl: primaryImage.url
+            )
+        )
+    }
+
+    func testPlayerResetCancelsAnInFlightAudioSeek() {
+        let state = ExplorePublicMediaPlaybackState()
+        state.beginAudioSeek(wasPlaying: true)
+
+        state.resetPlayerState()
+
+        XCTAssertFalse(state.isAudioSeeking)
+        XCTAssertFalse(state.finishAudioSeek())
+    }
+
     func testExploreFeedMediaViewLandscapeImageFillsSquare() {
         let topColor = UIColor.systemTeal
         let bottomColor = UIColor.systemOrange
@@ -122,6 +395,7 @@ final class ExploreMediaLayoutTests: XCTestCase {
 
         let rendered = render(
             ExploreFeedMediaView(
+                postId: "preview-landscape",
                 imageUrl: "preview-landscape",
                 reloadGeneration: 0,
                 preloadedImage: image
@@ -146,6 +420,7 @@ final class ExploreMediaLayoutTests: XCTestCase {
 
         let rendered = render(
             ExploreFeedMediaView(
+                postId: "preview-portrait",
                 imageUrl: "preview-portrait",
                 reloadGeneration: 0,
                 preloadedImage: image
@@ -170,6 +445,7 @@ final class ExploreMediaLayoutTests: XCTestCase {
 
         let rendered = render(
             ExploreDetailMediaView(
+                postId: "preview-detail",
                 imageUrl: "preview-detail",
                 reloadGeneration: 0,
                 preloadedImage: image,

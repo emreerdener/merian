@@ -139,10 +139,20 @@ its endpoint file. Pure operation-specific receipt and proof/timestamp
 validation live in `Decoding/AccountDeletionResponseDecoder.swift` and
 `AccountDeletionRecoveryValidation.swift`. `Core/Network/Auth/` owns value-only
 transition and lease models, presentation and transition-decision policies,
-coordinators, and the sign-out single-flight. `SupabaseManager` applies those
-decisions and, with Core Security and `AppDIContainer`, retains live transition
-state, provider/SDK effects, durable Keychain markers, local cleanup, and proof
-retirement. Other wire-model owners stay unchanged: enrichment responses remain
+coordinators, the sign-out single-flight, account-deletion classification, and
+ghost-profile queue/error policy plus closure-injected deletion, purchase-safe
+sign-out, and ghost-merge phase sequencing. Suspended deletion results are
+admitted only for the transition's exact expected session and generation;
+deferred noncommit recovery revalidates the cached source before making marker
+removal its final failable stage. `SupabaseManager` applies those decisions and
+retains live transition state plus provider/SDK, endpoint, logging, local
+cleanup, and proof-retirement effects. `Core/Security/GhostProfileMerge/` owns
+the exact handoff/queue models, legacy migration, fail-closed validation,
+device-only Keychain persistence, byte verification, and verified removal
+through injected storage effects. `Core/Security/PurchaseIdentity/` owns the
+exact legacy/stable journal models, fail-closed validation, device-only Keychain
+persistence, byte verification, and verified removal through injected storage
+effects. Other wire-model owners stay unchanged: enrichment responses remain
 hand-written in Core AI, while survey requests remain Settings Feedback-owned.
 `Core/Network/Transport/` owns stateless HTTPS endpoint construction,
 unavailable-route/error classification, retry allowlists and account binding,
@@ -171,15 +181,20 @@ and mirrored test boundaries.
 freezes the 17 endpoint owners, prevents duplicate aggregate entry points,
 enforces the 600-line ceiling across extracted Auth, Endpoint, Inference, Media,
 Recovery, and Transport owners, and applies the same ceiling to the client
-façade. It freezes ownership of the exact four Auth paths, relocated
-declarations and policy functions, the sole main-actor task owner, and the
-provider-SDK/singleton exclusion. It also requires exactly one endpoint owner
-for every safe-read or idempotency-aware replay classification and exactly six
-Transport owners: three stateless policies, the request-scoped executor, the
-pinned session, and the authenticated dispatcher. The guard freezes sole-session
-injection and keeps per-attempt Auth leasing out of both the façade and executor
-while the executor owns bounded retry state and applies ordinary versus
-transition-owned refresh through injected closures.
+façade. It freezes ownership of the exact nine Auth paths, relocated
+declarations and helper functions—including account-deletion and purchase-safe
+sign-out plus ghost-merge policy/sequencing and former helper names—the sole
+main-actor task owner, and the provider-SDK/singleton exclusion. It also freezes
+the ghost-merge and purchase-handoff model/store owners in Core Security. For
+direct anonymous provider linking, it requires SDK readback, same-UUID
+permanent-session admission, transition adoption, and exact-session validation
+before durable ghost-merge recovery retirement. It also requires exactly one
+endpoint owner for every safe-read or idempotency-aware replay classification
+and exactly six Transport owners: three stateless policies, the request-scoped
+executor, the pinned session, and the authenticated dispatcher. The guard
+freezes sole-session injection and keeps per-attempt Auth leasing out of both
+the façade and executor while the executor owns bounded retry state and applies
+ordinary versus transition-owned refresh through injected closures.
 `get-filtered-discovery-feed` remains a documented backend function but is
 intentionally absent from the iOS replay set because the app has no endpoint
 owner or caller for it. See the

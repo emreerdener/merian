@@ -688,6 +688,29 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertEqual(searchManager.activeFilterCount, 1)
     }
 
+    func testHistoricalExploreReconciliationRefreshesActiveSharedFilter() async throws {
+        let scan = try createTestScan(
+            commonName: "Restored Finch",
+            scientificName: "Haemorhous mexicanus",
+            ecologyType: "wild"
+        )
+
+        await waitForFilterIndexing(expectedDocumentCount: 1) {
+            searchManager.allScans = [scan]
+        }
+        await waitForFilterCompletion {
+            $0.explorePostFilters = [.shared]
+        }
+        XCTAssertTrue(searchManager.filteredScans.isEmpty)
+
+        sharedExplorePostLookup.scanIDs = [scan.id]
+        await waitForSearchCompletion(for: "") {
+            eventPublisher.send(.exploreShareStateReconciled)
+        }
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [scan.id])
+    }
+
     func testUnavailableExploreMediaFilterUsesIncidentScanIDs() async throws {
         let unavailable = try createTestScan(
             commonName: "Unavailable Finch",

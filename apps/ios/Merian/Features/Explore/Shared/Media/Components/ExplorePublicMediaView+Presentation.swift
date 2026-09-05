@@ -148,53 +148,102 @@ extension ExplorePublicMediaView {
     }
 
     var audioSeekingMode: AudioSpectrogramSeekingMode {
-        mediaItem.kind == .audio && surface == .detail ? .fullSpectrogram : .disabled
+        mediaItem.kind == .audio && surface == .detail
+            ? detailAudioSeekingMode
+            : .disabled
     }
 
     var audioSeekLayer: some View {
         GeometryReader { proxy in
-            Color.clear
-                .contentShape(Rectangle())
-                .gesture(
-                    SpatialTapGesture().onEnded { value in
-                        seekAudioWithoutChangingPlayback(
-                            progress: AudioSpectrogramSeekingPolicy.normalizedProgress(
-                                locationX: value.location.x,
+            ZStack {
+                Color.clear
+
+                switch audioSeekingMode {
+                case .fullSpectrogram:
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(
+                            SpatialTapGesture().onEnded { value in
+                                seekAudioWithoutChangingPlayback(
+                                    progress: AudioSpectrogramSeekingPolicy
+                                        .normalizedProgress(
+                                            locationX: value.location.x,
+                                            width: proxy.size.width
+                                        )
+                                )
+                            }
+                        )
+                        .simultaneousGesture(
+                            audioSeekDragGesture(width: proxy.size.width)
+                        )
+                case .playmarkerOnly:
+                    TimelineView(
+                        .animation(paused: !playbackOverlayState.isPlaying)
+                    ) { _ in
+                        let markerCenterX = AudioSpectrogramSeekingPolicy
+                            .playmarkerCenterX(
+                                progress: displayedAudioPlaybackProgress,
                                 width: proxy.size.width
                             )
-                        )
+                        let hitWidth = AudioSpectrogramSeekingPolicy
+                            .playmarkerHitWidth
+
+                        Color.clear
+                            .frame(width: hitWidth, height: proxy.size.height)
+                            .contentShape(Rectangle())
+                            .position(
+                                x: min(
+                                    proxy.size.width - hitWidth / 2,
+                                    max(hitWidth / 2, markerCenterX)
+                                ),
+                                y: proxy.size.height / 2
+                            )
+                            .highPriorityGesture(
+                                audioSeekDragGesture(width: proxy.size.width)
+                            )
                     }
-                )
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 8)
-                        .onChanged { value in
-                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                            updateAudioSeek(
-                                progress: AudioSpectrogramSeekingPolicy.normalizedProgress(
-                                    locationX: value.location.x,
-                                    width: proxy.size.width
-                                )
-                            )
-                        }
-                        .onEnded { value in
-                            guard isAudioSeeking else { return }
-                            finishAudioSeek(
-                                progress: AudioSpectrogramSeekingPolicy.normalizedProgress(
-                                    locationX: value.location.x,
-                                    width: proxy.size.width
-                                )
-                            )
-                        }
-                )
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Audio position")
-                .accessibilityValue(
-                    "\(formattedAudioTime(audioElapsedSeconds)) of \(formattedAudioTime(audioDurationSeconds))"
-                )
-                .accessibilityAdjustableAction { direction in
-                    let adjustment: AudioSeekAdjustment = direction == .increment ? .forward : .backward
-                    seekAudioForAccessibility(adjustment)
+                case .disabled:
+                    EmptyView()
                 }
+            }
+            .coordinateSpace(name: "ExplorePublicMediaAudioSeekSurface")
+            .contentShape(Rectangle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Audio position")
+            .accessibilityValue(
+                "\(formattedAudioTime(audioElapsedSeconds)) of \(formattedAudioTime(audioDurationSeconds))"
+            )
+            .accessibilityAdjustableAction { direction in
+                let adjustment: AudioSeekAdjustment = direction == .increment ? .forward : .backward
+                seekAudioForAccessibility(adjustment)
+            }
+        }
+    }
+
+    private func audioSeekDragGesture(width: CGFloat) -> some Gesture {
+        DragGesture(
+            minimumDistance: audioSeekingMode == .playmarkerOnly ? 0 : 8,
+            coordinateSpace: .named("ExplorePublicMediaAudioSeekSurface")
+        )
+        .onChanged { value in
+            guard abs(value.translation.width) > abs(value.translation.height) else {
+                return
+            }
+            updateAudioSeek(
+                progress: AudioSpectrogramSeekingPolicy.normalizedProgress(
+                    locationX: value.location.x,
+                    width: width
+                )
+            )
+        }
+        .onEnded { value in
+            guard isAudioSeeking else { return }
+            finishAudioSeek(
+                progress: AudioSpectrogramSeekingPolicy.normalizedProgress(
+                    locationX: value.location.x,
+                    width: width
+                )
+            )
         }
     }
 
@@ -282,7 +331,7 @@ extension ExplorePublicMediaView {
             if showsVideoControls {
                 if usesFeedCenterPlaybackZone {
                     feedCenterPlaybackControl
-                } else if audioSeekingMode == .fullSpectrogram {
+                } else if audioSeekingMode != .disabled {
                     detailAudioCenterPlaybackControl
                 } else if shouldDisplayPlaybackControl {
                     Button(action: togglePlayback) {

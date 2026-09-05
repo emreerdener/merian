@@ -76,6 +76,155 @@ struct KeyedPreferenceStoreTests {
         )
     }
 
+    @Test func exploreShareReconciliationUpdatesOnlyTheSuppliedScanSet() {
+        let (defaults, suiteName) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        ExploreShareStateStore.setSharedPostId(
+            "old-active-post",
+            for: "active-scan",
+            userDefaults: defaults
+        )
+        ExploreShareStateStore.setSharedPostId(
+            "stale-unshared-post",
+            for: "unshared-scan",
+            userDefaults: defaults
+        )
+        ExploreShareStateStore.setSharedPostId(
+            "unrelated-post",
+            for: "unrelated-scan",
+            userDefaults: defaults
+        )
+        let reconciliationSnapshot = ExploreShareStateStore
+            .makeReconciliationSnapshot(userDefaults: defaults)
+
+        let changedScanIds = ExploreShareStateStore.reconcileSharedPostIds(
+            ["active-scan": "  current-active-post  "],
+            forScanIds: ["active-scan", "unshared-scan", "active-scan"],
+            ifUnchangedSince: reconciliationSnapshot,
+            userDefaults: defaults
+        )
+
+        #expect(changedScanIds == ["active-scan", "unshared-scan"])
+        #expect(
+            ExploreShareStateStore.sharedPostId(
+                for: "active-scan",
+                userDefaults: defaults
+            ) == "current-active-post"
+        )
+        #expect(
+            ExploreShareStateStore.sharedPostId(
+                for: "unshared-scan",
+                userDefaults: defaults
+            ) == nil
+        )
+        #expect(
+            ExploreShareStateStore.sharedPostId(
+                for: "unrelated-scan",
+                userDefaults: defaults
+            ) == "unrelated-post"
+        )
+        #expect(
+            ExploreShareStateStore.reconcileSharedPostIds(
+                ["active-scan": "current-active-post"],
+                forScanIds: ["active-scan", "unshared-scan"],
+                ifUnchangedSince: ExploreShareStateStore
+                    .makeReconciliationSnapshot(userDefaults: defaults),
+                userDefaults: defaults
+            ).isEmpty
+        )
+    }
+
+    @Test func exploreShareReconciliationCannotOverwriteNewerLocalMutation() {
+        let (defaults, suiteName) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let staleSnapshot = ExploreShareStateStore
+            .makeReconciliationSnapshot(userDefaults: defaults)
+        ExploreShareStateStore.setSharedPostId(
+            nil,
+            for: "scan-id",
+            userDefaults: defaults
+        )
+
+        let changedScanIds = ExploreShareStateStore.reconcileSharedPostIds(
+            ["scan-id": "stale-active-post"],
+            forScanIds: ["scan-id"],
+            ifUnchangedSince: staleSnapshot,
+            userDefaults: defaults
+        )
+
+        #expect(changedScanIds.isEmpty)
+        #expect(
+            ExploreShareStateStore.sharedPostId(
+                for: "scan-id",
+                userDefaults: defaults
+            ) == nil
+        )
+    }
+
+    @Test func exploreShareReconciliationRejectsOutOfOrderResponses() {
+        let (defaults, suiteName) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let olderSnapshot = ExploreShareStateStore
+            .makeReconciliationSnapshot(userDefaults: defaults)
+        let newerSnapshot = ExploreShareStateStore
+            .makeReconciliationSnapshot(userDefaults: defaults)
+
+        #expect(
+            ExploreShareStateStore.reconcileSharedPostIds(
+                ["scan-id": "newest-post"],
+                forScanIds: ["scan-id"],
+                ifUnchangedSince: newerSnapshot,
+                userDefaults: defaults
+            ) == ["scan-id"]
+        )
+        #expect(
+            ExploreShareStateStore.reconcileSharedPostIds(
+                ["scan-id": "stale-post"],
+                forScanIds: ["scan-id"],
+                ifUnchangedSince: olderSnapshot,
+                userDefaults: defaults
+            ).isEmpty
+        )
+        #expect(
+            ExploreShareStateStore.sharedPostId(
+                for: "scan-id",
+                userDefaults: defaults
+            ) == "newest-post"
+        )
+    }
+
+    @Test func exploreShareClearAllInvalidatesInFlightReconciliation() {
+        let (defaults, suiteName) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        ExploreShareStateStore.setSharedPostId(
+            "existing-post",
+            for: "scan-id",
+            userDefaults: defaults
+        )
+        let staleSnapshot = ExploreShareStateStore
+            .makeReconciliationSnapshot(userDefaults: defaults)
+
+        ExploreShareStateStore.clearAll(userDefaults: defaults)
+        let changedScanIds = ExploreShareStateStore.reconcileSharedPostIds(
+            ["scan-id": "stale-post"],
+            forScanIds: ["scan-id"],
+            ifUnchangedSince: staleSnapshot,
+            userDefaults: defaults
+        )
+
+        #expect(changedScanIds.isEmpty)
+        #expect(
+            ExploreShareStateStore.sharedPostId(
+                for: "scan-id",
+                userDefaults: defaults
+            ) == nil
+        )
+    }
+
     @Test func fieldNotesNormalizeReadsAndRejectWhitespaceOnlyValues() {
         let (defaults, suiteName) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

@@ -141,29 +141,59 @@ behind active deletion or recovery.
 After Auth is gone, `/recover-account-deletion` uses only the proof to return
 the already-recorded manual Apple disposition and pending/completed state. It
 does not reauthenticate the deleted account or accept a user, Apple subject,
-job, or provider identifier. iOS must persist the manual notice before local
-sign-out, purge, and proof retirement. The purge explicitly removes every
-current SwiftData model and read-back verifies the classified account-derived
-preferences while retaining device settings, consent, this recovery marker, and
-the manual notice. It then resets process-local settings, gamification, badge,
-and image projections; badge requests admitted before deletion are
-generation-fenced from restoring stale state. That synchronous cleanup does not
-claim whole-store-file replacement or unreferenced app-container traversal;
-broader file erasure requires an explicit storage-owner inventory. It
-acknowledges only after local cleanup succeeds and only with the independent
-acknowledgement proof. A legacy unknown proof leaves cleanup blocked because
-intake may still be committing. A v2 `not_committed` or genuinely unknown proof
-retires only the unused local intent because commit cannot run without a server
-preparation. After that definitive cancellation, the transition owner retires
-the unused proof, adopts only the same unexpired cached Supabase session while
-the durable barrier remains, then clears the barrier before republishing that
-exact UUID and anonymous/account kind or reopening ordinary account work. An
-expired preparation retired during a different device's commit returns the
-distinct non-authorizing `account_deletion_recovery_preparation_expired`
-response and keeps cleanup blocked. Only a retained committed capability matched
-after its 180-day window returns `account_deletion_recovery_expired` and
-authorizes conservative local cleanup while forcing the manual Apple notice.
-This acknowledgement never claims automatic Apple-provider revocation.
+job, or provider identifier. The native decoder requires the explicit
+acknowledgement state and exact legacy/v2 operation status set; the cleanup
+workflow then rechecks a successful pending/completed receipt before its first
+effect. iOS must persist the manual notice before local sign-out, purge, and
+proof retirement. The purge explicitly removes every current SwiftData model and
+read-back verifies the classified account-derived preferences while retaining
+device settings, consent, this recovery marker, and the manual notice. It then
+resets process-local settings, gamification, badge, and image projections; badge
+requests admitted before deletion are generation-fenced from restoring stale
+state. That synchronous cleanup does not claim whole-store-file replacement or
+unreferenced app-container traversal; broader file erasure requires an explicit
+storage-owner inventory. It acknowledges only after local cleanup succeeds and
+only with the independent acknowledgement proof. A legacy unknown proof leaves
+cleanup blocked because intake may still be committing. A v2 `not_committed` or
+genuinely unknown proof retires only the unused local intent because commit
+cannot run without a server preparation. After that definitive cancellation, the
+transition owner retires the unused proof, adopts only the same unexpired cached
+Supabase session while the durable barrier remains, then clears the barrier
+before republishing that exact UUID and anonymous/account kind or reopening
+ordinary account work. An expired preparation retired during a different
+device's commit returns the distinct non-authorizing
+`account_deletion_recovery_preparation_expired` response and keeps cleanup
+blocked. Only a retained committed capability matched after its 180-day window
+returns `account_deletion_recovery_expired` and authorizes conservative local
+cleanup while forcing the manual Apple notice. This acknowledgement never claims
+automatic Apple-provider revocation.
+
+Native ownership is intentionally split.
+`Core/Network/Auth/Policies/AccountDeletionTransitionPolicy.swift` classifies
+definitive intake rejection, matched-expired or unknown recovery, and exact
+cached-session restoration eligibility.
+`Core/Network/Auth/Coordinators/AccountDeletionWorkflow.swift` sequences
+durable/prepared intake, accepted cleanup, proof retirement, deferred
+restoration, and pending cleanup through injected closures. `SupabaseManager`
+retains the live Auth, SDK, endpoint, Keychain, sign-out, purge, and lifecycle
+effect assembly. Core Security owns the proof store; `AppDIContainer` and the
+Settings adapter supply the account-local purge boundary.
+
+Every native preparation, commit, legacy intake, recovery, and acknowledgement
+result that can advance or retire the durable journal is revalidated against the
+transition's exact UUID, anonymous/account kind, and Auth generation. This
+includes thrown endpoint results: a definitive rejection from a stale request
+cannot remove a current deletion fence, and a stale prepared-v2 failure cannot
+enter outer recovery classification. Token ownership without exact-session
+validation is not an authorization boundary.
+
+For a proven noncommit, native recovery adopts and revalidates the exact cached
+source before marker removal, verifies that removal synchronously, and only then
+publishes the same session. Marker removal is the last failable recovery stage;
+telemetry linking and entitlement readiness are retried by ordinary foreground
+lifecycle handling afterward. This prevents task cancellation or an optional
+provider failure from turning a committed barrier removal into a reported
+recovery failure.
 
 The non-destructive v2 preparation response is decoded through the dedicated
 `AccountDeletionPreparationReceipt`, which contains its exact four fields and no
@@ -227,6 +257,7 @@ The migration and these runtime consumers form one release unit:
 - `recover-account-deletion`
 - `reconcile-account-deletions`
 - iOS `SupabaseManager`, `MerianNetworkClient`,
+  `AccountDeletionTransitionPolicy`, `AccountDeletionWorkflow`,
   `AccountDeletionRecoveryCapability`, the Settings
   `AccountDeletionDependencies`, `DeleteAccountViewModel`, and
   `DeleteAccountSheet` presentation path, and the app-root manual notice
@@ -299,8 +330,8 @@ provider attempt successful from an Apple error response.
   compensating revocation.
 - `_tests/safeDelete.test.ts`: provider-before-Auth ordering, retry retention,
   and legacy manual disposition.
-- `_tests/accountDeletionCoverage.test.ts`: source, iOS, workflow, config, and
-  executable-fixture ordering.
+- `_tests/accountDeletionCoverage.test.ts`: source, iOS manager adapter,
+  extracted `AccountDeletionWorkflow`, config, and executable-fixture ordering.
 - `_tests/accountDeletionMigrationContract.test.ts`: Vault schema, Auth and
   terminal fences, recovery hash ledger, ACLs, allowlist, permanent replay,
   health, and secret destruction before state commit.
@@ -319,20 +350,30 @@ provider attempt successful from an Apple error response.
   cancellation. `AccountDeletionAPIModelsTests`,
   `AccountDeletionRecoveryValidationTests`, and
   `AccountDeletionResponseDecoderTests` cover exact DTOs and fixed-clock
-  phase/status/expiry rules; `AccountDeletionBoundaryTests` guards private
-  transport, owner forwarding, and test ownership. See the
+  phase/status/expiry rules, including legacy/v2 recovery status admission and
+  required acknowledgement state; `AccountDeletionBoundaryTests` guards private
+  transport, owner forwarding, exact transition-session result fencing, and test
+  ownership. See the
   [native verification matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification)
-  for the accepted-owner integration evidence boundary and manual checklist.
-  Their preparation tests consume the same exact four-field fixture as the Deno
-  handler test and also prove it cannot decode as an accepted receipt.
-- `AuthTransitionFoundationTests`, `AuthTransitionPolicyTests`,
-  `SupabaseManagerTests`, `MerianNetworkClientTests`, and `AppDIContainerTests`:
-  exclusive transition/lease state, recovery-phase admission, transition-owned
-  request fencing, bounded registration retry, shared Auth refresh policy,
-  subject-bound credential-state handling, durable notice persistence, exact
-  prepare/owner/marker/commit ordering, pre-commit owner/marker
-  short-circuiting, stale post-commit owner classification, recovery phase
-  order, ambiguous-response retention, and terminal capability retirement.
+  for the accepted-result context integration evidence boundary and manual
+  checklist. Their preparation tests consume the same exact four-field fixture
+  as the Deno handler test and also prove it cannot decode as an accepted
+  receipt.
+- `AuthTransitionFoundationTests` and `AuthTransitionPolicyTests`: exclusive
+  transition/lease state, recovery-phase admission, transition-owned request
+  fencing, shared Auth refresh policy, provider/session transition decisions,
+  and exact same-UUID anonymous-to-permanent direct-link admission before
+  durable merge-recovery retirement.
+- `AccountDeletionTransitionPolicyTests`, `AccountDeletionIntakeWorkflowTests`,
+  and `AccountDeletionCleanupWorkflowTests`: deletion error/session
+  classification, exact prepare/context/marker/commit ordering, pre-commit
+  context/marker short-circuiting, stale success and failure result rejection,
+  recovery phase order, ambiguous-response retention, deferred restoration
+  revalidation, and terminal capability retirement.
+- `SupabaseManagerTests`, `MerianNetworkClientTests`, and `AppDIContainerTests`:
+  bounded registration retry, subject-bound credential-state handling, durable
+  notice persistence, live Auth and endpoint effect assembly, and local-purge
+  dependency wiring.
 - `ScanRepositoryPurgeTests` and `AccountScopedPreferencesTests`: exact
   `CurrentSchema` deletion inventory, actual repository delete calls,
   idempotence, classified defaults cleanup, read-back verification, device-state

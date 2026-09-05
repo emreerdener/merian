@@ -34,12 +34,14 @@ enum AccountDeletionTestSupport {
         success: Bool = true,
         expiry: String? = futureExpiry,
         acknowledged: Bool? = nil,
-        protocolVersion: Int? = 2
+        protocolVersion: Int? = 2,
+        manualProviderRevocationRequired: Bool = false
     ) throws -> Data {
         var payload: [String: Any] = [
             "success": success,
             "status": status.rawValue,
-            "manual_provider_revocation_required": false
+            "manual_provider_revocation_required":
+                manualProviderRevocationRequired
         ]
         payload["recovery_capability_expires_at"] = expiry
         payload["recovery_acknowledged"] = acknowledged

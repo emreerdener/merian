@@ -86,8 +86,12 @@ the old-client support window closes.
 
 Executable coverage lives in `handler_test.ts`,
 `../safe-delete/protocol_test.ts`, `../safe-delete/db_recovery_test.ts`,
+`../_tests/accountDeletionCoverage.test.ts`,
 `../_tests/accountDeletionMigrationContract.test.ts`, and
-`../../tests/account_deletion_security.sql`.
+`../../tests/account_deletion_security.sql`. The coverage contract reads the
+native `SupabaseManager` adapter and extracted `AccountDeletionWorkflow`
+together; moving either owner requires updating that cross-language path and
+running the focused Deno test in the same change.
 
 On iOS, `Core/Network/Endpoints/MerianNetworkClient+AccountDeletion.swift` owns
 the public legacy/v2 recovery and acknowledgement calls. A fixed-route bridge
@@ -95,6 +99,15 @@ delegates to the existing private capability-only transport; pure receipt and
 timestamp validation do not own Keychain retirement or local cleanup. See the
 [native ownership and verification matrix](../../../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification)
 for the mirrored suites and separate real-session evidence requirement.
+
+The native decoder requires every successful public response to include an
+explicit Boolean acknowledgement state. It admits only `pending|completed` for
+legacy recovery and acknowledgement, permits a provider-neutral, unacknowledged
+`not_committed` only for v2 recovery, and rejects `not_committed` for v2
+acknowledgement. The native cleanup workflow separately requires a successful
+`pending|completed` receipt before its first persistence, sign-out, or erasure
+effect. These checks mirror this route's existing contract; they do not change
+its request or response payload.
 
 The v2 prepare handler's four-field non-destructive response is represented by a
 dedicated native preparation receipt and exercised through one shared Deno/Swift

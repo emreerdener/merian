@@ -1538,18 +1538,27 @@ consults that Keychain entry.
   operation-specific admission. Two fixed-route value bridges preserve legacy
   configuration-before-proof ordering, exact transition-owner forwarding, and
   the private capability-only transport's 20-second timeout, post-read 64 KiB
-  cap, one bounded retry, and cancellation behavior. `SupabaseManager`, Core
-  Security, and `AppDIContainer` still own durable transitions and local
-  cleanup; the wire layer adds no Auth bypass or cleanup authority. See the
+  cap, one bounded retry, and cancellation behavior. `Core/Network/Auth/` owns
+  account-deletion classification and closure-injected phase sequencing;
+  `SupabaseManager`, Core Security, and `AppDIContainer` retain the live
+  transition, endpoint/SDK, Keychain, sign-out, and purge effects. The wire
+  layer adds no Auth bypass or cleanup authority. See the
   [ownership guide](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-ownership)
   and
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification).
   The matrix records the operation-specific v2 preparation receipt and shared
-  handler/native fixture. `SupabaseManagerTests` separately locks preparation,
-  owner verification, both durable markers, commit, and accepted-receipt owner
-  verification in that order. It also locks the no-commit short circuit and
-  persistence error for stale preparation ownership or either marker failure,
-  plus `signOutSessionChanged` for stale commit ownership.
+  handler/native fixture. `AccountDeletionIntakeWorkflowTests` separately locks
+  preparation, exact transition-context verification, both durable markers,
+  commit, and accepted-result context verification in that order. It also locks
+  the no-commit short circuit and persistence error for stale preparation
+  context or either marker failure, `signOutSessionChanged` for stale commit
+  context, and durable-intent retention for stale legacy and prepared-v2
+  failures before outer recovery classification. Live deletion and
+  acknowledgement results use the exact expected UUID, anonymous/account kind,
+  and Auth generation—not transition-token ownership alone. Deferred noncommit
+  restoration removes and verifies the marker only after exact cached-session
+  revalidation, publishes without another failable stage, and leaves
+  telemetry/entitlement retry to foreground lifecycle work.
 - `MerianNetworkClient+ScanPublication.swift` is the sixteenth endpoint owner:
   its two direct scan-ID methods preserve Explore-share and Ask-the-Community
   payloads, stable idempotency keys, and strict success validation.
@@ -1588,15 +1597,21 @@ consults that Keychain entry.
   contract. It freezes the exact 17 endpoint owners, rejects aggregate method
   duplication, enforces the 600-line owner ceiling across Auth, Endpoint,
   Inference, Media, Recovery, Transport, and the client façade, and requires the
-  exact four Auth foundation paths plus six Transport files. The Auth guard
-  freezes relocated declaration and policy-function ownership, main-actor task
-  isolation, and the provider-SDK/singleton exclusion. The six Transport files
-  remain three stateless policies, one request-scoped executor, one pinned
-  session, and one authenticated dispatcher. The suite also requires exactly one
-  endpoint owner for every safe-read or idempotency-aware replay classification,
-  keeps async/global refresh effects out of stateless Transport policies, and
-  verifies the executor applies both `UnauthorizedRefreshTarget` branches
-  without constructing another session or client singleton. The backend
+  exact nine Auth foundation paths plus six Transport files. The Auth guard
+  freezes relocated declaration and helper-function ownership, former
+  account-deletion, purchase-safe sign-out, and ghost-merge helper names,
+  main-actor task isolation, and the provider-SDK/singleton exclusion. It
+  separately freezes the Core Security ghost-merge and purchase-handoff
+  model/store owners and their device-only, read-back-verified persistence
+  boundaries. It also requires direct anonymous provider linking to read back,
+  admit, adopt, and revalidate the same-UUID permanent session before durable
+  merge-recovery retirement. The six Transport files remain three stateless
+  policies, one request-scoped executor, one pinned session, and one
+  authenticated dispatcher. The suite also requires exactly one endpoint owner
+  for every safe-read or idempotency-aware replay classification, keeps
+  async/global refresh effects out of stateless Transport policies, and verifies
+  the executor applies both `UnauthorizedRefreshTarget` branches without
+  constructing another session or client singleton. The backend
   `get-filtered-discovery-feed` function is intentionally not in the iOS replay
   set because the app has no endpoint owner or caller for it. Its backend
   contract is unchanged. See the
@@ -1793,19 +1808,31 @@ consults that Keychain entry.
 - **Unified Auth-transition ownership**: `Core/Network/Auth/` owns the
   value-only transition models and errors, Guest-presentation policy,
   deterministic transition policy, exact-session work lease coordinator,
-  exclusive transition coordinator, and main-actor sign-out single-flight.
-  `AuthTransitionPolicy` decides recovery admission, request/listener fencing,
-  provider-callback acceptance, OAuth cleanup and metadata guards, cold-start
-  adoption, and purchase-handoff restoration. `SupabaseManager` applies those
-  decisions, retains live transition state, and uses the one
-  `AuthTransitionCoordinator` for Apple, Google, Sign out, recovery, Apple
-  credential revocation, and account deletion. Its token records kind, phase,
-  source, expected destination, and Auth generation. Competing operations cannot
-  begin; stale provider callbacks and wrong Apple controllers are ignored.
-  Account-bound metadata, purchase, entitlement, and routing writes verify token
-  ownership plus the live session after suspension. The extracted foundation
-  imports no provider SDK or singleton; the Auth listener and provider-dependent
-  Apple credential-state decision remain manager-owned.
+  exclusive transition coordinator, main-actor sign-out single-flight,
+  account-deletion classification, ghost-profile queue/error policy, and
+  closure-injected deletion, purchase-safe sign-out, and ghost-merge phase
+  sequencing. `AuthTransitionPolicy` decides recovery admission,
+  request/listener fencing, provider-callback acceptance, OAuth cleanup and
+  metadata guards, exact anonymous-to-permanent provider-link admission,
+  cold-start adoption, and purchase-handoff restoration.
+  `AccountDeletionTransitionPolicy` classifies definitive intake rejection,
+  matched expired recovery, unknown proof, and exact cached-session restoration;
+  `AccountDeletionWorkflow` orders intake, cleanup, restoration, and retirement
+  through injected closures. `PurchaseIdentitySignOutWorkflow` orders ordinary
+  and purchase-safe sign-out plus proof removal through injected closures.
+  `GhostProfileMergePolicy` owns stable queue replacement and terminal server
+  codes; `GhostProfileMergeWorkflow` orders server completion, purchase sync,
+  local-evidence sync, and proof removal with cancellation fences.
+  `SupabaseManager` applies those decisions, retains live transition state and
+  effect assembly, and uses the one `AuthTransitionCoordinator` for Apple,
+  Google, Sign out, recovery, Apple credential revocation, and account deletion.
+  Its token records kind, phase, source, expected destination, and Auth
+  generation. Competing operations cannot begin; stale provider callbacks and
+  wrong Apple controllers are ignored. Account-bound metadata, purchase,
+  entitlement, and routing writes verify token ownership plus the live session
+  after suspension. The extracted foundation imports no provider SDK or
+  singleton; the Auth listener and provider-dependent Apple credential-state
+  decision remain manager-owned.
 - **Stable versus legacy identity**: stable mode passes the immutable
   server-issued purchase-principal ID and binding generation to
   `RevenueCatManager`. It clears and synchronizes legacy account attributes,
@@ -1841,10 +1868,19 @@ consults that Keychain entry.
   or provider link. The journal pins the exact installation-capability
   fingerprint and disables capability creation while pending. It makes no
   receipt-sync or provider-transfer call. Legacy mode retains
-  `signOutPurchaseHandoffTask`: bind → uppercase UUID RevenueCat link →
-  `syncPurchases()` → authoritative server verification and reconciliation →
-  entitlement refresh → same-session verification → verified proof removal.
-  Either pending boundary keeps purchase/restore/redeem disabled.
+  `signOutPurchaseHandoffTask`: cancellation preflight → server destination bind
+  → uppercase UUID RevenueCat link → `syncPurchases()` → authoritative server
+  verification and reconciliation → entitlement refresh → same-session
+  verification → verified proof removal. Either pending boundary keeps
+  purchase/restore/redeem disabled.
+  `Core/Security/PurchaseIdentity/Stores/PurchaseIdentityHandoffStore.swift` is
+  the sole codec and secure-storage owner for both journals: it freezes their
+  camel-case JSON fields, validates evidence before writes and after reads,
+  selects the exact keys, applies `WhenUnlockedThisDeviceOnly`, verifies written
+  bytes, and verifies removal through injected effects. `SupabaseManager`
+  supplies the live Keychain instance and maps the store's failures to the
+  existing `SupabaseAuthTransitionError` cases; server, Auth, RevenueCat,
+  entitlement, logging, and task effects remain manager-owned.
 - **Unauthorized identity preservation**: a generic route `401` is not proof
   that Auth deleted the user and never rotates the current UUID. A Ghost can be
   replaced only when the response carries the stable missing/invalid-session
@@ -1870,15 +1906,22 @@ consults that Keychain entry.
   clear the matching local session. This client transition never fabricates
   server provider completion.
 - **Durable Ghost merge completion**: Before switching sessions,
-  `SupabaseManager` stores each source-issued, provider-bound proof in a
-  versioned `WhenUnlockedThisDeviceOnly` Keychain queue. Completion is
-  single-flight per active task generation, so an older cancelled task cannot
-  clear a newer handle after sign-out/re-login. Successful and terminal
-  invalid/expired entries are removed individually; transient,
-  wrong-destination, and Auth-cleanup failures remain queued for session-restore
-  retries. HTTP 503 `merge_temporarily_unavailable`, including a server-side
-  scan-ledger invariant failure, always remains queued; only the public terminal
-  404/410 handoff codes authorize removal.
+  `Core/Security/GhostProfileMerge/Stores/GhostProfileMergeStore.swift` stores
+  each source-issued, provider-bound proof in the versioned
+  `WhenUnlockedThisDeviceOnly` Keychain queue. It is the sole codec,
+  legacy-migration, validation, verified-write, and verified-removal owner;
+  malformed or unreadable evidence fails closed, and a failed legacy rewrite
+  retains the readable proof. `SupabaseManager` injects its live Keychain
+  adapter and keeps completion single-flight per active task generation, so an
+  older cancelled task cannot clear a newer handle after sign-out/re-login.
+  `GhostProfileMergeWorkflow` checks cancellation before its first server effect
+  and between server completion, purchase sync, local-evidence sync, and final
+  proof removal. Successful and terminal invalid/expired entries are removed
+  individually; transient, wrong-destination, and Auth-cleanup failures remain
+  queued for session-restore retries. HTTP 503 `merge_temporarily_unavailable`,
+  including a server-side scan-ledger invariant failure, always remains queued;
+  only the public terminal 404/410 handoff codes authorize removal. Device time
+  never authorizes retirement.
 - **`keyWindowAnchor()` helper**: A private
   `keyWindowAnchor() -> ASPresentationAnchor` method was extracted to remove the
   identical implementation that was previously copy-pasted into two separate
@@ -1886,9 +1929,11 @@ consults that Keychain entry.
 - **Deduplicated anonymous sign-in**: The two identical anonymous sign-in code
   paths were collapsed into a single `isSessionMissing` check, removing the
   duplicate `signInAnonymously()` block.
-- Maps Apple and Google OAuth hooks to migrate anonymous accounts, then resolves
-  the current session's stable or legacy purchase identity before paid
-  readiness.
+- Maps Apple and Google OAuth hooks to migrate anonymous accounts. A direct
+  identity link must read back, adopt, and revalidate a permanent session with
+  the original anonymous UUID before removing durable provider-bound merge
+  recovery. The manager then resolves the current session's stable or legacy
+  purchase identity before paid readiness.
 - The database Ghost merge's destination reconciliation row repairs Merian's
   provider lookup schedule only. After commit, the server separately reads both
   RevenueCat customers, mirrors/verifies the source's active finite or lifetime

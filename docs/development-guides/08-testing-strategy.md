@@ -2548,69 +2548,85 @@ import, and permission-denial UI require the physical-device checklist in
   requires exactly 17 endpoint owners, rejects duplicate endpoint entry points
   in `MerianNetworkClient.swift`, applies the 600-line ceiling to every Swift
   owner in `Auth/`, `Endpoints/`, `Inference/`, `Media/`, `Recovery/`, and
-  `Transport/` plus the client façade. It requires the exact four Auth
-  foundation paths, relocated declarations and policy functions, single
-  main-actor task owner, and absence of provider SDK imports or singleton
-  resolution. It also requires exactly six Transport files: three stateless
-  policies, one request-scoped executor, one pinned session, and one
-  authenticated dispatcher. The suite freezes the disjoint safe-read and
-  idempotency-aware ambiguous-replay sets, requires exactly one endpoint owner
-  for each classified route, and records the exact owners allowed to acquire the
-  pinned session, private transport, request executor, consent/profile context,
-  Auth manager, recovery Species Dictionary query, or detached preparation
-  bridge. The eleven policy tests own URL/route/error classification,
-  unavailable-route scheduling, retry account binding, value-only Auth-recovery
-  selection, and replay allowlists. Nine request-executor tests cover exact
-  body/account replay, ordinary, transition-owned, and missing-guest Auth
-  recovery, payment and consent effects, bounded route recovery, failed-attempt
-  upload release plus successful-attempt response fallback, and cancellation.
-  The body-release case expects two callback invocations across a failed attempt
-  followed by a successful replay, proving the logical-request callback must be
-  idempotent while each attempt retains its own delegate fence. Seven
-  pinned-transport tests cover configuration, SHA-256 pins, exact Supabase host
-  matching, concurrent single-session initialization, full-chain matching,
+  `Transport/` plus the client façade. It requires the exact nine Auth
+  foundation paths, relocated declarations and helper functions, absence of
+  current and legacy aggregate account-deletion, purchase-safe sign-out, and
+  ghost-merge helpers, one main-actor task owner, and no provider SDK imports or
+  singleton resolution. It separately freezes the Core Security ghost-merge and
+  purchase-handoff model/store owners, exact persisted fields, device-only
+  verified persistence, and 600-line boundaries. It also requires exactly six
+  Transport files: three stateless policies, one request-scoped executor, one
+  pinned session, and one authenticated dispatcher. The suite freezes the
+  disjoint safe-read and idempotency-aware ambiguous-replay sets, requires
+  exactly one endpoint owner for each classified route, and records the exact
+  owners allowed to acquire the pinned session, private transport, request
+  executor, consent/profile context, Auth manager, recovery Species Dictionary
+  query, or detached preparation bridge. The eleven policy tests own
+  URL/route/error classification, unavailable-route scheduling, retry account
+  binding, value-only Auth-recovery selection, and replay allowlists. Nine
+  request-executor tests cover exact body/account replay, ordinary,
+  transition-owned, and missing-guest Auth recovery, payment and consent
+  effects, bounded route recovery, failed-attempt upload release plus
+  successful-attempt response fallback, and cancellation. The body-release case
+  expects two callback invocations across a failed attempt followed by a
+  successful replay, proving the logical-request callback must be idempotent
+  while each attempt retains its own delegate fence. Seven pinned-transport
+  tests cover configuration, SHA-256 pins, exact Supabase host matching,
+  concurrent single-session initialization, full-chain matching,
   missing/empty/unmatched-chain rejection, rejection when platform trust fails
   despite a known pin, and the DEBUG session seam; one dispatcher test covers
   value-only account resolution and exact request construction.
-  `AuthTransitionFoundationTests` and `AuthTransitionPolicyTests` retain the
-  value-state, exact-session, and admission-policy invariants;
-  `SupabaseManagerTests` retains live workflow integration. The source guard
-  rejects actor/async/global effects in stateless Transport policies, prevents
-  the executor from acquiring a session/client singleton, keeps session
-  construction in `PinnedNetworkTransport` and per-attempt Auth leasing in
-  `AuthenticatedTransportDispatcher`, and verifies both executor refresh
-  branches. Run the guard for every endpoint inventory, shared bridge,
-  replay-policy, or live-dependency ownership change, followed by all affected
-  endpoint matrices and the complete `merianTests` target. The backend
-  `get-filtered-discovery-feed` route is deliberately absent from these iOS
-  classifications because no iOS endpoint owns or calls it; this does not remove
-  or change the Edge Function. Final pre-extraction audit evidence included 53
-  focused Core Network tests and the complete 2,802-test `merianTests` target.
-  The Transport candidate's fresh generic Simulator build, focused selector
-  matrix with 202 passed XCResult cases, and complete 2,809-case target pass
-  with zero failures, skips, or expected failures. After the final pure-target
-  correction, an arm64 generic Simulator `build-for-testing` compiled the full
-  app and test bundles and a native probe executed both selection branches;
-  CoreSimulatorService was unavailable, so those prior XCResults are not labeled
-  as post-fix runtime evidence. This is a source architecture guard, not proof
-  of a live backend request or real-session account transition. The subsequent
-  executor review corrected its successful attempt's transport fake and the
-  architecture guard's `/functions/v1/` source token, then ran the production
-  executor/policies through a native deterministic harness: all nine executor
-  and five architecture tests passed. A fresh Xcode attempt was blocked before
-  compilation by the host SwiftPM sandbox while CoreSimulatorService remained
-  unavailable, so the previous XCResults remain the latest Simulator/full-target
-  evidence. The final transport-ownership candidate and its
-  concurrency/domain/trust follow-ups then passed native typechecking, all seven
-  pinned-transport cases, the dispatcher case, and all 50 affected architecture
-  cases. The trust review made platform trust a prerequisite for pin acceptance
-  and added its negative assertion without changing the seven-case inventory.
-  Byte-stable XcodeGen, project/source membership, event routing, CI-tooling,
-  transport security, strict SwiftLint, Swift parsing, documentation contracts,
-  Markdown formatting, and whitespace validation also passed. Fresh Xcode
-  attempts again stopped before compilation on denied SwiftPM manifest-cache
-  writes and unavailable CoreSimulatorService, so they add no new Simulator or
-  complete-target runtime evidence. See the
+  `AuthTransitionFoundationTests`, `AuthTransitionPolicyTests`,
+  `AccountDeletionTransitionPolicyTests`, `AccountDeletionIntakeWorkflowTests`,
+  `AccountDeletionCleanupWorkflowTests`, `PurchaseIdentitySignOutWorkflowTests`,
+  `PurchaseIdentityHandoffStoreTests`, `GhostProfileMergePolicyTests`,
+  `GhostMergeEndpointErrorTests`, `GhostProfileMergeWorkflowTests`, and
+  `GhostProfileMergeStoreTests` retain the value-state, exact-session,
+  admission, deletion/ghost classification, phase-sequencing, and durable
+  journal/queue invariants; `SupabaseManagerTests` retains live workflow
+  integration. The source guard rejects actor/async/global effects in stateless
+  Transport policies, prevents the executor from acquiring a session/client
+  singleton, keeps session construction in `PinnedNetworkTransport` and
+  per-attempt Auth leasing in `AuthenticatedTransportDispatcher`, and verifies
+  both executor refresh branches. Run the guard for every endpoint inventory,
+  shared bridge, replay-policy, or live-dependency ownership change, followed by
+  all affected endpoint matrices and the complete `merianTests` target. The
+  backend `get-filtered-discovery-feed` route is deliberately absent from these
+  iOS classifications because no iOS endpoint owns or calls it; this does not
+  remove or change the Edge Function. Final pre-extraction audit evidence
+  included 53 focused Core Network tests and the complete 2,802-test
+  `merianTests` target. The Transport candidate's fresh generic Simulator build,
+  focused selector matrix with 202 passed XCResult cases, and complete
+  2,809-case target pass with zero failures, skips, or expected failures. After
+  the final pure-target correction, an arm64 generic Simulator
+  `build-for-testing` compiled the full app and test bundles and a native probe
+  executed both selection branches; CoreSimulatorService was unavailable, so
+  those prior XCResults are not labeled as post-fix runtime evidence. This is a
+  source architecture guard, not proof of a live backend request or real-session
+  account transition. The subsequent executor review corrected its successful
+  attempt's transport fake and the architecture guard's `/functions/v1/` source
+  token, then ran the production executor/policies through a native
+  deterministic harness: all nine executor and five architecture tests passed. A
+  fresh Xcode attempt was blocked before compilation by the host SwiftPM sandbox
+  while CoreSimulatorService remained unavailable, so the previous XCResults
+  remain the latest Simulator/full-target evidence. The final
+  transport-ownership candidate and its concurrency/domain/trust follow-ups then
+  passed native typechecking, all seven pinned-transport cases, the dispatcher
+  case, and all 50 affected architecture cases. The trust review made platform
+  trust a prerequisite for pin acceptance and added its negative assertion
+  without changing the seven-case inventory. Byte-stable XcodeGen,
+  project/source membership, event routing, CI-tooling, transport security,
+  strict SwiftLint, Swift parsing, documentation contracts, Markdown formatting,
+  and whitespace validation also passed. Fresh Xcode attempts again stopped
+  before compilation on denied SwiftPM manifest-cache writes and unavailable
+  CoreSimulatorService, so they add no new Simulator or complete-target runtime
+  evidence. The purchase-safe sign-out/storage slice subsequently restored
+  complete candidate execution: a generic Simulator `build-for-testing` compiled
+  both architectures, its focused workflow/store/ manager/architecture matrix
+  passed 56 tests, and a final hardening review passed 32
+  workflow/store/architecture tests. The complete `merianTests` target passed
+  4,904 parameter-expanded runs across 2,920 unique tests with no failures or
+  skips on an iPhone 17 Pro iOS 26.4.1 Simulator. See the
   [Core Network integration audit](../../apps/ios/Merian/Core/Network/README.md#core-network-integration-audit).
   The closure audit also gives the shared URLProtocol fixtures a dedicated
   `Core/Network/NetworkTransportTestSupport.swift` owner. The architecture suite
@@ -2840,15 +2856,71 @@ import, and permission-denial UI require the physical-device checklist in
   session.
 - **`AuthTransitionPolicyTests.swift`**: Owns the deterministic cold-start
   adoption, transition admission, listener/request fencing, Apple callback,
-  OAuth rollback/metadata, authentication-callback target, and purchase-handoff
-  policy coverage rehomed from `SupabaseManagerTests`. Its focused boundary
-  matrix also freezes nil-session rollback, missing Apple-transition rejection,
-  ownerless ordinary-request admission, stale-owner rejection, and pre-update
-  metadata admission. Run both extracted suites with `SupabaseManagerTests`,
-  `ConsentManagerRestorationTests`, and
+  OAuth rollback/metadata, authentication-callback target, direct
+  anonymous-to-permanent provider-link admission, and purchase-handoff policy
+  coverage rehomed from `SupabaseManagerTests`. Its focused boundary matrix also
+  freezes nil-session rollback, missing Apple-transition rejection, ownerless
+  ordinary-request admission, stale-owner rejection, pre-update metadata
+  admission, and rejection of an anonymous or different-UUID link result. The
+  integration architecture suite requires SDK readback, same-UUID permanent
+  admission, transition adoption, and exact-session revalidation before durable
+  ghost-merge recovery retirement. Run both extracted suites with
+  `SupabaseManagerTests`, `ConsentManagerRestorationTests`, and
   `CoreNetworkIntegrationArchitectureTests` through the
   [Core Network integration matrix](../../apps/ios/Merian/Core/Network/README.md#core-network-integration-audit),
   then run the complete `merianTests` target.
+- **`AccountDeletionTransitionPolicyTests.swift`**: Owns exact stable HTTP/code
+  classification for definitive intake rejection, matched-expired recovery,
+  unknown v2 proof, and exact cached-session restoration eligibility.
+- **`AccountDeletionIntakeWorkflowTests.swift`**: Owns durable-intent behavior,
+  ambiguous-response retention, definitive-rejection cleanup, exact
+  transition-session verification on both successful and failed results, and
+  exact prepare/marker/commit ordering. A stale definitive failure must retain
+  the durable intent; stale prepared-v2 prepare/commit failures must stop before
+  outer recovery classification.
+- **`AccountDeletionCleanupWorkflowTests.swift`**: Owns accepted cleanup,
+  acknowledgement and proof-retirement failure boundaries, proof-only rejection
+  retirement, deferred-session adoption/revalidation/marker/publication
+  ordering, and pending local cleanup. Marker removal must precede publication
+  and be the final failable stage. These three closure-injected suites are
+  deterministic; run them with `SupabaseManagerTests` for live Auth/effect
+  assembly and with the full account-deletion matrix for endpoint, secure-store,
+  and purge integration.
+- **`PurchaseIdentitySignOutWorkflowTests.swift`**: Owns eight deterministic
+  ordinary and purchase-safe sign-out regressions rehomed from
+  `SupabaseManagerTests` plus two focused cancellation regressions. It locks
+  cancellation before the legacy server destination bind,
+  preparation-before-sign-out, one anonymous replacement, retained proof after a
+  post-commit failure, exact legacy
+  bind/link/sync/server/entitlement/session/removal ordering, cancellation
+  checkpoints, and proof removal only after every check. Injected error
+  reporting keeps the workflow free of logging ownership while preserving the
+  manager's existing diagnostic.
+- **`PurchaseIdentityHandoffStoreTests.swift`**: Owns the two
+  purchase-continuity journals independently of live Auth and RevenueCat. It
+  locks absent-state behavior, exact camel-case JSON fields, legacy and
+  protocol-3 decoding, `preparing`/`prepared` expiry policy, malformed-evidence
+  rejection before writes and after reads, `WhenUnlockedThisDeviceOnly`, exact
+  byte read-back, exact-key removal, and propagation of secure-store failures.
+  Run it with the workflow suite, `SupabaseManagerTests`, and
+  `CoreNetworkIntegrationArchitectureTests`.
+- **`GhostProfileMergePolicyTests.swift` and
+  `GhostProfileMergeEndpointErrorAdapterTests.swift`**: Own stable
+  case-insensitive replacement of one source proof without reordering unrelated
+  handoffs, the exact two terminal server codes, and the live `FunctionsError`
+  adapter. Retryable, forbidden, malformed, and transport failures retain proof.
+- **`GhostProfileMergeWorkflowTests.swift`**: Owns server → purchase →
+  local-evidence → proof-removal order, failure at each phase, cancellation
+  before the first server effect and after each asynchronous phase, and
+  exact-session failure before provider work. Injected effects keep the suite
+  deterministic and free of Supabase, RevenueCat, consent, and Keychain access.
+- **`GhostProfileMergeStoreTests.swift`**: Owns queue absence and round trips,
+  exact camel-case JSON fields, version-1 and legacy compatibility,
+  proof-preserving deferred migration, fail-closed validation before writes and
+  after reads, server-owned expiry, `WhenUnlockedThisDeviceOnly`, byte
+  read-back, case-insensitive exact removal, and secure-store error propagation.
+  Run these four suites with `SupabaseManagerTests` and
+  `CoreNetworkIntegrationArchitectureTests`.
 - **`PinnedNetworkTransportTests.swift`**: Owns seven focused transport cases.
   The three regressions moved from `MerianNetworkClientTests` protect
   intermediate-CA fallback, missing/empty/unmatched or platform-untrusted chain
@@ -2961,11 +3033,15 @@ import, and permission-denial UI require the physical-device checklist in
   cloud-head proof, durable `.ready` reapproval routing, and stale-account
   isolation. These deterministic regressions do not claim the exact-SHA
   new-account release transaction described above has run.
-- **`ghostProfileMergeClientContract.test.ts` consent-owner reference**: The
-  Deno client contract reads
+- **`ghostProfileMergeClientContract.test.ts` cross-language owner references**:
+  The Deno client contract reads the extracted `GhostProfileMergeStore`,
+  `GhostProfileMergePolicy`, and `GhostProfileMergeWorkflow` production owners
+  to pin verified device-only persistence, terminal-only retirement,
+  cancellation fences, and proof-removal-last ordering. It also reads
   `Core/Security/Consent/ConsentManagerAuthorityTests.swift` to pin target-owned
-  pending-consent flush before account refetch. Moving that Swift test requires
-  an atomic contract-path update and the focused Deno contract run.
+  pending-consent flush before account refetch. Moving any of those Swift owners
+  or that test requires an atomic contract-path update and the focused Deno
+  contract run.
 - **`AuthTransitionPolicyTests.swift` auth-adoption coverage**: Locks the three
   cold-start classifications: nil is signed out, a current session is
   authenticated, and an expired cached session is awaiting refresh rather than
@@ -4073,9 +4149,19 @@ deno test --frozen --config supabase/functions/deno.json \
   supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts
 ```
 
-Before release, Ghost-profile merge evidence must cover four complementary
+Before release, Ghost-profile merge evidence must cover five complementary
 layers:
 
+- The native `GhostProfileMergeStoreTests`, `GhostProfileMergePolicyTests`,
+  `GhostMergeEndpointErrorTests`, `GhostProfileMergeWorkflowTests`,
+  `SupabaseManagerTests`, and `CoreNetworkIntegrationArchitectureTests` matrix
+  must lock durable proof compatibility, fail-closed storage, server-owned
+  expiry, terminal-error adaptation, phase/cancellation order, exact-session
+  fencing, and live effect assembly without exposing proof values.
+  `_tests/ghostProfileMergeClientContract.test.ts` must read those exact
+  extracted owners and the target-consent test to pin persistence before session
+  replacement, cancellation fences, provider/local completion before proof
+  removal, terminal-only retirement, and consent flush before account refetch.
 - `_tests/ghostProfileMergeMigrationContract.test.ts` must statically lock the
   source-controlled policy manifest, pre-mutation topology assertion,
   scan-first/derived-ledger order, guarded orchestrator rewrite, private helper
@@ -4143,10 +4229,11 @@ device-evidence checks:
   requirement.
 - `_tests/accountDeletionCoverage.test.ts` keeps source ordering, idempotent
   Auth-not-found handling, timing-safe reaper authentication, bounded parsing,
-  `config.toml`, workflow wiring, iOS authorization-code capture and deletion
-  receipt, hosted secret validation, the independent monitor's separation from
-  the database reaper, and the executable fixture's
-  cleanup-before-storage-before-provider-before-Auth phase order present.
+  `config.toml`, the native manager-to-`AccountDeletionWorkflow` adapter, iOS
+  authorization-code capture and deletion receipt, hosted secret validation, the
+  independent monitor's separation from the database reaper, and the executable
+  fixture's cleanup-before-storage-before-provider-before-Auth phase order
+  present.
 - `_tests/accountDeletionMigrationContract.test.ts` locks the private state
   machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order, cleanup
   verification, required `storage_pending` phase, five-prefix keyset cursor,
@@ -4211,20 +4298,24 @@ device-evidence checks:
   cancellation. `AccountDeletionAPIModelsTests`,
   `AccountDeletionRecoveryValidationTests`, and
   `AccountDeletionResponseDecoderTests` own exact payload/receipt decoding and
-  fixed-clock phase/status/expiry rules. `AccountDeletionBoundaryTests` protects
-  private transport, owner forwarding, validation order, and rehomes. The
-  existing protected shared-auth selector stays in `MerianNetworkClientTests`.
-  Run the
+  fixed-clock phase/status/expiry rules. Decoder coverage requires explicit
+  public-recovery acknowledgement state, admits `not_committed` only for v2
+  recovery, and rejects it for legacy recovery and both acknowledgement routes.
+  `AccountDeletionBoundaryTests` protects private transport, owner forwarding,
+  validation order, and rehomes. The existing protected shared-auth selector
+  stays in `MerianNetworkClientTests`. Run the
   [account-deletion matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification).
   V2 accepted-owner endpoint success is not simulated by weakening Auth: exact
-  payload/decoder tests and stale-owner rejection complement the existing
-  injected `SupabaseManagerTests` workflow coverage, with real-session
-  integration still required separately. `SupabaseManagerTests` proves the
-  registration retry is bounded while reusing one durable request. It also locks
-  the credential-state matrix: `.authorized` preserves the session,
-  revoked/not-found/transferred states clear it, and a lookup failure fails
-  closed. Static source coverage requires the provider-specific subject lookup
-  and stale-identity fence. Account-deletion transition tests separately prove
+  payload/decoder tests and stale-owner rejection complement the injected
+  `AccountDeletionTransitionPolicyTests`, `AccountDeletionIntakeWorkflowTests`,
+  and `AccountDeletionCleanupWorkflowTests` coverage; `SupabaseManagerTests`
+  retains live Auth/effect assembly, with real-session integration still
+  required separately. `SupabaseManagerTests` proves the registration retry is
+  bounded while reusing one durable request. It also locks the credential-state
+  matrix: `.authorized` preserves the session, revoked/not-found/transferred
+  states clear it, and a lookup failure fails closed. Static source coverage
+  requires the provider-specific subject lookup and stale-identity fence.
+  Account-deletion transition tests separately prove
   `capability_preparation_pending` precedes atomic creation/read-back
   verification of the two-proof Keychain envelope and the first network
   suspension; a valid non-destructive server prepare then precedes
@@ -4236,29 +4327,41 @@ device-evidence checks:
   `409 purchase_continuity_pending` and definitive v2 noncommit evidence advance
   an unaccepted intent through the durable non-destructive
   `capability_rejection_retirement_pending` phase, a receipt is owner-verified
-  before `capability_cleanup_pending`, local sign-out precedes purge,
-  acknowledgement precedes capability retirement, verified Keychain deletion
-  precedes marker removal, accepted-retirement relaunch repeats local cleanup,
-  rejection-retirement relaunch removes only the unused proof and marker, and
-  matched-expired recovery takes only the conservative cleanup-then-acknowledge
-  path. `AppDIContainerTests` proves legacy Boolean and pre-capability markers
-  remain compatible, unknown future states fail closed before local erasure, and
-  the manual notice survives until explicit resolution.
-  `AccountDeletionRecoveryCapabilityTests` cover randomness, existing-proof
-  reuse, locked/unreadable Keychain, write verification, and read-after-delete
-  verification.
+  before `capability_cleanup_pending`, and unsuccessful, prepared, or
+  `not_committed` receipts cannot invoke any cleanup effect. Local sign-out
+  precedes purge, acknowledgement precedes capability retirement, verified
+  Keychain deletion precedes marker removal, accepted-retirement relaunch
+  repeats local cleanup, rejection-retirement relaunch removes the unused proof,
+  restores only the exact cached source session, and then clears the marker
+  without destructive local cleanup, while matched-expired recovery takes only
+  the conservative cleanup-then-acknowledge path. `AppDIContainerTests` proves
+  legacy Boolean and pre-capability markers remain compatible, unknown future
+  states fail closed before local erasure, and the manual notice survives until
+  explicit resolution. `AccountDeletionRecoveryCapabilityTests` cover
+  randomness, existing-proof reuse, locked/unreadable Keychain, write
+  verification, and read-after-delete verification.
+- The final fail-closed audit ran a freshly built combined
+  account-deletion/Auth/Core Network and Explore media regression matrix on an
+  iPhone 17 Pro iOS 26.4 Simulator. It passed 50 XCTest cases and 29 Swift
+  Testing cases with zero failures or skips. The paired
+  `safe-delete/db_recovery_test.ts` and
+  `recover-account-deletion/handler_test.ts` run passed 12 Deno tests. This
+  narrow final run supplements rather than replaces the preceding complete
+  `merianTests` result and the authorized real-session checklist.
 - The identity-free
   `services/supabase/functions/_tests/fixtures/account-deletion-preparation-v2-success.json`
   fixture is consumed by the Deno handler test and native
   `AccountDeletionAPIModelsTests`/`AccountDeletionResponseDecoderTests`. It
   proves the exact four-field preparation response decodes through
   `AccountDeletionPreparationReceipt` and cannot decode through the stricter
-  accepted-deletion receipt. `SupabaseManagerTests` separately proves prepare,
-  owner verification, prepared-marker persistence, intake-marker persistence,
-  commit, and accepted-receipt owner verification in that order. It verifies
-  that stale preparation ownership or either marker failure short-circuits
-  before commit with the persistence error, and that stale commit ownership
-  retains `signOutSessionChanged`. See the
+  accepted-deletion receipt. `AccountDeletionIntakeWorkflowTests` separately
+  proves prepare, exact transition-context verification, prepared-marker
+  persistence, intake-marker persistence, commit, and accepted-result context
+  verification in that order. It verifies that stale preparation context or
+  either marker failure short-circuits before commit with the persistence error,
+  stale commit context retains `signOutSessionChanged`, and a stale definitive
+  legacy or prepared-v2 failure cannot clear the intent or enter recovery
+  classification. See the
   [preparation contract and integration checklist](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract).
   These source and simulator regressions do not replace authorized real-session
   testing.
@@ -5996,10 +6099,28 @@ The identity test matrix now has two explicit lanes:
   cannot advance the generation expected by a signed-out transition.
   `AuthTransitionPolicyTests.swift` exercises wrong-controller Apple callbacks,
   exact transition/recovery admission, listener and authenticated-request
-  fencing, cold-start adoption, OAuth rollback/metadata guards, and purchase-
-  handoff restoration. Its boundary matrix includes nil-session adoption and
-  rollback, missing transition ownership, ordinary ownerless-request admission,
-  stale-owner rejection, and pre-update metadata admission.
+  fencing, cold-start adoption, OAuth rollback/metadata guards, exact
+  anonymous-to-permanent provider-link admission, and purchase-handoff
+  restoration. Its boundary matrix includes nil-session adoption and rollback,
+  missing transition ownership, ordinary ownerless-request admission,
+  stale-owner rejection, pre-update metadata admission, and rejection of
+  anonymous or different-UUID direct-link results.
+  `AccountDeletionTransitionPolicyTests.swift`,
+  `AccountDeletionIntakeWorkflowTests.swift`, and
+  `AccountDeletionCleanupWorkflowTests.swift` exercise exact deletion
+  classification plus durable intake, cleanup, restoration, and proof-retirement
+  sequencing through injected effects.
+  `PurchaseIdentitySignOutWorkflowTests.swift` exercises ordinary and
+  purchase-safe sign-out sequencing through injected effects;
+  `PurchaseIdentityHandoffStoreTests.swift` independently proves journal
+  compatibility, validation, accessibility, write verification, and removal.
+  `GhostProfileMergePolicyTests.swift`,
+  `GhostProfileMergeEndpointErrorAdapterTests.swift`, and
+  `GhostProfileMergeWorkflowTests.swift` prove stable queue replacement,
+  terminal-only retirement, exact completion order, proof retention, and
+  cancellation/session fences; `GhostProfileMergeStoreTests.swift` independently
+  proves queue/legacy compatibility, fail-closed validation, device-only
+  verified persistence, server-owned expiry, and exact removal.
   `SupabaseManagerTests.swift` retains anonymous-bootstrap serialization,
   account-work drain, consent-sync cancellation/await, provider SDK integration,
   and terminal workflow ownership. `EntitlementManagerTests.swift` rejects a
@@ -6073,6 +6194,12 @@ The identity test matrix now has two explicit lanes:
   mutations, advances a persisted monotonic binding intent, clears legacy
   account attributes before stable readiness, writes no new account PII in
   stable mode, and makes no receipt-sync call for ordinary Auth rotation.
+  `PurchaseIdentityHandoffStoreTests.swift` separately freezes both installed
+  journal formats, exact keys, device-only accessibility, read-back
+  verification, legacy decoding, protocol-3 state validation, and verified
+  removal. `PurchaseIdentitySignOutWorkflowTests.swift` freezes the
+  preparation-before-sign-out and proof-removal-last phase contract without
+  resolving live Auth, endpoint, provider, entitlement, or logging effects.
   Resolver protocol/DB/handler tests cover exact body shape, hash-only database
   input, route-missing-only fallback, provider fetch, StoreKit/promo separation,
   rollout changes, and public error mapping. Protocol-3 cases additionally prove
@@ -6115,12 +6242,14 @@ The identity test matrix now has two explicit lanes:
   authoritative cutover, direct rotation-RPC denial, permanent/old-anonymous/
   wrong-proof rejection, deletion and Ghost-merge interlocks, exact claim
   replay, terminal intent fencing, deletion-time Auth-reference scrubbing, and
-  rollback- only catalog execution. Source review also requires a failed local
-  sign-out to cancel only from the exact restored source and restore the exact
-  linked provider/entitlement session rather than waiting for a later Auth
-  event. Lifecycle coverage proves foreground activation invokes exact-identity
-  recovery even while the current consent gate is closed; device testing must
-  still prove the live retry.
+  rollback-only catalog execution. The client source contract requires handoff
+  readiness to reread both durable local proof types and fail closed when either
+  read is unavailable; it does not trust a cached presentation Boolean. Source
+  review also requires a failed local sign-out to cancel only from the exact
+  restored source and restore the exact linked provider/entitlement session
+  rather than waiting for a later Auth event. Lifecycle coverage proves
+  foreground activation invokes exact-identity recovery even while the current
+  consent gate is closed; device testing must still prove the live retry.
 
 Neither lane's unit/static coverage proves a live RevenueCat/StoreKit identity
 transition or either OAuth provider. The rollout remains release-evidence-

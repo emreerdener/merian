@@ -91,6 +91,15 @@ enum AuthTransitionPolicy {
             && !targetSession.isAnonymous
     }
 
+    static func acceptsLinkedIdentityUpgrade(
+        sourceSession: AuthTransitionSession,
+        targetSession: AuthTransitionSession
+    ) -> Bool {
+        sourceSession.isAnonymous
+            && sourceSession.userID == targetSession.userID
+            && !targetSession.isAnonymous
+    }
+
     static func authSessionAdoption(
         userId: UUID?,
         isExpired: Bool

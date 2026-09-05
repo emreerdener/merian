@@ -43,6 +43,11 @@ enum AccountDeletionResponseDecoder {
                 : AccountDeletionRecoveryValidation.isValidExpiry(receipt.recoveryCapabilityExpiresAt, now: now)
             guard statusCode == 200,
                   receipt.success,
+                  isAcceptedRecoveryReceipt(
+                      receipt,
+                      allowsNotCommitted: false,
+                      acknowledge: acknowledge
+                  ),
                   timestampIsValid,
                   !acknowledge || receipt.recoveryAcknowledged == true else {
                 throw MerianError.invalidResponse
@@ -55,6 +60,11 @@ enum AccountDeletionResponseDecoder {
             guard statusCode == 200,
                   receipt.success,
                   receipt.protocolVersion == 2,
+                  isAcceptedRecoveryReceipt(
+                      receipt,
+                      allowsNotCommitted: true,
+                      acknowledge: acknowledge
+                  ),
                   timestampIsValid,
                   !acknowledge || receipt.recoveryAcknowledged == true else {
                 throw MerianError.invalidResponse
@@ -94,5 +104,23 @@ enum AccountDeletionResponseDecoder {
     private static func isAcceptedDeletion(_ receipt: AccountDeletionReceipt, statusCode: Int) -> Bool {
         (receipt.status == .pending && statusCode == 202)
             || (receipt.status == .completed && statusCode == 200)
+    }
+
+    private static func isAcceptedRecoveryReceipt(
+        _ receipt: AccountDeletionReceipt,
+        allowsNotCommitted: Bool,
+        acknowledge: Bool
+    ) -> Bool {
+        guard let recoveryAcknowledged = receipt.recoveryAcknowledged else {
+            return false
+        }
+        if receipt.status == .pending || receipt.status == .completed {
+            return true
+        }
+        return allowsNotCommitted
+            && !acknowledge
+            && receipt.status == .notCommitted
+            && !receipt.manualProviderRevocationRequired
+            && !recoveryAcknowledged
     }
 }

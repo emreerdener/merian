@@ -100,6 +100,7 @@ untracked `sink`.
 | `foregroundBiologicalScanCompleted(scanId:)`                 | Invalidation/handoff            | `InferenceEngine` → `CaptureWorkspaceView`                                                                                                                                              | Normalized scan ID; duplicates only re-evaluate prompt eligibility               | Persisted scan/history; a miss is recovered from the next history projection                                                     | Current account scan             |
 | `explorePostNeedsRefresh(postId:)`                           | Invalidation                    | inference/review completion → Explore detail/shell and profile preview                                                                                                                  | Normalized post ID; duplicate refetches are harmless                             | Supabase/cached post projection; refresh on appearance or the next mutation                                                      | Public post                      |
 | `exploreShareStateChanged(scanId:postId:)`                   | Invalidation                    | Insight/Explore/Scans share-state mutations → Capture cache writer, Explore/profile previews, Collections catalog/smart-detail view models, `ScansManager` → Library search coordinator | Normalized scan ID; latest durable share state wins                              | Local/cloud publication state; consumers patch or rederive by ID                                                                 | Current account mutation         |
+| `exploreShareStateReconciled`                                | Batched invalidation            | `ScanRepository` historical hydration → Capture Messages cache writer, Collections catalog/smart-detail view models, and `ScansManager` → Library filter index                          | Current history batch; duplicate full rederivations are harmless                 | Per-scan preference cache; emitted after changed scan reconciliation even if later history work fails                            | Current account                  |
 | `fieldTripProgressInvalidated(templateIds:)`                 | Invalidation                    | `ScanMilestoneCoordinator` → Capture goals, Field trips catalog/detail/profile modules, Profile                                                                                         | Template-ID set; duplicate set reloads are harmless                              | Server progress rows and active-goal cache                                                                                       | Current account                  |
 | `fieldTripChallengeProgressInvalidated(challengeIds:)`       | Invalidation                    | `ScanMilestoneCoordinator` → Field trips catalog/challenge detail, Profile                                                                                                              | Challenge-ID set; duplicate set reloads are harmless                             | Server challenge rows                                                                                                            | Current account                  |
 | `fieldTripScanContributionsInvalidated(scanId:)`             | Invalidation                    | progress completion → open Insight                                                                                                                                                      | Normalized scan ID                                                               | Persisted private contribution projection                                                                                        | Current account scan             |
@@ -124,6 +125,15 @@ the Share component nor the Community request sheet resolves the app container
 or emits the event directly. The event remains a loss-tolerant cache
 invalidation hint; the local cache and authoritative cloud share-state response
 remain recovery sources.
+
+Historical hydration uses `exploreShareStateReconciled` rather than emitting a
+per-scan mutation event. Consumers re-read the complete preference-backed
+projection, which bounds a large account to one filter-index rebuild and one
+smart-collection refresh per successful scan batch sequence. The containing app
+also regenerates the Messages App Group share cache from that durable
+projection. The repository publishes this invalidation before collection
+hydration, so a later page or collection failure cannot hide already committed
+share-state repairs.
 
 Do not put arrays of scans, images, SwiftData models, view instances, closures,
 or navigation destinations in an event. IDs and small scalar invalidation hints

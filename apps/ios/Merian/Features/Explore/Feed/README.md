@@ -199,6 +199,15 @@ one active Explore player at a time. Feed autoplay still respects Low Power
 Mode; post detail may autoplay after navigation because the user explicitly
 opened the post.
 
+Feed cards and post detail render every ordered post-owned media item in one
+square horizontal carousel. The authored cover is the initial page, pagination
+dots appear only for multi-item posts, and images, videos, and standalone audio
+can occupy any page in the same carousel. Only the selected page is eligible for
+playback or player allocation; swiping away releases its player and
+standalone-audio session before the newly selected page can start playback.
+Stable media identity, not page index, owns playback state across post refreshes
+and reordering.
+
 Feed autoplay always re-enters muted. If the user unmutes a feed video and then
 opens that post, detail inherits the current mute state. Leaving detail resets
 the shared preference to muted before feed playback resumes, preventing audio
@@ -240,15 +249,18 @@ saved spectrogram with a moving playhead and elapsed/total timestamp, and it
 participates in the same one-active-player and audio-session lifecycle as other
 Explore media.
 
-Explore post detail makes the spectrogram seekable: tapping jumps to a time and
-dragging pauses temporarily while the playmarker follows the gesture, then
-resumes only when playback was active before the drag. The center playback
-control remains independently tappable and VoiceOver can adjust position in
-five-second steps. Feed spectrograms intentionally do not seek because their
-center and outer regions retain playback, like, and detail-navigation gestures.
-`AudioSpectrogramSeekingPolicy` treats non-finite progress, duration, width, and
-marker values as a safe zero and clamps finite playmarker offsets into the
-available width. Do not calculate frame offsets directly from player time.
+A single-audio Explore post detail makes the full spectrogram seekable: tapping
+jumps to a time and dragging pauses temporarily while the playmarker follows the
+gesture, then resumes only when playback was active before the drag. The center
+playback control remains independently tappable and VoiceOver can adjust
+position in five-second steps. In a multi-item post, only dragging the 44-point
+playmarker seeks; taps and horizontal drags elsewhere remain available to the
+playback control and carousel. Feed spectrograms intentionally do not seek
+because their center and outer regions retain playback, like, and
+detail-navigation gestures. `AudioSpectrogramSeekingPolicy` treats non-finite
+progress, duration, width, and marker values as a safe zero and clamps finite
+playmarker offsets into the available width. Do not calculate frame offsets
+directly from player time.
 
 Detail zoom layout uses `ExploreDetailZoomLayoutPolicy.resolvedSize(...)` to
 accept only finite positive proposed dimensions. It can use one valid dimension

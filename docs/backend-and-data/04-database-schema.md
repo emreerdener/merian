@@ -2643,6 +2643,13 @@ Manual-share public feed wrapper around `scans`. Added in migration
   (TIMESTAMPTZ, nullable where applicable): Incident and automatic-recovery
   audit timestamps.
 
+The unique `scan_id` foreign key makes the PostgREST `scans` → `explore_posts`
+embed to-one: authenticated owner history reads receive one object or explicit
+`null`, never an array. Owner RLS and the explicit authenticated `SELECT` grant
+permit that nested projection only for the caller's scans. The iOS history
+contract requires the relation key so projection drift cannot be mistaken for
+proof that a locally cached post was unshared.
+
 **Post media rule**: Explore no longer reads media directly from
 `scans.image_storage_urls` at response time. Sharing snapshots safe public image
 and video URLs into `explore_post_media`, while `hero_image_url` remains the

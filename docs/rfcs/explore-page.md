@@ -1488,6 +1488,9 @@ Client behavior:
 - Comments pagination is cursor-based on `(created_at, comment_id)`
 - Notifications pagination is cursor-based on `(updated_at, notification_id)`
 - Like and comment counts should update optimistically
+- Feed and detail render all ordered post-owned image, video, and audio items in
+  one swipeable carousel, starting on the authored cover. Multi-item posts show
+  pagination state, and only the selected page may play.
 - Feed images single-tap into detail and double-tap to like. Feed audio/video
   reserve a centered 96-point playback zone: single tap plays or pauses without
   navigation and double tap likes; taps outside that zone retain the normal
@@ -1604,6 +1607,8 @@ Client behavior:
   map, and only for a currently `open` post.
 - Users can like and comment on posts.
 - Users can externally share posts from the feed.
+- Every selected image, video, and audio item is available in authored order in
+  a swipeable carousel on both the feed card and post detail.
 - Tapping a feed post outside an audio/video center playback zone opens a public
   post detail page. The center zone controls playback locally and never
   navigates.

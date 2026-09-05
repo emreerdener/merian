@@ -2,6 +2,22 @@ import AVFoundation
 import SwiftUI
 
 extension ExplorePublicMediaView {
+    func pauseForCarouselPageDeselection() {
+        guard isVideoPlaybackHost else { return }
+
+        logPlayback("pause-carousel-deselection")
+        synchronizeAudioPlaybackProgress()
+        let preservedPlaybackTime = currentRecoverySeekTime()
+            ?? pendingRecoverySeekTime
+        resetCurrentPlayer()
+        playbackState.setPendingRecoverySeekTime(preservedPlaybackTime)
+        playbackState.clearResumeIntent()
+        reducePlaybackOverlay(
+            .playbackPaused,
+            animation: .easeInOut(duration: 0.18)
+        )
+    }
+
     func togglePlayback() {
         if playbackOverlayState.needsPlayerRebuildForRecovery || player == nil {
             HapticManager.shared.triggerMediumPulse(
@@ -44,6 +60,10 @@ extension ExplorePublicMediaView {
         verifiesRecovery: Bool = false
     ) {
         guard isVideoPlaybackHost else { return }
+        guard isPlaybackActive else {
+            logPlayback("skip-resume-inactive-carousel-page")
+            return
+        }
         guard mediaItem.kind != .audio || force else { return }
         guard force || playbackCoordinator?.hasActiveOverlay != true else {
             logPlayback("skip-resume-covered")
@@ -99,7 +119,10 @@ extension ExplorePublicMediaView {
                 let activated = await MediaPlaybackAudioSession.activate(
                     source: "media.explore.\(surface.rawValue).video.play"
                 )
-                guard activated, self.player === player, !isMuted else { return }
+                guard activated,
+                      isPlaybackActive,
+                      self.player === player,
+                      !isMuted else { return }
                 player.isMuted = false
                 player.play()
                 if shouldVerifyRecovery {

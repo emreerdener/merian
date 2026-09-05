@@ -9,9 +9,11 @@ struct ExplorePublicMediaView: View {
     let reloadGeneration: UInt64
     let preloadedImage: UIImage?
     let surface: ExploreVideoPlaybackSurface
+    let isPlaybackActive: Bool
     let autoplay: Bool
     let showsVideoControls: Bool
     let allowsAutoplayInLowPowerMode: Bool
+    let detailAudioSeekingMode: AudioSpectrogramSeekingMode
     let onSingleTap: (() -> Void)?
     let onDoubleTap: (() -> Void)?
     let audioBoostEnabled: Bool
@@ -102,9 +104,11 @@ struct ExplorePublicMediaView: View {
         reloadGeneration: UInt64,
         preloadedImage: UIImage?,
         surface: ExploreVideoPlaybackSurface,
+        isPlaybackActive: Bool = true,
         autoplay: Bool,
         showsVideoControls: Bool,
         allowsAutoplayInLowPowerMode: Bool = false,
+        detailAudioSeekingMode: AudioSpectrogramSeekingMode = .fullSpectrogram,
         audioBoostEnabled: Bool = false,
         audioBoostActionToken: UUID? = nil,
         onAudioBoostActionFinished: ((UUID) -> Void)? = nil,
@@ -117,9 +121,11 @@ struct ExplorePublicMediaView: View {
         self.reloadGeneration = reloadGeneration
         self.preloadedImage = preloadedImage
         self.surface = surface
+        self.isPlaybackActive = isPlaybackActive
         self.autoplay = autoplay
         self.showsVideoControls = showsVideoControls
         self.allowsAutoplayInLowPowerMode = allowsAutoplayInLowPowerMode
+        self.detailAudioSeekingMode = detailAudioSeekingMode
         self.audioBoostEnabled = audioBoostEnabled
         self.audioBoostActionToken = audioBoostActionToken
         self.onAudioBoostActionFinished = onAudioBoostActionFinished
@@ -220,7 +226,7 @@ struct ExplorePublicMediaView: View {
                     .zIndex(4)
             }
 
-            if audioSeekingMode == .fullSpectrogram {
+            if audioSeekingMode != .disabled {
                 audioSeekLayer
                     .zIndex(2)
             } else {
@@ -233,17 +239,35 @@ struct ExplorePublicMediaView: View {
                     .zIndex(4)
             }
         }
-        .task(id: "\(mediaItem.url)|\(reloadGeneration)") {
+        .task(id: "\(mediaItem.url)|\(reloadGeneration)|\(isPlaybackActive)") {
+            guard isPlaybackActive else { return }
+            await Task.yield()
+            guard !Task.isCancelled else { return }
             configurePlayerIfNeeded()
             resumeAutoplayIfUncovered()
         }
-        .task(id: audioBoostEnabled) {
-            guard mediaItem.kind == .audio else { return }
+        .task(id: "\(mediaItem.url)|\(audioBoostEnabled)|\(isPlaybackActive)") {
+            guard isPlaybackActive, mediaItem.kind == .audio else { return }
+            guard audioBoostEnabled ? boostedAudioURL == nil : boostedAudioURL != nil else {
+                return
+            }
             await updateAudioBoostMode()
         }
         .onAppear {
             logPlayback("appear")
-            resumeAutoplayIfUncovered()
+        }
+        .onChange(of: isPlaybackActive) { _, isActive in
+            if !isActive {
+                pauseForCarouselPageDeselection()
+            }
+        }
+        .onChange(of: autoplay) { _, isAutoplayEligible in
+            guard isPlaybackActive else { return }
+            if isAutoplayEligible {
+                resumeAutoplayIfUncovered()
+            } else {
+                pauseForUserInteraction()
+            }
         }
         .onChange(of: shouldDisplayPlaybackControl) { _, isVisible in
             logPlayback(
@@ -273,7 +297,7 @@ struct ExplorePublicMediaView: View {
             )
         }
         .onChange(of: storedIsMuted) { _, newValue in
-            guard mediaItem.kind == .video else { return }
+            guard isPlaybackActive, mediaItem.kind == .video else { return }
             guard !newValue else {
                 player?.isMuted = true
                 logPlayback("mute-changed", extra: "muted=true")
@@ -283,7 +307,7 @@ struct ExplorePublicMediaView: View {
                 let activated = await MediaPlaybackAudioSession.activate(
                     source: "media.explore.\(surface.rawValue).unmute"
                 )
-                guard activated, !storedIsMuted else { return }
+                guard activated, isPlaybackActive, !storedIsMuted else { return }
                 player?.isMuted = false
                 logPlayback("mute-changed", extra: "muted=false")
             }

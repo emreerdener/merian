@@ -78,6 +78,7 @@ final class ExplorePublicMediaPlaybackState {
         cancelPlaybackRecoveryWatchdog()
         cancelUnexpectedPauseRecovery()
         cancelPlaybackControlFade()
+        cancelAudioSeek()
         observation.detach()
         isPlayerItemReady = false
         resetAudioPosition()
@@ -142,6 +143,11 @@ final class ExplorePublicMediaPlaybackState {
         isAudioSeeking = false
         audioSeekWasPlaying = false
         return shouldResume
+    }
+
+    func cancelAudioSeek() {
+        isAudioSeeking = false
+        audioSeekWasPlaying = false
     }
 
     func setAudioPosition(progress: Double, elapsedSeconds: Double) {

@@ -60,12 +60,25 @@ mount the Ready approval screen before refresh completes.
 [`Auth/`](Auth/README.md) owns the value-only transition models and errors,
 Guest-presentation and transition-decision policies, exact-session account-work
 lease coordinator, exclusive transition coordinator, and main-actor sign-out
-single-flight. `SupabaseManager` remains the live Supabase Auth and workflow
-orchestrator; it stores and advances that state, applies the extracted
-admission/adoption/callback decisions, and retains OAuth, Auth-listener,
-consent, purchase-identity, durable recovery, and account-deletion effects. The
-extracted owners import no provider SDK, resolve no singleton, and change no
-externally consumed signature, error copy, actor isolation, or state transition.
+single-flight. It also owns account-deletion stable-error and cached-session
+classification plus closure-injected intake, cleanup, restoration, and
+retirement sequencing, purchase-safe sign-out/proof-removal ordering, and
+ghost-profile queue/error policy plus finalization ordering. `SupabaseManager`
+remains the live Supabase Auth and workflow orchestrator; it stores and advances
+transition state, applies the extracted decisions, and assembles OAuth,
+Auth-listener, consent, purchase-identity, endpoint, Keychain, sign-out, purge,
+logging, and lifecycle effects. Core Security's
+[`GhostProfileMergeStore`](../Security/GhostProfileMerge/README.md) owns the
+ghost handoff/queue codecs, legacy migration, validation, device-only verified
+persistence, and removal. Its
+[`PurchaseIdentityHandoffStore`](../Security/PurchaseIdentity/README.md) owns
+the two purchase-handoff journal codecs, validation, device-only accessibility,
+verified writes, and removal. The extracted owners import no provider SDK,
+resolve no singleton, and change no externally consumed signature, error copy,
+actor isolation, or state transition. Direct anonymous provider linking is
+complete only after the SDK exposes a permanent session for the same UUID and
+the active transition adopts and revalidates it; provider-bound ghost-merge
+recovery remains durable until that commit point.
 
 ## `MerianNetworkClient`
 
@@ -709,9 +722,11 @@ and [focused matrix](#media-storage-and-upload-verification).
   to `invalidResponse`. Intake/commit require matching pending/202 or
   completed/200; `decodePreparation` requires the dedicated preparation receipt
   to be prepared/200, successful, protocol 2, and unexpired. Public recovery
-  retains its existing status acceptance, with expired timestamps accepted only
-  for acknowledged receipts or v2 `not_committed` receipts. Acknowledgement
-  requests still require `recovery_acknowledged: true`.
+  requires an explicit acknowledgement-state field: legacy operations admit only
+  `pending|completed`, while v2 recovery alone may additionally admit a
+  nonacknowledged, provider-neutral `not_committed` receipt. Prepared receipts
+  and v2 `not_committed` acknowledgements fail closed. Expired timestamps are
+  accepted only for acknowledged receipts or v2 `not_committed` recovery.
 - [`AccountDeletionRecoveryValidation.swift`](AccountDeletionRecoveryValidation.swift)
   owns exact 43-byte base64url proof syntax and 20–40-byte ISO timestamp parsing
   through cached `DateUtilities` formatters. Its injected clock is read only
@@ -730,11 +745,15 @@ or 5xx responses. Its 64 KiB response check occurs after URLSession has read the
 data, before status handling; it is not a streaming memory bound. No new Auth
 admission, replay policy, task owner, or singleton is introduced.
 
-`Core/Network/Auth/` owns deterministic transition admission; `SupabaseManager`,
-Core Security, and `AppDIContainer` retain live transition effects, Keychain
-proofs/markers, lost-response decisions, verified local sign-out, SwiftData
-cleanup, and proof retirement. The decoder cannot authorize cleanup or
-reinterpret a 404/410 error.
+`Core/Network/Auth/` owns deterministic transition admission, stable-error
+classification, cached-session restoration eligibility, and closure-injected
+intake/cleanup/retirement ordering. `SupabaseManager`, Core Security, and
+`AppDIContainer` retain live transition state, endpoint and SDK calls, Keychain
+proof/marker effects, verified local sign-out, SwiftData cleanup, and runtime
+proof retirement. The decoder cannot authorize cleanup or reinterpret a 404/410
+error. Every live deletion result that can advance or retire those durable
+effects is fenced by the transition's exact session and Auth generation on both
+success and failure; token ownership by itself is insufficient.
 [Core Security](../Security/README.md#account-deletion-recovery-authority) owns
 secure proof storage;
 [Settings](../../Features/Profile/Settings/README.md#account-deletion) continues
@@ -750,7 +769,12 @@ the individually extracted slices. It requires exactly 17 endpoint-extension
 owners, rejects an endpoint entry point duplicated in the remaining aggregate,
 and applies the 600-line review ceiling to every Swift owner under `Auth/`,
 `Endpoints/`, `Inference/`, `Media/`, `Recovery/`, and `Transport/`, plus the
-client façade.
+client façade. The Auth inventory is exactly nine production files; its source
+guard freezes the extracted account-deletion, purchase-safe sign-out, and
+ghost-profile-merge policy/workflow inventories and rejects both current and
+legacy helper declarations in `SupabaseManager`. It separately locks the Core
+Security ghost-merge and purchase-handoff model/store boundaries, including
+their device-only verified-persistence policies.
 
 The audit also makes the remaining live-dependency exceptions explicit:
 
@@ -784,10 +808,13 @@ The audit also makes the remaining live-dependency exceptions explicit:
 - `Auth/` owns the transition/lease values, presentation and transition-decision
   policies, state coordinators, and sign-out single-flight without provider SDK
   or singleton access. Its guard also freezes the policy-function inventory,
-  single structured task owner, and actor isolation. `SupabaseManager` retains
-  the live Auth listener, provider/SDK effects, consent, and application-
-  container coordination. No unlisted extracted owner may acquire these globals
-  or create a detached task.
+  direct-link same-UUID upgrade decision, single structured task owner, and
+  actor isolation. `SupabaseManager` retains the live Auth listener,
+  provider/SDK effects, consent, and application-container coordination. The
+  source guard requires SDK session readback, policy admission, transition
+  adoption, and exact-session revalidation before direct linking can retire
+  durable ghost-merge recovery. No unlisted extracted owner may acquire these
+  globals or create a detached task.
 
 The suite freezes exactly six production Transport owners—three stateless
 policies, the request-scoped executor, the pinned session, and the authenticated
@@ -821,6 +848,29 @@ rejection, and injected-session dispatch. One dispatcher test covers value-only
 account resolution and exact authenticated JSON request construction without
 live Auth or network access. The architecture guard requires the Release
 `SecTrustEvaluateWithError` gate and both fail-closed cancellation paths.
+
+`PurchaseIdentitySignOutWorkflowTests` owns the eight rehomed sign-out ordering
+regressions plus cancellation before and immediately after the legacy server
+destination bind and proof-retention coverage.
+`PurchaseIdentityHandoffStoreTests` owns thirteen deterministic journal cases
+for format compatibility, fail-closed validation before writes and after reads,
+device-only accessibility, read-back verification, and removal.
+`GhostProfileMergeStoreTests` owns the corresponding queue cases, including
+legacy migration that preserves readable proof when its rewrite cannot be
+verified and server-owned expiry classification. `GhostProfileMergePolicyTests`,
+`GhostMergeEndpointErrorTests`, and `GhostProfileMergeWorkflowTests` freeze
+stable replacement, terminal error adaptation, cancellation boundaries, phase
+order, and proof-removal-last behavior. `SupabaseManagerTests` retains live
+effect assembly; these injected suites do not execute Supabase, RevenueCat,
+StoreKit, or Keychain.
+
+Three cross-language Edge source contracts bind this split to its backend
+lifecycles: `accountDeletionCoverage.test.ts` reads the extracted deletion
+workflow, `purchasePrincipalMigrationContract.test.ts` requires readiness to
+reread both durable purchase journals and fail closed, and
+`ghostProfileMergeClientContract.test.ts` reads the extracted Ghost storage,
+policy, workflow, error-adapter, and consent owners. A file or suite rehome must
+update its Deno path in the same change.
 
 The final policy-boundary review replaced its async refresh closure with the
 value-only `UnauthorizedRefreshTarget`. The request-scoped executor now switches
@@ -928,6 +978,15 @@ xcodebuild test-without-building \
   -parallel-testing-enabled NO \
   -only-testing:merianTests/AuthTransitionFoundationTests \
   -only-testing:merianTests/AuthTransitionPolicyTests \
+  -only-testing:merianTests/AccountDeletionTransitionPolicyTests \
+  -only-testing:merianTests/AccountDeletionIntakeWorkflowTests \
+  -only-testing:merianTests/AccountDeletionCleanupWorkflowTests \
+  -only-testing:merianTests/PurchaseIdentitySignOutWorkflowTests \
+  -only-testing:merianTests/PurchaseIdentityHandoffStoreTests \
+  -only-testing:merianTests/GhostProfileMergePolicyTests \
+  -only-testing:merianTests/GhostMergeEndpointErrorTests \
+  -only-testing:merianTests/GhostProfileMergeWorkflowTests \
+  -only-testing:merianTests/GhostProfileMergeStoreTests \
   -only-testing:merianTests/CoreNetworkIntegrationArchitectureTests \
   -only-testing:merianTests/PinnedNetworkTransportTests \
   -only-testing:merianTests/AuthenticatedTransportDispatcherTests \
@@ -1704,18 +1763,50 @@ and task-owned versus independent transport cancellation.
 
 `AccountDeletionRecoveryValidationTests` and
 `AccountDeletionResponseDecoderTests` use a fixed clock for syntax, expiry,
-phase/status/version, acknowledgement, and terminal replay checks.
-`AccountDeletionBoundaryTests` guards ownership, validation/bridge ordering,
-private public-recovery policy, private request DTOs, and the eight rehomes. The
-existing shared-auth tests and protected critical selector remain in
-`MerianNetworkClientTests`; no CI selector or protected-case count changes.
+phase/status/version, operation-specific recovery status, acknowledgement-state,
+and terminal replay checks. `AccountDeletionBoundaryTests` guards ownership,
+validation/bridge ordering, private public-recovery policy, private request
+DTOs, the eight endpoint rehomes, and exact-session fencing across immediate and
+recovered deletion. The existing shared-auth tests and protected critical
+selector remain in `MerianNetworkClientTests`; no CI selector or protected-case
+count changes.
 
 The injected transport does not admit a valid Auth transition owner. V2
 prepare/commit success is therefore covered by exact payload tests and the pure
 receipt decoder, with stale-owner no-dispatch tests at the endpoint. Accepted
-transition workflows remain in `SupabaseManagerTests`; neither those injected
-workflow tests nor source guards replace real-session integration. Never add an
-Auth bypass to make these endpoint fixtures succeed.
+transition sequencing lives in `AccountDeletionIntakeWorkflowTests` and
+`AccountDeletionCleanupWorkflowTests`; classification and cached-session
+eligibility live in `AccountDeletionTransitionPolicyTests`. The workflow suites
+also prove that stale failed intake cannot clear its durable marker, stale
+prepared-v2 failures cannot reach outer recovery classification, and deferred
+restoration cannot publish a cached account after exact session revalidation
+fails. `SupabaseManagerTests` retains live Auth/effect assembly, while the
+integration architecture suite locks ordinary refresh, transition-owned
+telemetry, and failed-sign-out restoration to the same exact session
+coordinator. Neither the injected workflow tests nor source guards replace
+real-session integration. Never add an Auth bypass to make these endpoint
+fixtures succeed.
+
+The pass-three candidate ran this focused account-deletion/Auth matrix on an
+iPhone 17 Pro iOS 26.4 Simulator: 341 parameter-expanded cases across 190 unique
+test identifiers passed with no failures or skips. The complete `merianTests`
+target then passed 4,860 parameter-expanded cases across 2,876 unique test
+identifiers with no failures or skips. These local simulator results do not
+replace the separately authorized real-session checklist below. The follow-up
+review removed one obsolete test-only combined rejection helper, renamed its
+coverage to the proof-only operation used by production, and hardened the exact
+helper-inventory guard. A fresh generic Simulator `build-for-testing` compiles
+that candidate; runtime execution could not be repeated because
+CoreSimulatorService was unavailable, so the counts above remain the latest
+runtime baseline rather than evidence for the renamed test identifier.
+
+The final fail-closed review restored Simulator execution against a freshly
+rebuilt candidate. Its combined account-deletion, Auth, Core Network
+architecture, and Explore media regression matrix passed 50 XCTest cases and 29
+Swift Testing cases with zero failures or skips. The matching Edge recovery
+matrix passed 12 Deno tests. The complete `merianTests` target was not rerun
+after this narrow correction, so the 4,860-case pass above remains the broader
+runtime baseline.
 
 #### Preparation receipt contract
 
@@ -1736,13 +1827,14 @@ nonoptional wire field. The identity-free
 [`account-deletion-preparation-v2-success.json`](../../../../../services/supabase/functions/_tests/fixtures/account-deletion-preparation-v2-success.json)
 fixture is consumed by both the Deno handler test and native DTO/decoder tests;
 the native suite also proves the four-field preparation cannot decode as an
-accepted receipt. `SupabaseManagerTests` separately locks the workflow order:
-prepare, verify owner, persist the prepared marker, persist the intake marker,
-commit, then verify the accepted receipt owner. It also proves stale preparation
-ownership or either marker failure stops before commit with the persistence
-error, while stale commit ownership retains `signOutSessionChanged`. These
-source and simulator regressions prove the checked-in producer/consumer shape,
-but do not replace the authorized real-session integration checklist below.
+accepted receipt. `AccountDeletionIntakeWorkflowTests` separately locks the
+workflow order: prepare, verify the exact transition-session context, persist
+the prepared marker, persist the intake marker, commit, then reverify that exact
+context for the accepted receipt. It also proves stale preparation context or
+either marker failure stops before commit with the persistence error, while
+stale commit context retains `signOutSessionChanged`. These source and simulator
+regressions prove the checked-in producer/consumer shape, but do not replace the
+authorized real-session integration checklist below.
 
 #### Focused command
 
@@ -1762,6 +1854,12 @@ xcodebuild test \
   -only-testing:merianTests/AccountDeletionRecoveryValidationTests \
   -only-testing:merianTests/AccountDeletionResponseDecoderTests \
   -only-testing:merianTests/AccountDeletionBoundaryTests \
+  -only-testing:merianTests/AccountDeletionTransitionPolicyTests \
+  -only-testing:merianTests/AccountDeletionIntakeWorkflowTests \
+  -only-testing:merianTests/AccountDeletionCleanupWorkflowTests \
+  -only-testing:merianTests/AuthTransitionFoundationTests \
+  -only-testing:merianTests/AuthTransitionPolicyTests \
+  -only-testing:merianTests/CoreNetworkIntegrationArchitectureTests \
   -only-testing:merianTests/NetworkEndpointTestSupportTests \
   -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/MerianNetworkClientTests \
@@ -2537,8 +2635,11 @@ new account.
 ## OAuth account replacement
 
 Linking an OAuth identity to an anonymous user keeps the same Supabase UUID and
-does not replace the account. The provider-conflict fallback and ordinary OAuth
-sign-in can install a different UUID, so they use one replacement boundary:
+does not replace the account. The client reads the SDK session back after a
+successful link and requires an anonymous-to-permanent transition for that same
+UUID before adopting it and clearing provider-bound ghost-merge recovery. The
+provider-conflict fallback and ordinary OAuth sign-in can install a different
+UUID, so they use one replacement boundary:
 
 1. synchronously suppress analytics, invalidate stale consent synchronization,
    normalize any canceled same-account restoration wait back to `.reconciling`,
@@ -2579,22 +2680,25 @@ Settings danger-zone action call `transitionToGhostSession()`; user-facing copy
 does not expose internal Ghost or guest-session terminology. Apple, Google, Sign
 out, anonymous recovery, Apple credential revocation, and account deletion all
 enter one `AuthTransitionCoordinator`. `Core/Network/Auth/` owns that
-value-state coordinator and the deterministic transition policy;
-`SupabaseManager` stores and advances the coordinator, applies those decisions,
-and retains all live Supabase SDK, provider, consent, purchase-identity,
-recovery, and deletion effects. The operation token owns the source session,
-expected destination, phase, and Auth-event generation. A second operation
-cannot start while one owns the SDK; late provider callbacks and
-wrong-controller Apple callbacks are discarded. SDK events for an unadopted
-intermediate or destination session cannot link RevenueCat, refresh entitlement,
-write metadata, or change account routes ahead of the operation owner. The
-Apple, Google, and destructive-account controls remain disabled for the whole
-transition. Unowned account-scoped background work uses the same closed gate.
-Every direct Supabase read/write, entitlement refresh, profile/preference
-mutation, historical reconciliation, collection sync, and ordinary authenticated
-HTTP attempt acquires an exact-session account-work lease in
-`AuthenticatedTransportDispatcher`. The transition closes admission
-synchronously, cancels and awaits consent synchronization, closes
+value-state coordinator, deterministic transition policy, deletion
+classification, closure-injected deletion workflow helpers, and purchase-safe
+sign-out/proof-removal ordering plus ghost-merge queue/error policy and
+finalization order. Core Security owns the durable ghost-merge and purchase
+journals through injected stores; `SupabaseManager` stores and advances the
+coordinator, applies those decisions, and retains all live Supabase SDK,
+provider, consent, purchase-identity, recovery, and deletion effects. The
+operation token owns the source session, expected destination, phase, and
+Auth-event generation. A second operation cannot start while one owns the SDK;
+late provider callbacks and wrong-controller Apple callbacks are discarded. SDK
+events for an unadopted intermediate or destination session cannot link
+RevenueCat, refresh entitlement, write metadata, or change account routes ahead
+of the operation owner. The Apple, Google, and destructive-account controls
+remain disabled for the whole transition. Unowned account-scoped background work
+uses the same closed gate. Every direct Supabase read/write, entitlement
+refresh, profile/preference mutation, historical reconciliation, collection
+sync, and ordinary authenticated HTTP attempt acquires an exact-session
+account-work lease in `AuthenticatedTransportDispatcher`. The transition closes
+admission synchronously, cancels and awaits consent synchronization, closes
 `InferenceEngine` write admission, cancels and awaits even non-cooperative
 presentation/metadata tasks, waits for all admitted leases and collection work,
 and only then mutates the Auth SDK session. HTTP retries release their lease
@@ -2653,6 +2757,13 @@ and advances/read-verifies its device-monotonic binding intent before each
 ordinary resolver request. The server rejects any older intent, so a cancelled
 Auth request that finishes late cannot replace the current binding. Stable
 **Sign out** uses a separate protocol-3 state machine:
+
+The local `PurchaseIdentityHandoffStore` owns both this stable journal and the
+legacy proof below: explicit persisted field names, fail-closed decoding,
+state-specific validation, exact Keychain selection, device-only accessibility,
+byte read-back, and verified removal. The Auth workflow owns phase order, while
+the manager injects all live server, provider, session, entitlement, and logging
+effects.
 
 1. While the exact linked source session and binding generation are live, iOS
    generates a rotation UUID and 256-bit secret, persists/read-verifies a
@@ -2816,25 +2927,25 @@ idempotent SwiftData/preferences purge before proof removal, so a marker-writing
 durability failure cannot skip either cleanup boundary. A definitive
 `409 purchase_continuity_pending` first records
 `capability_rejection_retirement_pending`, then read-after-delete verifies the
-unused proof is gone, and clears the marker last. Relaunch in this phase
-performs only that proof-and-marker retirement; it never signs out or purges
-local data because the server proved the deletion intake did not win. Transport,
-Auth, gateway, `5xx`, cancellation, and malformed responses retain the proof and
-barrier because commit may still be in flight. An unknown legacy v1 proof also
-remains ambiguous. An unknown v2 proof permits proof-only retirement because
-commit requires the missing server preparation. A `not_committed` or genuinely
-unknown v2 proof first retires the unused proof, then adopts only the exact
-cached unexpired Supabase session into the transition coordinator while the
-barrier remains. It clears the barrier before publishing that same UUID and
-anonymous/account kind or reopening account work. The distinct
-`account_deletion_recovery_preparation_expired` response is a non-authorizing
-tombstone match and retains the barrier. Only a matched committed capability's
-`account_deletion_recovery_expired` `410` is positive evidence that deletion was
-accepted; it permits conservative local erasure, after which the independent
-acknowledgement proof remains valid and then permits verified retirement. It
-does not reveal pre-cleanup job state. Legacy `intake_pending` and
-`cleanup_pending` remain readable during the installed-client compatibility
-window. No marker or proof stores an account, provider, job, or request
-identifier. A refreshable `401` renews only the transition's exact expected
-Supabase session; it cannot start nested recovery or relink RevenueCat,
-analytics, profile metadata, or entitlements.
+unused proof is gone, and clears the marker last. Relaunch in this phase retires
+that proof, restores only the exact cached source session, and then clears the
+barrier; it never signs out or purges local data because the server proved the
+deletion intake did not win. Transport, Auth, gateway, `5xx`, cancellation, and
+malformed responses retain the proof and barrier because commit may still be in
+flight. An unknown legacy v1 proof also remains ambiguous. An unknown v2 proof
+permits proof-only retirement because commit requires the missing server
+preparation. A `not_committed` or genuinely unknown v2 proof first retires the
+unused proof, then adopts only the exact cached unexpired Supabase session into
+the transition coordinator while the barrier remains. It clears the barrier
+before publishing that same UUID and anonymous/account kind or reopening account
+work. The distinct `account_deletion_recovery_preparation_expired` response is a
+non-authorizing tombstone match and retains the barrier. Only a matched
+committed capability's `account_deletion_recovery_expired` `410` is positive
+evidence that deletion was accepted; it permits conservative local erasure,
+after which the independent acknowledgement proof remains valid and then permits
+verified retirement. It does not reveal pre-cleanup job state. Legacy
+`intake_pending` and `cleanup_pending` remain readable during the
+installed-client compatibility window. No marker or proof stores an account,
+provider, job, or request identifier. A refreshable `401` renews only the
+transition's exact expected Supabase session; it cannot start nested recovery or
+relink RevenueCat, analytics, profile metadata, or entitlements.

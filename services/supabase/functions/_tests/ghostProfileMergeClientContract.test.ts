@@ -4,8 +4,24 @@ const managerUrl = new URL(
   "../../../../apps/ios/Merian/Core/Network/SupabaseManager.swift",
   import.meta.url,
 );
-const managerTestsUrl = new URL(
-  "../../../../apps/ios/MerianTests/Core/Network/SupabaseManagerTests.swift",
+const ghostMergeStoreUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/GhostProfileMerge/Stores/GhostProfileMergeStore.swift",
+  import.meta.url,
+);
+const ghostMergePolicyUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Policies/GhostProfileMergePolicy.swift",
+  import.meta.url,
+);
+const ghostMergeWorkflowUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/GhostProfileMergeWorkflow.swift",
+  import.meta.url,
+);
+const ghostMergePolicyTestsUrl = new URL(
+  "../../../../apps/ios/MerianTests/Core/Network/Auth/GhostProfileMergePolicyTests.swift",
+  import.meta.url,
+);
+const ghostMergeErrorAdapterTestsUrl = new URL(
+  "../../../../apps/ios/MerianTests/Core/Network/Auth/GhostProfileMergeEndpointErrorAdapterTests.swift",
   import.meta.url,
 );
 const consentManagerUrl = new URL(
@@ -22,7 +38,10 @@ function compact(value: string): string {
 }
 
 Deno.test("iOS persists a Ghost merge proof before switching sessions", async () => {
-  const source = compact(await Deno.readTextFile(managerUrl));
+  const [source, storeSource] = await Promise.all([
+    Deno.readTextFile(managerUrl).then(compact),
+    Deno.readTextFile(ghostMergeStoreUrl).then(compact),
+  ]);
   const conflictFallback = source.indexOf(
     "guard Self.requiresProviderBoundGhostMerge(after: error)",
   );
@@ -56,10 +75,22 @@ Deno.test("iOS persists a Ghost merge proof before switching sessions", async ()
       prepareReturn > persist,
     "The provider-bound proof must be durably persisted before leaving the anonymous session",
   );
-  assertStringIncludes(source, "accessibility: .whenUnlockedThisDeviceOnly");
   assertStringIncludes(
     source,
-    "try KeychainManager.shared.dataOrThrow( forKey: KeychainKeys.pendingGhostProfileMerge ) == encoded",
+    "try ghostProfileMergeStore.persistPendingHandoffs(handoffs)",
+  );
+  assertStringIncludes(
+    storeSource,
+    "KeychainKeys.pendingGhostProfileMerge",
+  );
+  assertStringIncludes(storeSource, ".whenUnlockedThisDeviceOnly");
+  assertStringIncludes(
+    storeSource,
+    "try dependencies.loadData(key) == encoded",
+  );
+  assert(
+    !source.includes("KeychainKeys.pendingGhostProfileMerge"),
+    "SupabaseManager must delegate Ghost queue persistence to the secure-store owner",
   );
   assertStringIncludes(
     source,
@@ -112,11 +143,73 @@ Deno.test("iOS retries every retained Ghost handoff after permanent-session rest
   );
 });
 
-Deno.test("iOS deletes Ghost proofs only for invalid or expired handoffs", async () => {
-  const [source, testSource] = await Promise.all([
+Deno.test("iOS keeps Ghost finalization cancellation-fenced and proof-removal-last", async () => {
+  const [source, workflow] = await Promise.all([
     Deno.readTextFile(managerUrl).then(compact),
-    Deno.readTextFile(managerTestsUrl).then(compact),
+    Deno.readTextFile(ghostMergeWorkflowUrl).then(compact),
   ]);
+  assertStringIncludes(
+    source,
+    "try await GhostProfileMergeWorkflow.finalizeHandoff(",
+  );
+
+  const preflight = workflow.indexOf("try Task.checkCancellation()");
+  const server = workflow.indexOf(
+    "try await completeServerHandoff()",
+    preflight,
+  );
+  const serverFence = workflow.indexOf(
+    "try Task.checkCancellation()",
+    server,
+  );
+  const purchases = workflow.indexOf(
+    "try await synchronizeProviderPurchases()",
+    serverFence,
+  );
+  const purchaseFence = workflow.indexOf(
+    "try Task.checkCancellation()",
+    purchases,
+  );
+  const localEvidence = workflow.indexOf(
+    "try await rebindAndSynchronizeLocalEvidence()",
+    purchaseFence,
+  );
+  const localEvidenceFence = workflow.indexOf(
+    "try Task.checkCancellation()",
+    localEvidence,
+  );
+  const clearProof = workflow.indexOf(
+    "try clearPendingHandoff()",
+    localEvidenceFence,
+  );
+
+  assert(
+    preflight >= 0 &&
+      server > preflight &&
+      serverFence > server &&
+      purchases > serverFence &&
+      purchaseFence > purchases &&
+      localEvidence > purchaseFence &&
+      localEvidenceFence > localEvidence &&
+      clearProof > localEvidenceFence,
+    "Ghost finalization must keep cancellation fences around every asynchronous phase and remove proof last",
+  );
+  assert(
+    !workflow.includes(".shared") &&
+      !workflow.includes("import Supabase") &&
+      !workflow.includes("MerianLog"),
+    "The deterministic Ghost workflow must not acquire live dependencies",
+  );
+});
+
+Deno.test("iOS deletes Ghost proofs only for invalid or expired handoffs", async () => {
+  const [source, policySource, policyTestSource, adapterTestSource] =
+    await Promise.all([
+      Deno.readTextFile(managerUrl).then(compact),
+      Deno.readTextFile(ghostMergePolicyUrl).then(compact),
+      Deno.readTextFile(ghostMergePolicyTestsUrl).then(compact),
+      Deno.readTextFile(ghostMergeErrorAdapterTestsUrl).then(compact),
+    ]);
   const discardStart = source.indexOf(
     "nonisolated static func shouldDiscardPendingGhostProfileMerge",
   );
@@ -126,20 +219,31 @@ Deno.test("iOS deletes Ghost proofs only for invalid or expired handoffs", async
   );
   const discardSource = source.slice(discardStart, discardEnd);
 
-  assertStringIncludes(discardSource, 'payload.code == "handoff_expired"');
-  assertStringIncludes(discardSource, 'payload.code == "handoff_invalid"');
+  assertStringIncludes(
+    discardSource,
+    "GhostProfileMergePolicy.shouldDiscardPendingHandoff( serverCode: payload.code )",
+  );
+  assertStringIncludes(policySource, 'serverCode == "handoff_expired"');
+  assertStringIncludes(policySource, 'serverCode == "handoff_invalid"');
   assert(
-    !discardSource.includes("merge_temporarily_unavailable"),
+    !policySource.includes("merge_temporarily_unavailable"),
     "Retryable 503 responses must not discard a retained proof",
   );
   assertStringIncludes(
-    testSource,
+    policyTestSource,
+    "terminalServerCodesAloneDiscardDurableProof",
+  );
+  assertStringIncludes(
+    adapterTestSource,
     "testPendingMergeProofIsDiscardedOnlyForTerminalServerCodes",
   );
-  assertStringIncludes(testSource, '"merge_temporarily_unavailable"');
   assertStringIncludes(
-    testSource,
-    "XCTAssertFalse( SupabaseManager.shouldDiscardPendingGhostProfileMerge( after: mergeTemporarilyUnavailable ) )",
+    adapterTestSource,
+    '"merge_temporarily_unavailable"',
+  );
+  assertStringIncludes(
+    adapterTestSource,
+    "(URLError(.timedOut), false)",
   );
 });
 

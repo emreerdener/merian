@@ -56,7 +56,8 @@ struct SmartCollectionDetailView: View {
         .onReceive(viewModel.events) { event in
             switch event {
             case .scanLibraryChanged,
-                 .exploreShareStateChanged:
+                 .exploreShareStateChanged,
+                 .exploreShareStateReconciled:
                 refresh()
             default:
                 break

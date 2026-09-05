@@ -183,10 +183,122 @@ struct AccountDeletionBoundaryTests {
         #expect(manager.contains("prepareAccountDeletionRecoveryV2(") && manager.contains("commitPreparedAccountDeletionV2("))
     }
 
+    @Test func recoveryResultsStayBoundToTheExactTransitionSession() throws {
+        let manager = try networkSource("SupabaseManager.swift")
+        let immediateDeletion = try section(
+            beginningWith: "    func deleteCurrentAccount(",
+            endingBefore: "\n    /// An account-deletion barrier",
+            in: manager
+        )
+        let versionTwoRecovery = try section(
+            beginningWith:
+                "    private func resumeCapabilityBackedAccountDeletionV2(",
+            endingBefore:
+                "\n    private func resumeCapabilityBackedAccountDeletion(",
+            in: manager
+        )
+        let legacyRecovery = try section(
+            beginningWith:
+                "    private func resumeCapabilityBackedAccountDeletion(",
+            endingBefore: "\n    private func performLocalSignOut(",
+            in: manager
+        )
+
+        for workflow in [
+            immediateDeletion,
+            versionTwoRecovery,
+            legacyRecovery
+        ] {
+            #expect(!workflow.contains("ownsAuthTransition(transition)"))
+        }
+
+        try expectOrder(
+            [
+                "verifyPreparationContext:",
+                "currentSessionMatchesAuthTransition(transition)",
+                "verifyCommitContext:",
+                "currentSessionMatchesAuthTransition(transition)",
+                "verifyResultContext:",
+                "currentSessionMatchesAuthTransition(",
+                "recoverDeletionV2(",
+                "currentSessionMatchesAuthTransition(transition)",
+                "acknowledgeRecovery:",
+                "currentSessionMatchesAuthTransition(transition)"
+            ],
+            in: immediateDeletion
+        )
+        try expectOrder(
+            [
+                "receipt = try await recoverDeletion(",
+                "currentSessionMatchesAuthTransition(transition)",
+                "} catch {",
+                "currentSessionMatchesAuthTransition(transition)",
+                "acknowledgeRecovery:",
+                "currentSessionMatchesAuthTransition(transition)"
+            ],
+            in: versionTwoRecovery
+        )
+        try expectOrder(
+            [
+                "receipt = try await requestDeletion(",
+                "} catch {",
+                "currentSessionMatchesAuthTransition(transition)",
+                "receipt = try await recoverDeletion(capability, false)",
+                "currentSessionMatchesAuthTransition(transition)",
+                "} catch {",
+                "currentSessionMatchesAuthTransition(transition)",
+                "acknowledgeRecovery:",
+                "currentSessionMatchesAuthTransition(transition)"
+            ],
+            in: legacyRecovery
+        )
+    }
+
+    @Test func restoredDeletionBarrierCommitsBeforeLifecycleReadiness() throws {
+        let manager = try networkSource("SupabaseManager.swift")
+        let workflow = try networkSource(
+            "Auth/Coordinators/AccountDeletionWorkflow.swift"
+        )
+        let restoration = try section(
+            beginningWith:
+                "    private func restoreDeferredCachedSessionAndResolveDeletionBarrier(",
+            endingBefore: "\n    /// Resumes the local half",
+            in: manager
+        )
+
+        #expect(restoration.components(separatedBy: "await ").count == 2)
+        #expect(!restoration.contains("ensureTelemetryLinkedWhenSafe"))
+        #expect(!restoration.contains("EntitlementManager.shared"))
+        try expectOrder(
+            [
+                "adoptCachedSession:",
+                "validateCachedSession:",
+                "resolveCleanup:",
+                "publishCachedSession:"
+            ],
+            in: workflow
+        )
+    }
+
     private func method(_ declaration: String, in source: String) throws -> String {
         let start = try #require(source.range(of: "    \(declaration)"))
         let end = try #require(source.range(of: "\n    }", range: start.upperBound..<source.endIndex))
         return String(source[start.lowerBound..<end.upperBound])
+    }
+
+    private func section(
+        beginningWith beginning: String,
+        endingBefore ending: String,
+        in source: String
+    ) throws -> String {
+        let start = try #require(source.range(of: beginning))
+        let end = try #require(
+            source.range(
+                of: ending,
+                range: start.upperBound..<source.endIndex
+            )
+        )
+        return String(source[start.lowerBound..<end.lowerBound])
     }
 
     private func expectOrder(_ tokens: [String], in source: String) throws {

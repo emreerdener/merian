@@ -42,6 +42,7 @@ private enum ExploreMediaPreviewFixtures {
 
 #Preview("Explore Feed Media - Landscape") {
     ExploreFeedMediaView(
+        postId: "preview-landscape",
         imageUrl: "preview-landscape",
         reloadGeneration: 0,
         preloadedImage: ExploreMediaPreviewFixtures.landscape
@@ -52,6 +53,7 @@ private enum ExploreMediaPreviewFixtures {
 
 #Preview("Explore Feed Media - Portrait") {
     ExploreFeedMediaView(
+        postId: "preview-portrait",
         imageUrl: "preview-portrait",
         reloadGeneration: 0,
         preloadedImage: ExploreMediaPreviewFixtures.portrait
@@ -62,6 +64,7 @@ private enum ExploreMediaPreviewFixtures {
 
 #Preview("Explore Detail Media - Square") {
     ExploreDetailMediaView(
+        postId: "preview-square",
         imageUrl: "preview-square",
         reloadGeneration: 0,
         preloadedImage: ExploreMediaPreviewFixtures.square

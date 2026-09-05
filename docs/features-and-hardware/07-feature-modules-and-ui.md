@@ -368,6 +368,17 @@ production Shell and Library file remains below the 600-line review guard.
   Card-style smart collections render as image-backed `SmartCollectionCard`
   tiles before user-created collection cards, while row-style defaults
   (Favorites, Non-biological, and "Needs review") sit underneath the card grid.
+  Historical scan sync also projects the authenticated owner's active Explore
+  post relationship and reconciles the per-scan share lookup behind request and
+  local-mutation revision fences. When the cache changes, it publishes one typed
+  batch invalidation as soon as scan-page reconciliation finishes, including
+  after a partial sync, so the filter index and mounted smart-collection
+  surfaces rederive durable state without one event or request per scan.
+  Eligible local biological scans in the Explore posts collection therefore
+  recover cross-device and restored active publication intent instead of
+  reflecting only posts shared or opened on the current installation. This
+  intent can include a moderated or quarantined post that the public Profile
+  grid currently suppresses.
 - **Smart Collection Boundary**: `SmartCollectionDetailView` is read-only and
   live-generated from current `LocalScanRecord` matches. Smart collections are
   not converted into `ScanCollection` rows, do not enqueue
@@ -1612,13 +1623,15 @@ dependency composition.
   `DeleteAccountSheet`, which itemizes deleted account-owned data and mandatory
   ownerless retention of exact scientific facts, then requires the user to type
   `DELETE`. The sheet delegates presentation to `DeleteAccountViewModel`; its
-  `AccountDeletionDependencies` and `SupabaseManager` own the durable Deno
-  `/safe-delete` protocol, while the local-purge adapter owns repository access.
-  Both immediate `200` completion and `202` durable acceptance are successful:
-  backend cleanup continues through its scheduled reaper, cursor-sweeps and
-  delayed-verifies every canonical R2 prefix, revokes a stored Apple credential,
-  and removes Auth only after verification. A legacy Apple disposition is saved
-  by `SupabaseManager` before the client signs out; the injected adapter then
+  `AccountDeletionDependencies` delegates live `/safe-delete` calls and
+  recovery-effect assembly to `SupabaseManager`. Core Network owns the wire
+  endpoint, `Core/Network/Auth/` owns deterministic classification and phase
+  sequencing, and the local-purge adapter owns repository access. Both immediate
+  `200` completion and `202` durable acceptance are successful: backend cleanup
+  continues through its scheduled reaper, cursor-sweeps and delayed-verifies
+  every canonical R2 prefix, revokes a stored Apple credential, and removes Auth
+  only after verification. A legacy Apple disposition is saved by
+  `SupabaseManager` before the client signs out; the injected adapter then
   deletes every active SwiftData row through
   `ScanRepository.purgeAllData(modelContext:userDefaults:resetDerivedState:resetRuntimeState:)`,
   passing the required synchronous private-map derived-state reset before every

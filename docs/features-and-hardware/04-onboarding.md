@@ -407,10 +407,12 @@ Consent is a Core security contract rather than an Onboarding implementation
 detail. Its restoration, ledger durability, lifecycle, reapproval, and authority
 suites live under `MerianTests/Core/Security/Consent`. Moving those tests does
 not move or weaken the root-presentation and consent invariants they cover.
-`ghostProfileMergeClientContract.test.ts` deliberately reads
-`ConsentManagerAuthorityTests.swift` from that Core owner to enforce that
-target-owned pending consent is flushed before account refetch; its path must be
-updated with any future test rehome.
+`ghostProfileMergeClientContract.test.ts` deliberately reads the extracted Ghost
+merge store, policy, workflow, and endpoint-adapter test together with
+`ConsentManagerAuthorityTests.swift`. It enforces verified device-only proof
+persistence, terminal-only retirement, cancellation/proof-removal ordering, and
+target-owned pending-consent flush before account refetch. Every referenced path
+must be updated atomically with a future owner or test rehome.
 
 ---
 

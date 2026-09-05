@@ -675,13 +675,13 @@ Implemented Core Network slices:
   handler test and native DTO/decoder suites consume one identity-free JSON
   fixture, and a native negative test proves that preparation cannot masquerade
   as an accepted receipt. A small injected `SupabaseManager` seam preserves and
-  tests prepare → owner verification → prepared marker → intake marker → commit
-  → accepted-receipt owner verification. Negative cases prove stale preparation
-  ownership or either marker failure cannot dispatch commit and preserves the
-  persistence-error classification; stale commit ownership retains
-  `signOutSessionChanged`. Focused native and backend suites, generic Simulator
-  build, strict affected-file lint, Swift parsing, project/source membership,
-  XcodeGen stability, and whitespace checks pass. The final complete
+  tests prepare → exact transition-context verification → prepared marker →
+  intake marker → commit → accepted-result context verification. Negative cases
+  prove stale preparation context or either marker failure cannot dispatch
+  commit and preserve the persistence-error classification; stale commit context
+  retains `signOutSessionChanged`. Focused native and backend suites, generic
+  Simulator build, strict affected-file lint, Swift parsing, project/source
+  membership, XcodeGen stability, and whitespace checks pass. The final complete
   `merianTests` `test-without-building` run executed 2,788 tests: 2,778 passed,
   while ten parameterized transport-replay cases across unrelated endpoint
   suites were killed by the test runner. The failing set rotated from the
@@ -1658,17 +1658,18 @@ Implemented Profile slice:
   account/export/preference/notification/RevenueCat Services, observable
   lifecycle state, thin Views, and grouped Components. Views and components
   perform no endpoint, Supabase SDK, notification-center, app-container,
-  repository, or platform-action lookup. Account deletion still delegates its
-  durable protocol and recovery to `SupabaseManager`, with local purge behind a
-  small adapter. Feedback, notification, export, sign-out/deletion, and plan
-  state have deterministic suites; an architecture test locks the live-service
-  boundary and 600-line ceiling. Cross-feature complimentary-scan display state
-  moved to `Core/UI/Models`. The Profile Shell composes the environment-owned
-  geoprivacy and hardware adapters. Geoprivacy writes are account-fenced,
-  serialized, and latest-selection-coalesced; expedition mode persists before
-  constraint reevaluation; notification refreshes discard stale generations; and
-  sign-out, deletion, export, survey, purchase, restore, and redemption actions
-  reject conflicting overlap.
+  repository, or platform-action lookup. Account deletion delegates live
+  protocol and recovery effects to `SupabaseManager`; deterministic
+  classification and phase sequencing live in `Core/Network/Auth/`, with local
+  purge behind a small adapter. Feedback, notification, export,
+  sign-out/deletion, and plan state have deterministic suites; an architecture
+  test locks the live-service boundary and 600-line ceiling. Cross-feature
+  complimentary-scan display state moved to `Core/UI/Models`. The Profile Shell
+  composes the environment-owned geoprivacy and hardware adapters. Geoprivacy
+  writes are account-fenced, serialized, and latest-selection-coalesced;
+  expedition mode persists before constraint reevaluation; notification
+  refreshes discard stale generations; and sign-out, deletion, export, survey,
+  purchase, restore, and redemption actions reject conflicting overlap.
 - `Capture/Shell` now separates deterministic media and presentation models,
   closure-based live Services, responsibility-specific view-model extensions,
   grouped goal/media/shared Components, root Views, and routing/lifecycle/
@@ -1949,6 +1950,220 @@ reruns could not start because CoreSimulatorService became unavailable and the
 host denied SwiftPM's nested manifest sandbox. The 2,873-case result above
 therefore remains the latest complete runtime baseline; it is not presented as
 post-follow-up execution evidence.
+
+The third slice moves four deterministic account-deletion decisions and nine
+closure-injected phase sequencers into
+`Policies/AccountDeletionTransitionPolicy.swift` and
+`Coordinators/AccountDeletionWorkflow.swift`. `SupabaseManager` falls from 5,690
+to 5,468 lines while retaining live Auth/SDK state, endpoint calls, Keychain and
+marker effects, sign-out, purge composition, lifecycle recovery, and every
+public signature. Twenty-one aggregate regressions move into
+`AccountDeletionTransitionPolicyTests`, `AccountDeletionIntakeWorkflowTests`,
+and `AccountDeletionCleanupWorkflowTests`; the obsolete test-only combined
+rejection-retirement regression is replaced by a proof-only boundary matching
+the live recovery composition, and one new case locks exact unknown-recovery
+classification. The subsequent integration audit adds stale legacy-failure,
+stale prepared-v2 failure, and deferred-session revalidation regressions,
+bringing the three deterministic deletion suites to 26 tests. The six-file Auth
+inventory remains below the 600-line owner ceiling and imports no provider SDK
+or live singleton. Its architecture guard freezes the new helper inventory,
+rejects both current and former aggregate helper declarations, and keeps the
+workflow free of task ownership. The source split changes no wire payload,
+server route, persistence schema, feature flag, UI, cleanup order, or release
+control.
+
+Pass-three verification includes byte-stable XcodeGen, generated-project and
+source-membership validation, event-routing and transport-security guards, Swift
+parsing, strict affected-source SwiftLint, generic iOS Simulator
+build-for-testing, Markdown formatting, and whitespace validation. On an iPhone
+17 Pro iOS 26.4 Simulator, the focused account-deletion/Auth matrix passed 341
+parameter-expanded cases across 190 unique test identifiers, and the complete
+`merianTests` target passed 4,860 cases across 2,876 unique identifiers; both
+had zero failures or skips. No hosted request, live account deletion,
+deployment, or external publication was performed.
+
+The follow-up review removed the obsolete test-only combined rejection helper,
+kept proof retirement separate from exact cached-session restoration, and
+hardened the architecture inventory so access-modified static helpers cannot
+evade it. The reviewed candidate again passes the generic Simulator
+`build-for-testing` compile plus the non-runtime gates above.
+CoreSimulatorService was unavailable for a fresh execution pass, so the 341- and
+4,860-case results remain the latest runtime baseline and are not attributed to
+the renamed proof-only regression.
+
+The 2026-09-05 Auth-wide integration audit closes the remaining session-context
+gaps across deletion and purchase continuity. Every preparation, commit,
+legacy-intake, recovery, and acknowledgement result that can mutate a durable
+deletion marker now requires the transition's exact expected UUID,
+anonymous/account kind, and Auth generation on success and failure. Prepared-v2
+failures are fenced before outer recovery classification. Ordinary
+authenticated-request refresh can renew only its original exact session;
+transition-owned telemetry uses the same fence before and after linking; and
+failed linked-account sign-out re-adopts the verified source session before
+restoring purchase readiness. Deferred noncommit recovery revalidates the cached
+source before marker removal, makes verified marker removal the last failable
+stage, publishes synchronously, and delegates optional telemetry/entitlement
+retry to foreground lifecycle handling. The workflow no longer supplies
+permissive default closures for acknowledgement, retirement, sign-out, or purge
+stages. Direct anonymous provider linking now reads back the SDK result and
+admits, adopts, and revalidates only a permanent destination with the original
+UUID before retiring durable provider-bound ghost-merge recovery. Source guards
+lock this order and each named deletion-result boundary rather than counting
+incidental text occurrences. No payload, route, persistence format, provider
+mutation, schema, feature flag, UI, or release control changes.
+
+This audit extends the Auth transition policy inventory from ten to eleven
+decisions and its focused policy suite from ten to eleven tests. The six-file
+production ownership boundary and 600-line ceiling are unchanged. The added live
+session fences bring `SupabaseManager.swift` to 5,486 lines.
+
+The final candidate passed a complete generic iOS Simulator `build-for-testing`,
+including both simulator architectures and the full app and test bundles. It
+also passed byte-stable XcodeGen, project/resource and source-membership
+validation, the complete iOS CI-tooling suite, event-routing and
+transport-security adversarial checks, strict affected-source SwiftLint, Swift
+parsing, the executed direct-link policy and source-order probes, Markdown
+formatting, Supabase skill-link validation, and whitespace checks.
+
+The final fail-closed review aligns the native public-recovery decoder with the
+already-normative Edge and SQL status contract. Legacy recovery and
+acknowledgement now admit only `pending|completed`; v2 recovery alone may also
+admit a nonacknowledged, provider-neutral `not_committed` receipt; all public
+recovery responses require explicit acknowledgement state. The extracted cleanup
+workflow independently rejects unsuccessful, `prepared`, and `not_committed`
+receipts before marker persistence, sign-out, or local erasure. Focused decoder
+and workflow regressions lock both boundaries. This changes no server payload,
+route, database schema, persistence format, or release control.
+
+After the final corrections, the focused iPhone 17 Pro iOS 26.4 Simulator matrix
+passed 50 XCTest cases and 29 Swift Testing cases with zero failures or skips.
+That matrix covers the account-deletion decoder, intake, cleanup, transition
+policy, endpoint boundary, Core Network integration architecture, Auth
+transition policy, and the Explore media regression that the clean build
+surfaced. The focused Edge recovery matrix also passed 12 Deno tests. The full
+`merianTests` target was not executed again in this final review; its preceding
+complete-target result remains the broader runtime baseline.
+
+### SupabaseManager Purchase-safe Sign-out and Journal Ownership
+
+The fourth `SupabaseManager` hygiene slice moves the three deterministic
+ordinary/purchase-safe sign-out sequencers into
+`Core/Network/Auth/Coordinators/PurchaseIdentitySignOutWorkflow.swift` and the
+two installed purchase-continuity journal families into
+`Core/Security/PurchaseIdentity/{Models,Stores}`. The workflow retains exact
+preparation-before-sign-out, anonymous replacement, provider/server/session
+verification, cancellation, and proof-removal-last order through injected
+closures. It owns no live dependency, log sink, or task; the manager supplies
+its existing diagnostic as an injected failure reporter.
+
+`PurchaseIdentityHandoffStore` is now the sole owner of legacy/stable journal
+decoding, fail-closed validation, exact Keychain selection,
+`WhenUnlockedThisDeviceOnly` accessibility, byte-for-byte write verification,
+and verified removal. Its live closure dependencies receive the already-resolved
+`KeychainManager` instance from `SupabaseManager`; the store resolves no
+singleton and imports no provider or network SDK. Explicit coding keys freeze
+the existing camel-case JSON fields. The manager retains thin error-mapping
+adapters so existing `SupabaseAuthTransitionError` behavior and all call sites
+remain stable while server, Auth, RevenueCat, StoreKit, entitlement, lifecycle,
+and retry effects stay in the live orchestrator. `SupabaseManager.swift` falls
+from 5,486 to 5,288 lines.
+
+Eight existing workflow regressions move from `SupabaseManagerTests` into
+`PurchaseIdentitySignOutWorkflowTests`, joined by cancellation before and
+immediately after the legacy server destination bind plus proof-retention
+regressions. Thirteen secure-store tests cover absence, exact field names, both
+compatibility formats, state-specific expiry, malformed-evidence rejection
+before writes and after reads, failed and unverifiable writes, accessibility,
+exact-key removal, and storage-error propagation. The architecture suite expands
+the Auth inventory from six to seven files, freezes all three relocated workflow
+helpers, prevents their return to the aggregate, and locks the separate Core
+Security model/store owner under the 600-line ceiling. This slice changes no API
+payload, server operation, Keychain key, local JSON bytes, SwiftData schema,
+feature flag, navigation, provider action, or release control.
+
+Pass-four verification succeeded with byte-stable XcodeGen, generated-project
+resource and source-membership checks, event-routing and transport-security
+guards plus their adversarial tooling, the complete iOS CI-tooling suite,
+Supabase skill-link validation, recursive Supabase candidate formatting, Swift
+parsing, and strict affected-source SwiftLint with zero violations. A generic
+iOS Simulator `build-for-testing` compiled the app and all test bundles for both
+architectures. On an iPhone 17 Pro iOS 26.4.1 Simulator, the focused workflow,
+store, aggregate-manager, and integration-architecture matrix passed 56 tests
+with zero failures or skips; the final validation-before-write and preflight-
+cancellation review passed another 32 focused workflow/store/architecture tests.
+The complete `merianTests` target passed 4,904 parameter-expanded runs across
+2,920 unique tests with zero failures or skips. No hosted request, live purchase
+or identity transition, deployment, or external publication was performed.
+
+### SupabaseManager Ghost-profile Merge Durability and Finalization
+
+The fifth `SupabaseManager` hygiene slice moves the installed ghost-profile
+handoff and version-1 queue models into
+`Core/Security/GhostProfileMerge/Models`, their codec and secure persistence
+policy into `Core/Security/GhostProfileMerge/Stores`, stable queue replacement
+and terminal-code classification into
+`Core/Network/Auth/Policies/GhostProfileMergePolicy.swift`, and deterministic
+completion order into
+`Core/Network/Auth/Coordinators/GhostProfileMergeWorkflow.swift`.
+`SupabaseManager.swift` falls from 5,288 to 5,223 lines while retaining the
+single-flight task and every live Supabase, Auth/session, RevenueCat, consent,
+retry, lifecycle, and logging effect.
+
+`GhostProfileMergeStore` is now the sole codec and Keychain-policy owner for
+`Merian_PendingGhostProfileMerge`. It preserves the existing camel-case fields,
+version-1 queue, legacy single-record compatibility, established key, and
+`WhenUnlockedThisDeviceOnly` accessibility. It adds fail-closed validation
+before writes and after reads, exact-byte verification, and verified removal. A
+valid legacy proof remains usable if its best-effort envelope rewrite cannot be
+verified. The store accepts both established RFC 3339 formatter shapes but does
+not compare expiry to the device clock; only the server's terminal
+`handoff_expired` or `handoff_invalid` response authorizes retirement without a
+successful merge.
+
+`GhostProfileMergeWorkflow` preserves server completion → purchase sync → local
+evidence rebind/sync → proof removal and adds cancellation checks before the
+first server effect and after every asynchronous phase. The manager keeps thin
+adapters for the existing `SupabaseAuthTransitionError`, terminal
+`FunctionsError` decoding, analytics suppression, exact-session checks, and
+task-generation ownership. Eleven store tests, two pure policy tests, one
+endpoint-error adapter test, and six workflow tests now own the extracted
+behavior. The cross-slice architecture guard expands the Auth inventory from
+seven to nine files, freezes both new function inventories and test rehomes, and
+makes the two-file Ghost Profile Merge Security package the sole owner of the
+queue key, models, validation, and persistence rules under the 600-line ceiling.
+This slice changes no API payload, server operation, Keychain key, persisted
+JSON field, SwiftData schema, feature flag, navigation, provider action, or
+release control.
+
+Pass-five verification succeeded with byte-stable XcodeGen, generated-project
+resource and source-membership checks, event-routing and transport-security
+guards plus their adversarial tooling, the complete iOS CI-tooling suite,
+Supabase skill-link validation, recursive Supabase candidate formatting, Swift
+parsing, and strict affected-source SwiftLint with zero violations. A generic
+iOS Simulator `build-for-testing` with code signing disabled compiled the app
+and all test bundles for both simulator architectures. Local execution of the
+focused Ghost Profile Merge matrix and complete `merianTests` target could not
+start because CoreSimulatorService became unavailable; those runtime suites are
+not counted as passed and remain required in the canonical CI run. No hosted
+request, live purchase or identity transition, deployment, or external
+publication was performed.
+
+A post-pass contract audit found three stale source-ownership assertions in the
+Edge client-contract suite. The Ghost merge contract now reads the extracted
+store, policy, workflow, and owner-named Swift tests; the account-deletion
+contract reads `AccountDeletionWorkflow`; and the purchase-principal contract
+pins durable proof rereads and fail-closed readiness instead of the removed
+cached-Boolean implementation. After those corrections, the complete Edge suite
+passed 1,937 tests with zero failures and one intentionally ignored disposable-
+database case.
+
+Documentation closure synchronized the Core Network/Auth and Core Security
+ownership guides, both affected Function READMEs, the API, Keychain, manager,
+revenue-identity, account-deletion, and Onboarding contracts, the codebase map,
+testing strategy, and deployment proof matrix. These references now name the
+exact extracted Swift owners and make every Deno-to-Swift source-path dependency
+an atomic rehome obligation; none describes cached presentation state as durable
+purchase-handoff authority.
 
 ## Phase 3: Ownership Cleanup
 

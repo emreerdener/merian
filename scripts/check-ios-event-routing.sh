@@ -130,6 +130,7 @@ approved_event_cases="$({
     exploreAudioBoostPreferenceChanged \
     explorePostNeedsRefresh \
     exploreShareStateChanged \
+    exploreShareStateReconciled \
     exploreVideoMutePreferenceReset \
     fieldTripChallengeProgressInvalidated \
     fieldTripProgressInvalidated \

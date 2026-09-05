@@ -64,10 +64,11 @@ and cooldown policy, with no shared network override.
 
 `SettingsTabView` remains the route and sheet composition owner. Detailed
 screens keep UI-only selection and presentation state locally. Account deletion
-continues to delegate protocol ordering and recovery to `SupabaseManager`; the
-sheet supplies its environment `ModelContext` and private-map reset action to a
-narrow local-purge adapter. No Settings owner may reconstruct the server
-deletion protocol or mutate Auth directly.
+delegates live protocol and recovery effects to `SupabaseManager`, which applies
+the deterministic classification and phase sequencing owned by
+`Core/Network/Auth/`; the sheet supplies its environment `ModelContext` and
+private-map reset action to a narrow local-purge adapter. No Settings owner may
+reconstruct the server deletion protocol or mutate Auth directly.
 
 All production Swift files in this directory are held to a 600-line review guard
 by `SettingsArchitectureTests`. The same test prevents presentation files from
@@ -162,16 +163,23 @@ are complete.
 
 `DeleteAccountSheet` delegates confirmation state to `DeleteAccountViewModel`.
 Its injected `AccountDeletionDependencies` delegates the authenticated
-`safe-delete` preparation/commit and recovery ordering to `SupabaseManager`,
-while the separate local-purge adapter owns repository access. A validated
+`safe-delete` preparation/commit and recovery effects to `SupabaseManager`. That
+manager applies `AccountDeletionTransitionPolicy` and `AccountDeletionWorkflow`;
+the separate local-purge adapter owns repository access. A validated
 pending/`202` or completed/`200` receipt accepts deletion; prepared/`200` and an
 arbitrary successful `2xx` do not. Completed means relational cleanup, delayed
 R2 verification, provider disposition, and Auth removal are confirmed. A new
 commit normally returns pending/`202` because the durable server-side reaper
 must sweep and later verify storage before deleting Auth. Accepted pending and
 completed receipts are safe points for local sign-out and device-data cleanup.
-While sign-out purchase continuity is pending, the Settings action and
-confirmation button remain disabled. The server independently returns
+Public recovery requires an explicit acknowledgement-state Boolean. Legacy
+recovery and acknowledgement admit only `pending|completed`; v2 recovery alone
+may additionally admit an unacknowledged, provider-neutral `not_committed`
+receipt. Before Settings can trigger any local cleanup effect, the extracted
+workflow independently rechecks success and `pending|completed`, so a malformed,
+prepared, or noncommitted receipt cannot authorize sign-out or erasure. While
+sign-out purchase continuity is pending, the Settings action and confirmation
+button remain disabled. The server independently returns
 `409 purchase_continuity_pending` so a stale or second client cannot delete the
 source or exact bound anonymous destination; the user must finish sign-out
 first.
@@ -204,14 +212,19 @@ intent, preserving local data and restoring only the same eligible cached
 session. Legacy unknown proofs and ambiguous errors retain the barrier. A
 received `409 purchase_continuity_pending` permits legacy rejection retirement;
 v2 additionally requires recovery to establish `not_committed`. The workflow
-persists `capability_rejection_retirement_pending` before verified proof removal
-and clears the marker last, without signing out or purging. A matched committed
+admits success and failure results only for the exact transition session and
+generation; stale prepared-v2 failures cannot enter recovery classification.
+Cached-session restoration revalidates before marker removal and performs no
+failable telemetry or entitlement work afterward. The workflow persists
+`capability_rejection_retirement_pending` before verified proof removal and
+clears the marker last, without signing out or purging. A matched committed
 capability's `account_deletion_recovery_expired` permits conservative cleanup
 with the manual notice and expiry-tolerant acknowledgement; the distinct
 `account_deletion_recovery_preparation_expired` never authorizes erasure.
 
-Core Network owns the six wire methods and pure receipt/proof validation, not
-Settings or the Keychain store. See its
+Core Network owns the six wire methods, pure receipt/proof validation, and
+deterministic deletion classification and sequencing, not Settings or the
+Keychain store. See its
 [ownership guide](../../../Core/Network/README.md#account-deletion-and-recovery-ownership),
 [preparation receipt contract](../../../Core/Network/README.md#preparation-receipt-contract),
 and

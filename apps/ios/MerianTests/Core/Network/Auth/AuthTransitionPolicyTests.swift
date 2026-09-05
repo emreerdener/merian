@@ -264,6 +264,51 @@ final class AuthTransitionPolicyTests: XCTestCase {
         )
     }
 
+    func testLinkedIdentityUpgradeRequiresSameUUIDAndPermanentDestination() {
+        let sourceUserID = UUID()
+        let anonymousSource = AuthTransitionSession(
+            userID: sourceUserID,
+            isAnonymous: true
+        )
+
+        XCTAssertTrue(
+            AuthTransitionPolicy.acceptsLinkedIdentityUpgrade(
+                sourceSession: anonymousSource,
+                targetSession: AuthTransitionSession(
+                    userID: sourceUserID,
+                    isAnonymous: false
+                )
+            )
+        )
+        XCTAssertFalse(
+            AuthTransitionPolicy.acceptsLinkedIdentityUpgrade(
+                sourceSession: anonymousSource,
+                targetSession: anonymousSource
+            )
+        )
+        XCTAssertFalse(
+            AuthTransitionPolicy.acceptsLinkedIdentityUpgrade(
+                sourceSession: anonymousSource,
+                targetSession: AuthTransitionSession(
+                    userID: UUID(),
+                    isAnonymous: false
+                )
+            )
+        )
+        XCTAssertFalse(
+            AuthTransitionPolicy.acceptsLinkedIdentityUpgrade(
+                sourceSession: AuthTransitionSession(
+                    userID: sourceUserID,
+                    isAnonymous: false
+                ),
+                targetSession: AuthTransitionSession(
+                    userID: sourceUserID,
+                    isAnonymous: false
+                )
+            )
+        )
+    }
+
     func testEveryDeletionRecoveryPhaseAdmitsOnlyItsOwnedTransition() {
         let intakeStates: [AccountDeletionLocalRecoveryState] = [
             .intakePending,

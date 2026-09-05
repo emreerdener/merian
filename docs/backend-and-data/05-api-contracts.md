@@ -5894,6 +5894,15 @@ optionality, header, timeout, or server contract.
   with bounded structural diagnostics while valid rows on the same page continue
   reconciling. A targeted completed-result read classifies a malformed row as a
   contract mismatch rather than a transport failure.
+- The same authenticated history projection requires the nullable
+  `explore_posts(id, unshared_at)` relation key on every accepted scan row.
+  Because `explore_posts.scan_id` is unique, PostgREST embeds this as one object
+  or explicit `null`. An omitted key is a contract mismatch and cannot clear the
+  local share cache. An object with `unshared_at = null` restores
+  owner-preserved active publication intent; explicit relation `null` or a
+  non-null `unshared_at` removes it. Per-request reconciliation revisions ensure
+  a stale response cannot overwrite a newer local share, unshare, deletion,
+  purge, or history response.
 - Parses `audioBase64s` and `audioR2ObjectKeys` as mutually exclusive arrays of
   nonempty strings before any `.length`, key, decode, or fetch operation. A
   malformed shape returns `400 invalid_audio_transport`; two nonempty transports
@@ -7558,6 +7567,23 @@ or a RevenueCat customer-transfer API. The rotation secret, its hash, the
 rotation UUID, and journal fields never enter logs. The legacy sign-out proof
 remains unchanged while mode is `legacy`.
 
+On iOS,
+`Core/Security/PurchaseIdentity/Stores/PurchaseIdentityHandoffStore.swift` owns
+both installed journal codecs, validation before writes and after reads, exact
+device-only Keychain policy, read-back verification, and removal.
+`Core/Network/Auth/Coordinators/PurchaseIdentitySignOutWorkflow.swift` owns the
+deterministic preparation/sign-out/completion order, while `SupabaseManager`
+injects the live request, Auth, RevenueCat, entitlement, session, logging, and
+recovery effects. Legacy completion checks cancellation before dispatching its
+server destination-bind request and after every asynchronous phase, retaining
+the durable proof whenever completion does not reach its verified terminal
+state. Before an operation may replace the Auth identity, the manager rereads
+both store-backed journal types and derives readiness from those durable values.
+An unavailable secure read is treated as pending, and that derived pending
+projection keeps paid mutations closed. A cached false value alone is not
+authority to replace the identity. This ownership split changes none of the
+request, response, error, expiry, or retry contracts above.
+
 Errors use `{ "code": "...", "error": "..." }` plus the shared request ID.
 
 | HTTP    | Code                                                                                                                            | Meaning / client action                                                                                                             |
@@ -7827,9 +7853,13 @@ The live anonymous session is the source authority. The response contains
 `handoff_id`, a one-time 256-bit `handoff_secret`, and `expires_at`; it is
 marked `Cache-Control: no-store`. The database stores only the secret hash and
 binds it to `auth.uid()` plus the exact provider identity for 30 days. Provider
-subjects must be 1–255 characters with no Unicode control characters. iOS
-persists the proof in a versioned Keychain queue using
+subjects must be 1–255 UTF-16 code units with no C0, C1, or DEL Unicode control
+scalars. iOS persists the proof in a versioned Keychain queue using
 `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` before changing sessions.
+`Core/Security/GhostProfileMerge/Stores/GhostProfileMergeStore.swift` is the
+sole native codec, legacy-migration, validation, and verified-persistence owner
+for that queue. It validates the server timestamp's syntax but leaves expiry
+classification to this server contract.
 
 Successful response: HTTP 201.
 
@@ -7880,6 +7910,15 @@ client queues independent handoffs rather than overwriting an older interrupted
 upgrade. It removes a queue item only after success or terminal
 `handoff_expired`/`handoff_invalid`. A 403 for a different active destination is
 retained so the proof can complete when its bound account signs in.
+
+On iOS, `Core/Network/Auth/Policies/GhostProfileMergePolicy.swift` owns stable
+queue replacement and terminal-code classification, while
+`Core/Network/Auth/Coordinators/GhostProfileMergeWorkflow.swift` owns server
+completion → purchase sync → local-evidence sync → proof removal with
+cancellation checks between phases. `SupabaseManager` remains the live endpoint,
+session-fence, provider, consent, retry, lifecycle, and logging orchestrator.
+These native ownership boundaries do not change the request, response, error, or
+idempotency contract above.
 
 Successful response: HTTP 200.
 
@@ -7999,8 +8038,10 @@ Three request-only DTOs remain private to the endpoint file; pure
 operation-specific receipt/proof validation lives in
 `Decoding/AccountDeletionResponseDecoder.swift` and
 `AccountDeletionRecoveryValidation.swift`. Route-fixed client bridges retain
-private transport; `SupabaseManager`, Core Security, and `AppDIContainer` retain
-durable transition and cleanup authority. The
+private transport. `Core/Network/Auth/` owns deterministic error/session
+classification and closure-injected phase sequencing; `SupabaseManager`, Core
+Security, and `AppDIContainer` retain live transition state, endpoint and SDK
+calls, proof and marker persistence, sign-out, purge, and lifecycle effects. The
 [native ownership and verification guide](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-ownership)
 also covers public recovery. This file split changes no payload or lifecycle
 contract.
@@ -8308,6 +8349,15 @@ hash. Dependency failure or malformed database state returns retryable
 no-store`;
 no route response or log contains the proof, hash, account, job, or provider
 identity.
+
+The native response decoder mirrors this operation boundary rather than relying
+on the shared status enum alone. Legacy recovery and acknowledgement admit only
+`pending|completed`; v2 recovery may additionally admit only an unacknowledged,
+provider-neutral `not_committed`; v2 acknowledgement cannot. Every public
+recovery response must carry an explicit Boolean `recovery_acknowledged`. Before
+the first cleanup effect, the native workflow independently rechecks that the
+receipt is successful and `pending|completed`, so `prepared`, `not_committed`,
+and unsuccessful receipts cannot authorize local sign-out or erasure.
 
 ### Service-only reaper
 

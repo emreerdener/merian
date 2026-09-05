@@ -18,6 +18,8 @@ enum AppEvent: Sendable {
     case explorePostNeedsRefresh(postId: String)
     /// Dispatched after a local scan's Explore publication state changes.
     case exploreShareStateChanged(scanId: String, postId: String?)
+    /// Dispatched after historical sync reconciles a batch of Explore publication state.
+    case exploreShareStateReconciled
     /// Dispatched after Field trip progress changes. Consumers reload durable progress.
     case fieldTripProgressInvalidated(templateIds: Set<String>)
     /// Dispatched after seasonal challenge progress changes. Consumers reload durable progress.

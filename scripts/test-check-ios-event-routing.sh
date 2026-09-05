@@ -25,6 +25,7 @@ make_fixture() {
     '  case exploreAudioBoostPreferenceChanged' \
     '  case explorePostNeedsRefresh' \
     '  case exploreShareStateChanged' \
+    '  case exploreShareStateReconciled' \
     '  case exploreVideoMutePreferenceReset' \
     '  case fieldTripChallengeProgressInvalidated' \
     '  case fieldTripProgressInvalidated' \

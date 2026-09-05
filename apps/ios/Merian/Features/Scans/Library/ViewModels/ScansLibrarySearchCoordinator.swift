@@ -154,6 +154,11 @@ final class ScansLibrarySearchCoordinator {
         return true
     }
 
+    func refreshExploreShareState() {
+        searchTask?.cancel()
+        rebuildFilterIndex()
+    }
+
     func performSearch(
         query: String,
         category: String,

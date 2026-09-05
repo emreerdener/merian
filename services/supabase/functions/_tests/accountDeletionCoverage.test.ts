@@ -21,6 +21,10 @@ const swiftAuthUrl = new URL(
   "../../../../apps/ios/Merian/Core/Network/SupabaseManager.swift",
   import.meta.url,
 );
+const swiftDeletionWorkflowUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/AccountDeletionWorkflow.swift",
+  import.meta.url,
+);
 const storageWorkerUrl = new URL(
   "../safe-delete/storageWorker.ts",
   import.meta.url,
@@ -285,6 +289,7 @@ Deno.test("lost deletion responses recover through a hash-only public capability
     preparedRecoveryV2Migration,
     swiftCapability,
     swiftAuth,
+    swiftDeletionWorkflow,
     swiftDeletionState,
     config,
     workflow,
@@ -296,6 +301,7 @@ Deno.test("lost deletion responses recover through a hash-only public capability
     Deno.readTextFile(preparedRecoveryV2MigrationUrl),
     Deno.readTextFile(swiftRecoveryCapabilityUrl),
     Deno.readTextFile(swiftAuthUrl),
+    Deno.readTextFile(swiftDeletionWorkflowUrl),
     Deno.readTextFile(swiftDeletionStateUrl),
     Deno.readTextFile(configUrl),
     Deno.readTextFile(workflowUrl),
@@ -414,15 +420,19 @@ Deno.test("lost deletion responses recover through a hash-only public capability
   );
   assertStringIncludes(
     swiftAuth,
-    "performRejectedAccountDeletionRecoveryRetirement",
+    ".retireRejectedRecoveryProof(",
   );
   assertStringIncludes(
-    swiftAuth,
-    "static func performDefinitiveAccountDeletionIntakeRejectionRetirement",
+    swiftDeletionWorkflow,
+    "static func retireRejectedRecoveryProof",
+  );
+  assertStringIncludes(
+    swiftDeletionWorkflow,
+    "static func performDefinitiveIntakeRejectionRetirement",
   );
   assert(
     (swiftAuth.match(
-      /\.performDefinitiveAccountDeletionIntakeRejectionRetirement\(/g,
+      /\.performDefinitiveIntakeRejectionRetirement\(/g,
     ) ?? []).length >= 2,
     "Both interactive and relaunched definitive rejections must use the crash-safe retirement ordering.",
   );

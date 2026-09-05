@@ -22,5 +22,6 @@ narrow default dependencies at their own state-owner boundary.
 
 The Shell must not absorb Profile tab loading, Settings interaction state,
 endpoint calls, SwiftData queries, RevenueCat actions, or account-deletion
-protocol ordering. Those responsibilities stay with the product-area Services,
-ViewModels, and established Core managers.
+policy, sequencing, and live orchestration. Product-area Services and ViewModels
+retain feature effects; `Core/Network/Auth/` owns deterministic deletion
+decisions and ordering, while `SupabaseManager` assembles the live effects.
