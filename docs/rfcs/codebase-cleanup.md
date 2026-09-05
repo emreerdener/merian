@@ -127,11 +127,11 @@ push toggles in `Profile/Settings/Notifications/`, bundled release notes in
 
 Suggested first targets:
 
-| File                                                     | Cleanup Direction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Complete for this hygiene round. Seventeen endpoint owners cover the extracted feature, inference, publication, lifecycle, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport.                                                                                               |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Complete for this hygiene round. `Core/Preferences` owns `AppSettings`, keyed compatibility stores, the verified accepted-account-deletion cache inventory, and an injected post-persistence runtime reset; `Core/Data/SpeciesPreferences` owns SwiftData CRUD, normalization/conflict policy, exact PostgREST values, the narrow injected live client, and contained single-flight cloud coordination. The residual aggregate is 450 lines and imports only Foundation. Mirrored suites cover settings/store behavior, schema-complete local erasure, explicit-null wire encoding, stable pagination, account fencing, clock skew, failure recovery, trailing reconciliation, and process-state reset delegation. Account-deletion recovery state and Keychain keys intentionally remain for their separately reviewed security ownership. |
+| File                                                     | Cleanup Direction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Complete for this hygiene round. Seventeen endpoint owners cover the extracted feature, inference, publication, lifecycle, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport.                                                                                                                                                              |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Complete for this hygiene round. `Core/Preferences` owns `AppSettings`, keyed compatibility stores, the verified accepted-account-deletion cache inventory, and an injected post-persistence runtime reset; `Core/Data/SpeciesPreferences` owns SwiftData CRUD, normalization/conflict policy, exact PostgREST values, the narrow injected live client, focused local-mutation recovery, and contained single-flight cloud coordination. The residual aggregate is 450 lines and imports only Foundation. Mirrored suites cover settings/store behavior, schema-complete local erasure, explicit-null wire encoding, stable pagination, account fencing, clock skew, interruption recovery, mid-upsert edit fencing, trailing reconciliation, and process-state reset delegation. Account-deletion recovery state and Keychain keys intentionally remain for their separately reviewed security ownership. |
 
 Rules for this phase:
 
@@ -341,9 +341,15 @@ Implemented Core slices:
   scientific-name handling, failed-fetch success reporting, failed-save marker
   loss, equal-time tombstone inconsistency, clock-skew freshness suppression,
   unstable equal-time page ordering, post-upsert account-lease invalidation, and
-  mid-flight trailing-sync coverage. Accepted account deletion now purges every
-  `CurrentSchema` model and the classified account-derived defaults while
-  preserving device settings and recovery fences, then resets observable
+  mid-flight trailing-sync coverage. The final audit additionally repairs a
+  crash window that could leave an active SwiftData row and pending tombstone
+  for one key, makes tombstone timestamps and acknowledgements monotonic, and
+  refetches and re-bounds local state after an upsert suspension so an earlier
+  remote page cannot overwrite a mid-flight edit. The focused
+  `SpeciesPreferenceLocalRecovery` owner keeps those rules out of the
+  coordinator and preserves the 600-line ceiling. Accepted account deletion now
+  purges every `CurrentSchema` model and the classified account-derived defaults
+  while preserving device settings and recovery fences, then resets observable
   settings, legacy gamification, the generation-fenced app badge, and RAM image
   state through one injected runtime owner. Direct owner tests lock the
   gamification reset and a suspended unread-count result across deletion; keyed
@@ -356,9 +362,10 @@ Implemented Core slices:
   enforce injected dependency ownership and the 600-line production ceiling.
   Byte-stable XcodeGen, project/source membership, event-routing, tooling,
   documentation, parsing, strict lint, and focused production/test typechecking
-  passed. Full Xcode linking and simulator test execution remain locally blocked
-  before source compilation by the host's SwiftPM sandbox/CoreSimulator failure;
-  no runtime pass is claimed.
+  passed. A fresh iOS 26.4 Simulator `build-for-testing` compiled every app and
+  test target, and the 107-case focused matrix passed across 12 suites. Repeated
+  complete-`merianTests` launches then stopped before test execution when
+  CoreSimulatorService disconnected; no new complete-target pass is claimed.
 
 Implemented Core Network slices:
 
@@ -1824,26 +1831,60 @@ Implemented Profile slice:
 The Collections organization pass now includes the reviewed V50 source-only
 SwiftData repair. V50's complete relationship-bearing graph is frozen in
 `Models/Schema/SchemaV50Snapshots.swift`, including its historical
-`ScanCollection.isDeleted` field and goal-hint companion. The active
-`MerianActiveSchemaV50` owner uses `isPendingDeletion` with
+`ScanCollection.isDeleted` field and goal-hint companion. The source bridge
+`MerianActiveSchemaV50` maps `isPendingDeletion` with
 `@Attribute(originalName: "isDeleted")`, so the application tombstone survives
 save/refetch while the persisted V50 model and Supabase/JSON field `is_deleted`
 remain unchanged.
 
-Released V50 stores open as current without a migration plan; the V49
-source-isolated plan applies the one required V49 → V50 hop. The full historical
-plan is linear through V42 → V49 → V50, while V43...V48 keep source-isolated
-repair plans. Disk fixtures prove metadata-based plan selection, tombstone
-true/false values, relationship and goal-hint retention, and second-context
-reads. Collection mutation and database-actor suites cover exact payload
-projection, inbound reconciliation fencing, rollback, and acknowledgement-only
-purge. Recovery dispatch treats V50 as current, and checksum fallback tries that
-current-store path before the exhaustive V49...V42 source-isolated ladder.
+V51 subsequently made preferred species names account-scoped without changing
+the collection shape. Released V50 stores now use the source-isolated V50→V51
+plan; the V49 plan applies V49→V50→V51. The full historical plan is linear
+through V42→V49→V50→V51, while V43...V48 keep source-isolated repair plans. Disk
+fixtures prove metadata-based plan selection and multi-row preference deletion
+from the frozen V50 source before V51 materializes its new unique identity. The
+source guardrail also pins every V35...V48 preference alias to the immutable V34
+shape so the new active fields cannot alter retired checksums. The fixtures
+continue to prove tombstone true/false values, relationship and goal-hint
+retention, and second-context reads. Collection mutation and database-actor
+suites cover exact payload projection, inbound reconciliation fencing, rollback,
+and acknowledgement-only purge. Recovery dispatch treats V51 as current, and
+checksum fallback tries V50 before the exhaustive V49...V42 source-isolated
+ladder.
 
 Do not synthesize deletion from transient view state, hard-delete before cloud
 acknowledgement, or edit a frozen schema. Any future persisted-model change must
 repeat the schema-update procedure and add its own source-isolated recovery
 lane.
+
+### Completed Core Integration Audit
+
+The Core-wide audit closed two cross-boundary gaps left after the individual
+organization slices. Preferred species names are now account-scoped end to end:
+V51 replaces the device-global SwiftData identity, discards unowned V50/defaults
+residue, partitions pending tombstones, freshness, and diagnostics, requires the
+latest outcome to be successful before freshness can suppress work, preserves
+forced edit reconciliation across later coalesced lifecycle requests, and adds
+bounded scientific-name keyset sync across local, remote, and pending-delete
+state. The matching forward database migration narrows
+`user_species_preferences` to authenticated owner CRUD and removes anonymous and
+`TRUNCATE` capability. Source and migrated-catalog tests cover the policy,
+grants, cross-account denial, and 200-character constraint.
+
+The audit also moved the final identification-review PostgREST and RPC calls out
+of `InferenceEngine` into an immutable AppDI-owned Network service. Account-work
+leases now fence every live request across Auth transitions, while the engine
+retains review generations, local persistence, presentation, and post-success
+effects. Architecture tests lock this ownership and the Core Network singleton,
+query, and RPC inventory. No Identify payload, navigation contract, collection
+wire field, or non-preference SwiftData shape changed.
+
+A final adversarial pass found and fixed two preference-convergence races. The
+focused `SpeciesPreferenceLocalRecovery` owner resolves interrupted
+SwiftData/tombstone mutations before batching, while timestamp-conditional
+acknowledgement and a post-upsert local refetch preserve edits made during a
+network suspension. These corrections do not change the PostgREST payload, RLS
+policy, schema, route, or UI contract.
 
 ## Phase 3: Ownership Cleanup
 

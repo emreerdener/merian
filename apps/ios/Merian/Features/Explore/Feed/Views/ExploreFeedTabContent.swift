@@ -326,9 +326,11 @@ struct ExploreFeedTabContent: View {
     }
 
     private func persistPreferredCommonName(_ name: String, scientificName: String) {
+        guard let ownerUserID = supabase.currentUser?.id else { return }
         _ = SpeciesPreferredNameRepository.setPreferredName(
             name,
             for: scientificName,
+            ownerUserID: ownerUserID,
             modelContext: modelContext
         )
     }

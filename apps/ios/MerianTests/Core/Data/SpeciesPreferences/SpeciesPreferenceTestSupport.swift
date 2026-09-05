@@ -2,6 +2,10 @@ import Foundation
 @testable import Merian
 import SwiftData
 
+let speciesPreferenceTestUserID = UUID(
+    uuidString: "11111111-1111-1111-1111-111111111111"
+)!
+
 @MainActor
 func makeSpeciesPreferenceContext() throws -> ModelContext {
     let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -15,16 +19,34 @@ func makeSpeciesPreferenceContext() throws -> ModelContext {
 @MainActor
 func fetchSpeciesPreference(
     for scientificName: String,
+    ownerUserID: UUID = speciesPreferenceTestUserID,
     modelContext: ModelContext
 ) throws -> UserSpeciesPreference? {
-    let targetScientificName = scientificName
+    let targetID = UserSpeciesPreference.identifier(
+        ownerUserID: ownerUserID,
+        scientificName: scientificName
+    )
     var descriptor = FetchDescriptor<UserSpeciesPreference>(
-        predicate: #Predicate<UserSpeciesPreference> {
-            $0.scientificName == targetScientificName
-        }
+        predicate: #Predicate { $0.id == targetID }
     )
     descriptor.fetchLimit = 1
     return try modelContext.fetch(descriptor).first
+}
+
+extension UserSpeciesPreference {
+    convenience init(
+        testOwnerUserID: UUID = speciesPreferenceTestUserID,
+        scientificName: String,
+        preferredCommonName: String,
+        updatedAt: Date = Date()
+    ) {
+        self.init(
+            ownerUserID: testOwnerUserID,
+            scientificName: scientificName,
+            preferredCommonName: preferredCommonName,
+            updatedAt: updatedAt
+        )
+    }
 }
 
 func makeSpeciesPreferenceDefaults(
@@ -37,7 +59,7 @@ func makeSpeciesPreferenceDefaults(
 }
 
 func makeSpeciesPreferenceLease(
-    userID: UUID = UUID()
+    userID: UUID = speciesPreferenceTestUserID
 ) -> AccountBoundWorkLease {
     AccountBoundWorkLease(
         id: UUID(),

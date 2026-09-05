@@ -134,11 +134,12 @@ reference a missing or unconfigured route.
 
 > [!NOTE]
 > **August 2026 correction:** the Edge set-state and acknowledgement contract
-> above remains accurate. The active V50 iOS model persists
+> above remains accurate. The active V51 iOS model persists
 > `ScanCollection.isPendingDeletion` and maps it to the released `isDeleted`
 > column, so the client emits the unchanged `is_deleted` field after
-> save/refetch. The source-only rename preserves the released V50 persisted
-> model; it is not an Edge payload, schema migration, or deployment change.
+> save/refetch. The earlier source-only rename preserves the released V50
+> collection shape, and the subsequent V50→V51 preferred-name migration does not
+> alter this Edge payload or its deletion semantics.
 
 ## Validation Evidence
 

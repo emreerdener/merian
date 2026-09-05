@@ -6,41 +6,6 @@ import os
 import SwiftData
 import SwiftUI
 
-// MARK: - Identification Review Request
-
-private struct ReviewSyncRPCParameters: Encodable, Sendable {
-    let scanId: String
-    let override: String?
-    let confirmed: Bool
-    let confirmedSpeciesId: String?
-    let userReviewState: String
-
-    enum CodingKeys: String, CodingKey {
-        case scanId = "p_scan_id"
-        case override = "p_override"
-        case confirmed = "p_confirmed"
-        case confirmedSpeciesId = "p_confirmed_species_id"
-        case userReviewState = "p_user_review_state"
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(scanId, forKey: .scanId)
-        if let override {
-            try container.encode(override, forKey: .override)
-        } else {
-            try container.encodeNil(forKey: .override)
-        }
-        try container.encode(confirmed, forKey: .confirmed)
-        if let confirmedSpeciesId {
-            try container.encode(confirmedSpeciesId, forKey: .confirmedSpeciesId)
-        } else {
-            try container.encodeNil(forKey: .confirmedSpeciesId)
-        }
-        try container.encode(userReviewState, forKey: .userReviewState)
-    }
-}
-
 // MARK: - Inference Engine
 
 /// Drives the live AI taxonomy pipeline and manages all active scan state.
@@ -135,6 +100,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     @ObservationIgnored private let requestPaywall: @MainActor () -> Void
     @ObservationIgnored private let speciesReferenceService:
         SpeciesReferenceHydrationService
+    @ObservationIgnored private let identificationReviewService:
+        InferenceIdentificationReviewService
     @ObservationIgnored private let hydrationCoordinator:
         InferenceHydrationCoordinator
     @ObservationIgnored private let writeCoordinator = InferenceWriteCoordinator()
@@ -154,6 +121,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         liveRequestService: InferenceLiveRequestService = .live,
         liveResultService: InferenceLiveResultService = .live,
         speciesReferenceService: SpeciesReferenceHydrationService = .live,
+        identificationReviewService:
+            InferenceIdentificationReviewService = .live,
         hydrationCoordinator: InferenceHydrationCoordinator? = nil,
         requestPaywall: @escaping @MainActor () -> Void = {
             UsageManager.shared.showPaywall = true
@@ -173,6 +142,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         self.liveRequestService = liveRequestService
         self.liveResultService = liveResultService
         self.speciesReferenceService = speciesReferenceService
+        self.identificationReviewService = identificationReviewService
         self.hydrationCoordinator = hydrationCoordinator
             ?? InferenceHydrationCoordinator()
         self.requestPaywall = requestPaywall
@@ -2840,42 +2810,18 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         replacingSpeciesIdentity: Bool,
         reviewActionGeneration: UInt64
     ) async -> String? {
-        struct SpeciesDictRow: Decodable {
-            let id: String
-            let common_names: [String: String?]?
-            let kingdom: String?
-            let phylum: String?
-            let `class`: String?
-            let order: String?
-            let family: String?
-            let genus: String?
-            let wikipedia_overview: String?
-            let hazard_type: String?
-            let reference_image_url: String?
-            let wikipedia_url: String?
-            let iucn_red_list_status: String?
-            let habitat_description: String?
-            let gbif_taxon_key: Int?
-        }
-        
-        struct IdOnlyRow: Decodable { let id: String }
-
         do {
-            let rows: [SpeciesDictRow] = try await SupabaseManager.shared.client
-                .from("species_dictionary")
-                .select("id, common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, gbif_taxon_key")
-                .eq("scientific_name", value: scientificName)
-                .limit(1)
-                .execute()
-                .value
+            let row = try await identificationReviewService.loadSpecies(
+                scientificName: scientificName
+            )
             guard !Task.isCancelled else { return nil }
 
-            if let row = rows.first {
+            if let row {
                 // Cache hit — patch all available fields reactively.
                 // Prefer the authoritative "en" locale; fall back to any available translation;
                 // final fallback is the scientific name. Mirrors ScanRepository's resolution logic.
                 let commonName: String = {
-                    guard let names = row.common_names else { return scientificName }
+                    guard let names = row.commonNames else { return scientificName }
                     return names["en"].flatMap { $0 } ?? names.compactMap { $0.value }.first ?? scientificName
                 }()
                 // On override: wipe aiReasoning — the AI's explanation was for the rejected species.
@@ -2894,24 +2840,25 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     updated.commonName = commonName.capitalized
                     updated.insightData = InsightData(
                         aiReasoning: restoringAiReasoning ?? "",
-                        hazardType: row.hazard_type ?? "none"
+                        hazardType: row.hazardType ?? "none"
                     )
                     updated.taxonomy = TaxonomyData(
                         kingdom: row.kingdom,
                         phylum: row.phylum,
-                        className: row.class,
+                        className: row.className,
                         order: row.order,
                         family: row.family,
                         genus: row.genus
                     )
-                    updated.iucnRedListStatus = row.iucn_red_list_status
-                    updated.habitatDescription = row.habitat_description?.trimmedNonEmptyValue
-                    updated.gbifTaxonKey = row.gbif_taxon_key
+                    updated.iucnRedListStatus = row.iucnRedListStatus
+                    updated.habitatDescription = row.habitatDescription?
+                        .trimmedNonEmptyValue
+                    updated.gbifTaxonKey = row.gbifTaxonKey
                     updated.referenceImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(
-                        row.reference_image_url
+                        row.referenceImageURL
                     )
-                    updated.wikipediaOverview = row.wikipedia_overview
-                    updated.wikipediaUrl = row.wikipedia_url
+                    updated.wikipediaOverview = row.wikipediaOverview
+                    updated.wikipediaUrl = row.wikipediaURL
                     speciesData = updated
                     let referenceURLs = Self.normalizedReferenceURLs(
                         from: updated.referenceImageUrl
@@ -2926,20 +2873,23 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 if let context = modelContext {
                     let container = context.container
                     let capturedCommonName = commonName.capitalized
-                    let capturedHazardType = row.hazard_type ?? "none"
+                    let capturedHazardType = row.hazardType ?? "none"
                     let capturedTaxonomy = TaxonomyData(
-                        kingdom: row.kingdom, phylum: row.phylum, className: row.class,
+                        kingdom: row.kingdom,
+                        phylum: row.phylum,
+                        className: row.className,
                         order: row.order, family: row.family, genus: row.genus
                     )
-                    let capturedWikiOverview = row.wikipedia_overview
-                    let capturedWikiUrl = row.wikipedia_url
+                    let capturedWikiOverview = row.wikipediaOverview
+                    let capturedWikiUrl = row.wikipediaURL
                     let capturedRefImageUrl =
                         ExternalReferenceImagePolicy.sanitizedURLList(
-                            row.reference_image_url
+                            row.referenceImageURL
                         )
-                    let capturedIucn = row.iucn_red_list_status
-                    let capturedHabitat = row.habitat_description?.trimmedNonEmptyValue
-                    let capturedGbif = row.gbif_taxon_key
+                    let capturedIucn = row.iucnRedListStatus
+                    let capturedHabitat = row.habitatDescription?
+                        .trimmedNonEmptyValue
+                    let capturedGbif = row.gbifTaxonKey
                     enqueueIdentificationWrite(
                         scanId: scanId,
                         actionGeneration: reviewActionGeneration
@@ -2980,27 +2930,17 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 }
 
                 guard !Task.isCancelled else { return nil }
-                let fallbackRows: [IdOnlyRow]? = try? await SupabaseManager.shared.client
-                    .from("species_dictionary")
-                    .select("id")
-                    .eq("scientific_name", value: scientificName)
-                    .limit(1)
-                    .execute()
-                    .value
-                return fallbackRows?.first?.id
+                return try? await identificationReviewService.loadSpeciesID(
+                    scientificName: scientificName
+                )
             }
         } catch {
             MerianLog.general.debug("fetchAndPatchOverrideData failed: \(error, privacy: .private)")
 
             guard !Task.isCancelled else { return nil }
-            let fallbackRows: [IdOnlyRow]? = try? await SupabaseManager.shared.client
-                .from("species_dictionary")
-                .select("id")
-                .eq("scientific_name", value: scientificName)
-                .limit(1)
-                .execute()
-                .value
-            return fallbackRows?.first?.id
+            return try? await identificationReviewService.loadSpeciesID(
+                scientificName: scientificName
+            )
         }
     }
 
@@ -3041,31 +2981,23 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
     /// Owner-derived RPC persisting the complete identification review atomically.
     /// Accepts nil for `override` to set the column to NULL (reset / confirmed-only path).
-    private func syncIdentificationReviewToCloud(scanId: String, override: String?, confirmed: Bool, confirmedSpeciesId: String?, userReviewState: String) async {
-        guard let accountWorkLease = try? SupabaseManager.shared
-            .beginUnownedAccountBoundWork() else { return }
-        defer {
-            SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
-        }
-
+    private func syncIdentificationReviewToCloud(
+        scanId: String,
+        override: String?,
+        confirmed: Bool,
+        confirmedSpeciesId: String?,
+        userReviewState: String
+    ) async {
         do {
-            try await SupabaseManager.shared.client
-                .rpc(
-                    "update_owned_scan_identification_review",
-                    params: ReviewSyncRPCParameters(
-                        scanId: scanId,
-                        override: override,
-                        confirmed: confirmed,
-                        confirmedSpeciesId: confirmedSpeciesId,
-                        userReviewState: userReviewState
-                    )
+            try await identificationReviewService.syncReview(
+                InferenceIdentificationReviewMutation(
+                    scanID: scanId,
+                    override: override,
+                    confirmed: confirmed,
+                    confirmedSpeciesID: confirmedSpeciesId,
+                    userReviewState: userReviewState
                 )
-                .execute()
-
-            guard SupabaseManager.shared
-                .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
-                return
-            }
+            )
 
             if let postId = ExploreShareStateStore.sharedPostId(for: scanId) {
                 AppDIContainer.shared.appEventPublisher.send(.explorePostNeedsRefresh(postId: postId))

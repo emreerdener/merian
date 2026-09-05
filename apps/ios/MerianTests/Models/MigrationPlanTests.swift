@@ -1033,12 +1033,12 @@ struct MigrationPlanTests {
         let activeV50Remainder = source[activeV50Start...]
         let activeV50End = try #require(
             activeV50Remainder.range(
-                of: "\nprivate typealias MerianSchemaV48OfflineJobRecord"
+                of: "\nenum MerianSchemaV51: VersionedSchema"
             )
         ).lowerBound
         let activeV50Schema = String(activeV50Remainder[..<activeV50End])
         for model in v49Models {
-            #expect(activeV50Schema.contains("\(model).self"))
+            #expect(activeV50Schema.contains("MerianSchemaV50.\(model).self"))
         }
         #expect(activeV50Schema.contains(
             "MerianActiveSchemaV50.OfflineQueuedScanGoalHint.self"
@@ -1064,12 +1064,41 @@ struct MigrationPlanTests {
     @Test func activeCollectionTombstoneUsesSourceOnlyV50RenameMapping() throws {
         let source = try currentScanCollectionSource()
 
-        #expect(CurrentSchema.versionIdentifier.major == 50)
+        #expect(CurrentSchema.versionIdentifier.major == 51)
         #expect(source.contains("@Attribute(originalName: \"isDeleted\")"))
         #expect(source.contains("public var isPendingDeletion: Bool = false"))
         #expect(source.contains("isPendingDeletion: Bool = false"))
         #expect(!source.contains("public var isDeleted"))
         #expect(!source.contains("isDeleted: Bool = false"))
+    }
+
+    @Test func retiredSchemasKeepTheOriginalPreferenceModelFrozen() {
+        let frozenPreferenceID = ObjectIdentifier(
+            MerianSchemaV34.UserSpeciesPreference.self
+        )
+        let activePreferenceID = ObjectIdentifier(UserSpeciesPreference.self)
+        let retiredPreferenceTypes: [any PersistentModel.Type] = [
+            MerianSchemaV35.UserSpeciesPreference.self,
+            MerianSchemaV36.UserSpeciesPreference.self,
+            MerianSchemaV37.UserSpeciesPreference.self,
+            MerianSchemaV38.UserSpeciesPreference.self,
+            MerianSchemaV39.UserSpeciesPreference.self,
+            MerianSchemaV40.UserSpeciesPreference.self,
+            MerianSchemaV41.UserSpeciesPreference.self,
+            MerianSchemaV42.UserSpeciesPreference.self,
+            MerianSchemaV43.UserSpeciesPreference.self,
+            MerianSchemaV44.UserSpeciesPreference.self,
+            MerianSchemaV45.UserSpeciesPreference.self,
+            MerianSchemaV46.UserSpeciesPreference.self,
+            MerianSchemaV47.UserSpeciesPreference.self,
+            MerianSchemaV48.UserSpeciesPreference.self,
+            MerianSchemaV48OptionalQueue.UserSpeciesPreference.self
+        ]
+
+        #expect(frozenPreferenceID != activePreferenceID)
+        #expect(retiredPreferenceTypes.allSatisfy {
+            ObjectIdentifier($0) == frozenPreferenceID
+        })
     }
 
     @Test func latestQueueMetadataMigrationStaysDurable() throws {
@@ -1186,11 +1215,11 @@ struct MigrationPlanTests {
 
         #expect(
             missing.isEmpty,
-            "Active V50 OfflineQueuedScan durable retry fields must stay non-optional to preserve already-current store compatibility. Missing snippets:\n\(missing.joined(separator: "\n"))"
+            "Active V51 OfflineQueuedScan durable retry fields must stay non-optional to preserve current-store compatibility. Missing snippets:\n\(missing.joined(separator: "\n"))"
         )
         #expect(
             presentForbidden.isEmpty,
-            "Active V50 OfflineQueuedScan durable retry fields cannot become optional without changing the current schema shape. Found snippets:\n\(presentForbidden.joined(separator: "\n"))"
+            "Active V51 OfflineQueuedScan durable retry fields cannot become optional without changing the current schema shape. Found snippets:\n\(presentForbidden.joined(separator: "\n"))"
         )
     }
 
@@ -1232,7 +1261,7 @@ struct MigrationPlanTests {
                 !schemasSource.contains("MerianSchemaV43.self") &&
                 !schemasSource.contains("MerianSchemaV47.self") &&
                 !schemasSource.contains("MerianSchemaV48.self"),
-            "MerianMigrationPlan.schemas must remain a linear V42→V49→V50 path; source-isolated recent plans handle V43...V48 stores."
+            "MerianMigrationPlan.schemas must remain a linear V42→V49→V50→V51 path; source-isolated recent plans handle V43...V50 stores."
         )
         #expect(
                 !stagesSource.contains("migrateV43toV44") &&
@@ -1492,15 +1521,15 @@ struct MigrationPlanTests {
         )
     }
 
-    @Test func recentV49MigrationPlanOnlyRunsLightweightV49ToV50Hop() throws {
+    @Test func recentV49MigrationPlanRunsOnlyRequiredForwardHops() throws {
         let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [49, 50])
+        #expect(schemaMajors == [49, 50, 51])
 
-        let stage = try #require(MerianRecentV49MigrationPlan.stages.first)
-        #expect(MerianRecentV49MigrationPlan.stages.count == 1)
-        switch stage {
+        let stages = MerianRecentV49MigrationPlan.stages
+        #expect(stages.count == 2)
+        switch try #require(stages.first) {
         case let .lightweight(fromVersion, toVersion):
             #expect(fromVersion.versionIdentifier.major == 49)
             #expect(toVersion.versionIdentifier.major == 50)
@@ -1508,6 +1537,34 @@ struct MigrationPlanTests {
             Issue.record("The source-isolated V49→V50 plan must remain lightweight.")
         @unknown default:
             Issue.record("The source-isolated V49→V50 plan contains an unknown stage kind.")
+        }
+
+        switch try #require(stages.last) {
+        case let .custom(fromVersion, toVersion, _, _):
+            #expect(fromVersion.versionIdentifier.major == 50)
+            #expect(toVersion.versionIdentifier.major == 51)
+        case .lightweight:
+            Issue.record("V50→V51 must discard unowned preferences in a custom stage.")
+        @unknown default:
+            Issue.record("The source-isolated V50→V51 plan contains an unknown stage kind.")
+        }
+    }
+
+    @Test func recentV50MigrationPlanOnlyRunsAccountPartitionMigration() throws {
+        let schemaMajors = MerianRecentV50MigrationPlan.schemas.map {
+            $0.versionIdentifier.major
+        }
+        #expect(schemaMajors == [50, 51])
+        #expect(MerianRecentV50MigrationPlan.stages.count == 1)
+
+        switch try #require(MerianRecentV50MigrationPlan.stages.first) {
+        case let .custom(fromVersion, toVersion, _, _):
+            #expect(fromVersion.versionIdentifier.major == 50)
+            #expect(toVersion.versionIdentifier.major == 51)
+        case .lightweight:
+            Issue.record("V50→V51 must discard unowned preferences in a custom stage.")
+        @unknown default:
+            Issue.record("The source-isolated V50→V51 plan contains an unknown stage kind.")
         }
     }
 
@@ -1804,7 +1861,7 @@ struct MigrationPlanTests {
         #expect(persistedHint.itemId == "goal-after-v49-migration")
     }
 
-    @Test func releasedV50StoreOpensThroughSourceOnlyTombstoneRename() throws {
+    @Test func releasedV50StoreMigratesAndDiscardsUnownedPreferences() throws {
         let url = migrationStoreURL(named: "v50_collection_tombstone_reopen_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
@@ -1812,6 +1869,10 @@ struct MigrationPlanTests {
         let activeCollectionID = "v50-active-collection"
         let localScanID = "v50-collection-member"
         let hintScanID = "v50-goal-hint-scan"
+        let unownedPreferenceName = "Migratus preferenceus"
+        let secondUnownedPreferenceName = "Migratus secundus"
+        let ownerA = try #require(UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"))
+        let ownerB = try #require(UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"))
 
         do {
             let schema50 = Schema(versionedSchema: MerianSchemaV50.self)
@@ -1847,6 +1908,14 @@ struct MigrationPlanTests {
                 userFieldTripId: "v50-field-trip",
                 itemId: "v50-goal"
             ))
+            context50.insert(MerianSchemaV50.UserSpeciesPreference(
+                scientificName: unownedPreferenceName,
+                preferredCommonName: "Must not cross accounts"
+            ))
+            context50.insert(MerianSchemaV50.UserSpeciesPreference(
+                scientificName: secondUnownedPreferenceName,
+                preferredCommonName: "Also must not cross accounts"
+            ))
             try context50.save()
         }
 
@@ -1855,9 +1924,12 @@ struct MigrationPlanTests {
             currentSchemaMajor: CurrentSchema.versionIdentifier.major
         )
         #expect(decision.storedSchemaMajorVersion == 50)
-        #expect(decision.hint == .currentStore)
+        #expect(decision.hint == .recentSource(.v50))
 
-        let store = try openCurrentStore(at: url)
+        let store = try openCurrentMigrationStore(
+            at: url,
+            migrationPlan: MerianRecentV50MigrationPlan.self
+        )
 
         func assertMigratedRows(in context: ModelContext) throws {
             let deletedCollection = try #require(context.fetch(
@@ -1883,13 +1955,38 @@ struct MigrationPlanTests {
             ).first)
             #expect(hint.userFieldTripId == "v50-field-trip")
             #expect(hint.itemId == "v50-goal")
+
+            #expect(
+                try context.fetch(
+                    FetchDescriptor<UserSpeciesPreference>()
+                ).isEmpty
+            )
         }
 
         try assertMigratedRows(in: store.context)
         try assertMigratedRows(in: ModelContext(store.container))
+
+        store.context.insert(UserSpeciesPreference(
+            ownerUserID: ownerA,
+            scientificName: unownedPreferenceName,
+            preferredCommonName: "Owner A"
+        ))
+        store.context.insert(UserSpeciesPreference(
+            ownerUserID: ownerB,
+            scientificName: unownedPreferenceName,
+            preferredCommonName: "Owner B"
+        ))
+        try store.context.save()
+
+        let scopedPreferences = try ModelContext(store.container).fetch(
+            FetchDescriptor<UserSpeciesPreference>(
+                sortBy: [SortDescriptor(\.ownerUserId)]
+            )
+        )
+        #expect(scopedPreferences.map(\.preferredCommonName) == ["Owner A", "Owner B"])
     }
 
-    @Test func migrationFromFrozenV49PreservesEveryModelAndRelationship() throws {
+    @Test func migrationFromFrozenV49PreservesAccountNeutralDataAndDiscardsUnownedPreference() throws {
         let url = migrationStoreURL(named: "v49_frozen_complete_model_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
@@ -1996,7 +2093,7 @@ struct MigrationPlanTests {
             )).count == 1)
             #expect(try context.fetch(FetchDescriptor<UserSpeciesPreference>(
                 predicate: #Predicate { $0.scientificName == preferenceName }
-            )).first?.preferredCommonName == "Monarch butterfly")
+            )).isEmpty)
             #expect(try context.fetch(FetchDescriptor<OfflineJobRecord>(
                 predicate: #Predicate { $0.id == jobID }
             )).first?.subjectId == queueID)

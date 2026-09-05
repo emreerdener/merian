@@ -8,7 +8,7 @@ struct NamePickerSheet: View {
     let allNames: [String]
     let activeName: String
     var title: String = "Preferred name"
-    var footerText: String = "Your selection is stored locally and applies only to your device."
+    var footerText: String = "Your selection is saved to your account and syncs across your devices."
     let onSelect: (String) -> Void
 
     var body: some View {

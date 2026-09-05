@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 struct ExploreFeedDependencies {
     struct Feed {
@@ -90,6 +91,31 @@ struct ExploreFeedDependencies {
     let feedback: Feedback
     let notifications: Notifications
     let errorMessage: @MainActor (Error) -> String
+    let loadPreferredSpeciesNames: @MainActor (
+        _ scientificNames: [String],
+        _ modelContext: ModelContext
+    ) -> [String: String]
+
+    init(
+        feed: Feed,
+        interactions: Interactions,
+        comments: Comments,
+        feedback: Feedback,
+        notifications: Notifications,
+        errorMessage: @escaping @MainActor (Error) -> String,
+        loadPreferredSpeciesNames: @escaping @MainActor (
+            _ scientificNames: [String],
+            _ modelContext: ModelContext
+        ) -> [String: String] = { _, _ in [:] }
+    ) {
+        self.feed = feed
+        self.interactions = interactions
+        self.comments = comments
+        self.feedback = feedback
+        self.notifications = notifications
+        self.errorMessage = errorMessage
+        self.loadPreferredSpeciesNames = loadPreferredSpeciesNames
+    }
 }
 
 extension ExploreFeedViewModel {
@@ -218,7 +244,18 @@ extension ExploreFeedDependencies {
                     notificationService.stopUpdates()
                 }
             ),
-            errorMessage: ExploreErrorFormatter.message(for:)
+            errorMessage: ExploreErrorFormatter.message(for:),
+            loadPreferredSpeciesNames: { scientificNames, modelContext in
+                guard let ownerUserID = SupabaseManager.shared.currentUser?.id
+                else {
+                    return [:]
+                }
+                return SpeciesPreferredNameRepository.preferredNames(
+                    for: scientificNames,
+                    ownerUserID: ownerUserID,
+                    modelContext: modelContext
+                )
+            }
         )
     }
 }

@@ -66,9 +66,9 @@ closure delegates to `OfflineQueueManager`, whose durable job and
 `/sync-collections` behavior are documented in the
 [offline sync pipeline](../../../../../../docs/backend-and-data/01-offline-sync-pipeline.md#the-collections-pipeline).
 
-## SwiftData Tombstone Contract (V50)
+## SwiftData Tombstone Contract (V51)
 
-The active V50 `ScanCollection` model exposes the application-owned
+The active V51 `ScanCollection` model exposes the application-owned
 `isPendingDeletion` property and maps it to the unchanged `isDeleted` column
 with `@Attribute(originalName:)`. This avoids SwiftData's reserved
 `PersistentModel.isDeleted` lifecycle state while preserving the existing
@@ -76,10 +76,11 @@ with `@Attribute(originalName:)`. This avoids SwiftData's reserved
 
 The released V50 shape is frozen in `Models/Schema/SchemaV50Snapshots.swift`;
 its historical `isDeleted` Swift property and goal-hint companion form the
-immutable disk fixture. `MerianActiveSchemaV50` owns the current Swift types
-with the same `Schema.Version(50, 0, 0)`. Released V50 stores therefore open as
-current without a migration plan. V49 stores advance through one lightweight V49
-→ V50 hop; V43...V48 retain source-isolated repair plans.
+immutable disk fixture. `MerianActiveSchemaV50` is the source bridge for the
+custom V50→V51 preference migration; the collection shape itself remains
+unchanged in V51. Released V50 stores therefore use the source-isolated V50→V51
+plan. V49 stores advance through lightweight V49→V50 and custom V50→V51 hops;
+V43...V48 retain source-isolated repair plans ending at V51.
 
 The deletion marker is covered across save/refetch, disk migration, relationship
 retention, outbound `is_deleted` projection, inbound tombstone shielding, and
@@ -113,9 +114,10 @@ Focused deterministic coverage lives beside the feature in
   rollback for every mutation kind, related-record creation, and
   save/event/sync/feedback ordering, including durable tombstone persistence and
   failed-save restoration.
-- `MigrationPlanTests` locks the frozen and active V50 owners, the source-only
-  rename mapping, disk-backed tombstone and relationship preservation, the
-  linear full historical plan, and source-isolated startup plan selection.
+- `MigrationPlanTests` locks the frozen V50 bridge and active V51 owner, the
+  collection rename mapping, disk-backed tombstone, relationship, goal-hint, and
+  preference-discard behavior, the linear full historical plan, and
+  source-isolated startup plan selection.
 - `CollectionsViewModelTests` locks catalog filtering, counts, membership,
   empty-state independence, smart/featured projections, injected share state,
   membership-sensitive refresh identity, and same-length review-payload
@@ -128,5 +130,5 @@ search, map/featured/custom card ordering, Favorites and Non-biological rows,
 create/rename/delete, detail removal and multi-selection, smart hide/restore,
 Back navigation, VoiceOver, and large Dynamic Type. Every production file in
 this feature remains below the 600-line review guard. Do not report the
-Collections matrix or release gate as green while the durable-delete, V50
+Collections matrix or release gate as green while the durable-delete, V50→V51
 migration, or complete migration-plan suite fails.

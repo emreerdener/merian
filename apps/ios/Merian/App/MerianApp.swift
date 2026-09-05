@@ -1192,7 +1192,9 @@ struct MerianApp: App {
         if let container {
             let mainContext = container.mainContext
             dependencies.scanRepository.configure(with: mainContext)
-            SpeciesPreferredNameRepository.migrateLegacyPreferences(modelContext: mainContext)
+            SpeciesPreferredNameRepository.discardLegacyUnscopedPreferences(
+                modelContext: mainContext
+            )
 
             UITestSeedCoordinator.prepareIfNeeded(container: container)
             dependencies.privateScanMapStore.configure(
@@ -1373,6 +1375,22 @@ struct MerianApp: App {
 
         do {
             let recovered = try makePersistentContainer(
+                migrationPlan: MerianRecentV50MigrationPlan.self,
+                named: "checksum-recent-v50",
+                diagnostic: &diagnostic
+            )
+            MerianLog.general.error(
+                "ModelContainer opened with the recent V50 checksum-safe migration plan."
+            )
+            return recovered
+        } catch let recentV50Error {
+            MerianLog.general.error(
+                "ModelContainer recent V50 checksum-safe retry failed: \(recentV50Error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        do {
+            let recovered = try makePersistentContainer(
                 migrationPlan: MerianRecentV49MigrationPlan.self,
                 named: "checksum-recent-v49",
                 diagnostic: &diagnostic
@@ -1524,6 +1542,12 @@ struct MerianApp: App {
         diagnostic: inout StartupStoreDiagnostic
     ) throws -> ModelContainer {
         switch source {
+        case .v50:
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV50MigrationPlan.self,
+                named: "recent-v50",
+                diagnostic: &diagnostic
+            )
         case .v49:
             return try makePersistentContainer(
                 migrationPlan: MerianRecentV49MigrationPlan.self,

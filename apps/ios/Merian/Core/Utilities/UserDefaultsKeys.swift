@@ -86,6 +86,22 @@ enum UserDefaultsKeys {
     static let speciesPreferredNameSyncLastPushedCount = "speciesPreferredNameSyncLastPushedCount"
     /// Number of preferred-name rows pulled during the last successful cloud sync.
     static let speciesPreferredNameSyncLastPulledCount = "speciesPreferredNameSyncLastPulledCount"
+    /// Prefixes for V51 account-scoped preferred-name sync metadata. Append a
+    /// lowercased Supabase user UUID to form the full key.
+    static let pendingSpeciesPreferredNameDeletesV2Prefix =
+        "pendingSpeciesPreferredNameDeletes.v2."
+    static let speciesPreferredNameSyncLastAttemptAtV2Prefix =
+        "speciesPreferredNameSyncLastAttemptAt.v2."
+    static let speciesPreferredNameSyncLastSuccessAtV2Prefix =
+        "speciesPreferredNameSyncLastSuccessAt.v2."
+    static let speciesPreferredNameSyncStatusV2Prefix =
+        "speciesPreferredNameSyncStatus.v2."
+    static let speciesPreferredNameSyncMessageV2Prefix =
+        "speciesPreferredNameSyncMessage.v2."
+    static let speciesPreferredNameSyncLastPushedCountV2Prefix =
+        "speciesPreferredNameSyncLastPushedCount.v2."
+    static let speciesPreferredNameSyncLastPulledCountV2Prefix =
+        "speciesPreferredNameSyncLastPulledCount.v2."
     /// Whether the user has been presented with the notification request post-identification.
     static let hasPromptedForNotificationsPostIdent = "hasPromptedForNotificationsPostIdent"
     /// The user's customized ordering of the primary capture tabs, stored as a comma-separated string.
@@ -188,8 +204,9 @@ enum AccountDeletionLocalRecoveryState: String, Equatable {
     /// returning a receipt. The exact cached Auth session must be retained so
     /// the idempotent request can be retried after relaunch.
     case intakePending = "intake_pending"
-    /// The server returned its durable receipt. Local Auth and SwiftData may be
-    /// erased, and the marker is cleared only after both are verified.
+    /// The server returned its durable receipt. Local Auth, SwiftData, and all
+    /// account-scoped preference/cache surfaces may be erased; the marker is
+    /// cleared only after the complete local purge is verified.
     case cleanupPending = "cleanup_pending"
     /// Current protocol: the authenticated request may have committed and the
     /// device-held recovery capability must remain readable before any local

@@ -12,8 +12,10 @@ enum MerianSchemaV39: VersionedSchema {
     static var models: [any PersistentModel.Type] {
         [MerianSchemaV39.LocalScanRecord.self, MerianSchemaV39.OfflineQueuedScan.self,
          MerianSchemaV39.ScanCollection.self, PendingCloudDeletionTask.self,
-         UserSpeciesPreference.self]
+         MerianSchemaV39.UserSpeciesPreference.self]
     }
+
+    typealias UserSpeciesPreference = MerianSchemaV38.UserSpeciesPreference
 }
 
 extension MerianSchemaV39 {

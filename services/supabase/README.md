@@ -2336,6 +2336,24 @@ separately supervised owner session outside `db push`, verify both
 migration. A partitioned parent requires valid leaf indexes and a reviewed
 metadata-only parent operation.
 
+Preferred species-name storage has a focused pair of contracts for migration
+`20260904190000_harden_user_species_preferences_rls.sql`:
+
+- `_tests/speciesPreferenceRLSMigrationContract.test.ts` locks effective RLS,
+  the authenticated-only owner policy, init-plan `auth.uid()` predicates, and
+  the exact least-privilege grant set.
+- `tests/species_preference_rls_security.sql` runs against a fully migrated
+  disposable catalog and proves owner CRUD, cross-account and anonymous denial,
+  absence of authenticated `TRUNCATE`, and rejection above the existing
+  200-character preferred-name bound.
+
+The iOS client reaches this table directly through PostgREST under RLS; there is
+no species-preference Edge Function to deploy. The local account partition,
+tombstone convergence, and V50→V51 migration boundary are documented in the
+[canonical database guide](../../docs/backend-and-data/02-supabase-edge-and-database.md#species-preferred-name-sync)
+and
+[schema contract](../../docs/backend-and-data/04-database-schema.md#user_species_preferences).
+
 ```bash
 deno test --allow-read \
   services/supabase/functions/_tests/migrationMediaContract.test.ts

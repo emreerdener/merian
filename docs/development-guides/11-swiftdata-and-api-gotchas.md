@@ -17,7 +17,7 @@ of `schemas` and jumps older unknown stores from V43→V49. Source-isolated rece
 plans still handle V44, V45, and V46 stores directly; V44, V45, and V46 stores
 jump through separate direct V44→V49, V45→V49, and V46→V49 plans. Those repairs
 are intermediate targets: every selected plan then applies the lightweight
-V49→V50 stage, while a current V50 store opens without a plan.
+V49→V50 stage and custom V50→V51 preference-ownership stage.
 
 One extra wrinkle: a user may already have a local store stamped as V46.
 SwiftData can validate that on-disk source model alongside the primary plan's
@@ -29,14 +29,14 @@ use the actual source stamp as the only recent representative in the plan, then
 jump directly to V49. Startup reads the store metadata before creating
 `ModelContainer`. Fresh stores and stores already stamped at the current schema
 open without a migration plan; known recent sources open with the matching
-source-isolated plan (V49 through V42); only unknown or older existing stores
-use the linear full historical plan. V49 has a one-stage lightweight V49→V50
-plan; V50 is current and has no source-only rename stage. If SwiftData still
-throws `Duplicate version checksums across stages detected`, startup falls back
-through the same source-isolated plans before legacy rescue or safe mode. These
-plans avoid forcing SwiftData to validate unrelated older retired schemas or
-adjacent checksum-equivalent representatives while a recent store only needs to
-advance to the current version.
+source-isolated plan (V50 through V42); only unknown or older existing stores
+use the linear full historical plan. V50 has a one-stage custom V50→V51 plan;
+V49 has a two-stage V49→V50→V51 plan. If SwiftData still throws
+`Duplicate version checksums across stages detected`, startup falls back through
+the same source-isolated plans before legacy rescue or safe mode. These plans
+avoid forcing SwiftData to validate unrelated older retired schemas or adjacent
+checksum-equivalent representatives while a recent store only needs to advance
+to the current version.
 
 Do not encode recent sources as an integer range followed by a generic app
 fallback. Keep a finite recent-source enum, convert actual store metadata into
@@ -629,6 +629,10 @@ unrelated views that mutate the same preference.
   `Core/Data/SpeciesPreferences`, not in the defaults key registry. Only its
   narrow live client may resolve Supabase; the repository and coordinator use
   local data and injected effects.
+- SwiftData and UserDefaults cannot commit atomically. When one logical state
+  spans both stores, reconcile overlapping row/marker residue before emitting a
+  batch, acknowledge only the captured marker generation, and refetch local
+  state after every network suspension before applying an older remote snapshot.
 - Per-entity stores should expose small static helpers and namespace-safe
   `clearAll` methods rather than letting view models concatenate key prefixes.
 - Accepted account deletion is the exception that composes these owners:
@@ -1604,12 +1608,11 @@ let payload = SyncCollectionPayload(
 )
 ```
 
-For Merian, the released V50 graph is frozen in `SchemaV50Snapshots.swift`;
-`MerianActiveSchemaV50` maps the source property with
-`@Attribute(originalName:)` while preserving the same persisted checksum and the
-existing `is_deleted` JSON contract. A disk-backed V50 fixture passes through
-the production startup selector, opens without a migration plan, and proves
-save, refetch, restart, offline retention, exact payload mapping, inbound
-reconciliation fencing, and acknowledgement-only purge. Because V50 did not
-retain prior assignments, the migration does not invent or infer historical
-delete intent.
+For Merian, the released V50 graph is frozen in `SchemaV50Snapshots.swift`; the
+V51 active `ScanCollection` keeps `@Attribute(originalName: "isDeleted")`,
+preserving the persisted column and existing `is_deleted` JSON contract. A
+disk-backed V50 fixture passes through the production selector and
+`MerianRecentV50MigrationPlan`, then proves save, refetch, restart, offline
+retention, exact payload mapping, inbound reconciliation fencing, and
+acknowledgement-only purge. The custom stage changes only preferred-name
+ownership and does not invent or infer historical collection delete intent.

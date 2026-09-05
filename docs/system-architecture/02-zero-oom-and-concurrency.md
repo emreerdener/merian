@@ -1844,25 +1844,24 @@ Two fixes were applied together:
 root SwiftUI environment, repository wiring, and safe-mode state are known
 before user workflows begin. The launch path must therefore avoid unnecessary
 deep migration validation. Startup reads the store metadata first: fresh/current
-stores open without a migration plan, known recent stores use the narrow
-source-isolated V49/V48/V47/V46/V45/V44/V43/V42 plans, and unknown older stores
-use the full historical migration plan. V49 uses the one required lightweight
-V49→V50 hop, while V50 is current and opens without a plan. The full plan
-remains linear through V42→V49→V50 so older-store migration does not validate
-the duplicate-prone V43...V48 source cluster. V42/V43 use short direct plans to
-avoid validating older full-historical custom stages that can raise SwiftData's
-equal-model-reference exception. The V46 plan keeps V46 as the only
+V51 stores open without a migration plan, known recent stores use the narrow
+source-isolated V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and unknown older
+stores use the full historical migration plan. V50 uses the custom V50→V51
+preference-ownership stage; V49 first uses the lightweight V49→V50 hop. The full
+plan remains linear through V42→V49→V50→V51 so older-store migration does not
+validate the duplicate-prone V43...V48 source cluster. V42/V43 use short direct
+plans to avoid validating older full-historical custom stages that can raise
+SwiftData's equal-model-reference exception. The V46 plan keeps V46 as the only
 duplicate-cluster source representative and jumps directly to V49 because V46
 was a shipped no-op schema, while true V47 stores use a source-isolated V47→V49
 plan with a self-contained scalar queued-scan snapshot. Every chosen older lane
-then uses V49→V50; current V50 stores open without migration. Duplicate-checksum
-failures retry through the same recent-plan ladder, ordered current store then
-V49 down through V42, before legacy rescue or safe mode. Supported recent
-sources are a finite enum ending at the immediate predecessor of
-`CurrentSchema`, and app dispatch is compiler-exhaustive with no full-history
-default. This keeps the synchronous launch boundary bounded for normal upgrades
-while preserving a deterministic recovery surface if SwiftData cannot open the
-store.
+then uses V49→V50→V51. Duplicate-checksum failures retry through the same
+recent-plan ladder, ordered current store then V50 down through V42, before
+legacy rescue or safe mode. Supported recent sources are a finite enum ending at
+the immediate predecessor of `CurrentSchema`, and app dispatch is
+compiler-exhaustive with no full-history default. This keeps the synchronous
+launch boundary bounded for normal upgrades while preserving a deterministic
+recovery surface if SwiftData cannot open the store.
 
 ### App Boot SDK Stutter (`MerianApp`)
 
@@ -2147,6 +2146,28 @@ forced reset.
 Computed shims (`isSyncing: Bool { phase.isActive }` and
 `pendingUploadCount: Int`) preserve backward compatibility for existing UI
 components.
+
+### Preferred-Name Reconciliation Across Two Local Stores
+
+Preferred species names use account-scoped SwiftData rows for active values and
+account-scoped UserDefaults timestamps for pending cloud deletes. Those stores
+cannot commit atomically. A process interruption can therefore leave both an
+active row and tombstone for the same account/species key. Before producing a
+PostgREST upsert batch, `SpeciesPreferenceLocalRecovery` resolves that overlap
+with the shared timestamp policy: a newer-or-equal valid active row removes the
+stale marker, while a newer delete removes the stale row. This prevents one
+batch from containing duplicate composite keys with opposing states.
+
+The `@MainActor` coordinator serializes auth, foreground, and edit triggers into
+one active task plus one trailing request. Replacing the trailing request never
+drops accumulated force intent. A tombstone timestamp never regresses, and an
+in-flight request may clear only the timestamp generation it captured; a newer
+delete remains queued. Because the network upsert is a suspension point, the
+coordinator then refetches local rows and markers, rechecks the 1,000-species
+union bound, and only afterward applies its earlier remote snapshot. Account
+leases are checked after every remote suspension. Together these rules prevent
+stale remote state from overwriting a mid-flight edit or crossing an Auth
+transition.
 
 ### Offline Retry ABA Protection (`OfflineQueueManager`)
 

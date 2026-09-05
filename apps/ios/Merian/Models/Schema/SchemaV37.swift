@@ -8,15 +8,18 @@ import SwiftData
 //     JSON-encoded ObservationContext preserved for offline-retry reconstruction.
 //   OfflineQueuedScan.audioFilePath — String?
 //     Reserved placeholder for a companion audio recording clip (future AudioRecordingView).
-// NOTE: References global model types — freeze when V38 is created.
+// Unchanged entities alias the preceding frozen snapshots so later active-model
+// changes cannot alter this released schema's checksum.
 enum MerianSchemaV37: VersionedSchema {
     static var versionIdentifier = Schema.Version(37, 0, 0)
 
     static var models: [any PersistentModel.Type] {
         [MerianSchemaV37.LocalScanRecord.self, OfflineQueuedScan.self,
          MerianSchemaV37.ScanCollection.self, PendingCloudDeletionTask.self,
-         UserSpeciesPreference.self]
+         MerianSchemaV37.UserSpeciesPreference.self]
     }
+
+    typealias UserSpeciesPreference = MerianSchemaV36.UserSpeciesPreference
 }
 
 // MARK: - Frozen LocalScanRecord snapshot for MerianSchemaV37

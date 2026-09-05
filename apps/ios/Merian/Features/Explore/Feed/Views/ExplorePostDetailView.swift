@@ -18,6 +18,7 @@ struct ExplorePostDetailView: View {
     let onOpenExploreMap: ((ExploreMapFocusTarget) -> Void)?
 
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
+    @Environment(SupabaseManager.self) private var supabase
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var detailViewModel: ExplorePostDetailViewModel
@@ -486,9 +487,11 @@ struct ExplorePostDetailView: View {
     }
 
     private func persistPreferredCommonName(_ name: String, scientificName: String) {
+        guard let ownerUserID = supabase.currentUser?.id else { return }
         _ = SpeciesPreferredNameRepository.setPreferredName(
             name,
             for: scientificName,
+            ownerUserID: ownerUserID,
             modelContext: modelContext
         )
     }

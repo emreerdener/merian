@@ -1,5 +1,25 @@
 import Foundation
 
+struct SpeciesPreferenceCloudPageRequest: Equatable, Sendable {
+    let userID: String
+    let afterScientificName: String?
+    let pageSize: Int
+}
+
+enum SpeciesPreferenceCloudSyncError: LocalizedError, Equatable {
+    case preferenceLimitExceeded(limit: Int)
+    case invalidPaginationCursor
+
+    var errorDescription: String? {
+        switch self {
+        case .preferenceLimitExceeded(let limit):
+            return "The account has more than \(limit) species preferences."
+        case .invalidPaginationCursor:
+            return "Species preference pagination did not advance."
+        }
+    }
+}
+
 struct SpeciesPreferenceCloudRow: Decodable, Equatable, Sendable {
     let scientific_name: String
     let preferred_common_name: String?

@@ -182,30 +182,31 @@ app has no endpoint owner or caller for it. See the
 ## Core Preferences Ownership
 
 [Core Preferences](Merian/Core/Preferences/README.md) owns the observable
-`AppSettings` boundary plus the small Explore-share, field-note, and legacy
-species-name `UserDefaults` stores. It also owns the exact, read-back-verified
-account-cache inventory composed into accepted account deletion. These extracted
-owners preserve their existing type names, initializers, defaults, key strings,
-and call sites while remaining free of SwiftData, Supabase, networking, and
-app-container lookup. Audited repairs persist the normalized 1...3 grid count
-and prevent account-derived caches or process-local gamification/badge/image
-projections from surviving the complete active-schema purge. Badge refresh is
-generation-fenced across deletion; device preferences and deletion recovery
-fences remain.
+`AppSettings` boundary plus the small Explore-share and field-note bridges and
+the preferred-name legacy-cleanup/account-metadata store. It also owns the
+exact, read-back-verified account-cache inventory composed into accepted account
+deletion. These extracted owners remain free of SwiftData, Supabase, networking,
+and app-container lookup. Audited repairs persist the normalized 1...3 grid
+count and prevent account-derived caches or process-local
+gamification/badge/image projections from surviving the complete active-schema
+purge. Badge refresh is generation-fenced across deletion; device preferences
+and deletion recovery fences remain.
 
 `Core/Utilities/UserDefaultsKeys.swift` remains the exact persisted-key
-registry. The SwiftData-backed `SpeciesPreferredNameRepository`, conflict
-policy, wire values, injected PostgREST client, and single-flight coordinator
-now live in
+registry. The account-scoped SwiftData repository, conflict/resource policy,
+wire values, local interruption-recovery owner, injected PostgREST client, and
+single-flight coordinator live in
 [Core Data/Species Preferences](Merian/Core/Data/SpeciesPreferences/README.md).
-Only that narrow live client resolves Supabase; feature consumers continue to
-use the unchanged repository surface. Its paging now has a deterministic
-scientific-name tie-breaker, and its freshness check treats future timestamps as
-clock skew. Account-deletion recovery state and the Keychain registry remain in
-the Utilities aggregate for their separately reviewed security slice. Mirrored
-Preferences and Species Preferences tests enforce these dependency boundaries,
-purge inventories, and the 600-line ceiling without treating the legacy store as
-durable or server authority.
+Only the narrow live client resolves Supabase. V51 discards unowned V50/defaults
+values instead of assigning them to the next account; pending deletes,
+freshness, and diagnostics are account-qualified. Scientific-name keyset paging,
+a 1,000-species union bound, the server-aligned 200-character limit, monotonic
+tombstone acknowledgement, and a post-upsert local refetch close pagination,
+interruption, and mid-flight edit races. Account-deletion recovery state and the
+Keychain registry remain in the Utilities aggregate for their separately
+reviewed security slice. Mirrored Preferences and Species Preferences tests
+enforce these dependency, race, purge-inventory, and 600-line boundaries without
+treating the defaults store as durable value or server authority.
 
 ## Onboarding Ownership
 
@@ -647,28 +648,33 @@ reanalysis metadata safety to `Inference/Result/InferenceScanReplacement.swift`:
 a replacement must be visible in a fresh store context and its metadata save
 must succeed before repository-owned deletion of the original. No-record results
 and failed saves keep the original. `AppDIContainer` owns both production
-service values. `Inference/Recovery` contains stateless interruption/failure
-classification and recovery presentation, including the existing
-visual/nonvisual decoding and telemetry differences. One private synchronous
-engine handler retains exact ownership checks, queue retirement/handoff, paywall
-and terminal-disposition actions, feedback, and publication order. The current
-toolchain derives five image-specific observations covering dominant colors,
-color saturation, lighting, light contrast, and surface detail. They render as
-plain visible descriptions such as **Reviewing softly colored areas** and
-**Observing light and shadow areas**, not `Kind: detail` labels or internal
-statistical buckets such as “moderate” and “balanced.” Active visual
-live-to-queue handoff preserves the ephemeral contextual deck and in-memory
-carousel media only for an exact scan-and-attempt owner. Prepared visual work
-transfers generic copy without media; audio and Describe are typed nonvisual
-owners. That exact handoff also retains the canonical scan ID, selected carousel
-page, focus state, and time-derived analysis sweep through pending, uploading,
-staged, and inferencing queue states while none requires attention; ordinary
-queued scans animate only while inferencing. The trailing Insight toolbar slot
-stays mounted and fades in its queued delete action only after the durable ID is
-bound. The same visual cursor survives save and connectivity changes, while
-dismissal or Auth removes contextual phrase/media exposure without blocking
-durable result recovery. Generative multimodal cues remain the stable-Xcode-27
-milestone.
+service values. Its immutable
+`Core/Network/Inference/InferenceIdentificationReviewService` separately owns
+the exact-name Species Dictionary projection and owned-scan review RPC. Every
+live operation is fenced by an account-work lease; `InferenceEngine` retains
+review task generations, local persistence, presentation, and post-success
+effects without issuing Supabase queries. `Inference/Recovery` contains
+stateless interruption/failure classification and recovery presentation,
+including the existing visual/nonvisual decoding and telemetry differences. One
+private synchronous engine handler retains exact ownership checks, queue
+retirement/handoff, paywall and terminal-disposition actions, feedback, and
+publication order. The current toolchain derives five image-specific
+observations covering dominant colors, color saturation, lighting, light
+contrast, and surface detail. They render as plain visible descriptions such as
+**Reviewing softly colored areas** and **Observing light and shadow areas**, not
+`Kind: detail` labels or internal statistical buckets such as “moderate” and
+“balanced.” Active visual live-to-queue handoff preserves the ephemeral
+contextual deck and in-memory carousel media only for an exact scan-and-attempt
+owner. Prepared visual work transfers generic copy without media; audio and
+Describe are typed nonvisual owners. That exact handoff also retains the
+canonical scan ID, selected carousel page, focus state, and time-derived
+analysis sweep through pending, uploading, staged, and inferencing queue states
+while none requires attention; ordinary queued scans animate only while
+inferencing. The trailing Insight toolbar slot stays mounted and fades in its
+queued delete action only after the durable ID is bound. The same visual cursor
+survives save and connectivity changes, while dismissal or Auth removes
+contextual phrase/media exposure without blocking durable result recovery.
+Generative multimodal cues remain the stable-Xcode-27 milestone.
 
 Gemini remains the sole authority for identification and completed Insight
 content. Local classifications and cue text are never persisted, logged,

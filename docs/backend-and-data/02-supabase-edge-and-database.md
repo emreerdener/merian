@@ -2626,50 +2626,76 @@ and applies a diff-based delta against the server. Key bounds and IDOR guards:
 
 `user_species_preferences` is synced directly by the iOS client through Supabase
 PostgREST rather than through an Edge Function. RLS scopes every row to
-`auth.uid()`, and the table is keyed by `(user_id, scientific_name)`.
+`auth.uid()`, and the table is keyed by `(user_id, scientific_name)`. Migration
+`20260904190000_harden_user_species_preferences_rls.sql` restricts the policy to
+`authenticated`, uses an init-plan `auth.uid()` check, denies anonymous table
+access, and grants authenticated callers only select/insert/update/delete—not
+RLS-bypassing `TRUNCATE` or schema-management privileges.
 
 - Active preferences upsert `preferred_common_name` with `deleted_at = NULL`.
 - Clears upsert a tombstone (`preferred_common_name = NULL`, `deleted_at = now`)
   so another device can distinguish a deliberate clear from a species that never
   had a preference.
 - `Core/Data/SpeciesPreferences/SpeciesPreferredNameRepository.swift` owns local
-  SwiftData CRUD and legacy promotion. Its
-  `SpeciesPreferredNameCloudSyncCoordinator` reconciles all local
+  account-scoped SwiftData CRUD. V51 adds an account-qualified local identity;
+  unowned V50 SwiftData rows are deleted while the source schema is active, and
+  device-global defaults are discarded rather than attributed to the next
+  account. Its `SpeciesPreferredNameCloudSyncCoordinator` reconciles all local
   `UserSpeciesPreference` rows plus pending local delete timestamps against the
   remote table on auth restore, foreground activation, and after local edits.
 - iOS keeps this reconciliation single-flight inside the `@MainActor`
   coordinator: duplicate lifecycle/auth/edit triggers await the active sync task
   rather than issuing overlapping remote reads and upserts. If a trigger arrives
-  while a sync is running, the coordinator stores the latest trailing request
-  and reruns reconciliation until no follow-up remains, so local edits made
-  after the active task's local fetch are not left for a later lifecycle event.
-  Its initializer-injected client is the only direct Supabase/Auth-lease owner;
-  repository and coordinator logic remain independently testable. A failed local
-  fetch or remote-application save fails the reconciliation and retains
-  convergence markers rather than recording a clean sync.
-  `SpeciesPreferredNameStore.syncDiagnostics` persists last
+  while a sync is running, the coordinator stores the latest trailing context,
+  preserves force intent from every queued request, and reruns reconciliation
+  until no follow-up remains. A later lifecycle trigger therefore cannot hide a
+  local edit made after the active task's local fetch. Its initializer-injected
+  client is the only direct Supabase/Auth-lease owner; repository and
+  coordinator logic remain independently testable. A failed local fetch or
+  remote-application save fails the reconciliation and retains convergence
+  markers rather than recording a clean sync.
+  `SpeciesPreferredNameStore.syncDiagnostics` persists account-qualified last
   attempt/success/status/message and last pushed/pulled counts in `UserDefaults`
   for supportability; these keys are diagnostic only and do not participate in
   conflict resolution.
 - Conflict resolution is timestamp based: newer remote active rows update
   SwiftData, newer remote tombstones delete the local row, newer local rows push
   back to Supabase, and pending local clears remain queued until their tombstone
-  upsert succeeds.
-- Select pages use `(updated_at, scientific_name)` order so equal-timestamp rows
-  have a stable offset order. A persisted success timestamp later than the
-  current clock is not fresh and cannot suppress a pull.
+  upsert succeeds. If a process interruption leaves both a SwiftData row and a
+  UserDefaults tombstone for one account/species key, the coordinator resolves
+  that local overlap before creating the PostgREST batch: a newer-or-equal valid
+  active row wins, while a newer delete removes the stale local row. This
+  preserves the equal-timestamp policy and prevents duplicate composite keys in
+  one upsert request. Tombstone acknowledgement is timestamp-conditional, so an
+  older in-flight request cannot erase a newer delete marker created while the
+  request is suspended. The coordinator also refetches local rows and markers
+  after an upsert suspension before applying its earlier remote response, so a
+  mid-flight local edit cannot be overwritten by stale reconciliation state.
+- Select pages order by immutable `scientific_name` and continue with a strict
+  greater-than cursor. Remote inserts before an active cursor are deferred to
+  the next sync instead of shifting offset windows or duplicating a row. The
+  union of local, remote, and pending-delete species is bounded at 1,000 and
+  fails before upsert or local mutation when exceeded. Freshness requires the
+  latest recorded outcome to be successful; a later failure or interrupted
+  attempt invalidates an earlier recent success. A persisted success timestamp
+  later than the current clock is also not fresh, and freshness is consulted
+  only after acquiring the account lease, so another account's marker cannot
+  suppress work.
 - A matching normalized active value is already converged even when local and
   remote timestamps differ, and two tombstones are already converged as well.
   Historical rows whose scientific names differ only by surrounding whitespace
   are collapsed before conflict planning; the newest valid timestamp is used so
   a malformed duplicate cannot terminate client reconciliation. The repository
-  clears stale legacy/pending markers without rewriting the matching remote row.
+  clears account-scoped pending markers without rewriting a matching remote row.
   For a real active-value conflict, the newer timestamp wins; local-newer or
   equal values push, while remote-newer values replace the SwiftData row. This
   avoids two devices repeatedly echoing the same value.
+- Preferred names are rejected client-side above 200 Unicode scalars, matching
+  PostgreSQL `char_length` even for combining sequences before any local or
+  remote mutation.
 - Accepted local account cleanup deletes `UserSpeciesPreference` rows and clears
-  legacy names, pending tombstones, and sync diagnostics before the client
-  acknowledges device cleanup.
+  legacy names plus every account-partitioned pending tombstone and diagnostic
+  key before the client acknowledges device cleanup.
 
 ## Privileged Database RPC Boundary
 

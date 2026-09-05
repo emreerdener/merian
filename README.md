@@ -771,7 +771,7 @@ breaches its SLA. See the
 Merian does not use Amazon AWS storage or compute; Supabase remains the backend
 and authorization boundary.
 
-**Minimum deployment target**: iOS 17.2 **Current schema**: MerianSchemaV50
+**Minimum deployment target**: iOS 17.2 **Current schema**: MerianSchemaV51
 
 ---
 

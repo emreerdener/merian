@@ -266,15 +266,21 @@ struct InsightSharingDependencies {
                 )
             },
             persistPreferredCommonName: { name, scientificName, modelContext in
+                guard let ownerUserID = SupabaseManager.shared.currentUser?.id
+                else {
+                    return nil
+                }
                 guard SpeciesPreferredNameRepository.setPreferredName(
                     name,
                     for: scientificName,
+                    ownerUserID: ownerUserID,
                     modelContext: modelContext
                 ) else {
                     return nil
                 }
                 return SpeciesPreferredNameRepository.preferredName(
                     for: scientificName,
+                    ownerUserID: ownerUserID,
                     modelContext: modelContext
                 )
             },

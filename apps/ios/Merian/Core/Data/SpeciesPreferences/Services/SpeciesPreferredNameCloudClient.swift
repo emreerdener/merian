@@ -15,7 +15,7 @@ struct SpeciesPreferredNameCloudClient {
     private let isAccountWorkCurrentHandler:
         @MainActor (AccountBoundWorkLease) -> Bool
     private let fetchPageHandler:
-        @MainActor (String, Int, Int) async throws
+        @MainActor (SpeciesPreferenceCloudPageRequest) async throws
             -> [SpeciesPreferenceCloudRow]
     private let upsertHandler:
         @MainActor ([SpeciesPreferenceCloudUpsert]) async throws -> Void
@@ -28,7 +28,7 @@ struct SpeciesPreferredNameCloudClient {
         isAccountWorkCurrent:
             @escaping @MainActor (AccountBoundWorkLease) -> Bool,
         fetchPage:
-            @escaping @MainActor (String, Int, Int) async throws
+            @escaping @MainActor (SpeciesPreferenceCloudPageRequest) async throws
                 -> [SpeciesPreferenceCloudRow],
         upsert:
             @escaping @MainActor ([SpeciesPreferenceCloudUpsert]) async throws
@@ -54,11 +54,9 @@ struct SpeciesPreferredNameCloudClient {
     }
 
     func fetchPage(
-        userID: String,
-        offset: Int,
-        pageSize: Int
+        _ request: SpeciesPreferenceCloudPageRequest
     ) async throws -> [SpeciesPreferenceCloudRow] {
-        try await fetchPageHandler(userID, offset, pageSize)
+        try await fetchPageHandler(request)
     }
 
     func upsert(_ values: [SpeciesPreferenceCloudUpsert]) async throws {
@@ -75,16 +73,19 @@ struct SpeciesPreferredNameCloudClient {
         isAccountWorkCurrent: { lease in
             SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(lease)
         },
-        fetchPage: { userID, offset, pageSize in
-            try await SupabaseManager.shared.client
+        fetchPage: { request in
+            var query = SupabaseManager.shared.client
                 .from("user_species_preferences")
                 .select(
                     "scientific_name, preferred_common_name, updated_at, deleted_at"
                 )
-                .eq("user_id", value: userID)
-                .order("updated_at", ascending: true)
+                .eq("user_id", value: request.userID)
+            if let cursor = request.afterScientificName {
+                query = query.gt("scientific_name", value: cursor)
+            }
+            return try await query
                 .order("scientific_name", ascending: true)
-                .range(from: offset, to: offset + pageSize - 1)
+                .limit(request.pageSize)
                 .execute()
                 .value
         },

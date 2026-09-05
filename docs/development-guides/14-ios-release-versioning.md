@@ -49,8 +49,8 @@ requires its green SHA to match the iOS workflow SHA. The separate Supabase
 production job remains an operator-authorized deployment action and is currently
 blocked before its GitHub `Production` environment by the checked-in
 `species_dictionary_chat_production_hold`. Clearing that hold still requires the
-historical V49→V50 physical install-over baseline and the current V50
-source-only-rename physical install-over gate in this runbook. Source-created
+historical V49→V50 physical install-over baseline and the current V50→V51
+account-partition physical install-over gate in this runbook. Source-created
 V49/V50 fixtures prove candidate-self consistency only; physical results remain
 release evidence. The Field Chat source controls now include six-table cleanup
 and permanent atomic-RPC ownership of conversation insertion, explicit
@@ -60,8 +60,8 @@ Each live route now exposes a candidate-derived bundle digest, database `ready`
 force-selects the chat fleet, activation records the three identities, and
 clearance retrieves/recomputes artifacts while checking live protections.
 Backend release remains blocked on non-skipped and hosted evidence, accepted
-external GitHub control configuration, the V49 install-over, and external
-approvals. The canonical requirements are in the
+external GitHub control configuration, the V49 baseline, the V50→V51
+install-over, and external approvals. The canonical requirements are in the
 [Supabase hold-exit criteria](../backend-and-data/06-supabase-deployment-runbook.md#species-dictionary-field-chat-hold-exit-criteria).
 Author and renew their retained artifacts through the
 [release-evidence operations guide](../release-evidence/README.md); a validation
@@ -224,10 +224,12 @@ mandatory implementation proof, but they do not replace installing the exact
 processed candidate over a store created by the released application on a
 physical device.
 
-For the current source-only repair, both the released source and candidate use
-persisted schema V50. The candidate changes the Swift property owner without
-changing the stored model. The historical V49→V50 install-over evidence remains
-the prerequisite baseline for stores that have not yet crossed that release
+For the current upgrade, the released source uses V50 and the candidate uses
+V51. The custom stage partitions preferred species names by account and deletes
+unowned device-global V50 rows while the source schema is active, before the new
+unique identifier is materialized; every other persisted shape remains
+compatible. The historical V49→V50 install-over evidence remains the
+prerequisite baseline for stores that have not yet crossed that release
 boundary:
 
 1. Reserve a dedicated non-production iPhone and account. Keep a genuine V50 App
@@ -244,40 +246,46 @@ boundary:
 4. Through the bounded internal TestFlight group, install the exact processed
    candidate over V50 without uninstalling or clearing app data.
 5. Launch the candidate while collecting public device-console output. Require
-   `ModelContainer bootstrap diagnostics` to show `currentSchema=V50` and the
+   `ModelContainer bootstrap diagnostics` to show `currentSchema=V51` and the
    candidate source identity, and require
    `ModelContainer store-aware migration selection` to show
-   `hasStoreArtifacts=true`, `storedSchema=V50`, and `strategy=current-store`.
-   Reaching the normal UI with no recovery notice or safe mode is the required
-   successful-open evidence. A migration-plan or full-historical selection is a
-   failure.
+   `hasStoreArtifacts=true`, `storedSchema=V50`, and
+   `strategy=recent-source-v50`. Reaching the normal UI with no recovery notice
+   or safe mode is the required successful-open evidence. A current-store or
+   full-historical selection is a failure.
 6. If approved internal tooling can retrieve the persisted
-   `StartupStoreDiagnostic`, cross-check `currentSchemaMajor: 50`,
-   `store.storedSchemaMajorVersion: 50`, `selectedStrategy: current-store`, and
-   an `attempts` entry with `name: current-store` and `outcome: success`. Do not
-   require snake-case recovery telemetry; the normal-success path does not emit
-   that event.
-7. Confirm all representative queue rows, media references, retry fields,
+   `StartupStoreDiagnostic`, cross-check `currentSchemaMajor: 51`,
+   `store.storedSchemaMajorVersion: 50`, `selectedStrategy: recent-source-v50`,
+   and an `attempts` entry with `name: recent-v50` and `outcome: success`. Do
+   not require snake-case recovery telemetry; the normal-success path does not
+   emit that event.
+7. Before cloud reconciliation, confirm the device-global V50 preferred-name row
+   is absent. After reconciliation, only the signed-in account's server-owned
+   preference may reappear. Switch between two non-production accounts and
+   verify local rows, pending tombstones, freshness, and diagnostics do not
+   cross the account boundary.
+8. Confirm all representative queue rows, media references, retry fields,
    scheduler records, goal hints, collection relationships, and true/false
    collection tombstones survive. A V50 tombstone must remain mapped to the
    `isDeleted` column while the active property is `isPendingDeletion`.
-8. Force-quit and relaunch. The second launch must select `current-store`, keep
+9. Force-quit and relaunch. The second launch must select `current-store`, keep
    the reopened data, and show no recovery notice.
-9. Create separate fresh V50 queue rows and verify the goal-hint companion in
-   distinct foreground- and background-completion paths, plus relaunch,
-   successful progress acknowledgement, and cancellation/orphan cleanup. Verify
-   a deleted collection emits `is_deleted: true`, ignores delayed inbound
-   upserts, and is purged only after the matching cloud acknowledgement.
-10. Add the sanitized source/target builds, device/OS, diagnostic outcomes,
-    queue survival result, relaunch result, V50 tombstone/goal-hint result,
-    tester, date, and pass/fail decision to the restricted release record.
+10. Create separate fresh V51 queue rows and verify the goal-hint companion in
+    distinct foreground- and background-completion paths, plus relaunch,
+    successful progress acknowledgement, and cancellation/orphan cleanup. Verify
+    a deleted collection emits `is_deleted: true`, ignores delayed inbound
+    upserts, and is purged only after the matching cloud acknowledgement.
+11. Add the sanitized source/target builds, device/OS, diagnostic outcomes,
+    queue survival result, relaunch result, V51 account-partition and
+    tombstone/goal-hint result, tester, date, and pass/fail decision to the
+    restricted release record.
 
 Any failure blocks wider TestFlight assignment and App Review nomination.
 Preserve the device in its failed state for diagnosis; do not uninstall, delete
 the store, or count recovery into a fresh library as success. Fix the startup
 contract, upload a new candidate, and rerun the complete gate. The diagnostic
-meanings and exact V50 source-only-rename expectations are canonical in
-[`08-startup-store-recovery.md`](../backend-and-data/08-startup-store-recovery.md#v50-source-only-rename-acceptance).
+meanings and exact V50→V51 expectations are canonical in
+[`08-startup-store-recovery.md`](../backend-and-data/08-startup-store-recovery.md#v50v51-account-partition-acceptance).
 
 For future schema bumps, replace the source/target versions and expected recent
 plan with the actual released predecessor and candidate, while retaining the

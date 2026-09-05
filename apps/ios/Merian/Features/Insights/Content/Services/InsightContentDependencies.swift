@@ -49,23 +49,36 @@ struct InsightContentDependencies {
 
     static var live: Self {
         let hapticManager = AppDIContainer.shared.hapticManager
+        let supabaseManager = SupabaseManager.shared
         return Self(
             loadPreferredCommonName: { scientificName, modelContext in
-                SpeciesPreferredNameRepository.preferredName(
+                guard let ownerUserID = supabaseManager.currentUser?.id else {
+                    return nil
+                }
+                return SpeciesPreferredNameRepository.preferredName(
                     for: scientificName,
+                    ownerUserID: ownerUserID,
                     modelContext: modelContext
                 )
             },
             setPreferredCommonName: { name, scientificName, modelContext in
-                SpeciesPreferredNameRepository.setPreferredName(
+                guard let ownerUserID = supabaseManager.currentUser?.id else {
+                    return false
+                }
+                return SpeciesPreferredNameRepository.setPreferredName(
                     name,
                     for: scientificName,
+                    ownerUserID: ownerUserID,
                     modelContext: modelContext
                 )
             },
             clearPreferredCommonName: { scientificName, modelContext in
-                SpeciesPreferredNameRepository.clearPreferredName(
+                guard let ownerUserID = supabaseManager.currentUser?.id else {
+                    return false
+                }
+                return SpeciesPreferredNameRepository.clearPreferredName(
                     for: scientificName,
+                    ownerUserID: ownerUserID,
                     modelContext: modelContext
                 )
             },

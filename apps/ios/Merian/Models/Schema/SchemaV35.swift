@@ -5,14 +5,15 @@ import SwiftData
 //   LocalScanRecord.confirmedSpeciesId — String?
 //     Stores the authoritative Species ID when a user confirms or overrides an AI prediction.
 //
-// NOTE: References global model types — freeze when V36 is created.
+// Unchanged entities alias prior frozen snapshots; do not redirect them to
+// mutable active-model types.
 enum MerianSchemaV35: VersionedSchema {
     static var versionIdentifier = Schema.Version(35, 0, 0)
 
     static var models: [any PersistentModel.Type] {
         [MerianSchemaV35.LocalScanRecord.self, OfflineQueuedScan.self,
          ScanCollection.self, PendingCloudDeletionTask.self,
-         UserSpeciesPreference.self]
+         MerianSchemaV35.UserSpeciesPreference.self]
     }
 
     typealias OfflineQueuedScan = MerianSchemaV34.OfflineQueuedScan

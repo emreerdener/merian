@@ -49,6 +49,7 @@ struct InferenceArchitectureTests {
         #expect(source.contains("private let localAnalysisCoordinator:"))
         #expect(source.contains("private let liveRequestService:"))
         #expect(source.contains("private let liveResultService:"))
+        #expect(source.contains("private let identificationReviewService:"))
         #expect(source.contains("resetEnrichmentRateLimit()"))
         #expect(source.contains("replaceAndAwaitTask("))
         #expect(source.contains("in: .review"))
@@ -88,7 +89,10 @@ struct InferenceArchitectureTests {
             "makeErrorSpeciesData(",
             "MerianNetworkClient.stableEdgeErrorCode(",
             "EdgeFunctionErrorPolicy.stableCode(",
-            "MerianNetworkClient.isRecoverableInferenceConflict("
+            "MerianNetworkClient.isRecoverableInferenceConflict(",
+            "SupabaseManager.shared",
+            ".from(\"",
+            ".rpc("
         ] {
             #expect(
                 !source.contains(retiredToken),
@@ -201,6 +205,42 @@ struct InferenceArchitectureTests {
         )
         #expect(appDISource.contains("liveInferenceResultService"))
         #expect(appDISource.contains("liveResultService:"))
+    }
+
+    @Test func identificationReviewNetworkServiceOwnsPostgRESTAndAccountFence() throws {
+        let root = try repositoryRoot()
+        let service = try contents(of: root.appendingPathComponent(
+            "apps/ios/Merian/Core/Network/Inference/InferenceIdentificationReviewService.swift"
+        ))
+        let engine = try contents(of: root.appendingPathComponent(
+            "apps/ios/Merian/Core/AI/InferenceEngine.swift"
+        ))
+        let appDI = try contents(of: root.appendingPathComponent(
+            "apps/ios/Merian/Core/AppDIContainer.swift"
+        ))
+
+        for token in [
+            "struct InferenceSpeciesDictionaryRecord",
+            "struct InferenceIdentificationReviewMutation",
+            "beginUnownedAccountBoundWork()",
+            "finishAccountBoundWork(lease)",
+            "isAccountBoundWorkLeaseCurrent(lease)",
+            ".from(\"species_dictionary\")",
+            ".rpc("
+        ] {
+            #expect(service.contains(token))
+        }
+        for token in ["SupabaseManager.shared", ".from(\"", ".rpc("] {
+            #expect(!engine.contains(token))
+        }
+        #expect(appDI.contains("liveInferenceIdentificationReviewService"))
+        #expect(appDI.contains("identificationReviewService:"))
+        #expect(
+            service.split(
+                separator: "\n",
+                omittingEmptySubsequences: false
+            ).count <= 600
+        )
     }
 
     @Test func recoveryPoliciesRemainStatelessAndEffectFree() throws {

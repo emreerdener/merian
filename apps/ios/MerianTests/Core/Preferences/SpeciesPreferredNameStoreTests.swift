@@ -5,163 +5,180 @@ import Testing
 @MainActor
 @Suite("Species Preferred Name Store")
 struct SpeciesPreferredNameStoreTests {
-    @Test func testSpeciesPreferredNameStoreKeepsPreferenceScopedBySpecies() {
-        let suiteName = "merian.tests.species-preferred-name.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        defaults.removePersistentDomain(forName: suiteName)
+    @Test func pendingDeletesArePartitionedByAccount() {
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        SpeciesPreferredNameStore.setPreferredName(
-            "Post Oak",
-            for: "Quercus stellata",
-            userDefaults: defaults
-        )
-
-        #expect(
-            SpeciesPreferredNameStore.preferredName(
-                for: "Quercus stellata",
-                userDefaults: defaults
-            ) == "Post Oak"
-        )
-        #expect(
-            SpeciesPreferredNameStore.preferredName(
-                for: "Quercus alba",
-                userDefaults: defaults
-            ) == nil
-        )
-
-        SpeciesPreferredNameStore.setPreferredName(
-            "   ",
-            for: "Quercus stellata",
-            userDefaults: defaults
-        )
-        #expect(
-            SpeciesPreferredNameStore.preferredName(
-                for: "Quercus stellata",
-                userDefaults: defaults
-            ) == nil
-        )
-    }
-
-    @Test func testSpeciesPreferredNameStoreClearAllDoesNotTouchOtherDefaults() {
-        let suiteName = "merian.tests.species-preferred-name-clear.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        SpeciesPreferredNameStore.setPreferredName("Bur Oak", for: "Quercus macrocarpa", userDefaults: defaults)
-        defaults.set("keep-me", forKey: UserDefaultsKeys.sharedExplorePostIdPrefix + "scan-id")
-
-        SpeciesPreferredNameStore.clearAll(userDefaults: defaults)
-
-        #expect(SpeciesPreferredNameStore.preferredName(for: "Quercus macrocarpa", userDefaults: defaults) == nil)
-        #expect(defaults.string(forKey: UserDefaultsKeys.sharedExplorePostIdPrefix + "scan-id") == "keep-me")
-    }
-
-    @Test func testSpeciesPreferredNameStoreScopesPendingCloudDeletes() {
-        let suiteName = "merian.tests.species-preferred-name-pending-deletes.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
+        let firstUserID = UUID()
+        let secondUserID = UUID()
         let firstDate = Date(timeIntervalSince1970: 1_000)
         let secondDate = Date(timeIntervalSince1970: 2_000)
+
         SpeciesPreferredNameStore.markPendingCloudDelete(
-            for: " Quercus alba ",
+            for: "Quercus alba",
+            ownerUserID: firstUserID,
             at: firstDate,
             userDefaults: defaults
         )
         SpeciesPreferredNameStore.markPendingCloudDelete(
             for: "Quercus rubra",
+            ownerUserID: secondUserID,
             at: secondDate,
             userDefaults: defaults
         )
 
-        #expect(
-            SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: defaults) == [
-                "Quercus alba": firstDate,
-                "Quercus rubra": secondDate
-            ]
-        )
+        #expect(SpeciesPreferredNameStore.pendingDeleteDates(
+            ownerUserID: firstUserID,
+            userDefaults: defaults
+        ) == ["Quercus alba": firstDate])
+        #expect(SpeciesPreferredNameStore.pendingDeleteDates(
+            ownerUserID: secondUserID,
+            userDefaults: defaults
+        ) == ["Quercus rubra": secondDate])
 
         SpeciesPreferredNameStore.clearPendingCloudDelete(
-            for: " Quercus alba ",
+            for: "Quercus alba",
+            ownerUserID: firstUserID,
             userDefaults: defaults
         )
-        #expect(
-            SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: defaults) == [
-                "Quercus rubra": secondDate
-            ]
-        )
-
-        SpeciesPreferredNameStore.clearPendingCloudDelete(
-            for: "Quercus rubra",
+        #expect(SpeciesPreferredNameStore.pendingDeleteDates(
+            ownerUserID: firstUserID,
             userDefaults: defaults
-        )
-        #expect(defaults.object(forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes) == nil)
+        ).isEmpty)
+        #expect(!SpeciesPreferredNameStore.pendingDeleteDates(
+            ownerUserID: secondUserID,
+            userDefaults: defaults
+        ).isEmpty)
     }
 
-    @Test func testSpeciesPreferredNameStoreTracksCloudSyncDiagnostics() {
-        let suiteName = "merian.tests.species-preferred-name-sync-diagnostics.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        defaults.removePersistentDomain(forName: suiteName)
+    @Test func pendingDeleteTimestampNeverRegresses() throws {
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
+        let ownerUserID = try #require(
+            UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        )
+        let scientificName = "Quercus macrocarpa"
+        let newerDate = Date(timeIntervalSince1970: 3_000)
 
-        #expect(SpeciesPreferredNameStore.syncDiagnostics(userDefaults: defaults).status == nil)
-
-        let attemptDate = Date(timeIntervalSince1970: 1_000)
-        SpeciesPreferredNameStore.recordSyncAttempt(at: attemptDate, userDefaults: defaults)
-
-        var diagnostics = SpeciesPreferredNameStore.syncDiagnostics(userDefaults: defaults)
-        #expect(diagnostics.lastAttemptAt == attemptDate)
-        #expect(diagnostics.status == .running)
-        #expect(diagnostics.message == nil)
-
-        let failureDate = Date(timeIntervalSince1970: 2_000)
-        SpeciesPreferredNameStore.recordSyncFailure(
-            "Network unavailable",
-            at: failureDate,
+        SpeciesPreferredNameStore.markPendingCloudDelete(
+            for: scientificName,
+            ownerUserID: ownerUserID,
+            at: newerDate,
+            userDefaults: defaults
+        )
+        SpeciesPreferredNameStore.markPendingCloudDelete(
+            for: scientificName,
+            ownerUserID: ownerUserID,
+            at: Date(timeIntervalSince1970: 2_000),
             userDefaults: defaults
         )
 
-        diagnostics = SpeciesPreferredNameStore.syncDiagnostics(userDefaults: defaults)
-        #expect(diagnostics.lastAttemptAt == failureDate)
-        #expect(diagnostics.status == .failure)
-        #expect(diagnostics.message == "Network unavailable")
-
-        let skipDate = Date(timeIntervalSince1970: 3_000)
-        SpeciesPreferredNameStore.recordSyncSkip(
-            "No authenticated Supabase user.",
-            at: skipDate,
-            userDefaults: defaults
+        #expect(
+            SpeciesPreferredNameStore.pendingDeleteDates(
+                ownerUserID: ownerUserID,
+                userDefaults: defaults
+            )[scientificName] == newerDate
         )
+    }
 
-        diagnostics = SpeciesPreferredNameStore.syncDiagnostics(userDefaults: defaults)
-        #expect(diagnostics.lastAttemptAt == skipDate)
-        #expect(diagnostics.status == .skipped)
-        #expect(diagnostics.message == "No authenticated Supabase user.")
+    @Test func syncDiagnosticsArePartitionedByAccount() {
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let firstUserID = UUID()
+        let secondUserID = UUID()
 
-        let successDate = Date(timeIntervalSince1970: 4_000)
         SpeciesPreferredNameStore.recordSyncSuccess(
-            at: successDate,
+            ownerUserID: firstUserID,
+            at: Date(timeIntervalSince1970: 4_000),
             pushedCount: 2,
             pulledCount: 3,
             userDefaults: defaults
         )
+        SpeciesPreferredNameStore.recordSyncFailure(
+            "Network unavailable",
+            ownerUserID: secondUserID,
+            at: Date(timeIntervalSince1970: 5_000),
+            userDefaults: defaults
+        )
 
-        diagnostics = SpeciesPreferredNameStore.syncDiagnostics(userDefaults: defaults)
-        #expect(diagnostics.lastSuccessAt == successDate)
-        #expect(diagnostics.status == .success)
-        #expect(diagnostics.message == nil)
-        #expect(diagnostics.lastPushedCount == 2)
-        #expect(diagnostics.lastPulledCount == 3)
+        let first = SpeciesPreferredNameStore.syncDiagnostics(
+            ownerUserID: firstUserID,
+            userDefaults: defaults
+        )
+        let second = SpeciesPreferredNameStore.syncDiagnostics(
+            ownerUserID: secondUserID,
+            userDefaults: defaults
+        )
+        #expect(first.status == .success)
+        #expect(first.lastPushedCount == 2)
+        #expect(first.lastPulledCount == 3)
+        #expect(second.status == .failure)
+        #expect(second.message == "Network unavailable")
 
-        SpeciesPreferredNameStore.clearSyncDiagnostics(userDefaults: defaults)
-        diagnostics = SpeciesPreferredNameStore.syncDiagnostics(userDefaults: defaults)
-        #expect(diagnostics.lastAttemptAt == nil)
-        #expect(diagnostics.lastSuccessAt == nil)
-        #expect(diagnostics.status == nil)
-        #expect(diagnostics.lastPushedCount == 0)
-        #expect(diagnostics.lastPulledCount == 0)
+        SpeciesPreferredNameStore.clearSyncDiagnostics(
+            ownerUserID: firstUserID,
+            userDefaults: defaults
+        )
+        #expect(SpeciesPreferredNameStore.syncDiagnostics(
+            ownerUserID: firstUserID,
+            userDefaults: defaults
+        ).status == nil)
+        #expect(SpeciesPreferredNameStore.syncDiagnostics(
+            ownerUserID: secondUserID,
+            userDefaults: defaults
+        ).status == .failure)
+    }
+
+    @Test func legacyCleanupDoesNotTouchUnrelatedDefaults() {
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeciesPreferredNameStore.setLegacyPreferredName(
+            "Bur Oak",
+            for: "Quercus macrocarpa",
+            userDefaults: defaults
+        )
+        defaults.set(
+            "failure",
+            forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus
+        )
+        defaults.set("keep-me", forKey: "unrelated")
+
+        SpeciesPreferredNameStore.discardLegacyUnscopedData(
+            userDefaults: defaults
+        )
+
+        #expect(SpeciesPreferredNameStore.legacyPreferences(
+            userDefaults: defaults
+        ).isEmpty)
+        #expect(defaults.object(
+            forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus
+        ) == nil)
+        #expect(defaults.string(forKey: "unrelated") == "keep-me")
+    }
+
+    @Test func clearAllAccountDataRemovesEveryAccountPartition() {
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let firstUserID = UUID()
+        let secondUserID = UUID()
+        SpeciesPreferredNameStore.markPendingCloudDelete(
+            for: "Quercus alba",
+            ownerUserID: firstUserID,
+            userDefaults: defaults
+        )
+        SpeciesPreferredNameStore.recordSyncAttempt(
+            ownerUserID: secondUserID,
+            userDefaults: defaults
+        )
+        #expect(SpeciesPreferredNameStore.hasStoredAccountData(
+            userDefaults: defaults
+        ))
+
+        SpeciesPreferredNameStore.clearAllAccountData(
+            userDefaults: defaults
+        )
+
+        #expect(!SpeciesPreferredNameStore.hasStoredAccountData(
+            userDefaults: defaults
+        ))
     }
 }

@@ -188,12 +188,12 @@ pin tests to historical versioned schemas — a pinned schema silently drops new
 model fields (e.g. `similarSpecies` added in `MerianSchemaV26`), causing
 persistence tests to pass against the wrong shape.
 
-The current persisted schema is V50. The released-V50 fixture intentionally
+The current persisted schema is V51. The released-V50 fixture intentionally
 creates the historical `ScanCollection.isDeleted` Swift property, then opens it
-as current through `MerianActiveSchemaV50` and asserts the active
-`isPendingDeletion` mapping without a migration plan. Keep `isDeleted` in that
-fixture and in historical schema tests; production tests should use the active
-property name and predicate.
+through `MerianRecentV50MigrationPlan` and asserts the active
+`isPendingDeletion` mapping after the V50→V51 preference migration. Keep
+`isDeleted` in that fixture and in historical schema tests; production tests
+should use the active property name and predicate.
 
 An in-memory container is not sufficient evidence for a stored-property rename,
 schema migration, restart guarantee, or property-name collision with
@@ -1073,20 +1073,22 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     regressions.
   - V49→V50 coverage verifies that the lightweight migration preserves existing
     queued scans and permits a new `OfflineQueuedScanGoalHint` companion with
-    the same scan ID. The released-V50 reopening fixture verifies the
-    source-only collection tombstone rename without changing the stored column
-    or checksum. Before opening each fixture, the test calls the production
-    metadata decision path and proves the real disk store reports major `49` or
-    `50` and selects `.recentSource(.v49)` or `.currentStore`. The V49 fixture
-    opens with `MerianRecentV49MigrationPlan` (`[V49, active V50]` and one
-    lightweight hop); the V50 fixture opens without a migration plan.
-    Store-recovery tests keep the exhaustive recent-source enum consecutive and
-    ending at `CurrentSchema - 1`; app dispatch has no default branch, so a
-    future source case cannot silently use the full historical plan. Queue and
-    collection tests cover hint/tombstone persistence through foreground and
-    background completion, inbound shielding, acknowledgement purge, and
-    deletion/orphan cleanup. The real-device install-over gate remains separate
-    release evidence; a simulator-created V49 store cannot satisfy it.
+    the same scan ID. V50→V51 coverage verifies that the collection tombstone,
+    queue, media, and goal-hint graph survives while unowned device-global
+    species preferences are discarded. Before opening each fixture, the test
+    calls the production metadata decision path and proves the real disk store
+    reports major `49` or `50` and selects `.recentSource(.v49)` or
+    `.recentSource(.v50)`. The V49 fixture opens with
+    `MerianRecentV49MigrationPlan` (`[V49, frozen V50, V51]` and two hops); the
+    V50 fixture opens with `MerianRecentV50MigrationPlan` (`[frozen V50, V51]`
+    and one custom hop). Store-recovery tests keep the exhaustive recent-source
+    enum consecutive and ending at `CurrentSchema - 1`; app dispatch has no
+    default branch, so a future source case cannot silently use the full
+    historical plan. Queue and collection tests cover hint/tombstone persistence
+    through foreground and background completion, inbound shielding,
+    acknowledgement purge, and deletion/orphan cleanup. The real-device
+    install-over gate remains separate release evidence; a simulator-created V49
+    store cannot satisfy it.
 - **`ModelStoreRecoveryCoordinatorTests.swift`**: Launch-recovery guard for
   damaged and legacy-unmigratable local stores. It verifies corruption-only
   quarantine, legacy migration rescue for generic SwiftData migration failures,
@@ -1124,16 +1126,19 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     must reuse the V45 checksum representative for unchanged local-scan,
     captured-media, and collection models, while V45 and V46 recent plans must
     keep those sources isolated from each other and route directly to V49 before
-    the shared lightweight V49→V50 stage. The full historical plan must remain a
-    single linear chain through V42→V49→active V50; V43...V48 belong only to
-    source-isolated plans. V49 must select a dedicated `[V49, active V50]` plan,
-    and V50 must select the current-store no-plan path. The source guardrail
-    must preserve retry order as current store, V49, V48, then V47 through V42;
-    checking only that every label exists is insufficient. Disk-backed SwiftData
-    migration tests should use unique temporary store URLs and must not unlink
-    the `.sqlite`, `.sqlite-shm`, or `.sqlite-wal` files during the test
-    process. Core Data may keep those file descriptors alive after the visible
-    `ModelContainer` scope ends; deleting them in-process can surface as sqlite
+    the shared V49→V50→V51 tail. The full historical plan must remain a single
+    linear chain through V42→V49→frozen V50→V51; V43...V48 belong only to
+    source-isolated plans. V49 must select a dedicated `[V49, frozen V50, V51]`
+    plan, and V50 must select `[frozen V50, V51]`. The source guardrail must
+    preserve retry order as current store, V50, V49, V48, then V47 through V42;
+    checking only that every label exists is insufficient. It must also keep the
+    V35...V48 `UserSpeciesPreference` aliases chained to the immutable V34
+    model; pointing any retired schema at the active V51 type rewrites that
+    source schema's checksum. Disk-backed SwiftData migration tests should use
+    unique temporary store URLs and must not unlink the `.sqlite`,
+    `.sqlite-shm`, or `.sqlite-wal` files during the test process. Core Data may
+    keep those file descriptors alive after the visible `ModelContainer` scope
+    ends; deleting them in-process can surface as sqlite
     `vnode unlinked while in use` traps in later tests. The workflow's Swift
     package cache key depends on the checked-in
     `Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
@@ -1678,25 +1683,29 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   normalized persistence, explicit reload behavior, and external-change
   observation; `KeyedPreferenceStoreTests` owns Explore-share and field-note
   normalization plus prefix isolation; `SpeciesPreferredNameStoreTests` owns
-  legacy species scoping, safe clearing, pending-delete values, and sync
-  diagnostics; `AccountScopedPreferencesTests` locks the direct account-cache
+  fail-closed device-global cleanup plus account-partitioned pending-delete and
+  sync-diagnostic values, normalized duplicate markers, and monotonic delete
+  generations; `AccountScopedPreferencesTests` locks the direct account-cache
   key/prefix inventory, read-back erasure, preservation of device settings, and
   exact process-state reset delegation; and `PreferencesArchitectureTests` locks
   the exact extracted-file production inventory, declaration ownership,
   dependency exclusions, and 600-line extracted-owner ceiling.
 - **`Core/Data/SpeciesPreferences` suites**:
-  `SpeciesPreferredNameRepositoryTests` retains the SwiftData CRUD, migration,
-  display-map, and conflict-policy coverage formerly embedded in
-  `AppDIContainerTests`; `SpeciesPreferenceCloudModelsTests` locks the exact
-  decoded row and explicit-null upsert shape;
-  `SpeciesPreferredNameCloudSyncCoordinatorTests` uses an injected client,
-  clock, page size, and account leases to cover push, pagination, remote
-  application, freshness, future-clock recovery, unavailable/failing sessions,
-  post-upsert account invalidation, confirmed and equal-time tombstones,
-  recovery, and deterministic trailing reconciliation;
-  `SpeciesPreferredNameCloudCanonicalizationTests` proves malformed local and
-  remote whitespace aliases select one newest normalized row without a
-  dictionary-key trap or duplicate upsert; and
+  `SpeciesPreferredNameRepositoryTests` retains account-isolated SwiftData CRUD,
+  legacy discard, display-map, resource-limit, and conflict-policy coverage
+  formerly embedded in `AppDIContainerTests`;
+  `SpeciesPreferenceCloudModelsTests` locks the exact decoded row and
+  explicit-null upsert shape; `SpeciesPreferredNameCloudSyncCoordinatorTests`
+  uses an injected client, clock, page size, resource limit, and account leases
+  to cover push, mutation-safe keyset pagination, remote and pending-union
+  overflow, account-specific and last-outcome-aware freshness, remote
+  application, future-clock recovery, unavailable/failing sessions, post-upsert
+  account invalidation, confirmed and equal-time tombstones, interrupted local
+  mutation repair, monotonic tombstone acknowledgement, post-upsert local-edit
+  fencing and local-state refetching, and force-preserving trailing
+  reconciliation; `SpeciesPreferredNameCloudCanonicalizationTests` proves
+  malformed local and remote whitespace aliases select one newest normalized row
+  without a dictionary-key trap or duplicate upsert; and
   `SpeciesPreferencesArchitectureTests` freezes file and declaration ownership,
   imports, Supabase resolution, endpoint strings, deterministic page order, and
   the 600-line production-file ceiling. `ScanRepositoryPurgeTests` exercises the
@@ -1704,6 +1713,17 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   explicit purge type inventory with `CurrentSchema.models` and the repository's
   actual delete calls so a later schema addition or implementation omission
   cannot silently survive account deletion.
+- **`Core/Network/Inference/InferenceIdentificationReviewServiceTests.swift`**:
+  Locks the Species Dictionary PostgREST projection, explicit-null review RPC
+  payload, and typed injected handler surface. `InferenceArchitectureTests` and
+  `CoreNetworkIntegrationArchitectureTests` keep Supabase query/RPC ownership in
+  that service and the live instance in `AppDIContainer`.
+- **`speciesPreferenceRLSMigrationContract.test.ts` and
+  `services/supabase/tests/species_preference_rls_security.sql`**: Lock the
+  forward migration's policy/grant source and prove the preference table's
+  authenticated owner isolation, foreign-write rejection, anonymous denial,
+  least-privilege table grants, and 200-character constraint against a migrated
+  disposable database.
 - **`ToastPayloadTests.swift`**: Locks typed title/body splitting, severity and
   action identity, plus a fresh presentation UUID when equivalent copy replaces
   an existing toast. It also proves milestone suppression applies only when the
@@ -1928,7 +1948,7 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   creation, membership mutation, explicit pre-mutation restoration before
   rollback for every mutation kind, and exact
   save-before-invalidation-before-sync ordering. The
-  `testDeleteUsesDurableSyncBoundary` case verifies the active V50
+  `testDeleteUsesDurableSyncBoundary` case verifies the active V51
   `ScanCollection.isPendingDeletion` save-first tombstone boundary and must
   remain enabled; it is a release-blocking regression if it fails.
 - **`CollectionsViewModelTests.swift`**
@@ -3010,15 +3030,14 @@ Generated-project membership must include every Swift file below both mirrored
 Collections directories, and each production Collections file must remain under
 the feature's 600-line review guard.
 
-The V50 matrix keeps the durable-delete regression enabled. It verifies that the
+The V51 matrix keeps the durable-delete regression enabled. It verifies that the
 renamed application tombstone survives `ModelContext.save()`, refetch, disk
-migration from V49, released-V50 reopening, and a second context, while the V50
-fixture graph remains frozen. Run the complete `MigrationPlanTests` suite with
-the disk-backed V49 → V50 migration and released-V50 current-store fixtures, the
-focused Collections suites without exclusions, startup recovery coverage, and
-the full `merianTests` target. Any duplicate-checksum initialization failure
-remains a release blocker and must be fixed in the migration plan rather than
-bypassed.
+migration from V49, released-V50 migration into V51, and a second context, while
+the V50 fixture graph remains frozen. Run the complete `MigrationPlanTests`
+suite with the disk-backed V49→V50→V51 and V50→V51 fixtures, the focused
+Collections suites without exclusions, startup recovery coverage, and the full
+`merianTests` target. Any duplicate-checksum initialization failure remains a
+release blocker and must be fixed in the migration plan rather than bypassed.
 
 ### Scans Non-Biological
 
@@ -3572,10 +3591,11 @@ or supporting-run timestamps older than 30 days, prevents artifact reuse across
 criteria, and checks live branch/environment protections. The manual evidence
 workflow passes `${{ inputs.* }}` through step environment variables before Bash
 consumes them; direct expression interpolation in a `run` script is a
-workflow-security regression. A genuine released-binary V49→V50 physical
-install-over and the canonical external consent/App Store/billing/DPA evidence
-must also pass. Artifact integrity does not authenticate an off-platform issuer
-or establish independent secret administration; follow the
+workflow-security regression. The historical genuine released-binary V49→V50
+baseline, the current V50→V51 physical install-over, and the canonical external
+consent/App Store/billing/DPA evidence must also pass. Artifact integrity does
+not authenticate an off-platform issuer or establish independent secret
+administration; follow the
 [release-evidence operations guide](../release-evidence/README.md) and keep the
 hold active if those external controls cannot be verified.
 

@@ -58,7 +58,7 @@ when they affect product direction, and are clearly labeled.
 | iOS archive build baseline | 275                      |
 | Minimum iOS deployment     | iOS 17.2                 |
 | Device family              | iPhone                   |
-| SwiftData schema           | MerianActiveSchemaV50    |
+| SwiftData schema           | MerianSchemaV51          |
 | Local Supabase Postgres    | 17                       |
 | Website                    | https://naturebook.earth |
 | Support                    | support@naturebook.earth |
@@ -116,7 +116,7 @@ targets, bundle identifiers, app group, SwiftData schema names, backend resource
 names, RevenueCat identifiers, and existing media host remain Merian where
 compatibility depends on them. The main application bundle identifier is
 `app.merian.Merian`, the shared app group is `group.app.merian.shared`, and the
-current schema is `MerianActiveSchemaV50`.
+current schema is `MerianSchemaV51`.
 
 Legacy `merian.earth` links and the `merian://` scheme remain accepted
 compatibility inputs. New links should use `naturebook.earth` and
@@ -1508,30 +1508,30 @@ numbers.
 
 # Appendix A. High-impact correction register
 
-| Stale claim                                               | Repository-aligned correction                                                                                                        |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Product is publicly named Merian.                         | Public product is Naturebook; Merian remains the stable engineering identity.                                                        |
-| Current schema is V45.                                    | Current SwiftData alias is `MerianActiveSchemaV50`; `MerianSchemaV50` remains the immutable released-store fixture.                  |
-| Two free scans are allowed per day.                       | Public policy is one per day; Release and TestFlight use it, while unlimited local-meter overrides are DEBUG-only.                   |
-| New accounts receive a seven-day introductory Pro trial.  | The staged replacement grants every account three lifetime complimentary Pro scans, separate from the daily Flash scan.              |
-| Pro costs $2.99 weekly and $19.99 annually.               | Current fixed display values are $3.99 for a seven-day non-renewing pass and $24.99 annually.                                        |
-| Onboarding is six steps and requests all permissions.     | Current onboarding is Welcome, Camera, Location, Ready; photos and notifications are progressive.                                    |
-| Identification always uses two model calls.               | One primary Gemini call is followed by optional asynchronous enrichment.                                                             |
-| AI output is capped at 1,000 tokens.                      | Current configuration allows up to 8,192 output tokens, with a Pro thinking budget.                                                  |
-| Explore is future, video-feed-first, and reaction-only.   | Explore already includes multiple feeds, map/nearby, rich media, likes, comments, replies, follows, profiles, reports, and blocking. |
-| Field trips are the same as Expedition Mode.              | Field trips organize observations; Expedition Mode is a separate Pro performance profile.                                            |
-| Watch capture is shipped end to end.                      | Watch recording and transfer exist, but the iPhone receiving path is incomplete.                                                     |
-| Free biological media expires after 90 days.              | Biological media is durable for free and Pro users unless deleted or moderated.                                                      |
-| Upgrading moves media from free to Pro storage.           | Existing objects remain in their original storage prefix.                                                                            |
-| Archive Manager rescues expiring media.                   | Archive Manager downloads generated export ZIPs; the former rescue protocol is retired.                                              |
-| GPS remains only on the device.                           | Exact owner location can synchronize; public views consume privacy-projected location.                                               |
-| The product has complete localization.                    | Locale informs identification, but a complete localized UI resource system was not found.                                            |
-| PostHog plus TelemetryDeck provide analytics.             | Analytics is consolidated under PostHog; TelemetryDeck is not a current direct dependency.                                           |
-| Rive powers the core persona experience.                  | Current persona and achievement visuals are asset-based SwiftUI; Rive is not a current direct dependency.                            |
-| The widget is Species of the Day.                         | The implemented WidgetKit surface shows Explore snapshots.                                                                           |
-| Opening Insight automatically idles the camera at 1 FPS.  | Idle hooks exist, but no current sheet-lifecycle wiring was found.                                                                   |
-| Fixed coverage percentages prove release readiness.       | Current CI has meaningful guardrails, but the old percentage claims are not repository-backed.                                       |
-| Historical CAC, LTV, MRR, and margin figures are current. | Financial forecasts require a separate dated model based on actual usage and current vendor costs.                                   |
+| Stale claim                                               | Repository-aligned correction                                                                                                                                      |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Product is publicly named Merian.                         | Public product is Naturebook; Merian remains the stable engineering identity.                                                                                      |
+| Current schema is V45.                                    | Current SwiftData alias is `MerianSchemaV51`; `MerianSchemaV50` remains the immutable released-store fixture and V51 makes preferred species names account-scoped. |
+| Two free scans are allowed per day.                       | Public policy is one per day; Release and TestFlight use it, while unlimited local-meter overrides are DEBUG-only.                                                 |
+| New accounts receive a seven-day introductory Pro trial.  | The staged replacement grants every account three lifetime complimentary Pro scans, separate from the daily Flash scan.                                            |
+| Pro costs $2.99 weekly and $19.99 annually.               | Current fixed display values are $3.99 for a seven-day non-renewing pass and $24.99 annually.                                                                      |
+| Onboarding is six steps and requests all permissions.     | Current onboarding is Welcome, Camera, Location, Ready; photos and notifications are progressive.                                                                  |
+| Identification always uses two model calls.               | One primary Gemini call is followed by optional asynchronous enrichment.                                                                                           |
+| AI output is capped at 1,000 tokens.                      | Current configuration allows up to 8,192 output tokens, with a Pro thinking budget.                                                                                |
+| Explore is future, video-feed-first, and reaction-only.   | Explore already includes multiple feeds, map/nearby, rich media, likes, comments, replies, follows, profiles, reports, and blocking.                               |
+| Field trips are the same as Expedition Mode.              | Field trips organize observations; Expedition Mode is a separate Pro performance profile.                                                                          |
+| Watch capture is shipped end to end.                      | Watch recording and transfer exist, but the iPhone receiving path is incomplete.                                                                                   |
+| Free biological media expires after 90 days.              | Biological media is durable for free and Pro users unless deleted or moderated.                                                                                    |
+| Upgrading moves media from free to Pro storage.           | Existing objects remain in their original storage prefix.                                                                                                          |
+| Archive Manager rescues expiring media.                   | Archive Manager downloads generated export ZIPs; the former rescue protocol is retired.                                                                            |
+| GPS remains only on the device.                           | Exact owner location can synchronize; public views consume privacy-projected location.                                                                             |
+| The product has complete localization.                    | Locale informs identification, but a complete localized UI resource system was not found.                                                                          |
+| PostHog plus TelemetryDeck provide analytics.             | Analytics is consolidated under PostHog; TelemetryDeck is not a current direct dependency.                                                                         |
+| Rive powers the core persona experience.                  | Current persona and achievement visuals are asset-based SwiftUI; Rive is not a current direct dependency.                                                          |
+| The widget is Species of the Day.                         | The implemented WidgetKit surface shows Explore snapshots.                                                                                                         |
+| Opening Insight automatically idles the camera at 1 FPS.  | Idle hooks exist, but no current sheet-lifecycle wiring was found.                                                                                                 |
+| Fixed coverage percentages prove release readiness.       | Current CI has meaningful guardrails, but the old percentage claims are not repository-backed.                                                                     |
+| Historical CAC, LTV, MRR, and margin figures are current. | Financial forecasts require a separate dated model based on actual usage and current vendor costs.                                                                 |
 
 # Appendix B. Repository source map
 

@@ -13,6 +13,7 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
     private struct PendingRequest {
         let modelContext: ModelContext
         let legacyDefaults: UserDefaults
+        let force: Bool
     }
 
     private let client: SpeciesPreferredNameCloudClient
@@ -59,13 +60,10 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
         if let activeTask {
             pendingRequest = PendingRequest(
                 modelContext: modelContext,
-                legacyDefaults: legacyDefaults
+                legacyDefaults: legacyDefaults,
+                force: force || pendingRequest?.force == true
             )
             return await activeTask.value
-        }
-        guard force || !hasFreshCleanSync(legacyDefaults: legacyDefaults)
-        else {
-            return true
         }
 
         let task = Task { @MainActor [self] in
@@ -76,11 +74,13 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
 
             var nextModelContext = modelContext
             var nextLegacyDefaults = legacyDefaults
+            var shouldForce = force
 
             while true {
                 let latestResult = await performSync(
                     modelContext: nextModelContext,
-                    legacyDefaults: nextLegacyDefaults
+                    legacyDefaults: nextLegacyDefaults,
+                    force: shouldForce
                 )
 
                 guard let request = pendingRequest else {
@@ -89,6 +89,7 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
 
                 nextModelContext = request.modelContext
                 nextLegacyDefaults = request.legacyDefaults
+                shouldForce = request.force
                 pendingRequest = nil
             }
         }
@@ -96,15 +97,22 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
         return await task.value
     }
 
-    private func hasFreshCleanSync(legacyDefaults: UserDefaults) -> Bool {
+    private func hasFreshCleanSync(
+        ownerUserID: UUID,
+        legacyDefaults: UserDefaults
+    ) -> Bool {
         guard SpeciesPreferredNameStore.pendingDeleteDates(
+            ownerUserID: ownerUserID,
             userDefaults: legacyDefaults
         ).isEmpty else {
             return false
         }
-        guard let lastSuccessAt = SpeciesPreferredNameStore.syncDiagnostics(
+        let diagnostics = SpeciesPreferredNameStore.syncDiagnostics(
+            ownerUserID: ownerUserID,
             userDefaults: legacyDefaults
-        ).lastSuccessAt else {
+        )
+        guard diagnostics.status == .success,
+              let lastSuccessAt = diagnostics.lastSuccessAt else {
             return false
         }
         let elapsed = now().timeIntervalSince(lastSuccessAt)
@@ -113,41 +121,64 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
 
     private func performSync(
         modelContext: ModelContext,
-        legacyDefaults: UserDefaults
+        legacyDefaults: UserDefaults,
+        force: Bool
     ) async -> Bool {
-        SpeciesPreferredNameStore.recordSyncAttempt(
-            at: now(),
-            userDefaults: legacyDefaults
-        )
-
         guard let accountWorkLease = try? client.beginAccountWork() else {
-            SpeciesPreferredNameStore.recordSyncSkip(
-                "No stable authenticated Supabase session.",
-                at: now(),
-                userDefaults: legacyDefaults
-            )
             return false
         }
         defer {
             client.finishAccountWork(accountWorkLease)
         }
-        let userID = accountWorkLease.session.userID.uuidString
+        let ownerUserID = accountWorkLease.session.userID
+        let userID = ownerUserID.uuidString
+
+        guard force || !hasFreshCleanSync(
+            ownerUserID: ownerUserID,
+            legacyDefaults: legacyDefaults
+        ) else {
+            return true
+        }
+        SpeciesPreferredNameStore.recordSyncAttempt(
+            ownerUserID: ownerUserID,
+            at: now(),
+            userDefaults: legacyDefaults
+        )
 
         do {
-            let localPreferences = try canonicalLocalPreferences(
-                fetchAllPreferences(modelContext: modelContext)
-            )
-            let pendingDeletes = SpeciesPreferredNameStore.pendingDeleteDates(
-                userDefaults: legacyDefaults
-            )
             let remoteRows = try await fetchRemotePreferences(
                 userID: userID,
                 accountWorkLease: accountWorkLease
             )
             try requireCurrentAccountWork(accountWorkLease)
 
+            var localPreferences = try canonicalLocalPreferences(
+                fetchAllPreferences(
+                    ownerUserID: ownerUserID,
+                    modelContext: modelContext
+                )
+            )
+            var pendingDeletes = SpeciesPreferredNameStore.pendingDeleteDates(
+                ownerUserID: ownerUserID,
+                userDefaults: legacyDefaults
+            )
+
             let remoteByScientificName = canonicalRemotePreferences(
                 remoteRows
+            )
+            try SpeciesPreferenceLocalRecovery.requireWithinLimit(
+                localPreferences: localPreferences,
+                remoteScientificNames: Set(remoteByScientificName.keys),
+                pendingDeletes: pendingDeletes,
+                maximumCount: maximumLocalPreferenceCount
+            )
+
+            localPreferences = try SpeciesPreferenceLocalRecovery.recover(
+                localPreferences: localPreferences,
+                pendingDeletes: &pendingDeletes,
+                ownerUserID: ownerUserID,
+                modelContext: modelContext,
+                legacyDefaults: legacyDefaults
             )
 
             let activeUpserts = activeCloudUpserts(
@@ -167,11 +198,41 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
                 try requireCurrentAccountWork(accountWorkLease)
 
                 for upsert in deleteUpserts {
+                    guard let capturedDeleteDate = pendingDeletes[
+                        upsert.scientific_name
+                    ] else {
+                        continue
+                    }
                     SpeciesPreferredNameStore.clearPendingCloudDelete(
                         for: upsert.scientific_name,
+                        ownerUserID: ownerUserID,
+                        ifNotNewerThan: capturedDeleteDate,
                         userDefaults: legacyDefaults
                     )
                 }
+
+                // The upsert suspension can overlap a local edit. Refresh the
+                // local snapshot before applying the earlier remote response so
+                // stale reconciliation cannot overwrite that edit.
+                localPreferences = try canonicalLocalPreferences(
+                    fetchAllPreferences(
+                        ownerUserID: ownerUserID,
+                        modelContext: modelContext
+                    )
+                )
+                pendingDeletes = SpeciesPreferredNameStore.pendingDeleteDates(
+                    ownerUserID: ownerUserID,
+                    userDefaults: legacyDefaults
+                )
+                try SpeciesPreferenceLocalRecovery
+                    .requireWithinLimit(
+                        localPreferences: localPreferences,
+                        remoteScientificNames: Set(
+                            remoteByScientificName.keys
+                        ),
+                        pendingDeletes: pendingDeletes,
+                        maximumCount: maximumLocalPreferenceCount
+                    )
             }
 
             try requireCurrentAccountWork(accountWorkLease)
@@ -179,10 +240,12 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
                 Array(remoteByScientificName.values),
                 localPreferences: localPreferences,
                 pendingDeletes: pendingDeletes,
+                ownerUserID: ownerUserID,
                 modelContext: modelContext,
                 legacyDefaults: legacyDefaults
             )
             SpeciesPreferredNameStore.recordSyncSuccess(
+                ownerUserID: ownerUserID,
                 at: now(),
                 pushedCount: upserts.count,
                 pulledCount: remoteRows.count,
@@ -196,6 +259,7 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
         } catch {
             SpeciesPreferredNameStore.recordSyncFailure(
                 error.localizedDescription,
+                ownerUserID: ownerUserID,
                 at: now(),
                 userDefaults: legacyDefaults
             )
@@ -215,15 +279,25 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
     }
 
     private func fetchAllPreferences(
+        ownerUserID: UUID,
         modelContext: ModelContext
     ) throws -> [UserSpeciesPreference] {
+        let ownerID = ownerUserID.uuidString.lowercased()
         var descriptor = FetchDescriptor<UserSpeciesPreference>(
+            predicate: #Predicate { $0.ownerUserId == ownerID },
             sortBy: [SortDescriptor(\.updatedAt, order: .forward)]
         )
-        descriptor.fetchLimit = maximumLocalPreferenceCount
+        descriptor.fetchLimit = maximumLocalPreferenceCount + 1
 
         do {
-            return try modelContext.fetch(descriptor)
+            let preferences = try modelContext.fetch(descriptor)
+            guard preferences.count <= maximumLocalPreferenceCount else {
+                throw SpeciesPreferenceCloudSyncError
+                    .preferenceLimitExceeded(
+                        limit: maximumLocalPreferenceCount
+                    )
+            }
+            return preferences
         } catch {
             MerianLog.data.error(
                 "Failed to fetch local species preferred names for cloud sync: \(error.localizedDescription, privacy: .private)"
@@ -289,18 +363,35 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
         var rows: [SpeciesPreferenceCloudRow] = []
         rows.reserveCapacity(pageSize)
 
-        var offset = 0
+        var cursor: String?
         while true {
+            let remainingCapacity = maximumLocalPreferenceCount + 1
+                - rows.count
+            let requestSize = min(pageSize, remainingCapacity)
             let page = try await client.fetchPage(
-                userID: userID,
-                offset: offset,
-                pageSize: pageSize
+                SpeciesPreferenceCloudPageRequest(
+                    userID: userID,
+                    afterScientificName: cursor,
+                    pageSize: requestSize
+                )
             )
             try requireCurrentAccountWork(accountWorkLease)
 
             rows.append(contentsOf: page)
-            if page.count < pageSize { break }
-            offset += pageSize
+            guard rows.count <= maximumLocalPreferenceCount else {
+                throw SpeciesPreferenceCloudSyncError
+                    .preferenceLimitExceeded(
+                        limit: maximumLocalPreferenceCount
+                    )
+            }
+            if page.count < requestSize { break }
+
+            guard let nextCursor = page.last?.scientific_name,
+                  nextCursor != cursor else {
+                throw SpeciesPreferenceCloudSyncError
+                    .invalidPaginationCursor
+            }
+            cursor = nextCursor
         }
 
         return rows
@@ -369,6 +460,7 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
         _ remoteRows: [SpeciesPreferenceCloudRow],
         localPreferences: [UserSpeciesPreference],
         pendingDeletes: [String: Date],
+        ownerUserID: UUID,
         modelContext: ModelContext,
         legacyDefaults: UserDefaults
     ) throws {
@@ -382,7 +474,6 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
             localByScientificName[scientificName] = preference
         }
         var didMutate = false
-        var legacyNamesToClear: Set<String> = []
         var pendingDeletesToClear: Set<String> = []
 
         for remote in remoteRows {
@@ -403,7 +494,6 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
                     localByScientificName.removeValue(
                         forKey: scientificName
                     )
-                    legacyNamesToClear.insert(scientificName)
                     didMutate = true
                 }
                 pendingDeletesToClear.insert(scientificName)
@@ -424,7 +514,6 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
                 if SpeciesPreferredNamePolicy.normalizedPreferredName(
                     localPreference.preferredCommonName
                 ) == remotePreferredName {
-                    legacyNamesToClear.insert(scientificName)
                     pendingDeletesToClear.insert(scientificName)
                     continue
                 }
@@ -435,6 +524,7 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
                 localPreference.updatedAt = remoteUpdatedAt
             } else {
                 let preference = UserSpeciesPreference(
+                    ownerUserID: ownerUserID,
                     scientificName: scientificName,
                     preferredCommonName: remotePreferredName,
                     updatedAt: remoteUpdatedAt
@@ -442,7 +532,6 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
                 modelContext.insert(preference)
                 localByScientificName[scientificName] = preference
             }
-            legacyNamesToClear.insert(scientificName)
             pendingDeletesToClear.insert(scientificName)
             didMutate = true
         }
@@ -459,15 +548,15 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
             }
         }
 
-        for scientificName in legacyNamesToClear {
-            SpeciesPreferredNameStore.clearPreferredName(
-                for: scientificName,
-                userDefaults: legacyDefaults
-            )
-        }
         for scientificName in pendingDeletesToClear {
+            guard let capturedDeleteDate = pendingDeletes[scientificName]
+            else {
+                continue
+            }
             SpeciesPreferredNameStore.clearPendingCloudDelete(
                 for: scientificName,
+                ownerUserID: ownerUserID,
+                ifNotNewerThan: capturedDeleteDate,
                 userDefaults: legacyDefaults
             )
         }

@@ -56,8 +56,15 @@ This README maps that contract to native source and test ownership.
   engine supplies validation before and after the actor call. A confidence-zero
   response still reaches presentation and queue completion only when the actor
   proves terminal completion. The service has no retained request/task state or
-  presentation, queue, discovery, or notification effects. AppDI owns both live
-  request and result service values.
+  presentation, queue, discovery, or notification effects.
+- `Core/Network/Inference/InferenceIdentificationReviewService.swift` owns the
+  typed `species_dictionary` projections and
+  `update_owned_scan_identification_review` RPC mutation used by review flows.
+  Every live operation acquires and finishes an account-work lease and rejects a
+  result after an account transition. `InferenceEngine` retains task/action
+  generations, presentation, local persistence, and post-success effects; it
+  contains no direct Supabase query or RPC. `AppDIContainer` composes this
+  service alongside the live request and result services.
 - `Inference/Result/InferenceScanReplacement.swift` owns the synchronous
   reanalysis metadata safety boundary. Only a typed persisted outcome with
   distinct, non-empty scan IDs and a replacement visible in a fresh store

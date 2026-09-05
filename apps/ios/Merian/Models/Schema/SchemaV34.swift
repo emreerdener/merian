@@ -10,13 +10,13 @@ import SwiftData
 //
 //   UserSpeciesPreference (new entity)
 //     SwiftData-backed store for the user's preferred display name per species,
-//     keyed by scientificName. Current production reads/writes flow through
-//     SpeciesPreferredNameRepository. Legacy per-species UserDefaults keys are
-//     promoted at startup and removed after a successful SwiftData save.
+//     keyed by scientificName. V34 initially promoted legacy per-species
+//     UserDefaults keys into this device-global entity. V51 replaces that
+//     behavior with account-scoped rows and discards unowned legacy values.
 //     Also provides the unique checksum anchor distinguishing V34 from V33
 //     (V34 has one more entity in its model set).
 //
-// NOTE: References global model types — freeze when V35 is created.
+// NOTE: The preference entity is the frozen root reused by V35...V48.
 enum MerianSchemaV34: VersionedSchema {
     static var versionIdentifier = Schema.Version(34, 0, 0)
 

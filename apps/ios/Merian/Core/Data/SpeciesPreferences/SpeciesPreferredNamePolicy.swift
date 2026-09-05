@@ -2,6 +2,7 @@ import Foundation
 
 enum SpeciesPreferredNameResourceLimits {
     static let maximumLocalPreferenceCount = 1_000
+    static let maximumPreferredNameLength = 200
     static let cloudSyncPageSize = 500
     static let cleanCloudSyncFreshnessInterval: TimeInterval = 60
 }
@@ -14,7 +15,13 @@ enum SpeciesPreferredNamePolicy {
 
     static func normalizedPreferredName(_ name: String?) -> String? {
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed?.isEmpty == false ? trimmed : nil
+        guard let trimmed,
+              !trimmed.isEmpty,
+              trimmed.unicodeScalars.count <= SpeciesPreferredNameResourceLimits
+                .maximumPreferredNameLength else {
+            return nil
+        }
+        return trimmed
     }
 
     static func cloudString(_ date: Date) -> String {

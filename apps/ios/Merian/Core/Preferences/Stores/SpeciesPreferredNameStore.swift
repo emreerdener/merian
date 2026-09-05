@@ -16,12 +16,46 @@ struct SpeciesPreferredNameSyncDiagnostics: Equatable, Sendable {
     let lastPulledCount: Int
 }
 
+/// Owns preferred-name migration residue and account-scoped sync metadata.
+///
+/// Preferred names themselves live in SwiftData. The old device-global name,
+/// tombstone, and diagnostics keys are read only for deterministic removal;
+/// they are never adopted by whichever account signs in next.
 enum SpeciesPreferredNameStore {
-    private static func key(for scientificName: String) -> String {
+    private static let accountScopedPrefixes = [
+        UserDefaultsKeys.pendingSpeciesPreferredNameDeletesV2Prefix,
+        UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAtV2Prefix,
+        UserDefaultsKeys.speciesPreferredNameSyncLastSuccessAtV2Prefix,
+        UserDefaultsKeys.speciesPreferredNameSyncStatusV2Prefix,
+        UserDefaultsKeys.speciesPreferredNameSyncMessageV2Prefix,
+        UserDefaultsKeys.speciesPreferredNameSyncLastPushedCountV2Prefix,
+        UserDefaultsKeys.speciesPreferredNameSyncLastPulledCountV2Prefix
+    ]
+
+    private static let legacySingletonKeys = [
+        UserDefaultsKeys.pendingSpeciesPreferredNameDeletes,
+        UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAt,
+        UserDefaultsKeys.speciesPreferredNameSyncLastSuccessAt,
+        UserDefaultsKeys.speciesPreferredNameSyncStatus,
+        UserDefaultsKeys.speciesPreferredNameSyncMessage,
+        UserDefaultsKeys.speciesPreferredNameSyncLastPushedCount,
+        UserDefaultsKeys.speciesPreferredNameSyncLastPulledCount
+    ]
+
+    private static func legacyNameKey(for scientificName: String) -> String {
         UserDefaultsKeys.speciesPreferredNamePrefix + scientificName
     }
 
-    static func legacyPreferences(userDefaults: UserDefaults = .standard) -> [String: String] {
+    private static func accountKey(
+        prefix: String,
+        ownerUserID: UUID
+    ) -> String {
+        prefix + ownerUserID.uuidString.lowercased()
+    }
+
+    static func legacyPreferences(
+        userDefaults: UserDefaults = .standard
+    ) -> [String: String] {
         let prefix = UserDefaultsKeys.speciesPreferredNamePrefix
         var preferences: [String: String] = [:]
 
@@ -32,196 +66,358 @@ enum SpeciesPreferredNameStore {
             let preferredName = (value as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
-            guard !scientificName.isEmpty, let preferredName, !preferredName.isEmpty else {
+            guard !scientificName.isEmpty,
+                  let preferredName,
+                  !preferredName.isEmpty else {
                 continue
             }
-
             preferences[scientificName] = preferredName
         }
-
         return preferences
     }
 
-    static func preferredName(for scientificName: String, userDefaults: UserDefaults = .standard) -> String? {
-        guard !scientificName.isEmpty else { return nil }
-        let value = userDefaults.string(forKey: key(for: scientificName))?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (value?.isEmpty == false) ? value : nil
-    }
-
-    static func setPreferredName(_ name: String?, for scientificName: String, userDefaults: UserDefaults = .standard) {
+    static func setLegacyPreferredName(
+        _ name: String?,
+        for scientificName: String,
+        userDefaults: UserDefaults = .standard
+    ) {
         guard !scientificName.isEmpty else { return }
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key = legacyNameKey(for: scientificName)
         if let name, trimmed?.isEmpty == false {
-            userDefaults.set(name, forKey: key(for: scientificName))
+            userDefaults.set(name, forKey: key)
         } else {
-            userDefaults.removeObject(forKey: key(for: scientificName))
+            userDefaults.removeObject(forKey: key)
         }
     }
 
-    static func clearPreferredName(for scientificName: String, userDefaults: UserDefaults = .standard) {
-        setPreferredName(nil, for: scientificName, userDefaults: userDefaults)
-    }
-
-    static func clearAll(userDefaults: UserDefaults = .standard) {
+    static func discardLegacyUnscopedData(
+        userDefaults: UserDefaults = .standard
+    ) {
         for key in userDefaults.dictionaryRepresentation().keys
         where key.hasPrefix(UserDefaultsKeys.speciesPreferredNamePrefix) {
             userDefaults.removeObject(forKey: key)
         }
+        legacySingletonKeys.forEach(userDefaults.removeObject(forKey:))
     }
 
     static func clearAllAccountData(
         userDefaults: UserDefaults = .standard
     ) {
-        clearAll(userDefaults: userDefaults)
-        userDefaults.removeObject(
-            forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes
-        )
-        clearSyncDiagnostics(userDefaults: userDefaults)
+        discardLegacyUnscopedData(userDefaults: userDefaults)
+        for key in userDefaults.dictionaryRepresentation().keys
+        where accountScopedPrefixes.contains(where: key.hasPrefix) {
+            userDefaults.removeObject(forKey: key)
+        }
     }
 
     static func hasStoredAccountData(
         userDefaults: UserDefaults = .standard
     ) -> Bool {
-        if userDefaults.dictionaryRepresentation().keys.contains(where: {
-            $0.hasPrefix(UserDefaultsKeys.speciesPreferredNamePrefix)
-        }) {
-            return true
+        userDefaults.dictionaryRepresentation().keys.contains { key in
+            key.hasPrefix(UserDefaultsKeys.speciesPreferredNamePrefix)
+                || legacySingletonKeys.contains(key)
+                || accountScopedPrefixes.contains(where: key.hasPrefix)
         }
-
-        return [
-            UserDefaultsKeys.pendingSpeciesPreferredNameDeletes,
-            UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAt,
-            UserDefaultsKeys.speciesPreferredNameSyncLastSuccessAt,
-            UserDefaultsKeys.speciesPreferredNameSyncStatus,
-            UserDefaultsKeys.speciesPreferredNameSyncMessage,
-            UserDefaultsKeys.speciesPreferredNameSyncLastPushedCount,
-            UserDefaultsKeys.speciesPreferredNameSyncLastPulledCount
-        ].contains { userDefaults.object(forKey: $0) != nil }
     }
 
-    static func pendingDeleteDates(userDefaults: UserDefaults = .standard) -> [String: Date] {
-        let rawValue = userDefaults.dictionary(forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes) ?? [:]
+    static func pendingDeleteDates(
+        ownerUserID: UUID,
+        userDefaults: UserDefaults = .standard
+    ) -> [String: Date] {
+        let rawValue = userDefaults.dictionary(
+            forKey: accountKey(
+                prefix: UserDefaultsKeys
+                    .pendingSpeciesPreferredNameDeletesV2Prefix,
+                ownerUserID: ownerUserID
+            )
+        ) ?? [:]
         var datesByScientificName: [String: Date] = [:]
 
         for (scientificName, value) in rawValue {
-            let normalizedName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedName = scientificName.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
             guard !normalizedName.isEmpty else { continue }
-
+            let date: Date?
             if let timestamp = value as? Double {
-                datesByScientificName[normalizedName] = Date(timeIntervalSince1970: timestamp)
-            } else if let date = value as? Date {
-                datesByScientificName[normalizedName] = date
+                date = Date(timeIntervalSince1970: timestamp)
+            } else {
+                date = value as? Date
             }
+            guard let date,
+                  datesByScientificName[normalizedName].map({ $0 >= date })
+                    != true else {
+                continue
+            }
+            datesByScientificName[normalizedName] = date
         }
-
         return datesByScientificName
     }
 
     static func markPendingCloudDelete(
         for scientificName: String,
+        ownerUserID: UUID,
         at date: Date = Date(),
         userDefaults: UserDefaults = .standard
     ) {
-        let scientificName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scientificName = scientificName.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
         guard !scientificName.isEmpty else { return }
 
-        var rawValue = pendingDeleteDates(userDefaults: userDefaults)
-            .mapValues(\.timeIntervalSince1970)
-        rawValue[scientificName] = date.timeIntervalSince1970
-        userDefaults.set(rawValue, forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes)
+        var rawValue = pendingDeleteDates(
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
+        ).mapValues(\.timeIntervalSince1970)
+        let existingTimestamp = rawValue[scientificName]
+        rawValue[scientificName] = max(
+            existingTimestamp ?? -Double.greatestFiniteMagnitude,
+            date.timeIntervalSince1970
+        )
+        userDefaults.set(
+            rawValue,
+            forKey: accountKey(
+                prefix: UserDefaultsKeys
+                    .pendingSpeciesPreferredNameDeletesV2Prefix,
+                ownerUserID: ownerUserID
+            )
+        )
     }
 
     static func clearPendingCloudDelete(
         for scientificName: String,
+        ownerUserID: UUID,
+        ifNotNewerThan capturedDate: Date? = nil,
         userDefaults: UserDefaults = .standard
     ) {
-        let scientificName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scientificName = scientificName.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
         guard !scientificName.isEmpty else { return }
 
-        var rawValue = pendingDeleteDates(userDefaults: userDefaults)
-            .mapValues(\.timeIntervalSince1970)
+        let key = accountKey(
+            prefix: UserDefaultsKeys
+                .pendingSpeciesPreferredNameDeletesV2Prefix,
+            ownerUserID: ownerUserID
+        )
+        var rawValue = pendingDeleteDates(
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
+        ).mapValues(\.timeIntervalSince1970)
+        if let capturedDate,
+           let currentTimestamp = rawValue[scientificName],
+           currentTimestamp > capturedDate.timeIntervalSince1970 {
+            return
+        }
         rawValue.removeValue(forKey: scientificName)
-
         if rawValue.isEmpty {
-            userDefaults.removeObject(forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes)
+            userDefaults.removeObject(forKey: key)
         } else {
-            userDefaults.set(rawValue, forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes)
+            userDefaults.set(rawValue, forKey: key)
         }
     }
 
-    static func syncDiagnostics(userDefaults: UserDefaults = .standard) -> SpeciesPreferredNameSyncDiagnostics {
-        let status = userDefaults.string(forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus)
-            .flatMap(SpeciesPreferredNameSyncDiagnostics.Status.init(rawValue:))
+    static func syncDiagnostics(
+        ownerUserID: UUID,
+        userDefaults: UserDefaults = .standard
+    ) -> SpeciesPreferredNameSyncDiagnostics {
+        func key(_ prefix: String) -> String {
+            accountKey(prefix: prefix, ownerUserID: ownerUserID)
+        }
+        let status = userDefaults.string(
+            forKey: key(UserDefaultsKeys.speciesPreferredNameSyncStatusV2Prefix)
+        ).flatMap(SpeciesPreferredNameSyncDiagnostics.Status.init(rawValue:))
 
         return SpeciesPreferredNameSyncDiagnostics(
-            lastAttemptAt: userDefaults.object(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAt) as? Date,
-            lastSuccessAt: userDefaults.object(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastSuccessAt) as? Date,
+            lastAttemptAt: userDefaults.object(
+                forKey: key(UserDefaultsKeys
+                    .speciesPreferredNameSyncLastAttemptAtV2Prefix)
+            ) as? Date,
+            lastSuccessAt: userDefaults.object(
+                forKey: key(UserDefaultsKeys
+                    .speciesPreferredNameSyncLastSuccessAtV2Prefix)
+            ) as? Date,
             status: status,
-            message: userDefaults.string(forKey: UserDefaultsKeys.speciesPreferredNameSyncMessage),
-            lastPushedCount: userDefaults.integer(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastPushedCount),
-            lastPulledCount: userDefaults.integer(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastPulledCount)
+            message: userDefaults.string(
+                forKey: key(UserDefaultsKeys
+                    .speciesPreferredNameSyncMessageV2Prefix)
+            ),
+            lastPushedCount: userDefaults.integer(
+                forKey: key(UserDefaultsKeys
+                    .speciesPreferredNameSyncLastPushedCountV2Prefix)
+            ),
+            lastPulledCount: userDefaults.integer(
+                forKey: key(UserDefaultsKeys
+                    .speciesPreferredNameSyncLastPulledCountV2Prefix)
+            )
         )
     }
 
-    static func recordSyncAttempt(at date: Date = Date(), userDefaults: UserDefaults = .standard) {
-        userDefaults.set(date, forKey: UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAt)
-        userDefaults.set(
-            SpeciesPreferredNameSyncDiagnostics.Status.running.rawValue,
-            forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus
+    static func recordSyncAttempt(
+        ownerUserID: UUID,
+        at date: Date = Date(),
+        userDefaults: UserDefaults = .standard
+    ) {
+        set(
+            date,
+            prefix: UserDefaultsKeys
+                .speciesPreferredNameSyncLastAttemptAtV2Prefix,
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
         )
-        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncMessage)
+        set(
+            SpeciesPreferredNameSyncDiagnostics.Status.running.rawValue,
+            prefix: UserDefaultsKeys.speciesPreferredNameSyncStatusV2Prefix,
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
+        )
+        remove(
+            prefix: UserDefaultsKeys.speciesPreferredNameSyncMessageV2Prefix,
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
+        )
     }
 
     static func recordSyncSuccess(
+        ownerUserID: UUID,
         at date: Date = Date(),
         pushedCount: Int,
         pulledCount: Int,
         userDefaults: UserDefaults = .standard
     ) {
-        userDefaults.set(date, forKey: UserDefaultsKeys.speciesPreferredNameSyncLastSuccessAt)
-        userDefaults.set(
-            SpeciesPreferredNameSyncDiagnostics.Status.success.rawValue,
-            forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus
+        set(
+            date,
+            prefix: UserDefaultsKeys
+                .speciesPreferredNameSyncLastSuccessAtV2Prefix,
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
         )
-        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncMessage)
-        userDefaults.set(max(0, pushedCount), forKey: UserDefaultsKeys.speciesPreferredNameSyncLastPushedCount)
-        userDefaults.set(max(0, pulledCount), forKey: UserDefaultsKeys.speciesPreferredNameSyncLastPulledCount)
+        set(
+            SpeciesPreferredNameSyncDiagnostics.Status.success.rawValue,
+            prefix: UserDefaultsKeys.speciesPreferredNameSyncStatusV2Prefix,
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
+        )
+        remove(
+            prefix: UserDefaultsKeys.speciesPreferredNameSyncMessageV2Prefix,
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
+        )
+        set(
+            max(0, pushedCount),
+            prefix: UserDefaultsKeys
+                .speciesPreferredNameSyncLastPushedCountV2Prefix,
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
+        )
+        set(
+            max(0, pulledCount),
+            prefix: UserDefaultsKeys
+                .speciesPreferredNameSyncLastPulledCountV2Prefix,
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
+        )
     }
 
     static func recordSyncFailure(
         _ message: String,
+        ownerUserID: UUID,
         at date: Date = Date(),
         userDefaults: UserDefaults = .standard
     ) {
-        userDefaults.set(date, forKey: UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAt)
-        userDefaults.set(
-            SpeciesPreferredNameSyncDiagnostics.Status.failure.rawValue,
-            forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus
+        recordSyncOutcome(
+            status: .failure,
+            message: message,
+            ownerUserID: ownerUserID,
+            at: date,
+            userDefaults: userDefaults
         )
-        userDefaults.set(normalizedDiagnosticMessage(message), forKey: UserDefaultsKeys.speciesPreferredNameSyncMessage)
     }
 
     static func recordSyncSkip(
         _ reason: String,
+        ownerUserID: UUID,
         at date: Date = Date(),
         userDefaults: UserDefaults = .standard
     ) {
-        userDefaults.set(date, forKey: UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAt)
-        userDefaults.set(
-            SpeciesPreferredNameSyncDiagnostics.Status.skipped.rawValue,
-            forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus
+        recordSyncOutcome(
+            status: .skipped,
+            message: reason,
+            ownerUserID: ownerUserID,
+            at: date,
+            userDefaults: userDefaults
         )
-        userDefaults.set(normalizedDiagnosticMessage(reason), forKey: UserDefaultsKeys.speciesPreferredNameSyncMessage)
     }
 
-    static func clearSyncDiagnostics(userDefaults: UserDefaults = .standard) {
-        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAt)
-        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastSuccessAt)
-        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus)
-        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncMessage)
-        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastPushedCount)
-        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastPulledCount)
+    static func clearSyncDiagnostics(
+        ownerUserID: UUID,
+        userDefaults: UserDefaults = .standard
+    ) {
+        [
+            UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAtV2Prefix,
+            UserDefaultsKeys.speciesPreferredNameSyncLastSuccessAtV2Prefix,
+            UserDefaultsKeys.speciesPreferredNameSyncStatusV2Prefix,
+            UserDefaultsKeys.speciesPreferredNameSyncMessageV2Prefix,
+            UserDefaultsKeys.speciesPreferredNameSyncLastPushedCountV2Prefix,
+            UserDefaultsKeys.speciesPreferredNameSyncLastPulledCountV2Prefix
+        ].forEach {
+            remove(
+                prefix: $0,
+                ownerUserID: ownerUserID,
+                userDefaults: userDefaults
+            )
+        }
+    }
+
+    private static func recordSyncOutcome(
+        status: SpeciesPreferredNameSyncDiagnostics.Status,
+        message: String,
+        ownerUserID: UUID,
+        at date: Date,
+        userDefaults: UserDefaults
+    ) {
+        set(
+            date,
+            prefix: UserDefaultsKeys
+                .speciesPreferredNameSyncLastAttemptAtV2Prefix,
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
+        )
+        set(
+            status.rawValue,
+            prefix: UserDefaultsKeys.speciesPreferredNameSyncStatusV2Prefix,
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
+        )
+        set(
+            normalizedDiagnosticMessage(message),
+            prefix: UserDefaultsKeys.speciesPreferredNameSyncMessageV2Prefix,
+            ownerUserID: ownerUserID,
+            userDefaults: userDefaults
+        )
+    }
+
+    private static func set(
+        _ value: Any,
+        prefix: String,
+        ownerUserID: UUID,
+        userDefaults: UserDefaults
+    ) {
+        userDefaults.set(
+            value,
+            forKey: accountKey(prefix: prefix, ownerUserID: ownerUserID)
+        )
+    }
+
+    private static func remove(
+        prefix: String,
+        ownerUserID: UUID,
+        userDefaults: UserDefaults
+    ) {
+        userDefaults.removeObject(
+            forKey: accountKey(prefix: prefix, ownerUserID: ownerUserID)
+        )
     }
 
     private static func normalizedDiagnosticMessage(_ message: String) -> String {

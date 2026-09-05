@@ -220,7 +220,7 @@ _Enrichment and metadata:_
   outgoing payload actually contains an application tombstone, a successful HTTP
   200 response causes the actor to purge that acknowledged local row. A purge
   save failure rolls back and returns `false`, so `OfflineQueueManager` retains
-  the pending collection job. The active V50 model reads its durable
+  the pending collection job. The active V51 model reads its durable
   `isPendingDeletion` marker, mapped to the released `isDeleted` column, so the
   projection can emit the unchanged `is_deleted` wire value. Callers must use
   the shared collection drain (`syncCollectionsIfPending()` /
@@ -567,7 +567,7 @@ pagination is not part of this upload path. Historical download reconciliation
 remains independently page-bounded because it is ingesting remote scan history
 rather than projecting an existing local relationship.
 
-## 2026-08 Collection Tombstone Boundary (V50)
+## 2026-08 Collection Tombstone Boundary (V51 Current Shape)
 
 The projection and acknowledgement-purge code reads the active
 `ScanCollection.isPendingDeletion` Boolean, which survives `ModelContext.save()`
@@ -578,11 +578,12 @@ upserts while the local marker is set, and acknowledgement-only purge removes
 the row only after the matching delete response succeeds.
 
 The V50 source graph is frozen under `Models/Schema/SchemaV50Snapshots.swift`.
-The active `MerianActiveSchemaV50` owner maps the source name without a
-migration stage, and the disk-backed released-V50 fixture proves true/false
-values and relationship retention when the store opens as current. Keep this
-boundary in the actor and do not synthesize payloads from transient view state
-or hard-delete before server acknowledgement.
+The active V51 model retains the mapped source name; `MerianActiveSchemaV50`
+serves as the source bridge for the separate preferred-name ownership migration.
+The disk-backed released-V50 fixture proves true/false values and relationship
+retention while migrating to V51. Keep this boundary in the actor and do not
+synthesize payloads from transient view state or hard-delete before server
+acknowledgement.
 
 ## 2026-06 Smart Collection Boundary
 

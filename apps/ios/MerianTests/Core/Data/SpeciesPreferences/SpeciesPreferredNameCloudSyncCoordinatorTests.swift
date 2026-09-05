@@ -11,12 +11,6 @@ private enum SpeciesPreferenceCloudTestError: LocalizedError {
     }
 }
 
-private struct CloudPageRequest: Equatable {
-    let userID: String
-    let offset: Int
-    let pageSize: Int
-}
-
 private actor SpeciesPreferenceCloudSyncGate {
     private var didEnter = false
     private var entryWaiters: [CheckedContinuation<Void, Never>] = []
@@ -71,7 +65,7 @@ struct SpeciesNameCloudSyncTests {
         )
         try context.save()
 
-        var requests: [CloudPageRequest] = []
+        var requests: [SpeciesPreferenceCloudPageRequest] = []
         var capturedUpserts: [SpeciesPreferenceCloudUpsert] = []
         var finishCount = 0
         let client = SpeciesPreferredNameCloudClient(
@@ -81,14 +75,8 @@ struct SpeciesNameCloudSyncTests {
                 finishCount += 1
             },
             isAccountWorkCurrent: { $0 == lease },
-            fetchPage: { requestedUserID, offset, pageSize in
-                requests.append(
-                    CloudPageRequest(
-                        userID: requestedUserID,
-                        offset: offset,
-                        pageSize: pageSize
-                    )
-                )
+            fetchPage: { request in
+                requests.append(request)
                 return []
             },
             upsert: { capturedUpserts = $0 }
@@ -108,7 +96,7 @@ struct SpeciesNameCloudSyncTests {
         #expect(didSync)
         #expect(requests.count == 1)
         #expect(requests.first?.userID == userID.uuidString)
-        #expect(requests.first?.offset == 0)
+        #expect(requests.first?.afterScientificName == nil)
         #expect(requests.first?.pageSize == 2)
         #expect(finishCount == 1)
         #expect(
@@ -122,6 +110,7 @@ struct SpeciesNameCloudSyncTests {
             ]
         )
         let diagnostics = SpeciesPreferredNameStore.syncDiagnostics(
+            ownerUserID: userID,
             userDefaults: defaults
         )
         #expect(diagnostics.status == .success)
@@ -152,15 +141,22 @@ struct SpeciesNameCloudSyncTests {
                 updatedAt: "2026-08-01T12:02:00.000Z"
             )
         ]
-        var offsets: [Int] = []
+        var cursors: [String?] = []
         var upsertCallCount = 0
         let client = SpeciesPreferredNameCloudClient(
             beginAccountWork: { lease },
             finishAccountWork: { _ in },
             isAccountWorkCurrent: { _ in true },
-            fetchPage: { _, offset, pageSize in
-                offsets.append(offset)
-                return Array(rows.dropFirst(offset).prefix(pageSize))
+            fetchPage: { request in
+                cursors.append(request.afterScientificName)
+                let startIndex = request.afterScientificName.flatMap { cursor in
+                    rows.firstIndex { $0.scientific_name == cursor }.map {
+                        $0 + 1
+                    }
+                } ?? 0
+                return Array(
+                    rows.dropFirst(startIndex).prefix(request.pageSize)
+                )
             },
             upsert: { _ in upsertCallCount += 1 }
         )
@@ -175,7 +171,9 @@ struct SpeciesNameCloudSyncTests {
             force: true
         ))
 
-        #expect(offsets == [0, 2])
+        #expect(cursors.count == 2)
+        #expect(cursors[0] == nil)
+        #expect(cursors[1] == "Quercus macrocarpa")
         #expect(upsertCallCount == 0)
         #expect(
             try fetchSpeciesPreference(
@@ -191,8 +189,246 @@ struct SpeciesNameCloudSyncTests {
         )
         #expect(
             SpeciesPreferredNameStore.syncDiagnostics(
+                ownerUserID: lease.session.userID,
                 userDefaults: defaults
             ).lastPulledCount == 3
+        )
+    }
+
+    @Test func keysetPaginationDefersRowsInsertedBeforeCursorWithoutDuplicatingPages() async throws {
+        let context = try makeSpeciesPreferenceContext()
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let lease = makeSpeciesPreferenceLease()
+        var remoteRows = [
+            makeSpeciesPreferenceCloudRow(
+                scientificName: "Aquila alpha",
+                preferredName: "Alpha",
+                updatedAt: "2026-08-01T12:00:00.000Z"
+            ),
+            makeSpeciesPreferenceCloudRow(
+                scientificName: "Aquila charlie",
+                preferredName: "Charlie",
+                updatedAt: "2026-08-01T12:00:00.000Z"
+            )
+        ]
+        var cursors: [String?] = []
+        var fetchCount = 0
+        let client = SpeciesPreferredNameCloudClient(
+            beginAccountWork: { lease },
+            finishAccountWork: { _ in },
+            isAccountWorkCurrent: { _ in true },
+            fetchPage: { request in
+                cursors.append(request.afterScientificName)
+                fetchCount += 1
+                let page = remoteRows
+                    .filter { row in
+                        request.afterScientificName.map {
+                            row.scientific_name > $0
+                        } ?? true
+                    }
+                    .prefix(request.pageSize)
+
+                if fetchCount == 1 {
+                    remoteRows = [
+                        remoteRows[0],
+                        makeSpeciesPreferenceCloudRow(
+                            scientificName: "Aquila bravo",
+                            preferredName: "Bravo",
+                            updatedAt: "2026-08-01T12:00:00.000Z"
+                        ),
+                        remoteRows[1],
+                        makeSpeciesPreferenceCloudRow(
+                            scientificName: "Aquila delta",
+                            preferredName: "Delta",
+                            updatedAt: "2026-08-01T12:00:00.000Z"
+                        )
+                    ]
+                }
+                return Array(page)
+            },
+            upsert: { _ in }
+        )
+        let coordinator = SpeciesPreferredNameCloudSyncCoordinator(
+            client: client,
+            pageSize: 2
+        )
+
+        #expect(await coordinator.sync(
+            modelContext: context,
+            legacyDefaults: defaults,
+            force: true
+        ))
+        #expect(cursors == [nil, "Aquila charlie"])
+        #expect(try fetchSpeciesPreference(
+            for: "Aquila alpha",
+            modelContext: context
+        ) != nil)
+        #expect(try fetchSpeciesPreference(
+            for: "Aquila charlie",
+            modelContext: context
+        ) != nil)
+        #expect(try fetchSpeciesPreference(
+            for: "Aquila delta",
+            modelContext: context
+        ) != nil)
+        #expect(try fetchSpeciesPreference(
+            for: "Aquila bravo",
+            modelContext: context
+        ) == nil)
+
+        cursors.removeAll()
+        #expect(await coordinator.sync(
+            modelContext: context,
+            legacyDefaults: defaults,
+            force: true
+        ))
+        #expect(cursors == [nil, "Aquila bravo", "Aquila delta"])
+        #expect(try fetchSpeciesPreference(
+            for: "Aquila bravo",
+            modelContext: context
+        )?.preferredCommonName == "Bravo")
+    }
+
+    @Test func oneAccountsFreshMarkerDoesNotSuppressAnotherAccountsSync() async throws {
+        let context = try makeSpeciesPreferenceContext()
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let now = Date(timeIntervalSince1970: 10_000)
+        let ownerA = try #require(
+            UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        )
+        let ownerB = try #require(
+            UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")
+        )
+        SpeciesPreferredNameStore.recordSyncSuccess(
+            ownerUserID: ownerA,
+            at: now.addingTimeInterval(-10),
+            pushedCount: 0,
+            pulledCount: 0,
+            userDefaults: defaults
+        )
+        let lease = makeSpeciesPreferenceLease(userID: ownerB)
+        var fetchCount = 0
+        let client = SpeciesPreferredNameCloudClient(
+            beginAccountWork: { lease },
+            finishAccountWork: { _ in },
+            isAccountWorkCurrent: { _ in true },
+            fetchPage: { _ in
+                fetchCount += 1
+                return []
+            },
+            upsert: { _ in }
+        )
+        let coordinator = SpeciesPreferredNameCloudSyncCoordinator(
+            client: client,
+            now: { now }
+        )
+
+        #expect(await coordinator.sync(
+            modelContext: context,
+            legacyDefaults: defaults
+        ))
+        #expect(fetchCount == 1)
+        #expect(
+            SpeciesPreferredNameStore.syncDiagnostics(
+                ownerUserID: ownerB,
+                userDefaults: defaults
+            ).status == .success
+        )
+    }
+
+    @Test func remoteOverflowFailsBeforeUpsertOrLocalMutation() async throws {
+        let context = try makeSpeciesPreferenceContext()
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let lease = makeSpeciesPreferenceLease()
+        let remoteRows = (0 ..< 4).map { index in
+            makeSpeciesPreferenceCloudRow(
+                scientificName: "Species \(index)",
+                preferredName: "Preferred \(index)",
+                updatedAt: "2026-08-01T12:00:00.000Z"
+            )
+        }
+        var upsertCount = 0
+        let client = SpeciesPreferredNameCloudClient(
+            beginAccountWork: { lease },
+            finishAccountWork: { _ in },
+            isAccountWorkCurrent: { _ in true },
+            fetchPage: { request in
+                let rows = remoteRows.filter { row in
+                    request.afterScientificName.map {
+                        row.scientific_name > $0
+                    } ?? true
+                }
+                return Array(rows.prefix(request.pageSize))
+            },
+            upsert: { _ in upsertCount += 1 }
+        )
+        let coordinator = SpeciesPreferredNameCloudSyncCoordinator(
+            client: client,
+            maximumLocalPreferenceCount: 3,
+            pageSize: 2
+        )
+
+        #expect(!(await coordinator.sync(
+            modelContext: context,
+            legacyDefaults: defaults,
+            force: true
+        )))
+        #expect(upsertCount == 0)
+        #expect(try context.fetch(
+            FetchDescriptor<UserSpeciesPreference>()
+        ).isEmpty)
+        #expect(
+            SpeciesPreferredNameStore.syncDiagnostics(
+                ownerUserID: lease.session.userID,
+                userDefaults: defaults
+            ).status == .failure
+        )
+    }
+
+    @Test func pendingDeleteUnionOverflowFailsBeforeUpsert() async throws {
+        let context = try makeSpeciesPreferenceContext()
+        context.insert(UserSpeciesPreference(
+            scientificName: "Species local",
+            preferredCommonName: "Local"
+        ))
+        try context.save()
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let lease = makeSpeciesPreferenceLease()
+        for scientificName in ["Species deleted A", "Species deleted B"] {
+            SpeciesPreferredNameStore.markPendingCloudDelete(
+                for: scientificName,
+                ownerUserID: lease.session.userID,
+                userDefaults: defaults
+            )
+        }
+        var upsertCount = 0
+        let client = SpeciesPreferredNameCloudClient(
+            beginAccountWork: { lease },
+            finishAccountWork: { _ in },
+            isAccountWorkCurrent: { _ in true },
+            fetchPage: { _ in [] },
+            upsert: { _ in upsertCount += 1 }
+        )
+        let coordinator = SpeciesPreferredNameCloudSyncCoordinator(
+            client: client,
+            maximumLocalPreferenceCount: 2
+        )
+
+        #expect(!(await coordinator.sync(
+            modelContext: context,
+            legacyDefaults: defaults,
+            force: true
+        )))
+        #expect(upsertCount == 0)
+        #expect(
+            SpeciesPreferredNameStore.syncDiagnostics(
+                ownerUserID: lease.session.userID,
+                userDefaults: defaults
+            ).status == .failure
         )
     }
 
@@ -207,14 +443,15 @@ struct SpeciesNameCloudSyncTests {
         let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let now = Date(timeIntervalSince1970: 10_000)
+        let lease = makeSpeciesPreferenceLease()
         SpeciesPreferredNameStore.recordSyncSuccess(
+            ownerUserID: lease.session.userID,
             at: now.addingTimeInterval(-10),
             pushedCount: 0,
             pulledCount: 0,
             userDefaults: defaults
         )
 
-        let lease = makeSpeciesPreferenceLease()
         var beginCount = 0
         let client = SpeciesPreferredNameCloudClient(
             beginAccountWork: {
@@ -223,7 +460,7 @@ struct SpeciesNameCloudSyncTests {
             },
             finishAccountWork: { _ in },
             isAccountWorkCurrent: { _ in true },
-            fetchPage: { _, _, _ in [] },
+            fetchPage: { _ in [] },
             upsert: { _ in }
         )
         let coordinator = SpeciesPreferredNameCloudSyncCoordinator(
@@ -235,14 +472,57 @@ struct SpeciesNameCloudSyncTests {
             modelContext: context,
             legacyDefaults: defaults
         ))
-        #expect(beginCount == 0)
+        #expect(beginCount == 1)
 
         #expect(await coordinator.sync(
             modelContext: context,
             legacyDefaults: defaults,
             force: true
         ))
-        #expect(beginCount == 1)
+        #expect(beginCount == 2)
+    }
+
+    @Test func laterFailureInvalidatesARecentSuccess() async throws {
+        let context = try makeSpeciesPreferenceContext()
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let now = Date(timeIntervalSince1970: 10_000)
+        let lease = makeSpeciesPreferenceLease()
+        SpeciesPreferredNameStore.recordSyncSuccess(
+            ownerUserID: lease.session.userID,
+            at: now.addingTimeInterval(-10),
+            pushedCount: 0,
+            pulledCount: 0,
+            userDefaults: defaults
+        )
+        SpeciesPreferredNameStore.recordSyncFailure(
+            "Most recent attempt failed.",
+            ownerUserID: lease.session.userID,
+            at: now.addingTimeInterval(-5),
+            userDefaults: defaults
+        )
+
+        var fetchCount = 0
+        let client = SpeciesPreferredNameCloudClient(
+            beginAccountWork: { lease },
+            finishAccountWork: { _ in },
+            isAccountWorkCurrent: { _ in true },
+            fetchPage: { _ in
+                fetchCount += 1
+                return []
+            },
+            upsert: { _ in }
+        )
+        let coordinator = SpeciesPreferredNameCloudSyncCoordinator(
+            client: client,
+            now: { now }
+        )
+
+        #expect(await coordinator.sync(
+            modelContext: context,
+            legacyDefaults: defaults
+        ))
+        #expect(fetchCount == 1)
     }
 
     @Test func futureSuccessTimestampDoesNotSuppressSync() async throws {
@@ -250,14 +530,15 @@ struct SpeciesNameCloudSyncTests {
         let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let now = Date(timeIntervalSince1970: 10_000)
+        let lease = makeSpeciesPreferenceLease()
         SpeciesPreferredNameStore.recordSyncSuccess(
+            ownerUserID: lease.session.userID,
             at: now.addingTimeInterval(60),
             pushedCount: 0,
             pulledCount: 0,
             userDefaults: defaults
         )
 
-        let lease = makeSpeciesPreferenceLease()
         var beginCount = 0
         let client = SpeciesPreferredNameCloudClient(
             beginAccountWork: {
@@ -266,7 +547,7 @@ struct SpeciesNameCloudSyncTests {
             },
             finishAccountWork: { _ in },
             isAccountWorkCurrent: { _ in true },
-            fetchPage: { _, _, _ in [] },
+            fetchPage: { _ in [] },
             upsert: { _ in }
         )
         let coordinator = SpeciesPreferredNameCloudSyncCoordinator(
@@ -281,7 +562,7 @@ struct SpeciesNameCloudSyncTests {
         #expect(beginCount == 1)
     }
 
-    @Test func unavailableSessionRecordsTheExistingSkipOutcome() async throws {
+    @Test func unavailableSessionDoesNotWriteUnscopedDiagnostics() async throws {
         let context = try makeSpeciesPreferenceContext()
         let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -292,7 +573,7 @@ struct SpeciesNameCloudSyncTests {
             },
             finishAccountWork: { _ in },
             isAccountWorkCurrent: { _ in false },
-            fetchPage: { _, _, _ in
+            fetchPage: { _ in
                 fetchCount += 1
                 return []
             },
@@ -309,13 +590,10 @@ struct SpeciesNameCloudSyncTests {
             force: true
         )))
 
-        let diagnostics = SpeciesPreferredNameStore.syncDiagnostics(
-            userDefaults: defaults
-        )
         #expect(fetchCount == 0)
-        #expect(diagnostics.status == .skipped)
-        #expect(diagnostics.message == "No stable authenticated Supabase session.")
-        #expect(diagnostics.lastAttemptAt == Date(timeIntervalSince1970: 4_000))
+        #expect(!SpeciesPreferredNameStore.hasStoredAccountData(
+            userDefaults: defaults
+        ))
     }
 
     @Test func failedFetchFinishesTheLeaseAndCanRecover() async throws {
@@ -329,7 +607,7 @@ struct SpeciesNameCloudSyncTests {
             beginAccountWork: { lease },
             finishAccountWork: { _ in finishCount += 1 },
             isAccountWorkCurrent: { _ in true },
-            fetchPage: { _, _, _ in
+            fetchPage: { _ in
                 if shouldFail {
                     throw SpeciesPreferenceCloudTestError.unavailable
                 }
@@ -350,11 +628,13 @@ struct SpeciesNameCloudSyncTests {
         #expect(finishCount == 1)
         #expect(
             SpeciesPreferredNameStore.syncDiagnostics(
+                ownerUserID: lease.session.userID,
                 userDefaults: defaults
             ).status == .failure
         )
         #expect(
             SpeciesPreferredNameStore.syncDiagnostics(
+                ownerUserID: lease.session.userID,
                 userDefaults: defaults
             ).message == "Cloud unavailable."
         )
@@ -368,6 +648,7 @@ struct SpeciesNameCloudSyncTests {
         #expect(finishCount == 2)
         #expect(
             SpeciesPreferredNameStore.syncDiagnostics(
+                ownerUserID: lease.session.userID,
                 userDefaults: defaults
             ).status == .success
         )
@@ -380,6 +661,7 @@ struct SpeciesNameCloudSyncTests {
         let scientificName = "Quercus macrocarpa"
         SpeciesPreferredNameStore.markPendingCloudDelete(
             for: scientificName,
+            ownerUserID: speciesPreferenceTestUserID,
             at: Date(timeIntervalSince1970: 2_000),
             userDefaults: defaults
         )
@@ -394,7 +676,7 @@ struct SpeciesNameCloudSyncTests {
                 currentCheckCount += 1
                 return currentCheckCount < 3
             },
-            fetchPage: { _, _, _ in [] },
+            fetchPage: { _ in [] },
             upsert: { capturedUpserts = $0 }
         )
         let coordinator = SpeciesPreferredNameCloudSyncCoordinator(
@@ -413,13 +695,130 @@ struct SpeciesNameCloudSyncTests {
         #expect(capturedUpserts.first?.scientific_name == scientificName)
         #expect(
             SpeciesPreferredNameStore.pendingDeleteDates(
+                ownerUserID: lease.session.userID,
                 userDefaults: defaults
             )[scientificName] != nil
         )
         #expect(
             SpeciesPreferredNameStore.syncDiagnostics(
+                ownerUserID: lease.session.userID,
                 userDefaults: defaults
             ).status == .failure
+        )
+    }
+
+    @Test func newerPendingDeleteCreatedDuringUpsertRemainsQueued() async throws {
+        let context = try makeSpeciesPreferenceContext()
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let scientificName = "Quercus macrocarpa"
+        let lease = makeSpeciesPreferenceLease()
+        let firstDeleteDate = Date(timeIntervalSince1970: 2_000)
+        let newerDeleteDate = Date(timeIntervalSince1970: 3_000)
+        SpeciesPreferredNameStore.markPendingCloudDelete(
+            for: scientificName,
+            ownerUserID: lease.session.userID,
+            at: firstDeleteDate,
+            userDefaults: defaults
+        )
+        let gate = SpeciesPreferenceCloudSyncGate()
+        var capturedUpserts: [SpeciesPreferenceCloudUpsert] = []
+        let client = SpeciesPreferredNameCloudClient(
+            beginAccountWork: { lease },
+            finishAccountWork: { _ in },
+            isAccountWorkCurrent: { _ in true },
+            fetchPage: { _ in [] },
+            upsert: { upserts in
+                capturedUpserts = upserts
+                await gate.suspend()
+            }
+        )
+        let coordinator = SpeciesPreferredNameCloudSyncCoordinator(
+            client: client
+        )
+
+        let syncTask = Task { @MainActor in
+            await coordinator.sync(
+                modelContext: context,
+                legacyDefaults: defaults,
+                force: true
+            )
+        }
+        await gate.waitUntilEntered()
+        SpeciesPreferredNameStore.markPendingCloudDelete(
+            for: scientificName,
+            ownerUserID: lease.session.userID,
+            at: newerDeleteDate,
+            userDefaults: defaults
+        )
+        await gate.release()
+
+        #expect(await syncTask.value)
+        #expect(capturedUpserts.count == 1)
+        #expect(capturedUpserts.first?.deleted_at == SpeciesPreferredNamePolicy
+            .cloudString(firstDeleteDate))
+        #expect(
+            SpeciesPreferredNameStore.pendingDeleteDates(
+                ownerUserID: lease.session.userID,
+                userDefaults: defaults
+            )[scientificName] == newerDeleteDate
+        )
+    }
+
+    @Test func localEditDuringUpsertIsNotOverwrittenByStaleRemoteRow() async throws {
+        let context = try makeSpeciesPreferenceContext()
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let lease = makeSpeciesPreferenceLease()
+        let editedScientificName = "Quercus macrocarpa"
+        context.insert(UserSpeciesPreference(
+            scientificName: "Quercus alba",
+            preferredCommonName: "White Oak",
+            updatedAt: Date(timeIntervalSince1970: 2_000)
+        ))
+        try context.save()
+        let gate = SpeciesPreferenceCloudSyncGate()
+        let client = SpeciesPreferredNameCloudClient(
+            beginAccountWork: { lease },
+            finishAccountWork: { _ in },
+            isAccountWorkCurrent: { _ in true },
+            fetchPage: { _ in
+                [
+                    makeSpeciesPreferenceCloudRow(
+                        scientificName: editedScientificName,
+                        preferredName: "Old Bur Oak",
+                        updatedAt: "1970-01-01T00:50:00.000Z"
+                    )
+                ]
+            },
+            upsert: { _ in await gate.suspend() }
+        )
+        let coordinator = SpeciesPreferredNameCloudSyncCoordinator(
+            client: client
+        )
+
+        let syncTask = Task { @MainActor in
+            await coordinator.sync(
+                modelContext: context,
+                legacyDefaults: defaults,
+                force: true
+            )
+        }
+        await gate.waitUntilEntered()
+        context.insert(UserSpeciesPreference(
+            scientificName: editedScientificName,
+            preferredCommonName: "New Bur Oak",
+            updatedAt: Date(timeIntervalSince1970: 4_000)
+        ))
+        try context.save()
+        await gate.release()
+
+        #expect(await syncTask.value)
+        #expect(
+            try fetchSpeciesPreference(
+                for: editedScientificName,
+                modelContext: context
+            )?.preferredCommonName == "New Bur Oak"
         )
     }
 
@@ -430,6 +829,7 @@ struct SpeciesNameCloudSyncTests {
         let scientificName = "Quercus macrocarpa"
         SpeciesPreferredNameStore.markPendingCloudDelete(
             for: scientificName,
+            ownerUserID: speciesPreferenceTestUserID,
             at: Date(timeIntervalSince1970: 2_000),
             userDefaults: defaults
         )
@@ -439,7 +839,7 @@ struct SpeciesNameCloudSyncTests {
             beginAccountWork: { lease },
             finishAccountWork: { _ in },
             isAccountWorkCurrent: { _ in true },
-            fetchPage: { _, _, _ in
+            fetchPage: { _ in
                 [
                     SpeciesPreferenceCloudRow(
                         scientific_name: scientificName,
@@ -464,8 +864,117 @@ struct SpeciesNameCloudSyncTests {
         #expect(upsertCallCount == 0)
         #expect(
             SpeciesPreferredNameStore.pendingDeleteDates(
+                ownerUserID: lease.session.userID,
                 userDefaults: defaults
             ).isEmpty
+        )
+    }
+
+    @Test func newerActiveValueRepairsInterruptedPendingDeleteCleanup() async throws {
+        let context = try makeSpeciesPreferenceContext()
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let scientificName = "Quercus macrocarpa"
+        let lease = makeSpeciesPreferenceLease()
+        context.insert(UserSpeciesPreference(
+            scientificName: scientificName,
+            preferredCommonName: "Bur Oak",
+            updatedAt: Date(timeIntervalSince1970: 3_000)
+        ))
+        try context.save()
+        SpeciesPreferredNameStore.markPendingCloudDelete(
+            for: scientificName,
+            ownerUserID: lease.session.userID,
+            at: Date(timeIntervalSince1970: 2_000),
+            userDefaults: defaults
+        )
+
+        var capturedUpserts: [SpeciesPreferenceCloudUpsert] = []
+        let client = SpeciesPreferredNameCloudClient(
+            beginAccountWork: { lease },
+            finishAccountWork: { _ in },
+            isAccountWorkCurrent: { _ in true },
+            fetchPage: { _ in [] },
+            upsert: { capturedUpserts = $0 }
+        )
+        let coordinator = SpeciesPreferredNameCloudSyncCoordinator(
+            client: client
+        )
+
+        #expect(await coordinator.sync(
+            modelContext: context,
+            legacyDefaults: defaults,
+            force: true
+        ))
+
+        #expect(capturedUpserts.count == 1)
+        #expect(capturedUpserts.first?.preferred_common_name == "Bur Oak")
+        #expect(capturedUpserts.first?.deleted_at == nil)
+        #expect(
+            SpeciesPreferredNameStore.pendingDeleteDates(
+                ownerUserID: lease.session.userID,
+                userDefaults: defaults
+            ).isEmpty
+        )
+        #expect(
+            try fetchSpeciesPreference(
+                for: scientificName,
+                modelContext: context
+            )?.preferredCommonName == "Bur Oak"
+        )
+    }
+
+    @Test func newerPendingDeleteRepairsInterruptedLocalRowCleanup() async throws {
+        let context = try makeSpeciesPreferenceContext()
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let scientificName = "Quercus macrocarpa"
+        let lease = makeSpeciesPreferenceLease()
+        context.insert(UserSpeciesPreference(
+            scientificName: scientificName,
+            preferredCommonName: "Bur Oak",
+            updatedAt: Date(timeIntervalSince1970: 2_000)
+        ))
+        try context.save()
+        SpeciesPreferredNameStore.markPendingCloudDelete(
+            for: scientificName,
+            ownerUserID: lease.session.userID,
+            at: Date(timeIntervalSince1970: 3_000),
+            userDefaults: defaults
+        )
+
+        var capturedUpserts: [SpeciesPreferenceCloudUpsert] = []
+        let client = SpeciesPreferredNameCloudClient(
+            beginAccountWork: { lease },
+            finishAccountWork: { _ in },
+            isAccountWorkCurrent: { _ in true },
+            fetchPage: { _ in [] },
+            upsert: { capturedUpserts = $0 }
+        )
+        let coordinator = SpeciesPreferredNameCloudSyncCoordinator(
+            client: client
+        )
+
+        #expect(await coordinator.sync(
+            modelContext: context,
+            legacyDefaults: defaults,
+            force: true
+        ))
+
+        #expect(capturedUpserts.count == 1)
+        #expect(capturedUpserts.first?.preferred_common_name == nil)
+        #expect(capturedUpserts.first?.deleted_at != nil)
+        #expect(
+            SpeciesPreferredNameStore.pendingDeleteDates(
+                ownerUserID: lease.session.userID,
+                userDefaults: defaults
+            ).isEmpty
+        )
+        #expect(
+            try fetchSpeciesPreference(
+                for: scientificName,
+                modelContext: context
+            ) == nil
         )
     }
 
@@ -490,7 +999,7 @@ struct SpeciesNameCloudSyncTests {
             beginAccountWork: { lease },
             finishAccountWork: { _ in },
             isAccountWorkCurrent: { _ in true },
-            fetchPage: { _, _, _ in
+            fetchPage: { _ in
                 [
                     makeSpeciesPreferenceCloudRow(
                         scientificName: scientificName,
@@ -522,7 +1031,7 @@ struct SpeciesNameCloudSyncTests {
         )
     }
 
-    @Test func overlappingRequestRunsOneTrailingSyncWithLatestContext() async throws {
+    @Test func overlappingRequestsPreserveForcedTrailingSync() async throws {
         let firstContext = try makeSpeciesPreferenceContext()
         let secondContext = try makeSpeciesPreferenceContext()
         secondContext.insert(
@@ -548,7 +1057,7 @@ struct SpeciesNameCloudSyncTests {
             },
             finishAccountWork: { _ in finishCount += 1 },
             isAccountWorkCurrent: { _ in true },
-            fetchPage: { _, _, _ in
+            fetchPage: { _ in
                 fetchCount += 1
                 if fetchCount == 1 {
                     await gate.suspend()
@@ -581,10 +1090,25 @@ struct SpeciesNameCloudSyncTests {
             await Task.yield()
         }
         #expect(coordinator.snapshot.hasPendingRequest)
+
+        var laterLifecycleRequestStarted = false
+        let laterLifecycleTask = Task { @MainActor in
+            laterLifecycleRequestStarted = true
+            return await coordinator.sync(
+                modelContext: secondContext,
+                legacyDefaults: defaults,
+                force: false
+            )
+        }
+        while !laterLifecycleRequestStarted {
+            await Task.yield()
+        }
+        await Task.yield()
         await gate.release()
 
         #expect(await firstTask.value)
         #expect(await secondTask.value)
+        #expect(await laterLifecycleTask.value)
         #expect(beginCount == 2)
         #expect(finishCount == 2)
         #expect(fetchCount == 2)

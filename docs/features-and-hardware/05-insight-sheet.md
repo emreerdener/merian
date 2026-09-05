@@ -455,52 +455,57 @@ result. The local programmatic share guard returns
 `Reanalyze this scan before sharing to Explore.` for those records.
 
 **Name preference methods** (all routed through
-`SpeciesPreferredNameRepository`, keyed by scientific name):
+`SpeciesPreferredNameRepository`, keyed by account plus normalized scientific
+name):
 
-- `loadPreferredCommonName(for:modelContext:)` — reads `UserSpeciesPreference`
-  into `preferredCommonName`. If a legacy `SpeciesPreferredNameStore` key is
-  encountered, the repository promotes that value into SwiftData and removes the
-  legacy key only after the save succeeds; called from
+- `loadPreferredCommonName(for:modelContext:)` — reads the current account's
+  `UserSpeciesPreference` into `preferredCommonName`; called from
   `InsightSheetView.task(id: scanId)` when a new species loads.
-- `setPreferredCommonName(_:for:modelContext:)` — writes
-  `UserSpeciesPreference`, clears any stale legacy key only after
-  `modelContext.save()` succeeds, updates `preferredCommonName` in-memory
-  (triggering `@Observable` recompute of `resolvedHeaderTitle`), and fires a
-  `toastMessage`.
+- `setPreferredCommonName(_:for:modelContext:)` — writes the account-qualified
+  `UserSpeciesPreference`, updates `preferredCommonName` in-memory (triggering
+  `@Observable` recompute of `resolvedHeaderTitle`), and fires a `toastMessage`.
 - `clearPreferredCommonName(for:modelContext:)` — deletes the SwiftData row,
-  clears any stale legacy key after save, and nils `preferredCommonName`,
-  reverting the headline to the canonical DB name.
+  records an account-qualified pending cloud tombstone after save, and nils
+  `preferredCommonName`, reverting the headline to the canonical DB name.
 
 `SpeciesPreferredNameRepository` intentionally remains separate from
 `AppSettings`: preferred names are per-species keyed data, not global UI state.
 The repository and its conflict policy live in `Core/Data/SpeciesPreferences`;
-the initializer-injected cloud client and single-flight coordinator own
-PostgREST/Auth work, pagination, and lifecycle coalescing outside the
-repository's local CRUD surface. `MerianApp` runs
-`migrateLegacyPreferences(modelContext:)` after SwiftData bootstraps, promoting
-all legacy `speciesPreferredName_*` keys and deleting them only after a
-successful database save. The coordinator then syncs SwiftData rows to Supabase
-`user_species_preferences`; clears are retained as pending local delete
-timestamps until a remote `deleted_at` tombstone is confirmed. Sync triggers
-from auth restore, foreground activation, and local edits are single-flight, so
-only one preferred-name cloud reconciliation is active at a time; the
-coordinator records a trailing follow-up request so edits saved after the active
-sync's local fetch still flush before the coalesced task completes. Clean
-lifecycle/auth syncs skip when a successful sync completed in the last 60
-seconds, while local edits force the sync path. A success timestamp in the
-future is treated as clock skew and also forces reconciliation. Cloud pages use
-timestamp plus scientific-name ordering, equal-time local values consistently
-win over remote tombstones, and repository fetch failures leave legacy values
-untouched rather than treating the row as missing.
-`SpeciesPreferredNameStore.syncDiagnostics` records the latest
-attempt/success/status/message plus pushed/pulled counts for support. Explore
-feed, map, detail, comments, and share text resolve display names through an
-`ExploreFeedViewModel` cache hydrated from the SwiftData-backed repository using
-the current `ModelContext`. The network DTOs in `ExploreAPIModels` stay pure
-decode models and never read `UserDefaults` directly; the legacy
-`SpeciesPreferredNameStore` remains only as migration input, cloud-delete
-tombstone staging, diagnostics, and lazy fallback if a pre-migration key is
-discovered later.
+the focused local-recovery service repairs SwiftData/tombstone interruption
+windows, and the initializer-injected cloud client plus single-flight
+coordinator own PostgREST/Auth work, pagination, post-suspension refetching, and
+lifecycle coalescing outside the repository's local CRUD surface. `MerianApp`
+runs `discardLegacyUnscopedPreferences(modelContext:)` after SwiftData
+bootstraps. V50 rows and `speciesPreferredName_*` defaults are device-global and
+have no trustworthy owner, so V51 deletes rows while the source schema is active
+and discards defaults instead of assigning another account's choice to the next
+sign-in. The coordinator then syncs account-qualified SwiftData rows to Supabase
+`user_species_preferences`; clears are retained as account-qualified pending
+local delete timestamps until a remote `deleted_at` tombstone is confirmed. Sync
+triggers from auth restore, foreground activation, and local edits are
+single-flight, so only one preferred-name cloud reconciliation is active at a
+time; the coordinator records the latest trailing context and preserves force
+intent across every queued request, so a later lifecycle trigger cannot hide an
+edit saved after the active sync's local fetch. Clean lifecycle/auth syncs skip
+only when the latest outcome is a success from the last 60 seconds for the same
+account, while local edits force the sync path. A later failure or interrupted
+attempt invalidates the earlier success. The account lease is acquired before
+this freshness decision, and a future success timestamp is treated as clock
+skew. Cloud pages use immutable scientific-name keyset ordering; inserts before
+an active cursor are picked up on the next sync without offset duplication.
+Equal-time local values consistently win over remote tombstones. The local,
+remote, and pending-delete union is bounded to 1,000 species, and names longer
+than the server's 200-character maximum are rejected locally. The union is
+rechecked after an upsert suspension before the earlier remote page is applied,
+preventing an in-flight local edit from being overwritten or exceeding the
+bound. `SpeciesPreferredNameStore.syncDiagnostics(ownerUserID:)` records the
+latest attempt/success/status/message plus pushed/pulled counts for support.
+Explore feed, map, detail, comments, and share text resolve display names
+through an `ExploreFeedViewModel` cache hydrated from the SwiftData-backed
+repository using the current `ModelContext`. The network DTOs in
+`ExploreAPIModels` stay pure decode models and never read `UserDefaults`
+directly; `SpeciesPreferredNameStore` remains only as the fail-closed legacy
+cleanup, account-qualified cloud-delete staging, and diagnostics owner.
 
 Pet labels are not species preferences. They are scan-level metadata decoded
 from `SpeciesData.petIdentification` / `LocalScanRecord.petIdentificationData`
@@ -510,7 +515,7 @@ and may change from scan to scan even when the scientific name is the same.
 `[ScanCollection]` rows (reverse-sorted by `createdAt`) to populate the
 collection management toolbar. Its predicate excludes the durable
 `isPendingDeletion` application tombstone so a collection pending remote
-deletion does not reappear in the add-to-collection menu. Active V50 maps that
+deletion does not reappear in the add-to-collection menu. Active V51 maps that
 property to the released `isDeleted` column with `@Attribute(originalName:)`, so
 the filter remains effective after save/refetch and reopening the store. The
 complete contract is described in
@@ -1764,11 +1769,13 @@ which:
    started cannot finish after and overwrite a newer confirm, override, or
    reset. Local persistence uses
    `BackgroundDatabaseActor.updateScanWithOverride`, followed by the
-   authenticated `update_owned_scan_identification_review(...)` RPC
-   (`InferenceEngine.syncIdentificationReviewToCloud`). The database derives
-   ownership from `auth.uid()`, validates the complete typed review state, and
-   updates override/confirmation/species/state atomically without exposing
-   general scan-table mutation.
+   authenticated `update_owned_scan_identification_review(...)` RPC through the
+   injected `Core/Network/Inference/InferenceIdentificationReviewService`.
+   `InferenceEngine.syncIdentificationReviewToCloud` retains sequencing and
+   post-success invalidation but issues no direct Supabase request. The database
+   derives ownership from `auth.uid()`, validates the complete typed review
+   state, and updates override/confirmation/species/state atomically without
+   exposing general scan-table mutation.
 6. Completes missing reference-image hydration inside that same `.review` task;
    GBIF does not create a detached or second task owner. `scientificName`
    remains excluded from hydrated-field writes — `record.scientificName` is the

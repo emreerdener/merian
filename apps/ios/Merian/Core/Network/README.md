@@ -60,31 +60,32 @@ Field Trips, Community Identification browsing/contribution, Explore browsing,
 Explore interactions, notifications, public-profile operations, Explore post
 management, inference, scan publication, Field Chat, Species Dictionary, scan
 lifecycle, scan enrichment and deferred context, exports, product feedback,
-media storage, and account deletion live below `Endpoints/`. Stateless inference
-request values and JSON/media/account policy live in `Inference/`. Raw signed
-uploads, foreground video planning, and publication-media restoration live in
-`Media/`; owned-row publication and Field Chat recovery live in `Recovery/`;
-stateless endpoint URL, route/error classification, retry allowlist, account
-binding, value-only Auth-recovery decisions, and the request-scoped executor
-live in `Transport/`. The executor owns logical request construction, bounded
-retry state, cancellation checkpoints, response mapping, and injected Auth,
-entitlement, and consent effects. `PinnedNetworkTransport` owns the sole
-configured `URLSession`, lock-backed one-time initialization, exact Supabase
-host/subdomain policy, TLS delegate, raw dispatch, and DEBUG session override.
-Supabase server-trust challenges require both the platform trust evaluation and
-a matching pin, and fail closed when either check fails or the certificate chain
-cannot be read. Unrelated hosts and non-server-trust challenges keep the
-platform's default handling. `AuthenticatedTransportDispatcher` owns per-attempt
-Auth leases and headers, transition validation, the constrained-network header,
-and its file-local upload delegate. `MerianNetworkClient.swift` retains
-configuration diagnostics and injects both stateful transport owners behind
-narrow bridges. Endpoint extensions use those bridges to construct the endpoint,
-serialize the payload, and invoke the existing authenticated POST. Typed calls
-decode with the existing snake-case decoder; body-ignoring calls preserve
-HTTP-only success without decoding. The typed bridge can forward an existing
-idempotency key and replace decoding failures with a caller-specified
-`MerianError`; both options default to nil. Error replacement surrounds only
-decoding, never request construction, transport, auth, or cancellation.
+media storage, and account deletion live below `Endpoints/`. Inference request
+values, JSON/media/account policy, and the narrow identification-review
+PostgREST/RPC adapter live in `Inference/`. Raw signed uploads, foreground video
+planning, and publication-media restoration live in `Media/`; owned-row
+publication and Field Chat recovery live in `Recovery/`; stateless endpoint URL,
+route/error classification, retry allowlist, account binding, value-only
+Auth-recovery decisions, and the request-scoped executor live in `Transport/`.
+The executor owns logical request construction, bounded retry state,
+cancellation checkpoints, response mapping, and injected Auth, entitlement, and
+consent effects. `PinnedNetworkTransport` owns the sole configured `URLSession`,
+lock-backed one-time initialization, exact Supabase host/subdomain policy, TLS
+delegate, raw dispatch, and DEBUG session override. Supabase server-trust
+challenges require both the platform trust evaluation and a matching pin, and
+fail closed when either check fails or the certificate chain cannot be read.
+Unrelated hosts and non-server-trust challenges keep the platform's default
+handling. `AuthenticatedTransportDispatcher` owns per-attempt Auth leases and
+headers, transition validation, the constrained-network header, and its
+file-local upload delegate. `MerianNetworkClient.swift` retains configuration
+diagnostics and injects both stateful transport owners behind narrow bridges.
+Endpoint extensions use those bridges to construct the endpoint, serialize the
+payload, and invoke the existing authenticated POST. Typed calls decode with the
+existing snake-case decoder; body-ignoring calls preserve HTTP-only success
+without decoding. The typed bridge can forward an existing idempotency key and
+replace decoding failures with a caller-specified `MerianError`; both options
+default to nil. Error replacement surrounds only decoding, never request
+construction, transport, auth, or cancellation.
 `performAuthenticatedEncodedJSONPost` encodes an `Encodable` body with
 `JSONEncoder` and returns bytes for domain-specific validation. It forwards the
 timeout and optional idempotency key without catching encoding, transport, or
@@ -162,15 +163,24 @@ the owning request reaches the detached handle. The endpoint checks cancellation
 before and after JSON construction and between inline-audio file reads; the
 stateless payload and policy owners remain task-free.
 
-The sibling [`Inference/`](Inference/) folder contains only value and stateless
-request concerns. `InferencePayloadBuilder` owns the shared telemetry,
-observation-context, media-descriptor, owner-timeline, preferred-goal, and
-geoprivacy JSON mapping. `InferenceMediaPolicy` owns inline image/audio and WAV
-file limits. `InferenceRequestPolicy` owns staged-object owner checks and the
-stable recoverable-conflict allowlist. `InferencePayloadContext` and
+The sibling [`Inference/`](Inference/) folder contains value/stateless request
+concerns plus one explicitly state-free live adapter. `InferencePayloadBuilder`
+owns the shared telemetry, observation-context, media-descriptor,
+owner-timeline, preferred-goal, and geoprivacy JSON mapping.
+`InferenceMediaPolicy` owns inline image/audio and WAV file limits.
+`InferenceRequestPolicy` owns staged-object owner checks and the stable
+recoverable-conflict allowlist. `InferencePayloadContext` and
 `AuthenticatedInferenceRequest` carry immutable values across suspension. These
 owners acquire no session, Auth manager, consent manager, app container, or task
 lifetime.
+
+`InferenceIdentificationReviewService` separately owns exact-name
+`species_dictionary` reads and the `update_owned_scan_identification_review`
+RPC. Its immutable injected closures acquire one account-work lease per
+operation, verify that lease after the network suspension, and expose only typed
+records/mutations to `InferenceEngine`. The engine retains review task ordering,
+local persistence, presentation, and post-success effects and performs no direct
+Supabase query.
 
 `Transport/` owns pure endpoint URL, classification, account-binding, and
 value-only recovery/replay decisions plus the request-scoped executor that
@@ -752,10 +762,13 @@ The audit also makes the remaining live-dependency exceptions explicit:
 - the inference endpoint alone owns its consent preflight, profile-derived
   default geoprivacy, and cancellation-propagating detached body preparation;
 - owned-scan recovery alone reads profile-derived default geoprivacy and
-  performs the existing exact-name Species Dictionary PostgREST lookup; and
+  performs its scan-repair Species Dictionary PostgREST lookup;
+- `Inference/InferenceIdentificationReviewService.swift` alone owns the live
+  review dictionary projections and review RPC, both fenced by an account-work
+  lease; and
 - `SupabaseManager` retains Auth-transition, consent, and application-container
-  coordination. No other extracted owner may acquire these globals or create a
-  detached task.
+  coordination. No unlisted extracted owner may acquire these globals or create
+  a detached task.
 
 The suite freezes exactly six production Transport owners—three stateless
 policies, the request-scoped executor, the pinned session, and the authenticated

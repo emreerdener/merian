@@ -48,16 +48,19 @@ struct AccountScopedPreferencesTests {
             for: "scan-id",
             userDefaults: defaults
         )
-        SpeciesPreferredNameStore.setPreferredName(
+        let ownerUserID = UUID()
+        SpeciesPreferredNameStore.setLegacyPreferredName(
             "Bur Oak",
             for: "Quercus macrocarpa",
             userDefaults: defaults
         )
         SpeciesPreferredNameStore.markPendingCloudDelete(
             for: "Quercus alba",
+            ownerUserID: ownerUserID,
             userDefaults: defaults
         )
         SpeciesPreferredNameStore.recordSyncSuccess(
+            ownerUserID: ownerUserID,
             pushedCount: 1,
             pulledCount: 2,
             userDefaults: defaults
@@ -145,18 +148,16 @@ struct AccountScopedPreferencesTests {
         #expect(defaults.object(
             forKey: UserDefaultsKeys.exploreUnreadNotificationBadgeCount
         ) == nil)
-        #expect(defaults.string(
-            forKey: UserDefaultsKeys.lastSeenExplorePostSharedAt
-        ) == nil)
-        #expect(defaults.string(
-            forKey: UserDefaultsKeys.feedbackSurveyDismissedCampaignId
-        ) == nil)
-        #expect(defaults.string(
-            forKey: UserDefaultsKeys.feedbackSurveySubmittedCampaignId
-        ) == nil)
-        #expect(defaults.object(
-            forKey: UserDefaultsKeys.feedbackSurveySubmittedAt
-        ) == nil)
+        let persistedValues = defaults.persistentDomain(forName: suiteName)
+            ?? [:]
+        for registeredAccountKey in [
+            UserDefaultsKeys.lastSeenExplorePostSharedAt,
+            UserDefaultsKeys.feedbackSurveyDismissedCampaignId,
+            UserDefaultsKeys.feedbackSurveySubmittedCampaignId,
+            UserDefaultsKeys.feedbackSurveySubmittedAt
+        ] {
+            #expect(persistedValues[registeredAccountKey] == nil)
+        }
         #expect(defaults.object(
             forKey: UserDefaultsKeys.lastHistoricalSyncDate
         ) == nil)

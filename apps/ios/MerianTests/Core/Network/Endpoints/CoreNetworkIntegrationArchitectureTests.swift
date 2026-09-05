@@ -106,6 +106,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             containing: "SupabaseManager.shared",
             in: sources,
             equal: [
+                "Inference/InferenceIdentificationReviewService.swift",
                 "Recovery/MerianNetworkClient+OwnedScanRecovery.swift",
                 "Transport/AuthenticatedRequestExecutor.swift",
                 "Transport/AuthenticatedTransportDispatcher.swift"
@@ -133,9 +134,15 @@ struct CoreNetworkIntegrationArchitectureTests {
             containing: ".from(\"",
             in: sources,
             equal: [
+                "Inference/InferenceIdentificationReviewService.swift",
                 "Recovery/MerianNetworkClient+OwnedScanRecovery.swift",
                 "SupabaseManager.swift"
             ]
+        )
+        expectOwners(
+            containing: ".rpc(",
+            in: sources,
+            equal: ["Inference/InferenceIdentificationReviewService.swift"]
         )
         expectOwners(
             containing: "DetachedWork.value(",

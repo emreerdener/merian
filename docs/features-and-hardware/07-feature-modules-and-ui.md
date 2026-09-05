@@ -378,7 +378,7 @@ production Shell and Library file remains below the 600-line review guard.
 - **Deleted Collection Filtering**: The UI predicates are designed to filter
   soft-deleted collections from both `CollectionsView` and the
   `InsightSheetView` add-to-collection menu, so a collection pending remote
-  deletion cannot still be selected from another surface. Active V50 persists
+  deletion cannot still be selected from another surface. Active V51 persists
   the application marker as `isPendingDeletion`, mapped to the released
   `isDeleted` column, so this filter survives save/refetch and migration.
 - **Collection State Toasts**: Collection mutations publish a typed
@@ -414,15 +414,14 @@ production Shell and Library file remains below the 600-line review guard.
   the `OfflineQueueManager.enqueueCollectionSync()` pipeline, which drains
   `SyncCollectionPayload` arrays against the upstream `sync-collections`
   Supabase Edge Function through a shared single-flight sync path.
-- **Collection-Deletion Persistence**: The active V50 `ScanCollection` model
+- **Collection-Deletion Persistence**: The active V51 `ScanCollection` model
   names its application soft-delete field `isPendingDeletion` and maps it to the
   released `isDeleted` column with `@Attribute(originalName:)`. The released V50
-  graph is frozen as an immutable fixture, while `MerianActiveSchemaV50` owns
-  the current Swift type names with the same persisted version. Released V50
-  stores open as current without a migration stage. The existing `is_deleted`
-  Edge payload, inbound tombstone shield, and acknowledgement-only purge remain
-  unchanged; disk-backed reopening tests prove true/false values and
-  relationship retention. See the
+  graph is frozen as an immutable fixture, while `MerianActiveSchemaV50` is the
+  source bridge into V51. The custom V50→V51 stage changes only preferred-name
+  ownership; the existing `is_deleted` Edge payload, inbound tombstone shield,
+  and acknowledgement-only purge remain unchanged. Disk-backed migration tests
+  prove true/false values and relationship retention. See the
   [SwiftData schema contract](../backend-and-data/04-database-schema.md#scancollection-user-albums)
   and
   [SwiftData gotcha](../development-guides/11-swiftdata-and-api-gotchas.md#29-persistentmodelisdeleted-is-framework-state-not-app-storage).

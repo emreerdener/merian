@@ -601,6 +601,12 @@ triggering excessive SwiftUI view rebuilds.
   synchronous engine handler; queue ownership, paywall and disposition actions,
   logging, and observable commits remain there without a new suspension or task
   owner.
+- `Core/Network/Inference/InferenceIdentificationReviewService.swift` — the
+  immutable initializer-injected adapter for exact-name Species Dictionary reads
+  and the owned-scan identification-review RPC. Its live closures acquire an
+  account-work lease before transport and reject results after an Auth
+  transition. AppDI owns the live value; the engine retains review sequencing,
+  local persistence, presentation, and post-success invalidation.
 - `Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift` — the
   shared injected public Wikipedia/GBIF request, wire DTO, and off-main parsing
   boundary used by Inference and scan-thumbnail recovery. It performs no engine,
@@ -1157,7 +1163,13 @@ triggering excessive SwiftUI view rebuilds.
 | `zoomSliderVisible`                    | `"zoomSliderVisible"`                     | `ZoomSliderView`, `CameraSettingsView`                                                                                                                                                                                                                                                                                |
 | `needsCollectionSync`                  | `"needsCollectionSync"`                   | Legacy one-release bridge only. `ScanRepository.configure(with:)` imports it into `OfflineJobRecord(id: "collection-sync")`; active scheduling should use the job record.                                                                                                                                             |
 | `hiddenSmartCollectionIDs`             | `"hiddenSmartCollectionIDs"`              | `SmartCollectionPreferences` stores locally hidden smart collection ids; these are UI-only and are not synced through `/sync-collections`.                                                                                                                                                                            |
-| `speciesPreferredNamePrefix`           | `"speciesPreferredName_"`                 | `SpeciesPreferredNameStore` bridge for per-species display-name overrides used by Insights and Explore.                                                                                                                                                                                                               |
+| `speciesPreferredNamePrefix`           | `"speciesPreferredName_"`                 | Read-only legacy device-global prefix removed by the V51 fail-closed cleanup; live preferred names are account-scoped SwiftData rows.                                                                                                                                                                                 |
+
+The `pendingSpeciesPreferredNameDeletesV2Prefix` and
+`speciesPreferredNameSync*V2Prefix` constants append a lowercased account UUID
+to partition pending tombstones and support diagnostics. Their unversioned
+predecessors are cleanup-only legacy keys and must never be attributed to the
+next signed-in account.
 
 `KeychainKeys.hasAuthenticatedOAuth` is the single source of truth for the
 authenticated-session marker used by `SupabaseManager`, `MerianNetworkClient`,
@@ -1197,44 +1209,55 @@ consults that Keychain entry.
   `Core/Data/SpeciesPreferences/SpeciesPreferredNameRepository.swift`. The typed
   legacy/pending-delete/diagnostics store remains in
   `Core/Preferences/Stores/SpeciesPreferredNameStore.swift`.
-- Uses `UserSpeciesPreference` as the source of truth for Insight load/set/clear
-  operations.
-- `MerianApp` calls `migrateLegacyPreferences(modelContext:)` immediately after
-  the `ModelContainer` is available. The migration scans legacy
-  `speciesPreferredName_*` keys, preserves any existing SwiftData value over
-  stale legacy data, promotes missing rows, saves once, and removes legacy keys
-  only after the save succeeds.
-- Falls back to the legacy `SpeciesPreferredNameStore` key-value bridge on read
-  only as a safety net, promoting that legacy value into SwiftData and clearing
-  the key after save.
+- Uses account-qualified `UserSpeciesPreference` rows as the source of truth for
+  Insight load/set/clear operations. Every repository call requires an owner
+  UUID, and the stable local identity combines that owner with the normalized
+  scientific name.
+- `MerianApp` calls `discardLegacyUnscopedPreferences(modelContext:)`
+  immediately after the `ModelContainer` is available. V50 SwiftData rows and
+  legacy `speciesPreferredName_*` defaults have no trustworthy account owner;
+  the migration deletes rows while the frozen source is active and startup
+  removes any residue rather than attributing one person's display choice to the
+  next account that signs in.
 - Syncs with Supabase `user_species_preferences` on auth restore, foreground
   activation, and after local set/clear edits. The initializer-injected
   `SpeciesPreferredNameCloudClient` is the sole PostgREST/Auth-lease owner, and
   `SpeciesPreferredNameCloudSyncCoordinator` contains the main-actor active task
   and trailing request. Repeated lifecycle/auth/edit triggers therefore coalesce
   instead of issuing overlapping reads and upserts; a trigger received while a
-  sync is running records the latest context so edits saved after the active
-  task's local fetch flush before the coalesced task completes. Clean
-  lifecycle/auth syncs also use a 60-second freshness gate after a successful
-  sync so cold launch does not perform an auth-restore sync followed immediately
-  by an identical foreground sync. A future success timestamp is treated as
-  clock skew and cannot suppress the next pull. Local edits bypass that
-  freshness gate, and local clears are queued in
-  `pendingSpeciesPreferredNameDeletes` until a remote `deleted_at` tombstone
-  upsert succeeds, including when the local row is already absent.
+  sync is running records the latest context and accumulates forced-sync intent,
+  so a later lifecycle trigger cannot hide an edit saved after the active task's
+  local fetch. Clean lifecycle/auth syncs use a 60-second account-specific
+  freshness gate only when the latest recorded outcome is successful, so a later
+  failure or interrupted attempt invalidates an earlier recent success. The
+  lease is acquired before consulting freshness, so one account's recent result
+  cannot suppress another account's pull. A future success timestamp is treated
+  as clock skew and cannot suppress the next pull. Local edits bypass that
+  freshness gate, and local clears are queued in an account-qualified
+  pending-delete partition until a remote `deleted_at` tombstone upsert
+  succeeds, including when the local row is already absent.
+- `SpeciesPreferenceLocalRecovery` resolves the non-atomic boundary between the
+  SwiftData row and its UserDefaults tombstone before an upsert batch is
+  planned. Active values win equal timestamps; newer deletes remove stale local
+  rows. After an upsert suspension, the coordinator refetches and re-bounds
+  local state before applying its earlier remote page so a mid-flight edit is
+  not overwritten.
 - Treat normalized equality as convergence before comparing timestamps. A
   matching active name never upserts merely to copy a timestamp, and an existing
   remote tombstone satisfies a pending local delete. Only a real value/tombstone
   conflict uses last-write-wins: remote-newer pulls, while local-newer or equal
   pushes. This prevents devices from echoing an already-matching value.
-- Remote pages use timestamp order plus scientific name as a deterministic
-  tie-breaker. Local fetch failures preserve legacy values and abort the
-  operation rather than being interpreted as an absent row.
-- Persists lightweight support diagnostics in `UserDefaults`: last attempt time,
-  last success time, current status (`running`, `success`, `failure`, or
-  `skipped`), failure/skip message, and last successful pushed/pulled row
-  counts. These values are diagnostic-only; SwiftData remains the source of
-  truth for the preferences themselves.
+- Remote pages use immutable scientific-name keyset order. A strict greater-than
+  cursor avoids offset shifts and duplicates; rows inserted before an active
+  cursor are intentionally picked up on the next reconciliation. The union of
+  local, remote, and pending-delete species is capped at 1,000 before any cloud
+  upsert or remote application, and the local policy rejects names beyond the
+  server's 200-character constraint.
+- Persists account-qualified lightweight support diagnostics in `UserDefaults`:
+  last attempt time, last success time, current status (`running`, `success`,
+  `failure`, or `skipped`), failure/skip message, and last successful
+  pushed/pulled row counts. These values are diagnostic-only; SwiftData remains
+  the source of truth for the preferences themselves.
 - Exposes a bounded display-map helper for Explore feed/map hydration.
   `ExploreFeedViewModel` owns the observable preferred-name cache and resolves
   feed cards, map previews, comments, detail titles, and share text from that
@@ -1245,12 +1268,14 @@ consults that Keychain entry.
 - The repository and coordinator resolve no network singleton. The static
   compatibility sync entry delegates to one private live coordinator, while
   deterministic tests construct coordinators with injected closures, clocks,
-  page sizes, and limits.
-- Successful SwiftData writes clear stale legacy keys instead of mirroring back
-  to `UserDefaults`, so SwiftData is the only live source of truth.
+  page sizes, and limits. Overlapping triggers keep the latest context while
+  preserving any queued forced-sync intent, so a lifecycle trigger cannot hide
+  an edit that arrived during the active pass.
+- Preferred-name writes never mirror into device-global `UserDefaults`;
+  SwiftData is the only live value source.
 - This is intentionally not part of `AppSettings`: preferred common names are
-  per-species data with local SwiftData durability and eventual cloud backing,
-  not global UI preference state.
+  account-scoped per-species data with local SwiftData durability and eventual
+  cloud backing, not global UI preference state.
 
 ### `AccountScopedPreferences` and `AccountScopedRuntimeState`
 

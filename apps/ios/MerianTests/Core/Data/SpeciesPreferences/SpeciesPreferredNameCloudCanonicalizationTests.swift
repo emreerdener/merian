@@ -15,7 +15,7 @@ struct SpeciesNameCloudCanonicalizationTests {
             beginAccountWork: { lease },
             finishAccountWork: { _ in },
             isAccountWorkCurrent: { _ in true },
-            fetchPage: { _, _, _ in
+            fetchPage: { _ in
                 [
                     makeSpeciesPreferenceCloudRow(
                         scientificName: " Quercus alba ",
@@ -73,7 +73,7 @@ struct SpeciesNameCloudCanonicalizationTests {
             beginAccountWork: { lease },
             finishAccountWork: { _ in },
             isAccountWorkCurrent: { _ in true },
-            fetchPage: { _, _, _ in [] },
+            fetchPage: { _ in [] },
             upsert: { capturedUpserts = $0 }
         )
         let coordinator = SpeciesPreferredNameCloudSyncCoordinator(

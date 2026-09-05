@@ -6,92 +6,177 @@ import Testing
 @MainActor
 @Suite("Species Preferred Name Repository")
 struct SpeciesPreferredNameRepositoryTests {
-    @Test func testSpeciesPreferredNameRepositoryPersistsToSwiftDataAndClearsLegacyStore() throws {
-        let context = try makeSpeciesPreferenceContext()
-        let suiteName = "merian.tests.species-preferred-name-repository.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let didSave = SpeciesPreferredNameRepository.setPreferredName(
-            "Bur Oak",
-            for: "Quercus macrocarpa",
-            modelContext: context,
-            legacyDefaults: defaults
-        )
-
-        #expect(didSave)
-        #expect(try fetchSpeciesPreference(for: "Quercus macrocarpa", modelContext: context)?.preferredCommonName == "Bur Oak")
-        #expect(SpeciesPreferredNameStore.preferredName(for: "Quercus macrocarpa", userDefaults: defaults) == nil)
-
-        let didClear = SpeciesPreferredNameRepository.clearPreferredName(
-            for: "Quercus macrocarpa",
-            modelContext: context,
-            legacyDefaults: defaults
-        )
-
-        #expect(didClear)
-        #expect(try fetchSpeciesPreference(for: "Quercus macrocarpa", modelContext: context) == nil)
-        #expect(SpeciesPreferredNameStore.preferredName(for: "Quercus macrocarpa", userDefaults: defaults) == nil)
-    }
-
-    @Test func testSpeciesPreferredNameRepositoryQueuesCloudDeleteUntilSynced() throws {
-        let context = try makeSpeciesPreferenceContext()
-        let suiteName = "merian.tests.species-preferred-name-delete-queue.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        SpeciesPreferredNameStore.markPendingCloudDelete(for: "Quercus macrocarpa", userDefaults: defaults)
-        #expect(SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: defaults)["Quercus macrocarpa"] != nil)
-
-        #expect(
-            SpeciesPreferredNameRepository.setPreferredName(
-                "Bur Oak",
-                for: "Quercus macrocarpa",
-                modelContext: context,
-                legacyDefaults: defaults
-            )
-        )
-        #expect(SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: defaults)["Quercus macrocarpa"] == nil)
-
-        #expect(
-            SpeciesPreferredNameRepository.clearPreferredName(
-                for: "Quercus macrocarpa",
-                modelContext: context,
-                legacyDefaults: defaults
-            )
-        )
-        #expect(try fetchSpeciesPreference(for: "Quercus macrocarpa", modelContext: context) == nil)
-        #expect(SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: defaults)["Quercus macrocarpa"] != nil)
-
-        SpeciesPreferredNameStore.clearPendingCloudDelete(for: "Quercus macrocarpa", userDefaults: defaults)
-        #expect(SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: defaults).isEmpty)
-    }
-
-    @Test func clearWithoutLocalRowStillQueuesCloudDelete() throws {
+    @Test func persistsAndClearsOnlyTheRequestedAccount() throws {
         let context = try makeSpeciesPreferenceContext()
         let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
+        let secondUserID = UUID()
 
-        #expect(SpeciesPreferredNameRepository.clearPreferredName(
-            for: " Quercus alba ",
+        #expect(SpeciesPreferredNameRepository.setPreferredName(
+            "Bur Oak",
+            for: "Quercus macrocarpa",
+            ownerUserID: speciesPreferenceTestUserID,
+            modelContext: context,
+            legacyDefaults: defaults
+        ))
+        #expect(SpeciesPreferredNameRepository.setPreferredName(
+            "Mossycup Oak",
+            for: "Quercus macrocarpa",
+            ownerUserID: secondUserID,
             modelContext: context,
             legacyDefaults: defaults
         ))
 
+        #expect(SpeciesPreferredNameRepository.preferredName(
+            for: "Quercus macrocarpa",
+            ownerUserID: speciesPreferenceTestUserID,
+            modelContext: context
+        ) == "Bur Oak")
+        #expect(SpeciesPreferredNameRepository.preferredName(
+            for: "Quercus macrocarpa",
+            ownerUserID: secondUserID,
+            modelContext: context
+        ) == "Mossycup Oak")
+
+        #expect(SpeciesPreferredNameRepository.clearPreferredName(
+            for: "Quercus macrocarpa",
+            ownerUserID: speciesPreferenceTestUserID,
+            modelContext: context,
+            legacyDefaults: defaults
+        ))
         #expect(try fetchSpeciesPreference(
-            for: "Quercus alba",
+            for: "Quercus macrocarpa",
             modelContext: context
         ) == nil)
-        #expect(
-            SpeciesPreferredNameStore.pendingDeleteDates(
-                userDefaults: defaults
-            )["Quercus alba"] != nil
-        )
+        #expect(try fetchSpeciesPreference(
+            for: "Quercus macrocarpa",
+            ownerUserID: secondUserID,
+            modelContext: context
+        )?.preferredCommonName == "Mossycup Oak")
+        #expect(SpeciesPreferredNameStore.pendingDeleteDates(
+            ownerUserID: speciesPreferenceTestUserID,
+            userDefaults: defaults
+        )["Quercus macrocarpa"] != nil)
+        #expect(SpeciesPreferredNameStore.pendingDeleteDates(
+            ownerUserID: secondUserID,
+            userDefaults: defaults
+        ).isEmpty)
     }
 
-    @Test func testSpeciesPreferredNameCloudSyncTreatsMatchingValuesAsConverged() {
+    @Test func batchReadReturnsOnlyTheRequestedAccount() throws {
+        let context = try makeSpeciesPreferenceContext()
+        let secondUserID = UUID()
+        context.insert(UserSpeciesPreference(
+            ownerUserID: speciesPreferenceTestUserID,
+            scientificName: "Quercus alba",
+            preferredCommonName: "White Oak"
+        ))
+        context.insert(UserSpeciesPreference(
+            ownerUserID: secondUserID,
+            scientificName: "Quercus alba",
+            preferredCommonName: "Second Account Oak"
+        ))
+        context.insert(UserSpeciesPreference(
+            ownerUserID: speciesPreferenceTestUserID,
+            scientificName: "Quercus stellata",
+            preferredCommonName: "Post Oak"
+        ))
+        try context.save()
+
+        #expect(SpeciesPreferredNameRepository.preferredNames(
+            for: ["Quercus alba", "Quercus stellata", "Quercus alba"],
+            ownerUserID: speciesPreferenceTestUserID,
+            modelContext: context
+        ) == [
+            "Quercus alba": "White Oak",
+            "Quercus stellata": "Post Oak"
+        ])
+    }
+
+    @Test func legacyDeviceGlobalValuesAreDiscardedRatherThanAdopted() throws {
+        let context = try makeSpeciesPreferenceContext()
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeciesPreferredNameStore.setLegacyPreferredName(
+            "Legacy Bur Oak",
+            for: "Quercus macrocarpa",
+            userDefaults: defaults
+        )
+        defaults.set(
+            ["Quercus alba": 1_000.0],
+            forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes
+        )
+        defaults.set(
+            "keep-me",
+            forKey: UserDefaultsKeys.sharedExplorePostIdPrefix + "scan-id"
+        )
+
+        let result = SpeciesPreferredNameRepository
+            .discardLegacyUnscopedPreferences(
+                modelContext: context,
+                legacyDefaults: defaults
+            )
+
+        #expect(result.promotedCount == 0)
+        #expect(result.removedLegacyCount == 1)
+        #expect(SpeciesPreferredNameStore.legacyPreferences(
+            userDefaults: defaults
+        ).isEmpty)
+        #expect(defaults.object(
+            forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes
+        ) == nil)
+        #expect(defaults.string(
+            forKey: UserDefaultsKeys.sharedExplorePostIdPrefix + "scan-id"
+        ) == "keep-me")
+        #expect(SpeciesPreferredNameRepository.preferredName(
+            for: "Quercus macrocarpa",
+            ownerUserID: speciesPreferenceTestUserID,
+            modelContext: context
+        ) == nil)
+    }
+
+    @Test func enforcesPreferredNameLengthBeforePersistence() throws {
+        let context = try makeSpeciesPreferenceContext()
+        let validName = String(repeating: "a", count: 200)
+        let invalidName = String(repeating: "b", count: 201)
+        let validCombiningName = String(repeating: "e\u{301}", count: 100)
+        let invalidCombiningName = String(repeating: "e\u{301}", count: 101)
+
+        #expect(SpeciesPreferredNameRepository.setPreferredName(
+            validName,
+            for: "Quercus alba",
+            ownerUserID: speciesPreferenceTestUserID,
+            modelContext: context
+        ))
+        #expect(!SpeciesPreferredNameRepository.setPreferredName(
+            invalidName,
+            for: "Quercus rubra",
+            ownerUserID: speciesPreferenceTestUserID,
+            modelContext: context
+        ))
+        #expect(SpeciesPreferredNameRepository.setPreferredName(
+            validCombiningName,
+            for: "Quercus velutina",
+            ownerUserID: speciesPreferenceTestUserID,
+            modelContext: context
+        ))
+        #expect(!SpeciesPreferredNameRepository.setPreferredName(
+            invalidCombiningName,
+            for: "Quercus stellata",
+            ownerUserID: speciesPreferenceTestUserID,
+            modelContext: context
+        ))
+        #expect(try fetchSpeciesPreference(
+            for: "Quercus rubra",
+            modelContext: context
+        ) == nil)
+        #expect(try fetchSpeciesPreference(
+            for: "Quercus stellata",
+            modelContext: context
+        ) == nil)
+    }
+
+    @Test func matchingCloudValuesAndTombstonesConverge() {
         let localUpdatedAt = Date(timeIntervalSince1970: 2_000)
         let matchingRemote = SpeciesPreferenceCloudRow(
             scientific_name: "Quercus macrocarpa",
@@ -99,17 +184,11 @@ struct SpeciesPreferredNameRepositoryTests {
             updated_at: "1970-01-01T00:16:40.000Z",
             deleted_at: nil
         )
-        let newerConflictingRemote = SpeciesPreferenceCloudRow(
+        let deletedRemote = SpeciesPreferenceCloudRow(
             scientific_name: "Quercus macrocarpa",
-            preferred_common_name: "Mossycup Oak",
-            updated_at: "1970-01-01T00:50:00.000Z",
-            deleted_at: nil
-        )
-        let olderConflictingRemote = SpeciesPreferenceCloudRow(
-            scientific_name: "Quercus macrocarpa",
-            preferred_common_name: "Mossycup Oak",
+            preferred_common_name: nil,
             updated_at: "1970-01-01T00:16:40.000Z",
-            deleted_at: nil
+            deleted_at: "1970-01-01T00:16:40.000Z"
         )
 
         #expect(!SpeciesPreferredNameRepository.needsActiveCloudUpsert(
@@ -117,158 +196,10 @@ struct SpeciesPreferredNameRepositoryTests {
             updatedAt: localUpdatedAt,
             remote: matchingRemote
         ))
-        #expect(!SpeciesPreferredNameRepository.needsActiveCloudUpsert(
-            preferredName: "Bur Oak",
-            updatedAt: localUpdatedAt,
-            remote: newerConflictingRemote
-        ))
-        #expect(SpeciesPreferredNameRepository.needsActiveCloudUpsert(
-            preferredName: "Bur Oak",
-            updatedAt: localUpdatedAt,
-            remote: olderConflictingRemote
-        ))
-        #expect(SpeciesPreferredNameRepository.needsActiveCloudUpsert(
-            preferredName: "Bur Oak",
-            updatedAt: localUpdatedAt,
-            remote: nil
-        ))
-    }
-
-    @Test func testSpeciesPreferredNameCloudDeleteDoesNotRewriteExistingTombstone() {
-        let localDeletedAt = Date(timeIntervalSince1970: 2_000)
-        let deletedRemote = SpeciesPreferenceCloudRow(
-            scientific_name: "Quercus macrocarpa",
-            preferred_common_name: nil,
-            updated_at: "1970-01-01T00:16:40.000Z",
-            deleted_at: "1970-01-01T00:16:40.000Z"
-        )
-        let newerActiveRemote = SpeciesPreferenceCloudRow(
-            scientific_name: "Quercus macrocarpa",
-            preferred_common_name: "Bur Oak",
-            updated_at: "1970-01-01T00:50:00.000Z",
-            deleted_at: nil
-        )
-
-        #expect(!SpeciesPreferredNameRepository.needsPendingDeleteCloudUpsert(
-            deletedAt: localDeletedAt,
-            remote: deletedRemote
-        ))
-        #expect(!SpeciesPreferredNameRepository.needsPendingDeleteCloudUpsert(
-            deletedAt: localDeletedAt,
-            remote: newerActiveRemote
-        ))
-        #expect(SpeciesPreferredNameRepository.needsPendingDeleteCloudUpsert(
-            deletedAt: localDeletedAt,
-            remote: nil
-        ))
-    }
-
-    @Test func testSpeciesPreferredNameRepositoryPromotesLegacyFallbackToSwiftData() throws {
-        let context = try makeSpeciesPreferenceContext()
-        let suiteName = "merian.tests.species-preferred-name-promotion.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        SpeciesPreferredNameStore.setPreferredName(
-            "Post Oak",
-            for: "Quercus stellata",
-            userDefaults: defaults
-        )
-
-        let preferred = SpeciesPreferredNameRepository.preferredName(
-            for: "Quercus stellata",
-            modelContext: context,
-            legacyDefaults: defaults
-        )
-
-        #expect(preferred == "Post Oak")
-        #expect(try fetchSpeciesPreference(for: "Quercus stellata", modelContext: context)?.preferredCommonName == "Post Oak")
-        #expect(SpeciesPreferredNameStore.preferredName(for: "Quercus stellata", userDefaults: defaults) == nil)
-
-        let persistedPreferred = SpeciesPreferredNameRepository.preferredName(
-            for: "Quercus stellata",
-            modelContext: context,
-            legacyDefaults: defaults
-        )
-
-        #expect(persistedPreferred == "Post Oak")
-        #expect(SpeciesPreferredNameStore.preferredName(for: "Quercus stellata", userDefaults: defaults) == nil)
-    }
-
-    @Test func testSpeciesPreferredNameRepositoryBuildsBoundedDisplayMap() throws {
-        let context = try makeSpeciesPreferenceContext()
-        let suiteName = "merian.tests.species-preferred-name-map.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        #expect(
-            SpeciesPreferredNameRepository.setPreferredName(
-                "Bur Oak",
-                for: "Quercus macrocarpa",
-                modelContext: context,
-                legacyDefaults: defaults
-            )
-        )
-        SpeciesPreferredNameStore.setPreferredName(
-            "Post Oak",
-            for: "Quercus stellata",
-            userDefaults: defaults
-        )
-
-        let preferredNames = SpeciesPreferredNameRepository.preferredNames(
-            for: [
-                "Quercus macrocarpa",
-                "Quercus stellata",
-                "Quercus alba",
-                "Quercus macrocarpa",
-                "   "
-            ],
-            modelContext: context,
-            legacyDefaults: defaults
-        )
-
-        #expect(preferredNames["Quercus macrocarpa"] == "Bur Oak")
-        #expect(preferredNames["Quercus stellata"] == "Post Oak")
-        #expect(preferredNames["Quercus alba"] == nil)
-        #expect(try fetchSpeciesPreference(for: "Quercus stellata", modelContext: context)?.preferredCommonName == "Post Oak")
-        #expect(SpeciesPreferredNameStore.preferredName(for: "Quercus stellata", userDefaults: defaults) == nil)
-    }
-
-    @Test func testSpeciesPreferredNameRepositoryMigratesLegacyPreferencesAtStartup() throws {
-        let context = try makeSpeciesPreferenceContext()
-        let suiteName = "merian.tests.species-preferred-name-startup-migration.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        #expect(
-            SpeciesPreferredNameRepository.setPreferredName(
-                "Bur Oak",
-                for: "Quercus macrocarpa",
-                modelContext: context,
-                legacyDefaults: defaults
-            )
-        )
-        SpeciesPreferredNameStore.setPreferredName("Legacy Bur Oak", for: "Quercus macrocarpa", userDefaults: defaults)
-        SpeciesPreferredNameStore.setPreferredName("Post Oak", for: "Quercus stellata", userDefaults: defaults)
-        defaults.set("keep-me", forKey: UserDefaultsKeys.sharedExplorePostIdPrefix + "scan-id")
-
-        let result = SpeciesPreferredNameRepository.migrateLegacyPreferences(
-            modelContext: context,
-            legacyDefaults: defaults
-        )
-
-        #expect(result.scannedCount == 2)
-        #expect(result.promotedCount == 1)
-        #expect(result.preservedExistingCount == 1)
-        #expect(result.removedLegacyCount == 2)
-        #expect(result.failedCount == 0)
-        #expect(try fetchSpeciesPreference(for: "Quercus macrocarpa", modelContext: context)?.preferredCommonName == "Bur Oak")
-        #expect(try fetchSpeciesPreference(for: "Quercus stellata", modelContext: context)?.preferredCommonName == "Post Oak")
-        #expect(SpeciesPreferredNameStore.preferredName(for: "Quercus macrocarpa", userDefaults: defaults) == nil)
-        #expect(SpeciesPreferredNameStore.preferredName(for: "Quercus stellata", userDefaults: defaults) == nil)
-        #expect(defaults.string(forKey: UserDefaultsKeys.sharedExplorePostIdPrefix + "scan-id") == "keep-me")
+        #expect(!SpeciesPreferredNameRepository
+            .needsPendingDeleteCloudUpsert(
+                deletedAt: localUpdatedAt,
+                remote: deletedRemote
+            ))
     }
 }

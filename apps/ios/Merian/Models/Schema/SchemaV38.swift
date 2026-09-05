@@ -11,8 +11,10 @@ enum MerianSchemaV38: VersionedSchema {
         [MerianSchemaV38.LocalScanRecord.self,
          MerianSchemaV38.OfflineQueuedScan.self,
          MerianSchemaV38.ScanCollection.self, PendingCloudDeletionTask.self,
-         UserSpeciesPreference.self]
+         MerianSchemaV38.UserSpeciesPreference.self]
     }
+
+    typealias UserSpeciesPreference = MerianSchemaV37.UserSpeciesPreference
 }
 
 // MARK: - Frozen LocalScanRecord snapshot for MerianSchemaV38

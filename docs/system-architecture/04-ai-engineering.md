@@ -148,6 +148,12 @@ its capture integration:
   exhaustion requests the paywall without a placeholder or error haptic. No
   copy, endpoint, retry, or durable ownership contract changes with this
   extraction.
+- **`Core/Network/Inference/InferenceIdentificationReviewService.swift`**: The
+  immutable AppDI-owned transport adapter for exact-name Species Dictionary
+  reads and `update_owned_scan_identification_review`. Every live operation is
+  wrapped in an account-work lease and rejects a result after Auth transition.
+  The engine owns review generations, ordered local writes, presentation, and
+  post-success invalidation; it no longer constructs PostgREST or RPC requests.
 - **`Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift`**:
   The initializer-injected Wikipedia mobile-sections and GBIF taxon-key
   transport/parsing boundary shared with scan-thumbnail recovery. Its live value

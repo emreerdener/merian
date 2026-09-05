@@ -5753,7 +5753,7 @@ Deno.test("account-grant issuance documentation retires RevenueCat mutation and 
   assertStringIncludes(reconciler, "rejects apply");
 });
 
-Deno.test("Collections documentation records the source-only V50 tombstone repair without changing the wire contract", async () => {
+Deno.test("Collections documentation carries the V50 tombstone repair through V51 without changing the wire contract", async () => {
   const [
     documentationIndex,
     coreDataReadme,
@@ -5826,13 +5826,14 @@ Deno.test("Collections documentation records the source-only V50 tombstone repai
     assertStringIncludes(source, "isPendingDeletion");
   }
   assertStringIncludes(schema, "MerianActiveSchemaV50");
+  assertStringIncludes(schema, "MerianSchemaV51");
   assertStringIncludes(schema, "@Attribute(originalName:)");
-  assertStringIncludes(schema, "No V50 → V51 stage exists");
-  assert(!schema.includes("MerianRecentV50MigrationPlan"));
-  assertStringIncludes(testing, "V49→V50");
+  assertStringIncludes(schema, "MerianRecentV50MigrationPlan");
+  assertStringIncludes(schema, "V50→V51");
+  assertStringIncludes(testing, "V49→V50→V51");
   assertStringIncludes(documentationIndex, "/sync-collections");
-  assertStringIncludes(coreDataReadme, "Fresh and V50 stores");
-  assertStringIncludes(coreDataReadme, "known V42...V49 sources");
+  assertStringIncludes(coreDataReadme, "Fresh and V51 stores");
+  assertStringIncludes(coreDataReadme, "known V42...V50 sources");
   assertStringIncludes(
     apiContract,
     "clients do not need to send both keys",
@@ -5845,4 +5846,65 @@ Deno.test("Collections documentation records the source-only V50 tombstone repai
     cleanup,
     "Completed Scans Collections Persistence Repair",
   );
+});
+
+Deno.test("preferred species-name documentation locks the account and resource boundaries", async () => {
+  const [
+    dataReadme,
+    preferencesReadme,
+    backend,
+    schema,
+    insight,
+    managers,
+    testing,
+    startup,
+    codebaseMap,
+  ] = await Promise.all([
+    read("apps/ios/Merian/Core/Data/SpeciesPreferences/README.md"),
+    read("apps/ios/Merian/Core/Preferences/README.md"),
+    read("docs/backend-and-data/02-supabase-edge-and-database.md"),
+    read("docs/backend-and-data/04-database-schema.md"),
+    read("docs/features-and-hardware/05-insight-sheet.md"),
+    read("docs/development-guides/09-core-managers.md"),
+    read("docs/development-guides/08-testing-strategy.md"),
+    read("docs/backend-and-data/08-startup-store-recovery.md"),
+    read("docs/codebase-map.md"),
+  ]).then((sources) => sources.map(compact));
+
+  for (
+    const source of [
+      dataReadme,
+      preferencesReadme,
+      backend,
+      schema,
+      insight,
+      managers,
+      testing,
+      startup,
+      codebaseMap,
+    ]
+  ) {
+    assertStringIncludes(source, "V51");
+  }
+
+  for (const source of [dataReadme, backend, schema, insight, managers]) {
+    assertStringIncludes(source, "account");
+    assertStringIncludes(source, "1,000");
+    assertStringIncludes(source, "200");
+  }
+
+  assertStringIncludes(dataReadme, "scientific-name keyset");
+  assertStringIncludes(dataReadme, "discard");
+  assertStringIncludes(preferencesReadme, "account-qualified");
+  assertStringIncludes(
+    backend,
+    "20260904190000_harden_user_species_preferences_rls.sql",
+  );
+  assertStringIncludes(schema, "MerianRecentV50MigrationPlan");
+  assertStringIncludes(
+    testing,
+    "species_preference_rls_security.sql",
+  );
+  assertStringIncludes(startup, "recent-source-v50");
+  assertStringIncludes(codebaseMap, "InferenceIdentificationReviewService");
 });

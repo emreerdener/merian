@@ -340,9 +340,9 @@ final class ExploreFeedViewModel {
         )
         guard !normalizedNames.isEmpty else { return }
 
-        let refreshedNames = SpeciesPreferredNameRepository.preferredNames(
-            for: Array(normalizedNames),
-            modelContext: modelContext
+        let refreshedNames = dependencies.loadPreferredSpeciesNames(
+            Array(normalizedNames),
+            modelContext
         )
 
         var nextNames = preferredSpeciesNamesByScientificName

@@ -17,10 +17,14 @@ synchronization, authentication, networking, or feature presentation.
 - `Stores/FieldNotesStore.swift` owns the legacy per-scan field-note bridge.
   `Core/Utilities/FieldNotesRepository.swift` remains the SwiftData-first
   reconciliation authority.
-- `Stores/SpeciesPreferredNameStore.swift` owns legacy preferred-name keys,
-  pending-delete timestamps, and the `SpeciesPreferredNameSyncDiagnostics`
-  support value. `Core/Data/SpeciesPreferences` owns the SwiftData repository,
-  reconciliation policy, and injected cloud-sync boundary.
+- `Stores/SpeciesPreferredNameStore.swift` owns fail-closed cleanup of legacy
+  device-global preferred-name keys plus account-qualified pending-delete
+  timestamps and `SpeciesPreferredNameSyncDiagnostics` values. It normalizes
+  duplicate marker keys to the newest timestamp, never regresses a stored delete
+  generation, and clears a marker conditionally when an in-flight operation
+  acknowledges only the timestamp it captured. `Core/Data/SpeciesPreferences`
+  owns the SwiftData repository, reconciliation policy, and injected cloud-sync
+  boundary.
 - `AccountScopedPreferences.swift` composes those keyed stores with the exact
   account-derived cache-key and prefix inventory used during accepted account
   deletion. It clears and read-back verifies scan badges, collection state,
@@ -50,7 +54,9 @@ that aggregate for their separately reviewed security slice.
 - `AppSettings.gridColumns` clamps runtime mutations to the supported 1...3
   range and persists that normalized value.
 - `ExploreShareStateStore` and `FieldNotesStore` clear only their own key
-  prefixes. The species store must not erase unrelated defaults.
+  prefixes. The species store partitions every live tombstone/diagnostic key by
+  lowercased account UUID and must not erase unrelated defaults. Its accepted
+  account-deletion path deliberately clears every local account partition.
 - Account cleanup must use `AccountScopedPreferences.purgeAndVerify`; it must
   not clear the deletion-recovery marker, manual Apple-revocation notice,
   consent evidence, APNs token, onboarding completion, or device settings.
@@ -58,10 +64,10 @@ that aggregate for their separately reviewed security slice.
   `AccountScopedRuntimeState`. The app-icon owner generation-fences its network
   refresh so a response admitted before deletion cannot restore the prior
   account's badge count afterward.
-- Defaults, trimming, key strings, notification behavior, and migration behavior
-  remain stable. Behavior fixes in this slice persist a clamped runtime grid
-  count and make accepted account deletion remove every classified account cache
-  instead of only the Explore-share bridge.
+- Defaults, trimming, notification behavior, and unrelated key strings remain
+  stable. V51 introduces versioned account-qualified species metadata keys;
+  device-global legacy names and sync markers are discarded, never adopted by
+  the next signed-in account.
 
 ## Verification
 
@@ -71,8 +77,9 @@ Mirrored tests live in `MerianTests/Core/Preferences/`:
   reloads, and external-change observation.
 - `KeyedPreferenceStoreTests.swift` covers normalization, clearing, and prefix
   isolation for Explore share and field-note bridges.
-- `SpeciesPreferredNameStoreTests.swift` covers species scoping, prefix-safe
-  clearing, pending-delete values, and sync diagnostics.
+- `SpeciesPreferredNameStoreTests.swift` covers account isolation, prefix-safe
+  legacy removal, all-partition cleanup, pending-delete normalization and
+  monotonicity, conditional acknowledgement, and sync diagnostics.
 - `AccountScopedPreferencesTests.swift` locks the complete direct-cache
   inventory, verified erasure, preservation of device settings, and exact
   runtime-owner delegation.
@@ -87,4 +94,4 @@ mutate the same singleton-backed values.
 
 Repository and cloud-convergence tests live under
 `MerianTests/Core/Data/SpeciesPreferences/`; Preferences tests retain ownership
-of only the legacy bridge, pending-delete store, and diagnostic persistence.
+of only legacy cleanup, the pending-delete store, and diagnostic persistence.

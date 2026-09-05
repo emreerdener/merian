@@ -22,6 +22,7 @@ struct ScanRepositoryPurgeTests {
         let context = ModelContext(container)
         context.insert(
             UserSpeciesPreference(
+                ownerUserID: speciesPreferenceTestUserID,
                 scientificName: "Quercus macrocarpa",
                 preferredCommonName: "Bur Oak"
             )
@@ -63,17 +64,19 @@ struct ScanRepositoryPurgeTests {
             for: "scan-id",
             userDefaults: defaults
         )
-        SpeciesPreferredNameStore.setPreferredName(
+        SpeciesPreferredNameStore.setLegacyPreferredName(
             "White Oak",
             for: "Quercus alba",
             userDefaults: defaults
         )
         SpeciesPreferredNameStore.markPendingCloudDelete(
             for: "Quercus rubra",
+            ownerUserID: speciesPreferenceTestUserID,
             userDefaults: defaults
         )
         SpeciesPreferredNameStore.recordSyncFailure(
             "Unavailable",
+            ownerUserID: speciesPreferenceTestUserID,
             userDefaults: defaults
         )
         defaults.set("dark", forKey: UserDefaultsKeys.themeMode)

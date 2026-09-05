@@ -11,10 +11,14 @@ the `OfflineQueuedScan` persistence mechanism. It ensures that data remains
 durable even when inference fails or network connectivity is absent.
 
 `SpeciesPreferences/` owns the smaller cross-feature preferred-common-name data
-boundary. Its repository performs local SwiftData CRUD and legacy promotion; its
-policy owns normalization and timestamp conflicts; and its injected client and
-main-actor coordinator isolate the existing `user_species_preferences` PostgREST
-reconciliation. Only the live client resolves Supabase. See the
+boundary. Its repository performs account-scoped SwiftData CRUD and fail-closed
+legacy cleanup; its policy owns normalization, resource limits, and timestamp
+conflicts; its focused local-recovery service repairs interrupted
+SwiftData/UserDefaults mutations; and its injected client plus main-actor
+coordinator isolate the existing `user_species_preferences` PostgREST
+reconciliation. Only the live client resolves Supabase. The coordinator
+generation-acknowledges tombstones and refetches local state after an upsert
+suspension before applying the earlier remote page. See the
 [Species Preferences README](SpeciesPreferences/README.md) for ownership and
 verification details.
 
@@ -32,14 +36,15 @@ file owners and must not infer ownership from a broad directory alone.
 V50 introduced `OfflineQueuedScanGoalHint`, a scan-keyed companion that stores
 the optional standard-outing and checklist-item IDs selected in a qualifying
 live Capture. Keeping this separate preserved the released V49 queue entity. The
-active `MerianActiveSchemaV50` owner keeps that companion and maps the
-collection tombstone `ScanCollection.isPendingDeletion` to the released
-`isDeleted` column while continuing to emit the `is_deleted` wire field. The
-source-only rename does not create a new persisted schema. Foreground/background
-completion read the same goal hint. Successful queue finalization preserves it
-as a durable progress outbox until acknowledgement; explicit cancellation and
-terminal orphan repair remove it. Persistent Insight contribution cards are
-server-backed and are intentionally not cached in SwiftData.
+current V51 schema retains that companion through
+`ActiveOfflineQueuedScanGoalHint` and keeps the collection tombstone
+`ScanCollection.isPendingDeletion` mapped to the released `isDeleted` column
+while continuing to emit the `is_deleted` wire field. V51 separately makes
+preferred species names account-scoped. Foreground/background completion read
+the same goal hint. Successful queue finalization preserves it as a durable
+progress outbox until acknowledgement; explicit cancellation and terminal orphan
+repair remove it. Persistent Insight contribution cards are server-backed and
+are intentionally not cached in SwiftData.
 
 Authenticated historical reconciliation treats a nonempty `scans.captured_media`
 projection as authoritative only when domain mapping yields a usable image or
@@ -407,14 +412,16 @@ persistence.
 
 - `ModelStoreRecoveryCoordinator` decides whether a `ModelContainer` startup
   failure is a verified SQLite/Core Data corruption case.
-- It reads actual store metadata before container creation. Fresh and V50 stores
-  open as current; known V42...V49 sources use finite, source-isolated plans;
+- It reads actual store metadata before container creation. Fresh and V51 stores
+  open as current; known V42...V50 sources use finite, source-isolated plans;
   only unknown older stores use the full historical plan.
-- A released V50 store opens without a migration plan. A released V49 store
-  selects `MerianRecentV49MigrationPlan` and advances through one lightweight
-  V49→V50 hop. The full historical plan remains linear through V42→V49→V50;
-  V43...V48 use their source-isolated plans. The duplicate-checksum retry ladder
-  is ordered current store, then V49 down through V42.
+- A released V50 store selects `MerianRecentV50MigrationPlan` and applies the
+  custom V50→V51 account-partition stage. A released V49 store selects
+  `MerianRecentV49MigrationPlan` and advances through lightweight V49→V50 plus
+  custom V50→V51 hops. The full historical plan remains linear through
+  V42→V49→V50→V51; V43...V48 use their source-isolated plans. The
+  duplicate-checksum retry ladder is ordered current store, then V50 down
+  through V42.
 - Only confirmed corruption may quarantine `default.store`, `default.store-shm`,
   and `default.store-wal`.
 - Non-corrupt failures on legacy migration strategies may archive those same

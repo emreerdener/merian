@@ -1652,7 +1652,7 @@ disconnected.
    the collection-sync job complete only when the captured revision still
    matches. If a newer rename/delete arrives while the old request is in flight,
    the job remains pending/waiting and the next drain loop replays the newer
-   state. The active V50 application-owned `isPendingDeletion` marker is mapped
+   state. The active V51 application-owned `isPendingDeletion` marker is mapped
    to the released `isDeleted` column, so this ordering guarantees
    `is_deleted: true` reaches the Edge function after any stale upsert
    snapshots.
@@ -1663,13 +1663,13 @@ disconnected.
    the previous value, rolls back, and suppresses downstream work when that save
    throws. Once an acknowledged payload contains `is_deleted: true`,
    `BackgroundDatabaseActor` hard-deletes the matching local tombstone. The
-   released V50 Swift property name is retained only in the frozen fixture;
-   `MerianActiveSchemaV50` owns the active durable boundary.
+   released V50 Swift property name is retained only in the frozen fixture; the
+   V51 active model owns the durable boundary.
 
-   The source-only V50 repair freezes the released graph, maps the active
-   non-reserved property with `@Attribute(originalName:)`, preserves both the
-   V50 persisted checksum and the `is_deleted` wire field, and is covered by a
-   disk-backed V50 reopening fixture. See
+   The V50 repair froze the released graph and mapped the active non-reserved
+   property with `@Attribute(originalName:)`. V51 retains that field and wire
+   behavior while its custom migration changes only preferred-name ownership. A
+   disk-backed V50→V51 fixture covers the full boundary. See
    [ScanCollection schema](./04-database-schema.md#scancollection-user-albums).
 
    > [!IMPORTANT]
@@ -1708,7 +1708,7 @@ disconnected.
    Shield**: If the cloud response erroneously includes a collection with a
    durable local application tombstone, the cloud response is ignored. This is
    intended to protect against delayed Edge work resurrecting a deleted entity;
-   the active V50 property-name mapping makes that shield durable for reopened
+   the active V51 property-name mapping makes that shield durable for reopened
    stores. Collections absent from the cloud response and not named "Favorites"
    are deleted locally. Because step 4 guarantees every local collection is
    already in the cloud, the delete pass only removes collections the user

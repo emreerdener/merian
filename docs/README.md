@@ -174,21 +174,27 @@ as their permanent engineering identity.
   production Supabase. A Debug simulator emits a conspicuous warning but still
   performs real auth, reads, and writes. Routine simulator work should override
   both URL and client key to a matching local/staging project.
-- **Active SwiftData schema**: `MerianActiveSchemaV50` via
-  `typealias CurrentSchema = MerianActiveSchemaV50` in
+- **Active SwiftData schema**: `MerianSchemaV51` via
+  `typealias CurrentSchema = MerianSchemaV51` in
   `apps/ios/Merian/Models/Aliases.swift`. The released V50 disk shape is frozen
   in `Models/Schema/SchemaV50Snapshots.swift`; it preserves the released V49
   queue entity and adds a scan-keyed `OfflineQueuedScanGoalHint` companion
-  through a lightweight migration. The active V50 owner keeps that companion and
-  names the application collection tombstone `isPendingDeletion` with
-  `@Attribute(originalName: "isDeleted")`, preserving the `is_deleted` wire
-  field while avoiding SwiftData's framework lifecycle name. This source-only
-  rename keeps the persisted schema at V50; released V50 stores open as current
-  without a migration plan. V49 and earlier recent stores use source-isolated
-  plans ending at active V50. Migration creates no goal-hint rows for V49 stores
-  because V49 stored no selected-goal value to backfill. The schema and recovery
-  contract is documented in the
-  [schema contract](./backend-and-data/04-database-schema.md#scancollection-user-albums).
+  through a lightweight migration. `MerianActiveSchemaV50` is now the frozen
+  source bridge for the custom V50→V51 migration. V51 keeps the collection
+  tombstone mapped from `isPendingDeletion` to the released `isDeleted` column
+  and makes `UserSpeciesPreference` account-scoped through a compound stable ID
+  and `ownerUserId`. Device-global V50 rows are deleted while the frozen source
+  schema is active, before SwiftData materializes the new unique identity;
+  legacy defaults are also discarded because no trustworthy account can be
+  inferred. V50 stores use the source-isolated V50→V51 plan; V49 and earlier
+  recent stores reach frozen V50 and then apply the same custom stage. Migration
+  creates no goal-hint rows for V49 stores because V49 stored no selected-goal
+  value to backfill. The durable collection shape, preference account partition,
+  and startup routing are documented in the
+  [schema contract](./backend-and-data/04-database-schema.md#user_species_preferences),
+  [collection contract](./backend-and-data/04-database-schema.md#scancollection-user-albums),
+  and
+  [startup recovery guide](./backend-and-data/08-startup-store-recovery.md#v50v51-account-partition-acceptance).
 - **Primary inference endpoint**: `/identify-multimodal` for visual, audio,
   describe, and mixed-media submissions. It owns staged media durability through
   `scan_ingestion_jobs`, sanitized `scan_ingestion_intents`, scheduled
@@ -539,7 +545,7 @@ as their permanent engineering identity.
 
 - **[`/backend-and-data/01-offline-sync-pipeline.md`](./backend-and-data/01-offline-sync-pipeline.md)**
   — Zero-data-loss architecture, SwiftData queues, live/background upload
-  ownership, V50 collection tombstone synchronization, and AppDelegate
+  ownership, V51 collection tombstone synchronization, and AppDelegate
   background URLSession mappings.
 - **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)**
   — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species
@@ -554,14 +560,15 @@ as their permanent engineering identity.
   including the V41 `CapturedMediaEntry` mixed-media model, V47 offline video
   inference fields, V48 offline job records/events, V49 startup store repair,
   V50 durable queued Field trip goal hints and source-only
-  `ScanCollection.isPendingDeletion` rename, private Insight and per-viewer
-  Explore/Dictionary Field chat tables, scan media assets, and Explore Community
-  Identification versioned taxonomy, consensus jobs, requests, public
-  projections, and internal grouped Activity projection, atomic ingestion
-  setup/dictionary RPCs, deferred scan-context staging, and the private
-  admin/review/audit schema plus canonical AI usage ledger, storage-erasure
-  claim fencing, atomic owned scan-image reference repair, and the database-only
-  Backyard Safari enrollment trigger/backfill.
+  `ScanCollection.isPendingDeletion` rename, V51 account-scoped species
+  preferences, private Insight and per-viewer Explore/Dictionary Field chat
+  tables, scan media assets, and Explore Community Identification versioned
+  taxonomy, consensus jobs, requests, public projections, and internal grouped
+  Activity projection, atomic ingestion setup/dictionary RPCs, deferred
+  scan-context staging, and the private admin/review/audit schema plus canonical
+  AI usage ledger, storage-erasure claim fencing, atomic owned scan-image
+  reference repair, and the database-only Backyard Safari enrollment
+  trigger/backfill.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)**
   — JSON mapping contracts between the iOS client and Deno Edge functions,
   including `/identify-multimodal`, `/insight-chat`, `/explore-post-chat`,

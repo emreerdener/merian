@@ -1,67 +1,45 @@
 import Foundation
 import SwiftData
 
-/// SwiftData source of truth for the user's preferred species display names.
+/// Account-scoped SwiftData source of truth for preferred species names.
 ///
-/// Legacy `UserDefaults` values are migration input only. Cloud reconciliation
-/// is delegated to `SpeciesPreferredNameCloudSyncCoordinator` so local data
-/// access does not resolve a network singleton.
+/// Every operation requires the authenticated account id. Cloud reconciliation
+/// is delegated to `SpeciesPreferredNameCloudSyncCoordinator`, keeping network
+/// and Auth singleton resolution out of this repository.
 @MainActor
 enum SpeciesPreferredNameRepository {
     static func preferredName(
         for scientificName: String,
-        modelContext: ModelContext,
-        legacyDefaults: UserDefaults = .standard
+        ownerUserID: UUID,
+        modelContext: ModelContext
     ) -> String? {
         let scientificName = SpeciesPreferredNamePolicy
             .normalizedScientificName(scientificName)
         guard !scientificName.isEmpty else { return nil }
 
-        let record: UserSpeciesPreference?
         do {
-            record = try fetchPreference(
+            guard let record = try fetchPreference(
                 for: scientificName,
+                ownerUserID: ownerUserID,
                 modelContext: modelContext
+            ) else {
+                return nil
+            }
+            return SpeciesPreferredNamePolicy.normalizedPreferredName(
+                record.preferredCommonName
             )
         } catch {
             MerianLog.data.error(
-                "Failed to fetch species preferred name for \(scientificName, privacy: .private): \(error.localizedDescription, privacy: .private)"
+                "Failed to fetch account species preferred name: \(error.localizedDescription, privacy: .private)"
             )
             return nil
         }
-
-        if let record {
-            let preferredName = SpeciesPreferredNamePolicy
-                .normalizedPreferredName(record.preferredCommonName)
-            if let preferredName {
-                SpeciesPreferredNameStore.clearPreferredName(
-                    for: scientificName,
-                    userDefaults: legacyDefaults
-                )
-                return preferredName
-            }
-        }
-
-        guard let legacyName = SpeciesPreferredNameStore.preferredName(
-            for: scientificName,
-            userDefaults: legacyDefaults
-        ) else {
-            return nil
-        }
-
-        _ = setPreferredName(
-            legacyName,
-            for: scientificName,
-            modelContext: modelContext,
-            legacyDefaults: legacyDefaults
-        )
-        return legacyName
     }
 
     static func preferredNames(
         for scientificNames: [String],
-        modelContext: ModelContext,
-        legacyDefaults: UserDefaults = .standard
+        ownerUserID: UUID,
+        modelContext: ModelContext
     ) -> [String: String] {
         let normalizedNames = Array(
             Set(
@@ -71,8 +49,7 @@ enum SpeciesPreferredNameRepository {
                     )
                     .filter { !$0.isEmpty }
             )
-        )
-        .sorted()
+        ).sorted()
 
         let maximumCount = SpeciesPreferredNameResourceLimits
             .maximumLocalPreferenceCount
@@ -82,161 +59,68 @@ enum SpeciesPreferredNameRepository {
             )
         }
 
-        var namesByScientificName: [String: String] = [:]
         let boundedNames = Array(normalizedNames.prefix(maximumCount))
-        let recordsByScientificName: [String: UserSpeciesPreference]
         do {
-            recordsByScientificName = try fetchPreferences(
+            let records = try fetchPreferences(
                 for: boundedNames,
+                ownerUserID: ownerUserID,
                 modelContext: modelContext
             )
+            return records.compactMapValues { record in
+                SpeciesPreferredNamePolicy.normalizedPreferredName(
+                    record.preferredCommonName
+                )
+            }
         } catch {
             MerianLog.data.error(
-                "Failed to batch fetch species preferred names: \(error.localizedDescription, privacy: .private)"
+                "Failed to batch fetch account species preferred names: \(error.localizedDescription, privacy: .private)"
             )
             return [:]
         }
-        namesByScientificName.reserveCapacity(boundedNames.count)
-
-        for scientificName in boundedNames {
-            if let record = recordsByScientificName[scientificName],
-               let preferredName = SpeciesPreferredNamePolicy
-                .normalizedPreferredName(record.preferredCommonName) {
-                SpeciesPreferredNameStore.clearPreferredName(
-                    for: scientificName,
-                    userDefaults: legacyDefaults
-                )
-                namesByScientificName[scientificName] = preferredName
-                continue
-            }
-
-            guard let legacyName = SpeciesPreferredNameStore.preferredName(
-                for: scientificName,
-                userDefaults: legacyDefaults
-            ) else {
-                continue
-            }
-
-            _ = setPreferredName(
-                legacyName,
-                for: scientificName,
-                modelContext: modelContext,
-                legacyDefaults: legacyDefaults
-            )
-            namesByScientificName[scientificName] = legacyName
-        }
-
-        return namesByScientificName
     }
 
+    /// Removes device-global V50/UserDefaults residue without assigning it to
+    /// the first account that launches the upgraded app.
     @discardableResult
-    static func migrateLegacyPreferences(
+    static func discardLegacyUnscopedPreferences(
         modelContext: ModelContext,
         legacyDefaults: UserDefaults = .standard
     ) -> SpeciesNameMigrationResult {
-        let legacyPreferences = SpeciesPreferredNameStore.legacyPreferences(
+        let legacyCount = SpeciesPreferredNameStore.legacyPreferences(
             userDefaults: legacyDefaults
-        )
-        guard !legacyPreferences.isEmpty else {
-            return SpeciesNameMigrationResult(
-                scannedCount: 0,
-                promotedCount: 0,
-                preservedExistingCount: 0,
-                removedLegacyCount: 0,
-                failedCount: 0
-            )
-        }
+        ).count
 
-        let scientificNames = legacyPreferences.keys.sorted()
-        let recordsByScientificName: [String: UserSpeciesPreference]
         do {
-            recordsByScientificName = try fetchPreferences(
-                for: scientificNames,
-                modelContext: modelContext
-            )
-        } catch {
-            MerianLog.data.error(
-                "Failed to fetch existing species preferred names during migration: \(error.localizedDescription, privacy: .private)"
-            )
-            return SpeciesNameMigrationResult(
-                scannedCount: scientificNames.count,
-                promotedCount: 0,
-                preservedExistingCount: 0,
-                removedLegacyCount: 0,
-                failedCount: scientificNames.count
-            )
-        }
-
-        var didMutateSwiftData = false
-        var pendingPromotedCount = 0
-        var preservedExistingCount = 0
-
-        for scientificName in scientificNames {
-            guard let legacyName = SpeciesPreferredNamePolicy
-                .normalizedPreferredName(legacyPreferences[scientificName])
-            else {
-                continue
-            }
-
-            if let existing = recordsByScientificName[scientificName],
-               SpeciesPreferredNamePolicy.normalizedPreferredName(
-                   existing.preferredCommonName
-               ) != nil {
-                preservedExistingCount += 1
-                continue
-            }
-
-            if let existing = recordsByScientificName[scientificName] {
-                existing.preferredCommonName = legacyName
-                existing.updatedAt = Date()
-            } else {
-                modelContext.insert(
-                    UserSpeciesPreference(
-                        scientificName: scientificName,
-                        preferredCommonName: legacyName
-                    )
+            let unowned = try modelContext.fetch(
+                FetchDescriptor<UserSpeciesPreference>(
+                    predicate: #Predicate { $0.ownerUserId == "" }
                 )
-            }
-            didMutateSwiftData = true
-            pendingPromotedCount += 1
-        }
-
-        do {
-            if didMutateSwiftData {
+            )
+            unowned.forEach(modelContext.delete)
+            if !unowned.isEmpty {
                 try modelContext.save()
             }
-
-            for scientificName in scientificNames {
-                SpeciesPreferredNameStore.clearPreferredName(
-                    for: scientificName,
-                    userDefaults: legacyDefaults
-                )
-            }
-
-            if pendingPromotedCount > 0 || preservedExistingCount > 0 {
-                MerianLog.data.debug(
-                    "Migrated \(pendingPromotedCount, privacy: .public) legacy species preferred names and removed \(scientificNames.count, privacy: .public) legacy keys."
-                )
-            }
-
+            SpeciesPreferredNameStore.discardLegacyUnscopedData(
+                userDefaults: legacyDefaults
+            )
             return SpeciesNameMigrationResult(
-                scannedCount: scientificNames.count,
-                promotedCount: pendingPromotedCount,
-                preservedExistingCount: preservedExistingCount,
-                removedLegacyCount: scientificNames.count,
+                scannedCount: legacyCount + unowned.count,
+                promotedCount: 0,
+                preservedExistingCount: 0,
+                removedLegacyCount: legacyCount + unowned.count,
                 failedCount: 0
             )
         } catch {
             modelContext.rollback()
             MerianLog.data.error(
-                "Failed to migrate legacy species preferred names: \(error.localizedDescription, privacy: .private)"
+                "Failed to discard unscoped species preferences: \(error.localizedDescription, privacy: .private)"
             )
             return SpeciesNameMigrationResult(
-                scannedCount: scientificNames.count,
+                scannedCount: legacyCount,
                 promotedCount: 0,
                 preservedExistingCount: 0,
                 removedLegacyCount: 0,
-                failedCount: scientificNames.count
+                failedCount: legacyCount
             )
         }
     }
@@ -245,6 +129,7 @@ enum SpeciesPreferredNameRepository {
     static func setPreferredName(
         _ name: String?,
         for scientificName: String,
+        ownerUserID: UUID,
         modelContext: ModelContext,
         legacyDefaults: UserDefaults = .standard
     ) -> Bool {
@@ -252,10 +137,18 @@ enum SpeciesPreferredNameRepository {
             .normalizedScientificName(scientificName)
         guard !scientificName.isEmpty else { return false }
 
-        guard let preferredName = SpeciesPreferredNamePolicy
-            .normalizedPreferredName(name) else {
+        let trimmedName = name?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        let preferredName = SpeciesPreferredNamePolicy
+            .normalizedPreferredName(name)
+        if trimmedName?.isEmpty == false, preferredName == nil {
+            return false
+        }
+        guard let preferredName else {
             return clearPreferredName(
                 for: scientificName,
+                ownerUserID: ownerUserID,
                 modelContext: modelContext,
                 legacyDefaults: legacyDefaults
             )
@@ -264,13 +157,25 @@ enum SpeciesPreferredNameRepository {
         do {
             if let existing = try fetchPreference(
                 for: scientificName,
+                ownerUserID: ownerUserID,
                 modelContext: modelContext
             ) {
                 existing.preferredCommonName = preferredName
                 existing.updatedAt = Date()
             } else {
+                guard try preferenceCount(
+                    ownerUserID: ownerUserID,
+                    modelContext: modelContext
+                ) < SpeciesPreferredNameResourceLimits
+                    .maximumLocalPreferenceCount else {
+                    MerianLog.data.error(
+                        "Rejected species preferred name at the local account limit."
+                    )
+                    return false
+                }
                 modelContext.insert(
                     UserSpeciesPreference(
+                        ownerUserID: ownerUserID,
                         scientificName: scientificName,
                         preferredCommonName: preferredName
                     )
@@ -278,12 +183,9 @@ enum SpeciesPreferredNameRepository {
             }
 
             try modelContext.save()
-            SpeciesPreferredNameStore.clearPreferredName(
-                for: scientificName,
-                userDefaults: legacyDefaults
-            )
             SpeciesPreferredNameStore.clearPendingCloudDelete(
                 for: scientificName,
+                ownerUserID: ownerUserID,
                 userDefaults: legacyDefaults
             )
             scheduleCloudSync(
@@ -294,7 +196,7 @@ enum SpeciesPreferredNameRepository {
         } catch {
             modelContext.rollback()
             MerianLog.data.error(
-                "Failed to save species preferred name for \(scientificName, privacy: .private): \(error.localizedDescription, privacy: .private)"
+                "Failed to save account species preferred name: \(error.localizedDescription, privacy: .private)"
             )
             return false
         }
@@ -303,6 +205,7 @@ enum SpeciesPreferredNameRepository {
     @discardableResult
     static func clearPreferredName(
         for scientificName: String,
+        ownerUserID: UUID,
         modelContext: ModelContext,
         legacyDefaults: UserDefaults = .standard
     ) -> Bool {
@@ -313,18 +216,15 @@ enum SpeciesPreferredNameRepository {
         do {
             if let existing = try fetchPreference(
                 for: scientificName,
+                ownerUserID: ownerUserID,
                 modelContext: modelContext
             ) {
                 modelContext.delete(existing)
                 try modelContext.save()
             }
-
-            SpeciesPreferredNameStore.clearPreferredName(
-                for: scientificName,
-                userDefaults: legacyDefaults
-            )
             SpeciesPreferredNameStore.markPendingCloudDelete(
                 for: scientificName,
+                ownerUserID: ownerUserID,
                 userDefaults: legacyDefaults
             )
             scheduleCloudSync(
@@ -335,7 +235,7 @@ enum SpeciesPreferredNameRepository {
         } catch {
             modelContext.rollback()
             MerianLog.data.error(
-                "Failed to clear species preferred name for \(scientificName, privacy: .private): \(error.localizedDescription, privacy: .private)"
+                "Failed to clear account species preferred name: \(error.localizedDescription, privacy: .private)"
             )
             return false
         }
@@ -343,41 +243,53 @@ enum SpeciesPreferredNameRepository {
 
     private static func fetchPreference(
         for scientificName: String,
+        ownerUserID: UUID,
         modelContext: ModelContext
     ) throws -> UserSpeciesPreference? {
-        let targetScientificName = scientificName
+        let targetID = UserSpeciesPreference.identifier(
+            ownerUserID: ownerUserID,
+            scientificName: scientificName
+        )
         var descriptor = FetchDescriptor<UserSpeciesPreference>(
-            predicate: #Predicate<UserSpeciesPreference> {
-                $0.scientificName == targetScientificName
-            }
+            predicate: #Predicate { $0.id == targetID }
         )
         descriptor.fetchLimit = 1
-
         return try modelContext.fetch(descriptor).first
     }
 
     private static func fetchPreferences(
         for scientificNames: [String],
+        ownerUserID: UUID,
         modelContext: ModelContext
     ) throws -> [String: UserSpeciesPreference] {
         guard !scientificNames.isEmpty else { return [:] }
 
+        let ownerID = ownerUserID.uuidString.lowercased()
         let targetScientificNames = scientificNames
         var descriptor = FetchDescriptor<UserSpeciesPreference>(
-            predicate: #Predicate<UserSpeciesPreference> {
-                targetScientificNames.contains($0.scientificName)
+            predicate: #Predicate {
+                $0.ownerUserId == ownerID
+                    && targetScientificNames.contains($0.scientificName)
             }
         )
         descriptor.fetchLimit = targetScientificNames.count
 
-        let records = try modelContext.fetch(descriptor)
-        var recordsByScientificName: [String: UserSpeciesPreference] = [:]
-        recordsByScientificName.reserveCapacity(records.count)
-        for record in records
-        where recordsByScientificName[record.scientificName] == nil {
-            recordsByScientificName[record.scientificName] = record
-        }
-        return recordsByScientificName
+        return Dictionary(
+            uniqueKeysWithValues: try modelContext.fetch(descriptor).map {
+                ($0.scientificName, $0)
+            }
+        )
+    }
+
+    private static func preferenceCount(
+        ownerUserID: UUID,
+        modelContext: ModelContext
+    ) throws -> Int {
+        let ownerID = ownerUserID.uuidString.lowercased()
+        let descriptor = FetchDescriptor<UserSpeciesPreference>(
+            predicate: #Predicate { $0.ownerUserId == ownerID }
+        )
+        return try modelContext.fetchCount(descriptor)
     }
 
     private static func scheduleCloudSync(

@@ -26,26 +26,25 @@ compile gate. Every build-relevant startup or schema change must also pass
    `ModelContainer`.
 2. Choose the narrowest safe startup strategy:
    - no store artifacts or current-schema store → open without a migration plan
-   - known recent source store (V42, V43, V44, V45, V46, V47, V48, or V49) →
-     open with the matching source-isolated recent migration plan
+   - known recent source store (V42, V43, V44, V45, V46, V47, V48, V49, or V50)
+     → open with the matching source-isolated recent migration plan
    - unknown older store → open with the full historical `MerianMigrationPlan`
 3. If SwiftData reports duplicate version checksums, retry through the
-   source-isolated ladder: current-store open, then V49, V48, V47, V46, V45,
-   V44, V43, and V42. Released V50 stores are current and open without a
-   migration plan. V49 uses its one-stage lightweight plan to reach active V50
-   without validating unrelated historical stages. The V45/V46 retry plans keep
-   those source representatives isolated from each other and use direct V49
-   targets because V46 was a shipped no-op schema; V47 uses its own
-   source-isolated V47→V49 plan with self-contained V47 model classes and scalar
-   queued-scan snapshots. V48 has two isolated V48→V49 lanes: the known-good V48
-   source and the accidental optional-queue V48 TestFlight source. V42 and V43
-   use short direct V49 plans to avoid validating older full-historical custom
-   stages; V42 deliberately skips the older V42→V43 bridge because real
-   TestFlight V42 stores still fell back to safe mode there. Every selected
-   older repair lane then applies the shared lightweight V49→V50 stage; stores
-   already stamped V50 open as current stores without a plan. The full
-   historical plan is one linear chain ending V42→V49→V50; V43...V48 exist only
-   in their source-isolated plans.
+   source-isolated ladder: current-store open, then V50, V49, V48, V47, V46,
+   V45, V44, V43, and V42. Released V50 stores use the one-stage custom V50→V51
+   plan. V49 uses lightweight V49→V50 and custom V50→V51 stages without
+   validating unrelated historical stages. The V45/V46 retry plans keep those
+   source representatives isolated from each other and use direct V49 targets
+   because V46 was a shipped no-op schema; V47 uses its own source-isolated
+   V47→V49 plan with self-contained V47 model classes and scalar queued-scan
+   snapshots. V48 has two isolated V48→V49 lanes: the known-good V48 source and
+   the accidental optional-queue V48 TestFlight source. V42 and V43 use short
+   direct V49 plans to avoid validating older full-historical custom stages; V42
+   deliberately skips the older V42→V43 bridge because real TestFlight V42
+   stores still fell back to safe mode there. Every selected older repair lane
+   then applies the shared V49→V50→V51 tail. The full historical plan is one
+   linear chain ending V42→V49→V50→V51; V43...V48 exist only in their
+   source-isolated plans.
 4. If SwiftData/Core Data raises an Objective-C exception, the bridge converts
    it into an error so the Swift recovery path can continue.
 5. Inspect the full error chain for verified SQLite/Core Data corruption
@@ -56,7 +55,7 @@ compile gate. Every build-relevant startup or schema change must also pass
    - `default.store-wal`
 7. Retry the persistent `ModelContainer` exactly once after quarantine.
 8. If the error is not corruption but the selected startup strategy was a legacy
-   migration path (`recent-source-v42`...`recent-source-v49` or
+   migration path (`recent-source-v42`...`recent-source-v50` or
    `full-historical`), archive the same store artifacts under `store-rescue/`
    and open a fresh persistent current-schema store. This breaks repeated
    SwiftData migration failures out of the safe-mode loop while preserving the
@@ -70,8 +69,8 @@ skip quarantine/rescue and go directly to safe mode.
 
 ## TestFlight Diagnostic Expectations
 
-For a legacy V42/V43/V44/V45/V46/V47/V48/V49 store that cannot migrate but is
-not corrupt, the expected diagnostic shape is:
+For a legacy V42/V43/V44/V45/V46/V47/V48/V49/V50 store that cannot migrate but
+is not corrupt, the expected diagnostic shape is:
 
 - `selectedStrategy`: the matching `recent-source-vNN` strategy, or
   `full-historical` for unknown older stores
@@ -147,36 +146,40 @@ processed candidate build:
 10. Record the sanitized diagnostic outcomes and pass/fail decision against the
     exact App Store Connect build in the restricted release record.
 
-## V50 Source-Only Rename Acceptance
+## V50→V51 Account-Partition Acceptance
 
-`MerianActiveSchemaV50` is the active schema owner. It keeps the released V50
-graph frozen in `SchemaV50Snapshots.swift`, maps
-`ScanCollection.isPendingDeletion` to the released `isDeleted` column with
-`@Attribute(originalName:)`, and preserves both the V50 persisted checksum and
-the `is_deleted` wire field. No V51 schema or V50→V51 stage exists: a released
-V50 store is already current and opens without a migration plan. The local disk
-fixture is candidate-self consistency evidence, not a substitute for a genuine
-released-binary install over.
+`MerianSchemaV51` is the active schema owner. The released V50 graph remains
+frozen in `SchemaV50Snapshots.swift`, and `MerianActiveSchemaV50` is its source
+bridge. The custom V50→V51 stage gives new preferred-name rows an
+account-qualified identity and discards existing V50 rows because their account
+owner cannot be inferred safely. All other models retain their V50 persisted
+shape, including the collection tombstone mapping and goal-hint companion. The
+local disk fixture is candidate-self consistency evidence, not a substitute for
+a genuine released-binary install over.
 
 For the exact processed candidate build, use a dedicated non-production device
 whose store was created by the released V50 binary. Record only sanitized
 device/build/source identity and schema metadata, then install the candidate
 over V50 without deleting app data. Successful evidence must show
-`currentSchema=V50`, `storedSchema=V50`, `strategy=current-store`, a successful
-`current-store` attempt, normal UI (no recovery notice or safe mode), and
-preservation of queued scans, media, retry state, goal hints, collection
-tombstones, and relationships. Force-quit and relaunch must again select
-`current-store` and retain state. Verify a true tombstone emits
-`is_deleted: true`, resists delayed inbound upserts, and is purged only after
-the matching cloud acknowledgement. A non-durable assignment must not be
-inferred. Preserve failed devices and artifacts for diagnosis; do not uninstall,
-delete the store, or count recovery into a fresh store as success.
+`currentSchema=V51`, `storedSchema=V50`, `strategy=recent-source-v50`, a
+successful `recent-v50` attempt, normal UI (no recovery notice or safe mode),
+and preservation of queued scans, media, retry state, goal hints, collection
+tombstones, and relationships. Before allowing cloud reconciliation, verify a
+V50 device-global preferred-name row was not adopted by the signed-in account.
+After reconciliation, only that account's server-owned preferences may appear; a
+second non-production account must not inherit the first account's local row,
+pending tombstone, freshness timestamp, or diagnostics. Force-quit and relaunch
+must then select `current-store`, retain the V51 state, and preserve the account
+partition. Verify a true collection tombstone still emits `is_deleted: true`,
+resists delayed inbound upserts, and is purged only after matching cloud
+acknowledgement. Preserve failed devices and artifacts for diagnosis; do not
+uninstall, delete the store, or count recovery into a fresh store as success.
 
 Wrong plan selection, safe mode, rescue/quarantine, missing queue or media
-state, synthesized hints, or a relaunch failure blocks promotion. Preserve the
-device and evidence for diagnosis; do not uninstall the app, delete the store,
-or treat recovery into a fresh store as migration success. The operator flow is
-also required by the
+state, synthesized hints, retained unowned preferences, cross-account leakage,
+or a relaunch failure blocks promotion. Preserve the device and evidence for
+diagnosis; do not uninstall the app, delete the store, or treat recovery into a
+fresh store as migration success. The operator flow is also required by the
 [iOS release runbook](../development-guides/14-ios-release-versioning.md#schema-upgrade-acceptance-gate).
 
 ## Archive Manifest
@@ -251,10 +254,10 @@ only redacted string properties:
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `outcome`               | `recovered`, `safe_mode`, `blocked`                                                                                                                           |
 | `reason`                | `corruption_quarantined`, `legacy_store_rescued`, `persistent_store_rescue_failed`, `persistent_store_unavailable`, `persistent_and_memory_store_unavailable` |
-| `selected_strategy`     | `current-store`, `recent-source-v49`, `recent-source-v48`, `full-historical`                                                                                  |
-| `current_schema_major`  | `50`                                                                                                                                                          |
-| `stored_schema_major`   | `50`, `49`, `48`, `none`                                                                                                                                      |
-| `attempts`              | `current-store:success`, `recent-v49:failure,...`, or `recent-v48-known-good:failure,recent-v48-optional-queue:success`                                       |
+| `selected_strategy`     | `current-store`, `recent-source-v50`, `recent-source-v49`, `recent-source-v48`, `full-historical`                                                             |
+| `current_schema_major`  | `51`                                                                                                                                                          |
+| `stored_schema_major`   | `51`, `50`, `49`, `48`, `none`                                                                                                                                |
+| `attempts`              | `current-store:success`, `recent-v50:success`, `recent-v49:failure,...`, or `recent-v48-known-good:failure,recent-v48-optional-queue:success`                 |
 | `metadata_fingerprints` | Core Data model/version metadata keys with SHA-256 value fingerprints                                                                                         |
 | `first_error`           | error domain, code, and fingerprints of description/failure/debug text                                                                                        |
 | `quarantine_attempted`  | `true`, `false`                                                                                                                                               |
@@ -285,25 +288,26 @@ exposing app data.
 
 `make validate-ios-migration-guardrails` checks the SwiftData migration source
 contract before Xcode compiles anything. It keeps the full runtime migration
-path linear through V42→V49→active V50, keeps V43...V48 representatives out of
-that full path, verifies V42/V43/V44/V45/V46/V47 source-isolated plans target
+path linear through V42→V49→frozen V50→V51, keeps V43...V48 representatives out
+of that full path, verifies V42/V43/V44/V45/V46/V47 source-isolated plans target
 V49 directly, verifies the known-good and optional-queue V48 recovery plan
-source, guards the legacy migration-rescue escape hatch, requires the isolated
-V49→V50 plan and current-store V50 routing, rejects a checksum-identical V51
-stage, pins the frozen V49 and V50 snapshots, and verifies the active
-`isPendingDeletion`/`isDeleted` mapping plus unchanged `is_deleted` projection.
-It also guards the disk-backed migration tests from unlinking SQLite files and
-locks checksum retry order to current store, then V49 through V42, newest to
-oldest. The exhaustive recent-source enum must remain consecutive and end at the
-schema immediately before `CurrentSchema`; the app has no generic recent
-fallback, so adding a future source case also requires a dedicated runtime plan
-at compile time. Runtime tests separately assert that V48 required-value
-validation failures are rescue-eligible because current SwiftData may reject
-malformed historical V48 rows before a repair migration can run. The V49 and V50
-disk fixtures invoke the same production metadata decision used at launch, prove
-stored major `49` selects `.recentSource(.v49)` and stored major `50` selects
-`.currentStore`, then open through the corresponding migration or current-store
-path.
+source, guards the legacy migration-rescue escape hatch, requires isolated
+V49→V50→V51 and V50→V51 plans plus current-store V51 routing, pins the frozen
+V49 and V50 snapshots, and verifies both the account-scoped V51 preference
+identity and active `isPendingDeletion`/`isDeleted` mapping plus unchanged
+`is_deleted` projection. It also guards the disk-backed migration tests from
+unlinking SQLite files and locks checksum retry order to current store, then V50
+through V42, newest to oldest. The exhaustive recent-source enum must remain
+consecutive and end at the schema immediately before `CurrentSchema`; the app
+has no generic recent fallback, so adding a future source case also requires a
+dedicated runtime plan at compile time. Runtime tests separately assert that V48
+required-value validation failures are rescue-eligible because current SwiftData
+may reject malformed historical V48 rows before a repair migration can run. The
+V49 and V50 disk fixtures invoke the same production metadata decision used at
+launch, prove stored major `49` selects `.recentSource(.v49)` and stored major
+`50` selects `.recentSource(.v50)`, then open through the corresponding
+source-isolated migration path. The V50 fixture also proves unowned
+preferred-name rows are discarded without disturbing the rest of the graph.
 
 Run both after XcodeGen changes.
 

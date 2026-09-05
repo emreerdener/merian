@@ -96,10 +96,12 @@ struct SpeciesPreferencesArchitectureTests {
                 "scientific_name, preferred_common_name, updated_at, deleted_at"
             )
         )
-        #expect(client.contains(".order(\"updated_at\", ascending: true)"))
+        #expect(client.contains(".gt(\"scientific_name\", value: cursor)"))
         #expect(
             client.contains(".order(\"scientific_name\", ascending: true)")
         )
+        #expect(client.contains(".limit(request.pageSize)"))
+        #expect(!client.contains(".range("))
         #expect(client.contains("user_id,scientific_name"))
         #expect(
             client.components(separatedBy: ".execute()").count - 1 == 2,
@@ -115,6 +117,7 @@ struct SpeciesPreferencesArchitectureTests {
         "Models/SpeciesNameMigrationResult.swift",
         "Services/SpeciesPreferredNameCloudClient.swift",
         "Services/SpeciesPreferredNameCloudSyncCoordinator.swift",
+        "Services/SpeciesPreferenceLocalRecovery.swift",
         "SpeciesPreferredNamePolicy.swift",
         "SpeciesPreferredNameRepository.swift"
     ]
@@ -127,6 +130,10 @@ struct SpeciesPreferencesArchitectureTests {
             "import Supabase"
         ],
         "Services/SpeciesPreferredNameCloudSyncCoordinator.swift": [
+            "import Foundation",
+            "import SwiftData"
+        ],
+        "Services/SpeciesPreferenceLocalRecovery.swift": [
             "import Foundation",
             "import SwiftData"
         ],
@@ -153,7 +160,9 @@ struct SpeciesPreferencesArchitectureTests {
         "struct SpeciesPreferredNameCloudClient":
             "apps/ios/Merian/Core/Data/SpeciesPreferences/Services/SpeciesPreferredNameCloudClient.swift",
         "final class SpeciesPreferredNameCloudSyncCoordinator":
-            "apps/ios/Merian/Core/Data/SpeciesPreferences/Services/SpeciesPreferredNameCloudSyncCoordinator.swift"
+            "apps/ios/Merian/Core/Data/SpeciesPreferences/Services/SpeciesPreferredNameCloudSyncCoordinator.swift",
+        "enum SpeciesPreferenceLocalRecovery":
+            "apps/ios/Merian/Core/Data/SpeciesPreferences/Services/SpeciesPreferenceLocalRecovery.swift"
     ]
 
     private func speciesPreferencesRoot() throws -> URL {

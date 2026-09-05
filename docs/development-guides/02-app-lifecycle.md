@@ -272,6 +272,16 @@ continue to use `AppEventPublisher`. See
    upload and interrupted-inference replay; the lifecycle manager no longer
    calls `syncPendingScans()` or `replayInferenceForUploadedScans()` directly.
 
+Preferred-name auth, foreground, and edit triggers all enter the same
+`SpeciesPreferredNameCloudSyncCoordinator` task. A trigger received during an
+active pass replaces the trailing context but accumulates force intent, so a
+clean foreground request cannot suppress an edit-triggered reconciliation. Its
+60-second freshness check is account-specific and requires the latest outcome to
+be successful. The coordinator repairs overlapping local row/tombstone state
+before planning, and after an upsert suspension it refetches and re-bounds local
+state before applying the earlier remote page. Lifecycle code must not add a
+parallel PostgREST path or perform its own freshness check.
+
 Lifecycle tests inject inert consent-sync, identity-retry, and authorized-work
 callbacks to exercise all onboarding/consent combinations without launching live
 maintenance. Required consent is necessary for items 3–6, not for the two repair
@@ -501,22 +511,22 @@ The full operating contract lives in
   launch-time exceptions become Swift errors and can enter the existing recovery
   path.
 - Startup reads SwiftData store metadata before creating the persistent
-  container. Fresh/current stores open without a migration plan, known recent
-  stores use source-isolated V49/V48/V47/V46/V45/V44/V43/V42 plans, and unknown
-  older stores use the full historical plan. V49 uses the one required
-  lightweight V49→V50 hop, while V50 opens as current without a rename stage.
-  The full plan stays linear through V42→V49→V50 so SwiftData does not validate
-  the source-isolated V43...V48 cluster during older-store migrations. V42/V43
-  use short direct plans to avoid validating older full-historical custom stages
-  that can raise SwiftData's equal-model-reference exception. V46 is a no-op
-  checksum twin of V45, so its recent plan keeps V46 as the only
-  duplicate-cluster source representative and jumps directly to V49. V47 has its
-  own source-isolated plan for stores already stamped V47. Every older selected
-  migration path then applies V49→V50; current V50 stores open without a
-  migration plan. Duplicate-checksum failures retry through the same descending
-  V49...V42 recent-plan ladder before legacy rescue or safe mode. Recent source
-  stamps are represented by a finite enum ending at `CurrentSchema - 1`, and the
-  app dispatches every case without a generic full-history fallback.
+  container. Fresh/current V51 stores open without a migration plan, known
+  recent stores use source-isolated V50/V49/V48/V47/V46/V45/V44/V43/V42 plans,
+  and unknown older stores use the full historical plan. V50 uses the custom
+  V50→V51 preference-ownership stage; V49 first uses the lightweight V49→V50 hop
+  and then the shared V50→V51 stage. The full plan stays linear through
+  V42→V49→V50→V51 so SwiftData does not validate the source-isolated V43...V48
+  cluster during older-store migrations. V42/V43 use short direct plans to avoid
+  validating older full-historical custom stages that can raise SwiftData's
+  equal-model-reference exception. V46 is a no-op checksum twin of V45, so its
+  recent plan keeps V46 as the only duplicate-cluster source representative and
+  jumps directly to V49. V47 has its own source-isolated plan for stores already
+  stamped V47. Every older selected migration path then applies V49→V50→V51.
+  Duplicate-checksum failures retry through the same descending V50...V42
+  recent-plan ladder before legacy rescue or safe mode. Recent source stamps are
+  represented by a finite enum ending at `CurrentSchema - 1`, and the app
+  dispatches every case without a generic full-history fallback.
 - Store quarantine remains corruption-only and is owned by
   `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`. Non-corrupt
   failures on legacy migration strategies archive `default.store`,
