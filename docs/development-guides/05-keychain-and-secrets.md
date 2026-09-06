@@ -391,14 +391,17 @@ and verifies this file before removing `UserDefaultsKeys.legalConsentLedger`, so
 an older stale grant cannot become the fallback authority.
 
 Analytics withdrawal uses two independent boundaries. `ConsentManager` closes
-capture in memory first, then writes the exact revocation event to
-`Merian_AnalyticsRevocationIntent_v1`, then replaces the main ledger. The
-Keychain payload is a journal, not a single slot: simultaneous offline actions
-for different accounts remain distinct. A failed main write leaves the journal
-in place across restart; recovery appends the same IDs, text, versions, and
-timestamps to the ledger and only then verifies journal removal. If both writes
-fail, the current process remains off and the Settings surface reports that the
-withdrawal still needs durable storage.
+capture in memory first and requests one repository transition.
+`ConsentLedgerRepository` writes the exact revocation event to
+`Merian_AnalyticsRevocationIntent_v1` before replacing the main ledger through
+`ConsentLedgerStore`. The Keychain payload is a journal, not a single slot:
+simultaneous offline actions for different accounts remain distinct. A failed
+main write leaves the journal in place across restart; repository recovery
+appends the same IDs, text, versions, and timestamps to the ledger and only then
+verifies journal removal. If both writes fail, the current process remains off
+and the Settings surface reports that the withdrawal still needs durable
+storage. The repository does not publish or notify observers about a candidate
+ledger until the store has verified its durable bytes.
 
 ---
 
@@ -448,9 +451,10 @@ as a two-write journal around a server reservation:
    resolution, authorizes the destination binding.
 4. iOS validates the atomic claim receipt, serially links the unchanged
    RevenueCat customer, requires `EntitlementManager.beginSession(...)` to
-   return `true`, revalidates the same anonymous Auth generation, and verifies
-   journal removal last. No stable sign-out step calls RevenueCat receipt sync
-   or a provider customer-transfer API.
+   return `true`, and revalidates task cancellation, the exact anonymous
+   manager-published user, nonexpired SDK session, captured Auth generation, and
+   transition context before verifying journal removal last. No stable sign-out
+   step calls RevenueCat receipt sync or a provider customer-transfer API.
 
 If local sign-out fails or the exact source is restored first, that source sends
 `cancel_signout_rotation` with the same journal proof and clears the journal
@@ -511,6 +515,13 @@ non-destructive: it cannot sign out or purge local data. This capability cannot
 select, restore, or authenticate an account and is never reused for sign-in or
 purchase identity.
 
+The deletion path checks task cancellation before its first recovery marker. The
+legacy branch checks again after its intake marker; the v2 branch checks before
+preparation, after its non-destructive response and before the prepared/intake
+marker pair, and after that pair before destructive commit. It never rolls back
+a durable marker or capability because of cancellation. Recovery owns evidence
+already written, and the cancelled task starts no later destructive effect.
+
 The checked-in four-field v2 prepare response is decoded by a dedicated
 non-destructive native receipt. The handler and native tests consume the same
 identity-free fixture, while accepted deletion and recovery receipts keep their
@@ -523,8 +534,12 @@ In legacy mode, the same UX uses the one-use proof in
 secret hash; the raw verifier remains on the device and in authenticated handoff
 requests. The client removes the proof only after the fresh anonymous Supabase
 UUID is the exact linked RevenueCat custom ID, StoreKit receipt sync, server
-destination verification/projection, and a current entitlement read. A restored
-source may cancel only an unbound proof.
+destination verification/projection, and a current entitlement read. Each
+suspended phase and the removal boundary revalidate task cancellation, the exact
+anonymous manager-published user, nonexpired SDK session, captured Auth
+generation, and transition context. A retry without a transition owner becomes
+stale when another Auth transition opens. A restored source may cancel only an
+unbound proof.
 
 The installation capability is `ThisDeviceOnly`: restoring a backup, moving to
 another device, or a true Keychain loss must not let sign-in claim the previous

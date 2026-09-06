@@ -4,6 +4,69 @@ import XCTest
 
 @MainActor
 final class AccountDeletionIntakeWorkflowTests: XCTestCase {
+    func testAccountDeletionRejectsPreflightCancellationBeforePersistence() async {
+        var events: [String] = []
+        let task = Task { @MainActor in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await AccountDeletionWorkflow.performDurableIntake(
+                recordIntakePending: {
+                    events.append("record-intent")
+                    return true
+                },
+                requestDeletion: {
+                    events.append("request")
+                    return self.acceptedAccountDeletionReceipt
+                },
+                verifyResultContext: {
+                    events.append("verify-context")
+                },
+                clearIntakeAfterDefinitiveRejection: {
+                    events.append("clear")
+                }
+            )
+        }
+
+        do {
+            _ = try await task.value
+            XCTFail("Cancellation must stop before durable intake persistence")
+        } catch is CancellationError {
+            XCTAssertTrue(events.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testAccountDeletionCancellationAfterPersistenceRetainsIntentWithoutDispatch() async {
+        var events: [String] = []
+        let task = Task { @MainActor in
+            try await AccountDeletionWorkflow.performDurableIntake(
+                recordIntakePending: {
+                    events.append("record-intent")
+                    withUnsafeCurrentTask { $0?.cancel() }
+                    return true
+                },
+                requestDeletion: {
+                    events.append("request")
+                    return self.acceptedAccountDeletionReceipt
+                },
+                verifyResultContext: {
+                    events.append("verify-context")
+                },
+                clearIntakeAfterDefinitiveRejection: {
+                    events.append("clear")
+                }
+            )
+        }
+        do {
+            _ = try await task.value
+            XCTFail("Cancellation must stop before destructive intake")
+        } catch is CancellationError {
+            XCTAssertEqual(events, ["record-intent"])
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testAccountDeletionPersistsIntentBeforeRequestAndRetainsAmbiguousFailure() async {
         var events: [String] = []
 
@@ -221,6 +284,99 @@ final class AccountDeletionIntakeWorkflowTests: XCTestCase {
                 "verify-commit-context"
             ]
         )
+    }
+
+    func testPreparedAccountDeletionCancellationAfterPreparationStopsBeforeCommit() async {
+        var events: [String] = []
+        let task = Task { @MainActor in
+            try await AccountDeletionWorkflow.performPreparedIntake(
+                prepareDeletion: {
+                    events.append("prepare")
+                    withUnsafeCurrentTask { $0?.cancel() }
+                    return self.preparedAccountDeletionReceipt
+                },
+                verifyPreparationContext: {
+                    events.append("verify-preparation-context")
+                    return true
+                },
+                recordCapabilityPreparedPending: {
+                    events.append("record-prepared")
+                    return true
+                },
+                recordIntakePending: {
+                    events.append("record-intake")
+                    return true
+                },
+                commitDeletion: {
+                    events.append("commit")
+                    return self.acceptedAccountDeletionReceipt
+                },
+                verifyCommitContext: {
+                    events.append("verify-commit-context")
+                    return true
+                }
+            )
+        }
+        do {
+            _ = try await task.value
+            XCTFail("Cancellation must stop before deletion commit")
+        } catch is CancellationError {
+            XCTAssertEqual(
+                events,
+                ["prepare", "verify-preparation-context"]
+            )
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testPreparedAccountDeletionCancellationAfterMarkersStopsBeforeCommit() async {
+        var events: [String] = []
+        let task = Task { @MainActor in
+            try await AccountDeletionWorkflow.performPreparedIntake(
+                prepareDeletion: {
+                    events.append("prepare")
+                    return self.preparedAccountDeletionReceipt
+                },
+                verifyPreparationContext: {
+                    events.append("verify-preparation-context")
+                    return true
+                },
+                recordCapabilityPreparedPending: {
+                    events.append("record-prepared")
+                    return true
+                },
+                recordIntakePending: {
+                    events.append("record-intake")
+                    withUnsafeCurrentTask { $0?.cancel() }
+                    return true
+                },
+                commitDeletion: {
+                    events.append("commit")
+                    return self.acceptedAccountDeletionReceipt
+                },
+                verifyCommitContext: {
+                    events.append("verify-commit-context")
+                    return true
+                }
+            )
+        }
+        do {
+            _ = try await task.value
+            XCTFail("Cancellation must retain markers without committing")
+        } catch is CancellationError {
+            XCTAssertEqual(
+                events,
+                [
+                    "prepare",
+                    "verify-preparation-context",
+                    "record-prepared",
+                    "record-intake"
+                ]
+            )
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func testPreparedAccountDeletionStopsBeforeCommitWhenPreparationCannotBecomeDurable() async {

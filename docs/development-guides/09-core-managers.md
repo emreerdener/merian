@@ -1833,6 +1833,26 @@ consults that Keychain entry.
   after suspension. The extracted foundation imports no provider SDK or
   singleton; the Auth listener and provider-dependent Apple credential-state
   decision remain manager-owned.
+- **Live continuation fences**: Auth-listener work revalidates the exact
+  manager-published user, nonexpired SDK session, captured Auth-event
+  generation, and absence of an active Auth transition after purchase and
+  entitlement suspension. Its deferred preferred-name and historical-scan task
+  repeats the same fence before each account-leased synchronization. Anonymous
+  bootstrap applies the same publication rule. The replaceable restored-session
+  public-author task is keyed by target account and UUID; only that UUID may
+  clear the live handle, and only successful exact-session completion stamps the
+  account as refreshed.
+- **Cancellation before identity mutation**: Account-deletion intake checks
+  cancellation before its first durable marker, after the legacy marker, before
+  and after non-destructive v2 preparation, and after the v2 prepared/intake
+  marker pair, preserving recovery evidence without starting destructive work.
+  Ordinary and purchase-safe sign-out reject preflight cancellation. Google
+  sign-in checks before provider presentation and again on provider return;
+  direct anonymous-to-provider linking checks immediately before the shared SDK
+  mutation; and the OAuth replacement helper checks both before analytics
+  suppression and immediately afterward before Auth SDK installation.
+  Cancellation in that synchronous window reconciles the source session and
+  resolves suppression without invoking the SDK mutation.
 - **Stable versus legacy identity**: stable mode passes the immutable
   server-issued purchase-principal ID and binding generation to
   `RevenueCatManager`. It clears and synchronizes legacy account attributes,
@@ -1872,7 +1892,12 @@ consults that Keychain entry.
   → uppercase UUID RevenueCat link → `syncPurchases()` → authoritative server
   verification and reconciliation → entitlement refresh → same-session
   verification → verified proof removal. Either pending boundary keeps
-  purchase/restore/redeem disabled.
+  purchase/restore/redeem disabled. Stable and compatibility completion
+  revalidate cancellation, the exact anonymous manager-published user,
+  nonexpired SDK session, captured Auth generation, and transition context
+  throughout the suspended phases and immediately before proof removal. Recovery
+  without a transition owner becomes stale as soon as another Auth transition
+  opens, even before a new SDK event advances the generation.
   `Core/Security/PurchaseIdentity/Stores/PurchaseIdentityHandoffStore.swift` is
   the sole codec and secure-storage owner for both journals: it freezes their
   camel-case JSON fields, validates evidence before writes and after reads,
@@ -2362,6 +2387,47 @@ consults that Keychain entry.
 
 ### `ConsentManager` required-consent restoration
 
+`Core/Security/Consent/Models` owns the source-compatible receipt, event,
+ledger, journal, restoration, and remote-state values, storage and handoff
+errors, plus the exact policy versions, provider identifiers, and evidence copy.
+`Consent/Policies` owns deterministic all-version provider-head authority,
+account activation and ghost-evidence rebinding, retry delays, the
+synchronization context fence, and value-only remote-state merge results.
+`Consent/Repositories` owns decoded ledger and withdrawal-journal state,
+independent storage uncertainty, verified writes, write-ahead recovery,
+activation, and rebinding. `Consent/Services` owns the exact receipt and
+causal-event wire values, deterministic wire-to-ledger mapping, strict append
+result validation, exact immutable receipt/event read-back confirmation,
+malformed-present-row rejection, and ambiguous-write recovery. Its core is
+closure-injected; only `ConsentRemoteService+Live.swift` performs direct
+PostgREST table and RPC calls. `ConsentRealtimeCoordinator` separately owns
+subscription identity, listener/retry tasks, generation fences, and bounded
+repair plus deinitialization-triggered, coalesced exactly-once removal through
+injected effects. A UUID-keyed teardown registry retains removals until exact
+completion for the Auth-transition drain; only
+`ConsentRealtimeCoordinator+Live.swift` touches Supabase Realtime for analytics
+consent. `ConsentSynchronizationCoordinator` owns the scheduled/active task
+identities, same-account coalescing, generation invalidation, and retention and
+exact cancellation drain of every outstanding handle, including superseded or
+previously invalidated work. It also owns unowned-evidence binding, stable
+adult/Terms/Gemini/PostHog push order, authoritative fetch, and verified merge
+sequencing. It applies the manager-supplied account/generation/session validator
+across every suspended remote phase and contains no direct Supabase or singleton
+dependency. `RequiredConsentRestorationCoordinator` owns the restoration state
+machine, automatic retry budget, UUID-keyed registry of outstanding retry tasks,
+stable completion identity, cancellation snapshot and exact drain, manual retry
+admission, duplicate-session preservation, and the account, SDK-session,
+synchronization-generation, and caller-cancellation fences around every
+transition. Its timing, synchronization, context, publication, and
+failure-reporting effects are injected. An older cancellation-uncooperative
+retry therefore remains tracked through completion and cannot cross an account
+replacement, regain admission after manual attempt-number reuse, or clear a
+newer retry task when it eventually completes. `ConsentManager` remains the
+`@MainActor` observable state facade, triggers synchronization and Realtime
+repair or shutdown, and retains session adoption, the observable restoration
+projection, SDK effects, and the timing of requested repository transitions.
+`ConsentLedgerStore` remains the raw durable-byte boundary.
+
 - `ensureCloudConsentForInference()` is the new-account and returning-account
   provider gate. It resolves the current Supabase account, pushes pending
   adult/Terms/Gemini evidence, performs a fresh remote fetch, and opens its
@@ -2388,19 +2454,31 @@ consults that Keychain entry.
   known user ID while Supabase refreshes it; token expiry alone never resolves
   restoration as unauthenticated.
 - Once an authenticated account enters restoration because local required
-  evidence is missing, only `merge(_:for:generation:)`, after identity
-  validation and a verified ledger write, may resolve it. A successful empty
-  merge is authoritative absence; network, decoding, pending-row push, and
-  persistence errors are not. An account that already has current local required
-  evidence bypasses this restoration state.
+  evidence is missing, only the synchronization coordinator's merge callback,
+  after identity validation and a verified ledger write, may let the manager
+  resolve it. A successful empty merge is authoritative absence; network,
+  decoding, pending-row push, and persistence errors are not. A nonempty remote
+  row that cannot map is a decoding failure, not absence. An account that
+  already has current local required evidence bypasses this restoration state.
 - Failures receive three outer retries after 5, 10, and 20 seconds. The neutral
   root exposes **Try Again** during the wait and after exhaustion; manual retry
-  resets the automatic budget.
-- Every failure transition and timer verifies the synchronization generation,
-  observed account, synchronous Supabase SDK account, and missing local required
-  evidence. An account switch cancels stale work. Same-account invalidation
-  returns a canceled retry to `.reconciling`, so the new generation starts from
-  a coherent state.
+  resets the automatic budget. The restoration coordinator retains every actual
+  retry task in its UUID-keyed registry until completion and clears current-task
+  identity only when the stable ID still matches, so completion from an older
+  task cannot erase a replacement. Retry admission independently rejects a
+  canceled caller so the old timer cannot reenter when manual retry reuses the
+  same account, generation, and attempt number.
+- The coordinator verifies synchronization generation, observed account,
+  synchronous Supabase SDK account, and cancellation before remote phases and
+  merge. Restoration-coordinator failure transitions and retry timers recheck
+  the same identity plus missing local required evidence. An account switch
+  snapshots, cancels, and awaits every outstanding scheduled and active
+  synchronization handle, including superseded and previously invalidated work,
+  before the SDK session changes. The same drain includes every restoration
+  retry registered when invalidation begins and every Realtime removal started
+  before or during the drain. Same-account invalidation cancels the current
+  retry and returns it to `.reconciling`, so the new generation starts from a
+  coherent state.
 - Duplicate same-account auth events preserve a pending retry and do not reopen
   a resolved restoration. A successful authoritative merge from foreground or
   Realtime synchronization may resolve while retry UI is visible.
@@ -2421,15 +2499,18 @@ consults that Keychain entry.
   identity-fenced authoritative grant can reach `PostHogManager`; remote
   absence, revocation, fetch failure, and persistence failure stay closed.
 - AI and analytics actions record the provider event observed at creation.
-  `ConsentManager` sends them only through the authenticated causal append RPC,
-  persists its returned accepted parent and server-issued revision, marks stale
-  grant rejections as superseded local evidence, and fetches the all-version
-  stream head before a new action can extend it. The RPC rebases revocations to
-  the locked head so withdrawal wins a concurrent grant. Local and remote
-  permission checks also evaluate that all-version head first: any head
-  revocation closes the provider regardless of disclosure version, and only the
-  exact head grant may be checked against current policy. A fetch-before-push
-  reorder is not an acceptable substitute for that atomic database decision.
+  `ConsentManager` records the durable action and triggers synchronization;
+  `ConsentSynchronizationCoordinator` sequences pending actions through
+  `ConsentRemoteService`, whose live adapter is the sole caller of the
+  authenticated causal append RPCs. The service maps the returned accepted
+  parent and server-issued revision, marks stale grant rejections as superseded
+  local evidence, and fetches the all-version stream head before a new action
+  can extend it. The RPC rebases revocations to the locked head so withdrawal
+  wins a concurrent grant. Local and remote permission checks also evaluate that
+  all-version head first: any head revocation closes the provider regardless of
+  disclosure version, and only the exact head grant may be checked against
+  current policy. A fetch-before-push reorder is not an acceptable substitute
+  for that atomic database decision.
 - Tracks `isConfigured: Bool` set at the end of `configure()`. `identifyUser()`
   buffers only a consented pending user ID if a call races setup.
 - PostHog's dedicated session carries a configured-host-only `URLProtocol`
@@ -2441,9 +2522,10 @@ consults that Keychain entry.
   switch. Permission generations also invalidate stale overlapping setup work.
   An injected `PostHogSDKClient` verifies gate state and SDK call order. This
   closes `CONSENT-001`. `ConsentManager` also generation-fences true-account
-  replacement: analytics and the prior consent Realtime channel close before
-  OAuth installs another session, and only reconciliation of the newest actual
-  SDK session may reopen them. This closes `CONSENT-007` in source. See
+  replacement: analytics closes synchronously, and the prior consent Realtime
+  channel's retained physical removal completes before OAuth installs another
+  session. Only reconciliation of the newest actual SDK session may reopen them.
+  This closes `CONSENT-007` in source. See
   [Production Consent Readiness](../legal/production-consent-readiness-2026-08-03.md).
 
 ## 2026-04 Hardening Updates

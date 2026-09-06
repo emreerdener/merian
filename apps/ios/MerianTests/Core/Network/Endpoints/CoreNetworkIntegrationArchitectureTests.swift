@@ -386,12 +386,16 @@ struct CoreNetworkIntegrationArchitectureTests {
             #expect(!aggregateTests.contains("func \(name)("))
         }
         for name in [
+            "testAccountDeletionRejectsPreflightCancellationBeforePersistence",
+            "testAccountDeletionCancellationAfterPersistenceRetainsIntentWithoutDispatch",
             "testAccountDeletionPersistsIntentBeforeRequestAndRetainsAmbiguousFailure",
             "testAccountDeletionClearsIntentOnlyAfterDefinitiveClientRejection",
             "testAccountDeletionDoesNotDispatchWhenIntentPersistenceFails",
             "testAccountDeletionVerifiesTransitionContextAfterReceipt",
             "testAccountDeletionKeepsIntentWhenFailureContextIsStale",
             "testPreparedAccountDeletionPersistsMarkersBeforeCommit",
+            "testPreparedAccountDeletionCancellationAfterPreparationStopsBeforeCommit",
+            "testPreparedAccountDeletionCancellationAfterMarkersStopsBeforeCommit",
             "testPreparedAccountDeletionStopsBeforeCommitWhenPreparationCannotBecomeDurable",
             "testPreparedAccountDeletionRejectsStaleCommitContext",
             "testPreparedAccountDeletionRejectsStalePreparationFailureContext",
@@ -420,8 +424,10 @@ struct CoreNetworkIntegrationArchitectureTests {
         for name in [
             "testUserSignOutTransitionInitializesOneAnonymousSessionAfterSignOut",
             "testUserSignOutTransitionPropagatesAnonymousSessionFailure",
+            "testUserSignOutTransitionRejectsPreflightCancellation",
             "testPurchaseSafeSignOutPersistsBeforeClosingAndCompletingIdentity",
             "testPurchaseSafeSignOutNeverClosesSessionWhenPreparationFails",
+            "testPurchaseSafeSignOutRejectsPreflightCancellation",
             "testPurchaseSafeSignOutPropagatesDurableCompletionFailure",
             "testSignOutPurchaseFinalizationClearsProofOnlyAfterEveryCheck",
             "testSignOutPurchaseFinalizationRetainsProofAfterSyncFailure",
@@ -713,6 +719,119 @@ struct CoreNetworkIntegrationArchitectureTests {
         )
     }
 
+    @Test func liveAuthTaskCompletionsCannotPublishAcrossGenerations() throws {
+        let manager = try networkSource("SupabaseManager.swift")
+        let listener = try sourceSection(
+            beginningWith: "    private func setupAuthStateListener() {",
+            endingBefore: "\n    private func linkLegacyRevenueCatIdentity(",
+            in: manager
+        )
+        let ghostBootstrap = try sourceSection(
+            beginningWith: "    private func performGhostSessionInitialization(",
+            endingBefore: "\n    // MARK: - Session Utilities",
+            in: manager
+        )
+        let stableRotation = try sourceSection(
+            beginningWith:
+                "    private func completePendingPurchasePrincipalAuthRotationIfNeeded(",
+            endingBefore:
+                "\n    private func performPendingSignOutPurchaseHandoff(",
+            in: manager
+        )
+        let compatibilityHandoff = try sourceSection(
+            beginningWith:
+                "    private func performPendingSignOutPurchaseHandoff(",
+            endingBefore:
+                "\n    /// Re-reads the device proof before any operation",
+            in: manager
+        )
+        let anonymousSessionFence = try sourceSection(
+            beginningWith:
+                "    private func activeAnonymousSessionMatches(",
+            endingBefore:
+                "\n    private func verifyActiveAnonymousSession(",
+            in: manager
+        )
+        let publicAuthorSchedule = try sourceSection(
+            beginningWith:
+                "    private func schedulePublicAuthorIdentityRefreshIfNeeded(",
+            endingBefore:
+                "\n    private func publishPublicAuthorIdentityChanged(",
+            in: manager
+        )
+        let googleSignIn = try sourceSection(
+            beginningWith: "    func signInWithGoogle() async {",
+            endingBefore: "\n    // MARK: - Apple Sign-In",
+            in: manager
+        )
+        let compactListener = listener.components(
+            separatedBy: .whitespacesAndNewlines
+        ).filter { !$0.isEmpty }.joined(separator: " ")
+
+        #expect(
+            compactListener.components(
+                separatedBy:
+                    "hasCurrentPublishedSession( session.user, expectedAuthGeneration: eventAuthGeneration )"
+            ).count >= 5
+        )
+        #expect(
+            ghostBootstrap.components(
+                separatedBy: "hasCurrentPublishedSession("
+            ).count == 3
+        )
+        #expect(
+            stableRotation.components(
+                separatedBy: "activeAnonymousSessionMatches("
+            ).count >= 5
+        )
+        #expect(
+            anonymousSessionFence.contains("!Task.isCancelled")
+        )
+        #expect(
+            anonymousSessionFence.contains("isAuthenticated")
+        )
+        #expect(
+            anonymousSessionFence.contains("return activeAuthTransition == nil")
+        )
+        #expect(
+            stableRotation.components(
+                separatedBy: "try Task.checkCancellation()"
+            ).count >= 7
+        )
+        try expectOrder(
+            [
+                "verifyFinalDestinationSession:",
+                "expectedAuthGeneration: expectedAuthGeneration",
+                "clearPendingHandoff:"
+            ],
+            in: compatibilityHandoff
+        )
+        try expectOrder(
+            [
+                "let taskId = UUID()",
+                "publicAuthorIdentityRefreshTaskId = taskId",
+                "taskId: taskId",
+                "if publicAuthorIdentityRefreshTaskId == taskId",
+                "lastPublicAuthorIdentityRefreshUserId = userId"
+            ],
+            in: publicAuthorSchedule
+        )
+        #expect(
+            publicAuthorSchedule.contains(
+                "publicAuthorIdentityRefreshTaskUserId == userId"
+            )
+        )
+        try expectOrder(
+            [
+                "try Task.checkCancellation()",
+                "GIDSignIn.sharedInstance.signIn(withPresenting: rootVC)",
+                "try Task.checkCancellation()",
+                "verifiedExpectedSessionIfPresent(for: transition)"
+            ],
+            in: googleSignIn
+        )
+    }
+
     @Test func directIdentityLinkRetiresRecoveryOnlyAfterExactUpgradeAdoption() throws {
         let manager = try networkSource("SupabaseManager.swift")
         let oauthFinalization = try sourceSection(
@@ -722,7 +841,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         )
         let directIdentityLink = try sourceSection(
             beginningWith:
-                "            do {\n                _ = try await client.auth.linkIdentityWithIdToken(",
+                "            do {\n                try Task.checkCancellation()\n                _ = try await client.auth.linkIdentityWithIdToken(",
             endingBefore: "\n            } catch {",
             in: oauthFinalization
         )

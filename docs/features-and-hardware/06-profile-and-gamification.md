@@ -145,14 +145,19 @@ badges use paid status only.
   calls `/update-public-avatar`, refreshes `publicAvatarUrl`, and publishes
   `.publicAuthorIdentityChanged`
 - `signInWithApple()`, `signInWithGoogle()`, `signOut()` — delegates to
-  `SupabaseManager`. User-facing **Sign out** first persists a server-issued
-  purchase-continuity proof, then creates one fresh anonymous session, binds its
-  uppercase RevenueCat UUID, synchronizes the StoreKit receipt, and waits for
-  server entitlement verification. Any incomplete step retains the proof and
-  shows a **Finish sign out** recovery control. Promotional/beta access remains
-  on the linked source. The anonymous account offers **Continue with Apple** and
-  **Continue with Google**. Account deletion uses low-level `signOut()` without
-  replacement or purchase transfer.
+  `SupabaseManager`. User-facing **Sign out** rejects a cancelled invocation
+  before persistence or Auth mutation, then records the applicable durable
+  purchase-continuity journal before creating one fresh anonymous session. In
+  stable mode that destination claims the existing server-owned purchase
+  principal; the legacy compatibility lane instead binds its uppercase
+  RevenueCat UUID and synchronizes the StoreKit receipt. Both paths retain the
+  journal until entitlement readiness and the exact anonymous manager-published
+  user, nonexpired SDK session, originating Auth generation, cancellation state,
+  and transition context are revalidated. Any incomplete step retains the proof
+  and shows a **Finish sign out** recovery control. Promotional/beta access
+  remains on the linked source. The anonymous account offers **Continue with
+  Apple** and **Continue with Google**. Account deletion uses low-level
+  `signOut()` without replacement or purchase transfer.
 - Auth state computed properties (`isGuestUser`, `userName`, `userEmail`,
   `userAvatarURL`, `publicUsernameDisplayName`)
 

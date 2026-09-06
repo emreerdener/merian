@@ -1,5 +1,5 @@
-@testable import Merian
 import Foundation
+@testable import Merian
 import XCTest
 
 @MainActor

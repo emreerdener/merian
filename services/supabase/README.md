@@ -1626,7 +1626,32 @@ and iOS validates any fetch-after-error row before treating the append as
 recovered. Device `occurred_at` and server `recorded_at` remain evidence and
 never order authorization. No client has an update/delete path. User foreign
 keys are registered as conflict-free `reparent` rows in the ghost-merge policy
-manifest. Analytics events are published to owner-scoped Realtime. During the
+manifest. Analytics events are published to owner-scoped Realtime. The iOS wire
+and mapping owners live in `Core/Security/Consent/Services`: only
+`ConsentRemoteService+Live.swift` performs these PostgREST/RPC calls, while
+`ConsentSynchronizationCoordinator` owns synchronization task identity,
+generation/account fences, pending-push/fetch/merge order, and retention and
+exact cancellation drain of every outstanding handle, including superseded and
+previously invalidated work, through the injected remote service and ledger
+repository. `ConsentManager` retains current-account authority, durable
+transition timing, the observable restoration projection, and SDK application.
+`RequiredConsentRestorationCoordinator` owns the account- and generation-fenced
+restoration state, retry budget, UUID-keyed task retention, and cancellation
+snapshot/drain; canceled handles remain registered through exact completion, and
+caller cancellation independently prevents an old timer from regaining admission
+after manual attempt-number reuse. `ConsentManager` combines this snapshot with
+the synchronization snapshot before Auth replacement. The restoration
+coordinator has no backend client dependency. `ConsentRealtimeCoordinator` owns
+channel, listener, generation, and retry state through injected effects; only
+`ConsentRealtimeCoordinator+Live.swift` constructs or removes the owner-filtered
+analytics-consent Supabase channel. Explicit stop, listener completion, and
+coordinator deinitialization converge on one coalesced removal operation;
+deinitialization starts cleanup independently of listener cancellation.
+`ConsentLedgerRepository` independently owns verified local ledger/journal
+writes, recovery, and account rebinding over the raw store. The executable
+`legalConsentMigrationContract.test.ts` reads the split wire and policy owners
+directly and pins the exact table/RPC names, projections, filters, ordering,
+limits, six-read concurrency, retry mapping, and policy versions. During the
 replacement-build window, `internal.ai_consent_rollout_config` remains
 `legacy_compatible` and accepts only the newest complete bundle or an explicitly
 allowlisted complete prior beta bundle. After old builds are expired, the

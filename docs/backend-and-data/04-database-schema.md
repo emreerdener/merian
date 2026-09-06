@@ -225,10 +225,13 @@ entries in the ghost-profile merge manifest so all evidence follows the
 canonical signed-in account without deleting or combining rows.
 `user_analytics_consent_events` is also added to the Supabase Realtime
 publication so owner-scoped account changes can disable or enable capture on
-other active devices. The iOS subscriber separately tracks requested and
-confirmed channel ownership, generation-fences stale callbacks, retries bounded
-failures for the same account, and repairs the subscription on foreground or
-session adoption.
+other active devices. `ConsentRealtimeCoordinator` separately tracks requested
+and confirmed channel ownership, generation-fences stale callbacks, retries
+bounded failures for the same account, and repairs the subscription on
+foreground or session adoption. Its live adapter is the sole iOS
+analytics-consent Supabase Realtime owner. Explicit stop, listener completion,
+and coordinator deinitialization share one coalesced channel-removal operation;
+deinitialization starts cleanup independently of listener cancellation.
 
 Database merge policies can reparent only rows already synchronized to Supabase.
 After a confirmed server handoff, iOS now transforms the complete local ledger

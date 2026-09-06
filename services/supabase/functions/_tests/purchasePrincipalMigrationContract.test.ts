@@ -741,6 +741,17 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
         ),
     "an issued compatibility proof must finish on its legacy UUID before stable adoption",
   );
+  assert(
+    compatibilityCompletion.lastIndexOf(
+          "expectedAuthGeneration: expectedAuthGeneration",
+        ) < compatibilityCompletion.indexOf(
+          "try self.clearPendingSignOutPurchaseHandoff()",
+        ) &&
+      compatibilityCompletion.lastIndexOf(
+          "expectedAuthGeneration: expectedAuthGeneration",
+        ) >= 0,
+    "legacy proof removal must follow exact anonymous Auth-generation verification",
+  );
 
   const stableCompletion = compactSupabaseManager.slice(
     compactSupabaseManager.indexOf(
@@ -750,19 +761,26 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
       "private func performPendingSignOutPurchaseHandoff",
     ),
   );
+  const stableEntitlement = stableCompletion.indexOf(
+    "guard await EntitlementManager.shared.beginSession(",
+  );
+  const stableFinalSessionFence = stableCompletion.lastIndexOf(
+    "activeAnonymousSessionMatches(",
+  );
+  const stableFinalCancellation = stableCompletion.lastIndexOf(
+    "try Task.checkCancellation()",
+  );
+  const stableProofRemoval = stableCompletion.indexOf(
+    "try clearPendingPurchasePrincipalAuthRotation()",
+  );
   assert(
     stableCompletion.indexOf(".claimSignoutRotation(") >= 0 &&
-      stableCompletion.indexOf(
-          "guard await EntitlementManager.shared.beginSession(",
-        ) >
+      stableEntitlement >
         stableCompletion.indexOf(".claimSignoutRotation(") &&
-      stableCompletion.indexOf(
-          "try clearPendingPurchasePrincipalAuthRotation()",
-        ) >
-        stableCompletion.indexOf(
-          "guard await EntitlementManager.shared.beginSession(",
-        ),
-    "stable rotation proof must survive until exact claim and server entitlement verification",
+      stableFinalSessionFence > stableEntitlement &&
+      stableFinalCancellation > stableFinalSessionFence &&
+      stableProofRemoval > stableFinalCancellation,
+    "stable rotation proof must survive until exact claim, entitlement, session, and cancellation verification",
   );
 });
 

@@ -56,7 +56,7 @@ final class SupabaseManagerTests: XCTestCase {
         }
         await fulfillment(of: [started], timeout: 1)
 
-        await manager.cancelAndAwaitSynchronizationForAuthTransition()
+        await manager.cancelAndAwaitAccountBoundWorkForAuthTransition()
         await synchronization.value
 
         await fulfillment(of: [cancelled], timeout: 1)
@@ -894,6 +894,83 @@ final class SupabaseManagerTests: XCTestCase {
             "current",
             "reconcile:42:restored-session"
         ])
+    }
+
+    func testOAuthSessionReplacementRejectsPreflightCancellation() async {
+        var calls: [String] = []
+        let task = Task { @MainActor in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await SupabaseManager.performOAuthSessionReplacement(
+                suspendAnalytics: {
+                    calls.append("suspend")
+                    return 43
+                },
+                installSession: {
+                    calls.append("install")
+                    return "target-session"
+                },
+                currentSession: {
+                    calls.append("current")
+                    return "source-session"
+                },
+                reconcileSession: { generation, session in
+                    calls.append(
+                        "reconcile:\(generation):\(session ?? "nil")"
+                    )
+                }
+            )
+        }
+
+        do {
+            _ = try await task.value
+            XCTFail("Cancellation must stop before SDK session replacement")
+        } catch is CancellationError {
+            XCTAssertTrue(calls.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testOAuthSessionReplacementCancellationAfterSuppressionRestoresSourceWithoutInstalling() async {
+        var calls: [String] = []
+        let task = Task { @MainActor in
+            try await SupabaseManager.performOAuthSessionReplacement(
+                suspendAnalytics: {
+                    calls.append("suspend")
+                    withUnsafeCurrentTask { $0?.cancel() }
+                    return 44
+                },
+                installSession: {
+                    calls.append("install")
+                    return "target-session"
+                },
+                currentSession: {
+                    calls.append("current")
+                    return "source-session"
+                },
+                reconcileSession: { generation, session in
+                    calls.append(
+                        "reconcile:\(generation):\(session ?? "nil")"
+                    )
+                }
+            )
+        }
+
+        do {
+            _ = try await task.value
+            XCTFail("Cancellation must stop before SDK session replacement")
+        } catch is CancellationError {
+            XCTAssertEqual(
+                calls,
+                [
+                    "suspend",
+                    "current",
+                    "reconcile:44:source-session"
+                ]
+            )
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     private func makeAdultReceipt(

@@ -40,8 +40,11 @@ intent; after claim, cancellation, or expiry, the terminal fence still rejects
 every completion begun before preparation. Only a later ordinary begin may
 advance above it. iOS retains the Keychain journal and closes all paid readiness
 until the exact claim, RevenueCat identity readiness, successful entitlement
-session, and current Auth generation are verified, or exact source cancellation
-is durably confirmed.
+session, and the exact anonymous manager-published user, nonexpired SDK session,
+current Auth generation, cancellation state, and transition context are
+verified, or exact source cancellation is durably confirmed. A retry without a
+transition owner becomes stale as soon as another Auth transition opens; durable
+proof remains available for the correct session to resume.
 
 The client cannot nominate an Auth UUID, purchase-principal UUID, or RevenueCat
 App User ID. Existing customers are adopted in place when safe; otherwise the

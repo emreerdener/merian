@@ -181,9 +181,20 @@ public-policy fact, update all affected artifacts before merge.
 ### Initialization
 
 `AppTelemetry.initialize()` prepares only the first-party facade during app
-startup; it does not configure PostHog. `ConsentManager` resolves the active
-account's all-version highest accepted `consent_revision` in
-`user_analytics_consent_events` and is the sole SDK lifecycle authority. Any
+startup; it does not configure PostHog. `ConsentRemoteService` fetches and maps
+the active account's `user_analytics_consent_events` state through its sole live
+PostgREST adapter. `ConsentSynchronizationCoordinator` applies the
+manager-supplied account, Auth-session, generation, and cancellation fences,
+orders pending pushes before the authoritative fetch, and asks
+`ConsentLedgerRepository` to publish the merged ledger only after a verified
+durable write, while `ConsentAuthorityPolicy` selects its all-version highest
+accepted `consent_revision`. `ConsentManager` remains the sole SDK lifecycle
+authority. `RequiredConsentRestorationCoordinator` separately owns the neutral
+launch-restoration state and bounded UUID-keyed retry lifetime, retains canceled
+handles for Auth-transition draining, and uses account, SDK-session, and
+generation fences so a stale retry cannot request a newer account's
+synchronization or reopen analytics. Caller-cancellation admission also prevents
+an old timer from reentering after manual retry reuses its attempt number. Any
 head revocation closes capture regardless of disclosure version; only a head
 grant carrying the current disclosure configures and identifies PostHog.
 Absence, revocation, account change, or unresolved account state must disable
@@ -199,11 +210,20 @@ recorded in the readiness record. An account sync may apply a grant only after
 its final merge rechecks cancellation, observed user, the Supabase SDK session,
 and synchronization generation inside the mutation boundary.
 
-Withdrawal also closes the in-process gate before storage, writes the exact
-revocation to an independent Keychain journal, and only then atomically replaces
-the append-only ledger. A failed primary write therefore remains off across
-restart and replays the original event; the versioned journal retains distinct
-pending actions for multiple accounts.
+`ConsentRealtimeCoordinator` independently owns the account-scoped analytics
+subscription, generation-fenced listener, and bounded retry lifetime through
+injected effects. Its live adapter is the sole analytics-consent Supabase
+Realtime owner; `ConsentManager` supplies current-account authority,
+authoritative synchronization, and lifecycle repair or stop triggers. Explicit
+stop, listener completion, and coordinator deinitialization converge on one
+coalesced channel-removal operation; deinitialization starts it without relying
+on listener cancellation.
+
+Withdrawal also closes the in-process gate before storage. The repository writes
+the exact revocation to an independent Keychain journal and only then atomically
+replaces the append-only ledger. A failed primary write therefore remains off
+across restart and replays the original event; the versioned journal retains
+distinct pending actions for multiple accounts.
 
 ### `AppTelemetry` (PostHog Facade)
 

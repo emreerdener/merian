@@ -102,21 +102,35 @@ Migrations `20260804020351_record_legal_consent_receipts.sql` and
 `20260804033307_add_adult_and_analytics_consent.sql`, plus forward migration
 `20260806024844_enforce_causal_consent_streams.sql`, forward migration
 `20260806144105_authorize_consent_from_provider_stream_heads.sql`, and
-`ConsentManager.swift`, establish the intended evidence boundary. Before the
-workspace opens, the app appends local adult-confirmation, Terms, and Gemini
-actions with separate policy versions, exact displayed copy, client UUID, device
-action time, platform, app version, and build. It synchronizes those records to
-immutable, owner-only Supabase tables with server-controlled timestamps and no
-client update/delete path. Existing installs with the old onboarding flag but no
-current local evidence remain on a neutral restoration surface until the initial
-session establishes no active account or an identity-fenced authoritative merge
-persists. An authenticated account enters this disclosure only when that
-successful merge establishes absence. A cached session with an expired access
-token remains a known account during refresh and cannot temporarily mount the
-disclosure. Fetch, decoding, pending consent upload, and verified-ledger-write
-failures retain the neutral surface with bounded automatic and explicit retry;
-they do not ask the user to consent again or constitute evidence that consent is
-absent.
+`Core/Security/Consent/Models/ConsentPolicy.swift`,
+`Core/Security/Consent/Policies/ConsentAuthorityPolicy.swift`,
+`Core/Security/Consent/Policies/ConsentSynchronizationMergePolicy.swift`,
+`Core/Security/Consent/Coordinators/ConsentRealtimeCoordinator.swift`,
+`Core/Security/Consent/Coordinators/ConsentSynchronizationCoordinator.swift`,
+`Core/Security/Consent/Coordinators/RequiredConsentRestorationCoordinator.swift`,
+`Core/Security/Consent/Repositories/ConsentLedgerRepository.swift`,
+`Core/Security/Consent/Services/{ConsentRemoteModels,ConsentRemoteService,ConsentRemoteService+Live,ConsentRealtimeCoordinator+Live}.swift`,
+and `Core/Security/ConsentManager.swift` establish the intended evidence
+boundary. Before the workspace opens, the app appends local adult-confirmation,
+Terms, and Gemini actions with separate policy versions, exact displayed copy,
+client UUID, device action time, platform, app version, and build. The focused
+remote service maps and synchronizes those records to immutable, owner-only
+Supabase tables with server-controlled timestamps and no client update/delete
+path; the synchronization coordinator retains the account, SDK-session,
+generation, and cancellation fences, the restoration coordinator owns the
+bounded restoration retry state plus UUID-keyed cancellation drain and rejects
+canceled retry callers after manual attempt-number reuse, and the manager
+retains account authority and transition timing. The repository owns verified
+ledger/journal persistence, recovery, and rebinding. Existing installs with the
+old onboarding flag but no current local evidence remain on a neutral
+restoration surface until the initial session establishes no active account or
+an identity-fenced authoritative merge persists. An authenticated account enters
+this disclosure only when that successful merge establishes absence. A cached
+session with an expired access token remains a known account during refresh and
+cannot temporarily mount the disclosure. Fetch, decoding, pending consent
+upload, and verified-ledger-write failures retain the neutral surface with
+bounded automatic and explicit retry; they do not ask the user to consent again
+or constitute evidence that consent is absent.
 
 Gemini and optional PostHog actions also carry the provider event observed when
 the action was created. Direct client inserts are forbidden. The authenticated
@@ -140,14 +154,17 @@ revocation events still return the app to the disclosure gate.
 All tracked client findings are closed in source. The implementation now rebinds
 the complete local ghost ledger before verified handoff removal,
 generation-fences stale session work, activates and flushes a restored account
-before refetch, independently owns and repairs the account-scoped Realtime
-subscription, suppresses analytics before OAuth session replacement, and enters
-an explicit remote-authority wait state before cached analytics consent can
-reach PostHog. Only a successfully persisted, identity-fenced current-account
-grant enables analytics; remote absence, revocation, fetch failure, or write
-failure remains off. Local compiled/runtime evidence is recorded, but the exact
-candidate SHA still needs the hosted unit, UI-smoke, Release-archive, and
-disposable-database gates in the
+before refetch, uses `ConsentRealtimeCoordinator` to independently own and
+repair the account-scoped Realtime subscription through an isolated live
+adapter, coalesces explicit/listener/deinitialization channel teardown while
+initiating deinitialization cleanup independently of listener cancellation,
+suppresses analytics before OAuth session replacement, and enters an explicit
+remote-authority wait state before cached analytics consent can reach PostHog.
+Only a successfully persisted, identity-fenced current-account grant enables
+analytics; remote absence, revocation, fetch failure, or write failure remains
+off. Local compiled/runtime evidence is recorded, but the exact candidate SHA
+still needs the hosted unit, UI-smoke, Release-archive, and disposable-database
+gates in the
 [production consent readiness record](./production-consent-readiness-2026-08-03.md).
 
 Required-consent root routing is stricter than the analytics-only gate above.

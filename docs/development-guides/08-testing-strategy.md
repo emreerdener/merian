@@ -1002,20 +1002,22 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   deliberately: `legal_consent_security.sql` executes the stale-parent rebase
   and Gemini denial in PostgreSQL; `_shared/posthog_test.ts`,
   `_shared/aiQuota_test.ts`, and `_tests/legalConsentMigrationContract.test.ts`
-  lock the Edge queries, denial mapping, and head-before-rollout source
-  contract; and `SupabaseManagerTests` proves both iOS gates remain closed after
-  merge and restart when an older-disclosure revocation owns the greater
-  revision. Release closure additionally requires one exact-SHA new-install
-  transaction: complete Ready under a new anonymous account, observe all three
-  required rows upload and refetch for that same account, then complete the
-  first ordinary scan with exactly one Identify/provider dispatch. A forced
-  missing-row variant must return `403 ai_consent_required`, preserve scan/media
-  across relaunch, consume no included-Pro or daily-Flash allowance, schedule no
-  automatic inference retry while consent is invalid, and automatically resume
-  exactly one eligible original scan ID only after fresh head-anchored approval.
-  Prove released, deferred, mismatched, and cross-account rows stay paused. Run
-  a real `402 pro_required` and `429 ai_quota_daily_exceeded` case separately to
-  prove neither enters consent recovery. Source type-checking or an injected
+  lock the Edge queries, denial mapping, head-before-rollout source contract,
+  exact iOS wire DTOs and live query shape, service retry mapping, policy
+  versions, and manager-supplied synchronization fence; and
+  `SupabaseManagerTests` proves both iOS gates remain closed after merge and
+  restart when an older-disclosure revocation owns the greater revision. Release
+  closure additionally requires one exact-SHA new-install transaction: complete
+  Ready under a new anonymous account, observe all three required rows upload
+  and refetch for that same account, then complete the first ordinary scan with
+  exactly one Identify/provider dispatch. A forced missing-row variant must
+  return `403 ai_consent_required`, preserve scan/media across relaunch, consume
+  no included-Pro or daily-Flash allowance, schedule no automatic inference
+  retry while consent is invalid, and automatically resume exactly one eligible
+  original scan ID only after fresh head-anchored approval. Prove released,
+  deferred, mismatched, and cross-account rows stay paused. Run a real
+  `402 pro_required` and `429 ai_quota_daily_exceeded` case separately to prove
+  neither enters consent recovery. Source type-checking or an injected
   network-unit test cannot replace this account/Edge/database/device evidence.
   See the
   [first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
@@ -3031,17 +3033,70 @@ import, and permission-denial UI require the physical-device checklist in
   root behavior, authoritative merge and persistence failure retry, bounded
   5-/10-/20-second recovery, account/generation fencing, withdrawal durability,
   cloud-head proof, durable `.ready` reapproval routing, and stale-account
-  isolation. These deterministic regressions do not claim the exact-SHA
+  isolation. `ConsentLedgerOwnershipPolicyTests` directly protects synchronized
+  versus pending ghost-evidence and withdrawal-journal rebinding, including the
+  per-account reapproval fence. `ConsentLedgerRepositoryTests` directly protect
+  fail-closed decoding and independent read uncertainty, failed-write
+  nonpublication and notification suppression, verified write-ahead withdrawal
+  recovery, ledger fallback, exact-intent retry, and journal-first Ghost
+  rebinding. `ConsentRemoteServiceTests` and its focused support owner validate
+  exact adult/Terms inserts, both causal append payload adapters, accepted and
+  superseded results, malformed-present-row rejection, immutable receipt/event
+  read-back validation and ambiguous-write recovery, current-disclosure versus
+  all-version-head mapping, and suspension-time synchronization fencing.
+  `ConsentRealtimeCoordinatorTests` exercise same-owner idempotency,
+  inactive-channel replacement, account replacement, stale-event fencing,
+  stream-completion and subscribe-failure retries, bounded backoff, stop-time
+  cancellation, explicit and deinitialization cleanup with a
+  cancellation-uncooperative listener, coalesced exactly-once removal, a
+  cancellation-uncooperative physical-removal drain, its inclusion in the
+  manager Auth-transition barrier, and the disabled-live policy.
+  `ConsentSynchronizationMergePolicyTests` protect deterministic remote-evidence
+  upsert, duplicate current/head handling, authority derivation, and
+  authoritative absence. `ConsentSynchronizationCoordinatorTests` protect
+  same-account single-flight behavior and one failure notification, exact task
+  cancellation/drain for current, superseded, and previously invalidated work,
+  including different-account active-task replacement, stale-generation
+  rejection before persistence, and the adult/Terms/Gemini/PostHog push order
+  before authoritative fetch. `ConsentRestorationCoordinatorTests` protect
+  duplicate-session retry preservation, the bounded failure budget and manual
+  reset, stale-account rejection after a cancellation-uncooperative sleep, the
+  returned cancellation snapshot remaining unfinished until that sleep actually
+  resumes and terminates, and stable compare-before-clear ownership when an
+  older retry completes after its replacement starts. They also force manual
+  retry to reuse the same attempt number, resume the canceled prior timer, and
+  require caller-cancellation admission to reject it. `ConsentArchitectureTests`
+  freezes the exact fifteen-file
+  Models/Policies/Coordinators/Repositories/Services inventory, declaration and
+  raw-storage relocation, 600-line review ceiling, infrastructure exclusions for
+  deterministic owners, PostgREST/RPC and analytics-consent Realtime confinement
+  to their separate live Supabase adapters, all three coordinator state/wiring
+  boundaries, synchronization merge-policy ownership, and `ConsentManager` as
+  the only production synchronization-coordinator facade. The module-internal
+  wire namespace is separately confined to the remote models, service core, and
+  live adapter. These deterministic regressions do not claim the exact-SHA
   new-account release transaction described above has run.
 - **`ghostProfileMergeClientContract.test.ts` cross-language owner references**:
-  The Deno client contract reads the extracted `GhostProfileMergeStore`,
-  `GhostProfileMergePolicy`, and `GhostProfileMergeWorkflow` production owners
-  to pin verified device-only persistence, terminal-only retirement,
-  cancellation fences, and proof-removal-last ordering. It also reads
-  `Core/Security/Consent/ConsentManagerAuthorityTests.swift` to pin target-owned
-  pending-consent flush before account refetch. Moving any of those Swift owners
-  or that test requires an atomic contract-path update and the focused Deno
-  contract run.
+  The Deno client contract directly reads `SupabaseManager`,
+  `GhostProfileMergeStore`, `GhostProfileMergePolicy`,
+  `GhostProfileMergeWorkflow`, `GhostProfileMergePolicyTests`, and
+  `GhostProfileMergeEndpointErrorAdapterTests` to pin verified device-only
+  persistence, restoration retry, terminal-only retirement, cancellation fences,
+  and proof-removal-last ordering. It also reads `ConsentManager`,
+  `ConsentSynchronizationCoordinator`, `ConsentSynchronizationMergePolicy`,
+  `ConsentRealtimeCoordinator`, `ConsentRealtimeCoordinator+Live`,
+  `ConsentRealtimeCoordinatorTests`, `RequiredConsentRestorationCoordinator`,
+  `ConsentLedgerRepository`, `ConsentRetryPolicy`,
+  `ConsentManagerAuthorityTests`, `ConsentSynchronizationCoordinatorTests`, and
+  `ConsentRestorationCoordinatorTests` to pin current-account synchronization,
+  owner-filtered Realtime construction, generation/retry fencing, retention and
+  Auth-transition drain of every scheduled and active task handle and started
+  channel removal, verified restoration-retry retention through exact completion
+  and the combined drain, canceled-retry admission after manual attempt-number
+  reuse, verified persistence before in-memory publication, pending-consent
+  flush before remote refetch, and authoritative merge before analytics
+  application. Moving any direct Swift input requires an atomic contract-path
+  update and the focused Deno contract run.
 - **`AuthTransitionPolicyTests.swift` auth-adoption coverage**: Locks the three
   cold-start classifications: nil is signed out, a current session is
   authenticated, and an expired cached session is awaiting refresh rather than
@@ -4158,10 +4213,21 @@ layers:
   must lock durable proof compatibility, fail-closed storage, server-owned
   expiry, terminal-error adaptation, phase/cancellation order, exact-session
   fencing, and live effect assembly without exposing proof values.
-  `_tests/ghostProfileMergeClientContract.test.ts` must read those exact
-  extracted owners and the target-consent test to pin persistence before session
-  replacement, cancellation fences, provider/local completion before proof
-  removal, terminal-only retirement, and consent flush before account refetch.
+  `_tests/ghostProfileMergeClientContract.test.ts` must read `SupabaseManager`,
+  the exact Ghost store, policy, workflow, policy test, and endpoint-adapter
+  test, plus `ConsentManager`, `ConsentRealtimeCoordinator`,
+  `ConsentRealtimeCoordinator+Live`, `ConsentRealtimeCoordinatorTests`,
+  `ConsentSynchronizationCoordinator`, `ConsentSynchronizationMergePolicy`,
+  `RequiredConsentRestorationCoordinator`, `ConsentLedgerRepository`,
+  `ConsentRetryPolicy`, `ConsentManagerAuthorityTests`,
+  `ConsentSynchronizationCoordinatorTests`, and
+  `ConsentRestorationCoordinatorTests`. Together those inputs pin persistence
+  before session replacement, verified consent persistence before local state
+  publication, cancellation fences, provider/local completion before proof
+  removal, terminal-only retirement, complete synchronization-task draining,
+  restoration retry retention through exact completion, the combined
+  Auth-transition drain, stale-account and canceled-attempt-reuse rejection, and
+  current-context consent flush before remote account refetch.
 - `_tests/ghostProfileMergeMigrationContract.test.ts` must statically lock the
   source-controlled policy manifest, pre-mutation topology assertion,
   scan-first/derived-ledger order, guarded orchestrator rewrite, private helper
@@ -6109,12 +6175,15 @@ The identity test matrix now has two explicit lanes:
   `AccountDeletionIntakeWorkflowTests.swift`, and
   `AccountDeletionCleanupWorkflowTests.swift` exercise exact deletion
   classification plus durable intake, cleanup, restoration, and proof-retirement
-  sequencing through injected effects.
+  sequencing through injected effects. Intake coverage cancels before
+  persistence, after the legacy marker, after v2 preparation, and after both v2
+  markers to prove destructive dispatch never starts from a cancelled task.
   `PurchaseIdentitySignOutWorkflowTests.swift` exercises ordinary and
-  purchase-safe sign-out sequencing through injected effects;
-  `PurchaseIdentityHandoffStoreTests.swift` independently proves journal
-  compatibility, validation, accessibility, write verification, and removal.
-  `GhostProfileMergePolicyTests.swift`,
+  purchase-safe sign-out sequencing through injected effects, including
+  preflight cancellation and proof retention around every legacy completion
+  boundary; `PurchaseIdentityHandoffStoreTests.swift` independently proves
+  journal compatibility, validation, accessibility, write verification, and
+  removal. `GhostProfileMergePolicyTests.swift`,
   `GhostProfileMergeEndpointErrorAdapterTests.swift`, and
   `GhostProfileMergeWorkflowTests.swift` prove stable queue replacement,
   terminal-only retirement, exact completion order, proof retention, and
@@ -6123,43 +6192,48 @@ The identity test matrix now has two explicit lanes:
   verified persistence, server-owned expiry, and exact removal.
   `SupabaseManagerTests.swift` retains anonymous-bootstrap serialization,
   account-work drain, consent-sync cancellation/await, provider SDK integration,
-  and terminal workflow ownership. `EntitlementManagerTests.swift` rejects a
-  response unless account context, user, request generation, and the single-row
-  result all match. Authenticated-request tests must prove an A-bound body
-  cannot dispatch as B, including foreground and background inference request
-  bodies, and that a 401 releases its lease before recovery. Background
-  inference dispatch must prove its typed request remains bound to the same Auth
-  UUID as the lease held through the terminal URLSession callback—not merely
-  `resume()`. Offline staging tests must reject a canonical but different-owner
-  R2 manifest, carry the captured Auth UUID into URL signing and `upload_v2`,
-  and hold that same account lease through upload completion. Parser tests
-  retain legacy task compatibility but classify unprovable ownership as
-  fail-closed. `BackgroundDatabaseActorTests.swift` must prove upload/inference
-  retirement commits pending state and clears source-owned staging keys before
-  task cancellation. `OfflineQueueManagerTests.swift` must prove terminal
-  callback registration happens before the actor hop and that
-  `urlSessionDidFinishEvents` cannot invoke the system completion handler until
-  every asynchronous queue/result write is finished. Failed inference dispatch
-  must durably return `.inferencing` work to pending before cancellation or
-  return. The same suite must prove stale species metadata cannot overwrite a
-  replacement identification. `InferenceEngineTests.swift` retains the
-  engine-level Auth integration proof, while
-  `InferenceWriteCoordinatorTests.swift` directly uses a cancellation-ignoring
-  active write to prove the fence remains blocked until that task terminates and
-  rejects newly submitted writes while closed. UI tests require the competing
-  buttons to disable and forbid both “Ghost” and “guest session” presentation.
-  `BackgroundDatabaseActorTests.swift` proves collection sync neither invokes
-  Edge when an Auth transition owns the session nor removes a tombstone when a
-  transition begins during an in-flight request. RevenueCat tests admit only
-  `verified` or `verifiedOnDevice` CustomerInfo and prove stable mode rejects
-  promotional and missing/unknown store provenance for the annual alias while
-  the explicitly approved legacy/account lane may admit its account grant.
-  Shared authenticated-request tests also prove every recursive retry remains
-  pinned to the initiating account and cannot adopt a replacement session.
-  SDK/provider log bodies are discarded. Physical-device evidence remains
-  mandatory for double taps, delayed provider sheets, kill/relaunch at each
-  persistence boundary, first-unlock Keychain failure, 401 recovery, deletion,
-  and account switch.
+  shared OAuth replacement cancellation before suppression plus post-suppression
+  rollback without SDK installation, and terminal workflow ownership. The Core
+  Network integration architecture suite additionally pins exact-generation
+  listener/bootstrap publication, transition-aware stable and legacy proof
+  retirement, Google provider cancellation, the direct provider-link
+  pre-mutation fence, and task-ID compare-before-clear cleanup.
+  `EntitlementManagerTests.swift` rejects a response unless account context,
+  user, request generation, and the single-row result all match.
+  Authenticated-request tests must prove an A-bound body cannot dispatch as B,
+  including foreground and background inference request bodies, and that a 401
+  releases its lease before recovery. Background inference dispatch must prove
+  its typed request remains bound to the same Auth UUID as the lease held
+  through the terminal URLSession callback—not merely `resume()`. Offline
+  staging tests must reject a canonical but different-owner R2 manifest, carry
+  the captured Auth UUID into URL signing and `upload_v2`, and hold that same
+  account lease through upload completion. Parser tests retain legacy task
+  compatibility but classify unprovable ownership as fail-closed.
+  `BackgroundDatabaseActorTests.swift` must prove upload/inference retirement
+  commits pending state and clears source-owned staging keys before task
+  cancellation. `OfflineQueueManagerTests.swift` must prove terminal callback
+  registration happens before the actor hop and that `urlSessionDidFinishEvents`
+  cannot invoke the system completion handler until every asynchronous
+  queue/result write is finished. Failed inference dispatch must durably return
+  `.inferencing` work to pending before cancellation or return. The same suite
+  must prove stale species metadata cannot overwrite a replacement
+  identification. `InferenceEngineTests.swift` retains the engine-level Auth
+  integration proof, while `InferenceWriteCoordinatorTests.swift` directly uses
+  a cancellation-ignoring active write to prove the fence remains blocked until
+  that task terminates and rejects newly submitted writes while closed. UI tests
+  require the competing buttons to disable and forbid both “Ghost” and “guest
+  session” presentation. `BackgroundDatabaseActorTests.swift` proves collection
+  sync neither invokes Edge when an Auth transition owns the session nor removes
+  a tombstone when a transition begins during an in-flight request. RevenueCat
+  tests admit only `verified` or `verifiedOnDevice` CustomerInfo and prove
+  stable mode rejects promotional and missing/unknown store provenance for the
+  annual alias while the explicitly approved legacy/account lane may admit its
+  account grant. Shared authenticated-request tests also prove every recursive
+  retry remains pinned to the initiating account and cannot adopt a replacement
+  session. SDK/provider log bodies are discarded. Physical-device evidence
+  remains mandatory for double taps, delayed provider sheets, kill/relaunch at
+  each persistence boundary, first-unlock Keychain failure, 401 recovery,
+  deletion, and account switch.
 
 - **Legacy compatibility**: iOS seams prove prepare and verified Keychain
   persistence precede local sign-out, then bind → uppercase UUID RevenueCat link

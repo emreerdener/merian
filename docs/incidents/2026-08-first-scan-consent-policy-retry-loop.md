@@ -12,10 +12,10 @@ new-account and recovery verification below
 
 A first-time user completed onboarding and saved an observation, but the scan
 remained in a scanning state while also presenting **Retry now**. Every retry
-failed. The database routine named `reserve_ai_quota` rejected each attempt,
-but this was **not** quota exhaustion: the stable failure was
-`ai_consent_required`, raised by the legal-consent prerequisite before
-entitlement selection, quota reservation, or Google Gemini dispatch.
+failed. The database routine named `reserve_ai_quota` rejected each attempt, but
+this was **not** quota exhaustion: the stable failure was `ai_consent_required`,
+raised by the legal-consent prerequisite before entitlement selection, quota
+reservation, or Google Gemini dispatch.
 
 The client had accepted cached local synchronization markers as cloud proof.
 When the authoritative account rows were missing or no longer current, the
@@ -41,19 +41,19 @@ The affected account and observation identifiers are intentionally omitted.
 
 The supplied Supabase export contains six paired failures:
 
-| UTC timestamp              | Boundary                               | Result                |
-| -------------------------- | -------------------------------------- | --------------------- |
-| 2026-08-08 00:24:04.994    | `reserve_ai_quota` consent prerequisite | `ai_consent_required` |
-| 2026-08-08 00:24:20.369    | `reserve_ai_quota` consent prerequisite | `ai_consent_required` |
-| 2026-08-08 00:24:42.045    | `reserve_ai_quota` consent prerequisite | `ai_consent_required` |
-| 2026-08-08 00:24:58.959    | `reserve_ai_quota` consent prerequisite | `ai_consent_required` |
-| 2026-08-08 00:25:20.769    | `reserve_ai_quota` consent prerequisite | `ai_consent_required` |
-| 2026-08-08 00:28:37.231    | `reserve_ai_quota` consent prerequisite | `ai_consent_required` |
+| UTC timestamp           | Boundary                                | Result                |
+| ----------------------- | --------------------------------------- | --------------------- |
+| 2026-08-08 00:24:04.994 | `reserve_ai_quota` consent prerequisite | `ai_consent_required` |
+| 2026-08-08 00:24:20.369 | `reserve_ai_quota` consent prerequisite | `ai_consent_required` |
+| 2026-08-08 00:24:42.045 | `reserve_ai_quota` consent prerequisite | `ai_consent_required` |
+| 2026-08-08 00:24:58.959 | `reserve_ai_quota` consent prerequisite | `ai_consent_required` |
+| 2026-08-08 00:25:20.769 | `reserve_ai_quota` consent prerequisite | `ai_consent_required` |
+| 2026-08-08 00:28:37.231 | `reserve_ai_quota` consent prerequisite | `ai_consent_required` |
 
 The export contains no `pro_required`, `ai_quota_daily_exceeded`, user/IP rate
 limit, or payment failure for this sequence. Gemini/provider dispatch never
-began. The negative provider signal is decisive: the failure occurred before
-the entitlement and inference portions of the reservation boundary.
+began. The negative provider signal is decisive: the failure occurred before the
+entitlement and inference portions of the reservation boundary.
 
 The supplied 17.015-second HEVC recording is 444 × 960 and includes AAC audio.
 The managed analysis environment could read its metadata but could not decode
@@ -69,20 +69,20 @@ only when that exact account owns:
 
 1. the current adult self-attestation;
 2. the current Terms receipt; and
-3. a current Google Gemini grant that is also the greatest accepted event in
-   the provider-wide consent stream.
+3. a current Google Gemini grant that is also the greatest accepted event in the
+   provider-wide consent stream.
 
-Onboarding first writes those actions to a durable local ledger. The client
-must then bind them to the active anonymous account, upload pending rows, and
-fetch the authoritative account state. The server must never infer consent from
+Onboarding first writes those actions to a durable local ledger. The client must
+then bind them to the active anonymous account, upload pending rows, and fetch
+the authoritative account state. The server must never infer consent from
 account age, an onboarding-complete preference, a local `syncedUserId`, an
 available Pro scan, or a free daily Flash allowance.
 
 Under the product contract, a new account is not supposed to begin with zero
 ordinary scan capacity. The separate entitlement system resolves paid Pro,
 included Pro scans, and eligible daily Flash fallback. None of those paths can
-bypass missing consent, and a consent rejection is not evidence that any of
-them is exhausted.
+bypass missing consent, and a consent rejection is not evidence that any of them
+is exhausted.
 
 ## Root Cause
 
@@ -106,14 +106,17 @@ revoked.
 
 ### Authoritative first-scan preflight
 
-Before an Identify request body is constructed, `MerianNetworkClient` now
-awaits `ConsentManager.ensureCloudConsentForInference()`. The manager:
+Before an Identify request body is constructed, `MerianNetworkClient` now awaits
+`ConsentManager.ensureCloudConsentForInference()`. The manager orchestrates the
+following owners:
 
 1. resolves the active Supabase session;
-2. pushes pending adult, Terms, and Gemini evidence for that account;
-3. fetches the current adult and Terms rows plus the all-version Gemini stream
-   head;
-4. persists the identity- and generation-fenced merge; and
+2. sequences pending adult, Terms, and Gemini evidence for that account through
+   `ConsentRemoteService`;
+3. asks the remote service to fetch the current adult and Terms rows plus the
+   all-version Gemini stream head;
+4. asks `ConsentLedgerRepository` to persist the identity- and generation-fenced
+   merge; and
 5. opens a process-local cloud-ready gate only when the fetched state itself is
    authoritative.
 
@@ -127,14 +130,14 @@ leaves the gate closed.
 `ai_consent_required` as `MerianError.aiConsentRequired`. Generic `403`
 responses retain ordinary authorization/error handling.
 
-Foreground request preparation and background response handling converge on
-the same policy transition:
+Foreground request preparation and background response handling converge on the
+same policy transition:
 
 - fence the active account in memory immediately;
 - persist that account ID in the local consent ledger;
 - invalidate cloud-ready proof and required switches;
-- route a completed user to the Ready disclosure after authoritative
-  restoration resolves;
+- route a completed user to the Ready disclosure after authoritative restoration
+  resolves;
 - preserve the queued observation and its media in needs-attention; and
 - return without automatic inference backoff or redispatch.
 
@@ -167,13 +170,13 @@ permanent account handoff without affecting another account.
 
 Use the stable code, not the database function name:
 
-| HTTP / code                          | Meaning                                | Customer path                                      |
-| ------------------------------------ | -------------------------------------- | -------------------------------------------------- |
-| `403 ai_consent_required`            | Required legal/provider evidence absent or revoked | Return to disclosure; preserve media; pause until explicit fresh approval, then guarded same-ID resume |
-| `402 pro_required`                   | Requested capability requires Pro     | Present the existing upgrade path                  |
-| `429 ai_quota_daily_exceeded`        | Daily provider allowance exhausted     | Present daily-limit recovery and honor retry delay |
-| `429 ai_user_rate_limit_exceeded`    | Per-user burst protection              | Temporary bounded retry                            |
-| `429 ai_ip_rate_limit_exceeded`      | Per-network burst protection           | Temporary bounded retry                            |
+| HTTP / code                       | Meaning                                            | Customer path                                                                                          |
+| --------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `403 ai_consent_required`         | Required legal/provider evidence absent or revoked | Return to disclosure; preserve media; pause until explicit fresh approval, then guarded same-ID resume |
+| `402 pro_required`                | Requested capability requires Pro                  | Present the existing upgrade path                                                                      |
+| `429 ai_quota_daily_exceeded`     | Daily provider allowance exhausted                 | Present daily-limit recovery and honor retry delay                                                     |
+| `429 ai_user_rate_limit_exceeded` | Per-user burst protection                          | Temporary bounded retry                                                                                |
+| `429 ai_ip_rate_limit_exceeded`   | Per-network burst protection                       | Temporary bounded retry                                                                                |
 
 Support must not tell a user that they ran out of scans when the stable code is
 `ai_consent_required`. Retrying the unchanged scan is not remediation.
@@ -203,17 +206,17 @@ unavailable. Source validation is necessary but does not close production.
 
 ## Required Release Verification
 
-Do not close this incident until one matching Release/TestFlight SHA retains
-all of the following evidence:
+Do not close this incident until one matching Release/TestFlight SHA retains all
+of the following evidence:
 
-1. A clean install creates a new anonymous account, completes Ready, uploads
-   the three required evidence rows to that same account, and fetches them back
+1. A clean install creates a new anonymous account, completes Ready, uploads the
+   three required evidence rows to that same account, and fetches them back
    before the first Identify request.
 2. A normal first single-image scan produces exactly one provider dispatch and
    one usable saved result; it does not present a paywall or needs-attention.
-3. Forced missing cloud consent produces exactly one
-   `403 ai_consent_required`, no provider dispatch, no automatic redispatch, and
-   no consumed included-Pro or daily-Flash allowance.
+3. Forced missing cloud consent produces exactly one `403 ai_consent_required`,
+   no provider dispatch, no automatic redispatch, and no consumed included-Pro
+   or daily-Flash allowance.
 4. The rejected observation remains present with all source media across
    backgrounding and relaunch.
 5. Relaunch routes the same account to Ready. Fresh approval extends the

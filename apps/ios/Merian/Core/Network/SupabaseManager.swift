@@ -289,6 +289,8 @@ private struct RevenueCatPublicIdentity: Decodable {
     @ObservationIgnored private let userSignOutSingleFlight =
         AuthTransitionSingleFlight()
     @ObservationIgnored private var publicAuthorIdentityRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var publicAuthorIdentityRefreshTaskId: UUID?
+    @ObservationIgnored private var publicAuthorIdentityRefreshTaskUserId: String?
     @ObservationIgnored private var appleCredentialRevocationObserver: NSObjectProtocol?
     @ObservationIgnored private var pendingAppleCredentialRevalidation = false
     @ObservationIgnored private weak var appRouteSessionController: (any AppRouteSessionControlling)?
@@ -390,6 +392,29 @@ private struct RevenueCatPublicIdentity: Decodable {
                 isAnonymous: $0.isAnonymous
             )
         }
+    }
+
+    private func hasCurrentPublishedSession(
+        _ user: User,
+        expectedAuthGeneration: UInt64? = nil,
+        ownedBy transition: AuthTransitionToken? = nil
+    ) -> Bool {
+        guard !Task.isCancelled,
+              expectedAuthGeneration.map({ $0 == authSessionGeneration })
+                ?? true,
+              currentUser?.id == user.id,
+              currentUser?.isAnonymous == user.isAnonymous,
+              isAuthenticated,
+              let sdkSession = client.auth.currentSession,
+              !sdkSession.isExpired,
+              sdkSession.user.id == user.id,
+              sdkSession.user.isAnonymous == user.isAnonymous else {
+            return false
+        }
+        if let transition {
+            return currentSessionMatchesAuthTransition(transition)
+        }
+        return activeAuthTransition == nil
     }
 
     private func beginAuthTransition(
@@ -532,7 +557,7 @@ private struct RevenueCatPublicIdentity: Decodable {
         // so no new ordinary lease or collection mutation can enter. Existing
         // work completes against the preserved source session.
         await ConsentManager.shared
-            .cancelAndAwaitSynchronizationForAuthTransition()
+            .cancelAndAwaitAccountBoundWorkForAuthTransition()
         await AppDIContainer.shared.inferenceEngine
             .awaitAuthTransitionWriteQuiescence()
         guard await OfflineQueueManager.shared
@@ -815,8 +840,10 @@ private struct RevenueCatPublicIdentity: Decodable {
                             }
                         }
                     }
-                    guard authSessionGeneration == eventAuthGeneration,
-                          currentUser?.id == session.user.id else {
+                    guard hasCurrentPublishedSession(
+                        session.user,
+                        expectedAuthGeneration: eventAuthGeneration
+                    ) else {
                         continue
                     }
                     if RevenueCatManager.shared
@@ -831,6 +858,12 @@ private struct RevenueCatPublicIdentity: Decodable {
                             client: client
                         )
                     }
+                    guard hasCurrentPublishedSession(
+                        session.user,
+                        expectedAuthGeneration: eventAuthGeneration
+                    ) else {
+                        continue
+                    }
                     if didLinkExternalIdentity {
                         // Trigger historical sync only when the active user identity changes.
                         // The Supabase SDK fires two auth events on cold start (local cache +
@@ -841,10 +874,31 @@ private struct RevenueCatPublicIdentity: Decodable {
                         // throttle gate sees this sync and skips its own redundant call — without
                         // this write both callers fire concurrently on every cold launch.
                         if let context = AppDIContainer.shared.offlineQueueManager.modelContext {
-                            UserDefaults.standard.set(Date(), forKey: UserDefaultsKeys.lastHistoricalSyncDate)
-                            Task {
-                                await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context)
-                                await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context)
+                            Task { @MainActor [weak self] in
+                                guard let self,
+                                      self.hasCurrentPublishedSession(
+                                        session.user,
+                                        expectedAuthGeneration:
+                                            eventAuthGeneration
+                                      ) else { return }
+                                UserDefaults.standard.set(
+                                    Date(),
+                                    forKey:
+                                        UserDefaultsKeys.lastHistoricalSyncDate
+                                )
+                                await SpeciesPreferredNameRepository
+                                    .syncCloudPreferences(
+                                        modelContext: context
+                                    )
+                                guard self.hasCurrentPublishedSession(
+                                    session.user,
+                                    expectedAuthGeneration:
+                                        eventAuthGeneration
+                                ) else { return }
+                                await AppDIContainer.shared.scanRepository
+                                    .syncHistoricalScansDown(
+                                        modelContext: context
+                                    )
                             }
                         }
                     }
@@ -895,8 +949,7 @@ private struct RevenueCatPublicIdentity: Decodable {
                     await RevenueCatManager.shared.handleSupabaseSignOut()
                     lastLinkedUserId = nil
                     lastPublicAuthorIdentityRefreshUserId = nil
-                    publicAuthorIdentityRefreshTask?.cancel()
-                    publicAuthorIdentityRefreshTask = nil
+                    cancelPublicAuthorIdentityRefreshTask()
                     cancelGhostProfileMergeTask()
                 }
 
@@ -1444,6 +1497,10 @@ private struct RevenueCatPublicIdentity: Decodable {
                 for: session.user,
                 ownedBy: transition
             )
+            guard hasCurrentPublishedSession(
+                session.user,
+                ownedBy: transition
+            ) else { return nil }
             return session.user
         } catch {
             let errString = String(describing: error)
@@ -1476,6 +1533,10 @@ private struct RevenueCatPublicIdentity: Decodable {
                         for: authResponse.user,
                         ownedBy: transition
                     )
+                    guard hasCurrentPublishedSession(
+                        authResponse.user,
+                        ownedBy: transition
+                    ) else { return nil }
                     return authResponse.user
                 } catch {
                     MerianLog.auth.debug(
@@ -2759,8 +2820,7 @@ private struct RevenueCatPublicIdentity: Decodable {
         ghostSessionTaskId = nil
         ghostSessionTaskAuthTransitionId = nil
 
-        publicAuthorIdentityRefreshTask?.cancel()
-        publicAuthorIdentityRefreshTask = nil
+        cancelPublicAuthorIdentityRefreshTask()
         cancelGhostProfileMergeTask()
         cancelPurchasePrincipalLinkTask()
         KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
@@ -2969,8 +3029,7 @@ private struct RevenueCatPublicIdentity: Decodable {
         isAuthenticated = false
         lastLinkedUserId = nil
         lastPublicAuthorIdentityRefreshUserId = nil
-        publicAuthorIdentityRefreshTask?.cancel()
-        publicAuthorIdentityRefreshTask = nil
+        cancelPublicAuthorIdentityRefreshTask()
         cancelGhostProfileMergeTask()
         KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
         KeychainManager.shared.removeObject(forKey: KeychainKeys.legacyGhostModeUserID)
@@ -3163,7 +3222,9 @@ private struct RevenueCatPublicIdentity: Decodable {
         let sourceSession = activeAuthTransition?.sourceSession
         var didInstallGoogleSession = false
         do {
+            try Task.checkCancellation()
             let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootVC)
+            try Task.checkCancellation()
             _ = try await verifiedExpectedSessionIfPresent(for: transition)
             guard let idToken = result.user.idToken?.tokenString else {
                 MerianLog.auth.debug("Google Sign-In: no ID token returned.")
@@ -3316,6 +3377,7 @@ private struct RevenueCatPublicIdentity: Decodable {
             )
 
             do {
+                try Task.checkCancellation()
                 _ = try await client.auth.linkIdentityWithIdToken(
                     credentials: credentials
                 )
@@ -3992,6 +4054,7 @@ private struct RevenueCatPublicIdentity: Decodable {
             }
             return await self.performPendingSignOutPurchaseHandoff(
                 expectedDestinationUserId: normalizedExpected,
+                expectedAuthGeneration: generation,
                 ownedBy: transition
             )
         }
@@ -4041,6 +4104,7 @@ private struct RevenueCatPublicIdentity: Decodable {
         RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
         let generation = expectedAuthGeneration ?? authSessionGeneration
         do {
+            try Task.checkCancellation()
             let session = try await client.auth.session
             let destinationUserId = session.user.id.uuidString.lowercased()
             guard session.user.isAnonymous,
@@ -4048,11 +4112,15 @@ private struct RevenueCatPublicIdentity: Decodable {
                   expectedDestinationUserId.map({
                       $0.lowercased() == destinationUserId
                   }) ?? true,
-                  authSessionGeneration == generation,
-                  currentUser?.id == session.user.id else {
+                  activeAnonymousSessionMatches(
+                    userId: destinationUserId,
+                    expectedAuthGeneration: generation,
+                    ownedBy: transition
+                  ) else {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
 
+            try Task.checkCancellation()
             guard let rotationId = UUID(uuidString: pending.rotationId) else {
                 throw SupabaseAuthTransitionError
                     .purchasePrincipalRotationPersistenceFailed
@@ -4064,9 +4132,12 @@ private struct RevenueCatPublicIdentity: Decodable {
                     expectedCapabilityFingerprint:
                         pending.installationCapabilityFingerprint
                 )
-            guard authSessionGeneration == generation,
-                  currentUser?.id == session.user.id,
-                  client.auth.currentSession?.user.id == session.user.id,
+            try Task.checkCancellation()
+            guard activeAnonymousSessionMatches(
+                    userId: destinationUserId,
+                    expectedAuthGeneration: generation,
+                    ownedBy: transition
+                  ),
                   binding.mode == .stable,
                   binding.purchasePrincipalId?.uuidString.lowercased()
                     == pending.purchasePrincipalId.lowercased(),
@@ -4087,9 +4158,16 @@ private struct RevenueCatPublicIdentity: Decodable {
                     isAnonymous: true
                 )
             )
-            guard RevenueCatManager.shared.isIdentityReady,
+            try Task.checkCancellation()
+            guard activeAnonymousSessionMatches(
+                    userId: destinationUserId,
+                    expectedAuthGeneration: generation,
+                    ownedBy: transition
+                  ),
+                  RevenueCatManager.shared.isIdentityReady,
                   RevenueCatManager.shared.linkedAuthUserID == session.user.id,
-                  authSessionGeneration == generation else {
+                  RevenueCatManager.shared.linkedAccountKind ==
+                    RevenueCatAccountMutationPolicy.ghostAccountKind else {
                 throw SupabaseAuthTransitionError
                     .signOutPurchaseContinuityPending
             }
@@ -4102,13 +4180,18 @@ private struct RevenueCatPublicIdentity: Decodable {
                 throw SupabaseAuthTransitionError
                     .signOutPurchaseContinuityPending
             }
+            try Task.checkCancellation()
             let verifiedSession = try await client.auth.session
             guard verifiedSession.user.isAnonymous,
                   verifiedSession.user.id == session.user.id,
-                  authSessionGeneration == generation,
-                  currentUser?.id == session.user.id else {
+                  activeAnonymousSessionMatches(
+                    userId: destinationUserId,
+                    expectedAuthGeneration: generation,
+                    ownedBy: transition
+                  ) else {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
+            try Task.checkCancellation()
             try clearPendingPurchasePrincipalAuthRotation()
             let legacyPending = try loadPendingSignOutPurchaseHandoff() != nil
             RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
@@ -4133,6 +4216,7 @@ private struct RevenueCatPublicIdentity: Decodable {
 
     private func performPendingSignOutPurchaseHandoff(
         expectedDestinationUserId: String?,
+        expectedAuthGeneration: UInt64,
         ownedBy transition: AuthTransitionToken?
     ) async -> Bool {
         guard !Task.isCancelled, !isSigningOut else { return false }
@@ -4173,6 +4257,13 @@ private struct RevenueCatPublicIdentity: Decodable {
                destinationUserId != expectedDestinationUserId {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
+            guard activeAnonymousSessionMatches(
+                userId: destinationUserId,
+                expectedAuthGeneration: expectedAuthGeneration,
+                ownedBy: transition
+            ) else {
+                throw SupabaseAuthTransitionError.signOutSessionChanged
+            }
 
             try await PurchaseIdentitySignOutWorkflow.finalizeSignOutPurchaseHandoff(
                 bindDestination: {
@@ -4198,7 +4289,9 @@ private struct RevenueCatPublicIdentity: Decodable {
                 },
                 verifyBoundDestinationSession: {
                     try await self.verifyActiveAnonymousSession(
-                        userId: destinationUserId
+                        userId: destinationUserId,
+                        expectedAuthGeneration: expectedAuthGeneration,
+                        ownedBy: transition
                     )
                 },
                 linkProviderIdentity: {
@@ -4209,7 +4302,9 @@ private struct RevenueCatPublicIdentity: Decodable {
                 },
                 verifyLinkedDestinationSession: {
                     try await self.verifyActiveAnonymousSession(
-                        userId: destinationUserId
+                        userId: destinationUserId,
+                        expectedAuthGeneration: expectedAuthGeneration,
+                        ownedBy: transition
                     )
                 },
                 synchronizeStorePurchases: {
@@ -4246,7 +4341,9 @@ private struct RevenueCatPublicIdentity: Decodable {
                 },
                 verifyFinalDestinationSession: {
                     try await self.verifyActiveAnonymousSession(
-                        userId: destinationUserId
+                        userId: destinationUserId,
+                        expectedAuthGeneration: expectedAuthGeneration,
+                        ownedBy: transition
                     )
                 },
                 clearPendingHandoff: {
@@ -4658,10 +4755,45 @@ private struct RevenueCatPublicIdentity: Decodable {
         signOutPurchaseHandoffAuthGeneration = nil
     }
 
-    private func verifyActiveAnonymousSession(userId: String) async throws {
+    private func activeAnonymousSessionMatches(
+        userId: String,
+        expectedAuthGeneration: UInt64,
+        ownedBy transition: AuthTransitionToken?
+    ) -> Bool {
+        guard !Task.isCancelled,
+              isAuthenticated,
+              authSessionGeneration == expectedAuthGeneration,
+              currentUser?.isAnonymous == true,
+              currentUser?.id.uuidString.caseInsensitiveCompare(userId)
+                == .orderedSame,
+              let sdkSession = client.auth.currentSession,
+              !sdkSession.isExpired,
+              sdkSession.user.isAnonymous,
+              sdkSession.user.id.uuidString.caseInsensitiveCompare(userId)
+                == .orderedSame else {
+            return false
+        }
+        if let transition {
+            return currentSessionMatchesAuthTransition(transition)
+        }
+        return activeAuthTransition == nil
+    }
+
+    private func verifyActiveAnonymousSession(
+        userId: String,
+        expectedAuthGeneration: UInt64,
+        ownedBy transition: AuthTransitionToken?
+    ) async throws {
+        try Task.checkCancellation()
         let session = try await client.auth.session
         guard session.user.isAnonymous,
-              session.user.id.uuidString.lowercased() == userId.lowercased()
+              session.user.id.uuidString.caseInsensitiveCompare(userId)
+                == .orderedSame,
+              activeAnonymousSessionMatches(
+                userId: userId,
+                expectedAuthGeneration: expectedAuthGeneration,
+                ownedBy: transition
+              )
         else {
             throw SupabaseAuthTransitionError.signOutSessionChanged
         }
@@ -4756,8 +4888,13 @@ private struct RevenueCatPublicIdentity: Decodable {
         currentSession: () -> Value?,
         reconcileSession: (UInt, Value?) -> Void
     ) async throws -> Value {
+        try Task.checkCancellation()
         let generation = suspendAnalytics()
         do {
+            // Cancellation can be requested from another executor while the
+            // synchronous suppression boundary runs. Reconcile that boundary
+            // without installing a replacement SDK session.
+            try Task.checkCancellation()
             let installedSession = try await installSession()
             reconcileSession(generation, installedSession)
             return installedSession
@@ -4960,15 +5097,33 @@ private struct RevenueCatPublicIdentity: Decodable {
 
         let userId = user.id.uuidString.lowercased()
         guard userId != lastPublicAuthorIdentityRefreshUserId else { return }
+        if publicAuthorIdentityRefreshTaskUserId == userId {
+            return
+        }
 
-        lastPublicAuthorIdentityRefreshUserId = userId
-        publicAuthorIdentityRefreshTask?.cancel()
+        cancelPublicAuthorIdentityRefreshTask()
+        let taskId = UUID()
+        publicAuthorIdentityRefreshTaskId = taskId
+        publicAuthorIdentityRefreshTaskUserId = userId
         publicAuthorIdentityRefreshTask = Task { [weak self] in
-            await self?.refreshPublicAuthorIdentityForRestoredSession(userId: userId)
+            await self?.refreshPublicAuthorIdentityForRestoredSession(
+                userId: userId,
+                taskId: taskId
+            )
         }
     }
 
-    private func refreshPublicAuthorIdentityForRestoredSession(userId: String) async {
+    private func refreshPublicAuthorIdentityForRestoredSession(
+        userId: String,
+        taskId: UUID
+    ) async {
+        defer {
+            if publicAuthorIdentityRefreshTaskId == taskId {
+                publicAuthorIdentityRefreshTask = nil
+                publicAuthorIdentityRefreshTaskId = nil
+                publicAuthorIdentityRefreshTaskUserId = nil
+            }
+        }
         guard let expectedUserID = UUID(uuidString: userId),
               let accountWorkLease = try? beginUnownedAccountBoundWork(
                 expectedUserID: expectedUserID
@@ -4976,11 +5131,6 @@ private struct RevenueCatPublicIdentity: Decodable {
             return
         }
         defer { finishAccountBoundWork(accountWorkLease) }
-        defer {
-            if currentUser?.id.uuidString.lowercased() == userId || currentUser == nil {
-                publicAuthorIdentityRefreshTask = nil
-            }
-        }
 
         guard !Task.isCancelled else { return }
         _ = await completePendingGhostProfileMergeIfNeeded(
@@ -4999,7 +5149,15 @@ private struct RevenueCatPublicIdentity: Decodable {
         }
         guard currentUser?.id.uuidString.lowercased() == userId else { return }
 
+        lastPublicAuthorIdentityRefreshUserId = userId
         publishPublicAuthorIdentityChanged(previousUserId: nil, currentUserId: userId)
+    }
+
+    private func cancelPublicAuthorIdentityRefreshTask() {
+        publicAuthorIdentityRefreshTask?.cancel()
+        publicAuthorIdentityRefreshTask = nil
+        publicAuthorIdentityRefreshTaskId = nil
+        publicAuthorIdentityRefreshTaskUserId = nil
     }
 
     private func publishPublicAuthorIdentityChanged(previousUserId: String?, currentUserId: String) {

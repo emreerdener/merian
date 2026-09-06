@@ -179,6 +179,14 @@ retains the live Auth, SDK, endpoint, Keychain, sign-out, purge, and lifecycle
 effect assembly. Core Security owns the proof store; `AppDIContainer` and the
 Settings adapter supply the account-local purge boundary.
 
+The native intake owner rejects cancellation before any durable marker write. It
+checks again after the legacy marker, immediately before and after
+non-destructive v2 preparation, and after the prepared/intake marker pair.
+Cancellation at those later points preserves the already-durable recovery
+evidence but stops before the first destructive legacy request or v2 commit. A
+synchronous persistence adapter therefore cannot turn a cancelled task into
+deletion dispatch.
+
 Every native preparation, commit, legacy intake, recovery, and acknowledgement
 result that can advance or retire the durable journal is revalidated against the
 transition's exact UUID, anonymous/account kind, and Auth generation. This
@@ -331,7 +339,8 @@ provider attempt successful from an Apple error response.
 - `_tests/safeDelete.test.ts`: provider-before-Auth ordering, retry retention,
   and legacy manual disposition.
 - `_tests/accountDeletionCoverage.test.ts`: source, iOS manager adapter,
-  extracted `AccountDeletionWorkflow`, config, and executable-fixture ordering.
+  extracted `AccountDeletionWorkflow`, prepared-v2 cancellation-to-commit
+  ordering, config, and executable-fixture ordering.
 - `_tests/accountDeletionMigrationContract.test.ts`: Vault schema, Auth and
   terminal fences, recovery hash ledger, ACLs, allowlist, permanent replay,
   health, and secret destruction before state commit.
@@ -368,8 +377,10 @@ provider attempt successful from an Apple error response.
   and `AccountDeletionCleanupWorkflowTests`: deletion error/session
   classification, exact prepare/context/marker/commit ordering, pre-commit
   context/marker short-circuiting, stale success and failure result rejection,
-  recovery phase order, ambiguous-response retention, deferred restoration
-  revalidation, and terminal capability retirement.
+  cancellation before persistence, after the legacy marker, after v2
+  preparation, and after the v2 marker pair, recovery phase order,
+  ambiguous-response retention, deferred restoration revalidation, and terminal
+  capability retirement.
 - `SupabaseManagerTests`, `MerianNetworkClientTests`, and `AppDIContainerTests`:
   bounded registration retry, subject-bound credential-state handling, durable
   notice persistence, live Auth and endpoint effect assembly, and local-purge

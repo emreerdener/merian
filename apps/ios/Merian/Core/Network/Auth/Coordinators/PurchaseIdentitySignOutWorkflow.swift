@@ -7,6 +7,7 @@ enum PurchaseIdentitySignOutWorkflow {
         performSignOut: @MainActor () async -> Void,
         initializeAnonymousSession: @MainActor () async -> Bool
     ) async -> Bool {
+        guard !Task.isCancelled else { return false }
         await performSignOut()
         return await initializeAnonymousSession()
     }
@@ -22,6 +23,7 @@ enum PurchaseIdentitySignOutWorkflow {
         reportFailure: @MainActor (Error) -> Void
     ) async -> Bool {
         do {
+            try Task.checkCancellation()
             try await prepareAndPersistHandoff()
             await performSignOut()
             guard await initializeAnonymousSession() else { return false }

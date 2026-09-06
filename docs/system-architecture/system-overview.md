@@ -302,7 +302,14 @@ A structured schema built on native SwiftData migrations:
   independently. A transition token does not authorize a suspended result by
   itself: deletion, ordinary Auth refresh, purchase linking, and failed-sign-out
   restoration revalidate the exact UUID, anonymous/account kind, and Auth
-  generation before publishing or retiring durable state.
+  generation before publishing or retiring durable state. Listener and
+  anonymous-bootstrap continuations also require the exact manager-published
+  user and nonexpired SDK session after suspension. Purchase-continuity proof
+  retirement carries cancellation plus valid transition context—the originating
+  owner, or verified absence of another active transition—through its final
+  synchronous removal, while replaceable public-author refresh uses a target
+  account and task UUID so an older completion cannot clear or publish for its
+  successor.
 - Stable purchase identity uses a separate random 256-bit
   `WhenUnlockedThisDeviceOnly` installation capability. The authenticated
   `/resolve-purchase-principal` route stores only SHA-256, derives the Auth user

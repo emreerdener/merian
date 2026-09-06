@@ -45,7 +45,10 @@ Required-consent restoration has a separate root-presentation contract from
 ordinary onboarding errors. Once an authenticated account with missing local
 evidence enters `.reconciling`, a fetch, decode, push, or verified-ledger-write
 error must not set restoration to `.resolved`, route to the Ready consent
-screen, or infer that consent is absent.
+screen, or infer that consent is absent. `RequiredConsentRestorationCoordinator`
+owns these error transitions and retry tasks through injected effects;
+`ConsentManager` only mirrors the presentation state and supplies current
+account/session context.
 
 - A non-cancellation failure remains on the neutral `ConsentRestorationView`,
   enters `.waitingToRetry`, and schedules account- and
@@ -56,7 +59,13 @@ screen, or infer that consent is absent.
 - Duplicate same-account auth notifications preserve pending retry state and do
   not consume attempts. Account or generation changes cancel stale work; if the
   same unresolved account loses a retry timer during invalidation, its state
-  returns to `.reconciling` under the new generation.
+  returns to `.reconciling` under the new generation. Every retry retains a
+  stable task identity and registry entry through actual completion; invalidated
+  entries are snapshotted into the Auth-transition drain. Retry admission also
+  checks caller cancellation, so a late timer cannot regain authority if a
+  manual retry has reused its attempt number. A late canceled task therefore
+  cannot advance state, clear its replacement, or outlive session replacement
+  unobserved.
 - An expired cached Supabase session is a refresh transition, not an auth
   failure. It keeps authenticated requests closed while its known account owns
   the neutral restoration root; only `tokenRefreshed` or `signedOut` may

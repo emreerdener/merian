@@ -1822,6 +1822,12 @@ Each page passes through these steps inside the actor:
 This synchronization fires the moment a user transitions from Ghost →
 Authenticated (inside `SupabaseManager.setupAuthStateListener`) and whenever the
 app recovers foreground state (`AppLifecycleManager.handleActivePhase`).
+Listener-owned execution starts only after the exact manager-published user,
+nonexpired SDK session, and originating Auth-event generation are revalidated.
+Its deferred task repeats that fence after preferred-name synchronization and
+before historical scan hydration, so an account replacement or newly opened Auth
+transition cannot inherit a predecessor's work. The existing repository and
+offline-queue account leases remain the mutation authority inside each sync.
 
 ### Ghost-Rendering Image Optimization
 

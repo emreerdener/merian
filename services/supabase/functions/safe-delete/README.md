@@ -321,6 +321,13 @@ covered by `_shared/aws_test.ts` and `safe-delete/storageWorker_test.ts`;
 monitor parsing, thresholds, severity, and recovery guidance are covered by
 `scripts/monitor_account_deletion_health_test.ts`.
 
+Native workflow tests freeze cancellation before persistence, after the durable
+legacy marker, after non-destructive v2 preparation, and after the v2 marker
+pair. The cross-language coverage additionally requires the final prepared-v2
+cancellation fence to follow durable marker persistence and precede destructive
+commit. A cancelled task retains any already-written recovery evidence but
+cannot invoke legacy intake or v2 commit.
+
 See the
 [canonical Sign in with Apple deletion contract](../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md)
 for secret provisioning, rotation, client rollout, and production smokes.

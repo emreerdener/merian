@@ -430,6 +430,29 @@ Deno.test("lost deletion responses recover through a hash-only public capability
     swiftDeletionWorkflow,
     "static func performDefinitiveIntakeRejectionRetirement",
   );
+  const compactDeletionWorkflow = swiftDeletionWorkflow.replaceAll(
+    /\s+/g,
+    " ",
+  );
+  const preparedIntakeStart = compactDeletionWorkflow.indexOf(
+    "static func performPreparedIntake(",
+  );
+  const preparedIntakeEnd = compactDeletionWorkflow.indexOf(
+    "static func performAcceptedCleanup(",
+    preparedIntakeStart,
+  );
+  const preparedIntake = compactDeletionWorkflow.slice(
+    preparedIntakeStart,
+    preparedIntakeEnd,
+  );
+  assert(
+    preparedIntake.indexOf("try Task.checkCancellation()") >= 0 &&
+      preparedIntake.lastIndexOf("try Task.checkCancellation()") >
+        preparedIntake.indexOf("recordIntakePending()") &&
+      preparedIntake.lastIndexOf("try Task.checkCancellation()") <
+        preparedIntake.indexOf("receipt = try await commitDeletion()"),
+    "A cancelled non-destructive preparation must retain recovery state without dispatching destructive commit.",
+  );
   assert(
     (swiftAuth.match(
       /\.performDefinitiveIntakeRejectionRetirement\(/g,

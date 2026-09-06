@@ -55,13 +55,14 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   rollback/metadata, session-adoption, and purchase-handoff decisions.
   `Core/Network/Auth/Coordinators/PurchaseIdentitySignOutWorkflow.swift` owns
   deterministic ordinary and purchase-safe sign-out phase ordering, including
-  cancellation before the legacy server destination bind and after every
-  asynchronous completion phase. `SupabaseManager` stores and advances the
-  generation-bound coordinator and applies those decisions while retaining every
-  live provider, SDK-session, consent, and purchase-identity effect. The exact
-  legacy/stable journal models, validation, and verified device-only Keychain
-  storage live in `Core/Security/PurchaseIdentity/`; the manager injects the
-  live Keychain adapter rather than duplicating that persistence policy.
+  preflight cancellation, cancellation before the legacy server destination
+  bind, and cancellation after every asynchronous completion phase.
+  `SupabaseManager` stores and advances the generation-bound coordinator and
+  applies those decisions while retaining every live provider, SDK-session,
+  consent, and purchase-identity effect. The exact legacy/stable journal models,
+  validation, and verified device-only Keychain storage live in
+  `Core/Security/PurchaseIdentity/`; the manager injects the live Keychain
+  adapter rather than duplicating that persistence policy.
   `Core/Network/Auth/Policies/GhostProfileMergePolicy.swift` owns deterministic
   ghost-handoff replacement and terminal-code classification, and
   `Core/Network/Auth/Coordinators/GhostProfileMergeWorkflow.swift` owns server,
@@ -78,13 +79,21 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   Keychain, Auth, purge, and lifecycle effects. Only its token may adopt a
   destination or mutate the SDK session. Competing controls disable, stale
   provider/controller callbacks are ignored, and every account-bound write
-  rechecks the live source/destination after suspension. Confirmed deletion
-  first persists `capability_preparation_pending`, then verifies an atomic
-  device-only envelope with distinct recovery and acknowledgement capabilities
-  before the first network suspension. It is intended to complete the server's
-  non-destructive prepare, persist `capability_prepared_pending`, and then
-  persist `capability_intake_pending` before destructive commit. It fences every
-  other account operation and replays only the JWT-derived idempotent commit or
+  rechecks the live source/destination after suspension. Listener and anonymous
+  bootstrap continuations additionally require the same manager-published user,
+  nonexpired SDK session, captured Auth generation, and valid transition context
+  immediately before publication. Shared OAuth replacement checks cancellation
+  before and after analytics suppression; a cancelled suppression boundary
+  reconciles the source session without invoking SDK replacement. Google checks
+  cancellation before provider presentation and after its return, and either
+  provider's direct anonymous identity link checks again immediately before the
+  SDK mutation. Confirmed deletion first persists
+  `capability_preparation_pending`, then verifies an atomic device-only envelope
+  with distinct recovery and acknowledgement capabilities before the first
+  network suspension. It is intended to complete the server's non-destructive
+  prepare, persist `capability_prepared_pending`, and then persist
+  `capability_intake_pending` before destructive commit. It fences every other
+  account operation and replays only the JWT-derived idempotent commit or
   account-free proof recovery after a lost response. `not_committed` preserves
   the account and retires only local intent; a success receipt advances through
   cleanup, independent acknowledgement, and capability retirement. Verified
@@ -212,7 +221,12 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   - **Account Rehydration**: Intercepting the initial payload from
     `SupabaseManager.setupAuthStateListener`, Merian calls
     `ScanRepository.shared.syncHistoricalScansDown`, which fetches the user's
-    scan history and loads it into local SwiftData structures.
+    scan history and loads it into local SwiftData structures. The deferred task
+    starts only while the exact manager-published user, nonexpired SDK session,
+    and originating Auth-event generation remain current, and repeats that fence
+    after preferred-name synchronization before scan hydration. A replacement
+    account therefore cannot receive or complete the predecessor's historical
+    work.
   - User-facing **Sign out** calls `transitionToGhostSession()` but displays no
     internal Ghost or guest-session terminology. Stable mode first journals a
     random rotation ID and device-only proof, then prepares a server-owned
@@ -229,22 +243,24 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     RevenueCat. The restored exact source may cancel, including a write-ahead
     request whose prepare response was lost. After claim, iOS relinks RevenueCat
     to the unchanged server-owned ID, requires
-    `EntitlementManager.beginSession(...)` to return `true`, verifies the same
-    anonymous Auth generation, and clears the journal last. A provider or
-    entitlement failure after the atomic claim retains both the journal and
-    paid- operation fence for exact same-destination retry. The journal pins the
-    exact local capability fingerprint and forbids replacement capability
-    creation, so partial Keychain loss fails before server or provider identity
-    mutation. It does not call `syncPurchases()` or a provider customer-transfer
-    API. The Profile offers **Continue with Apple** and **Continue with
-    Google**; those transitions resolve the same principal. Foreground
-    activation retries this exact binding after transient resolver,
-    account-cleanup, Keychain, or provider failure, so recovery does not depend
-    on another Auth callback and never rotates the capability or provider ID.
-    `PurchaseIdentityHandoffStore` owns both journals' explicit camel-case local
-    JSON fields, fail-closed validation before writes and after reads, exact key
-    and accessibility, byte read-back, and verified removal.
-    `PurchaseIdentitySignOutWorkflow` owns the
+    `EntitlementManager.beginSession(...)` to return `true`, verifies the exact
+    anonymous manager-published user, nonexpired SDK session, Auth generation,
+    cancellation state, and transition context, and clears the journal last. A
+    retry without a transition owner becomes stale as soon as a new Auth
+    transition opens, even before its first SDK event. A provider or entitlement
+    failure after the atomic claim retains both the journal and paid-operation
+    fence for exact same-destination retry. The journal pins the exact local
+    capability fingerprint and forbids replacement capability creation, so
+    partial Keychain loss fails before server or provider identity mutation. It
+    does not call `syncPurchases()` or a provider customer-transfer API. The
+    Profile offers **Continue with Apple** and **Continue with Google**; those
+    transitions resolve the same principal. Foreground activation retries this
+    exact binding after transient resolver, account-cleanup, Keychain, or
+    provider failure, so recovery does not depend on another Auth callback and
+    never rotates the capability or provider ID. `PurchaseIdentityHandoffStore`
+    owns both journals' explicit camel-case local JSON fields, fail-closed
+    validation before writes and after reads, exact key and accessibility, byte
+    read-back, and verified removal. `PurchaseIdentitySignOutWorkflow` owns the
     preparation/sign-out/replacement/completion order; `SupabaseManager`
     supplies the live server, Auth, RevenueCat, entitlement, session, logging,
     and retry effects. Before an operation may replace the Auth identity, the
@@ -262,8 +278,9 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     while either stable rotation evidence or a legacy proof remains pending. An
     already-issued legacy proof is immutable across a rollout-mode change: iOS
     finishes receipt sync and server verification on its exact uppercase
-    destination UUID, clears the proof, and only then permits stable-principal
-    adoption.
+    destination UUID, revalidates cancellation plus the captured Auth generation
+    and transition context, clears the proof, and only then permits
+    stable-principal adoption.
   - Sign-out transfers only receipt-backed StoreKit access under RevenueCat's
     required **Transfer to new App User ID** behavior. Account-issued
     promotional/beta grants remain attached to the linked source and are not

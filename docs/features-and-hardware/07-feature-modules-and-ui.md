@@ -1645,7 +1645,11 @@ dependency composition.
   independent server-delivered fallback; publishing the new build alone is
   insufficient. The protocol-v2 prepare response now maps to its dedicated
   native non-destructive receipt and is locked to the handler through a shared
-  fixture. See the
+  fixture. The injected native workflow checks cancellation before persistence,
+  after the legacy recovery marker, immediately before and after non-destructive
+  v2 preparation, and after both v2 markers; already-durable evidence remains
+  recoverable, but a cancelled task cannot dispatch destructive intake or
+  commit. See the
   [Core Network preparation contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract);
   the intended presentation/workflow above still requires authorized
   real-session evidence.

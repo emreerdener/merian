@@ -35,6 +35,25 @@ final class PurchaseIdentitySignOutWorkflowTests: XCTestCase {
         XCTAssertFalse(isReady)
     }
 
+    func testUserSignOutTransitionRejectsPreflightCancellation() async {
+        var steps: [String] = []
+        let task = Task { @MainActor in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await PurchaseIdentitySignOutWorkflow
+                .performUserSignOutTransition(
+                    performSignOut: { steps.append("signOut") },
+                    initializeAnonymousSession: {
+                        steps.append("initializeAnonymousSession")
+                        return true
+                    }
+                )
+        }
+
+        let isReady = await task.value
+        XCTAssertFalse(isReady)
+        XCTAssertTrue(steps.isEmpty)
+    }
+
     func testPurchaseSafeSignOutPersistsBeforeClosingAndCompletingIdentity() async {
         var steps: [String] = []
 
@@ -100,6 +119,34 @@ final class PurchaseIdentitySignOutWorkflowTests: XCTestCase {
             case .signOutPurchaseHandoffPersistenceFailed = reportedError else {
             return XCTFail("Expected the preparation error to be reported")
         }
+    }
+
+    func testPurchaseSafeSignOutRejectsPreflightCancellation() async {
+        var steps: [String] = []
+        var reportedError: Error?
+        let task = Task { @MainActor in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await PurchaseIdentitySignOutWorkflow
+                .performPurchaseSafeSignOutTransition(
+                    prepareAndPersistHandoff: {
+                        steps.append("prepareAndPersist")
+                    },
+                    performSignOut: { steps.append("signOut") },
+                    initializeAnonymousSession: {
+                        steps.append("initializeAnonymousSession")
+                        return true
+                    },
+                    completeHandoff: {
+                        steps.append("completeHandoff")
+                    },
+                    reportFailure: { reportedError = $0 }
+                )
+        }
+
+        let isReady = await task.value
+        XCTAssertFalse(isReady)
+        XCTAssertTrue(reportedError is CancellationError)
+        XCTAssertTrue(steps.isEmpty)
     }
 
     func testPurchaseSafeSignOutPropagatesDurableCompletionFailure() async {

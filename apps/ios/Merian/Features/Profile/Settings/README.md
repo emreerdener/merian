@@ -193,6 +193,12 @@ then persists `capability_intake_pending`. The transition blocks ordinary Auth
 and account work while retaining its exact cached session. Relaunch uses public
 proof recovery rather than starting another deletion. Existing v1 proofs keep
 their legacy intake/replay path; they are not rewritten into v2 mid-recovery.
+The workflow checks task cancellation before its first recovery marker. The
+legacy branch checks again after its intake marker; the v2 branch checks before
+preparation, after the non-destructive response and before the prepared/intake
+marker pair, and after that pair before destructive commit. A cancelled task
+preserves any durable evidence already written for recovery and dispatches no
+later destructive request.
 
 A valid accepted receipt advances through `capability_cleanup_pending`, durable
 manual-provider notice recording, verified local Supabase sign-out, synchronous

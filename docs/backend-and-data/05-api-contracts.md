@@ -149,6 +149,15 @@ onboarding completion and persisted `syncedUserId` values are not API
 authorization. The failure and release proof are documented in the
 [first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 
+Receipt insertion is complete only after an ID- and owner-scoped read-back
+matches every immutable field sent by the client and includes a server
+timestamp. The same exact match is required before a row can confirm an
+ambiguous insert; a mismatched row preserves the original transport failure.
+Across receipt, current-event, and provider-head reads, only an empty successful
+result is authoritative absence. A present row with an unsupported enum or
+invalid timestamp is `MerianError.invalidResponse` and keeps required-consent
+restoration fail-closed.
+
 ## Causal Consent Append RPC Contract
 
 The iOS client appends mutable provider permission only through these
@@ -201,6 +210,34 @@ the stored parent can have been rebased; any other mismatch raises
 caller account fails with `42501`. After an ambiguous transport failure, a
 fetched row is confirmation only when its immutable payload matches the
 attempted event, with the same revocation-parent exception.
+
+On iOS, `Core/Security/Consent/Services/ConsentRemoteModels.swift` owns this
+exact request/result shape and the selected-row projections.
+`ConsentRemoteService.swift` owns result validation, mapping, and
+immutable-payload retry confirmation; `ConsentRemoteService+Live.swift` is the
+sole direct PostgREST/RPC adapter. `ConsentSynchronizationCoordinator` supplies
+the manager-provided account, Auth-session, cancellation, and generation fence
+across every suspended service phase; it sequences pending evidence before the
+authoritative read and persists a merged result before notifying the observable
+facade. `ConsentSynchronizationMergePolicy` performs the value-only evidence
+upsert and authority derivation. `ConsentLedgerRepository` publishes that result
+to local state only after a verified durable write.
+`RequiredConsentRestorationCoordinator` owns the account- and generation-fenced
+restoration state and UUID-keyed retry lifetime, retains canceled handles
+through completion, independently rejects canceled retry callers after manual
+attempt-number reuse, and contributes the handles to Auth-transition draining;
+it has no wire or Supabase dependency. `ConsentManager` remains the sole
+observable account/session and SDK facade. `ConsentRealtimeCoordinator` owns the
+analytics channel/listener/retry lifecycle and retains started removals through
+exact completion for the Auth-transition drain. Its
+`ConsentRealtimeCoordinator+Live.swift` is the only direct analytics-consent
+Supabase Realtime adapter. `ConsentManager` supplies the current-account
+authority and lifecycle triggers. The owner-filtered INSERT stream requests an
+authoritative refetch; it is not an alternate append path. Explicit stop,
+listener completion, and coordinator deinitialization converge on one coalesced
+channel-removal operation, with deinitialization initiating cleanup
+independently of listener cancellation. Auth replacement cannot install another
+SDK session until the prior channel's retained removal completes.
 
 The schema, rollout, concurrency, and release-evidence requirements are defined
 in the [database schema](./04-database-schema.md),
@@ -7561,11 +7598,14 @@ cancels after the preparation has expired, the successful receipt instead uses
 `rotation_status: "expired"`; an anonymous claim after expiry returns the 410
 error below. iOS removes the Keychain journal only after exact claim, RevenueCat
 identity readiness, a `true` result from `EntitlementManager.beginSession(...)`,
-and current-session verification, or after exact source cancellation. Every
-other session remains fail-closed. No stable operation calls `syncPurchases()`
-or a RevenueCat customer-transfer API. The rotation secret, its hash, the
-rotation UUID, and journal fields never enter logs. The legacy sign-out proof
-remains unchanged while mode is `legacy`.
+and current-session verification, or after exact source cancellation. That
+verification includes the same anonymous manager-published user, nonexpired SDK
+session, captured Auth generation, cancellation state, and transition context
+immediately before proof removal. A retry without a transition owner is stale as
+soon as another Auth transition opens. Every other session remains fail-closed.
+No stable operation calls `syncPurchases()` or a RevenueCat customer-transfer
+API. The rotation secret, its hash, the rotation UUID, and journal fields never
+enter logs. The legacy sign-out proof remains unchanged while mode is `legacy`.
 
 On iOS,
 `Core/Security/PurchaseIdentity/Stores/PurchaseIdentityHandoffStore.swift` owns
@@ -7577,12 +7617,14 @@ injects the live request, Auth, RevenueCat, entitlement, session, logging, and
 recovery effects. Legacy completion checks cancellation before dispatching its
 server destination-bind request and after every asynchronous phase, retaining
 the durable proof whenever completion does not reach its verified terminal
-state. Before an operation may replace the Auth identity, the manager rereads
-both store-backed journal types and derives readiness from those durable values.
-An unavailable secure read is treated as pending, and that derived pending
-projection keeps paid mutations closed. A cached false value alone is not
-authority to replace the identity. This ownership split changes none of the
-request, response, error, expiry, or retry contracts above.
+state. Ordinary and purchase-safe sign-out also reject preflight cancellation
+before persistence or Auth mutation. Before an operation may replace the Auth
+identity, the manager rereads both store-backed journal types and derives
+readiness from those durable values. An unavailable secure read is treated as
+pending, and that derived pending projection keeps paid mutations closed. A
+cached false value alone is not authority to replace the identity. This
+ownership split changes none of the request, response, error, expiry, or retry
+contracts above.
 
 Errors use `{ "code": "...", "error": "..." }` plus the shared request ID.
 
@@ -8045,6 +8087,13 @@ calls, proof and marker persistence, sign-out, purge, and lifecycle effects. The
 [native ownership and verification guide](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-ownership)
 also covers public recovery. This file split changes no payload or lifecycle
 contract.
+
+The native workflow checks cancellation before any deletion marker is written,
+immediately before and after non-destructive v2 preparation, after the durable
+legacy marker, and after both v2 markers. Evidence already written at a later
+checkpoint remains available to recovery, while the cancelled task stops before
+destructive legacy intake or v2 commit. These client-side checkpoints do not
+change the payload, server idempotency, or capability semantics below.
 
 ### Request Payload
 

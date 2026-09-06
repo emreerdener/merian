@@ -91,7 +91,11 @@ Executable coverage lives in `handler_test.ts`,
 `../../tests/account_deletion_security.sql`. The coverage contract reads the
 native `SupabaseManager` adapter and extracted `AccountDeletionWorkflow`
 together; moving either owner requires updating that cross-language path and
-running the focused Deno test in the same change.
+running the focused Deno test in the same change. The native workflow tests own
+preflight, post-legacy-marker, post-preparation, and post-v2-marker-pair
+cancellation. This cross-language guard additionally pins cancellation between
+the prepared/intake marker pair and destructive commit, preserving written
+recovery evidence without dispatching that commit.
 
 On iOS, `Core/Network/Endpoints/MerianNetworkClient+AccountDeletion.swift` owns
 the public legacy/v2 recovery and acknowledgement calls. A fixed-route bridge

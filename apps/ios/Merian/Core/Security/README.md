@@ -75,44 +75,80 @@ pin lifecycle. See the
   manager never reserves quota; the provider-side `reserve_ai_quota(...)`
   transaction remains the authorization boundary and can still reject a
   concurrent race.
-- `ConsentManager` owns the append-only local ledger for adult confirmation,
-  Terms acceptance, every Google Gemini grant/revocation, and optional PostHog
-  grant/revocation. `ConsentLedgerStore` persists that ledger as an atomically
-  replaced, file-protected, read-back-verified Application Support file and
-  migrates the former `UserDefaults` copy before removing it. Analytics
-  withdrawal first records the exact immutable revocation event in an
-  independently verified Keychain journal; a failed ledger write therefore
-  remains fail-closed across restart and can be replayed without changing its ID
-  or timestamp. The journal retains multiple account-owned withdrawals rather
-  than overwriting one during account switching. `ConsentManager` binds offline
-  records to the first anonymous account, synchronizes immutable account-owned
-  rows, hydrates cross-device state, and requires cloud-ready adult/Terms/Gemini
-  evidence before iOS constructs an inference request. After a confirmed
-  provider-bound ghost handoff, it generation-cancels stale sync work,
-  atomically rebinds all four local ledgers, pushes target-owned pending
-  actions, and refetches before the durable handoff can be removed. Normal
-  account restoration also activates and flushes the target account before
-  remote refetch while analytics remains fail-closed. Synchronization preserves
-  the order target activation → all target-owned pending pushes → authoritative
-  fetch → merge. AI and analytics pending events name their observed
-  provider-stream head. Their authenticated RPC serializes the account against
-  ghost merge and then the provider stream, assigns a server-only
-  `consentRevision`, rejects a delayed grant whose parent is stale, and rebases
-  a revocation to the locked current head. Rejected grants remain locally marked
-  as superseded and cannot authorize either provider; accepted events retain the
-  parent returned by the server. Fetch-after-error recovery also compares every
-  immutable payload field before accepting an existing ID, while allowing the
-  server-rebased parent of a revocation. The authoritative fetch includes the
-  all-version stream head so subsequent local actions attach to the actual head.
-  Local Gemini and PostHog permissions also start from that same head: a
-  revocation under any disclosure version closes the gate, and only an exact
-  current-version head grant may authorize the current app. The merge itself
-  performs a final synchronous fence over task cancellation, the observed
-  account, the Supabase SDK's current session, and the synchronization
-  generation before it can mutate or persist the ledger or apply analytics.
-  Analytics-consent Realtime owns its subscribed account independently,
-  generation-fences stale channels, and retries failures with foreground repair.
-  OAuth account replacement closes analytics before session installation and
+- `Consent/Models` owns the exact policy versions and evidence copy, storage and
+  handoff errors, plus the source-compatible `ConsentManager.*` receipt, event,
+  ledger, journal, restoration, and remote-state values. `Consent/Policies` owns
+  value-only provider-head authority, account activation/rebinding, retry
+  delays, the synchronization context fence, and deterministic remote-state
+  merge results. `Consent/Coordinators/ConsentRealtimeCoordinator` owns the
+  account-scoped channel identity, listener/retry lifetime, generation fences,
+  repair backoff, and deinitialization-triggered, coalesced removal through
+  injected effects. `Consent/Coordinators/ConsentSynchronizationCoordinator`
+  owns scheduled and active task identity, same-account coalescing, generation
+  invalidation, retention and exact drain of every outstanding task handle,
+  including superseded and previously invalidated work, pending-evidence push
+  order, authoritative fetch, and verified merge sequencing through the
+  repository and remote service.
+  `Consent/Coordinators/RequiredConsentRestorationCoordinator` owns the
+  restoration state machine, retry budget, UUID-keyed outstanding-task
+  retention, compare-before-clear completion, cancellation snapshot and drain,
+  manual retry admission, and account, SDK-session, synchronization-generation,
+  and caller-cancellation fences through injected effects. `Consent/Services`
+  owns the exact insert/RPC/read wire values, deterministic mapping and
+  ambiguous-write recovery, the sole live PostgREST/RPC adapter, and the
+  separate sole live analytics-consent Realtime adapter. Only those adapters
+  issue Consent PostgREST, RPC, or Realtime operations; both cores are
+  closure-injected. `ConsentManager` separately consults `SupabaseManager` as
+  the authenticated-session and account-work-lease authority for
+  synchronization, inference admission, and Ghost rebinding. Their
+  [ownership guide](Consent/README.md) freezes the boundary.
+  `Consent/Repositories/ConsentLedgerRepository` owns decoded local state,
+  independent storage uncertainty, verified ledger/journal transitions,
+  recovery, activation, and rebinding over the injected raw-byte
+  `ConsentLedgerStore`. `ConsentManager` remains the observable facade for
+  mutation, session adoption, the restoration projection, derived gates, SDK
+  application, and account/session decisions that start or stop synchronization
+  and Realtime; it performs no synchronization pipeline, restoration retry state
+  machine, direct JSON, raw-store, table, RPC, channel, or listener work.
+  `ConsentLedgerStore` atomically replaces and read-back-verifies the
+  file-protected Application Support ledger bytes, migrates the former
+  `UserDefaults` copy before removing it, and stores the independent Keychain
+  withdrawal journal bytes. The repository records the exact immutable
+  revocation event in that journal before the main ledger; a failed ledger write
+  therefore remains fail-closed across restart and can be replayed without
+  changing its ID or timestamp. The journal retains multiple account-owned
+  withdrawals rather than overwriting one during account switching.
+  `ConsentManager` binds offline records to the first anonymous account,
+  synchronizes immutable account-owned rows, hydrates cross-device state, and
+  requires cloud-ready adult/Terms/Gemini evidence before iOS constructs an
+  inference request. After a confirmed provider-bound ghost handoff, it
+  generation-cancels stale sync work, asks the repository to atomically rebind
+  all four local ledgers, pushes target-owned pending actions, and refetches
+  before the durable handoff can be removed. Normal account restoration also
+  activates and flushes the target account before remote refetch while analytics
+  remains fail-closed. Synchronization preserves the order target activation →
+  all target-owned pending pushes → authoritative fetch → merge. AI and
+  analytics pending events name their observed provider-stream head. Their
+  authenticated RPC serializes the account against ghost merge and then the
+  provider stream, assigns a server-only `consentRevision`, rejects a delayed
+  grant whose parent is stale, and rebases a revocation to the locked current
+  head. Rejected grants remain locally marked as superseded and cannot authorize
+  either provider; accepted events retain the parent returned by the server.
+  Fetch-after-error recovery also compares every immutable payload field before
+  accepting an existing ID, while allowing the server-rebased parent of a
+  revocation. The authoritative fetch includes the all-version stream head so
+  subsequent local actions attach to the actual head. Local Gemini and PostHog
+  permissions also start from that same head: a revocation under any disclosure
+  version closes the gate, and only an exact current-version head grant may
+  authorize the current app. The merge itself performs a final synchronous fence
+  over task cancellation, the observed account, the Supabase SDK's current
+  session, and the synchronization generation before it can mutate or persist
+  the ledger or apply analytics. `ConsentRealtimeCoordinator` owns the
+  analytics-consent subscribed account independently, generation-fences stale
+  channels, and retries failures with foreground repair. Explicit stop, listener
+  completion, and coordinator deinitialization share one removal operation;
+  deinitialization initiates it without waiting for listener cancellation. OAuth
+  account replacement closes analytics before session installation and
   reconciles the SDK's actual session before a current-disclosure grant at the
   all-version head may reopen capture. The database quota boundary remains the
   authoritative provider-dispatch gate. When that boundary returns exact
@@ -157,6 +193,13 @@ marker removal the last failable step before synchronous publication. A
 definitive uncommitted v2 intent can retire its proof without signing out or
 purging, unlike accepted-deletion cleanup.
 
+Deletion intake checks task cancellation before its first recovery marker. The
+legacy branch checks again after its intake marker. Protocol v2 also checks
+before preparation, after the non-destructive response and before the
+prepared/intake marker pair, and after that pair before destructive commit.
+Cancellation preserves recovery evidence that already crossed a durable boundary
+and prevents the cancelled task from dispatching any later destructive effect.
+
 The
 [Keychain contract](../../../../../docs/development-guides/05-keychain-and-secrets.md)
 owns the key/envelope and privacy requirements; the
@@ -192,7 +235,11 @@ the existing auth-transition errors. This split changes no Keychain key, JSON
 shape, API payload, or provider contract. Follow-up hardening rejects malformed
 values before secure-storage dispatch and stops already-cancelled finalization
 before the first server destination-bind request, leaving durable proof
-available for retry.
+available for retry. Stable and legacy completion revalidate task cancellation,
+the exact anonymous manager-published user, nonexpired SDK session, captured
+Auth generation, and transition context throughout their suspended phases and
+immediately before verified removal. A retry without a transition owner becomes
+stale as soon as another Auth transition opens.
 
 ## Ghost-profile merge storage
 
@@ -225,6 +272,13 @@ Keychain key, JSON shape, API payload, or provider contract.
 that the user must approve again because an authenticated account may restore
 the current adult, Terms, and Gemini records moments later.
 
+`RequiredConsentRestorationCoordinator` owns the underlying state machine,
+automatic retry budget, UUID-keyed outstanding-task registry,
+account/session/generation and caller-cancellation fences, compare-before-clear
+completion, and cancellation snapshot/drain. The manager synchronously mirrors
+that state for root presentation, supplies the narrow live effects, and combines
+its drain snapshot with synchronization work before Auth replacement.
+
 | State                              | Meaning                                                                                                                                                                                                     |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `.awaitingInitialSession`          | No initial auth result has been observed yet.                                                                                                                                                               |
@@ -255,11 +309,18 @@ pending state because an account or synchronization generation may be changing.
 A duplicate auth event neither consumes the retry budget nor reopens restoration
 for the same resolved session.
 
-`invalidateSynchronizationWork()` cancels scheduled and active work, resets the
-retry counter, and normalizes a retryable state for the same unresolved account
-back to `.reconciling`. This prevents `.waitingToRetry` from surviving after its
-timer has been cancelled and gives the replacement synchronization generation a
-fresh retry budget.
+`invalidateSynchronizationWork()` asks both coordinators to snapshot and cancel
+their outstanding work, resets the restoration retry counter, and normalizes a
+retryable state for the same unresolved account back to `.reconciling`. An
+ordinary invalidation need not block, but each coordinator retains its canceled
+handles until exact completion. The Auth-transition caller awaits both returned
+snapshots before the SDK session changes. This prevents `.waitingToRetry` from
+surviving after its timer has been canceled, gives the replacement
+synchronization generation a fresh retry budget, and prevents an earlier
+discarded invalidation result from creating a later drain blind spot. Retry
+admission also checks caller cancellation so an old timer cannot reenter if a
+manual retry reuses its attempt number without changing the account or
+synchronization generation.
 
 See the
 [Onboarding Flow](../../../../../docs/features-and-hardware/04-onboarding.md#root-presentation-gate)
@@ -293,14 +354,16 @@ generic resolution and RevenueCat linking. After the atomic claim,
 `RevenueCatManager` must establish readiness for the unchanged server App User
 ID, new Auth UUID, and advanced binding generation. The client then requires a
 successful `EntitlementManager.beginSession(...)` for that same session before
-it may clear the journal or paid-operation fence. Provider or entitlement
-failure keeps both pending for exact same-destination retry. The restored source
-may cancel; no stable sign-out path calls `syncPurchases()`,
-`Purchases.logOut()`, or a customer-transfer API. Offering reads, purchase,
-restore, redemption, and subscription management require the exact resolved
-identity, current Auth session, binding generation, and recognized
-`account_kind`. Missing, unknown, stale, or asynchronously mismatched state
-fails closed. A generic Edge `401` never rotates purchase identity.
+it may clear the journal or paid-operation fence. The removal boundary also
+requires an uncancelled task, the exact anonymous manager-published user,
+nonexpired SDK session, captured Auth generation, and valid transition context.
+Provider or entitlement failure keeps both pending for exact same-destination
+retry. The restored source may cancel; no stable sign-out path calls
+`syncPurchases()`, `Purchases.logOut()`, or a customer-transfer API. Offering
+reads, purchase, restore, redemption, and subscription management require the
+exact resolved identity, current Auth session, binding generation, and
+recognized `account_kind`. Missing, unknown, stale, or asynchronously mismatched
+state fails closed. A generic Edge `401` never rotates purchase identity.
 `RevenueCatOfferingPolicy` requires these App Store product identifiers:
 
 - `pro_week`
@@ -469,11 +532,12 @@ the strict server cutover or a production submission.
 - Realtime account-wide analytics changes must start reliably after session
   establishment and recover after channel failure; foreground reconciliation is
   a second safety net, not the only synchronization mechanism.
-- Auth transition admission cancels and awaits consent synchronization before
-  the SDK session can change. Entitlement baseline reads require either the
-  active transition token or an exact-session account-work lease, then reject
-  wrong-account, stale-generation, and non-single-row results before applying
-  any functional access.
+- Auth transition admission snapshots, cancels, and awaits every outstanding
+  scheduled and active consent synchronization handle—including superseded and
+  previously invalidated work—before the SDK session can change. Entitlement
+  baseline reads require either the active transition token or an exact-session
+  account-work lease, then reject wrong-account, stale-generation, and
+  non-single-row results before applying any functional access.
 - Authentication and purchase logs contain no account, Auth, RevenueCat
   customer, purchase-principal, installation capability/fingerprint, stable
   sign-out rotation UUID/secret/hash/journal field, provider body, URL, or raw

@@ -67,6 +67,11 @@ compile gate. Every build-relevant startup or schema change must also pass
 Generic current-store startup failures must not move local store files. They
 skip quarantine/rescue and go directly to safe mode.
 
+When a persistent or safe-mode container is available, its recovery notice is a
+dismissible top card so Capture and the rest of the workspace remain usable. The
+startup-blocked fallback remains a non-dismissible full-screen surface because
+there is no usable workspace behind it.
+
 ## TestFlight Diagnostic Expectations
 
 For a legacy V42/V43/V44/V45/V46/V47/V48/V49/V50 store that cannot migrate but
@@ -266,9 +271,9 @@ only redacted string properties:
 | `rescue_performed`      | `true`, `false`                                                                                                                                               |
 
 The latest startup diagnostic is also persisted locally and shown as a
-TestFlight/debug share action on the safe-mode/recovery card. Do not attach raw
-exception text, local paths, user IDs, scan IDs, scan text, media URLs, or
-account state to this event or diagnostic payload.
+TestFlight/debug share action on the dismissible safe-mode/recovery card. Do not
+attach raw exception text, local paths, user IDs, scan IDs, scan text, media
+URLs, or account state to this event or diagnostic payload.
 
 A normal successful migration has no recovery card and does not emit
 `StartupStoreRecovery` telemetry. Its minimum release evidence is therefore the

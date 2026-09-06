@@ -194,7 +194,15 @@ and exactly six Transport owners: three stateless policies, the request-scoped
 executor, the pinned session, and the authenticated dispatcher. The guard
 freezes sole-session injection and keeps per-attempt Auth leasing out of both
 the façade and executor while the executor owns bounded retry state and applies
-ordinary versus transition-owned refresh through injected closures.
+ordinary versus transition-owned refresh through injected closures. Its joined
+live-manager checks also require listener and anonymous-bootstrap continuations
+to retain the exact manager-published user, nonexpired SDK session, and captured
+Auth generation after suspension. Stable and compatibility purchase-continuity
+completion must retain that session plus valid transition context and
+cancellation state through proof removal; Google provider return, direct
+provider linking, and shared OAuth replacement must retain their respective
+pre-mutation cancellation fences; and restored-session public-author work must
+use target-account and task-ID compare-before-clear ownership.
 `get-filtered-discovery-feed` remains a documented backend function but is
 intentionally absent from the iOS replay set because the app has no endpoint
 owner or caller for it. See the
@@ -228,6 +236,41 @@ Keychain registry remain in the Utilities aggregate for their separately
 reviewed security slice. Mirrored Preferences and Species Preferences tests
 enforce these dependency, race, purge-inventory, and 600-line boundaries without
 treating the defaults store as durable value or server authority.
+
+## Core Consent Ownership
+
+[Core Security Consent](Merian/Core/Security/Consent/README.md) owns the exact
+policy/evidence values, source-compatible durable models, deterministic
+authority and ownership policies, and the focused consent cloud boundary.
+`ConsentRemoteService` maps immutable receipt/event values and validates causal
+append outcomes through initializer-injected closures. It rejects malformed
+present rows and requires exact immutable receipt/event read-back matches; only
+its live adapter performs direct PostgREST table or RPC calls.
+`ConsentLedgerRepository` owns decoded local state and verified ledger/journal
+persistence over the existing raw store, including recovery and account
+rebinding. `ConsentSynchronizationMergePolicy` owns value-only remote evidence
+upsert and authority derivation. `ConsentSynchronizationCoordinator` owns
+synchronization task identity, coalescing, generation cancellation, and
+retention and exact drain of every outstanding handle, including superseded and
+previously invalidated work. It also owns pending-evidence push order,
+authoritative fetch, and verified merge sequencing without direct singleton
+access. `RequiredConsentRestorationCoordinator` owns the restoration state
+machine, retry budget, UUID-keyed outstanding-task retention,
+compare-before-clear completion, cancellation snapshot and exact drain, manual
+retry admission, and account, SDK-session, generation, and caller-cancellation
+fences through injected effects. A canceled timer cannot regain admission if a
+manual retry reuses the same attempt number. `ConsentManager` remains the sole
+observable facade and retains account/session adoption, the restoration
+projection, derived admission gates, PostHog application, the timing of durable
+transitions, and lifecycle decisions that start or stop synchronization and
+Realtime. `ConsentRealtimeCoordinator` owns channel/listener/retry lifetime
+through injected effects. Explicit stop, listener completion, and coordinator
+deinitialization converge on one coalesced removal operation; deinitialization
+starts cleanup even if a listener suspension ignores cancellation. Started
+removals remain retained until exact completion, and the manager drains them
+with synchronization and restoration before Auth session replacement. Its live
+adapter is the sole analytics-consent Supabase Realtime owner. The extraction
+changes no API, persisted ledger, Keychain, provider, or release contract.
 
 ## Onboarding Ownership
 

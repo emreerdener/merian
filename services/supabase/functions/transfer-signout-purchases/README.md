@@ -85,8 +85,11 @@ verified destination snapshot and that StoreKit tier/expiry. If the response is
 lost, replay uses the immutable pair rather than depending on later mutable
 CustomerInfo; newer provider watermarks still win.
 
-The client deletes the Keychain proof only after server completion and a fresh
-Merian entitlement read. Temporary failures retain the proof and block purchase
+The client deletes the Keychain proof only after server completion, a fresh
+Merian entitlement read, and revalidation of cancellation, the exact anonymous
+manager-published user, nonexpired SDK session, captured Auth generation, and
+transition context. A retry without a transition owner becomes stale when a new
+Auth transition opens. Temporary failures retain the proof and block purchase
 mutations so app relaunch can safely retry.
 
 ## Entitlement policy

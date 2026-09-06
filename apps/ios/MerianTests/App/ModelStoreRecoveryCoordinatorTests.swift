@@ -577,6 +577,18 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         )
     }
 
+    func testUsableContainerRecoveryNoticeHasDismissControl() throws {
+        let source = try String(
+            contentsOf: merianAppSourceURL(),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("let onDismiss: (() -> Void)?"))
+        XCTAssertTrue(source.contains("Button(action: onDismiss)"))
+        XCTAssertTrue(source.contains("!isStartupRecoveryNoticeDismissed"))
+        XCTAssertTrue(source.contains(".accessibilityLabel(\"Dismiss recovery notice\")"))
+    }
+
     private func makeTempDirectory() throws -> URL {
         let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
             UUID().uuidString,
@@ -600,6 +612,16 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
             .appendingPathComponent("Data")
             .appendingPathComponent("StoreRecovery")
             .appendingPathComponent("ModelStoreRecoveryCoordinator.swift")
+    }
+
+    private func merianAppSourceURL() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Merian")
+            .appendingPathComponent("App")
+            .appendingPathComponent("MerianApp.swift")
     }
 
     private func sqliteCorruptionError() -> NSError {

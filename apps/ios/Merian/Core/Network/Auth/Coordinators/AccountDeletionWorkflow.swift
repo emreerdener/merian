@@ -36,10 +36,15 @@ enum AccountDeletionWorkflow {
         verifyResultContext: @MainActor () throws -> Void,
         clearIntakeAfterDefinitiveRejection: @MainActor () -> Void
     ) async throws -> AccountDeletionReceipt {
+        try Task.checkCancellation()
         guard recordIntakePending() else {
             throw SupabaseAuthTransitionError
                 .accountDeletionRecoveryPersistenceFailed
         }
+        // A synchronous persistence adapter may surface cancellation after it
+        // has durably closed account work. Preserve that recovery marker, but
+        // do not dispatch destructive intake from an already-cancelled task.
+        try Task.checkCancellation()
         let receipt: AccountDeletionReceipt
         do {
             receipt = try await requestDeletion()
@@ -69,6 +74,7 @@ enum AccountDeletionWorkflow {
             -> AccountDeletionReceipt,
         verifyCommitContext: @MainActor () -> Bool
     ) async throws -> AccountDeletionReceipt {
+        try Task.checkCancellation()
         let preparation: AccountDeletionPreparationReceipt
         do {
             preparation = try await prepareDeletion()
@@ -79,14 +85,25 @@ enum AccountDeletionWorkflow {
             }
             throw error
         }
-        guard verifyPreparationContext(),
-              preparation.status == .prepared,
+        guard verifyPreparationContext() else {
+            throw SupabaseAuthTransitionError
+                .accountDeletionRecoveryPersistenceFailed
+        }
+        // Preparation is non-destructive. If its request ignored caller
+        // cancellation, retain the already-persisted capability for recovery
+        // instead of promoting the cancelled operation into commit.
+        try Task.checkCancellation()
+        guard preparation.status == .prepared,
               preparation.protocolVersion == 2,
               recordCapabilityPreparedPending(),
               recordIntakePending() else {
             throw SupabaseAuthTransitionError
                 .accountDeletionRecoveryPersistenceFailed
         }
+        // The two durable markers are now authoritative. A persistence adapter
+        // that cancelled the task leaves them available for recovery; it must
+        // not allow the destructive request to start in this task generation.
+        try Task.checkCancellation()
 
         let receipt: AccountDeletionReceipt
         do {

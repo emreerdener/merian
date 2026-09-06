@@ -21,7 +21,12 @@ or user-facing presentation.
 deterministic sign-out and legacy completion order through injected effects.
 `SupabaseManager` constructs the live store with `KeychainManager`, maps its two
 domain failures to the existing auth-transition errors, and retains Auth,
-endpoint, RevenueCat, entitlement, recovery, and lifecycle orchestration.
+endpoint, RevenueCat, entitlement, recovery, and lifecycle orchestration. Before
+either journal is removed, that live adapter must revalidate caller
+cancellation, the exact anonymous manager-published user, nonexpired SDK
+session, captured Auth generation, and transition context. A completion without
+a transition owner fails as soon as another Auth transition opens, including
+before its first SDK event.
 
 Malformed evidence is rejected before storage and malformed or unreadable
 restored evidence is never treated as absence. A write is not accepted until the
@@ -37,10 +42,11 @@ legacy/stable compatibility, state-specific expiry rules, malformed evidence,
 rejection before secure-storage dispatch, failed or unverifiable writes,
 device-only accessibility, exact-key removal, and secure-store error
 propagation. `PurchaseIdentitySignOutWorkflowTests` freezes cancellation before
-the legacy server destination bind, preparation-before-sign-out, and
-proof-removal-last sequencing. The Core Network integration architecture suite
-prevents these declarations and storage rules from drifting back into the
-aggregate manager.
+and after the legacy server destination bind, preflight cancellation,
+preparation-before-sign-out, and proof-removal-last sequencing. The Core Network
+integration architecture suite prevents these declarations and storage rules
+from drifting back into the aggregate manager and pins the exact-generation,
+transition-owner, and cancellation fence immediately before live proof removal.
 `services/supabase/functions/_tests/purchasePrincipalMigrationContract.test.ts`
 also pins the manager's fail-closed readiness boundary: it must reread both
 store-backed journals, publish the derived pending state, and return pending

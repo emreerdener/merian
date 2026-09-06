@@ -20,9 +20,17 @@ const providerHeadAuthorityMigrationUrl = new URL(
   "../../migrations/20260806144105_authorize_consent_from_provider_stream_heads.sql",
   import.meta.url,
 );
+const iosConsentRootUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/",
+  import.meta.url,
+);
 
 function normalized(value: string): string {
   return value.replaceAll(/\s+/g, " ").trim();
+}
+
+function iosConsentSource(relativePath: string): Promise<string> {
+  return Deno.readTextFile(new URL(relativePath, iosConsentRootUrl));
 }
 
 Deno.test("legal receipts are append-only, owner-scoped, and merge-safe", async () => {
@@ -193,31 +201,85 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
     assertStringIncludes(sql, fragment);
   }
 
-  const swift = normalized(
-    await Deno.readTextFile(
-      new URL(
-        "../../../../apps/ios/Merian/Core/Security/ConsentManager.swift",
-        import.meta.url,
-      ),
+  const manager = normalized(await iosConsentSource("ConsentManager.swift"));
+  const synchronizationCoordinator = normalized(
+    await iosConsentSource(
+      "Consent/Coordinators/ConsentSynchronizationCoordinator.swift",
     ),
   );
-  assertStringIncludes(swift, 'rpc( "append_user_ai_consent_event"');
+  const remoteModels = normalized(
+    await iosConsentSource("Consent/Services/ConsentRemoteModels.swift"),
+  );
+  const remoteService = normalized(
+    await iosConsentSource("Consent/Services/ConsentRemoteService.swift"),
+  );
+  const liveRemoteService = normalized(
+    await iosConsentSource("Consent/Services/ConsentRemoteService+Live.swift"),
+  );
   assertStringIncludes(
-    swift,
+    liveRemoteService,
+    'rpc( "append_user_ai_consent_event"',
+  );
+  assertStringIncludes(
+    liveRemoteService,
     'rpc( "append_user_analytics_consent_event"',
   );
-  assertStringIncludes(swift, "causalParentId");
-  assertStringIncludes(swift, "consentRevision");
-  assertStringIncludes(swift, "supersededByEventId");
-  assertStringIncludes(swift, "let accepted_parent_id: UUID?");
-  assertStringIncludes(swift, "matchesAIConsentAppendRetry");
-  assertStringIncludes(swift, "matchesAnalyticsConsentAppendRetry");
+  assertStringIncludes(remoteService, "causalParentId");
+  assertStringIncludes(remoteService, "consentRevision");
+  assertStringIncludes(remoteService, "supersededByEventId");
+  assertStringIncludes(remoteModels, "let accepted_parent_id: UUID?");
+  assertStringIncludes(remoteService, "matchesAdultEligibilityReceipt");
+  assertStringIncludes(remoteService, "matchesTermsReceipt");
+  assertStringIncludes(remoteService, "matchesAIConsentAppendRetry");
+  assertStringIncludes(remoteService, "matchesAnalyticsConsentAppendRetry");
+  assertStringIncludes(remoteService, "firstMappedRemoteRow");
   assertEquals(
-    swift.match(/causalParentId: row\.causal_parent_id/g)?.length,
+    remoteService.match(/try Self\.firstMappedRemoteRow\(/g)?.length,
+    10,
+  );
+  assert(
+    !remoteService.includes(".first.flatMap("),
+    "Malformed present consent rows must not collapse into authoritative absence",
+  );
+  for (
+    const fragment of [
+      "let p_id: UUID",
+      "let p_disclosure_version: String",
+      "let p_event_kind: String",
+      "let p_occurred_at: String",
+      "let p_disclosure_text: String",
+      "let p_action_text: String",
+      "let p_platform: String",
+      "let p_app_version: String",
+      "let p_app_build: String",
+      "let p_causal_parent_id: UUID?",
+      "let accepted: Bool",
+      "let event_revision: Int64?",
+      "let authoritative_revision: Int64",
+      "let authoritative_event_id: UUID?",
+      "let recorded_at: String?",
+    ]
+  ) {
+    assertStringIncludes(remoteModels, fragment);
+  }
+  assertStringIncludes(
+    remoteModels,
+    'static let adultEligibilityReceiptColumns = "id,user_id,policy_version,confirmed_at,confirmation_method," + "confirmation_text,platform,app_version,app_build,recorded_at"',
+  );
+  assertStringIncludes(
+    remoteModels,
+    'static let termsReceiptColumns = "id,user_id,terms_version,accepted_at,acceptance_text,platform," + "app_version,app_build,recorded_at"',
+  );
+  assertStringIncludes(
+    remoteModels,
+    'static let consentEventColumns = "id,user_id,provider,disclosure_version,event_kind,occurred_at," + "disclosure_text,action_text,platform,app_version,app_build," + "recorded_at,causal_parent_id,consent_revision"',
+  );
+  assertEquals(
+    remoteService.match(/causalParentId: row\.causal_parent_id/g)?.length,
     2,
   );
   assertEquals(
-    swift.match(/consentRevision: row\.consent_revision/g)?.length,
+    remoteService.match(/consentRevision: row\.consent_revision/g)?.length,
     2,
   );
   assertEquals(sql.match(/FOR KEY SHARE/g)?.length, 2);
@@ -228,8 +290,101 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
     sql.indexOf("FOR KEY SHARE") < sql.indexOf("PG_ADVISORY_XACT_LOCK"),
     "Consent RPCs must take the account row lock before their advisory lock.",
   );
-  assert(!swift.includes('.from("user_ai_consent_events") .insert'));
-  assert(!swift.includes('.from("user_analytics_consent_events") .insert'));
+  assertStringIncludes(
+    synchronizationCoordinator,
+    "remoteService.insertAIConsentEvent(",
+  );
+  assertStringIncludes(
+    synchronizationCoordinator,
+    ".insertAnalyticsConsentEvent(",
+  );
+  assertStringIncludes(
+    synchronizationCoordinator,
+    "try self.validateSynchronization(",
+  );
+  assertStringIncludes(remoteService, "try validateSynchronization()");
+  assert(!manager.includes(".rpc("));
+  assert(!synchronizationCoordinator.includes(".rpc("));
+  for (
+    const table of [
+      "user_adult_eligibility_receipts",
+      "user_terms_acceptance_receipts",
+      "user_ai_consent_events",
+      "user_analytics_consent_events",
+    ]
+  ) {
+    assertEquals(liveRemoteService.split(table).length - 1, 3);
+  }
+  assertEquals(liveRemoteService.match(/async let/g)?.length, 6);
+  assertEquals(liveRemoteService.match(/\.limit\(1\)/g)?.length, 10);
+  assertEquals(
+    liveRemoteService.match(/\.eq\("id", value: id\)/g)?.length,
+    4,
+  );
+  assertEquals(
+    liveRemoteService.match(/\.eq\("user_id", value: userId\)/g)?.length,
+    10,
+  );
+  assertEquals(
+    liveRemoteService.match(
+      /\.select\(ConsentRemoteWire\.adultEligibilityReceiptColumns\)/g,
+    )?.length,
+    2,
+  );
+  assertEquals(
+    liveRemoteService.match(
+      /\.select\(ConsentRemoteWire\.termsReceiptColumns\)/g,
+    )?.length,
+    2,
+  );
+  assertEquals(
+    liveRemoteService.match(
+      /\.select\(ConsentRemoteWire\.consentEventColumns\)/g,
+    )?.length,
+    6,
+  );
+  assertStringIncludes(
+    liveRemoteService,
+    '.eq( "policy_version", value: ConsentPolicy.adultEligibilityVersion ) .order("recorded_at", ascending: false) .order("id", ascending: false) .limit(1)',
+  );
+  assertStringIncludes(
+    liveRemoteService,
+    '.eq("terms_version", value: ConsentPolicy.termsVersion) .order("recorded_at", ascending: false) .order("id", ascending: false) .limit(1)',
+  );
+  assertEquals(
+    liveRemoteService.match(
+      /\.eq\("provider", value: ConsentPolicy\.geminiProvider\)/g,
+    )?.length,
+    2,
+  );
+  assertEquals(
+    liveRemoteService.match(
+      /\.eq\("provider", value: ConsentPolicy\.analyticsProvider\)/g,
+    )?.length,
+    2,
+  );
+  assertEquals(
+    liveRemoteService.match(/\.eq\( "disclosure_version",/g)?.length,
+    2,
+  );
+  assertEquals(
+    liveRemoteService.match(
+      /\.order\("consent_revision", ascending: false\)/g,
+    )?.length,
+    4,
+  );
+  assertStringIncludes(
+    liveRemoteService,
+    "let rows = try await ( adultRows, termsRows, aiRows, analyticsRows, aiStreamHeadRows, analyticsStreamHeadRows )",
+  );
+  assert(
+    !liveRemoteService.includes('.from("user_ai_consent_events") .insert'),
+  );
+  assert(
+    !liveRemoteService.includes(
+      '.from("user_analytics_consent_events") .insert',
+    ),
+  );
 });
 
 Deno.test("consent authorization starts from the all-version provider stream head", async () => {
@@ -287,24 +442,26 @@ Deno.test("consent authorization starts from the all-version provider stream hea
   );
   assert(!postHog.includes('.eq("disclosure_version"'));
 
-  const swift = normalized(
-    await Deno.readTextFile(
-      new URL(
-        "../../../../apps/ios/Merian/Core/Security/ConsentManager.swift",
-        import.meta.url,
-      ),
+  const synchronizationMergePolicy = normalized(
+    await iosConsentSource(
+      "Consent/Policies/ConsentSynchronizationMergePolicy.swift",
+    ),
+  );
+  const authority = normalized(
+    await iosConsentSource(
+      "Consent/Policies/ConsentAuthorityPolicy.swift",
     ),
   );
   assertStringIncludes(
-    swift,
-    "granted: Self.isAuthoritativeAnalyticsGrant( remoteState.analyticsConsentStreamHead",
+    synchronizationMergePolicy,
+    "granted: ConsentAuthorityPolicy.isAuthoritativeAnalyticsGrant( remoteState.analyticsConsentStreamHead",
   );
   assertStringIncludes(
-    swift,
+    authority,
     "guard let streamHead = currentAIConsentStreamHead(",
   );
   assertStringIncludes(
-    swift,
+    authority,
     "guard let streamHead = currentAnalyticsConsentStreamHead(",
   );
 });
@@ -335,11 +492,8 @@ Deno.test("consent concurrency coverage overlaps both provider conflict orders",
 Deno.test("Swift and backend consent versions cannot drift", async () => {
   const disclosureSql = await Deno.readTextFile(currentDisclosureMigrationUrl);
   const causalSql = await Deno.readTextFile(causalConsentMigrationUrl);
-  const swift = await Deno.readTextFile(
-    new URL(
-      "../../../../apps/ios/Merian/Core/Security/ConsentManager.swift",
-      import.meta.url,
-    ),
+  const policy = await iosConsentSource(
+    "Consent/Models/ConsentPolicy.swift",
   );
   const quota = await Deno.readTextFile(
     new URL("../_shared/aiQuota.ts", import.meta.url),
@@ -348,10 +502,10 @@ Deno.test("Swift and backend consent versions cannot drift", async () => {
     new URL("../_shared/posthog.ts", import.meta.url),
   );
 
-  assertStringIncludes(swift, 'adultEligibilityVersion = "2026-08-03"');
-  assertStringIncludes(swift, 'termsVersion = "2026-08-03"');
-  assertStringIncludes(swift, 'geminiDisclosureVersion = "2026-08-04.1"');
-  assertStringIncludes(swift, 'analyticsDisclosureVersion = "2026-08-04"');
+  assertStringIncludes(policy, 'adultEligibilityVersion = "2026-08-03"');
+  assertStringIncludes(policy, 'termsVersion = "2026-08-03"');
+  assertStringIncludes(policy, 'geminiDisclosureVersion = "2026-08-04.1"');
+  assertStringIncludes(policy, 'analyticsDisclosureVersion = "2026-08-04"');
   assertStringIncludes(causalSql, "policy_version = '2026-08-03'");
   assertStringIncludes(causalSql, "terms_version = '2026-08-03'");
   assertStringIncludes(causalSql, "disclosure_version = '2026-08-04.1'");

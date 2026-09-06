@@ -28,8 +28,48 @@ const consentManagerUrl = new URL(
   "../../../../apps/ios/Merian/Core/Security/ConsentManager.swift",
   import.meta.url,
 );
+const consentLedgerRepositoryUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/Consent/Repositories/ConsentLedgerRepository.swift",
+  import.meta.url,
+);
+const consentRetryPolicyUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/Consent/Policies/ConsentRetryPolicy.swift",
+  import.meta.url,
+);
+const consentSynchronizationMergePolicyUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/Consent/Policies/ConsentSynchronizationMergePolicy.swift",
+  import.meta.url,
+);
+const consentRealtimeCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/Consent/Coordinators/ConsentRealtimeCoordinator.swift",
+  import.meta.url,
+);
+const consentSynchronizationCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/Consent/Coordinators/ConsentSynchronizationCoordinator.swift",
+  import.meta.url,
+);
+const requiredConsentRestorationCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/Consent/Coordinators/RequiredConsentRestorationCoordinator.swift",
+  import.meta.url,
+);
+const consentRealtimeLiveAdapterUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/Consent/Services/ConsentRealtimeCoordinator+Live.swift",
+  import.meta.url,
+);
+const consentRealtimeTestsUrl = new URL(
+  "../../../../apps/ios/MerianTests/Core/Security/Consent/ConsentRealtimeCoordinatorTests.swift",
+  import.meta.url,
+);
 const consentAuthorityTestsUrl = new URL(
   "../../../../apps/ios/MerianTests/Core/Security/Consent/ConsentManagerAuthorityTests.swift",
+  import.meta.url,
+);
+const consentSynchronizationTestsUrl = new URL(
+  "../../../../apps/ios/MerianTests/Core/Security/Consent/ConsentSynchronizationCoordinatorTests.swift",
+  import.meta.url,
+);
+const requiredConsentRestorationTestsUrl = new URL(
+  "../../../../apps/ios/MerianTests/Core/Security/Consent/ConsentRestorationCoordinatorTests.swift",
   import.meta.url,
 );
 
@@ -248,9 +288,26 @@ Deno.test("iOS deletes Ghost proofs only for invalid or expired handoffs", async
 });
 
 Deno.test("iOS flushes target-owned pending consent before account refetch", async () => {
-  const [source, testSource] = await Promise.all([
+  const [
+    source,
+    synchronizationCoordinatorSource,
+    synchronizationMergePolicySource,
+    ledgerRepositorySource,
+    retryPolicySource,
+    authorityTestSource,
+    synchronizationTestSource,
+    restorationCoordinatorSource,
+    restorationTestSource,
+  ] = await Promise.all([
     Deno.readTextFile(consentManagerUrl).then(compact),
+    Deno.readTextFile(consentSynchronizationCoordinatorUrl).then(compact),
+    Deno.readTextFile(consentSynchronizationMergePolicyUrl).then(compact),
+    Deno.readTextFile(consentLedgerRepositoryUrl).then(compact),
+    Deno.readTextFile(consentRetryPolicyUrl).then(compact),
     Deno.readTextFile(consentAuthorityTestsUrl).then(compact),
+    Deno.readTextFile(consentSynchronizationTestsUrl).then(compact),
+    Deno.readTextFile(requiredConsentRestorationCoordinatorUrl).then(compact),
+    Deno.readTextFile(requiredConsentRestorationTestsUrl).then(compact),
   ]);
   const observeStart = source.indexOf("func observeSession(userId: UUID?)");
   const observeEnd = source.indexOf(
@@ -270,23 +327,23 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
     "A restored session must enter its remote-authority wait state before analytics can be applied",
   );
 
-  const synchronizationStart = source.indexOf(
-    "private func performSynchronization(",
+  const synchronizationStart = synchronizationCoordinatorSource.indexOf(
+    "private static func performSynchronization(",
   );
-  const synchronizationEnd = source.indexOf(
-    "private func activateLedger(",
+  const synchronizationEnd = synchronizationCoordinatorSource.indexOf(
+    "private static func hasUnownedRecords(",
     synchronizationStart,
   );
-  const synchronization = source.slice(
+  const synchronization = synchronizationCoordinatorSource.slice(
     synchronizationStart,
     synchronizationEnd,
   );
   const activate = synchronization.indexOf("activateLedger(for: userId)");
   const push = synchronization.indexOf(
-    "try await pushPendingRecords(for: userId, generation: generation)",
+    "try await pushPendingRecords(",
   );
   const fetch = synchronization.indexOf(
-    "let remoteState = try await fetchRemoteState(",
+    "let remoteState = try await remoteService.fetchRemoteState(",
   );
   const merge = synchronization.indexOf("try merge(");
 
@@ -301,56 +358,181 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
   );
   assertStringIncludes(
     synchronization,
-    "for: userId, generation: generation",
+    "validateSynchronization: validateSynchronization",
   );
 
-  const mergeStart = source.indexOf("func merge(");
-  const mergeEnd = source.indexOf(
-    "private func hasCloudReadyCurrentConsent(",
+  const mergeStart = synchronizationCoordinatorSource.indexOf(
+    "private static func merge(",
+  );
+  const mergeEnd = synchronizationCoordinatorSource.lastIndexOf("}");
+  const mergeSource = synchronizationCoordinatorSource.slice(
     mergeStart,
+    mergeEnd,
   );
-  const mergeSource = source.slice(mergeStart, mergeEnd);
   const finalIdentityFence = mergeSource.indexOf(
-    "try validateSynchronization(for: userId, generation: generation)",
+    "try validateSynchronization()",
   );
-  const candidateSnapshot = mergeSource.indexOf("var candidate = ledger");
-  const firstCandidateMutation = mergeSource.indexOf(
-    "candidate.adultEligibilityReceipts",
+  const closePriorAuthority = mergeSource.indexOf("willMergeRemoteState()");
+  const candidateMerge = mergeSource.indexOf(
+    "ConsentSynchronizationMergePolicy.merging(",
   );
   const verifiedPersistence = mergeSource.indexOf(
-    "try persistLedger(candidate)",
+    "try ledgerRepository.persistLedger(result.ledger)",
   );
-  const authoritativeResolution = mergeSource.indexOf(
-    "analyticsCloudAuthorityState = .resolvedRemote(",
+  const publishMerge = mergeSource.indexOf(
+    "didMergeRemoteState(result, userId)",
   );
-  const analyticsApplication = mergeSource.indexOf(
+  const mergeApplicationStart = source.indexOf(
+    "private func applySynchronizationMerge(",
+  );
+  const mergeApplicationEnd = source.indexOf(
+    "static let maximumAutomaticRestorationRetries",
+    mergeApplicationStart,
+  );
+  const mergeApplication = source.slice(
+    mergeApplicationStart,
+    mergeApplicationEnd,
+  );
+  const authoritativeResolution = mergeApplication.indexOf(
+    "analyticsCloudAuthorityState = result.analyticsCloudAuthorityState",
+  );
+  const analyticsApplication = mergeApplication.indexOf(
     "applyAnalyticsPermissionToSDK()",
   );
   assert(
     mergeStart >= 0 && mergeEnd > mergeStart && finalIdentityFence >= 0 &&
-      candidateSnapshot > finalIdentityFence &&
-      firstCandidateMutation > candidateSnapshot &&
-      verifiedPersistence > firstCandidateMutation &&
-      authoritativeResolution > verifiedPersistence &&
+      closePriorAuthority > finalIdentityFence &&
+      candidateMerge > closePriorAuthority &&
+      verifiedPersistence > candidateMerge &&
+      publishMerge > verifiedPersistence &&
+      mergeApplicationStart >= 0 &&
+      mergeApplicationEnd > mergeApplicationStart &&
+      authoritativeResolution >= 0 &&
       analyticsApplication > authoritativeResolution,
-    "The final identity fence must precede mutation and persistence, and only persisted authoritative state may reopen analytics",
+    "The final identity fence must precede merge and persistence, and only the persisted result may reopen analytics",
+  );
+  assertStringIncludes(
+    synchronizationMergePolicySource,
+    "candidate.activeUserId = userId",
+  );
+
+  const repositoryPersistStart = ledgerRepositorySource.indexOf(
+    "func persistLedger(",
+  );
+  const repositoryPersistEnd = ledgerRepositorySource.indexOf(
+    "func persistConsentChange(",
+    repositoryPersistStart,
+  );
+  const repositoryPersist = ledgerRepositorySource.slice(
+    repositoryPersistStart,
+    repositoryPersistEnd,
+  );
+  const verifiedStoreWrite = repositoryPersist.indexOf(
+    "try store.saveLedgerData(data)",
+  );
+  const inMemoryPublication = repositoryPersist.indexOf(
+    "ledger = candidate",
+  );
+  assert(
+    repositoryPersistStart >= 0 &&
+      repositoryPersistEnd > repositoryPersistStart &&
+      verifiedStoreWrite >= 0 &&
+      inMemoryPublication > verifiedStoreWrite,
+    "Consent ledger state must publish only after the durable store verifies its write",
+  );
+  assertStringIncludes(
+    retryPolicySource,
+    "static func isSynchronizationContextCurrent(",
+  );
+  assertStringIncludes(
+    synchronizationCoordinatorSource,
+    "isCancelled: Task.isCancelled",
+  );
+  assertStringIncludes(
+    synchronizationCoordinatorSource,
+    "private var scheduledTasks: [UUID: Task<Void, Never>] = [:]",
+  );
+  assertStringIncludes(
+    synchronizationCoordinatorSource,
+    "private var activeTasks: [UUID: Task<Void, Error>] = [:]",
+  );
+  assertStringIncludes(
+    synchronizationCoordinatorSource,
+    "scheduledTasks: Array(scheduledTasks.values)",
+  );
+  assertStringIncludes(
+    synchronizationCoordinatorSource,
+    "activeTasks: Array(activeTasks.values)",
   );
   assertStringIncludes(
     source,
-    "static func isSynchronizationContextCurrent(",
+    "private let restorationCoordinator: RequiredConsentRestorationCoordinator",
   );
-  assertStringIncludes(source, "isCancelled: Task.isCancelled");
+  assertStringIncludes(
+    restorationCoordinatorSource,
+    "private var retryTasks: [UUID: Task<Void, Never>] = [:]",
+  );
+  assertStringIncludes(
+    restorationCoordinatorSource,
+    "currentRetryTaskId == id",
+  );
+  assertStringIncludes(
+    restorationCoordinatorSource,
+    "retryTasks: Array(retryTasks.values)",
+  );
+  assertStringIncludes(
+    source,
+    "await restoration.wait()",
+  );
+  assertStringIncludes(
+    restorationCoordinatorSource,
+    "generation == context.synchronizationGeneration",
+  );
+  assertStringIncludes(
+    restorationCoordinatorSource,
+    "context.observedUserId == userId",
+  );
+  assertStringIncludes(
+    restorationCoordinatorSource,
+    "context.sdkUserId == userId",
+  );
+  const restorationBeginRetryStart = restorationCoordinatorSource.indexOf(
+    "func beginRetry(",
+  );
+  const restorationBeginRetryEnd = restorationCoordinatorSource.indexOf(
+    "func isRetryPending(",
+    restorationBeginRetryStart,
+  );
+  const restorationBeginRetry = restorationCoordinatorSource.slice(
+    restorationBeginRetryStart,
+    restorationBeginRetryEnd,
+  );
+  assert(
+    restorationBeginRetryStart >= 0 &&
+      restorationBeginRetryEnd > restorationBeginRetryStart &&
+      restorationBeginRetry.includes("guard !Task.isCancelled,"),
+    "A canceled restoration timer must fail admission even when account, generation, and attempt are reused",
+  );
+  assert(
+    !restorationCoordinatorSource.includes("SupabaseManager"),
+    "Required-consent restoration state and retries must remain independent of the live Auth client",
+  );
   assert(
     !synchronization.includes("guard remoteState.hasEvidence"),
     "An empty target account must still become the active local ledger",
   );
 
-  const activationStart = source.indexOf("private func activateLedger(");
-  const activationEnd = source.indexOf(
-    "private func bindUnownedRecords(",
+  const activationStart = ledgerRepositorySource.indexOf(
+    "func activateLedger(",
+  );
+  const activationEnd = ledgerRepositorySource.indexOf(
+    "func rebindLedger(",
     activationStart,
   );
-  const activation = source.slice(activationStart, activationEnd);
+  const activation = ledgerRepositorySource.slice(
+    activationStart,
+    activationEnd,
+  );
   assert(
     activationStart >= 0 && activationEnd > activationStart &&
       !activation.includes("applyAnalyticsPermissionToSDK()"),
@@ -361,25 +543,62 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
     "analyticsCloudAuthorityState.allowsCapture( for: currentSessionUserId )",
   );
   assertStringIncludes(
-    testSource,
+    authorityTestSource,
     "testRestoredCachedAnalyticsGrantStaysClosedUntilRemoteRevocationMerges",
   );
   assertStringIncludes(
-    testSource,
+    authorityTestSource,
     "testRestoredCachedAnalyticsGrantStaysClosedWhenRemoteGrantIsAbsent",
   );
   assertStringIncludes(
-    testSource,
+    authorityTestSource,
     "testRestoredAnalyticsGrantOpensOnlyAfterAuthoritativeMerge",
   );
   assertStringIncludes(
-    testSource,
+    authorityTestSource,
     "testFailedAuthoritativeMergeKeepsRestoredAnalyticsClosed",
+  );
+  assertStringIncludes(
+    synchronizationTestSource,
+    "testPipelinePushesPendingEvidenceInStableOrderBeforeFetch",
+  );
+  assertStringIncludes(
+    synchronizationTestSource,
+    "testCancelAndAwaitDrainsEarlierInvalidatedActiveTask",
+  );
+  assertStringIncludes(
+    synchronizationTestSource,
+    "testCancelAndAwaitDrainsSupersededActiveTask",
+  );
+  assertStringIncludes(
+    synchronizationTestSource,
+    "testCancelAndAwaitDrainsSupersededScheduledTask",
+  );
+  assertStringIncludes(
+    restorationTestSource,
+    "testCancelledUncooperativeRetryCannotCrossAccountReplacement",
+  );
+  assertStringIncludes(
+    restorationTestSource,
+    "await cancelledWork.wait()",
+  );
+  assertStringIncludes(
+    restorationTestSource,
+    "testCompletingRetryCannotClearItsReplacementTask",
+  );
+  assertStringIncludes(
+    restorationTestSource,
+    "testCancelledRetryCannotReenterAfterManualAttemptNumberReuse",
   );
 });
 
 Deno.test("iOS independently owns and retries analytics-consent Realtime", async () => {
-  const source = compact(await Deno.readTextFile(consentManagerUrl));
+  const [source, coordinator, liveAdapter, tests] = await Promise.all([
+    Deno.readTextFile(consentManagerUrl).then(compact),
+    Deno.readTextFile(consentRealtimeCoordinatorUrl).then(compact),
+    Deno.readTextFile(consentRealtimeLiveAdapterUrl).then(compact),
+    Deno.readTextFile(consentRealtimeTestsUrl).then(compact),
+  ]);
   const observeStart = source.indexOf("func observeSession(userId: UUID?)");
   const observeEnd = source.indexOf(
     "func beginAnalyticsAccountTransition()",
@@ -396,17 +615,20 @@ Deno.test("iOS independently owns and retries analytics-consent Realtime", async
   const foreground = source.slice(foregroundStart, foregroundEnd);
 
   assertStringIncludes(
-    source,
-    "private var analyticsConsentChannelUserId: UUID?",
+    coordinator,
+    "private var subscriptionUserId: UUID?",
   );
   assertStringIncludes(
-    source,
-    "private var analyticsConsentSubscribedUserId: UUID?",
+    coordinator,
+    "private var subscribedUserId: UUID?",
   );
-  assertStringIncludes(observe, "ensureAnalyticsConsentUpdates(for: userId)");
+  assertStringIncludes(
+    observe,
+    "realtimeCoordinator.ensureUpdates(for: userId)",
+  );
   assertStringIncludes(
     foreground,
-    "ensureAnalyticsConsentUpdates(for: userId)",
+    "realtimeCoordinator.ensureUpdates(for: userId)",
   );
   assertStringIncludes(
     foreground,
@@ -429,15 +651,47 @@ Deno.test("iOS independently owns and retries analytics-consent Realtime", async
     "currentSessionMatchesAuthTransition(transition)",
   );
   assertStringIncludes(
-    source,
-    "self.analyticsConsentSubscribedUserId = userId",
+    coordinator,
+    "self?.subscribedUserId = userId",
   );
-  assertStringIncludes(source, "scheduleAnalyticsConsentRetry(for: userId)");
+  assertStringIncludes(coordinator, "scheduleRetry(for: userId)");
+  assertStringIncludes(
+    coordinator,
+    "self.subscriptionGeneration == generation",
+  );
+  assertStringIncludes(
+    coordinator,
+    "self.currentUserIdProvider() == userId",
+  );
+  assertStringIncludes(
+    coordinator,
+    "private var teardownTasks: [UUID: Task<Void, Never>] = [:]",
+  );
+  assertStringIncludes(coordinator, "func awaitTeardown() async");
+  assertStringIncludes(source, "await realtimeCoordinator.awaitTeardown()");
   assertStringIncludes(
     source,
-    "self.analyticsConsentSubscriptionGeneration == generation",
+    "func cancelAndAwaitAccountBoundWorkForAuthTransition() async",
   );
-  assertStringIncludes(source, "self.currentSessionUserId == userId");
+  assertStringIncludes(
+    tests,
+    "testTeardownDrainWaitsForCancellationUncooperativeRemoval",
+  );
+  assertStringIncludes(
+    tests,
+    "testAuthTransitionDrainIncludesRealtimeTeardown",
+  );
+  assertStringIncludes(liveAdapter, "SupabaseManager.shared.client");
+  assertStringIncludes(
+    liveAdapter,
+    'table: "user_analytics_consent_events"',
+  );
+  assertStringIncludes(
+    liveAdapter,
+    'filter: .eq("user_id", value: userId.uuidString)',
+  );
+  assertStringIncludes(liveAdapter, "channel.subscribeWithError()");
+  assertStringIncludes(liveAdapter, "client.removeChannel(channel)");
 });
 
 Deno.test("OAuth replacement suppresses analytics and reconciles failures", async () => {
@@ -450,15 +704,22 @@ Deno.test("OAuth replacement suppresses analytics and reconciles failures", asyn
     helperStart,
   );
   const helper = source.slice(helperStart, helperEnd);
+  const cancellation = helper.indexOf("try Task.checkCancellation()");
   const suspend = helper.indexOf("let generation = suspendAnalytics()");
+  const postSuppressionCancellation = helper.indexOf(
+    "try Task.checkCancellation()",
+    cancellation + 1,
+  );
   const install = helper.indexOf(
     "let installedSession = try await installSession()",
   );
 
   assert(
-    helperStart >= 0 && helperEnd > helperStart && suspend >= 0 &&
-      install > suspend,
-    "Analytics must be suspended synchronously before the SDK installs a replacement session",
+    helperStart >= 0 && helperEnd > helperStart && cancellation >= 0 &&
+      cancellation < suspend && suspend >= 0 &&
+      postSuppressionCancellation > suspend &&
+      postSuppressionCancellation < install,
+    "Cancellation must win before analytics suspension and again before SDK session replacement",
   );
   assertStringIncludes(
     helper,
@@ -467,6 +728,10 @@ Deno.test("OAuth replacement suppresses analytics and reconciles failures", asyn
   assertStringIncludes(
     source,
     "ConsentManager.shared.beginAnalyticsAccountTransition()",
+  );
+  assertStringIncludes(
+    source,
+    "cancelAndAwaitAccountBoundWorkForAuthTransition()",
   );
   assertStringIncludes(
     source,

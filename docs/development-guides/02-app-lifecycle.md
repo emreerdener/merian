@@ -58,11 +58,15 @@ advance the root. A non-cancellation reconciliation failure retains this neutral
 root, shows an immediate retry action, and enters a bounded 5-, 10-, then
 20-second account-fenced retry schedule. Exhaustion keeps the explicit retry
 action visible; it does not treat the failure as authoritative absence.
-Cancellation caused by account/session replacement keeps the transition pending
-until the replacement is evaluated. If invalidation cancels a scheduled retry
-for the same unresolved account, the state returns to `.reconciling` under the
-new synchronization generation rather than leaving an orphaned `.waitingToRetry`
-state.
+`RequiredConsentRestorationCoordinator` owns this state and a UUID-keyed
+registry of outstanding retry tasks. Canceled handles remain registered through
+completion and are included in the Auth-transition drain; stable task identity
+and post-suspension account/session/generation checks prevent a late canceled
+retry from clearing or entering a replacement session. Cancellation caused by
+account/session replacement keeps the transition pending until the replacement
+is evaluated. If invalidation cancels a scheduled retry for the same unresolved
+account, the state returns to `.reconciling` under the new synchronization
+generation rather than leaving an orphaned `.waitingToRetry` state.
 
 This presentation policy does not weaken the phase contract below. Hardware,
 provider requests, ordinary sync, and queued work still require both completed
@@ -158,9 +162,12 @@ the source account or later erasing a newly signed-in account's cache.
 At runtime, Apple, Google, Sign out, anonymous bootstrap, 401 recovery, and
 deletion share one Auth-transition owner. Ordinary account-bound work acquires
 an exact-session lease before direct Supabase or authenticated HTTP I/O. A
-transition closes new admission, cancels/awaits consent synchronization, drains
+transition closes new admission, snapshots, cancels, and awaits every
+outstanding scheduled and active consent synchronization handle—including
+superseded and previously invalidated work—every registered consent-restoration
+retry, and every started consent Realtime removal. It then drains
 `InferenceEngine` presentation/metadata tasks (including cancellation-ignoring
-tails), collection work, and every lease, then changes the SDK session. The
+tails), collection work, and every lease before changing the SDK session. The
 engine delegates live, historical, and identification-review hydration
 admission/task retention to `InferenceHydrationCoordinator`; GBIF requests stay
 inside those owning operations. It delegates bounded persistence/review work to
@@ -460,7 +467,11 @@ work; it is not an inventory of effects inside `AppLifecycleManager` alone.
   when delivery changes navigation. Do not encode routes as lifecycle events.
 - `syncHistoricalScansDown` is throttled to once per 15 minutes. Do not add
   additional call sites without also checking
-  `UserDefaultsKeys.lastHistoricalSyncDate`.
+  `UserDefaultsKeys.lastHistoricalSyncDate`. Auth-listener scheduling must also
+  retain its originating account and Auth-event generation: it revalidates the
+  exact manager-published user and nonexpired SDK session before stamping the
+  throttle and again between preferred-name and scan synchronization. A
+  replacement account must never continue the predecessor's scan-hydration task.
 - **Always let `OfflineJobScheduler.drainRunnableJobs(using:)` own foreground
   queue drain and replay after the required-consent guard.** `NWPathMonitor`
   only fires when connectivity changes, while delayed Swift tasks do not survive

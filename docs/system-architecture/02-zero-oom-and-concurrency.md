@@ -1876,6 +1876,74 @@ release-blocked in the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 Heavy hardware work remains outside the critical render path.
 
+### Consent Realtime Lifetime (`ConsentRealtimeCoordinator`)
+
+The `@MainActor` coordinator owns one analytics-consent subscription reference,
+its listener and retry tasks, requested and confirmed account identity, and a
+monotonic generation. Account, generation, reference-identity, and cancellation
+checks reject stale events before they can request authoritative synchronization
+or schedule another retry.
+
+Cancellation is not the teardown correctness boundary. The subscription owns a
+contained removal task: explicit stop, listener completion, and coordinator
+deinitialization all await or start that same task, so the live client receives
+one channel-removal operation. The coordinator additionally retains each started
+removal in a UUID-keyed registry until exact completion. Auth transition
+draining snapshots that owned boundary and waits even when removal ignores
+cancellation, so another SDK session cannot be installed while the old account's
+channel remains live. The deinitializer snapshots the subscription and starts
+removal without retaining the coordinator. A listener blocked in a
+cancellation-uncooperative suspension therefore cannot strand a client-retained
+channel, while overlapping stop/completion/deinitialization cannot remove it
+twice. Focused tests exercise uncooperative listener and removal suspensions,
+ordinary explicit-stop overlap, and the manager's Auth-transition drain.
+
+### Consent Synchronization Lifetime (`ConsentSynchronizationCoordinator`)
+
+The `@MainActor` synchronization coordinator owns scheduled and active task
+identity, the active account and generation, and same-account single-flight
+reuse. Completed tasks remove themselves by stable task identity. Superseded and
+invalidated tasks remain registered until they actually finish, even after their
+current-task fields are cleared. Invalidation first advances the generation,
+snapshots every outstanding scheduled and active task, and cancels them.
+Auth-transition callers await that snapshot, so repeated ordinary invalidation
+or task replacement cannot lose an older task boundary that must finish before
+the SDK session changes.
+
+Every suspended remote phase receives a validator that checks cancellation, the
+coordinator generation, the manager-observed account, and the synchronous SDK
+account. A stale generation therefore cannot publish a remote merge. Pending
+adult and Terms receipts are pushed before Gemini and PostHog causal events, and
+all pending evidence is persisted before the authoritative fetch. The final
+merge validates again, closes prior process-local authority, computes a
+value-only result, durably persists it, and only then invokes the manager's SDK
+and restoration callback. Shared same-account failures are reported once by the
+shared task rather than once per waiter.
+
+### Required-Consent Restoration Lifetime
+
+`RequiredConsentRestorationCoordinator` is the `@MainActor` source of truth for
+the launch-restoration state machine, automatic retry attempt, and UUID-keyed
+registry of outstanding retry tasks. Every failure and timer completion must
+still match the current synchronization generation, manager-observed account,
+synchronous SDK account, missing-required-consent condition, attempt, and
+restoration state before it may advance. Duplicate same-account Auth
+observations preserve a pending retry; manual retry and invalidation cancel the
+retained task and reset its budget.
+
+Cancellation is not assumed to stop arbitrary injected work immediately. Each
+retry has a stable UUID, remains registered until its exact completion defer,
+and uses a compare-before-clear finish. Invalidation snapshots all registered
+handles before canceling them, and `ConsentManager` awaits that snapshot with
+the synchronization-task snapshot before an Auth owner may replace the SDK
+session. If an old sleep resumes after cancellation, explicit
+caller-cancellation plus account and generation fences prevent synchronization.
+The cancellation check also closes same-account attempt-number reuse after a
+manual retry reset. If an old retry triggers a replacement while completing, its
+deferred finish cannot clear the newer task. The observable `ConsentManager`
+projection is updated synchronously by an injected publication closure, while
+live Auth, logging, and synchronization effects stay at the manager boundary.
+
 ### Accelerate Vector Optimizations (`CameraManager`)
 
 Calculating target Luma brightness by looping through `CVPixelBuffer` matrix
@@ -3006,3 +3074,24 @@ This ensures:
 - The feature's Services layer constructs the concrete `SpeechManager` adapter;
   the view model stores only narrow closures. Architecture tests enforce that
   hardware boundary alongside the feature's 600-line production-file ceiling.
+
+## 2026-09 Auth Continuation Hardening
+
+- `SupabaseManager` revalidates the exact manager-published user, nonexpired SDK
+  session, captured Auth generation, and transition context after listener,
+  anonymous-bootstrap, entitlement, and purchase-continuity suspension points.
+  Recovery without a transition owner becomes stale immediately when a
+  transition opens, rather than waiting for the next SDK event to advance the
+  generation.
+- Replaceable restored-session public-author refresh carries both its target
+  account and a unique task ID. Cleanup is compare-before-clear, and the
+  completed-account marker plus invalidation event are published only after a
+  successful exact-session result.
+- Account-deletion and sign-out workflows reject preflight cancellation before
+  persistence or Auth mutation. Deletion repeats the check before and after
+  non-destructive v2 preparation and after each durable pre-commit boundary so
+  recovery evidence survives without destructive dispatch. Shared OAuth
+  replacement checks cancellation both before and after synchronous analytics
+  suppression and reconciles the source session when the second check fails.
+  Google provider presentation/return and the shared direct provider-link path
+  add their own pre-mutation cancellation fences.

@@ -80,6 +80,17 @@ complete only after the SDK exposes a permanent session for the same UUID and
 the active transition adopts and revalidates it; provider-bound ghost-merge
 recovery remains durable until that commit point.
 
+Live continuations remain manager-owned. A listener continuation may publish
+entitlement or schedule history work only while its exact manager-published
+user, nonexpired SDK session, Auth-event generation, and absence of an active
+Auth transition remain current after suspension. The history task repeats that
+fence before each account-leased synchronization. Anonymous bootstrap uses the
+same publication fence. Replaceable public-author refresh uses a target account
+plus task UUID and compare-before-clear cleanup, and records completion only
+after the exact session succeeds. OAuth replacement checks cancellation on both
+sides of its synchronous analytics-suppression boundary; a cancelled boundary
+reconciles the current session without invoking SDK replacement.
+
 ## `MerianNetworkClient`
 
 Field Trips, Community Identification browsing/contribution, Explore browsing,
@@ -816,6 +827,18 @@ The audit also makes the remaining live-dependency exceptions explicit:
   durable ghost-merge recovery. No unlisted extracted owner may acquire these
   globals or create a detached task.
 
+The `SupabaseManager`-wide follow-up audit extends this boundary across the
+remaining joined live paths. It requires pre-destructive cancellation for both
+account-deletion intake protocols and sign-out, cancellation before Google
+provider presentation and after its return, cancellation immediately before a
+direct provider-link SDK mutation, shared OAuth session-replacement
+cancellation, repeated post-suspension listener/session checks,
+compare-before-clear public-author task ownership, and proof-removal-last
+verification against the exact anonymous manager-published user, nonexpired SDK
+session, captured Auth generation, and transition context. A lifecycle
+completion without a transition owner cannot remain valid after a new transition
+opens.
+
 The suite freezes exactly six production Transport owners—three stateless
 policies, the request-scoped executor, the pinned session, and the authenticated
 dispatcher—the exact disjoint function-name sets used for safe-read and
@@ -849,9 +872,9 @@ account resolution and exact authenticated JSON request construction without
 live Auth or network access. The architecture guard requires the Release
 `SecTrustEvaluateWithError` gate and both fail-closed cancellation paths.
 
-`PurchaseIdentitySignOutWorkflowTests` owns the eight rehomed sign-out ordering
-regressions plus cancellation before and immediately after the legacy server
-destination bind and proof-retention coverage.
+`PurchaseIdentitySignOutWorkflowTests` owns the rehomed sign-out ordering
+regressions plus preflight cancellation, cancellation before and immediately
+after the legacy server destination bind, and proof-retention coverage.
 `PurchaseIdentityHandoffStoreTests` owns thirteen deterministic journal cases
 for format compatibility, fail-closed validation before writes and after reads,
 device-only accessibility, read-back verification, and removal.
@@ -868,9 +891,15 @@ Three cross-language Edge source contracts bind this split to its backend
 lifecycles: `accountDeletionCoverage.test.ts` reads the extracted deletion
 workflow, `purchasePrincipalMigrationContract.test.ts` requires readiness to
 reread both durable purchase journals and fail closed, and
-`ghostProfileMergeClientContract.test.ts` reads the extracted Ghost storage,
-policy, workflow, error-adapter, and consent owners. A file or suite rehome must
-update its Deno path in the same change.
+`ghostProfileMergeClientContract.test.ts` reads `SupabaseManager`, the extracted
+Ghost storage, policy, workflow, policy test, and endpoint-adapter test, plus
+`ConsentManager`, `ConsentSynchronizationCoordinator`,
+`ConsentSynchronizationMergePolicy`, `ConsentRealtimeCoordinator`,
+`ConsentRealtimeCoordinator+Live`, `RequiredConsentRestorationCoordinator`,
+`ConsentLedgerRepository`, `ConsentRetryPolicy`, `ConsentManagerAuthorityTests`,
+`ConsentSynchronizationCoordinatorTests`, `ConsentRealtimeCoordinatorTests`, and
+`ConsentRestorationCoordinatorTests`. A file or suite rehome must update its
+Deno path in the same change.
 
 The final policy-boundary review replaced its async refresh closure with the
 value-only `UnauthorizedRefreshTarget`. The request-scoped executor now switches
@@ -1832,9 +1861,12 @@ workflow order: prepare, verify the exact transition-session context, persist
 the prepared marker, persist the intake marker, commit, then reverify that exact
 context for the accepted receipt. It also proves stale preparation context or
 either marker failure stops before commit with the persistence error, while
-stale commit context retains `signOutSessionChanged`. These source and simulator
-regressions prove the checked-in producer/consumer shape, but do not replace the
-authorized real-session integration checklist below.
+stale commit context retains `signOutSessionChanged`. Cancellation cases stop
+before initial persistence, after the durable legacy marker, after v2
+preparation, and after the v2 marker pair without dispatching the destructive
+request. These source and simulator regressions prove the checked-in
+producer/consumer shape, but do not replace the authorized real-session
+integration checklist below.
 
 #### Focused command
 
@@ -2626,11 +2658,14 @@ keeps the launch-matched neutral root active, exposes explicit retry, and runs
 verified ledger persistence may resolve to the workspace or Ready consent
 screen.
 
-Analytics-consent Realtime owns its requested channel user and confirmed
-subscribed user independently of session observation. Failed subscriptions
-retain an account-owned bounded retry, while session adoption and foreground
-repair ensure the current channel without allowing a stale retry to attach to a
-new account.
+`ConsentRealtimeCoordinator` owns the requested channel user and confirmed
+subscriber independently of session observation. Failed subscriptions retain an
+account-owned bounded retry, while `ConsentManager` session adoption and
+foreground repair triggers ensure the current channel without allowing a stale
+retry to attach to a new account. Only the coordinator's live adapter touches
+analytics-consent Supabase Realtime. Explicit stop, listener completion, and
+coordinator deinitialization converge on one coalesced removal operation;
+deinitialization initiates removal independently of listener cancellation.
 
 ## OAuth account replacement
 
@@ -2641,9 +2676,10 @@ UUID before adopting it and clearing provider-bound ghost-merge recovery. The
 provider-conflict fallback and ordinary OAuth sign-in can install a different
 UUID, so they use one replacement boundary:
 
-1. synchronously suppress analytics, invalidate stale consent synchronization,
-   normalize any canceled same-account restoration wait back to `.reconciling`,
-   and stop the prior consent Realtime channel;
+1. synchronously suppress analytics; snapshot, cancel, and await every consent
+   synchronization and restoration task; normalize any canceled same-account
+   restoration wait back to `.reconciling`; and stop and await physical removal
+   of the prior consent Realtime channel;
 2. ask Supabase Auth to install the target session; and
 3. reconcile the SDK's actual current session on both success and failure.
 
@@ -2651,8 +2687,11 @@ The consent transition is generation-fenced. A delayed completion from an older
 overlapping sign-in cannot reopen PostHog, restart a stale Realtime owner, or
 overwrite `currentUser` after a newer transition starts. A failed replacement
 restores the actual surviving session rather than assuming the preflight session
-still exists. Provider-bound ghost handoff suppression remains independently
-active until its durable queue has been fully reconciled.
+still exists. Restoration retry admission independently rejects caller
+cancellation, so a canceled timer cannot reenter if manual retry reuses the same
+account, generation, and attempt number. Provider-bound ghost handoff
+suppression remains independently active until its durable queue has been fully
+reconciled.
 
 ## Sign in with Apple revocation credential
 
@@ -2698,27 +2737,28 @@ uses the same closed gate. Every direct Supabase read/write, entitlement
 refresh, profile/preference mutation, historical reconciliation, collection
 sync, and ordinary authenticated HTTP attempt acquires an exact-session
 account-work lease in `AuthenticatedTransportDispatcher`. The transition closes
-admission synchronously, cancels and awaits consent synchronization, closes
-`InferenceEngine` write admission, cancels and awaits even non-cooperative
-presentation/metadata tasks, waits for all admitted leases and collection work,
-and only then mutates the Auth SDK session. HTTP retries release their lease
-before 401 recovery so recovery cannot deadlock on its initiating request;
-payloads that embed an Auth UUID also pass that UUID as an expected owner and
-fail before dispatch if the live account differs. Every recursive transport,
-route, refresh, and service retry remains pinned to the account that initiated
-the request; an unowned request cannot silently recapture a replacement session.
-Foreground and background inference keep the request body, JWT, and expected
-Auth UUID in one typed request value; the background dispatcher persists that
-Auth UUID plus generation in the job metadata and `inference_v3` task
-description before resume, then retains the exact account lease until the
-URLSession terminal callback. Offline media staging does the same through
-`upload_v2`, requires every returned R2 key to equal the prepared owner key, and
-retains one exact lease per task through its terminal callback. The transition
-drain first commits each affected queue row back to pending and clears its
-source-owned staging keys, then cancels every matching task and waits for both
-URLSession disappearance and lease release; there is no timeout that allows Auth
-mutation to outrun a presigned PUT, and a failed durable retreat, task
-cancellation, or bounded drain expiry aborts the transition and leaves the
+admission synchronously, snapshots, cancels, and awaits every outstanding
+scheduled and active consent synchronization handle—including superseded and
+previously invalidated work—closes `InferenceEngine` write admission, cancels
+and awaits even non-cooperative presentation/metadata tasks, waits for all
+admitted leases and collection work, and only then mutates the Auth SDK session.
+HTTP retries release their lease before 401 recovery so recovery cannot deadlock
+on its initiating request; payloads that embed an Auth UUID also pass that UUID
+as an expected owner and fail before dispatch if the live account differs. Every
+recursive transport, route, refresh, and service retry remains pinned to the
+account that initiated the request; an unowned request cannot silently recapture
+a replacement session. Foreground and background inference keep the request
+body, JWT, and expected Auth UUID in one typed request value; the background
+dispatcher persists that Auth UUID plus generation in the job metadata and
+`inference_v3` task description before resume, then retains the exact account
+lease until the URLSession terminal callback. Offline media staging does the
+same through `upload_v2`, requires every returned R2 key to equal the prepared
+owner key, and retains one exact lease per task through its terminal callback.
+The transition drain first commits each affected queue row back to pending and
+clears its source-owned staging keys, then cancels every matching task and waits
+for both URLSession disappearance and lease release; there is no timeout that
+allows Auth mutation to outrun a presigned PUT, and a failed durable retreat,
+task cancellation, or bounded drain expiry aborts the transition and leaves the
 source session intact for retry. Callbacks and relaunched tasks may mutate local
 state only when their explicit owner/generation matches both the live Auth
 session and durable job metadata. Before a relaunched terminal callback crosses
@@ -2778,8 +2818,10 @@ effects.
    or expiry.
 4. The client validates the atomic claim receipt and advanced generation,
    serially links the unchanged RevenueCat App User ID, requires
-   `EntitlementManager.beginSession(...)` to return `true`, revalidates the same
-   anonymous Auth generation, and removes the journal last.
+   `EntitlementManager.beginSession(...)` to return `true`, and then revalidates
+   task cancellation, the exact anonymous manager-published user, nonexpired SDK
+   session, captured Auth generation, and transition context before removing the
+   journal last.
 
 An unrelated permanent session, old anonymous session, malformed/unreadable
 journal, expired claim, provider failure, or entitlement failure remains closed
@@ -2811,22 +2853,25 @@ The fresh legacy anonymous identity binds the proof before RevenueCat is linked
 to its uppercase UUID. The client then calls `Purchases.syncPurchases()` under
 the project's required **Transfer to new App User ID** restore behavior, asks
 the server to verify authoritative destination CustomerInfo, refreshes the
-Merian entitlement projection, verifies that the same anonymous session remains
-active, and removes the proof last. Purchase/restore/redeem admission remains
+Merian entitlement projection, and removes the proof last. Every suspended phase
+and the removal boundary revalidate task cancellation, the exact anonymous
+manager-published user, nonexpired SDK session, captured Auth generation, and
+transition context. A retry without a transition owner becomes stale as soon as
+another Auth transition opens. Purchase/restore/redeem admission remains
 disabled while that proof exists. Temporary failures retain it and auth-state
 restoration retries the same destination. The anonymous Profile also exposes a
 visible **Finish sign out** action, so recovery does not depend on a relaunch or
-another provider attempt. A restored source account can cancel only a still-
-unbound proof; the server refuses cancellation once receipt movement may have
-begun. An already-issued compatibility proof always finishes against its exact
-uppercase destination UUID even if `principal_mode` changes to `stable` while
-the transition is in flight. Only after the proof is cleared may the resolver
-adopt/rebind that installation to a stable principal; this prevents receipt sync
-and server verification from targeting different customers. If a finite prepared
-purchase expires before first completion, the server refreshes the source before
-accepting the destination's current StoreKit state, so natural expiry can finish
-free without overlooking a source renewal. Completed replay uses the immutable
-attested state and snapshot.
+another provider attempt. A restored source account can cancel only a
+still-unbound proof; the server refuses cancellation once receipt movement may
+have begun. An already-issued compatibility proof always finishes against its
+exact uppercase destination UUID even if `principal_mode` changes to `stable`
+while the transition is in flight. Only after the proof is cleared may the
+resolver adopt/rebind that installation to a stable principal; this prevents
+receipt sync and server verification from targeting different customers. If a
+finite prepared purchase expires before first completion, the server refreshes
+the source before accepting the destination's current StoreKit state, so natural
+expiry can finish free without overlooking a source renewal. Completed replay
+uses the immutable attested state and snapshot.
 
 While a proof is unresolved, generic auth-state bootstrap and refresh must not
 link the anonymous RevenueCat identity early. A confirmed-missing-session `401`
@@ -2909,6 +2954,14 @@ session is gone, the app submits only the recovery capability to
 `/recover-account-deletion`; acknowledgement after verified cleanup uses only
 its distinct proof. Neither request contains an account, job, provider, or
 purchase identity.
+
+The live intake path checks task cancellation before its first recovery marker.
+The legacy branch checks again after the intake marker; the v2 branch checks
+again before preparation, after its non-destructive response and before the
+prepared/intake marker pair, and after that pair before destructive commit.
+Cancellation never rolls back evidence that already crossed a durable boundary:
+recovery owns the retained marker or capability, while the cancelled task
+dispatches no later destructive effect.
 
 The operation-specific preparation receipt described in the
 [focused matrix](#preparation-receipt-contract) admits the checked-in handler

@@ -1,5 +1,5 @@
-@testable import Merian
 import Foundation
+@testable import Merian
 import XCTest
 
 @MainActor
@@ -52,24 +52,54 @@ final class ConsentManagerAuthorityTests: ConsentManagerTestCase {
             )
         )
 
-        let invalidContexts: [(UUID?, UUID?, UInt, Bool)] = [
-            (otherUserId, expectedUserId, expectedGeneration, false),
-            (nil, expectedUserId, expectedGeneration, false),
-            (expectedUserId, otherUserId, expectedGeneration, false),
-            (expectedUserId, nil, expectedGeneration, false),
-            (expectedUserId, expectedUserId, expectedGeneration + 1, false),
-            (expectedUserId, expectedUserId, expectedGeneration, true)
+        let invalidContexts: [InvalidSynchronizationContext] = [
+            .init(
+                observedUserId: otherUserId,
+                sdkUserId: expectedUserId,
+                currentGeneration: expectedGeneration,
+                isCancelled: false
+            ),
+            .init(
+                observedUserId: nil,
+                sdkUserId: expectedUserId,
+                currentGeneration: expectedGeneration,
+                isCancelled: false
+            ),
+            .init(
+                observedUserId: expectedUserId,
+                sdkUserId: otherUserId,
+                currentGeneration: expectedGeneration,
+                isCancelled: false
+            ),
+            .init(
+                observedUserId: expectedUserId,
+                sdkUserId: nil,
+                currentGeneration: expectedGeneration,
+                isCancelled: false
+            ),
+            .init(
+                observedUserId: expectedUserId,
+                sdkUserId: expectedUserId,
+                currentGeneration: expectedGeneration + 1,
+                isCancelled: false
+            ),
+            .init(
+                observedUserId: expectedUserId,
+                sdkUserId: expectedUserId,
+                currentGeneration: expectedGeneration,
+                isCancelled: true
+            )
         ]
 
-        for (observedUserId, sdkUserId, currentGeneration, isCancelled) in invalidContexts {
+        for context in invalidContexts {
             XCTAssertFalse(
                 ConsentManager.isSynchronizationContextCurrent(
                     expectedUserId: expectedUserId,
                     expectedGeneration: expectedGeneration,
-                    observedUserId: observedUserId,
-                    sdkUserId: sdkUserId,
-                    currentGeneration: currentGeneration,
-                    isCancelled: isCancelled
+                    observedUserId: context.observedUserId,
+                    sdkUserId: context.sdkUserId,
+                    currentGeneration: context.currentGeneration,
+                    isCancelled: context.isCancelled
                 )
             )
         }
@@ -396,5 +426,11 @@ final class ConsentManagerAuthorityTests: ConsentManagerTestCase {
             30
         )
     }
+}
 
+private struct InvalidSynchronizationContext {
+    let observedUserId: UUID?
+    let sdkUserId: UUID?
+    let currentGeneration: UInt
+    let isCancelled: Bool
 }

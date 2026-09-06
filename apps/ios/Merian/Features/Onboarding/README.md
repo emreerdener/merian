@@ -33,7 +33,20 @@ the line ceiling. Consent ledger, restoration, authority, reapproval, and
 lifecycle tests live with their Core owner under
 `MerianTests/Core/Security/Consent`.
 
-The Supabase Ghost merge client contract reads
-`ConsentManagerAuthorityTests.swift` from that Core test owner to lock pending
-consent flush before account refetch. A future test rehome must update that
-cross-surface source contract in the same change.
+The Supabase Ghost merge client contract reads `ConsentManager.swift`,
+`ConsentSynchronizationCoordinator.swift`,
+`ConsentSynchronizationMergePolicy.swift`, `ConsentRealtimeCoordinator.swift`,
+`ConsentRealtimeCoordinator+Live.swift`,
+`RequiredConsentRestorationCoordinator.swift`, `ConsentLedgerRepository.swift`,
+`ConsentRetryPolicy.swift`, `ConsentManagerAuthorityTests.swift`,
+`ConsentSynchronizationCoordinatorTests.swift`,
+`ConsentRealtimeCoordinatorTests.swift`, and
+`ConsentRestorationCoordinatorTests.swift` from Core Security to lock current
+synchronization context, owner-filtered Realtime construction, generation/retry
+fencing, complete synchronization-task draining, UUID-keyed restoration retry
+retention through exact completion and the combined Auth-transition drain,
+canceled-retry admission after manual attempt-number reuse, stale-account
+rejection, verified persistence before state publication, remote fetch after
+pending consent flush, and authoritative merge before analytics application. A
+future owner or test rehome must update that cross-surface source contract in
+the same change.

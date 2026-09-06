@@ -2165,6 +2165,419 @@ exact extracted Swift owners and make every Deno-to-Swift source-path dependency
 an atomic rehome obligation; none describes cached presentation state as durable
 purchase-handoff authority.
 
+### `SupabaseManager`-wide integration audit
+
+The 2026-09-05 joined audit followed the five extracted Auth/Security slices
+through the remaining live `SupabaseManager` orchestration rather than treating
+their individual green suites as sufficient integration evidence. It covered
+Auth-listener delivery, anonymous bootstrap, account deletion, ordinary and
+purchase-safe sign-out, stable and compatibility purchase continuity, Google and
+shared OAuth replacement, ghost merge, restored-session public-author refresh,
+entitlement, and deferred history synchronization.
+
+The audit fixed four related stale-work boundaries. Account-deletion intake now
+checks cancellation before persistence, after the durable legacy marker,
+immediately before and after non-destructive v2 preparation, and after the v2
+marker pair, retaining recovery evidence without starting destructive work.
+Google rejects cancellation before provider presentation and after its return;
+the shared direct provider-link path checks immediately before the SDK mutation.
+OAuth replacement also rejects preflight cancellation, rechecks after
+synchronous analytics suppression, and reconciles the source without installing
+a replacement. Listener, bootstrap, and purchase-continuity completions
+revalidate the exact manager-published user, nonexpired SDK session, captured
+Auth generation, and transition context after suspension and immediately before
+downstream publication or proof removal; a completion without a transition owner
+becomes stale as soon as a transition opens. Finally, restored-session
+public-author refresh now uses a target account and UUID with
+compare-before-clear cleanup, so a cancelled predecessor cannot clear a
+replacement task, and it records completion only after success.
+
+Deterministic workflow tests cover cancellation at every new deletion and
+sign-out boundary, the aggregate manager suite covers shared OAuth preflight and
+post-suppression cancellation, and the cross-slice architecture guard freezes
+listener, bootstrap, proof-retirement, provider-return, and public-author task
+ownership. The three Deno client-source contracts enforce the corresponding
+pre-destructive deletion, OAuth, and purchase-proof ordering. This audit changes
+no JSON, endpoint, database, Keychain key or journal shape, SwiftData schema,
+navigation, feature flag, provider contract, or release control.
+
+Final verification regenerated a byte-stable Xcode project, passed project,
+source-membership, event-routing, transport-security, Markdown, Swift parsing,
+strict affected-source SwiftLint, Supabase skill-link, and complete iOS
+CI/adversarial tooling checks, and compiled the app plus all test bundles for
+both generic Simulator architectures. The canonical focused Auth/Core Network
+matrix passed 164 tests, the complete `merianTests` target passed 4,929 tests,
+and the complete Edge suite passed 1,937 tests with zero failures and its one
+intentional disposable-database skip. No hosted request, live account/purchase
+transition, deployment, or external publication was performed.
+
+### `ConsentManager` Models and Pure Policies
+
+The first Core Security consent hygiene slice moves the exact policy versions,
+provider identifiers, evidence copy, errors, and source-compatible
+`ConsentManager.*` value types into `Core/Security/Consent/Models`. It moves
+all-version provider-head selection and authority, account activation and
+ghost-evidence rebinding, bounded retry timing, and the value-only
+account/generation/cancellation fence into `Consent/Policies`.
+
+Existing nested model names, Codable fields and legacy defaults, manager static
+entry points, retry schedules, actor isolation, and every live effect remain
+stable. `ConsentManager` remains the observable state and orchestration facade;
+it still owns consent mutation, Supabase synchronization, Realtime lifecycle,
+restoration tasks, persistence sequencing, derived gates, and PostHog
+application. The extraction reduces the aggregate from 3,099 to 2,557 lines
+without changing an API payload, database contract, Keychain key, persisted JSON
+field, policy string/version, navigation route, inference gate, feature flag, or
+release control.
+
+`ConsentArchitectureTests` freezes the six-file Models/Policies inventory,
+declaration relocation, dependency exclusions, `ConsentManager`-only production
+consumption of the necessarily module-internal policy types, and the 600-line
+review ceiling. `ConsentLedgerOwnershipPolicyTests` adds direct
+synchronized-versus-pending ledger and withdrawal-journal rebinding coverage,
+including the per-account reapproval fence. XcodeGen included every new owner,
+generated-project resource and source-membership checks passed, the complete app
+and all test bundles compiled for the generic iOS Simulator destination, Swift
+parsing and strict SwiftLint passed with zero violations, and whitespace
+validation passed. The first focused execution exposed a declaration-guard
+substring collision between `AdultEligibilityReceipt` and the valid wire DTO
+`AdultEligibilityReceiptInsert`; matching real Swift declaration boundaries
+fixed the guard without changing production code. The final focused Consent
+matrix passed 33 tests, and the complete `merianTests` target passed 4,933 tests
+with zero failures on an iPhone 17 Pro iOS 26.4.1 Simulator. A second-pass
+contract audit found no material production defect and added the sole-facade
+policy-consumption guard to prevent future coupling through the widened
+cross-file access level. No hosted request, database mutation, deployment, or
+external publication was performed.
+
+### `ConsentManager` Remote Transport and Wire Mapping
+
+The second Core Security consent hygiene slice moves the two immutable receipt
+inserts, both authenticated causal append adapters, four ID-scoped read-backs,
+six concurrent authoritative reads, wire DTOs, row mapping, strict append-result
+validation, and ambiguous-write recovery into `Core/Security/Consent/Services`.
+The initializer-injected `ConsentRemoteService` core contains no Supabase or
+singleton dependency; `ConsentRemoteService+Live.swift` is the only direct
+PostgREST/RPC owner. `ConsentManager` remains the sole production facade and
+retains mutation sequencing, session/account/generation fences, Realtime,
+persistence, restoration, derived gates, and PostHog lifecycle authority.
+
+The extraction preserves exact table and RPC names, select columns, filters,
+ordering, limits, six-read concurrency, insert/read-back order, accepted versus
+superseded causal outcomes, fractional ISO-8601 handling, immutable-payload
+retry matching, and the server-rebased revocation-parent exception. It reduces
+the manager from 2,557 to 1,896 lines without changing an API payload, database
+contract, persisted ledger or journal, Keychain key, policy copy/version,
+provider, navigation route, inference gate, feature flag, or release control.
+
+`ConsentRemoteServiceTests` directly cover both receipt and causal-event
+adapters, exact request keys and result decoding, recovery after ambiguous
+writes, mismatch rejection, independent current-disclosure/provider-head
+mapping, malformed accepted results, and synchronization fencing.
+`ConsentArchitectureTests` now freeze the nine extracted production files,
+600-line ceiling, deterministic-owner dependency exclusions, live Supabase
+confinement, manager-only service consumption, `ConsentRemoteWire` confinement
+to the remote models, service core, and live adapter, and the separately
+retained analytics Realtime table subscription.
+
+Verification passed with byte-stable XcodeGen output, generated-project and
+source-membership validation, a generic iOS Simulator build-for-testing, Swift
+parsing, and strict SwiftLint with zero violations. The focused Consent matrix
+passed 44 tests, and the complete `merianTests` target passed 4,944 tests with
+zero failures on an iPhone 17 Pro iOS 26.4.1 Simulator. The complete Edge
+Function suite passed 1,937 tests with zero failures and one intentional ignore.
+An independent contract audit found no production parity defect; it did expose
+stale static contract ownership in the legal-consent and ghost-profile merge
+tests, which now inspect the split service, live adapter, wire-model, and retry
+policy owners. Supabase recursive formatting, Markdown formatting, Supabase
+user-skill link validation, and whitespace checks also passed. No hosted
+request, database mutation, deployment, or external publication was performed.
+The follow-up review found no additional production or wire-contract defect and
+added a regression guard that prevents another production owner from consuming
+the necessarily module-internal wire namespace directly. The documentation
+follow-up also names every Swift source and test read by
+`ghostProfileMergeClientContract.test.ts`, including the relocated consent retry
+policy, so a future rehome cannot silently leave its Deno URL stale.
+
+### `ConsentManager` Local Ledger Repository
+
+The third Core Security consent hygiene slice moves decoded local-ledger and
+analytics-withdrawal-journal state, independent load uncertainty, JSON
+validation, verified write publication, write-ahead recovery, account
+activation, and ghost-to-permanent rebinding into
+`Core/Security/Consent/Repositories/ConsentLedgerRepository.swift`. The focused
+`@MainActor` repository injects the existing `ConsentLedgerStoring` boundary and
+contains no network, provider SDK, task, Observation, or singleton dependency.
+`ConsentLedgerStore` remains the raw atomic file/Keychain byte owner.
+
+`ConsentManager` remains the only production repository consumer. It still owns
+observable and derived state, consent-action creation, active-session and
+generation fencing, synchronization order, Realtime lifecycle, restoration, and
+PostHog application, but no longer encodes JSON or calls the raw store. The
+repository publishes a candidate ledger only after the store verifies it. An
+analytics revocation still closes the in-process gate first, records the exact
+immutable event in the independent journal before the ledger, retains that
+intent across a failed ledger write, and removes it only after the durable
+ledger succeeds. Ghost handoff still rebinds the journal before the ledger and
+recovery. The manager falls from 1,896 to 1,628 lines; the new repository is 347
+lines. No initializer, nested model name, Codable field, file or Keychain key,
+API payload, database contract, policy version/copy, navigation route, inference
+gate, feature flag, or release control changes.
+
+`ConsentLedgerRepositoryTests` directly cover launch recovery order, malformed
+or independently unreadable storage, rejection without overwriting malformed
+evidence, failed-write nonpublication and notification, exact write-ahead retry,
+verified-ledger fallback when the journal write fails, and journal-first account
+rebinding. `ConsentArchitectureTests` freeze the ten-file
+Models/Policies/Repositories/Services inventory, private decoded-journal state,
+raw-storage call confinement, sole-facade repository consumption, infrastructure
+exclusions, and the 600-line ceiling. The cross-language Ghost contract reads
+the repository directly and requires store persistence before in-memory
+publication. The legal-consent and Ghost focused Deno contracts pass 15 tests;
+the complete Edge Function suite passes 1,937 tests with zero failures and one
+intentional ignore. Same-path XcodeGen output is byte-stable; generated-project
+validation and source membership, Swift parsing, strict lint, Markdown and
+Supabase formatting, Supabase skill-link validation, and whitespace checks cover
+the static boundary. The final generic build and native runtime rerun were
+unavailable when CoreSimulatorService failed before build or test discovery; the
+immediately preceding focused Consent matrix passed after the production
+extraction, before the final nonbehavioral repository encapsulation and
+test-assertion additions. An independent contract audit found no P0-P3
+implementation, contract, or documentation drift. No hosted request, database
+mutation, deployment, or external publication was performed.
+
+### `ConsentManager` Realtime Coordination
+
+The fourth Core Security consent hygiene slice moves the account-scoped
+analytics-consent subscription identity, listener and retry tasks, generation
+fences, inactive-channel repair, and bounded retry state into
+`Core/Security/Consent/Coordinators/ConsentRealtimeCoordinator.swift`. The
+coordinator receives narrow subscription, timing, failure-reporting,
+current-user, and synchronization closures and contains no Supabase, singleton,
+logging, table, or SDK dependency.
+
+`Core/Security/Consent/Services/ConsentRealtimeCoordinator+Live.swift` is now
+the sole direct analytics-consent Supabase Realtime owner. It preserves the
+exact owner-filtered `user_analytics_consent_events` INSERT channel, status
+mapping, subscription, and removal operations. `ConsentManager` remains the
+current-account and synchronization authority. Session observation,
+foreground/current-session repair, inference preflight, and pre-OAuth shutdown
+still occur at the same lifecycle points; only channel/listener/retry ownership
+moved. The manager falls from 1,628 to 1,447 lines, the coordinator core is 279
+lines, and the live adapter is 90 lines. No initializer call site, API payload,
+table, RLS policy, RPC, persisted ledger or journal, Keychain key, policy
+version/copy, provider, navigation route, inference gate, feature flag, or
+release control changes.
+
+`ConsentRealtimeCoordinatorTests` deterministically cover same-account
+idempotency, inactive-channel replacement, account replacement, stale events,
+stream completion, subscription failures, the exact bounded backoff sequence,
+stop-time retry cancellation, explicit and deinitialization cleanup, coalesced
+exactly-once removal, and disabled live behavior. A follow-up review replaced
+synthetic subscription identity with reference identity and gave the
+subscription a contained removal task. Listener completion, explicit shutdown,
+and coordinator deinitialization now converge on the same removal operation;
+deinitialization starts it independently of listener cancellation. Owner
+deallocation therefore cannot strand a client-retained channel, and overlapping
+teardown cannot remove one channel twice. `ConsentArchitectureTests` freeze the
+twelve-file Models/Policies/Coordinators/Repositories/Services inventory,
+coordinator state and manager wiring, separate PostgREST/RPC and Realtime
+adapter confinement, and the 600-line extracted-owner ceiling. The
+cross-language Ghost contract now reads the coordinator core and live adapter
+directly to lock owner filtering, generation/current-user fences, retry
+scheduling, and manager lifecycle wiring. Focused Swift parsing and strict lint,
+direct compiler probes for the coordinator/live adapter/test harness, the
+legal-consent and Ghost Deno contracts, XcodeGen, project validation, and source
+membership pass. Native app build and runtime verification subsequently
+recovered on the current host. A generic iOS Simulator build with code signing
+disabled compiled both simulator architectures. On an iPhone 17 Pro iOS 26.4.1
+Simulator, the focused coordinator and architecture matrix passed 13 tests, the
+complete Consent matrix passed 64 tests, and the complete `merianTests` target
+passed 4,964 parameter-expanded runs across 2,980 unique test identifiers with
+zero failures, skips, or expected failures. The complete Edge Function suite
+also passed 1,937 tests with one intentional ignore. No hosted request, database
+mutation, deployment, or external publication was performed.
+
+### `ConsentManager` Synchronization Coordination
+
+The fifth Core Security consent hygiene slice moves scheduled and active
+synchronization task identity, same-account single-flight behavior, generation
+invalidation, retention and exact cancellation draining for every outstanding
+task handle—including superseded and previously invalidated work—and unowned
+evidence binding, stable pending-evidence pushes, authoritative fetch, and
+verified merge sequencing into
+`Core/Security/Consent/Coordinators/ConsentSynchronizationCoordinator.swift`.
+The coordinator receives the existing ledger repository and remote service plus
+narrow manager callbacks for identity, SDK identity, authority closure, merge
+publication, and failure handling. It contains no direct Supabase, singleton,
+logging, Observation, or SDK dependency.
+
+`ConsentSynchronizationMergePolicy.swift` separately owns the value-only
+remote-to-ledger upsert and derives the required-consent authority,
+analytics-cloud authority, and reapproval stream-head result. The manager
+remains the observable account/session facade and retains consent mutation,
+session adoption, restoration and retry state, lifecycle decisions, durable
+transition requests, and SDK application. The manager falls from 1,447 to 1,157
+lines; the synchronization coordinator is 460 lines and the merge policy is 76
+lines. All fourteen extracted production owners remain below the 600-line
+Consent review ceiling. No initializer call site, API payload, table, RLS
+policy, RPC, persisted ledger or journal, Keychain key, consent copy/version,
+provider, inference gate, feature flag, navigation, or release control changes.
+
+`ConsentSynchronizationCoordinatorTests` directly cover coalesced same-account
+work with one failure publication, cancellation and exact task drain for
+current, superseded, and previously invalidated work—including different-account
+active-task replacement—stale-generation rejection before persistence, and the
+complete adult/Terms/Gemini/PostHog pending-push order before authoritative
+fetch. `ConsentSynchronizationMergePolicyTests` cover evidence upsert, duplicate
+current/head values, authority derivation, and authoritative absence.
+`ConsentArchitectureTests` now freeze the fourteen-file inventory, manager and
+coordinator wiring, synchronization state/function relocation, dependency
+exclusions, merge-policy ownership, and the existing 600-line ceiling. The
+cross-language Ghost client contract reads the new coordinator, merge policy,
+and focused test owner directly so its pending-consent-before-refetch and
+persist-before-authority guarantees survive future rehomes.
+
+Verification regenerated byte-stable XcodeGen output and passed generated-
+project resource and source-membership checks, full Consent Swift parsing,
+strict whole-slice SwiftLint with zero violations, all fourteen mirrored Consent
+test sources typechecking together against the compiled app module, recursive
+Supabase formatting and lint, both affected cross-language contracts, and the
+complete 1,937-test Edge suite with its one intentional disposable-database
+ignore. A generic iOS Simulator build compiled the production target for both
+architectures, and ten focused tests—six synchronization-coordinator, two
+merge-policy, and two architecture—then passed on an iPhone 17 Pro iOS 26.4.1
+Simulator. The subsequent review added a directly typechecked different-account
+supersession regression. Attempts to rebuild and execute that added test, the
+complete Consent matrix, and the complete `merianTests` target were blocked
+before compilation or execution when the host's CoreSimulator service
+disconnected and its nested SwiftPM package sandbox could not start; those
+attempts are not counted as passed. No hosted request, database mutation,
+deployment, or external publication was performed.
+
+### `ConsentManager` Required-Consent Restoration Coordination
+
+The sixth Core Security consent hygiene slice moves the launch-restoration state
+machine, automatic retry budget, UUID-keyed outstanding-task registry and stable
+identity, compare-before-clear completion, cancellation snapshot and exact Auth
+transition drain, manual retry admission, duplicate-session preservation, and
+account/SDK-session/synchronization-generation fences into
+`Core/Security/Consent/Coordinators/RequiredConsentRestorationCoordinator.swift`.
+The coordinator receives narrow context, publication, synchronization,
+failure-reporting, scheduling-policy, and sleep closures. It has no direct
+Supabase, Auth-client, singleton, logging, Observation, PostHog, or test-runtime
+dependency.
+
+`ConsentManager` remains the sole observable facade and synchronously mirrors
+the coordinator's presentation state. Its existing initializer and public
+restoration interfaces remain source-compatible, while the synchronization
+coordinator still owns the remote pipeline and outstanding task drain. The
+manager falls from 1,157 to 1,050 lines; the restoration coordinator is 290
+lines, and all fifteen extracted Consent production owners remain below the
+600-line review ceiling. No API payload, table, RPC, RLS rule, persisted ledger
+or journal, Keychain key, consent copy/version, provider, inference gate,
+feature flag, navigation, or release control changes.
+
+`ConsentRestorationCoordinatorTests` directly cover duplicate-session retry
+preservation, automatic failure-budget escalation, manual reset, an old
+cancellation-uncooperative retry remaining retained and drainable while account
+replacement fences it, and an old retry completing after it has scheduled a
+replacement. The last two cases prove exact cancellation drain, post-suspension
+identity fencing, and stable compare-before-clear task ownership. A further
+overlap case forces manual retry to reuse the same account, generation, and
+attempt number, then proves caller cancellation prevents the old timer from
+reentering. `ConsentArchitectureTests` now freeze the fifteen-file inventory,
+restoration state/task relocation, manager drain wiring, dependency exclusions,
+centralized retry-policy access, and the existing line ceiling. The
+cross-language Ghost client contract reads the new coordinator and focused test
+owner directly so future rehomes cannot silently discard those guarantees.
+
+Verification regenerated byte-stable XcodeGen output and passed generated-
+project resource and source-membership checks, event-routing validation, full
+Consent Swift parsing, strict all-source SwiftLint with zero violations, a
+generic iOS Simulator production build, and a complete generic
+`build-for-testing`. Both affected cross-language contracts passed 15 tests; the
+complete Edge suite passed 1,937 tests with one intentional disposable-database
+ignore, and recursive Supabase format, lint, and tooling gates passed. A focused
+iPhone 17 Pro iOS 26.4 Simulator run reported no behavioral-suite failure and
+exposed only the new coordinator's missing centralized-retry-policy allowlist
+entry in `ConsentArchitectureTests`; that guard was corrected and compiled in
+the subsequent `build-for-testing`. CoreSimulatorService disconnected before the
+immediate post-fix executable rerun. A later final-audit rerun is recorded
+below; the complete `merianTests` runtime target is not claimed as passed. No
+hosted request, database mutation, deployment, or external publication was
+performed.
+
+A subsequent lifetime audit found that invalidation canceled and released the
+restoration retry handle before a cancellation-uncooperative sleep actually
+completed. The coordinator now keeps every retry in a UUID-keyed registry until
+that exact task's completion defer runs, returns a cancellation snapshot, and
+lets `ConsentManager` drain restoration and synchronization work before an Auth
+replacement. The overlap tests use bounded XCTest expectations and prove that
+the drain remains open until the canceled timer truly finishes. Strict Swift 6
+production and focused XCTest typechecking, affected-source SwiftLint,
+byte-stable XcodeGen, project/source/routing guards, focused Ghost and legal
+Deno contracts, recursive Supabase formatting, Markdown validation, and diff
+checks passed. A fresh Xcode build and executable-test rerun remained blocked
+before compilation by the unavailable CoreSimulator service and the host's
+SwiftPM nested-sandbox restriction; neither is claimed as passed.
+
+A final overlap review found that retaining a canceled timer was not sufficient
+when manual retry reset the counter and a replacement failure reused the same
+account, generation, and attempt number. Retry admission now also rejects a
+canceled caller directly. A continuation-controlled regression resumes the old
+timer only after the replacement has entered the identical waiting state and
+proves the old task cannot synchronize or advance presentation. The two Realtime
+teardown overlap tests also use explicit bounded start/finish expectations
+rather than scheduler-yield timing.
+
+### Consent-wide Integration Audit
+
+The post-extraction integration audit traced consent from onboarding and app
+root restoration through Auth replacement, Ghost rebinding, persistence,
+inference admission, PostHog application, Realtime repair, and all remote
+receipt/event adapters. It found no P0/P1, wire-shape, persistence-order,
+actor-isolation, stale-merge, policy-copy/version, or provider-head defect. It
+did close three fail-closed gaps before leaving the domain.
+
+`ConsentRemoteService` now distinguishes a genuinely empty successful query from
+a present row whose enum or timestamp cannot map. The latter throws
+`MerianError.invalidResponse`, so malformed evidence cannot resolve required-
+consent restoration as authoritative absence. Adult and Terms receipt inserts
+also accept an ID/owner-scoped read-back only when every immutable field matches
+the attempted receipt and the server timestamp is present. A mismatch after a
+successful insert is an invalid response; a valid but mismatched row after an
+ambiguous transport failure preserves that original failure. Causal-event
+matching and the server-rebased revocation-parent exception remain unchanged.
+
+`ConsentRealtimeCoordinator` now retains every started subscription removal in a
+UUID-keyed teardown registry through exact completion. The renamed
+`ConsentManager.cancelAndAwaitAccountBoundWorkForAuthTransition()` barrier stops
+new Realtime work and awaits synchronization, restoration, and physical channel
+teardown before `SupabaseManager` may mutate the SDK session. Stale event
+generation fences remain defense in depth, while deterministic tests hold
+removal behind a cancellation-uncooperative continuation and prove both the
+coordinator drain and manager Auth barrier remain open until release. The audit
+also corrected Core Security documentation to distinguish the live adapters'
+exclusive PostgREST/RPC/Realtime ownership from `ConsentManager`'s intentional
+authenticated-session and account-work-lease authority.
+
+All fifteen extracted production owners remain below the 600-line ceiling; the
+largest is the 598-line remote service and the Realtime coordinator is 298
+lines. The complete app and every test bundle compiled for both generic iOS
+Simulator architectures. Strict affected-source SwiftLint passed with zero
+violations; byte-stable XcodeGen, project/resource/source membership,
+event-routing and adversarial routing, Swift parsing, Supabase skill links,
+recursive Supabase format/lint, changed-Markdown formatting, and whitespace
+gates passed. The focused legal/Ghost contracts passed 15 tests, and the
+complete Edge suite passed 1,937 tests with zero failures and one intentional
+disposable-database ignore. After correcting two stale architecture assertions
+to check actual state declarations and the current combined-drain body, the
+focused Consent restoration, Realtime, and architecture matrix executed 20 tests
+on an iPhone 17 Pro iOS 26.4 Simulator with zero failures. The complete
+`merianTests` runtime target is not claimed as run. No hosted request, database
+mutation, deployment, or external publication was performed.
+
 ## Phase 3: Ownership Cleanup
 
 After the large files are split, move code to clearer long-term homes:
