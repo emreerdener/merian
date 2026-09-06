@@ -36,12 +36,19 @@ pin lifecycle. See the
   secure generation, atomic v2 envelope storage, legacy proof decoding, verified
   reads/removal, and pre-Auth-bootstrap barrier restoration. HTTP payloads and
   receipt validation belong to Core Network, not this store.
-- `PurchaseIdentity/` owns the legacy and protocol-3 sign-out journal models and
-  their injected secure store. It preserves exact local JSON fields, validates
-  restored evidence fail-closed, selects the two established Keychain keys,
-  writes with `WhenUnlockedThisDeviceOnly`, verifies exact bytes, and performs
-  verified removal. It owns no endpoint, provider, Auth transition, logger, or
-  task; see its [ownership guide](PurchaseIdentity/README.md).
+- `PurchaseIdentity/` owns purchase-principal domain and wire values,
+  deterministic policies, capability and resolver-state Keychain stores, secure
+  random generation, and the typed remote-service boundary. Its live adapter is
+  the sole owner of the Supabase dependency, private request payloads, four
+  `resolve-purchase-principal` calls, and definite-404 classification.
+  `PurchasePrincipalResolver` remains the source-compatible orchestration
+  facade. The folder also owns the installed legacy and protocol-3 sign-out
+  journal models and injected secure store. It preserves every established
+  Keychain key, device-only accessibility rule, local format, fallback policy,
+  and endpoint behavior. Deterministic validation accepts bounded fractional or
+  whole-second server timestamps and exact 64-character lowercase activation
+  fingerprints. It owns no provider, Auth transition, entitlement, logger, or
+  task lifecycle; see its [ownership guide](PurchaseIdentity/README.md).
 - `GhostProfileMerge/` owns the provider-bound ghost-profile handoff and
   version-1 queue models plus their injected secure store. It preserves exact
   local JSON fields, migrates the legacy single-record format without losing a
@@ -49,9 +56,17 @@ pin lifecycle. See the
   `WhenUnlockedThisDeviceOnly`, verifies exact bytes, and performs verified
   removal. It owns no endpoint, provider, Auth transition, logger, or task; see
   its [ownership guide](GhostProfileMerge/README.md).
-- `RevenueCatManager` owns customer identity, paid and paid-offline access,
-  offerings, and purchase/restore entry points. Its `isSubscribed` value—not
-  functional complimentary access—drives public Pro badges.
+- `RevenueCat/` owns RevenueCat value models, the typed registry for legacy
+  subscriber attributes, and deterministic identity, access, offering,
+  verification, provenance, and log/privacy policies. Its provider-neutral
+  identity coordinator owns observable requested/linked identity, generation
+  fencing, serialized task lifetime, and exact stale-commit rejection without
+  importing the provider SDK; see its [ownership guide](RevenueCat/README.md).
+  `RevenueCatManager` remains the sole live SDK facade and owns provider
+  configuration/calls, paid state, paid-offline behavior, offerings,
+  purchase/restore entry points, UIKit subscription management, and
+  fixed-message logging. Its `isSubscribed` value—not functional complimentary
+  access—drives public Pro badges.
 - `EntitlementManager` owns the authenticated, current-launch server proof for
   complimentary and other functional entitlement. It exposes the total remaining
   grant, unheld capacity available to start, in-flight holds, and the monotonic
@@ -327,6 +342,14 @@ See the
 for the complete root matrix and UI behavior.
 
 ## RevenueCat contract
+
+The source boundary is intentionally split: deterministic models and policies
+live under `RevenueCat/{Models,Policies}`; the directly held provider-neutral
+observable identity state machine and serialized task lifetime live under
+`RevenueCat/Coordinators`; and `RevenueCatManager.swift` retains live SDK,
+paid-state, UIKit, and logging effects. Symbol names and call sites remain
+source-compatible. This organization changes no identity, product, entitlement,
+provider, API, persistence, or release contract.
 
 `RevenueCatManager` remains unconfigured until Supabase has established a
 session and `/resolve-purchase-principal` has selected the identity mode. In

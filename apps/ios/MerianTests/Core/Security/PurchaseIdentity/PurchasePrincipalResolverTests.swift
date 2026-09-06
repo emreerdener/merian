@@ -2,38 +2,8 @@ import Foundation
 @testable import Merian
 import Testing
 
-@Suite("Purchase Principal Resolver Tests")
-struct PurchasePrincipalResolverTests {
-    private final class SecureStoreStub: PurchasePrincipalSecureStore {
-        var values: [String: Data] = [:]
-        var readError: Error?
-        var acceptsWrites = true
-        var discardsWrites = false
-        private(set) var writes: [
-            (key: String, accessibility: KeychainManager.Accessibility)
-        ] = []
-
-        func dataOrThrow(forKey key: String) throws -> Data? {
-            if let readError { throw readError }
-            return values[key]
-        }
-
-        func set(
-            _ data: Data,
-            forKey key: String,
-            accessibility: KeychainManager.Accessibility
-        ) -> Bool {
-            writes.append((key, accessibility))
-            guard acceptsWrites else { return false }
-            if !discardsWrites {
-                values[key] = data
-            }
-            return true
-        }
-    }
-
-    private struct LockedStoreError: Error {}
-
+@Suite("Purchase Principal Models, Policies, and Stores")
+struct PurchasePrincipalFoundationTests {
     @Test("Capability fingerprints are exact lowercase SHA-256 values")
     func capabilityFingerprintPolicy() {
         let capability = Data(0..<32)
@@ -53,7 +23,7 @@ struct PurchasePrincipalResolverTests {
 
     @Test("Missing capability is created once and read-verified before use")
     func capabilityCreationIsDurable() throws {
-        let secureStore = SecureStoreStub()
+        let secureStore = PurchasePrincipalSecureStoreSpy()
         let expected = Data(repeating: 0xA5, count: 32)
         var generationCount = 0
         let store = PurchasePrincipalCapabilityStore(
@@ -80,7 +50,7 @@ struct PurchasePrincipalResolverTests {
 
     @Test("Missing stable capability fails closed without creating a new identity")
     func missingCapabilityFailsClosedWhenCreationIsForbidden() {
-        let secureStore = SecureStoreStub()
+        let secureStore = PurchasePrincipalSecureStoreSpy()
         var generated = false
         let store = PurchasePrincipalCapabilityStore(
             secureStore: secureStore,
@@ -99,16 +69,16 @@ struct PurchasePrincipalResolverTests {
 
     @Test("Locked, corrupt, random-failure, and unverified Keychain states fail closed")
     func capabilityStorageFailuresFailClosed() {
-        let lockedStore = SecureStoreStub()
-        lockedStore.readError = LockedStoreError()
-        #expect(throws: LockedStoreError.self) {
+        let lockedStore = PurchasePrincipalSecureStoreSpy()
+        lockedStore.readError = PurchasePrincipalTestError.locked
+        #expect(throws: PurchasePrincipalTestError.self) {
             try PurchasePrincipalCapabilityStore(
                 secureStore: lockedStore
             ).loadOrCreate(allowsCreation: true)
         }
         #expect(lockedStore.writes.isEmpty)
 
-        let corruptStore = SecureStoreStub()
+        let corruptStore = PurchasePrincipalSecureStoreSpy()
         corruptStore.values[
             KeychainKeys.purchasePrincipalInstallationCapability
         ] = Data(repeating: 0x02, count: 31)
@@ -118,7 +88,7 @@ struct PurchasePrincipalResolverTests {
             ).loadOrCreate(allowsCreation: true)
         }
 
-        let invalidRandomStore = SecureStoreStub()
+        let invalidRandomStore = PurchasePrincipalSecureStoreSpy()
         #expect(throws: PurchasePrincipalResolverError.self) {
             try PurchasePrincipalCapabilityStore(
                 secureStore: invalidRandomStore,
@@ -127,7 +97,7 @@ struct PurchasePrincipalResolverTests {
         }
         #expect(invalidRandomStore.writes.isEmpty)
 
-        let failedWriteStore = SecureStoreStub()
+        let failedWriteStore = PurchasePrincipalSecureStoreSpy()
         failedWriteStore.acceptsWrites = false
         #expect(throws: PurchasePrincipalResolverError.self) {
             try PurchasePrincipalCapabilityStore(
@@ -136,7 +106,7 @@ struct PurchasePrincipalResolverTests {
             ).loadOrCreate(allowsCreation: true)
         }
 
-        let unverifiedStore = SecureStoreStub()
+        let unverifiedStore = PurchasePrincipalSecureStoreSpy()
         unverifiedStore.discardsWrites = true
         #expect(throws: PurchasePrincipalResolverError.self) {
             try PurchasePrincipalCapabilityStore(
@@ -153,6 +123,22 @@ struct PurchasePrincipalResolverTests {
         ))
         #expect(!PurchasePrincipalCompatibilityPolicy.allowsLegacyFallback(
             hasStableActivation: true
+        ))
+    }
+
+    @Test("Server timestamps accept PostgreSQL fractions and whole seconds")
+    func serverTimestampPolicy() {
+        #expect(PurchasePrincipalTimestampPolicy.isValidServerTimestamp(
+            "2026-09-15T00:00:00.000Z"
+        ))
+        #expect(PurchasePrincipalTimestampPolicy.isValidServerTimestamp(
+            "2026-09-15T00:00:00Z"
+        ))
+        #expect(!PurchasePrincipalTimestampPolicy.isValidServerTimestamp(
+            "2026-09-15"
+        ))
+        #expect(!PurchasePrincipalTimestampPolicy.isValidServerTimestamp(
+            String(repeating: "0", count: 41)
         ))
     }
 

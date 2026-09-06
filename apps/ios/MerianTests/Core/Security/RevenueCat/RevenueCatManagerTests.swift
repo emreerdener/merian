@@ -1,5 +1,6 @@
 @testable import Merian
 @_spi(Internal) import RevenueCat
+import Observation
 import XCTest
 
 @MainActor
@@ -27,13 +28,13 @@ final class RevenueCatManagerTests: XCTestCase {
 
     func testRevenueCatAttributionSignature() async {
         // Asserts that the refactored signature compiles securely mapping telemetry correctly.
-        // Because purchases.shared is tightly coupled, we do not fully hit the live backend, 
+        // Because purchases.shared is tightly coupled, we do not fully hit the live backend,
         // we strictly test the caller logic boundaries directly avoiding signature mismatched crashes natively.
         let testId = UUID()
         let email = "test@example.com"
         let name = "John Merian Explorer"
         let avatar = "https://example.com/image.jpg"
-        
+
         // This validates the Swift 6 compiler hasn't dropped any named parameter requirements statically.
         await revenueCatManager.linkWithSupabase(
             userId: testId,
@@ -45,7 +46,7 @@ final class RevenueCatManagerTests: XCTestCase {
             publicIdentitySource: "display_name",
             accountKind: "authenticated"
         )
-        
+
         XCTAssertTrue(true, "Attribution Signature compiled properly!")
     }
 
@@ -250,6 +251,23 @@ final class RevenueCatManagerTests: XCTestCase {
         XCTAssertFalse(revenueCatManager.isProActive)
         XCTAssertFalse(revenueCatManager.canStartProScan)
         XCTAssertFalse(revenueCatManager.isPurchaseIdentityReady)
+    }
+
+    func testIdentityHandoffReadThroughPropagatesObservation() async {
+        let changed = expectation(
+            description: "RevenueCat handoff state changed"
+        )
+
+        withObservationTracking {
+            _ = revenueCatManager.isPurchaseIdentityHandoffPending
+        } onChange: {
+            changed.fulfill()
+        }
+
+        revenueCatManager.setPurchaseIdentityHandoffPending(true)
+
+        await fulfillment(of: [changed], timeout: 1)
+        XCTAssertTrue(revenueCatManager.isPurchaseIdentityHandoffPending)
     }
 
     func testStablePrincipalRebindAlwaysClosesPriorPaidReadiness() {

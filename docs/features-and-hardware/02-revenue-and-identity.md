@@ -61,8 +61,12 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   applies those decisions while retaining every live provider, SDK-session,
   consent, and purchase-identity effect. The exact legacy/stable journal models,
   validation, and verified device-only Keychain storage live in
-  `Core/Security/PurchaseIdentity/`; the manager injects the live Keychain
-  adapter rather than duplicating that persistence policy.
+  `Core/Security/PurchaseIdentity/`. That owner also contains the resolver's
+  domain and wire values, deterministic policies, verified capability and
+  resolver-state stores, secure-random helper, and typed remote service. Its
+  live adapter alone imports Supabase and issues the four
+  `resolve-purchase-principal` operations. The manager supplies the live client
+  and Keychain rather than duplicating those policies.
   `Core/Network/Auth/Policies/GhostProfileMergePolicy.swift` owns deterministic
   ghost-handoff replacement and terminal-code classification, and
   `Core/Network/Auth/Coordinators/GhostProfileMergeWorkflow.swift` owns server,
@@ -257,10 +261,17 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     transitions resolve the same principal. Foreground activation retries this
     exact binding after transient resolver, account-cleanup, Keychain, or
     provider failure, so recovery does not depend on another Auth callback and
-    never rotates the capability or provider ID. `PurchaseIdentityHandoffStore`
-    owns both journals' explicit camel-case local JSON fields, fail-closed
-    validation before writes and after reads, exact key and accessibility, byte
-    read-back, and verified removal. `PurchaseIdentitySignOutWorkflow` owns the
+    never rotates the capability or provider ID. `PurchasePrincipalResolver`
+    composes focused Purchase Identity models, policies, secure stores, and the
+    typed remote service without directly importing Supabase or Security.
+    `PurchaseIdentityHandoffStore` owns both journals' explicit camel-case local
+    JSON fields, fail-closed validation before writes and after reads, exact key
+    and accessibility, byte read-back, and verified removal. Its shared 20–40
+    UTF-8-byte timestamp policy accepts the fractional PostgreSQL server shape
+    and the installed whole-second shape for both stable and compatibility
+    evidence. The secure-state store likewise rejects any activation fingerprint
+    that is not the exact 64-character lowercase SHA-256 shape before writing.
+    `PurchaseIdentitySignOutWorkflow` owns the
     preparation/sign-out/replacement/completion order; `SupabaseManager`
     supplies the live server, Auth, RevenueCat, entitlement, session, logging,
     and retry effects. Before an operation may replace the Auth identity, the
@@ -307,6 +318,18 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
 
 ## Paywalls and Entitlements (`RevenueCatManager`)
 
+- Source ownership separates deterministic RevenueCat values and policies under
+  `Core/Security/RevenueCat/{Models,Policies}` from the provider-neutral
+  `Coordinators/RevenueCatIdentityCoordinator` and live
+  `RevenueCatManager.swift` SDK facade. Models and identity policy are
+  Foundation-only; access and privacy policies import only the provider value
+  types required to classify verification, store provenance, and log severity.
+  The coordinator owns observable requested/linked state, serialized task
+  lifetime, generation and account-binding fences, and stale-commit rejection
+  through injected closures. The manager retains all SDK configuration/calls,
+  paid-state projection, UIKit subscription management, and logging. This split
+  changes none of the contracts below; see the
+  [iOS ownership guide](../../apps/ios/Merian/Core/Security/RevenueCat/README.md).
 - Controls Apple ecosystem entitlement bounds governing core app functionality.
 - Waits for an active Supabase session and a successful purchase-principal
   resolution. Stable mode initializes or logs in with the exact server-returned
@@ -320,9 +343,15 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   writes no account PII to it; legacy mode keeps the Auth-UUID compatibility
   identity. The Xcode Release archive preflight requires a RevenueCat iOS SDK
   key beginning with `appl_` before Organizer distribution.
-- Serializes configure/login mutations. Stable readiness requires the provider's
-  current App User ID, active Supabase Auth UUID, and server binding generation
-  all match; a late result for an older Auth event is discarded. Sign-out clears
+- Serializes configure/login mutations through the identity coordinator. A
+  replacement waits for prior provider work even when cancellation does not stop
+  it, and only the latest exact request may execute or commit. Stable readiness
+  requires the provider's current App User ID, active Supabase Auth UUID, and
+  server binding generation all match; a late result for an older Auth event is
+  discarded. A monotonic handoff fence also dominates account-grant permission
+  captured by provider work that was already in flight, even if the handoff
+  clears before that work resumes. Only a fresh exact binding begun after the
+  fence may commit permission once the handoff is clear. Sign-out clears
   readiness but does not call RevenueCat logout, preventing `$RCAnonymousID`
   creation. Legacy custom-ID switches still require the separate verified server
   mirror and receipt-sync contract described above.

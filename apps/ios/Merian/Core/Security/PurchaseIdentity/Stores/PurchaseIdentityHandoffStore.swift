@@ -148,7 +148,9 @@ struct PurchaseIdentityHandoffStore {
         UUID(uuidString: pending.sourceUserId) != nil
             && UUID(uuidString: pending.handoffId) != nil
             && isValidSecret(pending.handoffSecret)
-            && ISO8601DateFormatter().date(from: pending.expiresAt) != nil
+            && PurchasePrincipalTimestampPolicy.isValidServerTimestamp(
+                pending.expiresAt
+            )
     }
 
     private static func isValid(_ pending: ServerPrincipalRotation) -> Bool {
@@ -164,7 +166,9 @@ struct PurchaseIdentityHandoffStore {
               PurchasePrincipalCapabilityPolicy.isValidFingerprint(
                   pending.installationCapabilityFingerprint
               ),
-              ISO8601DateFormatter().date(from: pending.startedAt) != nil else {
+              PurchasePrincipalTimestampPolicy.isValidServerTimestamp(
+                  pending.startedAt
+              ) else {
             return false
         }
         switch pending.localState {
@@ -172,7 +176,7 @@ struct PurchaseIdentityHandoffStore {
             return pending.expiresAt == nil
         case .prepared:
             return pending.expiresAt.map(
-                PurchasePrincipalBinding.isValidServerTimestamp
+                PurchasePrincipalTimestampPolicy.isValidServerTimestamp
             ) == true
         }
     }
@@ -186,7 +190,9 @@ struct PurchaseIdentityHandoffStore {
             && PurchasePrincipalCapabilityPolicy.isValidFingerprint(
                 pending.installationCapabilityFingerprint
             )
-            && ISO8601DateFormatter().date(from: pending.startedAt) != nil
+            && PurchasePrincipalTimestampPolicy.isValidServerTimestamp(
+                pending.startedAt
+            )
     }
 
     private static func isValidSecret(_ value: String) -> Bool {

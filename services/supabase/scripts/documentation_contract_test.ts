@@ -5572,8 +5572,11 @@ Deno.test("purchase identity rollout documentation is exact-SHA, dry-run-first, 
     architecture,
     codebaseMap,
     edgeReadme,
+    legacyHandoffReadme,
     iosNetworkReadme,
     iosSecurityReadme,
+    purchaseIdentityReadme,
+    revenueIdentity,
     template,
   ] = await Promise.all([
     read("docs/rfcs/purchase-principal-auth-separation.md"),
@@ -5590,8 +5593,13 @@ Deno.test("purchase identity rollout documentation is exact-SHA, dry-run-first, 
     read(
       "services/supabase/functions/resolve-purchase-principal/README.md",
     ),
+    read(
+      "services/supabase/functions/transfer-signout-purchases/README.md",
+    ),
     read("apps/ios/Merian/Core/Network/README.md"),
     read("apps/ios/Merian/Core/Security/README.md"),
+    read("apps/ios/Merian/Core/Security/PurchaseIdentity/README.md"),
+    read("docs/features-and-hardware/02-revenue-and-identity.md"),
     read("docs/release-evidence/purchase-identity-rollout-template.json"),
   ]).then((sources) => sources.map(compact));
 
@@ -5668,6 +5676,45 @@ Deno.test("purchase identity rollout documentation is exact-SHA, dry-run-first, 
     assertStringIncludes(source, "prepare_signout_rotation");
     assertStringIncludes(source, "claim_signout_rotation");
     assertStringIncludes(source, "cancel_signout_rotation");
+  }
+  for (
+    const source of [
+      rfc,
+      api,
+      keychain,
+      edgeReadme,
+      legacyHandoffReadme,
+      iosNetworkReadme,
+      purchaseIdentityReadme,
+      revenueIdentity,
+    ]
+  ) {
+    assertStringIncludes(source, "fractional PostgreSQL");
+    assertStringIncludes(source, "whole-second");
+  }
+  for (
+    const source of [
+      api,
+      iosNetworkReadme,
+      purchaseIdentityReadme,
+      revenueIdentity,
+    ]
+  ) {
+    assertStringIncludes(source, "20–40 UTF-8-byte");
+  }
+  for (
+    const source of [
+      rfc,
+      api,
+      keychain,
+      edgeReadme,
+      iosNetworkReadme,
+      iosSecurityReadme,
+      purchaseIdentityReadme,
+      revenueIdentity,
+    ]
+  ) {
+    assertStringIncludes(source, "64-character lowercase");
   }
   assertStringIncludes(schema, "binding_intent_generation_fence");
   assertStringIncludes(testing, "binding_intent_generation_fence");

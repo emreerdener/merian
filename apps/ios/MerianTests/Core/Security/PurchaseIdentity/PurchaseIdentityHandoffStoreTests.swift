@@ -104,7 +104,7 @@ struct PurchaseIdentityHandoffStoreTests {
                 with: JSONEncoder().encode(
                     makeServerRotation(
                         state: .prepared,
-                        expiresAt: "2026-10-05T12:00:00Z"
+                        expiresAt: "2026-10-05T12:00:00.000Z"
                     )
                 )
             ) as? [String: Any]
@@ -229,7 +229,7 @@ struct PurchaseIdentityHandoffStoreTests {
         let validSpy = SecureStoreSpy()
         let valid = makeServerRotation(
             state: .prepared,
-            expiresAt: "2026-10-05T12:00:00Z"
+            expiresAt: "2026-10-05T12:00:00.000Z"
         )
         validSpy.dataByKey[KeychainKeys.pendingPurchasePrincipalAuthRotation] =
             try JSONEncoder().encode(valid)
@@ -344,7 +344,7 @@ struct PurchaseIdentityHandoffStoreTests {
             sourceUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
             handoffId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
             handoffSecret: String(repeating: "s", count: 43),
-            expiresAt: "2026-09-10T12:00:00Z"
+            expiresAt: "2026-09-10T12:00:00.000Z"
         )
     }
 

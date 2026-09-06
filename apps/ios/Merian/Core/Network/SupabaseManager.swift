@@ -3969,7 +3969,9 @@ private struct RevenueCatPublicIdentity: Decodable {
                 of: #"^[A-Za-z0-9_-]{43}$"#,
                 options: .regularExpression
               ) != nil,
-              ISO8601DateFormatter().date(from: response.expires_at) != nil else {
+              PurchasePrincipalTimestampPolicy.isValidServerTimestamp(
+                  response.expires_at
+              ) else {
             throw SupabaseAuthTransitionError
                 .signOutPurchaseHandoffPersistenceFailed
         }

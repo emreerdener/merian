@@ -100,33 +100,49 @@ owner and deterministic `AuthTransitionPolicy` live under `Core/Network/Auth/`;
 including preflight cancellation plus fences before the legacy server
 destination bind and after each asynchronous phase; `SupabaseManager` stores and
 advances the coordinator, applies the policy, and retains provider, SDK-session,
-purchase-identity, recovery, and deletion effects. The durable legacy/stable
-journal shapes and verified device-only Keychain policy live in
-`Core/Security/PurchaseIdentity/`; the live manager injects its Keychain
-adapter. The owner token records the source session and expected destination.
-Competing controls are disabled, stale provider/controller callbacks are
-discarded, and the extracted listener/request fence prevents Auth-listener side
-effects from overtaking the operation that owns the SDK. Every account-bound
-metadata, RevenueCat, entitlement, and routing write revalidates that token and
-the live session after its last suspension point. Stable and compatibility
-completion additionally preserve the captured Auth generation, exact anonymous
-manager-published user, nonexpired SDK session, cancellation state, and valid
-transition context until immediately before verified journal removal. Recovery
-without a transition owner is stale as soon as another Auth transition opens,
-even before its first SDK event. Ordinary direct Supabase and HTTP work
-additionally holds an exact-session lease. Transition admission closes before
-the drain begins; the owner snapshots, cancels, and awaits every outstanding
-scheduled and active consent synchronization handle—including superseded and
-previously invalidated work—waits for all admitted leases and collection work,
-and changes the SDK session only after that boundary is empty. 401 recovery runs
-only after the failed request releases its lease. Realtime channels stop while a
-transition is active and restart only for the verified final account. Inference
-requests bind their body, JWT, and expected Auth UUID in one typed value, and
-background dispatch holds the exact-session lease through task resume. Offline
-media signing and upload dispatch use the same captured UUID, reject a returned
-object key for any other canonical owner, and hold the lease through task
-resume. Anonymous session restore/creation is a coordinator-owned transition,
-not a parallel bootstrap exception.
+purchase-identity, recovery, and deletion effects.
+`Core/Security/PurchaseIdentity/` owns the resolver's domain/wire models,
+deterministic policies, verified capability and resolver-state stores, secure
+randomness, typed operations, and sole live Supabase route adapter, plus the
+durable legacy/stable journal shapes and verified device-only Keychain policy.
+`PurchasePrincipalResolver` is the source-compatible orchestration facade; the
+live manager supplies its client and Keychain. The owner token records the
+source session and expected destination. Competing controls are disabled, stale
+provider/controller callbacks are discarded, and the extracted listener/request
+fence prevents Auth-listener side effects from overtaking the operation that
+owns the SDK. Every account-bound metadata, RevenueCat, entitlement, and routing
+write revalidates that token and the live session after its last suspension
+point. Stable and compatibility completion additionally preserve the captured
+Auth generation, exact anonymous manager-published user, nonexpired SDK session,
+cancellation state, and valid transition context until immediately before
+verified journal removal. Recovery without a transition owner is stale as soon
+as another Auth transition opens, even before its first SDK event. Ordinary
+direct Supabase and HTTP work additionally holds an exact-session lease.
+Transition admission closes before the drain begins; the owner snapshots,
+cancels, and awaits every outstanding scheduled and active consent
+synchronization handle—including superseded and previously invalidated
+work—waits for all admitted leases and collection work, and changes the SDK
+session only after that boundary is empty. 401 recovery runs only after the
+failed request releases its lease. Realtime channels stop while a transition is
+active and restart only for the verified final account. Inference requests bind
+their body, JWT, and expected Auth UUID in one typed value, and background
+dispatch holds the exact-session lease through task resume. Offline media
+signing and upload dispatch use the same captured UUID, reject a returned object
+key for any other canonical owner, and hold the lease through task resume.
+Anonymous session restore/creation is a coordinator-owned transition, not a
+parallel bootstrap exception.
+
+Within the RevenueCat client boundary, deterministic values and policy live
+under `Core/Security/RevenueCat/{Models,Policies}`. The provider-neutral
+`RevenueCatIdentityCoordinator` owns requested and linked identity, serialized
+link-task lifetime, exact request/binding/account-kind fences, and stale-commit
+rejection; `RevenueCatManager` remains the sole live SDK facade and supplies the
+provider effects. When durable purchase-handoff state becomes pending, the
+coordinator advances a monotonic in-memory fence and immediately closes account
+grant readiness. Provider work that captured an earlier fence cannot restore
+those grants even if the handoff clears before that work resumes. Only a fresh
+exact binding begun after the fence may commit account-grant permission once the
+handoff is clear.
 
 RevenueCat webhooks and reconciliation first resolve the private stable mapping
 and only then use legacy UUID fallback. StoreKit state, legacy provider state,
@@ -193,7 +209,11 @@ entitlement failure remain closed and never fall back to ordinary resolution.
 `PurchaseIdentityHandoffStore` is the sole local codec, validation-before-write
 and validation-after-read, key, accessibility, exact-byte verification, and
 removal owner for that journal and the legacy compatibility proof. Explicit
-coding keys preserve the installed camel-case JSON format. The store has no
+coding keys preserve the installed camel-case JSON format. One shared bounded
+timestamp policy accepts the fractional PostgreSQL form returned by Edge and the
+whole-second form retained in installed evidence for both protocols. The
+secure-state store validates the exact 64-character lowercase SHA-256 activation
+fingerprint before invoking its Keychain write boundary. The stores have no
 network, Auth, RevenueCat, entitlement, logging, or task authority.
 `SupabaseManager.hasPendingPurchaseIdentityHandoffFailClosed()` rereads both
 store-backed journal types before an operation may replace the Auth identity,
@@ -286,18 +306,19 @@ destination.
 ## Release gates
 
 Source readiness is not production readiness. Static migration contracts,
-focused Edge tests, an additive pgTAP fixture, iOS DTO/policy tests, route/ACL
-smokes, and principal health monitoring are checked in. Release still requires
-replaying the disposable database fixture, two-session lock probes, iOS
-kill/relaunch/device tests, clean-device Apple and Google cycles,
-old-client/new- backend compatibility, attribute-scrub review for adopted
-customers, and the controlled RevenueCat sandbox matrix. Stable mode must remain
-disabled until those artifacts are attached to the reviewed exact SHA. Rotation
-health must run in required mode: each pass terminalizes overdue preparations,
-alerts on any newly expired row, and bounds live prepared volume at the reviewed
-warning/critical defaults of 100/500 unless an approved workflow dispatch uses
-stricter values. Production Supabase, RevenueCat, TestFlight, and App Store
-operations remain separately authorized.
+focused Edge tests, an additive pgTAP fixture, iOS DTO/policy and RevenueCat
+identity-coordinator overlap tests, route/ACL smokes, and principal health
+monitoring are checked in. Release still requires replaying the disposable
+database fixture, two-session lock probes, iOS kill/relaunch/device tests,
+clean-device Apple and Google cycles, old-client/new-backend compatibility,
+attribute-scrub review for adopted customers, and the controlled RevenueCat
+sandbox matrix. Stable mode must remain disabled until those artifacts are
+attached to the reviewed exact SHA. Rotation health must run in required mode:
+each pass terminalizes overdue preparations, alerts on any newly expired row,
+and bounds live prepared volume at the reviewed warning/critical defaults of
+100/500 unless an approved workflow dispatch uses stricter values. Production
+Supabase, RevenueCat, TestFlight, and App Store operations remain separately
+authorized.
 
 The rollout evidence uses exact schema version 2. Separate machine-required
 statuses cover rotation concurrency, physical-device recovery, unrelated-session

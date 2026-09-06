@@ -150,10 +150,13 @@ cleanup, and proof-retirement effects. `Core/Security/GhostProfileMerge/` owns
 the exact handoff/queue models, legacy migration, fail-closed validation,
 device-only Keychain persistence, byte verification, and verified removal
 through injected storage effects. `Core/Security/PurchaseIdentity/` owns the
-exact legacy/stable journal models, fail-closed validation, device-only Keychain
-persistence, byte verification, and verified removal through injected storage
-effects. Other wire-model owners stay unchanged: enrichment responses remain
-hand-written in Core AI, while survey requests remain Settings Feedback-owned.
+purchase-principal domain and wire values, deterministic policies, capability
+and resolver-state Keychain stores, secure random generation, typed remote
+service, and exact legacy/stable journal models and persistence. Its live
+adapter alone imports Supabase and issues the four resolver-route operations;
+`PurchasePrincipalResolver` remains the source-compatible orchestration facade.
+Other wire-model owners stay unchanged: enrichment responses remain hand-written
+in Core AI, while survey requests remain Settings Feedback-owned.
 `Core/Network/Transport/` owns stateless HTTPS endpoint construction,
 unavailable-route/error classification, retry allowlists and account binding,
 and value-only Auth-recovery decisions. Its request-scoped
@@ -271,6 +274,40 @@ removals remain retained until exact completion, and the manager drains them
 with synchronization and restoration before Auth session replacement. Its live
 adapter is the sole analytics-consent Supabase Realtime owner. The extraction
 changes no API, persisted ledger, Keychain, provider, or release contract.
+
+## Core Purchase Identity Ownership
+
+[Core Security Purchase Identity](Merian/Core/Security/PurchaseIdentity/README.md)
+owns the iOS purchase-principal boundary. Models map exact resolver responses
+into validated domain values; policies own fingerprinting, monotonic intent,
+fallback, bounded fractional/whole-second server timestamps, encoding, and
+rotation-secret decisions; injected stores own the device-only capability,
+stable-activation fingerprint, intent generation, and sign-out journals. An
+invalid activation fingerprint is rejected before secure persistence. The
+closure-backed remote service keeps typed operations separate from its sole live
+Supabase adapter and private request payloads. `PurchasePrincipalResolver`
+composes those owners without importing Supabase or Security. Supabase Auth
+transitions, RevenueCat linking, entitlement refresh, and sign-out task lifetime
+remain caller-owned. The split changes no endpoint, payload, response, Keychain
+key, fallback, provider, or navigation contract.
+
+## Core RevenueCat Ownership
+
+[Core Security RevenueCat](Merian/Core/Security/RevenueCat/README.md) owns the
+source-compatible value models, typed legacy subscriber-attribute registry, and
+deterministic identity, access, offering, verification, provenance, and privacy
+policies. Its provider-neutral observable identity coordinator owns requested
+and linked identity, account/generation fencing, serialized task lifetime, and
+stale-commit rejection through injected closures. `RevenueCatManager.swift`
+remains the sole live SDK facade and retains provider calls, paid-state
+projection, offering refresh, purchase/restore, subscription management, and
+fixed-message logging. The split changes no product identifier, App User ID,
+subscriber attribute, provider behavior, wire contract, or persistence schema. A
+follow-up concurrency fix makes a monotonic handoff fence dominate account
+grants captured by older suspended identity work; only an exact binding begun
+after that fence may commit grants once the handoff clears. Mirrored manager,
+coordinator, and architecture tests lock behavior, dependency confinement, and
+the final 600-line live-manager ceiling.
 
 ## Onboarding Ownership
 

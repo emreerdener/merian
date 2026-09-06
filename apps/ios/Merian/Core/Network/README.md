@@ -2789,8 +2789,9 @@ Once an installation has activated a stable principal, server rollback keeps
 returning that exact principal; it never instructs iOS to rotate back to the
 current Auth UUID. A response requiring a newer stable protocol also fails
 closed until the app is updated. A verified device-only activation fingerprint
-makes that transition monotonic: later `404` or `mode: legacy` responses are
-rejected rather than used as compatibility fallback.
+makes that transition monotonic: it must be the exact 64-character lowercase
+SHA-256 shape before the secure write begins, and later `404` or `mode: legacy`
+responses are rejected rather than used as compatibility fallback.
 
 In stable mode, the client read-verifies a device-only installation capability
 and advances/read-verifies its device-monotonic binding intent before each
@@ -2801,9 +2802,10 @@ Auth request that finishes late cannot replace the current binding. Stable
 The local `PurchaseIdentityHandoffStore` owns both this stable journal and the
 legacy proof below: explicit persisted field names, fail-closed decoding,
 state-specific validation, exact Keychain selection, device-only accessibility,
-byte read-back, and verified removal. The Auth workflow owns phase order, while
-the manager injects all live server, provider, session, entitlement, and logging
-effects.
+byte read-back, and verified removal. Its shared timestamp policy accepts 20–40
+UTF-8-byte fractional PostgreSQL and whole-second RFC 3339 values for both
+protocols. The Auth workflow owns phase order, while the manager injects all
+live server, provider, session, entitlement, and logging effects.
 
 1. While the exact linked source session and binding generation are live, iOS
    generates a rotation UUID and 256-bit secret, persists/read-verifies a
@@ -2842,6 +2844,7 @@ logs, analytics, crash metadata, or request URLs.
 In legacy mode, the client first calls `/transfer-signout-purchases` to snapshot
 authoritative StoreKit-backed access and persists its one-use proof under
 `Merian_PendingSignOutPurchaseHandoff_v1` with `whenUnlockedThisDeviceOnly`. A
+malformed or oversized server expiry fails before that secure write. A
 preparation or verified-Keychain-write failure leaves the linked session
 untouched. Only then does the client close the local Supabase session and create
 one fresh anonymous identity. A linked SDK session is always presented as

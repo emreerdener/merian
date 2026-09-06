@@ -7425,9 +7425,13 @@ uses `verify_jwt = false` only to keep JWT validation inside the shared handler;
 `withEdgeHandler` still requires a live user from
 `supabaseAdmin.auth.getUser()`.
 
-The current iOS candidate sends the exact protocol-v3 resolve request. Earlier
-resolve protocols remain accepted only while rollout is in the legacy
-compatibility window; stable activation requires minimum protocol 3:
+The current iOS candidate sends the exact protocol-v3 resolve request.
+`Core/Security/PurchaseIdentity/Models/PurchasePrincipalWireModels.swift` owns
+the client protocol and decoded response DTOs;
+`Services/PurchasePrincipalRemoteService+Live.swift` privately owns the exact
+request payloads and all four calls to this route. Earlier resolve protocols
+remain accepted only while rollout is in the legacy compatibility window; stable
+activation requires minimum protocol 3:
 
 ```json
 {
@@ -7467,12 +7471,14 @@ No RevenueCat request is made in legacy mode. A new client may also use this
 legacy branch only when the additive route is definitively absent (`404`); auth,
 configuration, timeout, and other service failures remain fail-closed. That
 missing-route fallback is available only before the exact device capability has
-ever activated stable mode. iOS persists a device-only activation fingerprint;
-after activation, both `404` and `mode: legacy` fail closed without changing the
-RevenueCat identity. An already active capability never falls back to an
-Auth-UUID customer during rollback: it continues to receive `mode: stable` and
-may rebind. If that active principal requires a newer protocol, the endpoint
-fails closed with `426` instead of rotating provider identity.
+ever activated stable mode. iOS persists a device-only activation fingerprint,
+after first validating its exact 64-character lowercase SHA-256 shape before the
+secure write; after activation, both `404` and `mode: legacy` fail closed
+without changing the RevenueCat identity. An already active capability never
+falls back to an Auth-UUID customer during rollback: it continues to receive
+`mode: stable` and may rebind. If that active principal requires a newer
+protocol, the endpoint fails closed with `426` instead of rotating provider
+identity.
 
 In stable mode, begin returns a server-owned pending or active principal. Edge
 fetches authoritative RevenueCat v1 CustomerInfo for that immutable App User ID,
@@ -7499,10 +7505,16 @@ RevenueCat history. Success is:
 ```
 
 iOS must compare all stable fields with its current Auth-event generation before
-changing RevenueCat. `RevenueCatManager` serializes SDK identity mutations,
-binds readiness to the returned provider ID, Auth UUID, and binding generation,
-and writes no email, display name, avatar, username, or Auth UUID attribute to a
-stable customer. When a legacy customer is first adopted, iOS deletes those
+changing RevenueCat. The provider-neutral `RevenueCatIdentityCoordinator`
+serializes SDK-identity work through closures supplied by `RevenueCatManager`,
+fences exact request execution and commit, and binds readiness to the returned
+provider ID, Auth UUID, and binding generation. A durable-handoff state
+transition raises a monotonic in-memory generation fence that dominates
+account-grant permission captured by older suspended provider work, even when
+the handoff clears before that work resumes. Only a fresh exact binding begun
+after the fence may commit that permission once the handoff is clear. The
+manager writes no email, display name, avatar, username, or Auth UUID attribute
+to a stable customer. When a legacy customer is first adopted, iOS deletes those
 legacy attributes and synchronizes the deletion before declaring the stable
 identity ready. Apple and Google continuation use ordinary resolution. Stable
 sign-out instead uses three exact protocol-3 operations on this route. While the
@@ -7540,13 +7552,16 @@ Preparation succeeds with HTTP 200:
 ```
 
 The client validates every continuity field and persists the server expiry
-before closing the source session. A live reservation blocks ordinary resolution
-and every other binding writer. Preparation also records the latest two-phase
-resolver intent, permanently invalidating every completion begun before the
-reservation even after claim, cancellation, or expiry. A later normal resolver
-must begin with a newer intent. After local Auth sign-out, only a different
-anonymous JWT identity whose `auth.users.created_at` is not older than the
-reservation may claim it:
+before closing the source session. Its bounded RFC 3339 policy accepts the 20–40
+UTF-8-byte fractional PostgreSQL timestamp emitted by the route and the
+whole-second shape retained by installed local evidence; malformed or oversized
+values fail closed before secure persistence. A live reservation blocks ordinary
+resolution and every other binding writer. Preparation also records the latest
+two-phase resolver intent, permanently invalidating every completion begun
+before the reservation even after claim, cancellation, or expiry. A later normal
+resolver must begin with a newer intent. After local Auth sign-out, only a
+different anonymous JWT identity whose `auth.users.created_at` is not older than
+the reservation may claim it:
 
 ```json
 {
@@ -7607,9 +7622,13 @@ No stable operation calls `syncPurchases()` or a RevenueCat customer-transfer
 API. The rotation secret, its hash, the rotation UUID, and journal fields never
 enter logs. The legacy sign-out proof remains unchanged while mode is `legacy`.
 
-On iOS,
-`Core/Security/PurchaseIdentity/Stores/PurchaseIdentityHandoffStore.swift` owns
-both installed journal codecs, validation before writes and after reads, exact
+On iOS, `PurchasePrincipalResolver` is the source-compatible orchestration
+facade over Purchase Identity's focused domain/wire models, deterministic
+policies, verified capability/resolver-state stores, secure-random helper, and
+typed remote service. Only the live service adapter imports Supabase, defines
+the request payloads, invokes this route, and classifies definite `404` fallback
+eligibility. `Stores/PurchaseIdentityHandoffStore.swift` separately owns both
+installed journal codecs, validation before writes and after reads, exact
 device-only Keychain policy, read-back verification, and removal.
 `Core/Network/Auth/Coordinators/PurchaseIdentitySignOutWorkflow.swift` owns the
 deterministic preparation/sign-out/completion order, while `SupabaseManager`
@@ -7767,7 +7786,10 @@ to the service-role issue RPC. The `201` response is `Cache-Control: no-store`:
 
 iOS must persist that proof with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`
 and verify the write before closing the linked session. A prepare or Keychain
-failure leaves that session unchanged.
+failure leaves that session unchanged. `PurchasePrincipalTimestampPolicy`
+validates `expires_at` before that write using the same 20–40 UTF-8-byte policy
+as stable rotation: fractional PostgreSQL and whole-second RFC 3339 are
+accepted; malformed and oversized values fail closed.
 
 ### Bind and cancel
 

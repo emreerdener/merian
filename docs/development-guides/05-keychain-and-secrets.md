@@ -341,14 +341,21 @@ Currently stored keys:
 | `Merian_AccountDeletionRecoveryCapability_v1`            | Protocol-v2 JSON `Data`; legacy raw 32-byte `Data` | `WhenUnlockedThisDeviceOnly`     | One deletion-only envelope containing distinct recovery and acknowledgement authorities, generated and read-after-write verified before network suspension. Edge stores only domain-separated SHA-256 hashes. Accepted deletion retires it only after verified local cleanup and acknowledgement; definitive uncommitted v2 intent may retire it without erasing local data.                                                   |
 | `Merian_AnalyticsRevocationIntent_v1`                    | JSON `Data`                                        | `AfterFirstUnlockThisDeviceOnly` | Versioned journal containing exact immutable PostHog revocation events that have not yet crossed the verified primary-ledger boundary                                                                                                                                                                                                                                                                                          |
 
-`Core/Security/PurchaseIdentity/Stores/PurchaseIdentityHandoffStore.swift` is
-the sole codec and persistence-policy owner for the two purchase-continuity
-rows. Its live dependencies receive `KeychainManager` from `SupabaseManager`;
-the store itself resolves no singleton. It preserves explicit camel-case JSON
-field names, validates evidence before writes and after reads, selects the exact
-key and accessibility, verifies written bytes, and performs verified removal.
-Auth/server/provider phase order remains in Core Network Auth and
-`SupabaseManager`.
+`Core/Security/PurchaseIdentity/Stores/` owns all five purchase-identity rows
+through the narrow `PurchasePrincipalSecureStore` boundary.
+`PurchasePrincipalCapabilityStore` owns capability creation and retrieval;
+`PurchasePrincipalSecureStateStore` owns stable activation and binding-intent
+generation; and `PurchaseIdentityHandoffStore` is the sole codec and
+persistence-policy owner for the two purchase-continuity journals. Their live
+composition receives `KeychainManager` from `SupabaseManager`; no store resolves
+a singleton. They validate before writes and after reads, select the exact keys
+and accessibility, and verify written bytes. Invalid activation fingerprints are
+rejected unless they have the exact 64-character lowercase hexadecimal SHA-256
+shape, before the secure store is called. The journal store additionally
+preserves explicit camel-case JSON fields, accepts bounded fractional PostgreSQL
+and whole-second RFC 3339 timestamps through cached formatters, and performs
+verified removal. Auth/server/provider phase order remains in Core Network Auth
+and `SupabaseManager`.
 
 `Core/Security/GhostProfileMerge/Stores/GhostProfileMergeStore.swift` is the
 sole codec and persistence-policy owner for the ghost-profile merge queue. Its

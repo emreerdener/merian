@@ -2938,8 +2938,10 @@ import, and permission-denial UI require the physical-device checklist in
   transition correctness remain covered by `AuthTransitionFoundationTests`,
   `AuthTransitionPolicyTests`, and `SupabaseManagerTests`; executor
   replay/effect behavior remains in `AuthenticatedRequestExecutorTests`.
-- **`DeviceIdentityManagerTests.swift`, `PurchasePrincipalResolverTests.swift`,
-  `EntitlementManagerTests.swift`, `RevenueCatManagerTests.swift`**: Isolates
+- **`DeviceIdentityManagerTests.swift`,
+  `Core/Security/PurchaseIdentity/PurchasePrincipalResolverTests.swift`,
+  `EntitlementManagerTests.swift`,
+  `Core/Security/RevenueCat/RevenueCatManagerTests.swift`**: Isolates
   authentication loops away from live production identifiers.
   `DeviceIdentityManagerTests` reads `DeviceIdentityManager.shared.deviceId`
   (the public `@Observable` property) — it does **not** call the private
@@ -2948,16 +2950,39 @@ import, and permission-denial UI require the physical-device checklist in
   cross-run contamination. `RevenueCatManagerTests` also locks the required
   current-offering product set to `pro_week` plus `pro_annual`, pending-identity
   mutation fences, and stable-versus-legacy identity policy. Resolver tests lock
-  exact DTO decoding and reject malformed or RevenueCat-anonymous IDs; source
-  contracts require serialized SDK identity mutation and no stable-mode account
-  PII attributes or receipt sync. `MerianNetworkClientTests` separately proves
-  that a generic `401` cannot rotate an anonymous UUID or discard pending
-  identity evidence. This does not replace dashboard/App Store smoke testing or
-  prove either stable principal continuity or legacy provider transfer on a
-  physical device. `EntitlementManagerTests` lock current-launch verification,
-  buffered replay metadata, stale-version rejection, account isolation, balance
-  validation, exhaustion, and the difference between functional access and
-  new-scan capacity.
+  model/policy tests lock exact DTO decoding and reject malformed or
+  RevenueCat-anonymous IDs; the interaction and architecture suites separately
+  lock typed operation forwarding, secure-state ownership, and the sole live
+  resolver-route adapter. Source contracts require serialized SDK identity
+  mutation and no stable-mode account PII attributes or receipt sync.
+  `MerianNetworkClientTests` separately proves that a generic `401` cannot
+  rotate an anonymous UUID or discard pending identity evidence. This does not
+  replace dashboard/App Store smoke testing or prove either stable principal
+  continuity or legacy provider transfer on a physical device.
+  `EntitlementManagerTests` lock current-launch verification, buffered replay
+  metadata, stale-version rejection, account isolation, balance validation,
+  exhaustion, and the difference between functional access and new-scan
+  capacity.
+- **`Core/Security/RevenueCat/RevenueCatArchitectureTests.swift`**: Freezes the
+  exact RevenueCat Models/Policies/Coordinators inventory, source-wide
+  declaration uniqueness, one production literal per legacy subscriber-attribute
+  key, and provider dependency boundaries. It excludes SDK calls, UIKit,
+  logging, and application singletons from the identity coordinator; excludes
+  observation, tasks, and live dependencies from deterministic values and
+  policies; caps every extracted file at 200 lines; and enforces the final
+  600-line ceiling for the live manager. The original manager cases are rehomed
+  beside this guard with only pre-existing trailing whitespace removed; one new
+  manager case locks nested coordinator observation.
+- **`Core/Security/RevenueCat/RevenueCatIdentityCoordinatorTests.swift`**:
+  Deterministically suspends injected link work to prove replacement
+  serialization despite cancellation-uncooperative provider calls, stale-commit
+  rejection, explicit resolution invalidation, same-provider Auth/binding
+  rebinding, account-grant and handoff readiness, a monotonic handoff fence
+  overriding grants captured by older suspended work whether it resumes before
+  or after handoff completion, post-fence binding admission once the handoff is
+  clear, and stable-versus-legacy sign-out retention. The manager suite
+  separately proves its public handoff read-through remains observable after
+  state ownership moves into the nested coordinator.
 - **`MerianConfigTests.swift` production-environment coverage**: Verifies that a
   Debug simulator pointed at production Supabase reports a configuration issue
   by default, remains configured so deliberate smoke tests can proceed, and
@@ -6261,15 +6286,28 @@ The identity test matrix now has two explicit lanes:
   definitive cancellation. Physical-device evidence must kill the app after
   envelope write, server preparation, commit, local sign-out, purge,
   acknowledgement, and proof removal, plus exercise a second-device commit.
-- **Stable purchase principal**: `PurchasePrincipalResolverTests.swift` proves
-  strict legacy/stable DTO decoding and rejects malformed or anonymous provider
-  IDs. Source contracts prove the client generates and verifies a 256-bit
-  `WhenUnlockedThisDeviceOnly` capability, serializes RevenueCat identity
-  mutations, advances a persisted monotonic binding intent, clears legacy
-  account attributes before stable readiness, writes no new account PII in
-  stable mode, and makes no receipt-sync call for ordinary Auth rotation.
-  `PurchaseIdentityHandoffStoreTests.swift` separately freezes both installed
-  journal formats, exact keys, device-only accessibility, read-back
+- **Stable purchase principal**: The mirrored `Core/Security/PurchaseIdentity/`
+  tests separate responsibilities. `PurchasePrincipalResolverTests.swift` proves
+  strict legacy/stable DTO and policy behavior plus verified capability storage;
+  `PurchasePrincipalSecureStateStoreTests.swift` freezes activation-fingerprint
+  and monotonic-intent persistence, rejects any non-64-character lowercase
+  hexadecimal activation input before a secure write, and freezes fail-closed
+  malformed/unverifiable reads;
+  `PurchasePrincipalResolverInteractionTests.swift` proves typed
+  resolve/prepare/claim/cancel forwarding, response mapping, stable activation,
+  route-missing-only fallback, and acceptance of the fractional PostgreSQL
+  expiry shape returned by the live route. The deterministic policy suite also
+  retains whole-second installed evidence while rejecting malformed or oversized
+  timestamps. `PurchasePrincipalArchitectureTests.swift` freezes the exact owner
+  inventory, declaration uniqueness, dependency confinement, private live
+  payloads, the sole four-call Supabase adapter, and production file-size
+  ceilings. Cross-surface source contracts prove the client generates and
+  verifies a 256-bit `WhenUnlockedThisDeviceOnly` capability, serializes
+  RevenueCat identity mutations, advances a persisted monotonic binding intent,
+  clears legacy account attributes before stable readiness, writes no new
+  account PII in stable mode, and makes no receipt-sync call for ordinary Auth
+  rotation. `PurchaseIdentityHandoffStoreTests.swift` separately freezes both
+  installed journal formats, exact keys, device-only accessibility, read-back
   verification, legacy decoding, protocol-3 state validation, and verified
   removal. `PurchaseIdentitySignOutWorkflowTests.swift` freezes the
   preparation-before-sign-out and proof-removal-last phase contract without

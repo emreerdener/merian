@@ -22,7 +22,10 @@ Stable sign-out is a separate server-owned state machine on the same route:
    a random rotation UUID and 256-bit secret, then sends
    `prepare_signout_rotation` with the expected binding generation. Postgres
    stores only the secret hash and reserves that principal for 30 days. The
-   device must persist the returned expiry before local sign-out.
+   device must persist the returned expiry before local sign-out. Its shared
+   bounded timestamp policy accepts this route's fractional PostgreSQL shape and
+   the whole-second shape retained by installed local evidence; malformed or
+   oversized values fail closed before persistence.
 2. After local sign-out, only a different anonymous Auth identity created no
    earlier than the reservation may send `claim_signout_rotation`. The claim
    atomically advances the binding and returns its exact principal receipt; it
@@ -81,6 +84,10 @@ the first stable response, iOS stores a verified device-only fingerprint of the
 exact installation capability. That monotonic evidence is not a provider ID
 cache, but it makes any later endpoint `404` or `mode: legacy` response fail
 closed instead of re-entering compatibility mode.
+
+The activation fingerprint is exactly the 64-character lowercase hexadecimal
+SHA-256 of the 32-byte capability. iOS rejects any other shape before invoking
+its secure-store write boundary.
 
 Stable rollout requires minimum client protocol 3. The rotation migration may
 land only while `principal_mode = legacy` unless the live minimum is already 3;

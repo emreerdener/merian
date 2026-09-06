@@ -1804,7 +1804,19 @@ consults that Keychain entry.
   binding-intent counter advances and read-verifies before network I/O; the
   server rejects older intents, while Auth-event generation checks before and
   after the serialized SDK identity mutation prevent a late result from an old
-  session from installing paid readiness for a new one.
+  session from installing paid readiness for a new one. The source-compatible
+  `PurchasePrincipalResolver` is now a focused orchestration facade.
+  `Core/Security/PurchaseIdentity/{Models,Policies,Stores,Services}` owns strict
+  response mapping, protocol and domain values, deterministic fingerprint,
+  intent/fallback/secret policy, bounded fractional/whole-second server
+  timestamps, verified capability and resolver-state persistence, secure
+  randomness, and typed remote operations. The secure-state store rejects an
+  activation fingerprint unless it is exactly 64 lowercase hexadecimal
+  characters, before invoking its write boundary. Only
+  `PurchasePrincipalRemoteService+Live.swift` imports Supabase, defines private
+  request payloads, issues the four route operations, and classifies a definite
+  missing route. `SupabaseManager` still owns the surrounding Auth generation,
+  RevenueCat, entitlement, recovery, and task orchestration.
 - **Unified Auth-transition ownership**: `Core/Network/Auth/` owns the
   value-only transition models and errors, Guest-presentation policy,
   deterministic transition policy, exact-session work lease coordinator,
@@ -1902,10 +1914,11 @@ consults that Keychain entry.
   the sole codec and secure-storage owner for both journals: it freezes their
   camel-case JSON fields, validates evidence before writes and after reads,
   selects the exact keys, applies `WhenUnlockedThisDeviceOnly`, verifies written
-  bytes, and verifies removal through injected effects. `SupabaseManager`
-  supplies the live Keychain instance and maps the store's failures to the
-  existing `SupabaseAuthTransitionError` cases; server, Auth, RevenueCat,
-  entitlement, logging, and task effects remain manager-owned.
+  bytes, and verifies removal through injected effects. Its sibling capability
+  and secure-state stores own the same fail-closed guarantees for resolver
+  state. `SupabaseManager` supplies the live Keychain instance and maps the
+  stores' failures to the existing `SupabaseAuthTransitionError` cases; Auth,
+  RevenueCat, entitlement, logging, and task effects remain manager-owned.
 - **Unauthorized identity preservation**: a generic route `401` is not proof
   that Auth deleted the user and never rotates the current UUID. A Ghost can be
   replaced only when the response carries the stable missing/invalid-session
@@ -2116,6 +2129,19 @@ consults that Keychain entry.
 
 ### `RevenueCatManager`
 
+- Deterministic RevenueCat values and policies live under
+  `Core/Security/RevenueCat/{Models,Policies}`. The Foundation-only identity
+  policy defines canonical IDs and mutation/rebind decisions; the access policy
+  defines product, verification, and store-provenance admission using provider
+  value types only; and the privacy policy defines fixed log markers and legacy
+  attribute deletion. The provider-neutral
+  `Coordinators/RevenueCatIdentityCoordinator` owns requested/linked state,
+  binding and account-kind fences, the monotonic handoff generation, serialized
+  task lifetime, and compare-before-clear completion through injected closures.
+  It never imports or calls RevenueCat, resolves Supabase or an app singleton,
+  presents UIKit, or logs. `RevenueCatManager.swift` remains the sole live SDK
+  facade and assembles the provider effects. See the
+  [ownership guide](../../apps/ios/Merian/Core/Security/RevenueCat/README.md).
 - Owns RevenueCat customer identity, paid access, paid-offline behavior,
   offerings, purchase, and restore. `isSubscribed` is paid status; `isProActive`
   combines paid status with current-launch server-verified functional access;
@@ -2123,8 +2149,15 @@ consults that Keychain entry.
 - Treats exact RevenueCat identity linkage and permission to mutate provider
   state as separate conditions. Stable readiness requires one exact provider App
   User ID, active Auth UUID, and server binding generation. SDK identity
-  mutations run serially, and the newest request always runs last; stale
-  anonymous-to-authenticated results cannot reopen purchase admission.
+  mutations run serially through the identity coordinator, and the newest
+  request always runs last; stale anonymous-to-authenticated results cannot
+  reopen purchase admission. A replacement waits for prior provider work even
+  when that work ignores task cancellation, then rechecks the exact request
+  generation before executing or committing.
+- A handoff raised while older provider work is suspended permanently fences
+  that request's captured account grants, even if the handoff clears before the
+  work resumes. Only an exact binding begun after the monotonic fence may commit
+  grants once the handoff is clear.
 - Handles RevenueCat `CustomerInfo` refreshes, evaluates standard Pro
   entitlements, and treats `pro_week` as a detached non-subscription purchase
   that is active for seven days from its purchase date.

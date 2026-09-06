@@ -32,12 +32,24 @@ const revenueCatManagerUrl = new URL(
   "../../../../apps/ios/Merian/Core/Security/RevenueCatManager.swift",
   import.meta.url,
 );
+const revenueCatIdentityCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/RevenueCat/Coordinators/RevenueCatIdentityCoordinator.swift",
+  import.meta.url,
+);
 const supabaseManagerUrl = new URL(
   "../../../../apps/ios/Merian/Core/Network/SupabaseManager.swift",
   import.meta.url,
 );
 const purchasePrincipalResolverUrl = new URL(
   "../../../../apps/ios/Merian/Core/Security/PurchasePrincipalResolver.swift",
+  import.meta.url,
+);
+const purchasePrincipalWireModelsUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/PurchaseIdentity/Models/PurchasePrincipalWireModels.swift",
+  import.meta.url,
+);
+const purchasePrincipalRemoteServiceUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/PurchaseIdentity/Services/PurchasePrincipalRemoteService+Live.swift",
   import.meta.url,
 );
 const securityFixtureUrl = new URL(
@@ -618,14 +630,26 @@ Deno.test("webhook and reconciliation resolve stable identities before UUID fall
 });
 
 Deno.test("stable iOS linkage does not transfer receipts or write account PII", async () => {
-  const [handler, resolverDb, manager, supabaseManager, resolver] =
-    await Promise.all([
-      Deno.readTextFile(resolverHandlerUrl),
-      Deno.readTextFile(resolverDbUrl),
-      Deno.readTextFile(revenueCatManagerUrl),
-      Deno.readTextFile(supabaseManagerUrl),
-      Deno.readTextFile(purchasePrincipalResolverUrl),
-    ]);
+  const [
+    handler,
+    resolverDb,
+    manager,
+    identityCoordinator,
+    supabaseManager,
+    resolver,
+    resolverWireModels,
+    resolverRemoteService,
+  ] = await Promise.all([
+    Deno.readTextFile(resolverHandlerUrl),
+    Deno.readTextFile(resolverDbUrl),
+    Deno.readTextFile(revenueCatManagerUrl),
+    Deno.readTextFile(revenueCatIdentityCoordinatorUrl),
+    Deno.readTextFile(supabaseManagerUrl),
+    Deno.readTextFile(purchasePrincipalResolverUrl),
+    Deno.readTextFile(purchasePrincipalWireModelsUrl),
+    Deno.readTextFile(purchasePrincipalRemoteServiceUrl),
+  ]);
+  const compactIdentityCoordinator = compact(identityCoordinator);
 
   assertStringIncludes(handler, "deriveRevenueCatStoreEntitlementState");
   assertStringIncludes(handler, "deriveRevenueCatAccountGrantState");
@@ -639,11 +663,70 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
     "RevenueCatStableIdentityPrivacyPolicy.deletionAttributes",
   );
   assertStringIncludes(manager, ".syncAttributesAndOfferingsIfNeeded()");
-  assertStringIncludes(manager, "if !usesStablePurchasePrincipal {");
   assertStringIncludes(manager, "!usesStablePurchasePrincipal,");
-  assertStringIncludes(manager, "The newest request always runs last.");
   assertStringIncludes(manager, "func beginPurchaseIdentityResolution()");
-  assertStringIncludes(resolver, "static let current = 3");
+  assertStringIncludes(
+    identityCoordinator,
+    "if !usesStablePurchasePrincipal {",
+  );
+  assertStringIncludes(identityCoordinator, "let previousTask = linkTask");
+  assertStringIncludes(identityCoordinator, "await previousTask.value");
+  assertStringIncludes(
+    identityCoordinator,
+    "guard let self, self.isCurrentRequest(context) else { return }",
+  );
+  assertStringIncludes(
+    compactIdentityCoordinator,
+    "if pending && !isPurchaseIdentityHandoffPending { accountGrantFenceGeneration &+= 1 }",
+  );
+  assertStringIncludes(
+    compactIdentityCoordinator,
+    "accountGrantsAllowed = request.accountGrantsAllowed && !isPurchaseIdentityHandoffPending && context.accountGrantFenceGeneration == accountGrantFenceGeneration",
+  );
+  assertStringIncludes(resolverWireModels, "static let current = 3");
+  assertStringIncludes(
+    resolver,
+    "private let remoteService: PurchasePrincipalRemoteService",
+  );
+  assertEquals(
+    resolverRemoteService.match(/client\.functions\.invoke\(/g)?.length,
+    4,
+  );
+  assertEquals(
+    resolverRemoteService.match(/"resolve-purchase-principal"/g)?.length,
+    4,
+  );
+  assertEquals(
+    resolverRemoteService.match(/let installation_capability: String/g)
+      ?.length,
+    4,
+  );
+  assertEquals(
+    resolverRemoteService.match(
+      /let client_protocol = PurchasePrincipalProtocol\.current/g,
+    )?.length,
+    4,
+  );
+  assertEquals(
+    resolverRemoteService.match(/let rotation_id: String/g)?.length,
+    3,
+  );
+  assertEquals(
+    resolverRemoteService.match(/let rotation_secret: String/g)?.length,
+    3,
+  );
+  for (
+    const payloadContract of [
+      'let operation = "resolve"',
+      "let binding_intent_generation: Int64",
+      'let operation = "prepare_signout_rotation"',
+      "let expected_binding_generation: Int64",
+      'let operation = "claim_signout_rotation"',
+      'let operation = "cancel_signout_rotation"',
+    ]
+  ) {
+    assertStringIncludes(resolverRemoteService, payloadContract);
+  }
   assertStringIncludes(
     supabaseManager,
     "RevenueCatManager.shared.beginPurchaseIdentityResolution()",

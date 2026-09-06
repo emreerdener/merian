@@ -572,15 +572,8 @@ struct CoreNetworkIntegrationArchitectureTests {
         }
     }
 
-    @Test func purchaseIdentityJournalsHaveOneSecureStorageOwner() throws {
+    @Test func purchaseIdentityJournalsRetainOneSecureStorageOwner() throws {
         let manager = try networkSource("SupabaseManager.swift")
-        let purchaseIdentityRoot = try repositoryRoot().appendingPathComponent(
-            "apps/ios/Merian/Core/Security/PurchaseIdentity"
-        )
-        let prefix = purchaseIdentityRoot.path + "/"
-        let actualPaths = try Set(swiftFiles(below: purchaseIdentityRoot).map {
-            String($0.path.dropFirst(prefix.count))
-        })
         let models = try source(
             "apps/ios/Merian/Core/Security/PurchaseIdentity/Models/PurchaseIdentityHandoffModels.swift"
         )
@@ -589,13 +582,6 @@ struct CoreNetworkIntegrationArchitectureTests {
         )
         let storeTests = try source(
             "apps/ios/MerianTests/Core/Security/PurchaseIdentity/PurchaseIdentityHandoffStoreTests.swift"
-        )
-
-        #expect(
-            actualPaths == [
-                "Models/PurchaseIdentityHandoffModels.swift",
-                "Stores/PurchaseIdentityHandoffStore.swift"
-            ]
         )
 
         for declaration in [

@@ -344,14 +344,18 @@ A structured schema built on native SwiftData migrations:
   unchanged RevenueCat identity, a successful entitlement session, and the same
   anonymous Auth generation are verified. No stable sign-out receipt sync or
   customer transfer occurs.
-- `Core/Security/PurchaseIdentity/` owns the installed legacy and protocol-3
-  journal models plus their injected Keychain store. It validates values before
-  writes and after reads, preserves the existing device-only keys and JSON
-  fields, verifies writes and removals, and performs no network or provider
-  work. `PurchaseIdentitySignOutWorkflow` owns deterministic phase and
-  cancellation ordering; legacy completion rejects an already-cancelled task
-  before its server destination-bind request and retains proof after any later
-  failure.
+- `Core/Security/PurchaseIdentity/` owns purchase-principal domain/wire models,
+  deterministic validation, fingerprint, intent, fallback, and secret policies,
+  verified capability/resolver state, secure randomness, and typed remote
+  operations. Its live adapter is the sole Supabase and private request-payload
+  owner for the four resolver-route operations; the source-compatible
+  `PurchasePrincipalResolver` remains the orchestration facade. The folder also
+  owns the installed legacy and protocol-3 journal models plus their injected
+  Keychain store. It preserves the existing device-only keys and local formats
+  and verifies writes and removals. `PurchaseIdentitySignOutWorkflow` owns
+  deterministic phase and cancellation ordering; legacy completion rejects an
+  already-cancelled task before its server destination-bind request and retains
+  proof after any later failure.
 - `Core/Security/GhostProfileMerge/` owns the provider-bound handoff and
   version-1 queue models plus their injected Keychain store. It validates values
   before writes and after reads, preserves the established device-only key and
@@ -382,12 +386,20 @@ A structured schema built on native SwiftData migrations:
 - `EntitlementManager` verifies `get_my_entitlement()` for the active Supabase
   user each launch, derives complimentary functional access from only that
   current versioned snapshot, buffers stored replay metadata until the launch
-  baseline succeeds, and rejects stale responses. `RevenueCatManager` owns paid
-  access and paid-only public badge state. Purchase, restore, and offer-code
-  redemption require the requested Auth user, account kind, provider identity,
-  binding generation, and pending-handoff fences to agree. Both anonymous and
-  permanent Supabase users are valid sessions; a generic unauthorized response
-  never authorizes identity rotation.
+  baseline succeeds, and rejects stale responses. Deterministic RevenueCat
+  values and identity, access, offering, verification, provenance, and privacy
+  policies live under
+  [`Core/Security/RevenueCat/{Models,Policies}`](../../apps/ios/Merian/Core/Security/RevenueCat/README.md)
+  without SDK calls, tasks, or observable state. The provider-neutral identity
+  coordinator owns requested/linked identity, serialized task lifetime, request
+  and monotonic handoff-generation fencing, and stale-commit rejection.
+  `RevenueCatManager` remains the sole live SDK facade and owns paid access and
+  paid-only public badge state. Purchase, restore, and offer-code redemption
+  require the requested Auth user, account kind, provider identity, binding
+  generation, and pending-handoff fences to agree. An older suspended link
+  cannot restore captured account grants after a handoff begins. Both anonymous
+  and permanent Supabase users are valid sessions; a generic unauthorized
+  response never authorizes identity rotation.
 
 The active production hold, explicit beta-cohort contract, supervised worker
 cutover, and no-deletion policy are maintained in the

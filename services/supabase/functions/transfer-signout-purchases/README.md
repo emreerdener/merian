@@ -34,7 +34,10 @@ a random 256-bit secret, and stores only its SHA-256 hash. The response is
 ```
 
 The iOS client persists the proof using `whenUnlockedThisDeviceOnly` before it
-closes the linked session. If preparation or persistence fails, sign-out does
+closes the linked session. Its shared purchase-identity timestamp policy accepts
+the bounded fractional PostgreSQL form returned here and the whole-second form
+retained by installed local evidence. Malformed or oversized expiry values fail
+closed before persistence. If preparation or persistence fails, sign-out does
 not begin.
 
 ### Bind

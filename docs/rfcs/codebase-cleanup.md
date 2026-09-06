@@ -2578,6 +2578,171 @@ on an iPhone 17 Pro iOS 26.4 Simulator with zero failures. The complete
 `merianTests` runtime target is not claimed as run. No hosted request, database
 mutation, deployment, or external publication was performed.
 
+### `RevenueCatManager` Value and Policy Ownership
+
+The first RevenueCat hygiene slice moves thirteen source-compatible value and
+policy declarations out of the 917-line live manager into four focused owners:
+`RevenueCat/Models/RevenueCatModels.swift` and
+`RevenueCat/Policies/{RevenueCatIdentityPolicies,RevenueCatAccessPolicies,RevenueCatPrivacyPolicies}.swift`.
+Models, canonical identity, account-kind, mutation, and rebind decisions are
+Foundation-only. Access policy imports RevenueCat solely for verification and
+store value types; privacy policy owns severity-only log messages and the exact
+legacy attribute deletion map. None of the extracted owners configures or calls
+the SDK, creates tasks, mutates observable state, logs, or resolves an app
+singleton.
+
+The review also replaces two copies of the eight legacy subscriber-attribute
+strings with one typed `RevenueCatLegacySubscriberAttributeKey` registry. Legacy
+publication and stable-principal deletion now consume the same source of truth,
+preventing a future attribute addition from silently escaping the PII scrub list
+while preserving every emitted key and the existing dictionary API.
+
+At the end of this first slice, `RevenueCatManager.swift` fell to 644 lines and
+remained the sole live SDK facade, retaining every serialized configure/login
+effect, task and generation fence, observable paid-state projection, offering
+read, purchase/restore, entitlement handoff, UIKit subscription-management
+action, and log emission. The existing 539-line test suite was rehomed under the
+mirrored `Core/Security/RevenueCat` test package with only three instances of
+pre-existing trailing whitespace removed. A new architecture suite froze exact
+declaration ownership and dependency confinement, capped extracted owners at 200
+lines, and applied a temporary 650-line manager guard. The identity slice below
+supersedes that temporary boundary with the final 600-line guard.
+
+This pass changes no product identifier, App User ID casing, subscriber
+attribute key, error copy, verification or store-provenance decision, provider
+call, JSON payload, SwiftData/Keychain schema, feature flag, or release control.
+
+Swift parsing, strict affected-source SwiftLint, direct iOS typechecking of all
+four extracted owners, architecture-test macro typechecking, rehome comparison
+apart from the documented whitespace cleanup, byte-stable XcodeGen,
+project/resource/source membership, changed-Markdown formatting, and whitespace
+checks pass. The complete purchase-principal contract suite passes all 23 tests.
+An independent read-only contract audit found no behavioral, identity/privacy,
+provider, wire, test, project-grouping, or documentation drift and prompted a
+broader architecture guard against any future `Purchases.` access in
+deterministic owners. The follow-up review extended that guard to declaration
+uniqueness across the source tree and every common task/task-group construction
+form, then consolidated the two legacy attribute-key copies into the typed
+registry described above. A fresh generic Simulator build and runtime tests are
+not claimed: CoreSimulator is unavailable and the host rejects SwiftPM's nested
+package sandbox before source compilation.
+
+### RevenueCat Identity Coordination Ownership
+
+The second RevenueCat hygiene slice moves live requested/linked identity state,
+account-kind and binding-generation fences, handoff and account-grant readiness,
+request and monotonic handoff-fence generations, and serialized task lifetime
+into the focused `RevenueCatIdentityCoordinator`. The `@MainActor @Observable`
+coordinator runs only per-link injected reset and link closures. It imports no
+RevenueCat SDK, Supabase, UIKit, application singleton, or logger;
+`RevenueCatManager` remains the sole provider facade and supplies every
+configure, login, attribute, CustomerInfo, offering, purchase, restore, UIKit,
+and logging effect.
+
+The coordinator preserves the existing provider ordering contract. A newer
+identity request publishes its requested state immediately, waits for any older
+provider operation even if that operation ignores cancellation, rechecks its
+exact generation before executing, and is the only request allowed to commit.
+Explicit purchase-identity resolution invalidates in-flight work without asking
+RevenueCat to create an anonymous customer. A same-provider Auth or binding
+change retains the stable App User ID while immediately clearing account-bound
+readiness, and task cleanup uses exact-ID compare-before-clear semantics. A
+follow-up race audit also closes account-grant readiness when a handoff begins
+while provider work is suspended: the older request may still commit its exact
+identity, but its captured grant permission cannot override the newer monotonic
+handoff fence even when the handoff clears before the operation resumes. A fresh
+exact binding begun after that fence remains eligible to commit its permission
+once the handoff is clear.
+
+`RevenueCatManager.swift` is now 577 lines, below the final 600-line guard, and
+its existing initializer and callable surface remain unchanged. Computed
+read-throughs preserve observation of the nested coordinator without exposing
+its mutation surface. The deterministic coordinator suite covers overlapping
+cancellation-uncooperative links, invalidation, stale commits, same-provider
+rebinding, handoff readiness, and stable-versus-legacy sign-out; the manager
+suite adds a nested-observation regression. The architecture suite now freezes
+the coordinator dependency boundary and final manager ceiling.
+
+The ownership extraction changes no provider call or order, product identifier,
+App User ID, subscriber attribute, API payload, persistence schema, feature
+flag, or release control. The follow-up race fix intentionally tightens only the
+fail-closed account-grant decision during a handoff/link overlap. Swift parsing,
+strict affected-source SwiftLint, direct manager/coordinator and test
+typechecking, byte-stable XcodeGen, project/source membership,
+purchase-principal contracts, Markdown formatting, and whitespace validation
+pass; the purchase-principal suite reports 23 passing tests, its cross-surface
+migration contract reports 16, and the complete Edge suite reports 1,937 with
+zero failures and one intentional disposable-database ignore. A follow-up
+read-only contract audit found and corrected a stale Deno assertion that still
+assigned relocated serialization policy to the manager, taught the
+declaration-ownership matcher to recognize `final class`, and corrected
+documentation that described the directly constructed coordinator as
+initializer-injected. Host-side execution of the coordinator overlap cases and
+architecture suite body also passes. The documentation follow-up records the
+coordinator and monotonic overlap rule in the canonical purchase-principal RFC,
+links the local ownership guide back to that contract, and distinguishes the
+durable handoff state from its in-memory generation fence. Generic Xcode build
+and simulator runtime tests remain unclaimed: this host cannot initialize
+CoreSimulator and rejects SwiftPM's nested package sandbox before source
+compilation.
+
+### Purchase Principal Resolver Ownership
+
+The Purchase Identity hygiene slice reduces the 702-line
+`PurchasePrincipalResolver.swift` aggregate to a focused orchestration facade
+and moves its declarations into feature-owned
+`PurchaseIdentity/{Models,Policies,Stores,Services}` files. Domain mapping and
+wire DTOs, deterministic capability/intent/fallback/secret policy, verified
+capability and resolver-state persistence, secure randomness, and typed remote
+operations now have distinct owners. The live remote adapter is the only new
+owner that imports Supabase; it keeps all four exact request payloads private
+and remains the sole caller of `resolve-purchase-principal` on iOS. The existing
+`PurchasePrincipalResolver(client:keychain:)` construction and callable surface
+remain source-compatible.
+
+The review also narrows route-fallback classification to failures thrown by the
+remote resolve operation. Local response validation can no longer enter the
+compatibility fallback even if a future injected classifier is overly broad.
+Definite route absence remains eligible only before stable activation; after
+activation, it fails closed. No endpoint name, request or response field,
+protocol version, Keychain key or accessibility, persistence format, provider
+operation, feature flag, Auth-transition order, or release control changes.
+
+The existing resolver tests move into the mirrored Purchase Identity package,
+with new secure-state, injected interaction, and architecture suites. They
+freeze typed resolve/prepare/claim/cancel forwarding, response and continuity
+mapping, route-missing-only fallback, stable-activation downgrade prevention,
+verified persistence, declaration uniqueness, dependency confinement, private
+payload ownership, and a 250-line ceiling for every production file inside the
+folder. The cross-language purchase-principal migration contract follows the
+protocol and live-route declarations to their new owners.
+
+A generic iOS Simulator build and the complete app/test build-for-testing pass
+for both architectures. The focused runtime matrix passes 47 tests on an iPhone
+17 Pro iOS 26.4.1 Simulator, including all 12 purchase-safe sign-out workflow
+cases. The complete `merianTests` target then passes 3,020 tests with zero
+failures or skips. Its first pass exposed one stale Core Network integration
+assertion that still treated the Purchase Identity folder as a two-file journal
+package; the correction leaves that suite responsible only for journal
+integration and the new Purchase Principal architecture suite responsible for
+the exact package inventory. Strict SwiftLint reports zero violations, and Swift
+parsing, byte-stable XcodeGen, project/resource/source membership, event-routing
+and adversarial routing, the 16-case cross-language purchase-principal contract,
+all 1,937 Edge tests with one intentional disposable-database ignore, recursive
+Supabase formatting/linting, DTO and tooling gates, skill-link validation,
+changed-Markdown formatting, and whitespace checks pass.
+
+A subsequent adversarial review closed two invariants exposed by extraction. The
+now-module-visible secure-state owner validates an exact 64-character lowercase
+SHA-256 activation fingerprint before invoking secure persistence. The shared
+purchase identity timestamp policy now uses cached formatters and accepts both
+the fractional PostgreSQL RFC 3339 value emitted by the Edge route and the
+whole-second form already present in local evidence. Server-shaped interaction
+and journal fixtures cover the fractional form; malformed and oversized values
+remain fail-closed. This corrects client acceptance of an existing response
+contract without changing any payload, Keychain format, expiry authority, or
+rollout behavior.
+
 ## Phase 3: Ownership Cleanup
 
 After the large files are split, move code to clearer long-term homes:
