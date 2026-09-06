@@ -205,6 +205,41 @@ final class MerianNetworkClient {
         _ = try await sessionTransport.data(for: request)
     }
 
+    /// Dispatches only the authenticated, non-reserving admission RPC over the
+    /// shared pinned transport. The caller owns decoding and intentionally gets
+    /// no Auth refresh, replay, or generic raw-request capability.
+    func performPinnedScanAdmissionPreviewRequest(
+        _ request: URLRequest,
+        timeoutInterval: TimeInterval
+    ) async throws -> (Data, URLResponse) {
+        guard let baseURL = SecureTransportPolicy.httpsURL(from: supabaseUrl),
+              let requestURL = request.url else {
+            throw MerianError.invalidURL
+        }
+        let expectedURL = baseURL
+            .appendingPathComponent("rest")
+            .appendingPathComponent("v1")
+            .appendingPathComponent("rpc")
+            .appendingPathComponent("get_my_scan_admission_preview")
+        let authorization = request.value(forHTTPHeaderField: "Authorization")
+        let apiKey = request.value(forHTTPHeaderField: "apikey")
+        guard request.httpMethod == "POST",
+              requestURL == expectedURL,
+              authorization?.hasPrefix("Bearer ") == true,
+              authorization.map({
+                  String($0.dropFirst("Bearer ".count))
+                      .trimmingCharacters(in: .whitespacesAndNewlines)
+              })?.isEmpty == false,
+              apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty == false else {
+            throw MerianError.invalidURL
+        }
+        return try await sessionTransport.data(
+            for: request,
+            timeoutInterval: timeoutInterval
+        )
+    }
+
     /// Builds one authenticated inference request without exposing endpoint URLs,
     /// Auth headers, or account-work leases to the endpoint extension.
     func makeAuthenticatedInferenceURLRequest(

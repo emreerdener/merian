@@ -12,7 +12,11 @@ on:
       - "scripts/test-ci-run-summary.sh"
       - "scripts/supabase-db-url.sh"
       - "apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift"
-      - "apps/ios/Merian/Core/Security/ConsentManager.swift"
+      - "apps/ios/Merian/Core/Network/SupabaseManager.swift"
+      - "apps/ios/Merian/Core/Network/MerianNetworkClient.swift"
+      - "apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift"
+      - "apps/ios/Merian/Core/Network/Auth/**"
+      - "apps/ios/Merian/Core/Security/**"
       - "services/supabase/**"
   workflow_dispatch:
 
@@ -137,7 +141,7 @@ jobs:
       - name: Summarize workflow context
         env:
           WORKFLOW_PURPOSE: "Production Supabase backend deploy: validate Edge code, push database migrations, deploy functions, and smoke-test production endpoints."
-          WORKFLOW_REASON: "This workflow is path-filtered to Supabase backend and deploy-support changes, or manual dispatch. It is intentionally separate from iOS simulator startup safety."
+          WORKFLOW_REASON: "This workflow is path-filtered to Supabase backend and deploy-support changes, reviewed iOS cross-surface contract owners, or manual dispatch. It is intentionally separate from iOS simulator startup safety."
         run: bash ../scripts/ci-run-summary.sh
 
       - name: Test workflow summary rendering

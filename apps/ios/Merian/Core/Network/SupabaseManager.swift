@@ -784,9 +784,13 @@ private struct RevenueCatPublicIdentity: Decodable {
                         continue
                     }
                     guard let session = state.session else { continue }
-                    if currentUser?.id != session.user.id {
+                    if transitionSession(from: currentUser) !=
+                        transitionSession(from: session.user) {
                         activePurchasePrincipalBinding = nil
                         lastLinkedUserId = nil
+                        RevenueCatManager.shared
+                            .beginPurchaseIdentityResolution()
+                        EntitlementManager.shared.handleSignOut()
                     }
                     self.currentUser = session.user
                     self.isAuthenticated = true

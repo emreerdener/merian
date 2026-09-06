@@ -31,6 +31,11 @@ justification. Naturebook does not use that exception.
   media, and reference media are validated at the boundary that first turns
   their string representation into a network URL. ATS remains the independent
   operating-system backstop.
+- The authenticated scan-admission PostgREST preview may dispatch only through
+  `MerianNetworkClient.performPinnedScanAdmissionPreviewRequest`. That bridge
+  admits the exact configured Supabase RPC route only with a nonempty bearer
+  credential and nonempty anon API key, and reuses `PinnedNetworkTransport`; it
+  cannot create an unpinned bearer-token session.
 
 ## Supabase certificate-pinning boundary
 
@@ -82,11 +87,13 @@ closed.
 `PinnedNetworkTransportTests` independently verifies exact hostname admission,
 valid pin encoding, intermediate fallback, rejection of missing, empty,
 unmatched, or platform-untrusted chains, concurrent single-session creation, and
-the Debug replacement seam. `CoreNetworkIntegrationArchitectureTests` keeps
-session construction, `SecTrustEvaluateWithError`, the TLS delegate, and the
-Release cancellation paths in their reviewed owner. These Swift tests do not
-replace the plist/archive validators, and those validators do not prove pin
-freshness.
+the Debug replacement seam plus bounded no-cache dispatch and cancellation of a
+non-completing request at its wall-clock deadline.
+`CoreNetworkIntegrationArchitectureTests` keeps session construction,
+`SecTrustEvaluateWithError`, the TLS delegate, and the Release cancellation
+paths in their reviewed owner and locks scan admission to its exact
+pinned/no-retry bridge. These Swift tests do not replace the plist/archive
+validators, and those validators do not prove pin freshness.
 
 The same check is part of `make test-ios-ci-tooling`, the generated-project
 guardrail workflow, `scripts/validate-ios-archive.sh`, and

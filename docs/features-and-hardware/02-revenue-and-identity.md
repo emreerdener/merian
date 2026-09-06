@@ -355,6 +355,15 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   readiness but does not call RevenueCat logout, preventing `$RCAnonymousID`
   creation. Legacy custom-ID switches still require the separate verified server
   mirror and receipt-sync contract described above.
+- Every ordinary CustomerInfo and offering read, purchase, restore, and
+  subscription-management presentation captures the exact App User ID plus the
+  identity-request and handoff generations. A completion may publish or open
+  fallback UI only while that complete context remains current. The trusted
+  handoff-only `syncPurchases()` path bypasses pending-handoff purchase
+  readiness but captures and rechecks the same monotonic context. Auth
+  replacement, including a same-UUID anonymous-to-permanent upgrade, closes both
+  RevenueCat and server entitlement readiness before the new session becomes
+  observable.
 - Configures RevenueCat entitlement verification in informational mode and
   grants local paid presentation/operation readiness only for CustomerInfo
   reported as `verified` or `verifiedOnDevice`. Any unverified snapshot closes

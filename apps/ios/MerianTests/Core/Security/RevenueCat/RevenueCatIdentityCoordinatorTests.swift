@@ -181,6 +181,50 @@ final class RevenueCatIdentityCoordinatorTests: XCTestCase {
         ))
     }
 
+    func testProviderOperationContextChangesAcrossEveryReadinessFence() async {
+        let coordinator = RevenueCatIdentityCoordinator()
+        let linkedRequest = request(
+            appUserID: "shared-principal",
+            accountGrantsAllowed: true,
+            usesStablePurchasePrincipal: true
+        )
+        await commit(linkedRequest, on: coordinator)
+
+        let initial = providerOperationContext(
+            appUserID: linkedRequest.appUserID,
+            coordinator: coordinator
+        )
+        coordinator.beginPurchaseIdentityResolution()
+        let resolving = providerOperationContext(
+            appUserID: linkedRequest.appUserID,
+            coordinator: coordinator
+        )
+        XCTAssertNotEqual(resolving, initial)
+
+        await commit(linkedRequest, on: coordinator)
+        let rebound = providerOperationContext(
+            appUserID: linkedRequest.appUserID,
+            coordinator: coordinator
+        )
+        XCTAssertNotEqual(rebound, resolving)
+
+        coordinator.setPurchaseIdentityHandoffPending(true)
+        let handoff = providerOperationContext(
+            appUserID: linkedRequest.appUserID,
+            coordinator: coordinator
+        )
+        XCTAssertNotEqual(handoff, rebound)
+
+        coordinator.setPurchaseIdentityHandoffPending(false)
+        XCTAssertEqual(
+            providerOperationContext(
+                appUserID: linkedRequest.appUserID,
+                coordinator: coordinator
+            ),
+            handoff
+        )
+    }
+
     func testPendingHandoffDominatesGrantsCommittedByInFlightLink() async {
         let coordinator = RevenueCatIdentityCoordinator()
         let request = request(
@@ -328,6 +372,13 @@ final class RevenueCatIdentityCoordinatorTests: XCTestCase {
                 XCTAssertTrue(coordinator.commit(context))
             }
         )
+    }
+
+    private func providerOperationContext(
+        appUserID: String,
+        coordinator: RevenueCatIdentityCoordinator
+    ) -> RevenueCatProviderOperationContext {
+        coordinator.providerOperationContext(appUserID: appUserID)
     }
 
     private func request(

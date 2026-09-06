@@ -67,22 +67,14 @@ extension CaptureWorkspaceViewModelRefinementTests {
     }
 
     func testScanAdmissionPreviewUsesBoundedFailFastTransportPolicy() {
-        let configuration = ScanAdmissionManager.previewSessionConfiguration()
+        let configuration = PinnedNetworkTransport.makeConfiguration()
 
         XCTAssertEqual(
-            configuration.timeoutIntervalForRequest,
-            ScanAdmissionManager.previewRequestTimeout
-        )
-        XCTAssertEqual(
-            configuration.timeoutIntervalForResource,
-            ScanAdmissionManager.previewRequestTimeout
+            ScanAdmissionManager.previewRequestTimeout,
+            2
         )
         XCTAssertFalse(configuration.waitsForConnectivity)
         XCTAssertNil(configuration.urlCache)
-        XCTAssertEqual(
-            configuration.requestCachePolicy,
-            .reloadIgnoringLocalCacheData
-        )
     }
 
     func testConnectivityUnavailableAdmissionQueuesWithoutForegroundInferenceAndCancelsVisualContext() async throws {

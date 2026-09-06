@@ -80,7 +80,9 @@ begins this pipeline:
    correction flow bypasses only its Pro UI gate.
 
    A satisfied network path is advisory, so the caller-scoped admission preview
-   has an isolated two-second, no-wait/no-cache/no-retry transport. A classified
+   uses an exact-route bridge over the shared certificate-pinned session with a
+   nonempty bearer credential and nonempty anon API key, a two-second
+   request/wall-clock deadline, and no wait, cache, or retry. A classified
    transport failure plus local eligibility selects queue-only and creates no
    foreground inference generation; malformed, authentication/TLS, server, and
    valid policy failures remain fail-closed. Authoritative quota reservation

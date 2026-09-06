@@ -12,6 +12,27 @@ struct RevenueCatArchitectureTests {
         let manager = try source(
             at: securityRoot.appendingPathComponent("RevenueCatManager.swift")
         )
+        let handoffStart = try #require(
+            manager.range(of: "func synchronizePurchasesAfterIdentityHandoff(")
+        )
+        let handoffEnd = try #require(
+            manager.range(
+                of: "func synchronizePurchasesAfterAccountMerge(",
+                range: handoffStart.upperBound..<manager.endIndex
+            )
+        )
+        let handoffSynchronization = String(
+            manager[handoffStart.lowerBound..<handoffEnd.lowerBound]
+        )
+        let synchronizationCall = try #require(
+            handoffSynchronization.range(of: "Purchases.shared.syncPurchases()")
+        )
+        let beforeSynchronization = handoffSynchronization[
+            ..<synchronizationCall.lowerBound
+        ]
+        let afterSynchronization = handoffSynchronization[
+            synchronizationCall.upperBound...
+        ]
         let models = try source(
             at: revenueCatRoot.appendingPathComponent(
                 "Models/RevenueCatModels.swift"
@@ -51,6 +72,9 @@ struct RevenueCatArchitectureTests {
         let ownership: [(String, String)] = [
             ("class RevenueCatIdentityCoordinator", identityCoordinator),
             ("struct SevenDayPassPurchase", models),
+            ("struct RevenueCatProviderOperationContext", models),
+            ("struct RevenueCatIdentityRequest", models),
+            ("struct RevenueCatIdentityLinkContext", models),
             ("enum RevenueCatLegacySubscriberAttributeKey", models),
             ("enum RevenueCatManagerError", models),
             ("struct RevenueCatIdentityContext", models),
@@ -106,6 +130,24 @@ struct RevenueCatArchitectureTests {
         #expect(identityCoordinator.contains("@Observable"))
         #expect(identityCoordinator.contains("Task { @MainActor"))
         #expect(manager.contains("RevenueCatIdentityCoordinator()"))
+        #expect(manager.contains("currentProviderOperationContext()"))
+        #expect(
+            beforeSynchronization.contains(
+                "let context = identityCoordinator.providerOperationContext("
+            )
+        )
+        #expect(
+            afterSynchronization.contains(
+                "identityCoordinator.providerOperationContext("
+            )
+        )
+        #expect(afterSynchronization.contains(") == context"))
+        #expect(
+            manager.components(
+                separatedBy: "isCurrentProviderOperation(context)"
+            ).count >= 6
+        )
+        #expect(!manager.contains("guard isIdentityReady else { return }"))
         for relocatedState in [
             "requestedAppUserID",
             "requestedAuthUserID",

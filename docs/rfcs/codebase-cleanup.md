@@ -2654,8 +2654,8 @@ handoff fence even when the handoff clears before the operation resumes. A fresh
 exact binding begun after that fence remains eligible to commit its permission
 once the handoff is clear.
 
-`RevenueCatManager.swift` is now 577 lines, below the final 600-line guard, and
-its existing initializer and callable surface remain unchanged. Computed
+`RevenueCatManager.swift` remains below the final 600-line guard, and its
+existing initializer and callable surface remain unchanged. Computed
 read-throughs preserve observation of the nested coordinator without exposing
 its mutation surface. The deterministic coordinator suite covers overlapping
 cancellation-uncooperative links, invalidation, stale commits, same-provider
@@ -2742,6 +2742,63 @@ and journal fixtures cover the fractional form; malformed and oversized values
 remain fail-closed. This corrects client acceptance of an existing response
 contract without changing any payload, Keychain format, expiry authority, or
 rollout behavior.
+
+### Core Security-wide Integration Audit
+
+The 2026-09-06 integration audit reviews the joined boundary from Supabase Auth
+adoption through purchase-principal resolution, RevenueCat identity/read state,
+server entitlement, scan admission, and consent. The extracted owners remain
+appropriately scoped: deterministic policy and secure persistence stay below
+`Core/Security`, live Auth and Supabase orchestration stay in `SupabaseManager`,
+and the one provider facade remains `RevenueCatManager`. Immutable RevenueCat
+identity request/link snapshots now live with the other value models; nested
+coordinator typealiases preserve existing call sites without compressing the
+coordinator against its line ceiling. No new singleton, general raw-network
+escape hatch, wire field, persistence schema, provider product, feature flag, or
+navigation contract is introduced.
+
+The audit closes three cross-owner gaps:
+
+- An Auth listener event that replaces either the UUID or anonymous/account kind
+  now invalidates the purchase-principal binding, RevenueCat paid readiness, and
+  current-launch server entitlement synchronously before publishing the new
+  session. A replacement account can no longer observe the prior account's paid
+  or complimentary state while its asynchronous identity link is starting.
+- RevenueCat CustomerInfo, offerings, purchases, restores, and subscription-
+  management presentation capture an exact App User ID plus monotonic identity-
+  request and handoff generations. A completion that crosses either fence is
+  discarded, including a same-provider-principal rebind or a handoff that starts
+  and finishes while provider work is suspended. The trusted handoff-only
+  StoreKit synchronization bypasses pending-handoff purchase readiness so it can
+  execute the protocol, but captures and rechecks that same monotonic context.
+- `ScanAdmissionManager` no longer constructs an ad hoc unpinned bearer-token
+  session. Its PostgREST callback can dispatch only the exact authenticated
+  `get_my_scan_admission_preview` RPC through `MerianNetworkClient` and the
+  existing certificate-pinned session; missing or blank bearer and anon-key
+  credentials fail before dispatch. `PinnedNetworkTransport` provides the
+  existing no-cache, no-connectivity-wait two-second request and wall-clock
+  deadline; PostgREST still performs no retry, and its private response value
+  retains compiler-checked `Sendable` isolation without an unchecked
+  conformance.
+
+The production deploy workflow's `main` push scope now follows the extracted iOS
+cross-surface contract owners: `SupabaseManager`, the exact scan-admission
+bridge in `MerianNetworkClient`, `PinnedNetworkTransport`,
+`Core/Network/Auth/**`, and `Core/Security/**`, in addition to the generated
+inference DTO and Supabase tree. Workflow-security and candidate-detector
+regressions freeze representative Auth, consent, purchase-principal,
+scan-admission, and pinned-transport paths so a later ownership move cannot
+silently skip the complete predecessor gate. This trigger widening does not
+authorize deployment; the existing candidate validation, source hold, Production
+approval, exact-SHA evidence, and smoke gates remain unchanged.
+
+Regression coverage now locks account-replacement ordering, every provider-read
+fence generation, handoff-only StoreKit context capture before provider
+suspension and recheck afterward, exact scan-admission route/header confinement,
+bounded pinned dispatch including cancellation of a non-completing request at
+its deadline, sole URLSession ownership, no-retry admission, and the updated
+workflow scope. The audit retains the established 600-line ceilings for the live
+RevenueCat and Core Network facades.
 
 ## Phase 3: Ownership Cleanup
 

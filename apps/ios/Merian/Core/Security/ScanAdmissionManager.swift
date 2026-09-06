@@ -93,8 +93,7 @@ final class ScanAdmissionManager {
         }
         defer { supabaseManager.finishAccountBoundWork(accountWorkLease) }
 
-        let urlSession = URLSession(configuration: Self.previewSessionConfiguration())
-        defer { urlSession.invalidateAndCancel() }
+        let networkClient = MerianNetworkClient.shared
         let postgrest = PostgrestClient(
             url: supabaseURL
                 .appendingPathComponent("rest")
@@ -104,9 +103,11 @@ final class ScanAdmissionManager {
                 "apikey": MerianEnvironment.supabaseAnonKey
             ],
             fetch: { request in
-                var request = request
-                request.timeoutInterval = Self.previewRequestTimeout
-                return try await urlSession.data(for: request)
+                try await networkClient
+                    .performPinnedScanAdmissionPreviewRequest(
+                        request,
+                        timeoutInterval: Self.previewRequestTimeout
+                    )
             },
             retryEnabled: false
         )
@@ -136,16 +137,6 @@ final class ScanAdmissionManager {
             )
             return Self.result(for: error)
         }
-    }
-
-    nonisolated static func previewSessionConfiguration() -> URLSessionConfiguration {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        configuration.urlCache = nil
-        configuration.waitsForConnectivity = false
-        configuration.timeoutIntervalForRequest = previewRequestTimeout
-        configuration.timeoutIntervalForResource = previewRequestTimeout
-        return configuration
     }
 
 #if DEBUG

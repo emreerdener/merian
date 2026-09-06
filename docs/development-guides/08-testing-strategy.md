@@ -113,6 +113,17 @@ most three attempts with the same immutable installer SHA, then verifies exact
 version `2.9.4`; exhausted retries remain a failed candidate rather than being
 treated as passing evidence.
 
+The production deploy workflow's push filter separately includes the generated
+inference DTO contract, `Core/Network/SupabaseManager.swift`, the exact scan-
+admission bridge in `Core/Network/MerianNetworkClient.swift`, its
+`Core/Network/Transport/PinnedNetworkTransport.swift` transport, all extracted
+`Core/Network/Auth` owners, and all `Core/Security` owners. The
+workflow-security suite freezes that inventory, while
+`scripts/test-ci-detect-supabase-candidate-source-changes.sh` proves
+representative Auth, consent, purchase-principal, scan-admission, and pinned-
+transport files remain candidate inputs. This prevents an iOS contract-owner
+extraction from silently bypassing the production predecessor gate.
+
 The complete repository-tooling suite is a separate discovery-based gate:
 
 ```bash
@@ -2923,15 +2934,18 @@ import, and permission-denial UI require the physical-device checklist in
   read-back, case-insensitive exact removal, and secure-store error propagation.
   Run these four suites with `SupabaseManagerTests` and
   `CoreNetworkIntegrationArchitectureTests`.
-- **`PinnedNetworkTransportTests.swift`**: Owns seven focused transport cases.
+- **`PinnedNetworkTransportTests.swift`**: Owns nine focused transport cases.
   The three regressions moved from `MerianNetworkClientTests` protect
   intermediate-CA fallback, missing/empty/unmatched or platform-untrusted chain
   rejection, and nonempty valid SHA-256 pins. Two additional cases lock the
   30/90-second configuration, six-connection/cookie/cache policy, and the DEBUG
-  injected-session dispatch seam. The remaining cases prove exact Supabase
-  hostname admission—including suffix-lookalike rejection—and concurrent first
-  use retains one production session. The architecture suite separately locks
-  the Release `SecTrustEvaluateWithError` call and cancellation paths.
+  injected-session dispatch seam. Two bounded-dispatch cases prove the injected
+  pinned session receives the caller's no-cache/request timeout and that a
+  non-completing request is cancelled at its wall-clock deadline. The remaining
+  cases prove exact Supabase hostname admission—including suffix-lookalike
+  rejection—and concurrent first use retains one production session. The
+  architecture suite separately locks the Release `SecTrustEvaluateWithError`
+  call and cancellation paths.
 - **`AuthenticatedTransportDispatcherTests.swift`**: Uses an injected session
   and account UUID to verify value-only owner resolution and exact authenticated
   JSON request construction without live Auth or network access. Auth lease and
@@ -2950,19 +2964,18 @@ import, and permission-denial UI require the physical-device checklist in
   cross-run contamination. `RevenueCatManagerTests` also locks the required
   current-offering product set to `pro_week` plus `pro_annual`, pending-identity
   mutation fences, and stable-versus-legacy identity policy. Resolver tests lock
-  model/policy tests lock exact DTO decoding and reject malformed or
-  RevenueCat-anonymous IDs; the interaction and architecture suites separately
-  lock typed operation forwarding, secure-state ownership, and the sole live
-  resolver-route adapter. Source contracts require serialized SDK identity
-  mutation and no stable-mode account PII attributes or receipt sync.
-  `MerianNetworkClientTests` separately proves that a generic `401` cannot
-  rotate an anonymous UUID or discard pending identity evidence. This does not
-  replace dashboard/App Store smoke testing or prove either stable principal
-  continuity or legacy provider transfer on a physical device.
-  `EntitlementManagerTests` lock current-launch verification, buffered replay
-  metadata, stale-version rejection, account isolation, balance validation,
-  exhaustion, and the difference between functional access and new-scan
-  capacity.
+  exact DTO decoding and reject malformed or RevenueCat-anonymous IDs; the
+  interaction and architecture suites separately lock typed operation
+  forwarding, secure-state ownership, and the sole live resolver-route adapter.
+  Source contracts require serialized SDK identity mutation and no stable-mode
+  account PII attributes or receipt sync. `MerianNetworkClientTests` separately
+  proves that a generic `401` cannot rotate an anonymous UUID or discard pending
+  identity evidence. This does not replace dashboard/App Store smoke testing or
+  prove either stable principal continuity or legacy provider transfer on a
+  physical device. `EntitlementManagerTests` lock current-launch verification,
+  buffered replay metadata, stale-version rejection, account isolation, balance
+  validation, exhaustion, and the difference between functional access and
+  new-scan capacity.
 - **`Core/Security/RevenueCat/RevenueCatArchitectureTests.swift`**: Freezes the
   exact RevenueCat Models/Policies/Coordinators inventory, source-wide
   declaration uniqueness, one production literal per legacy subscriber-attribute
@@ -2970,9 +2983,11 @@ import, and permission-denial UI require the physical-device checklist in
   logging, and application singletons from the identity coordinator; excludes
   observation, tasks, and live dependencies from deterministic values and
   policies; caps every extracted file at 200 lines; and enforces the final
-  600-line ceiling for the live manager. The original manager cases are rehomed
-  beside this guard with only pre-existing trailing whitespace removed; one new
-  manager case locks nested coordinator observation.
+  600-line ceiling for the live manager. It also freezes handoff-only StoreKit
+  context capture before provider suspension and the exact context recheck after
+  completion. The original manager cases are rehomed beside this guard with only
+  pre-existing trailing whitespace removed; one new manager case locks nested
+  coordinator observation.
 - **`Core/Security/RevenueCat/RevenueCatIdentityCoordinatorTests.swift`**:
   Deterministically suspends injected link work to prove replacement
   serialization despite cancellation-uncooperative provider calls, stale-commit
@@ -2980,7 +2995,8 @@ import, and permission-denial UI require the physical-device checklist in
   rebinding, account-grant and handoff readiness, a monotonic handoff fence
   overriding grants captured by older suspended work whether it resumes before
   or after handoff completion, post-fence binding admission once the handoff is
-  clear, and stable-versus-legacy sign-out retention. The manager suite
+  clear, provider-operation context changes across every identity and handoff
+  fence, and stable-versus-legacy sign-out retention. The manager suite
   separately proves its public handoff read-through remains observable after
   state ownership moves into the nested coordinator.
 - **`MerianConfigTests.swift` production-environment coverage**: Verifies that a
@@ -4887,9 +4903,15 @@ closure gate, not merely a compiled test; see the
 
 The preceding pre-queue boundary has separate deterministic coverage.
 `testScanAdmissionPreviewUsesBoundedFailFastTransportPolicy` locks the exact
-two-second request/resource deadline, disabled connectivity wait, absent cache,
-and source contract disables PostgREST retry.
-`connectivityFailuresSelectQueueOnlyAdmission` locks every reviewed
+two-second policy and shared transport's disabled connectivity wait/absent
+cache. `boundedDispatchUsesThePinnedSessionWithoutCaching` exercises the
+caller-bound request deadline and no-cache override through the one injected
+pinned session, while `boundedDispatchCancelsANonCompletingRequestAtItsDeadline`
+proves the wall-clock deadline cancels a request that never produces a response.
+`testScanAdmissionBridgeAllowsOnlyItsExactPinnedRPC` rejects a different raw RPC
+route plus empty bearer and blank anon-key credentials without dispatch, and the
+integration architecture guard requires the fixed bridge and disabled PostgREST
+retry. `connectivityFailuresSelectQueueOnlyAdmission` locks every reviewed
 offline/data-path URL code and the bounded underlying-error traversal;
 `authenticationAndTrustFailuresRemainFailClosed` locks TLS/auth exclusions,
 certificate-policy veto precedence over broad outer transport errors, and
@@ -6220,45 +6242,47 @@ The identity test matrix now has two explicit lanes:
   shared OAuth replacement cancellation before suppression plus post-suppression
   rollback without SDK installation, and terminal workflow ownership. The Core
   Network integration architecture suite additionally pins exact-generation
-  listener/bootstrap publication, transition-aware stable and legacy proof
-  retirement, Google provider cancellation, the direct provider-link
-  pre-mutation fence, and task-ID compare-before-clear cleanup.
-  `EntitlementManagerTests.swift` rejects a response unless account context,
-  user, request generation, and the single-row result all match.
-  Authenticated-request tests must prove an A-bound body cannot dispatch as B,
-  including foreground and background inference request bodies, and that a 401
-  releases its lease before recovery. Background inference dispatch must prove
-  its typed request remains bound to the same Auth UUID as the lease held
-  through the terminal URLSession callback—not merely `resume()`. Offline
-  staging tests must reject a canonical but different-owner R2 manifest, carry
-  the captured Auth UUID into URL signing and `upload_v2`, and hold that same
-  account lease through upload completion. Parser tests retain legacy task
-  compatibility but classify unprovable ownership as fail-closed.
-  `BackgroundDatabaseActorTests.swift` must prove upload/inference retirement
-  commits pending state and clears source-owned staging keys before task
-  cancellation. `OfflineQueueManagerTests.swift` must prove terminal callback
-  registration happens before the actor hop and that `urlSessionDidFinishEvents`
-  cannot invoke the system completion handler until every asynchronous
-  queue/result write is finished. Failed inference dispatch must durably return
-  `.inferencing` work to pending before cancellation or return. The same suite
-  must prove stale species metadata cannot overwrite a replacement
-  identification. `InferenceEngineTests.swift` retains the engine-level Auth
-  integration proof, while `InferenceWriteCoordinatorTests.swift` directly uses
-  a cancellation-ignoring active write to prove the fence remains blocked until
-  that task terminates and rejects newly submitted writes while closed. UI tests
-  require the competing buttons to disable and forbid both “Ghost” and “guest
-  session” presentation. `BackgroundDatabaseActorTests.swift` proves collection
-  sync neither invokes Edge when an Auth transition owns the session nor removes
-  a tombstone when a transition begins during an in-flight request. RevenueCat
-  tests admit only `verified` or `verifiedOnDevice` CustomerInfo and prove
-  stable mode rejects promotional and missing/unknown store provenance for the
-  annual alias while the explicitly approved legacy/account lane may admit its
-  account grant. Shared authenticated-request tests also prove every recursive
-  retry remains pinned to the initiating account and cannot adopt a replacement
-  session. SDK/provider log bodies are discarded. Physical-device evidence
-  remains mandatory for double taps, delayed provider sheets, kill/relaunch at
-  each persistence boundary, first-unlock Keychain failure, 401 recovery,
-  deletion, and account switch.
+  listener/bootstrap publication, replacement-session invalidation of the
+  purchase principal, RevenueCat readiness, and server entitlement before Auth
+  publication, transition-aware stable and legacy proof retirement, Google
+  provider cancellation, the direct provider-link pre-mutation fence, and
+  task-ID compare-before-clear cleanup. `EntitlementManagerTests.swift` rejects
+  a response unless account context, user, request generation, and the
+  single-row result all match. Authenticated-request tests must prove an A-bound
+  body cannot dispatch as B, including foreground and background inference
+  request bodies, and that a 401 releases its lease before recovery. Background
+  inference dispatch must prove its typed request remains bound to the same Auth
+  UUID as the lease held through the terminal URLSession callback—not merely
+  `resume()`. Offline staging tests must reject a canonical but different-owner
+  R2 manifest, carry the captured Auth UUID into URL signing and `upload_v2`,
+  and hold that same account lease through upload completion. Parser tests
+  retain legacy task compatibility but classify unprovable ownership as
+  fail-closed. `BackgroundDatabaseActorTests.swift` must prove upload/inference
+  retirement commits pending state and clears source-owned staging keys before
+  task cancellation. `OfflineQueueManagerTests.swift` must prove terminal
+  callback registration happens before the actor hop and that
+  `urlSessionDidFinishEvents` cannot invoke the system completion handler until
+  every asynchronous queue/result write is finished. Failed inference dispatch
+  must durably return `.inferencing` work to pending before cancellation or
+  return. The same suite must prove stale species metadata cannot overwrite a
+  replacement identification. `InferenceEngineTests.swift` retains the
+  engine-level Auth integration proof, while
+  `InferenceWriteCoordinatorTests.swift` directly uses a cancellation-ignoring
+  active write to prove the fence remains blocked until that task terminates and
+  rejects newly submitted writes while closed. UI tests require the competing
+  buttons to disable and forbid both “Ghost” and “guest session” presentation.
+  `BackgroundDatabaseActorTests.swift` proves collection sync neither invokes
+  Edge when an Auth transition owns the session nor removes a tombstone when a
+  transition begins during an in-flight request. RevenueCat tests admit only
+  `verified` or `verifiedOnDevice` CustomerInfo and prove stable mode rejects
+  promotional and missing/unknown store provenance for the annual alias while
+  the explicitly approved legacy/account lane may admit its account grant.
+  Shared authenticated-request tests also prove every recursive retry remains
+  pinned to the initiating account and cannot adopt a replacement session.
+  SDK/provider log bodies are discarded. Physical-device evidence remains
+  mandatory for double taps, delayed provider sheets, kill/relaunch at each
+  persistence boundary, first-unlock Keychain failure, 401 recovery, deletion,
+  and account switch.
 
 - **Legacy compatibility**: iOS seams prove prepare and verified Keychain
   persistence precede local sign-out, then bind → uppercase UUID RevenueCat link

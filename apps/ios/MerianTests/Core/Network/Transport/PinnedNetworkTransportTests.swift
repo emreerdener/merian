@@ -12,6 +12,7 @@ struct PinnedNetworkTransportTests {
         #expect(configuration.timeoutIntervalForResource == 90)
         #expect(configuration.httpMaximumConnectionsPerHost == 6)
         #expect(configuration.httpShouldSetCookies == false)
+        #expect(configuration.waitsForConnectivity == false)
         #expect(configuration.urlCache == nil)
     }
 
@@ -161,4 +162,80 @@ struct PinnedNetworkTransportTests {
         #expect(data == Data("transport-ok".utf8))
         #expect((response as? HTTPURLResponse)?.statusCode == 200)
     }
+
+    @Test func boundedDispatchUsesThePinnedSessionWithoutCaching() async throws {
+        let mockTransport = ScopedMockTransport()
+        let session = mockTransport.makeSession()
+        defer { session.invalidateAndCancel() }
+        mockTransport.register(path: "/bounded-transport-probe") { request in
+            #expect(request.timeoutInterval == 2)
+            #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
+            let url = try #require(request.url)
+            let response = try #require(
+                HTTPURLResponse(
+                    url: url,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )
+            )
+            return (response, Data("bounded-ok".utf8))
+        }
+
+        let transport = PinnedNetworkTransport()
+        transport.overridingSession = session
+        let url = try #require(
+            URL(
+                string:
+                    "https://example.supabase.co/bounded-transport-probe"
+            )
+        )
+        let (data, response) = try await transport.data(
+            for: URLRequest(url: url),
+            timeoutInterval: 2
+        )
+
+        #expect(data == Data("bounded-ok".utf8))
+        #expect((response as? HTTPURLResponse)?.statusCode == 200)
+    }
+
+    @Test func boundedDispatchCancelsANonCompletingRequestAtItsDeadline() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [NonCompletingPinnedURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+
+        let transport = PinnedNetworkTransport()
+        transport.overridingSession = session
+        let url = try #require(
+            URL(string: "https://example.supabase.co/non-completing-probe")
+        )
+        let startedAt = ContinuousClock.now
+
+        do {
+            _ = try await transport.data(
+                for: URLRequest(url: url),
+                timeoutInterval: 0.05
+            )
+            Issue.record("A non-completing request escaped its deadline")
+        } catch let error as URLError {
+            #expect(error.code == .timedOut)
+        }
+
+        #expect(startedAt.duration(to: .now) < .seconds(1))
+    }
+}
+
+private final class NonCompletingPinnedURLProtocol: URLProtocol {
+    override static func canInit(with _: URLRequest) -> Bool {
+        true
+    }
+
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {}
+
+    override func stopLoading() {}
 }

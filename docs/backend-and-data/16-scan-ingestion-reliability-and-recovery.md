@@ -260,9 +260,10 @@ library.
 
 Capture must not rely on `NWPathMonitor.isOnline` as proof that Supabase is
 reachable. Before camera/audio hardware or staged submission begins, the online
-admission preview uses an isolated ephemeral session with a two-second request
-and resource deadline, no connectivity wait, no cache, and no PostgREST retry.
-It returns one of three typed outcomes:
+admission preview uses an exact-route bridge over Core Network's shared
+certificate-pinned session with a two-second request and wall-clock deadline, no
+connectivity wait, no cache, and no PostgREST retry. It returns one of three
+typed outcomes:
 
 - a valid preview, whose `allowed`, `daily_quota_exhausted`, or `pro_required`
   decision is applied normally;

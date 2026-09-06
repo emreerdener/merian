@@ -164,16 +164,18 @@ audio clip, or description; video, mixed/multiple evidence, and refinement
 preflight as Pro-only. The RPC is a short-lived, read-only UX preview, not a
 reservation.
 
-The preview uses a dedicated ephemeral transport with an exact two-second
-request/resource bound, no connectivity wait, no cache, and no inline retry. If
-that transport reports a classified connectivity failure while reachability is
-still optimistic, current local eligibility may admit capture only onto a
-queue-only route. Submission persists the normal `OfflineQueuedScan`, starts no
-foreground inference generation, opens no analyzing Insight, and leaves the
-durable scheduler as the sole retry owner. Known-offline Capture uses the same
-local-meter route without calling the RPC. This prevents captive, black-holed,
-or stale-path Wi-Fi from turning an otherwise saveable observation into a
-pre-queue network-timeout failure.
+The preview uses an exact-route bridge over Core Network's shared certificate-
+pinned Supabase session. The bridge rejects missing or blank bearer and anon-key
+credentials. It applies a two-second request and wall-clock deadline, no
+connectivity wait, no cache, and no inline retry. If that transport reports a
+classified connectivity failure while reachability is still optimistic, current
+local eligibility may admit capture only onto a queue-only route. Submission
+persists the normal `OfflineQueuedScan`, starts no foreground inference
+generation, opens no analyzing Insight, and leaves the durable scheduler as the
+sole retry owner. Known-offline Capture uses the same local-meter route without
+calling the RPC. This prevents captive, black-holed, or stale-path Wi-Fi from
+turning an otherwise saveable observation into a pre-queue network-timeout
+failure.
 
 The fallback is intentionally narrow. Cancellation, a missing or malformed row,
 authentication/TLS failure, and server failure preserve staged input and show

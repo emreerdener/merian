@@ -8,8 +8,10 @@ decide server entitlement.
 ## Boundaries
 
 - `Models/RevenueCatModels.swift` owns the source-compatible seven-day purchase
-  value, manager error, normalized context for legacy subscriber attributes, and
-  the typed registry of every legacy attribute key.
+  value, manager error, normalized context for legacy subscriber attributes,
+  immutable identity request/link contexts, the monotonic provider-operation
+  context, and the typed registry of every legacy attribute key. Coordinator-
+  nested typealiases preserve existing request/context call sites.
 - `Policies/RevenueCatIdentityPolicies.swift` owns canonical App User IDs,
   recognized account kinds, admission for provider mutations, purchase
   admission, and reset decisions for identity rebinding. It depends only on
@@ -31,15 +33,23 @@ decide server entitlement.
   while a provider operation is suspended overrides that older operation's
   captured account-grant permission even when the handoff clears before the
   operation resumes. A fresh exact binding begun after that fence may commit
-  once the handoff is clear. The coordinator imports no RevenueCat SDK,
-  Supabase, UIKit, application singleton, or logger.
+  once the handoff is clear. Its semantic identity/handoff snapshot lets the
+  live facade fence provider reads that reuse the same App User ID. The
+  coordinator imports no RevenueCat SDK, Supabase, UIKit, application singleton,
+  or logger.
 
 `../RevenueCatManager.swift` remains the sole live iOS RevenueCat facade. It
 owns SDK configuration and calls, assembles the coordinator's live closures, and
 retains observable paid state, offering refresh, purchase and restore,
 entitlement projection, UIKit subscription management, and logging. Supabase
 purchase-principal resolution and server entitlement authority remain outside
-this folder.
+this folder. Every ordinary CustomerInfo, offering, purchase, restore, and
+subscription-management completion must still match the captured provider-
+operation context; an Auth rebind or handoff invalidates that context before
+stale state can be published or fallback UI opened. The trusted handoff-only
+StoreKit synchronization bypasses pending-handoff purchase readiness so it can
+finish that protocol, but it captures the same App User ID and monotonic
+identity/handoff generations and rejects a completion that crosses either fence.
 
 ## Compatibility and tests
 
@@ -50,9 +60,12 @@ release control. Manager, coordinator, and source-boundary suites live under
 `MerianTests/Core/Security/RevenueCat/`. Deterministic coordinator tests cover
 overlapping cancellation-uncooperative links, invalidation, exact commit
 admission, same-provider Auth rebinding, handoff readiness, handoff-versus-link
-overlap in both completion orders, post-fence binding admission, sign-out
-retention, and manager read-through observation. The architecture guard limits
-every file in this folder to 200 lines and the live manager to 600 lines.
+overlap in both completion orders, provider-read fencing, post-fence binding
+admission, sign-out retention, and manager read-through observation. The
+architecture guard limits every file in this folder to 200 lines and the live
+manager to 600 lines. Its source guard also pins handoff-only StoreKit context
+capture before provider suspension and the exact context recheck after the SDK
+completion.
 
 See the [Core Security guide](../README.md),
 [Core Managers](../../../../../../docs/development-guides/09-core-managers.md),

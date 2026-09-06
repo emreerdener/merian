@@ -818,6 +818,71 @@ struct CoreNetworkIntegrationArchitectureTests {
         )
     }
 
+    @Test func authReplacementClosesPaidStateBeforePublishingNewSession() throws {
+        let manager = try networkSource("SupabaseManager.swift")
+        let authenticatedAdoption = try sourceSection(
+            beginningWith: "                case .authenticated:",
+            endingBefore: "                case .awaitingRefresh",
+            in: manager
+        )
+
+        #expect(
+            authenticatedAdoption.contains(
+                "transitionSession(from: currentUser) !="
+            )
+        )
+        #expect(
+            authenticatedAdoption.contains(
+                "transitionSession(from: session.user)"
+            )
+        )
+        try expectOrder(
+            [
+                "activePurchasePrincipalBinding = nil",
+                "lastLinkedUserId = nil",
+                "beginPurchaseIdentityResolution()",
+                "EntitlementManager.shared.handleSignOut()",
+                "self.currentUser = session.user",
+                "self.isAuthenticated = true"
+            ],
+            in: authenticatedAdoption
+        )
+    }
+
+    @Test func scanAdmissionUsesTheFixedPinnedNoRetryBridge() throws {
+        let admission = try source(
+            "apps/ios/Merian/Core/Security/ScanAdmissionManager.swift"
+        )
+        let client = try networkSource("MerianNetworkClient.swift")
+        let pinnedTransport = try networkSource(
+            "Transport/PinnedNetworkTransport.swift"
+        )
+
+        #expect(!admission.contains("URLSession("))
+        #expect(!admission.contains("previewSessionConfiguration"))
+        #expect(
+            admission.contains("performPinnedScanAdmissionPreviewRequest(")
+        )
+        #expect(admission.contains("retryEnabled: false"))
+        #expect(
+            client.contains(
+                ".appendingPathComponent(\"get_my_scan_admission_preview\")"
+            )
+        )
+        #expect(
+            client.contains(
+                "request.value(forHTTPHeaderField: \"Authorization\")"
+            )
+        )
+        #expect(client.contains("request.httpMethod == \"POST\""))
+        #expect(pinnedTransport.contains("withThrowingTaskGroup("))
+        #expect(
+            pinnedTransport.contains(
+                "boundedRequest.cachePolicy = .reloadIgnoringLocalCacheData"
+            )
+        )
+    }
+
     @Test func directIdentityLinkRetiresRecoveryOnlyAfterExactUpgradeAdoption() throws {
         let manager = try networkSource("SupabaseManager.swift")
         let oauthFinalization = try sourceSection(
@@ -1191,7 +1256,9 @@ struct CoreNetworkIntegrationArchitectureTests {
             "concurrentFirstUseRetainsOneProductionSession",
             "testTLSChainWalkingAcceptsIntermediateCertWhenLeafIsUnknown",
             "testTLSChainWalkingRejectsUnknownChain",
-            "injectedSessionOwnsTestDispatch"
+            "injectedSessionOwnsTestDispatch",
+            "boundedDispatchUsesThePinnedSessionWithoutCaching",
+            "boundedDispatchCancelsANonCompletingRequestAtItsDeadline"
         ] {
             #expect(pinnedTransportTests.contains("func \(name)("))
             #expect(!aggregateTests.contains("func \(name)("))

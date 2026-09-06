@@ -108,22 +108,31 @@ The executor owns logical request construction, bounded retry state,
 cancellation checkpoints, response mapping, and injected Auth, entitlement, and
 consent effects. `PinnedNetworkTransport` owns the sole configured `URLSession`,
 lock-backed one-time initialization, exact Supabase host/subdomain policy, TLS
-delegate, raw dispatch, and DEBUG session override. Supabase server-trust
-challenges require both the platform trust evaluation and a matching pin, and
-fail closed when either check fails or the certificate chain cannot be read.
-Unrelated hosts and non-server-trust challenges keep the platform's default
-handling. `AuthenticatedTransportDispatcher` owns per-attempt Auth leases and
-headers, transition validation, the constrained-network header, and its
-file-local upload delegate. `MerianNetworkClient.swift` retains configuration
-diagnostics and injects both stateful transport owners behind narrow bridges.
-Endpoint extensions use those bridges to construct the endpoint, serialize the
-payload, and invoke the existing authenticated POST. Typed calls decode with the
-existing snake-case decoder; body-ignoring calls preserve HTTP-only success
-without decoding. The typed bridge can forward an existing idempotency key and
-replace decoding failures with a caller-specified `MerianError`; both options
-default to nil. Error replacement surrounds only decoding, never request
-construction, transport, auth, or cancellation.
-`performAuthenticatedEncodedJSONPost` encodes an `Encodable` body with
+delegate, raw dispatch, caller-bounded wall-clock dispatch, and DEBUG session
+override. Supabase server-trust challenges require both the platform trust
+evaluation and a matching pin, and fail closed when either check fails or the
+certificate chain cannot be read. Unrelated hosts and non-server-trust
+challenges keep the platform's default handling.
+`AuthenticatedTransportDispatcher` owns per-attempt Auth leases and headers,
+transition validation, the constrained-network header, and its file-local upload
+delegate. `MerianNetworkClient.swift` retains configuration diagnostics and
+injects both stateful transport owners behind narrow bridges. Endpoint
+extensions use those bridges to construct the endpoint, serialize the payload,
+and invoke the existing authenticated POST. Typed calls decode with the existing
+snake-case decoder; body-ignoring calls preserve HTTP-only success without
+decoding. The typed bridge can forward an existing idempotency key and replace
+decoding failures with a caller-specified `MerianError`; both options default to
+nil. Error replacement surrounds only decoding, never request construction,
+transport, auth, or cancellation.
+
+`ScanAdmissionManager` is the one non-Edge PostgREST consumer admitted through
+the facade. Its bridge accepts only
+`POST /rest/v1/rpc/get_my_scan_admission_preview` on the configured Supabase
+origin with a nonempty bearer credential and nonempty anon API key, then
+dispatches through the same pinned session. It exposes no general raw-request
+capability, refresh, or replay. The transport applies the preview's two-second
+request and wall-clock deadline plus no-cache policy; PostgREST keeps retry
+disabled. `performAuthenticatedEncodedJSONPost` encodes an `Encodable` body with
 `JSONEncoder` and returns bytes for domain-specific validation. It forwards the
 timeout and optional idempotency key without catching encoding, transport, or
 cancellation errors. None of these bridges adds a retry or task owner or exposes
@@ -790,11 +799,11 @@ their device-only verified-persistence policies.
 The audit also makes the remaining live-dependency exceptions explicit:
 
 - only `Transport/PinnedNetworkTransport.swift` constructs the production
-  `URLSession`, owns certificate pins/TLS validation, and exposes the DEBUG
-  replacement seam;
+  `URLSession`, owns certificate pins/TLS validation and bounded no-cache
+  dispatch, and exposes the DEBUG replacement seam;
 - only `MerianNetworkClient.swift` applies endpoint-configuration diagnostics,
-  stores and injects the two transport owners, and invokes the private logical
-  request core;
+  stores and injects the two transport owners, invokes the private logical
+  request core, and exposes the exact-route scan-admission PostgREST bridge;
 - only `Transport/EdgeFunctionRoutePolicy.swift` constructs validated Edge
   endpoint URLs and classifies unavailable-route evidence;
 - only `Transport/AuthenticatedRequestRetryPolicy.swift` owns the safe-read and

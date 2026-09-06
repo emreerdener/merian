@@ -1706,10 +1706,12 @@ consults that Keychain entry.
   R2 calls. Configuration: `timeoutIntervalForRequest = 30`,
   `timeoutIntervalForResource = 90` (hard cap — Gemini cannot bypass this
   regardless of the per-request timeout), `httpMaximumConnectionsPerHost = 6`,
-  `httpShouldSetCookies = false`, `urlCache = nil`. TLS pinning via
-  `MerianTLSDelegate` is applied only to `supabase.co` and hosts ending in
-  `.supabase.co`; suffix lookalikes are excluded. **Media and external API calls
-  use their own isolated sessions** (never `URLSession.shared`):
+  `httpShouldSetCookies = false`, `waitsForConnectivity = false`,
+  `urlCache = nil`. Its bounded dispatch overload adds a caller-selected request
+  and wall-clock deadline without constructing a second session or retrying. TLS
+  pinning via `MerianTLSDelegate` is applied only to `supabase.co` and hosts
+  ending in `.supabase.co`; suffix lookalikes are excluded. **Media and external
+  API calls use their own isolated sessions** (never `URLSession.shared`):
   `LocalImageLoader`, `ArchiveManager`, and the private actor behind
   `MediaExportService` each own an isolated media session. The export session is
   ephemeral and cookie-free, uses 30 s / 300 s timeouts, accepts remote media
@@ -2158,6 +2160,14 @@ consults that Keychain entry.
   that request's captured account grants, even if the handoff clears before the
   work resumes. Only an exact binding begun after the monotonic fence may commit
   grants once the handoff is clear.
+- Ordinary CustomerInfo, offering, purchase, restore, and subscription-
+  management work captures the identity-request and handoff generations as one
+  provider-operation context. Completion is discarded if either generation, the
+  exact App User ID, Auth binding, account kind, or readiness changes. The
+  trusted handoff-only StoreKit synchronization bypasses pending-handoff
+  purchase readiness but captures and rechecks the same monotonic context. The
+  Auth listener closes RevenueCat and server entitlement readiness before
+  publishing a replacement UUID or anonymous/account upgrade.
 - Handles RevenueCat `CustomerInfo` refreshes, evaluates standard Pro
   entitlements, and treats `pro_week` as a detached non-subscription purchase
   that is active for seven days from its purchase date.
@@ -2241,6 +2251,12 @@ consults that Keychain entry.
   existing paywall before inference or queue mutation. An unavailable online
   preview blocks the attempt with retry feedback; offline work falls back to
   `UsageManager`.
+- Uses a fixed-route `MerianNetworkClient` bridge for only the admission RPC.
+  The bridge reuses `PinnedNetworkTransport`, requires the exact configured
+  Supabase origin plus nonempty bearer and anon-key credentials, applies a
+  two-second request and wall-clock deadline with no cache or connectivity wait,
+  and adds no Auth refresh or replay. The PostgREST client also keeps retry
+  disabled.
 - The preview never reserves quota. The Edge route's later
   `reserve_ai_quota(...)` call remains authoritative, so Capture retains the
   exact `429 ai_quota_daily_exceeded` paywall fallback for a concurrent race.

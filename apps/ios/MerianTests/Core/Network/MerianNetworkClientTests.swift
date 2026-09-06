@@ -108,6 +108,82 @@ struct MerianNetworkClientTests {
         #expect(String(bytes: secondData, encoding: .utf8) == "second")
     }
 
+    @Test func testScanAdmissionBridgeAllowsOnlyItsExactPinnedRPC() async throws {
+        let requestProbe = NetworkRequestProbe()
+        let baseURL = try #require(
+            SecureTransportPolicy.httpsURL(
+                from: MerianEnvironment.supabaseUrl
+            )
+        )
+        let rpcURL = baseURL
+            .appendingPathComponent("rest")
+            .appendingPathComponent("v1")
+            .appendingPathComponent("rpc")
+            .appendingPathComponent("get_my_scan_admission_preview")
+        let response = try #require(
+            HTTPURLResponse(
+                url: rpcURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )
+        )
+        MockURLProtocol.mockEndpoints[rpcURL.path] = { request in
+            _ = requestProbe.record(idempotencyKey: nil)
+            #expect(request.timeoutInterval == 2)
+            #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
+            return (response, Data("[]".utf8))
+        }
+        var request = URLRequest(url: rpcURL)
+        request.httpMethod = "POST"
+        request.setValue("Bearer test-token", forHTTPHeaderField: "Authorization")
+        request.setValue("test-anon-key", forHTTPHeaderField: "apikey")
+
+        let (data, _) = try await MerianNetworkClient.shared
+            .performPinnedScanAdmissionPreviewRequest(
+                request,
+                timeoutInterval: 2
+            )
+        #expect(data == Data("[]".utf8))
+        #expect(requestProbe.count == 1)
+
+        var wrongRoute = request
+        wrongRoute.url = baseURL
+            .appendingPathComponent("rest")
+            .appendingPathComponent("v1")
+            .appendingPathComponent("rpc")
+            .appendingPathComponent("another_rpc")
+        do {
+            _ = try await MerianNetworkClient.shared
+                .performPinnedScanAdmissionPreviewRequest(
+                    wrongRoute,
+                    timeoutInterval: 2
+                )
+            Issue.record("A different RPC route reached the raw pinned bridge")
+        } catch {
+            #expect(error is MerianError)
+        }
+        #expect(requestProbe.count == 1)
+
+        var emptyBearer = request
+        emptyBearer.setValue("Bearer ", forHTTPHeaderField: "Authorization")
+        var blankAPIKey = request
+        blankAPIKey.setValue(" ", forHTTPHeaderField: "apikey")
+        for invalidCredentials in [emptyBearer, blankAPIKey] {
+            do {
+                _ = try await MerianNetworkClient.shared
+                    .performPinnedScanAdmissionPreviewRequest(
+                        invalidCredentials,
+                        timeoutInterval: 2
+                    )
+                Issue.record("Empty credentials reached the raw pinned bridge")
+            } catch {
+                #expect(error is MerianError)
+            }
+        }
+        #expect(requestProbe.count == 1)
+    }
+
     @Test func testMissingOwnerShareStateClearsStaleLocalPublication() async throws {
         let scanID = "019f7004-2a8f-77a3-8954-7a85a4a25418"
         let postID = "019f7004-2e80-7fc8-8db5-4a27a7bca2ab"

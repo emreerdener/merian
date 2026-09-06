@@ -120,8 +120,11 @@ or crop work. Crop confirmation/submission rechecks admission because the
 preview is non-reserving; a concurrent account/quota change can still deny that
 later boundary.
 
-The iOS preflight uses an isolated ephemeral session with a two-second request
-and resource deadline, `waitsForConnectivity = false`, no URL cache, and no
+The iOS preflight uses an exact-route bridge over the shared certificate-pinned
+Supabase session. It admits only the configured
+`POST /rest/v1/rpc/get_my_scan_admission_preview` request with a nonempty bearer
+credential and nonempty `apikey` header. The request has a two-second request
+and wall-clock deadline, `waitsForConnectivity = false`, no URL cache, and no
 PostgREST retry. A valid row is the only online admission proof. A classified
 URL transport failure such as no route, DNS/host failure, connection loss, or
 timeout may consult the current local entitlement meter only to choose a

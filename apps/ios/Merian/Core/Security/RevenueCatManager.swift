@@ -110,6 +110,23 @@ import UIKit
         )
     }
 
+    private func currentProviderOperationContext()
+        -> RevenueCatProviderOperationContext? {
+        guard let appUserID = linkedAppUserID,
+              identityCoordinator.isPurchaseIdentityReady(
+                  providerIdentityReady: isCurrentIdentity(appUserID)
+              ) else { return nil }
+        return identityCoordinator.providerOperationContext(
+            appUserID: appUserID
+        )
+    }
+
+    private func isCurrentProviderOperation(
+        _ context: RevenueCatProviderOperationContext
+    ) -> Bool {
+        currentProviderOperationContext() == context
+    }
+
     // MARK: - Configuration
 
     private func validatedAPIKey() -> String? {
@@ -331,11 +348,10 @@ import UIKit
     /// Fetches the current customer info and updates entitlement state.
     func refreshCustomerInfo() async {
         guard !TestExecutionCoordinator.isRunningTests else { return }
-        guard let appUserID = linkedAppUserID,
-              isCurrentIdentity(appUserID) else { return }
+        guard let context = currentProviderOperationContext() else { return }
         do {
             let info = try await Purchases.shared.customerInfo()
-            guard isCurrentIdentity(appUserID) else { return }
+            guard isCurrentProviderOperation(context) else { return }
             updateEntitlements(with: info)
         } catch {
             MerianLog.general.debug(
@@ -345,7 +361,7 @@ import UIKit
     }
 
     private func updateEntitlements(with info: CustomerInfo) {
-        guard !isPurchaseIdentityHandoffPending else {
+        guard currentProviderOperationContext() != nil else {
             closePaidReadiness()
             return
         }
@@ -422,17 +438,17 @@ import UIKit
             isFetchingOfferings = false
             return
         }
-        guard let appUserID = linkedAppUserID,
-              isCurrentIdentity(appUserID) else { return }
+        guard let context = currentProviderOperationContext() else { return }
         isFetchingOfferings = true
         defer {
-            if identityCoordinator.isRequestedAppUserID(appUserID) {
+            let currentContext = currentProviderOperationContext()
+            if currentContext == nil || currentContext == context {
                 isFetchingOfferings = false
             }
         }
         do {
             let offerings = try await Purchases.shared.offerings()
-            guard isCurrentIdentity(appUserID) else { return }
+            guard isCurrentProviderOperation(context) else { return }
             currentOfferings = offerings
 
             guard let currentOffering = offerings.current else {
@@ -480,36 +496,34 @@ import UIKit
 
     // MARK: - Purchases
 
-    private func providerMutationAppUserID() throws -> String {
-        guard let appUserID = linkedAppUserID,
-              identityCoordinator.isPurchaseIdentityReady(
-                  providerIdentityReady: isCurrentIdentity(appUserID)
-              ) else {
+    private func providerMutationContext()
+        throws -> RevenueCatProviderOperationContext {
+        guard let context = currentProviderOperationContext() else {
             throw RevenueCatManagerError.identityNotReady
         }
-        return appUserID
+        return context
     }
 
     /// Initiates the purchase flow for `package`.
     func purchase(_ package: Package) async throws {
-        let appUserID = try providerMutationAppUserID()
+        let context = try providerMutationContext()
         let result = try await Purchases.shared.purchase(package: package)
-        guard isCurrentProviderMutationIdentity(appUserID) else { return }
+        guard isCurrentProviderOperation(context) else { return }
         updateEntitlements(with: result.customerInfo)
     }
 
     /// Restores previous purchases from Apple.
     func restorePurchases() async throws {
-        let appUserID = try providerMutationAppUserID()
+        let context = try providerMutationContext()
         let info = try await Purchases.shared.restorePurchases()
-        guard isCurrentProviderMutationIdentity(appUserID) else { return }
+        guard isCurrentProviderOperation(context) else { return }
         updateEntitlements(with: info)
     }
 
     /// Reposts the current App Store receipt during a trusted, device-durable
-    /// identity handoff. This deliberately bypasses only the user-purchase
-    /// mutation fence; the exact canonical RevenueCat identity and account
-    /// kind must already match the active Supabase session.
+    /// identity handoff. This deliberately bypasses only pending-handoff purchase
+    /// readiness; exact identity/account kind and captured monotonic generations
+    /// must remain current through completion.
     func synchronizePurchasesAfterIdentityHandoff(
         expectedUserId: UUID? = nil
     ) async throws {
@@ -524,11 +538,17 @@ import UIKit
         guard matchesExpectedUser else {
             throw RevenueCatManagerError.identityNotReady
         }
+        let context = identityCoordinator.providerOperationContext(
+            appUserID: appUserID
+        )
         let info = try await Purchases.shared.syncPurchases()
         let stillMatchesExpectedUser = expectedUserId.map {
             RevenueCatAppUserIDPolicy.canonicalID(for: $0) == appUserID
         } ?? true
-        guard isCurrentProviderMutationIdentity(appUserID),
+        guard identityCoordinator.providerOperationContext(
+            appUserID: appUserID
+        ) == context,
+              isCurrentProviderMutationIdentity(appUserID),
               stillMatchesExpectedUser else {
             throw RevenueCatManagerError.identityNotReady
         }
@@ -553,18 +573,20 @@ import UIKit
     /// Presents Apple's offer-code redemption sheet only for the exact linked
     /// Ghost or permanent Supabase account.
     func presentCodeRedemptionSheet() throws {
-        _ = try providerMutationAppUserID()
+        _ = try providerMutationContext()
         Purchases.shared.presentCodeRedemptionSheet()
     }
 
     /// Presents the App Store subscription management UI or opens the subscriptions settings page.
     func showManageSubscriptions() {
         guard !TestExecutionCoordinator.isRunningTests else { return }
-        guard isIdentityReady else { return }
-        Task {
+        guard let context = currentProviderOperationContext() else { return }
+        Task { [weak self] in
+            guard let self, isCurrentProviderOperation(context) else { return }
             do {
                 try await Purchases.shared.showManageSubscriptions()
             } catch {
+                guard isCurrentProviderOperation(context) else { return }
                 MerianLog.general.debug(
                     "RevenueCat subscription-management presentation failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
                 )

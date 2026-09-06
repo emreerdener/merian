@@ -38,9 +38,14 @@ Explore post while preserving its saved post-level location-sharing choice.
 > are complete. Default-off export isolation narrows runtime scope; it does not
 > waive catalog or application evidence for objects that remain deployed.
 
-Pushes to `main` that touch Supabase backend or deployment-support paths, plus
-manual `workflow_dispatch` runs, execute `.github/workflows/deploy.yml`.
-Frontend-only and docs-only commits do not automatically deploy production
+Pushes to `main` that touch Supabase backend or deployment-support paths, the
+generated inference DTO contract, `SupabaseManager`, the exact scan-admission
+bridge in `MerianNetworkClient`, `PinnedNetworkTransport`, the extracted Auth
+owners, or Core Security execute `.github/workflows/deploy.yml`; manual
+`workflow_dispatch` runs do the same. These iOS owners participate because the
+complete candidate suite reads their cross-surface consent, purchase-identity,
+admission, transport, and Auth contracts. Client-only changes outside those
+reviewed paths and docs-only commits do not automatically deploy production
 backend changes.
 
 Use `.github/workflows/supabase-candidate-validation.yml` when the objective is
@@ -86,8 +91,9 @@ applied before the iOS binary is promoted; never treat an iOS fallback as
 permission to reverse this order.
 
 The client request itself is deliberately shorter than the database function's
-five-second statement limit: an isolated two-second request/resource deadline,
-no wait for connectivity, no cache, and no PostgREST retry. Only classified URL
+five-second statement limit: an exact-route bridge over the shared certificate-
+pinned Supabase session applies a two-second request and wall-clock deadline, no
+wait for connectivity, no cache, and no PostgREST retry. Only classified URL
 transport failure plus current local eligibility may select queue-only, and that
 route creates no foreground provider attempt. Missing/malformed data,
 authentication/TLS and server failures, and valid plan/quota denials remain

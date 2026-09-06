@@ -5,6 +5,29 @@ struct SevenDayPassPurchase {
     let purchaseDate: Date
 }
 
+/// Monotonic snapshot used to reject provider results that cross an Auth
+/// rebind or purchase-identity handoff, even when the App User ID is reused.
+struct RevenueCatProviderOperationContext: Equatable {
+    let appUserID: String
+    let identityGeneration: UInt64
+    let handoffGeneration: UInt64
+}
+
+struct RevenueCatIdentityRequest: Equatable {
+    let appUserID: String
+    let authUserID: UUID
+    let bindingGeneration: Int64
+    let accountKind: String?
+    let accountGrantsAllowed: Bool
+    let usesStablePurchasePrincipal: Bool
+}
+
+struct RevenueCatIdentityLinkContext: Equatable {
+    let request: RevenueCatIdentityRequest
+    let generation: UInt64
+    let accountGrantFenceGeneration: UInt64
+}
+
 enum RevenueCatLegacySubscriberAttributeKey: String, CaseIterable {
     case supabaseUserID = "supabase_user_id"
     case authEmail = "auth_email"

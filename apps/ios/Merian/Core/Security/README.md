@@ -57,7 +57,8 @@ pin lifecycle. See the
   removal. It owns no endpoint, provider, Auth transition, logger, or task; see
   its [ownership guide](GhostProfileMerge/README.md).
 - `RevenueCat/` owns RevenueCat value models, the typed registry for legacy
-  subscriber attributes, and deterministic identity, access, offering,
+  subscriber attributes, immutable identity request/link contexts, the monotonic
+  provider-operation context, and deterministic identity, access, offering,
   verification, provenance, and log/privacy policies. Its provider-neutral
   identity coordinator owns observable requested/linked identity, generation
   fencing, serialized task lifetime, and exact stale-commit rejection without
@@ -76,20 +77,21 @@ pin lifecycle. See the
 - `ScanAdmissionManager` reads the authenticated account's prospective scan plan
   and UTC-day allowance immediately before Capture starts hardware or submission
   work. Preview responses are never cached, because even a short cache could
-  outlive a concurrent scan's final daily allowance. Its isolated ephemeral
-  request waits at most two seconds, never waits for connectivity, never
-  retries, and returns a typed distinction between a valid preview, classified
-  transport unavailability, and every other failure. Only the
-  transport-unavailable result may use current local eligibility to select a
-  queue-only Capture route; cancellation, malformed data, authentication/TLS,
-  and server failures remain fail-closed. `ScanConnectivityFailurePolicy`
-  centralizes that reviewed URL-code set, recognizes bounded underlying-error
-  wrappers, gives certificate/authentication/ATS policy codes veto precedence
-  over broader outer transport errors, and separately defines the broader
-  post-durability recovery set so the two ownership boundaries cannot drift. The
-  manager never reserves quota; the provider-side `reserve_ai_quota(...)`
-  transaction remains the authorization boundary and can still reject a
-  concurrent race.
+  outlive a concurrent scan's final daily allowance. Its exact-route PostgREST
+  request uses Core Network's shared certificate-pinned session with a nonempty
+  bearer credential, nonempty anon API key, and two-second request and
+  wall-clock deadlines. It never waits for connectivity or retries, and returns
+  a typed distinction between a valid preview, classified transport
+  unavailability, and every other failure. Only the transport-unavailable result
+  may use current local eligibility to select a queue-only Capture route;
+  cancellation, malformed data, authentication/TLS, and server failures remain
+  fail-closed. `ScanConnectivityFailurePolicy` centralizes that reviewed
+  URL-code set, recognizes bounded underlying-error wrappers, gives
+  certificate/authentication/ATS policy codes veto precedence over broader outer
+  transport errors, and separately defines the broader post-durability recovery
+  set so the two ownership boundaries cannot drift. The manager never reserves
+  quota; the provider-side `reserve_ai_quota(...)` transaction remains the
+  authorization boundary and can still reject a concurrent race.
 - `Consent/Models` owns the exact policy versions and evidence copy, storage and
   handoff errors, plus the source-compatible `ConsentManager.*` receipt, event,
   ledger, journal, restoration, and remote-state values. `Consent/Policies` owns
@@ -386,8 +388,14 @@ retry. The restored source may cancel; no stable sign-out path calls
 reads, purchase, restore, redemption, and subscription management require the
 exact resolved identity, current Auth session, binding generation, and
 recognized `account_kind`. Missing, unknown, stale, or asynchronously mismatched
-state fails closed. A generic Edge `401` never rotates purchase identity.
-`RevenueCatOfferingPolicy` requires these App Store product identifiers:
+state fails closed. CustomerInfo, offering, purchase, restore, and subscription-
+management work captures both the identity-request and handoff generations, so
+even a same-App-User-ID rebind cannot publish an older completion. A generic
+Edge `401` never rotates purchase identity. The trusted handoff-only StoreKit
+synchronization bypasses pending-handoff purchase readiness only to finish that
+protocol; it captures and rechecks the same App User ID and identity/handoff
+generations around the provider suspension. `RevenueCatOfferingPolicy` requires
+these App Store product identifiers:
 
 - `pro_week`
 - `pro_annual`
@@ -504,9 +512,10 @@ the strict server cutover or a production submission.
 - Legacy mode uses the uppercase Auth UUID; stable mode uses only the exact
   server-issued purchase-principal App User ID. An active stable installation
   never downgrades to the legacy identity during rollback.
-- RevenueCat purchase, restore, and offer-code redemption require the exact
-  resolved provider identity, Auth session, binding generation, and one matching
-  recognized account kind.
+- RevenueCat offering reads, purchase, restore, offer-code redemption, and
+  subscription management require the exact resolved provider identity, Auth
+  session, binding generation, one matching recognized account kind, and the
+  unchanged identity/handoff operation fence.
 - Local paid access requires verified RevenueCat CustomerInfo. Unverified,
   failed, or stale-session results fail closed.
 - An unclassified `401` preserves the active Supabase identity. Ghost

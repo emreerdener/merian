@@ -44,6 +44,7 @@ queue_sync_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueue
 queue_url_session_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
 background_database_actor_source="$repo_root/apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift"
 network_client_source="$repo_root/apps/ios/Merian/Core/Network/MerianNetworkClient.swift"
+pinned_network_transport_source="$repo_root/apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift"
 inference_endpoint_source="$repo_root/apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Inference.swift"
 inference_engine_source="$repo_root/apps/ios/Merian/Core/AI/InferenceEngine.swift"
 scan_admission_source="$repo_root/apps/ios/Merian/Core/Security/ScanAdmissionManager.swift"
@@ -793,11 +794,17 @@ assert_file_contains \
   "$scan_admission_source" \
   "nonisolated static let previewRequestTimeout: TimeInterval = 2"
 assert_file_contains \
-  "$scan_admission_source" \
+  "$pinned_network_transport_source" \
   "configuration.waitsForConnectivity = false"
 assert_file_contains \
+  "$pinned_network_transport_source" \
+  "boundedRequest.timeoutInterval = timeoutInterval"
+assert_file_contains \
   "$scan_admission_source" \
-  "request.timeoutInterval = Self.previewRequestTimeout"
+  "timeoutInterval: Self.previewRequestTimeout"
+assert_file_contains \
+  "$network_client_source" \
+  "performPinnedScanAdmissionPreviewRequest("
 assert_file_contains \
   "$scan_admission_source" \
   "retryEnabled: false"

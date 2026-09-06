@@ -3,6 +3,11 @@ import Foundation
 import os
 import Security
 
+private struct PinnedNetworkResponse: Sendable {
+    let data: Data
+    let response: URLResponse
+}
+
 /// Value-only certificate policy used by the pinned Supabase session delegate.
 enum MerianTLSCertificatePinPolicy {
     // Leaf cert (expires approximately every 90 days).
@@ -66,12 +71,46 @@ final class PinnedNetworkTransport: @unchecked Sendable {
         configuration.timeoutIntervalForResource = 90
         configuration.httpMaximumConnectionsPerHost = 6
         configuration.httpShouldSetCookies = false
+        configuration.waitsForConnectivity = false
         configuration.urlCache = nil
         return configuration
     }
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await activeSession.data(for: request)
+    }
+
+    /// Uses the shared pinned session while enforcing a caller-owned wall-clock
+    /// deadline. This is intentionally not a retry policy.
+    func data(
+        for request: URLRequest,
+        timeoutInterval: TimeInterval
+    ) async throws -> (Data, URLResponse) {
+        guard timeoutInterval.isFinite, timeoutInterval > 0 else {
+            throw URLError(.timedOut)
+        }
+        var boundedRequest = request
+        boundedRequest.cachePolicy = .reloadIgnoringLocalCacheData
+        boundedRequest.timeoutInterval = timeoutInterval
+
+        return try await withThrowingTaskGroup(
+            of: PinnedNetworkResponse.self,
+            returning: (Data, URLResponse).self
+        ) { group in
+            group.addTask { [self] in
+                let (data, response) = try await data(for: boundedRequest)
+                return PinnedNetworkResponse(data: data, response: response)
+            }
+            group.addTask {
+                try await Task.sleep(for: .seconds(timeoutInterval))
+                throw URLError(.timedOut)
+            }
+            defer { group.cancelAll() }
+            guard let result = try await group.next() else {
+                throw CancellationError()
+            }
+            return (result.data, result.response)
+        }
     }
 
     func data(

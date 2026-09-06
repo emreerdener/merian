@@ -4,21 +4,8 @@ import Observation
 @MainActor
 @Observable
 final class RevenueCatIdentityCoordinator {
-    struct Request: Equatable {
-        let appUserID: String
-        let authUserID: UUID
-        let bindingGeneration: Int64
-        let accountKind: String?
-        let accountGrantsAllowed: Bool
-        let usesStablePurchasePrincipal: Bool
-    }
-
-    struct Context: Equatable {
-        let request: Request
-        let generation: UInt64
-        let accountGrantFenceGeneration: UInt64
-    }
-
+    typealias Request = RevenueCatIdentityRequest
+    typealias Context = RevenueCatIdentityLinkContext
     typealias LinkOperation = @MainActor (Context) async -> Void
 
     private(set) var linkedAppUserID: String?
@@ -183,6 +170,14 @@ final class RevenueCatIdentityCoordinator {
                 providerIdentityReady: providerIdentityReady
             ),
             identityHandoffPending: isPurchaseIdentityHandoffPending
+        )
+    }
+
+    func providerOperationContext(appUserID: String) -> RevenueCatProviderOperationContext {
+        .init(
+            appUserID: appUserID,
+            identityGeneration: requestGeneration,
+            handoffGeneration: accountGrantFenceGeneration
         )
     }
 

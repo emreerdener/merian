@@ -602,6 +602,21 @@ Deno.test("production deploy invokes the complete Supabase tooling gate", async 
     /- "apps\/ios\/Merian\/Core\/AI\/InferenceEdgeDTOs\.swift"/,
     "Swift DTO changes must trigger the contract gate.",
   );
+  for (
+    const contractPath of [
+      "apps/ios/Merian/Core/Network/SupabaseManager.swift",
+      "apps/ios/Merian/Core/Network/MerianNetworkClient.swift",
+      "apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift",
+      "apps/ios/Merian/Core/Network/Auth/**",
+      "apps/ios/Merian/Core/Security/**",
+    ]
+  ) {
+    assertStringIncludes(
+      deployWorkflow,
+      `- "${contractPath}"`,
+      `${contractPath} changes must trigger the production contract gate.`,
+    );
+  }
   assertMatch(
     deployWorkflow,
     /- name: Gate whole-tree Supabase formatting\n\s+run: deno fmt --check supabase\/functions supabase\/scripts/,

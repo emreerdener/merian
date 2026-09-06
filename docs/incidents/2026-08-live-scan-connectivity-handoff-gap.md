@@ -104,13 +104,14 @@ creation, a timeout could show **Unable to check scan availability** while no
 durable retry owner existed.
 
 `ScanAdmissionManager` now returns typed `available`, `connectivityUnavailable`,
-or `unavailable` results from an isolated ephemeral session. Its request and
-resource deadlines are exactly two seconds, `waitsForConnectivity` is false, URL
-caching is absent, the explicit request timeout is set, and PostgREST retry is
-disabled. Only a reviewed set of URL transport errors—including timeout, no
-internet, connection loss, DNS/host, and data-path failures—maps to
-`connectivityUnavailable`. Cancellation, TLS, authentication, server, and
-response-shape failures remain `unavailable`.
+or `unavailable` results through an exact-route bridge over Core Network's
+shared certificate-pinned Supabase session. The bridge admits only the exact RPC
+with nonempty bearer and anon-key credentials. Its request and wall-clock
+deadlines are exactly two seconds, `waitsForConnectivity` is false, URL caching
+is absent, and PostgREST retry is disabled. Only a reviewed set of URL transport
+errors— including timeout, no internet, connection loss, DNS/host, and data-path
+failures—maps to `connectivityUnavailable`. Cancellation, TLS, authentication,
+server, and response-shape failures remain `unavailable`.
 
 The Capture policy combines that typed result with current local eligibility.
 Connectivity unavailability may proceed only as queue-only; it cannot create a
@@ -210,8 +211,10 @@ transport retry-account policy.
 This incident is closed only when one exact workflow SHA supplies all of the
 following:
 
-1. Pre-queue admission uses an exact two-second request/resource bound, no
-   connectivity wait, no cache, and no PostgREST retry. A path-satisfied
+1. Pre-queue admission uses the exact pinned RPC bridge with a two-second
+   request and wall-clock bound, nonempty bearer and anon-key credentials, no
+   connectivity wait, no cache, and no PostgREST retry. Its regression rejects a
+   wrong route or blank credential without dispatch. A path-satisfied
    `.timedOut` preview plus local eligibility persists visual and nonvisual
    queue rows with no foreground generation, analyzing Insight, or live engine
    processing; malformed/non-connectivity failure stays blocked and local
