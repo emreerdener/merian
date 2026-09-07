@@ -708,8 +708,8 @@ and [focused matrix](#enrichment-export-and-feedback-verification).
   sequentially, and returns the server's keys in order without adding response
   correspondence or lifecycle validation.
 
-These primitives do not own durable jobs or feature workflows.
-OfflineQueueManager retains complete signing-response validation, background
+These primitives do not own durable jobs or feature workflows. OfflineSync's
+media-upload services retain complete signing-response validation, background
 task/account binding, and durable retry authority. Inference's live request
 service retains attempt fencing; LocalImageLoader retains inspect → validate
 local image → sign → upload → repair and cache/event handling; shared Profile
@@ -1084,7 +1084,9 @@ xcodebuild test-without-building \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/SupabaseManagerTests \
   -only-testing:merianTests/InferenceLiveRequestServiceTests \
-  -only-testing:merianTests/OfflineQueueManagerTests
+  -only-testing:merianTests/OfflineQueueManagerTests \
+  -only-testing:merianTests/BackgroundTransferOwnershipTests \
+  -only-testing:merianTests/BackgroundTransferArchitectureTests
 ```
 
 Then replace the individual selectors with `-only-testing:merianTests` against
@@ -1640,7 +1642,25 @@ xcodebuild test \
   -only-testing:merianTests/NetworkEndpointTestSupportTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/OfflineQueueManagerTests \
+  -only-testing:merianTests/BackgroundTransferOwnershipTests \
+  -only-testing:merianTests/BackgroundTransferArchitectureTests \
   -only-testing:merianTests/OfflineSyncTests \
+  -only-testing:merianTests/SyncStateManagerTests \
+  -only-testing:merianTests/CloudDeletionSyncTests \
+  -only-testing:merianTests/CollectionSyncTests \
+  -only-testing:merianTests/LegacyAudioRepairTests \
+  -only-testing:merianTests/MediaUploadSyncTests \
+  -only-testing:merianTests/MediaUploadCompletionTests \
+  -only-testing:merianTests/OfflineQueueRetryPolicyTests \
+  -only-testing:merianTests/MediaStagingContractTests \
+  -only-testing:merianTests/MediaStagingBudgetTests \
+  -only-testing:merianTests/MediaStagingIdentityTests \
+  -only-testing:merianTests/MediaStagingCompletionStateTests \
+  -only-testing:merianTests/InferenceURLSessionTaskContractTests \
+  -only-testing:merianTests/GenerationTaskRegistryTests \
+  -only-testing:merianTests/QueuedScanExtractionTests \
+  -only-testing:merianTests/OfflineSyncFoundationArchitectureTests \
+  -only-testing:merianTests/OfflineQueueSyncArchitectureTests \
   -only-testing:merianTests/OfflineQueuedScanDeletionTests \
   -only-testing:merianTests/ScanDeletionServiceTests \
   -only-testing:merianTests/FieldChatEndpointTests \
@@ -2034,6 +2054,8 @@ xcodebuild test \
   -only-testing:merianTests/AuthTransitionPolicyTests \
   -only-testing:merianTests/SupabaseManagerTests \
   -only-testing:merianTests/OfflineQueueManagerTests \
+  -only-testing:merianTests/BackgroundTransferOwnershipTests \
+  -only-testing:merianTests/BackgroundTransferArchitectureTests \
   -only-testing:merianTests/InferenceLiveRequestServiceTests \
   -only-testing:merianTests/LocalImageLoaderTests \
   -only-testing:merianTests/ProfileViewModelTests
@@ -2160,7 +2182,10 @@ mutation or deployment is authorized by this refactor.
   monotonic maximum, and serialized transitions repair drift before mutation.
   After the persisted delay, only that marker lets the next preflight send
   Identify. A cloud-complete marker has higher authority and can never be
-  replaced by retry state.
+  replaced by retry state. After the retryable-status save, OfflineSync restores
+  the central persisted wake before revalidating cancellation, network policy,
+  poll-token ownership, and inference-generation ownership for optional
+  process-local poll replacement.
 - Translates known technical Explore failures at the UI boundary so database
   authorization and missing-row implementation detail are not customer-facing.
 - Decodes Explore media-health incidents from the canonical `{data:[...]}`
@@ -2784,9 +2809,24 @@ terminal delegate callback registers its asynchronous durable work synchronously
 before crossing actors. The background-session `urlSessionDidFinishEvents`
 callback waits for that tracker to drain before invoking the system completion
 handler, preventing suspension between network completion and final queue/result
-persistence. Anonymous bootstrap is itself a coordinator-owned transition, so
-restore/create cannot be overtaken by Apple, Google, Sign out, recovery, or
-deletion.
+persistence. `Core/Data/OfflineSync/Services/BackgroundTransfer` owns the
+tracker, retained task leases, transition quiescence, private owner/generation
+validation and adoption, terminal callback routing, and delegate adapter. The
+focused upload- and inference-completion processors receive only accepted
+terminal work. `Services/BackgroundInference` owns exact generation lifecycle,
+request dispatch, accepted result/failure completion, and delayed
+status-probe/task retirement, with focused Recovery and Retry siblings owning
+server-result hydration, retryable-status persistence, general transport retry,
+and server-poll lifetime. When dispatch cannot transfer its exact Auth lease
+after the durable claim, it cancels the still-suspended task and finishes the
+process generation only after durable retirement succeeds. Exhausted retirement
+retries preserve the suspended task and active generation, keeping process state
+aligned with the unresolved `.inferencing` row until a later quiescence or
+recovery pass. A later successful Auth sweep or rejected terminal retirement
+immediately closes that exact process generation; the Auth sweep does so before
+cancelling its transport. Anonymous bootstrap is itself a coordinator-owned
+transition, so restore/create cannot be overtaken by Apple, Google, Sign out,
+recovery, or deletion.
 
 Every usable session outside a pending protocol-3 stable sign-out first calls
 the additive `/resolve-purchase-principal` route. Its explicit `mode` selects

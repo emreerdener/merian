@@ -8,6 +8,147 @@ private struct PinnedNetworkResponse: Sendable {
     let response: URLResponse
 }
 
+/// Bridges callback-based URLSession dispatch into an immediately cancellable
+/// continuation. URLSession may acknowledge task cancellation later, so the
+/// request deadline cannot wait for its completion callback.
+private final class PinnedNetworkDataTaskState: Sendable {
+    private typealias Continuation = CheckedContinuation<
+        PinnedNetworkResponse,
+        Error
+    >
+    private typealias PendingRequest = (
+        continuation: Continuation?,
+        dataTask: URLSessionDataTask?
+    )
+    private typealias PendingContinuation = (
+        continuation: Continuation,
+        dataTask: URLSessionDataTask?
+    )
+
+    private static let deadlineQueue = DispatchQueue(
+        label: "com.merian.pinned-network-deadline",
+        qos: .userInitiated
+    )
+
+    private struct State {
+        var continuation: Continuation?
+        var dataTask: URLSessionDataTask?
+        var isFinished = false
+    }
+
+    private let state = OSAllocatedUnfairLock(initialState: State())
+
+    func response(
+        using session: URLSession,
+        for request: URLRequest,
+        timeoutInterval: TimeInterval
+    ) async throws -> PinnedNetworkResponse {
+        try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { (continuation: Continuation) in
+                start(
+                    using: session,
+                    for: request,
+                    timeoutInterval: timeoutInterval,
+                    continuation: continuation
+                )
+            }
+        } onCancel: {
+            cancel()
+        }
+    }
+
+    private func start(
+        using session: URLSession,
+        for request: URLRequest,
+        timeoutInterval: TimeInterval,
+        continuation: Continuation
+    ) {
+        let deadline = DispatchTime.now() + timeoutInterval
+        let dataTask = session.dataTask(with: request) { [weak self] data, response, error in
+            self?.complete(data: data, response: response, error: error)
+        }
+        let shouldStart = state.withLock { state -> Bool in
+            guard !state.isFinished else { return false }
+            state.continuation = continuation
+            state.dataTask = dataTask
+            return true
+        }
+        guard shouldStart else {
+            dataTask.cancel()
+            continuation.resume(throwing: CancellationError())
+            return
+        }
+
+        dataTask.resume()
+        Self.deadlineQueue.asyncAfter(deadline: deadline) { [weak self] in
+            self?.timeOut()
+        }
+    }
+
+    private func complete(
+        data: Data?,
+        response: URLResponse?,
+        error: Error?
+    ) {
+        let result: Result<PinnedNetworkResponse, Error>
+        if let error {
+            result = .failure(error)
+        } else if let response {
+            result = .success(
+                PinnedNetworkResponse(data: data ?? Data(), response: response)
+            )
+        } else {
+            result = .failure(URLError(.badServerResponse))
+        }
+        finish(with: result, cancellingRequest: false)
+    }
+
+    private func timeOut() {
+        finish(
+            with: .failure(URLError(.timedOut)),
+            cancellingRequest: true
+        )
+    }
+
+    private func cancel() {
+        let pending: PendingRequest? = state.withLock { state in
+            guard !state.isFinished else { return nil }
+            state.isFinished = true
+            defer {
+                state.continuation = nil
+                state.dataTask = nil
+            }
+            return (state.continuation, state.dataTask)
+        }
+        guard let pending else { return }
+        pending.dataTask?.cancel()
+        pending.continuation?.resume(throwing: CancellationError())
+    }
+
+    private func finish(
+        with result: Result<PinnedNetworkResponse, Error>,
+        cancellingRequest: Bool
+    ) {
+        let pending: PendingContinuation? = state.withLock { state in
+            guard !state.isFinished, let continuation = state.continuation else {
+                return nil
+            }
+            state.isFinished = true
+            defer {
+                state.continuation = nil
+                state.dataTask = nil
+            }
+            return (continuation, state.dataTask)
+        }
+        guard let pending else { return }
+        if cancellingRequest {
+            pending.dataTask?.cancel()
+        }
+        pending.continuation.resume(with: result)
+    }
+}
+
 /// Value-only certificate policy used by the pinned Supabase session delegate.
 enum MerianTLSCertificatePinPolicy {
     // Leaf cert (expires approximately every 90 days).
@@ -93,24 +234,12 @@ final class PinnedNetworkTransport: @unchecked Sendable {
         boundedRequest.cachePolicy = .reloadIgnoringLocalCacheData
         boundedRequest.timeoutInterval = timeoutInterval
 
-        return try await withThrowingTaskGroup(
-            of: PinnedNetworkResponse.self,
-            returning: (Data, URLResponse).self
-        ) { group in
-            group.addTask { [self] in
-                let (data, response) = try await data(for: boundedRequest)
-                return PinnedNetworkResponse(data: data, response: response)
-            }
-            group.addTask {
-                try await Task.sleep(for: .seconds(timeoutInterval))
-                throw URLError(.timedOut)
-            }
-            defer { group.cancelAll() }
-            guard let result = try await group.next() else {
-                throw CancellationError()
-            }
-            return (result.data, result.response)
-        }
+        let response = try await PinnedNetworkDataTaskState().response(
+            using: activeSession,
+            for: boundedRequest,
+            timeoutInterval: timeoutInterval
+        )
+        return (response.data, response.response)
     }
 
     func data(

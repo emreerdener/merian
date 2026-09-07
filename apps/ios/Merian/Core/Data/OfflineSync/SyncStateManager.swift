@@ -106,8 +106,9 @@ enum SyncPhase: Equatable {
     /// Completes only the matching inference generation. Unknown or already-completed tokens
     /// are harmless no-ops, so a late callback cannot decrement newer work.
     ///
-    /// Call this ONLY from the inference completion path (`processInferenceDownloadResult`).
-    /// Upload-phase completions use `completeUploadPhase(generation:)`.
+    /// `OfflineQueueManager` calls this only after an inference generation has
+    /// completed or its durable ownership has been retired. Upload-phase
+    /// completions use `completeUploadPhase(generation:)`.
     func completeSync(generation: UUID) {
         activeInferences[generation] = nil
         refreshPhase()

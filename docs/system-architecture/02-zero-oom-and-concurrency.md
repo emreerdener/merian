@@ -2260,15 +2260,32 @@ All replaceable offline-sync work therefore follows two ownership rules:
    after each suspension; clearing the slot before beginning that work would
    recreate the same ABA window.
 
+Inference retry persistence has one additional ordering boundary. In both the
+retryable server-status and general transport-retry paths, the background actor
+first commits the retry and the manager then restores the central persisted wake
+without another suspension. Only after durable scheduling is recoverable may
+process-local ownership gate acceleration. The retryable server-status path
+revalidates cancellation, network eligibility, its server-poll token, and the
+inference generation before optionally replacing the poll. The general retry
+path revalidates cancellation, any poll token, and the generation before
+optionally replacing its local retry task. A caller without a poll token still
+must retain its generation; a token-scoped caller must retain both. A stale task
+may abandon its local continuation, but it cannot strand committed work or
+overwrite a newer registry owner.
+
 Inference preparation is single-flight and its UUID becomes the URLSession
-generation before status probing or request construction awaits. Upload
-completion has a separate token per callback until it hands ownership to that
-preparation; removing one token cannot hide another callback for the same
-multi-file scan. The latest successfully claimed upload generation remains
-recorded per scan after preparation, so a delayed generation-A callback stays
-invalid even after replacement B has finished. Background expiration captures
-the upload UUID and uses `finishUploadSync(generation:)`; it never writes the
-global latch directly.
+generation before status probing or request construction awaits. Request
+preparation races a hard deadline through a first-result stream boundary. When
+the deadline wins, the preparation task is cancelled and any late value or error
+is ignored; returning does not wait for a non-cooperative operation to observe
+cancellation. Cancellation of the caller remains `CancellationError` rather than
+being reclassified as a timeout. Upload completion has a separate token per
+callback until it hands ownership to that preparation; removing one token cannot
+hide another callback for the same multi-file scan. The latest successfully
+claimed upload generation remains recorded per scan after preparation, so a
+delayed generation-A callback stays invalid even after replacement B has
+finished. Background expiration captures the upload UUID and uses
+`finishUploadSync(generation:)`; it never writes the global latch directly.
 
 Any inference-driven queue deletion carries an `InferenceGenerationExpectation`.
 `deleteQueuedScan` checks it both before and after
@@ -2364,8 +2381,9 @@ enum MerianConfig {
 }
 ```
 
-`OfflineQueueManager+Sync` and `ScanRepository` reference these constants
-exclusively. Tuning any policy requires a change in exactly one place.
+The focused OfflineSync media-upload services and `ScanRepository` reference
+these constants exclusively. Tuning any policy requires a change in exactly one
+place.
 
 ### Transactional Scan Deletion (`eradicateScan`)
 
@@ -2735,7 +2753,7 @@ background and is cancelled if the user starts another scan. If an operation
 ignores cancellation while suspended, the coordinator retains its handle until
 completion so Auth transitions can still await it.
 
-### Singleton Lifecycle Consistency in Child Tasks (`OfflineQueueManager+Sync`)
+### Singleton Lifecycle Consistency in Upload Child Tasks (`OfflineQueueManager+UploadSync`)
 
 Inside `syncPendingScans`, invalid staging metadata and missing source files
 used to create fire-and-forget inner tasks that tombstoned a scan later. Those
@@ -2753,10 +2771,13 @@ immediately before the mutation.
 OS-owned background tasks survive process suspension and relaunch, so an
 in-memory active-ID set cannot be authoritative. Merian enumerates
 `session.allTasks` only at ownership boundaries that require the OS view:
-cold/ongoing orphan reconciliation, same-scan final-chunk detection, guarded
-queue deletion, status-watchdog cancellation, and upload-batch completion.
-Ordinary pending-scan selection relies on the durable `.pending → .uploading`
-claim and does not enumerate the session first.
+cold/ongoing orphan reconciliation, same-scan active-sibling waiting, guarded
+queue deletion, status-watchdog cancellation, and upload-batch completion. The
+same-scan snapshot reports only whether transport work remains; upload success
+comes from the generation-scoped accumulator of exact HTTP-successful server
+keys and must cover the complete expected manifest. Ordinary pending-scan
+selection relies on the durable `.pending → .uploading` claim and does not
+enumerate the session first.
 
 Every task description is parsed into a typed identity. Upload enumeration
 filters by both scan ID and batch generation; inference enumeration filters by

@@ -5275,9 +5275,11 @@ mirror for migration safety and compatibility.
   migration stage backfills this field from the old booleans: `isDeleted=true` →
   `5`, `isUploaded=true` → `2`, else → `0`.)
 - `stagedR2Keys`: [String]? (Added in `MerianSchemaV33`. Cloudflare R2 object
-  keys written atomically by `BackgroundDatabaseActor.markScanAsStaged` when the
-  last media upload receives HTTP 200. The array may contain image staging keys
-  plus queued-audio and queued-video staging keys;
+  keys written atomically by `BackgroundDatabaseActor.markScanAsStaged` only
+  after the upload generation has no active sibling transfer and its
+  successful-member accumulator exactly covers the expected media manifest. Task
+  disappearance is a wait signal, not success evidence. The array may contain
+  image staging keys plus queued-audio and queued-video staging keys;
   `dispatchInferenceDownloadTask` splits them into `r2ObjectKeys`,
   `audioR2ObjectKeys`, and `videoR2ObjectKeys` based on the canonical media
   timeline. Eliminating auth-dependent key reconstruction at inference time —

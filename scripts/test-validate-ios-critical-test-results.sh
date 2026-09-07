@@ -96,22 +96,36 @@ write_test_tree() {
             suite("OfflineQueueManagerTests"; [
               "generationFenceTest",
               "backgroundInferencePreservesRecoverableHTTPFailures",
-              "inferenceReplayReconciliationCoalescesConcurrentWakeSources",
               "scheduledServerFailureRetryBreaksStatusUploadDeadlock",
-              "scheduledServerFailureMarkerIsReadFromDurableStore",
-              "cloudDeletionRequiresExplicitNetworkConfirmation",
-              "cloudDeletionRetriesNeverEnterAnUnrecoverableState",
-              "cloudDeletionDrainIsProcessSingleFlight",
-              "unsyncedCountIncludesOnlyAutomaticallyRunnableScans",
-              "uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork",
-              "testMediaStagingContractRejectsEmptyFilesBeforeUpload",
               "testRetryQueuedScanNowRejectsLegacyExternalImport",
               "testManualRetryResetsBudgetForDescriptionOnlyScan",
               "consentReapprovalResumesOnlyNewestOwnedFundedScan",
               "consentReapprovalSkipsUnownedOrUnfundedScans",
               "queueDiagnosticsExportOmitsPrivateAndFreeFormValues",
-              "queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred",
+              "queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred"
+            ]),
+            suite("Background Inference Retry"; [
+              "scheduledServerFailureMarkerIsReadFromDurableStore"
+            ]),
+            suite("Inference Replay Tests"; [
+              "inferenceReplayReconciliationCoalescesConcurrentWakeSources"
+            ]),
+            suite("Capture Admission Tests"; [
               "testEnqueueCapture_WithValidData_PersistsQueuedScan"
+            ]),
+            suite("QueueMaintenanceTests"; [
+              "unsyncedCountIncludesOnlyAutomaticallyRunnableScans"
+            ]),
+            suite("Media Upload Sync"; [
+              "uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork"
+            ]),
+            suite("Media Staging Budget"; [
+              "testMediaStagingContractRejectsEmptyFilesBeforeUpload"
+            ]),
+            suite("Cloud Deletion Sync"; [
+              "cloudDeletionRequiresExplicitNetworkConfirmation",
+              "cloudDeletionRetriesNeverEnterAnUnrecoverableState",
+              "cloudDeletionDrainIsProcessSingleFlight"
             ]),
             suite("Onboarding Consent Recovery Tests"; [
               "testCompleteOnboardingResumesConsentBlockedScanForCurrentAccount",
@@ -251,6 +265,30 @@ assert_rejected() {
   fi
 }
 
+assert_rehomed_case_rejected() {
+  local rehomed_case="$1"
+  local retired_suite="$2"
+
+  write_test_tree
+  jq \
+    --arg rehomed_case "$rehomed_case" \
+    --arg retired_suite "$retired_suite" \
+    '
+      .testNodes |= (
+        [.[] | .children[]? | select(.name == ($rehomed_case + "()"))] as $moved
+        | map(
+            if .name == $retired_suite then
+              .children += $moved
+            else
+              .children |= map(select(.name != ($rehomed_case + "()")))
+            end
+          )
+      )
+    ' "$test_tree_path" > "$tmp_dir/retired-owner-tests.json"
+  mv "$tmp_dir/retired-owner-tests.json" "$test_tree_path"
+  assert_rejected "$rehomed_case under its retired aggregate owner"
+}
+
 write_summary "Passed" 4 4 0
 write_test_tree
 bash "$validator" "$summary_path" "$test_tree_path" >/dev/null \
@@ -316,6 +354,13 @@ for omitted_suite in \
   "Inference Engine Tests" \
   "Inference Endpoint Transport" \
   "OfflineQueueManagerTests" \
+  "Background Inference Retry" \
+  "Inference Replay Tests" \
+  "Capture Admission Tests" \
+  "QueueMaintenanceTests" \
+  "Media Upload Sync" \
+  "Media Staging Budget" \
+  "Cloud Deletion Sync" \
   "SyncStateManagerTests" \
   "Explore Media Incident Endpoints" \
   "Explore Share State Endpoints"; do
@@ -437,23 +482,20 @@ for rehomed_case in \
   "testCheckScanStatusRejectsMalformedOrMismatchedSuccess" \
   "testBulkScanStatusRejectsDuplicateMissingOrForeignRows" \
   "testUploadStagedVideoFilesRejectsEmptyFileBeforeSigning"; do
-  write_test_tree
-  jq \
-    --arg rehomed_case "$rehomed_case" \
-    '
-      .testNodes |= (
-        [.[] | .children[]? | select(.name == ($rehomed_case + "()"))] as $moved
-        | map(
-            if .name == "Network Client Tests" then
-              .children += $moved
-            else
-              .children |= map(select(.name != ($rehomed_case + "()")))
-            end
-          )
-      )
-    ' "$test_tree_path" > "$tmp_dir/retired-owner-tests.json"
-  mv "$tmp_dir/retired-owner-tests.json" "$test_tree_path"
-  assert_rejected "$rehomed_case under its retired aggregate owner"
+  assert_rehomed_case_rejected "$rehomed_case" "Network Client Tests"
+done
+
+for rehomed_offline_case in \
+  "unsyncedCountIncludesOnlyAutomaticallyRunnableScans" \
+  "uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork" \
+  "testMediaStagingContractRejectsEmptyFilesBeforeUpload" \
+  "cloudDeletionRequiresExplicitNetworkConfirmation" \
+  "cloudDeletionRetriesNeverEnterAnUnrecoverableState" \
+  "cloudDeletionDrainIsProcessSingleFlight" \
+  "scheduledServerFailureMarkerIsReadFromDurableStore"; do
+  assert_rehomed_case_rejected \
+    "$rehomed_offline_case" \
+    "OfflineQueueManagerTests"
 done
 
 for skipped_case in "${required_cases[@]}"; do
@@ -482,6 +524,7 @@ for skipped_suite in \
   "CameraManagerTests" \
   "Inference Engine Tests" \
   "OfflineQueueManagerTests" \
+  "Background Inference Retry" \
   "SyncStateManagerTests"; do
   write_test_tree
   jq \

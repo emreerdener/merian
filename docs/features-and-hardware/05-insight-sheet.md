@@ -985,10 +985,10 @@ delegate writes.
 - `CaptureWorkspaceViewModel.handleInferenceProcessingChange` — when live
   `isProcessing` goes false **and** `activeSheet != .insight` (user is not
   already viewing the result).
-- `OfflineQueueManager+URLSession.processInferenceDownloadResult` — when an
-  offline scan completes, **unless** `AppSettings.suppressInferenceBanners` is
-  `true` (insight sheet is open and the user is watching the transition to
-  results).
+- `Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.processInferenceDownloadResult`
+  — when an offline scan completes, **unless**
+  `AppSettings.suppressInferenceBanners` is `true` (insight sheet is open and
+  the user is watching the transition to results).
 
 **Set to `false` (badge cleared):**
 

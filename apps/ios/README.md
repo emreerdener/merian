@@ -211,6 +211,63 @@ intentionally absent from the iOS replay set because the app has no endpoint
 owner or caller for it. See the
 [integration-audit contract](Merian/Core/Network/README.md#core-network-integration-audit).
 
+## Core Data Offline Sync Ownership
+
+[Core Data Offline Sync](Merian/Core/Data/OfflineSync/README.md) owns durable
+scan admission, staging, retry, background URLSession recovery, and inference
+replay. Its focused `Models`, `Policies`, `Coordinators`, `Persistence`, and
+`Services` files separate Sendable values, stateless decisions, process-local
+task ownership, SwiftData helpers, diagnostics, cloud deletion, collection sync,
+media-upload preparation/dispatch/completion, queued-scan extraction, queue
+maintenance, capture admission, funding, Field Trip progress, inference replay,
+background inference, and background transfer. Background Inference separates
+actor-independent response/status policy, exact process-generation lifecycle,
+generation-fenced request dispatch, accepted task completion, and delayed
+watchdog probing/task retirement with compare-before-clear replacement-owner
+preservation. Background Transfer separates lock-protected terminal tracking,
+exact-session lease quiescence, private terminal owner validation/adoption,
+main-actor terminal routing, and nonisolated URLSession delegate routing from
+the remaining result pipeline. `OfflineQueueDurability.swift` retains live
+durable mutations and retry orchestration.
+
+The root `OfflineQueueManager` retains stored state and background-session
+construction; the focused inference-completion extension owns accepted result
+and transport-failure processing plus generation-tagged completion-lock
+teardown, the watchdog extension owns exact-generation status probing and
+background-task inspection/cancellation, the recovery extension owns
+server-result hydration, durable recovery, and retryable server-status
+persistence, while the retry extension owns general transport-retry
+preflight/persistence and server-poll execution. The former sync aggregate is
+seven focused service files under `CloudDeletion`, `Collections`, and
+`MediaUpload`; media-upload completion and generation fencing have explicit
+owners, while queued SwiftData rows map to inference snapshots under
+`Persistence`. Queue count, tombstone, flush, deletion, and purge behavior is
+split under `QueueMaintenance`. The former queue aggregate is split under
+`CaptureAdmission`, `Funding`, `FieldTripProgress`, and `InferenceReplay`; retry
+mutations remain with `OfflineQueueDurability`. These ownership splits change no
+SwiftData schema, payload, endpoint, queue state, retry, or task-description
+contract. The foundation, sync, queue-maintenance, and admission/replay
+architecture suites freeze declaration ownership, focused-file/import
+inventories, private state, durable ordering, responsibility boundaries,
+mapper/goal-hint consumer allowlists, mirrored test ownership, retired
+aggregates, and the 600-line review ceilings. The admission/replay guard also
+keeps file-store access inside capture enqueue and freezes the exact focused
+test identities plus their serialized offline-queue process-state leases. The
+background-transfer guard freezes delegate and private terminal-routing
+ownership, tracker, lease-state, rejected-retirement and inference-completion
+consumers, synchronous terminal registration, durable-before-cancel Auth
+quiescence, preservation of the active inference generation when durable
+retirement fails, and exact process-generation completion when it later
+succeeds. The background-inference guard freezes
+policy/lifecycle/dispatch/completion/watchdog/recovery/retry ownership, imports
+and consumers, generation revalidation, completion persistence ordering, stale
+callback fencing, post-task-enumeration probe/generation revalidation, exact
+probe/task retirement ordering, durable dispatch ordering, the hard preparation
+deadline that cancels and ignores late non-cooperative work, caller-cancellation
+identity, durable-wake restoration without an intervening suspension in both
+retry paths before post-save poll/generation revalidation and optional
+process-local replacement, and the 600-line production-file ceiling.
+
 ## Core Preferences Ownership
 
 [Core Preferences](Merian/Core/Preferences/README.md) owns the observable
@@ -789,15 +846,16 @@ ownership and dispatch contracts. The
 [toolbar README](Merian/Features/Insights/Toolbars/README.md) own the carousel
 clock, page continuity, and trailing-action presentation rules.
 
-`Core/Data/OfflineSync/OfflineQueueDurability.swift` owns retry timing rather
-than an Insight view. Scan analysis uses a five-second minimum, jittered
-exponential backoff, a 30-second ordinary local maximum, and ten automatic
-attempts; safe server-directed minimums may be longer, while maintenance keeps
-its 15-minute maximum. `QueuedRetryPresentation` translates stable codes into
-safe customer copy, countdowns, and actions without rendering stored error text.
-Offline retryable work exposes no countdown or **Retry now**, and a due deadline
-adds no redundant helper. See the
-[Core Data README](Merian/Core/Data/README.md),
+`Core/Data/OfflineSync/Policies/OfflineQueueRetryPolicy.swift` owns retry
+classification and timing rather than an Insight view;
+`OfflineQueueDurability.swift` applies those decisions to durable state. Scan
+analysis uses a five-second minimum, jittered exponential backoff, a 30-second
+ordinary local maximum, and ten automatic attempts; safe server-directed
+minimums may be longer, while maintenance keeps its 15-minute maximum.
+`QueuedRetryPresentation` translates stable codes into safe customer copy,
+countdowns, and actions without rendering stored error text. Offline retryable
+work exposes no countdown or **Retry now**, and a due deadline adds no redundant
+helper. See the [Core Data README](Merian/Core/Data/README.md),
 [Insight content README](Merian/Features/Insights/Content/README.md), and
 [offline sync contract](../../docs/backend-and-data/01-offline-sync-pipeline.md).
 

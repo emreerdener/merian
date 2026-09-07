@@ -20,9 +20,10 @@ its capture integration:
   task), `activeScanId: String?` (set to the `scanId` at the start of
   `analyze(scanId:...)`), `activeLiveInferenceAttemptGeneration: UUID?` (the
   presentation owner), and `activeForegroundInferenceGeneration: UUID?` (the
-  durable queue owner). `OfflineQueueManager.processInferenceDownloadResult`
-  reads the full tuple to detect whether the background URLSession path has
-  completed for the exact live attempt it may replace — see the
+  durable queue owner). The Background Inference completion owner calls
+  `OfflineQueueManager.processInferenceDownloadResult`, which reads the full
+  tuple to detect whether the background URLSession path has completed for the
+  exact live attempt it may replace — see the
   [offline pipeline InferenceEngine hydration note](../backend-and-data/01-offline-sync-pipeline.md).
   The `analyze` progression is mapped across 5 strict functional checkpoints
   enforcing UI hydration, image translation, and network payload dispatch
@@ -598,7 +599,9 @@ field inside the description payload:
    before that response can finalize the job.
 
 **Offline resilience**: the queue stores the same ordered media timeline at
-enqueue time. `buildExtractedScanData` snapshots `capturedMediaItems`, and every
+enqueue time.
+`Core/Data/OfflineSync/Persistence/OfflineQueueManager+QueuedScanExtraction.swift`
+owns `buildExtractedScanData`, which snapshots `capturedMediaItems`; every
 downstream derivation — prompt text, `observation_contexts`, local image paths,
 audio paths, cleanup paths, and result hydration — is rebuilt from that one
 source. New audio rows require a structurally supported local WAV before

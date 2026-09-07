@@ -270,8 +270,8 @@ assert_suite_has_passed_test_case \
   "backgroundInferencePreservesRecoverableHTTPFailures"
 assert_suite_has_passed_test_case \
   "Inference replay process single-flight" \
-  "OfflineQueueManagerTests" \
-  "Offline Queue Manager Tests" \
+  "InferenceReplayTests" \
+  "Inference Replay Tests" \
   "inferenceReplayReconciliationCoalescesConcurrentWakeSources"
 assert_suite_has_passed_test_case \
   "Retryable status/upload deadlock dispatch" \
@@ -280,8 +280,8 @@ assert_suite_has_passed_test_case \
   "scheduledServerFailureRetryBreaksStatusUploadDeadlock"
 assert_suite_has_passed_test_case \
   "Durable server-failure retry latch" \
-  "OfflineQueueManagerTests" \
-  "Offline Queue Manager Tests" \
+  "BackgroundInferenceRetryTests" \
+  "Background Inference Retry" \
   "scheduledServerFailureMarkerIsReadFromDurableStore"
 assert_suite_has_passed_test_case \
   "Scheduled retry survival through media restaging" \
@@ -300,8 +300,8 @@ assert_suite_has_passed_test_case \
   "testInferenceRetryCannotOverrideCompletedCloudOwnership"
 assert_suite_has_passed_test_case \
   "Offline capture durability" \
-  "OfflineQueueManagerTests" \
-  "Offline Queue Manager Tests" \
+  "CaptureAdmissionTests" \
+  "Capture Admission Tests" \
   "testEnqueueCapture_WithValidData_PersistsQueuedScan"
 assert_suite_has_passed_test_case \
   "Description-only manual retry budget reset" \
@@ -370,18 +370,18 @@ assert_suite_has_passed_test_case \
   "emptyPendingQuarantineIsAtomicAndStateBound"
 assert_suite_has_passed_test_case \
   "Runnable offline queue count" \
-  "OfflineQueueManagerTests" \
-  "Offline Queue Manager Tests" \
+  "QueueMaintenanceTests" \
+  "Queue Maintenance Tests" \
   "unsyncedCountIncludesOnlyAutomaticallyRunnableScans"
 assert_suite_has_passed_test_case \
   "Offline upload batch head-of-line starvation fence" \
-  "OfflineQueueManagerTests" \
-  "Offline Queue Manager Tests" \
+  "MediaUploadSyncTests" \
+  "Media Upload Sync" \
   "uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork"
 assert_suite_has_passed_test_case \
   "Empty staged-media rejection" \
-  "OfflineQueueManagerTests" \
-  "Offline Queue Manager Tests" \
+  "MediaStagingBudgetTests" \
+  "Media Staging Budget" \
   "testMediaStagingContractRejectsEmptyFilesBeforeUpload"
 assert_suite_has_passed_test_case \
   "Legacy import manual-retry rejection" \
@@ -390,18 +390,18 @@ assert_suite_has_passed_test_case \
   "testRetryQueuedScanNowRejectsLegacyExternalImport"
 assert_suite_has_passed_test_case \
   "Cloud deletion positive confirmation" \
-  "OfflineQueueManagerTests" \
-  "Offline Queue Manager Tests" \
+  "CloudDeletionSyncTests" \
+  "Cloud Deletion Sync" \
   "cloudDeletionRequiresExplicitNetworkConfirmation"
 assert_suite_has_passed_test_case \
   "Cloud deletion indefinite retry recovery" \
-  "OfflineQueueManagerTests" \
-  "Offline Queue Manager Tests" \
+  "CloudDeletionSyncTests" \
+  "Cloud Deletion Sync" \
   "cloudDeletionRetriesNeverEnterAnUnrecoverableState"
 assert_suite_has_passed_test_case \
   "Cloud deletion process single-flight" \
-  "OfflineQueueManagerTests" \
-  "Offline Queue Manager Tests" \
+  "CloudDeletionSyncTests" \
+  "Cloud Deletion Sync" \
   "cloudDeletionDrainIsProcessSingleFlight"
 assert_suite_has_passed_test_case \
   "Cloud deletion response integrity" \

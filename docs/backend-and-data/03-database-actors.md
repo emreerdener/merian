@@ -19,27 +19,30 @@ executor, never blocking the main thread.
 
 ## Shared DTOs And Coordination
 
-All `Sendable` value types shared across the offline sync pipeline live in a
-single file so they are visible to any reader without hunting through actor or
-extension files:
+`Sendable` value types shared across the offline sync pipeline live in focused
+files under `Core/Data/OfflineSync/Models`; stateless wire-adjacent and
+state-transition contracts live under `OfflineSync/Policies`. The
+[Offline Sync README](../../apps/ios/Merian/Core/Data/OfflineSync/README.md)
+keeps the complete ownership inventory discoverable without coupling unrelated
+declarations in one aggregate file:
 
 | Type                                  | Purpose                                                                                                                                                                                                                                                                                                |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PendingScanPayload`                  | Minimal snapshot of a queued scan returned by `fetchPendingScans(limit:)`, including local image and audio paths. Safe to pass across actor boundaries.                                                                                                                                                |
+| `PendingScanPayload`                  | Minimal snapshot of a queued scan returned by `fetchPendingScans(limit:)`, including local image, audio, and video paths. Safe to pass across actor boundaries.                                                                                                                                        |
 | `ScanUploadItem`                      | One local media file ready for a presigned R2 PUT — `scanId`, per-scan `uploadIndex`, `mediaKind`, `fileName`, `fileURL`, `contentType`, and expected `objectKey`.                                                                                                                                     |
 | `ExtractedScanData`                   | Full `OfflineQueuedScan` snapshot captured on the main actor for handoff to background inference. Carries the canonical ordered `capturedMediaItems: [SerializedMediaItem]` timeline, from which image paths, audio paths, prompt text, and serialized observation contexts are derived on demand.     |
 | `OfflineScanProcessingResult`         | Result of `processAndCleanupOfflineScan` — species name, discovery flag, `speciesData` for engine hydration, and `wasCleaned` flag controlling main-actor queue flush.                                                                                                                                 |
 | `ScanFinalizationCoordinator`         | Per-scan async lock used by live visual, live non-visual, and background URLSession finalizers before they write `LocalScanRecord.id`. Prevents Core Data unique-constraint merge policy from merging no-inverse media relationships when the two inference paths complete the same scan concurrently. |
 | `ScanInferencePersistenceCoordinator` | Per-scan async lock shared by every `BackgroundDatabaseActor` instance and the main-actor queue deletion path. It keeps the durable inference-generation check, URLSession cancellation, retry retreat/finalization, and SwiftData save inside one compare-before-mutate critical section.             |
 
-Both coordinators live beside `BackgroundDatabaseActor`, not in
-`OfflineSyncTypes.swift`, because they are executable coordination rather than
-transport DTOs. The in-memory lock is not the ownership authority:
-`OfflineJobRecord.metadataJSON` stores the UUID generation transactionally with
-`.staged → .inferencing`, and every late retry, completion, or delete must match
-that durable value. A `nil` value may be adopted only for work already in flight
-during the rollout; a non-`nil` generation is never overwritten by a different
-attempt.
+Both finalization coordinators live beside `BackgroundDatabaseActor`, while the
+process-local generation task registry lives under `OfflineSync/Coordinators`.
+They are executable coordination rather than transport DTOs. The in-memory lock
+is not the ownership authority: `OfflineJobRecord.metadataJSON` stores the UUID
+generation transactionally with `.staged → .inferencing`, and every late retry,
+completion, or delete must match that durable value. A `nil` value may be
+adopted only for work already in flight during the rollout; a non-`nil`
+generation is never overwritten by a different attempt.
 
 ---
 
@@ -83,7 +86,10 @@ _Upload state machine (V33):_
   not found, cancelled while waiting, or if the save fails and rolls back.
   `ScanInferencePersistenceCoordinator` serializes independent SwiftData
   contexts for that scan, so only one pipeline can win the claim. The race
-  between `processUploadCompletion` and `replayInferenceForUploadedScans` is
+  between the focused media-upload completion owner
+  (`Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift`) and the
+  uploaded-scan replay owner
+  (`Services/InferenceReplay/OfflineQueueManager+InferenceReplay.swift`) is
   closed at the persistence boundary.
 - `transitionScanToStaged(id:)` — retreats `.inferencing → .staged` on transient
   inference failure so `replayInferenceForUploadedScans` can reclaim the scan on

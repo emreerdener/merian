@@ -41,6 +41,12 @@ Queued replay no longer serializes large audio into a background
 file-backed R2 upload tasks, while the inference download task carries a small
 JSON payload of object keys, telemetry, and observation contexts.
 
+Replay request construction uses only telemetry already persisted on the queued
+scan; it performs no WeatherKit or reverse-geocoding lookup. Its 30-second
+preparation race is a hard first-result boundary: timeout cancels the losing
+preparation and ignores any late completion without waiting for cooperative
+cancellation. Cancellation of the caller still surfaces as `CancellationError`.
+
 Live audio still uses inline base64 because it is a foreground request and
 avoids the extra R2 round trip. The client and edge budget checks keep that path
 bounded.
@@ -54,13 +60,39 @@ bounded.
   `/identify` and `/identify-multimodal`. New scan work should route through
   `/identify-multimodal`; `/identify` is compatibility-only and writes the
   shared ingestion ledger for recovery.
-- Upload staging contract: `MediaStagingContract` in `OfflineSyncTypes.swift`
+- Upload staging contract:
+  `Core/Data/OfflineSync/Policies/MediaStagingContract.swift`, with typed
+  staging values in `Core/Data/OfflineSync/Models/MediaStagingModels.swift`
 - Cross-language upload manifest contract:
   `docs/contracts/media-staging-upload-manifest.json`
+- Upload preparation:
+  `Core/Data/OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadPreparation.swift`
+  (`OfflineQueueManager.prepareUploadItems(from:userId:)`)
 - Upload orchestration:
-  `OfflineQueueManager+Sync.prepareUploadItems(from:userId:)`
+  `Core/Data/OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadSync.swift`
+  (`OfflineQueueManager.syncPendingScans()`)
 - Replay dispatcher:
-  `OfflineQueueManager+URLSession.dispatchInferenceDownloadTask(...)`
+  `Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceDispatch.swift`
+  (`OfflineQueueManager.dispatchInferenceDownloadTask(...)`)
+- Task completion:
+  `Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift`
+  (`OfflineQueueManager.processInferenceDownloadResult(...)` and
+  `handleInferenceTaskNetworkFailure(...)`)
+- Delayed status probing and task retirement:
+  `Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceWatchdog.swift`
+  (`OfflineQueueManager.scheduleInferenceStatusProbe(...)` and
+  `isLiveInferenceTask(...)`)
+- Server-result recovery and hydration:
+  `Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift`
+  (`OfflineQueueManager.recoverCompletedInferenceFromServer(...)` and
+  `serverOwnedInferencingScanIds(...)`), including retryable server-status
+  persistence and durable-wake-first post-save fencing
+- General transport retry and server-poll lifetime:
+  `Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceRetry.swift`
+  (`OfflineQueueManager.handleInferenceRetry(...)` and
+  `scheduleServerIngestionPoll(...)`), including immediate central-wake
+  restoration after retry persistence and before process-local continuation
+  checks
 - Shared Edge media budget helpers:
   `services/supabase/functions/_shared/mediaBudgets.ts`
 - Edge handler: `services/supabase/functions/identify-multimodal/index.ts`
@@ -72,6 +104,9 @@ bounded.
 ## Guardrails
 
 - Do not reintroduce inline audio bodies for queued replay.
+- Do not add live WeatherKit or reverse-geocoding work to background replay.
+  Optional context must be persisted before dispatch so request preparation
+  remains hard-bounded and the OS-owned task receives an immutable body.
 - Treat durable/playback audio references as metadata, not local inference
   paths. Historical HTTPS or M4A audio must pass through
   `InferenceAudioPreparer` and become a validated local WAV before queue or
@@ -129,6 +164,33 @@ bounded.
   `MediaStagingContract` tests cover sanitized mixed-media keys, underscore-safe
   upload task descriptions, and staged-audio byte rejection before upload
   dispatch.
+- `BackgroundInferenceDispatchTests` proves timeout returns without awaiting a
+  non-cooperative preparation, ignores its late completion, preserves explicit
+  caller cancellation, revalidates generation ownership after suspensions, and
+  keeps durable retirement ahead of task cancellation.
+- `BackgroundInferenceCompletionTests` proves cancellation retires only its
+  exact generation and probe, while stale failures and result files cannot
+  disturb a replacement active generation, completion lock, dispatch timestamp,
+  or probe. The stale-result case also proves the delivered temp file is
+  removed; the architecture suite freezes cleanup registration before claim and
+  compare-before-clear completion teardown.
+- `BackgroundInferenceWatchdogTests` proves a replacement probe keeps exact
+  generation ownership, current and legacy task descriptions match only open
+  tasks for the requested scan, both task-enumeration suspensions revalidate the
+  exact probe and generation before clearing either owner, and the watchdog
+  preserves recovery before cancellation plus retirement before retry. The
+  architecture suite freezes its declaration/import, task-session,
+  probe-registry, and ordering boundaries.
+- `BackgroundInferenceRecoveryTests` proves found server ownership is durable
+  before local result hydration and a terminal server-result contract mismatch
+  pauses without entering a retry loop.
+- `BackgroundInferenceRetryTests` proves retry policy reads the durable
+  server-failure marker when queue-row state drifts and stale server-poll work
+  cannot clear a replacement token. It also proves a cancelled process owner can
+  restore a committed general-retry wake. The background-inference architecture
+  suite freezes durable retry save, immediate central wake restoration without
+  an intervening suspension in both retry paths, post-save ownership
+  revalidation, and process-local poll/retry replacement in that order.
 - Capture workspace tests assert offline visual and audio queued-only
   submissions do not call `InferenceEngine.prepareForNewScan()` or open the live
   insight sheet.

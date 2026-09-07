@@ -405,6 +405,16 @@ queued stale reconcile therefore cannot overwrite a replacement claim. Final
 `LocalScanRecord` persistence remains a fresh-actor operation so a failed save
 cannot poison this long-lived context.
 
+Treat a successful actor retry save as committed even when the caller loses
+process-local ownership while awaiting it. Both inference retry paths restore
+`OfflineJobScheduler` from the persisted deadline immediately after that save,
+without another suspension. The retryable server-status path then checks task
+cancellation, network policy, the poll-slot token, and the inference generation
+before installing another local server-poll task. The general transport-retry
+path rechecks cancellation, any poll token, and the generation before installing
+its optional local retry task. This ordering preserves durable progress without
+allowing stale work to overwrite a replacement process-local owner.
+
 ---
 
 ## 9. Relationship Mirrors Are Not Always Safe Hot Read Paths
@@ -930,8 +940,8 @@ infinite oscillation.
 
 `InferenceEngine.activeScanId` is set at the start of `analyze()` with a unique
 `activeLiveInferenceAttemptGeneration`. The background offline path
-(`OfflineQueueManager+URLSession`) may hydrate the live engine only when it
-still owns both values:
+(`Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift`)
+may hydrate the live engine only when it still owns both values:
 
 ```swift
 if engine.commitRecoveredBackgroundResult(

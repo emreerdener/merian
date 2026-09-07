@@ -5,8 +5,8 @@
 **Affected flow:** Library queued scan → media re-stage → status preflight →
 Identify → Insight / Field Chat / Explore\
 **Repository status:** Remediated\
-**Production status:** Open until the database/Edge rollout, matching iOS
-build, and retained-device verification satisfy the closure gates below
+**Production status:** Open until the database/Edge rollout, matching iOS build,
+and retained-device verification satisfy the closure gates below
 
 ## Summary
 
@@ -14,15 +14,14 @@ TestFlight 1.0.2 (235) could accept a scan into the durable offline queue but
 never send the Identify request needed to recover it. Opening the scan library
 made the failure visible as an endless one-second cycle:
 
-1. `/check-scan-status` returned `not_found`,
-   `job_status = failed_retryable`, and
-   `job_stage = background_ingestion_failed`.
+1. `/check-scan-status` returned `not_found`, `job_status = failed_retryable`,
+   and `job_stage = background_ingestion_failed`.
 2. iOS scheduled a retry and forced a fresh media upload.
 3. The upload returned HTTP 200 and the queue advanced to `.staged`.
 4. The pre-Identify status check saw the same retryable server row and
    classified it as server-owned.
-5. iOS skipped `/identify-multimodal`, returned to step 1, and uploaded the
-   same retained media again.
+5. iOS skipped `/identify-multimodal`, returned to step 1, and uploaded the same
+   retained media again.
 
 The app was not waiting for Gemini. It was preventing itself from sending any
 Identify request.
@@ -34,10 +33,10 @@ Identify request.
   without advancing analysis.
 - Insight never received a result, so the same observation could not support
   Field Chat, field-trip completion, owner sync, or Explore publication.
-- Opening the library amplified diagnostics and pipeline wakeups, making the
-  app appear continuously active even without user interaction.
-- Automatic retry accounting remained at one, so the safety cap could never
-  stop the loop.
+- Opening the library amplified diagnostics and pipeline wakeups, making the app
+  appear continuously active even without user interaction.
+- Automatic retry accounting remained at one, so the safety cap could never stop
+  the loop.
 
 The supplied session contained two affected observations. Identifiers and the
 authenticated account id are intentionally omitted from this document.
@@ -46,42 +45,41 @@ authenticated account id are intentionally omitted from this document.
 
 One retained TestFlight trace contained:
 
-| Event                                                                     | Count |
-| ------------------------------------------------------------------------- | ----: |
-| `/check-scan-status` requests                                             |    64 |
-| `/generate-upload-urls` requests                                          |    48 |
-| successful background upload dispatches/completions                       | 61/61 |
-| one-second `scheduleRetryableServerFailure` schedules                     |    62 |
-| “server owns or completed; skipping duplicate inference” decisions        |    61 |
+| Event                                                                      | Count |
+| -------------------------------------------------------------------------- | ----: |
+| `/check-scan-status` requests                                              |    64 |
+| `/generate-upload-urls` requests                                           |    48 |
+| successful background upload dispatches/completions                        | 61/61 |
+| one-second `scheduleRetryableServerFailure` schedules                      |    62 |
+| “server owns or completed; skipping duplicate inference” decisions         |    61 |
 | `/identify`, `/identify-multimodal`, `/identify-describe`, or `audio-spec` |     0 |
-| persisted one-second scheduler wakes                                      |   203 |
-| library queue refresh diagnostics                                         |   106 |
+| persisted one-second scheduler wakes                                       |   203 |
+| library queue refresh diagnostics                                          |   106 |
 
 This is a definitive negative signal: every prerequisite before Identify was
 healthy, while no scan-producing request left the device.
 
 A later physical-device beta smoke staged a new scan, disabled both Wi-Fi and
 cellular data, submitted it, observed the retained queued state, then restored
-connectivity. The same scan resumed and completed analysis successfully. This
-is positive tester-observed evidence for the ordinary offline enqueue/reconnect
+connectivity. The same scan resumed and completed analysis successfully. This is
+positive tester-observed evidence for the ordinary offline enqueue/reconnect
 path against the deployed backend. The attached console bundle did not retain
 the queue insertion, reconnect dispatch, Identify response, and atomic queue
 deletion sequence for that transaction, and the installed app still identified
-as build `235`; it is therefore not exact-source structured closure evidence
-for the remediated retryable-generation path.
+as build `235`; it is therefore not exact-source structured closure evidence for
+the remediated retryable-generation path.
 
 ## Root Cause
 
 The history audit was repeated over the latest 100 first-parent commits through
-current committed baseline
-`c7eac9c8f3124437712ee72eeff49d09e6ea55b1`. This repository had zero merge
-commits in that window, so the requested “last 100 merges” review was performed
-against its linear/squash first-parent history and each relevant scan-path
-change. The original deadlock was isolated before `b2c7a241a`; the later
-recovery-proof hardening at `a21155a32`, joined runtime remediation at
-`cc664a20d6212299966b4579f733e612ed836514`, and queued-audio evidence wiring at
-`29324d5d7` through native queued-control correction `c7eac9c8f3` do not alter
-this client scheduler root cause.
+current committed baseline `c7eac9c8f3124437712ee72eeff49d09e6ea55b1`. This
+repository had zero merge commits in that window, so the requested “last 100
+merges” review was performed against its linear/squash first-parent history and
+each relevant scan-path change. The original deadlock was isolated before
+`b2c7a241a`; the later recovery-proof hardening at `a21155a32`, joined runtime
+remediation at `cc664a20d6212299966b4579f733e612ed836514`, and queued-audio
+evidence wiring at `29324d5d7` through native queued-control correction
+`c7eac9c8f3` do not alter this client scheduler root cause.
 
 Commit `fab31d92a5985c7c02669c33cadfcc2b1091e3a8` joined three individually
 reasonable recovery changes into a closed state machine:
@@ -114,11 +112,11 @@ The first remediation preserved the latch through staging, but trusted only
 `OfflineQueuedScan.queueAttemptCount`. The same values were already mirrored on
 the scan's `OfflineJobRecord`. A later archived build reproduced the loop on a
 migrated V50 store: the queue-row scalar snapshot no longer exposed the marker
-while the job row still did. Staging classified the upload as ordinary,
-reset both rows, and every later status observation committed “retry 1” again.
-Fresh reads also consulted only the scan row, so the surviving job authority
-could not stop the loop. The single-row fix was therefore correct for a clean
-test store but incomplete for the released migration/context topology.
+while the job row still did. Staging classified the upload as ordinary, reset
+both rows, and every later status observation committed “retry 1” again. Fresh
+reads also consulted only the scan row, so the surviving job authority could not
+stop the loop. The single-row fix was therefore correct for a clean test store
+but incomplete for the released migration/context topology.
 
 ## Resolution
 
@@ -140,9 +138,13 @@ iOS now gives the exact `server_retryable_failure` code state-machine meaning:
 7. retry-budget reads use a fresh SwiftData context so background-actor commits
    cannot be hidden by a cached main-context model;
 8. after the persisted delay, a `.retryAfter` preflight permits Identify only
-   when that exact durable marker exists; and
-9. recovered, processing/finalizing, terminal, manual, unrelated, or
-   marker-free states still block duplicate provider dispatch.
+   when that exact durable marker exists;
+9. recovered, processing/finalizing, terminal, manual, unrelated, or marker-free
+   states still block duplicate provider dispatch; and
+10. after persisting a retryable server-status transition, iOS restores the
+    central durable wake before a current poll may replace process-local work. A
+    cancelled or replaced poll therefore cannot strand the deadline or displace
+    a newer poll owner.
 
 The stable `client_scan_id` remains the request idempotency key. The Identify
 route repeats the same server reconciliation before quota admission, so a
@@ -172,9 +174,9 @@ status probe set, or orphan transition. This preserves newly observed durable
 work without the overlapping probes, retry inflation, and start-log storm seen
 in the archived physical-device trace.
 
-Late generation-fenced callbacks can also discover that another serialized
-owner already committed the same retry, or that cloud completion superseded it.
-Those are normal coalescing outcomes and no longer emit “persistence generation
+Late generation-fenced callbacks can also discover that another serialized owner
+already committed the same retry, or that cloud completion superseded it. Those
+are normal coalescing outcomes and no longer emit “persistence generation
 changed” on every library/scheduler wake. A genuinely missing marker and
 generation mismatch remains diagnostic.
 
@@ -182,25 +184,24 @@ generation mismatch remains diagnostic.
 
 The same retained session showed four library refresh failures after successful
 `/get-explore-media-incidents` HTTP calls. Those old benchmark lines reported
-`bytes=2`, but code review proved that the ambiguous field measured the
-two-byte `{}` request body, not the response. The trace therefore does not prove
-that the handler returned an empty `[]`, and repository history shows the route
-was introduced with the current `{ "data": [] }` envelope. This adjacent
-invalid response did not cause the status/upload deadlock, but library-update
-events repeated the false decode error on the same screen.
+`bytes=2`, but code review proved that the ambiguous field measured the two-byte
+`{}` request body, not the response. The trace therefore does not prove that the
+handler returned an empty `[]`, and repository history shows the route was
+introduced with the current `{ "data": [] }` envelope. This adjacent invalid
+response did not cause the status/upload deadlock, but library-update events
+repeated the false decode error on the same screen.
 
 iOS now accepts only those two exact response topologies and treats an empty
-direct array as no incidents as a defensive rollout compatibility boundary;
-the retained session is not evidence that this topology was deployed. Incident
-entries still pass through the same
-typed decoder, while any other malformed success body becomes
-`MerianError.invalidResponse`. Rapid queue/library updates also coalesce this
-independent read-only refresh without dropping one trailing trigger received
-during an in-flight call. The expected account is revalidated before private
-incidents enter view state. The backend continues to emit the canonical wrapped
-envelope. New HTTP benchmarks expose `status`, `requestBytes`, and
-`responseBytes` separately so future incident analysis cannot confuse request
-payload size with response evidence.
+direct array as no incidents as a defensive rollout compatibility boundary; the
+retained session is not evidence that this topology was deployed. Incident
+entries still pass through the same typed decoder, while any other malformed
+success body becomes `MerianError.invalidResponse`. Rapid queue/library updates
+also coalesce this independent read-only refresh without dropping one trailing
+trigger received during an in-flight call. The expected account is revalidated
+before private incidents enter view state. The backend continues to emit the
+canonical wrapped envelope. New HTTP benchmarks expose `status`, `requestBytes`,
+and `responseBytes` separately so future incident analysis cannot confuse
+request payload size with response evidence.
 
 ## Locked Invariants
 
@@ -211,8 +212,8 @@ payload size with response evidence.
 - Re-upload success cannot erase the inference retry latch or retry accounting.
 - A transient signer or PUT failure during re-stage cannot erase that latch or
   roll its committed count backward.
-- Drift in either redundant SwiftData copy is repaired from the surviving
-  marker and monotonic maximum before a queue transition can reset state.
+- Drift in either redundant SwiftData copy is repaired from the surviving marker
+  and monotonic maximum before a queue transition can reset state.
 - A generic error string, unrelated retry code, manual state, or stale
   generation cannot authorize Identify.
 - A server `found` observation remains stronger than any later unavailable or
@@ -220,6 +221,9 @@ payload size with response evidence.
   returns to provider eligibility.
 - Automatic retries are finite and durable across relaunch; local media remains
   until atomic result persistence and queue cleanup commit.
+- Once retry persistence succeeds, restoring its central wake does not depend on
+  the originating poll still owning process-local state. Optional local poll
+  replacement does.
 
 ## Verification
 
@@ -227,26 +231,30 @@ Repository regressions cover:
 
 - the pure status-action / durable-marker dispatch matrix;
 - fresh-context marker and attempt reads after a background actor commit,
-  including a queue-row marker/counter erased while the job-row mirror
-  survives;
-- the full `.staged → .inferencing → failed retryable → .pending →
-  .uploading → .staged` persistence sequence;
+  including a queue-row marker/counter erased while the job-row mirror survives;
+- the full
+  `.staged → .inferencing → failed retryable → .pending →
+  .uploading → .staged`
+  persistence sequence;
 - process-local replay reconciliation coalescing across concurrent wake sources
   into one active driver and at most one trailing pass;
 - mirror repair, monotonic count preservation, and cloud-complete precedence on
-  upload completion and retry retreat; and
-- retry-cap transition to retained needs-attention state.
+  upload completion and retry retreat;
+- retry-cap transition to retained needs-attention state; and
+- source ordering from retryable-status persistence through central wake
+  restoration and post-save poll/generation revalidation to optional
+  process-local replacement.
 
 Source parsing and deterministic repository gates are necessary but not
-sufficient. The closure test must use the exact Release/TestFlight SHA with
-real background `URLSession`, authenticated status, R2 upload, and Identify.
+sufficient. The closure test must use the exact Release/TestFlight SHA with real
+background `URLSession`, authenticated status, R2 upload, and Identify.
 
 ## Required Production Verification
 
 Do not close this incident until all of the following are retained:
 
-1. the reviewed backend migrations and scan functions deploy before the
-   matching iOS build;
+1. the reviewed backend migrations and scan functions deploy before the matching
+   iOS build;
 2. each previously blocked queue row performs at most one required re-stage,
    then emits an `/identify-multimodal` request;
 3. Identify returns a validated usable response, owner status becomes `found`,

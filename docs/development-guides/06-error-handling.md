@@ -217,7 +217,7 @@ Inference (background URLSession download task)
     │   └── Captured-media contract mismatch → needs attention immediately; preserve no-redispatch fence
     ├── Transport error with no durable completed-result marker → handleInferenceRetry: persist retry and reset to .staged until retry budget ends
     ├── Transport/status error with durable completed-result marker → wait for server/local recovery; never dispatch provider again
-    ├── HTTP 200 → processInferenceDownloadResult → persist LocalScanRecord, delete OfflineQueuedScan
+    ├── HTTP 200 → BackgroundInference/InferenceCompletion.processInferenceDownloadResult → persist LocalScanRecord, delete OfflineQueuedScan
     ├── Platform route 404 or handler 401 / 408 / 409 / 425 / 429
     │   └── handleInferenceRetry: preserve media, poll the ledger, and persist bounded retry
     ├── HTTP 402 / stable entitlement code → preserve media with needs-attention and View plans guidance
@@ -282,10 +282,22 @@ retry state. Never authorize Identify from only one cached model fault.
 
 Delayed status probes and server polls retain their registry token across
 awaited status checks, URLSession cancellation, targeted recovery, and queue
-state transitions. Every post-await mutation requires the same token and a
-non-cancelled task. Do not clear a slot before starting its async action: doing
-so permits a replacement to install itself while the old action is still able to
-write.
+state transitions. Every post-await mutation requires the same token, a
+non-cancelled task, and the exact generation where that work is
+generation-owned. `URLSession.allTasks` is such a suspension boundary: the
+inference watchdog must repeat both its probe-token and generation checks after
+enumeration and before clearing or retiring either owner. Do not clear a slot
+before starting its async action: doing so permits a replacement to install
+itself while the old action is still able to write.
+
+For both retryable server-status and general transport-retry transitions, a
+successful actor save is already a durable commitment even if the awaiting
+caller becomes stale. Restore the central persisted wake immediately after that
+save, with no intervening suspension, then revalidate the applicable
+cancellation, network-policy, poll-token, and generation owners before
+installing an optional process-local poll or retry task. Never let a stale local
+owner prevent the committed deadline from being scheduled, or replace newer
+local work after it resumes.
 
 ---
 

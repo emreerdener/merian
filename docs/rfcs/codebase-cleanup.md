@@ -127,11 +127,13 @@ push toggles in `Profile/Settings/Notifications/`, bundled release notes in
 
 Suggested first targets:
 
-| File                                                     | Cleanup Direction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Complete for this hygiene round. Seventeen endpoint owners cover the extracted feature, inference, publication, lifecycle, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport.                                                                                                                                                              |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Complete for this hygiene round. `Core/Preferences` owns `AppSettings`, keyed compatibility stores, the verified accepted-account-deletion cache inventory, and an injected post-persistence runtime reset; `Core/Data/SpeciesPreferences` owns SwiftData CRUD, normalization/conflict policy, exact PostgREST values, the narrow injected live client, focused local-mutation recovery, and contained single-flight cloud coordination. The residual aggregate is 450 lines and imports only Foundation. Mirrored suites cover settings/store behavior, schema-complete local erasure, explicit-null wire encoding, stable pagination, account fencing, clock skew, interruption recovery, mid-upsert edit fencing, trailing reconciliation, and process-state reset delegation. Account-deletion recovery state and Keychain keys intentionally remain for their separately reviewed security ownership. |
+| File                                                                         | Cleanup Direction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`                              | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`                     | Complete for this hygiene round. Seventeen endpoint owners cover the extracted feature, inference, publication, lifecycle, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport.                                                                                                                                                              |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                      | Complete for this hygiene round. `Core/Preferences` owns `AppSettings`, keyed compatibility stores, the verified accepted-account-deletion cache inventory, and an injected post-persistence runtime reset; `Core/Data/SpeciesPreferences` owns SwiftData CRUD, normalization/conflict policy, exact PostgREST values, the narrow injected live client, focused local-mutation recovery, and contained single-flight cloud coordination. The residual aggregate is 450 lines and imports only Foundation. Mirrored suites cover settings/store behavior, schema-complete local erasure, explicit-null wire encoding, stable pagination, account fencing, clock skew, interruption recovery, mid-upsert edit fencing, trailing reconciliation, and process-state reset delegation. Account-deletion recovery state and Keychain keys intentionally remain for their separately reviewed security ownership. |
+| `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`      | Retired. Capture admission and live handoff, funding, Field Trip progress, and uploaded-scan inference replay now have focused Services owners; retry mutations remain in `OfflineQueueDurability.swift`. All production files in this slice are below 600 lines, and mirrored suites plus hosted-result validation follow the new ownership.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift` | Retired. Passes 5A through 5G moved terminal tracking, Auth quiescence, exact owner adoption, terminal routing, and delegate conformance into `Services/BackgroundTransfer`; generation-fenced upload completion into `Services/MediaUpload`; queued-row snapshot mapping into `Persistence`; actor-independent inference decisions into `Policies`; and inference generation lifecycle, request dispatch, accepted task-result/transport-failure completion, delayed status probing, exact-generation task retirement, server-result recovery, and retry/server-poll lifetime into six focused `Services/BackgroundInference` files. Both inference retry paths restore the durable wake immediately after persistence, before post-save ownership revalidation and optional process-local replacement. All seven Background Inference production owners, including policy, are below 600 lines.          |
 
 Rules for this phase:
 
@@ -2799,6 +2801,637 @@ bounded pinned dispatch including cancellation of a non-completing request at
 its deadline, sole URLSession ownership, no-retry admission, and the updated
 workflow scope. The audit retains the established 600-line ceilings for the live
 RevenueCat and Core Network facades.
+
+### Core Data OfflineSync Foundation
+
+The first Core Data OfflineSync pass removes the 1,227-line
+`OfflineSyncTypes.swift` aggregate and gives its declarations focused owners
+under `OfflineSync/Models`, `Policies`, and `Coordinators`. It also extracts
+retry/storage policy, SwiftData job lookup helpers, and the private diagnostics
+implementation from `OfflineQueueDurability.swift` into the corresponding
+`Policies`, `Persistence`, and `Services` owners. The residual durability file
+contains only the live `OfflineQueueManager` state mutations and retry
+orchestration. Every extracted owner and that residual stay below the 600-line
+review ceiling.
+
+The pass preserves every declaration name and call-site signature, current and
+legacy URLSession task-description formats, persisted metadata keys, upload
+manifest semantics, SwiftData model shape, queue transition, retry decision,
+endpoint, feature-flag, authentication, and lifecycle contract. Models and
+stateless policies cannot resolve singletons, own observable state, or launch
+detached work. The main-actor generation task registry retains private mutable
+entries; diagnostic DTOs, redaction policy, and pruning remain private to the
+diagnostics service implementation.
+
+Existing tests are rehomed without dropping test names: staging manifest and
+budget policy, server-authoritative staging identity, exact upload-completion
+accumulation, inference task identity, retry/backoff, and generation task
+cancellation now mirror their production owners.
+`OfflineSyncFoundationArchitectureTests` freezes exact declaration locations,
+framework imports, file ceilings, dependency restrictions, private state, the
+retired aggregate, and the existing external-import retry fence. Integrated
+queue, actor, URLSession, and endpoint behavior remains with the established
+suites. The
+[Offline Sync README](../../apps/ios/Merian/Core/Data/OfflineSync/README.md)
+records these boundaries and identifies the behavior-heavy queue, sync, and
+URLSession extensions as the work remaining after the first slice. The sync
+owner is closed by the following slice; queue and URLSession extraction remain
+separate work.
+
+Verification for this pass includes byte-stable XcodeGen output, generated
+project/resource and source-membership checks, the iOS build/test workflow and
+complete CI-tooling regression suite, Swift parsing, strict SwiftLint with zero
+violations across production and affected tests, changed-Markdown formatting,
+and whitespace validation. The generic iOS Simulator build and complete
+build-for-testing both pass with code signing disabled. The focused OfflineSync
+matrix passes 108 tests on an iPhone 17 Pro iOS 26.4.1 Simulator; after the
+final test-helper cleanup, the directly affected manager, architecture, and
+inference task-contract subset passes again. The complete `merianTests` target
+passes 3,030 tests with zero failures or skips.
+
+A follow-up review expanded the architecture guard from representative owners to
+every relocated declaration and the exact focused-file/framework-import
+inventory. It also corrected documentation that had described file-inspecting
+storage/staging policy and jittered retry timing as pure or deterministic; these
+owners are stateless, while their inputs can include filesystem state and
+bounded randomness. After that correction, byte-stable XcodeGen, project and
+source-membership guards, the iOS build/test workflow, CI-tooling tests, generic
+Simulator build-for-testing, Swift parsing, strict SwiftLint across 1,043 Swift
+files, Markdown formatting, and whitespace validation pass. CoreSimulatorService
+then refused connections, so runtime tests could not be repeated after the
+guard-only correction; the earlier 108-test focused run and 3,030-test complete
+run remain the runtime evidence for the behavior-identical source split.
+
+### Core Data OfflineSync Sync Orchestration
+
+The second Core Data OfflineSync slice removes the 1,666-line
+`OfflineQueueManager+Sync.swift` aggregate. Cloud deletion and collection sync
+now have focused owners under `Services/CloudDeletion` and
+`Services/Collections`. Media upload is separated under `Services/MediaUpload`
+into orchestration, generation lifecycle, preparation, and dispatch/recovery
+files. No production file in this slice exceeds the 600-line review ceiling.
+
+The move preserves all 34 sync declarations and their implementation bodies. The
+private `UploadDispatchResult` carrier becomes a labeled tuple so it does not
+need broader visibility after the split. Three formerly file-private helper
+bridges—upload preparation, dispatch, and signing-failure handling—are narrowly
+module-internal because their callers now live in the sibling orchestration
+file; file-local mutable dispatch state and every other local helper remain
+private. Endpoint calls, queue transitions, actor hops, generation fences, retry
+accounting, task-description formats, authentication leases, and background
+URLSession behavior are unchanged.
+
+Existing cloud-deletion, collection-sync, legacy-audio repair, upload batching,
+and request-policy tests move from `OfflineQueueManagerTests` into four mirrored
+suites without changing or dropping a test declaration. A namespaced
+`OfflineSyncTestSupport` owner provides the shared isolated-store and
+repository-source fixtures rather than coupling the new suites to private
+helpers in the residual aggregate suite. `OfflineQueueSyncArchitectureTests`
+freezes the exact six-file inventory, declaration and framework-import
+ownership, responsibility boundaries, private state, retired aggregate, and
+600-line ceiling. Follow-up review removed the isolated-store helper's hidden
+singleton mutation: each serialized caller now explicitly installs and restores
+the manager context, and the architecture suite rejects a return to implicit
+shared-state installation.
+
+The iOS build-and-test workflow contract now follows the focused owners instead
+of inspecting the retired aggregate. It requires the two live-task
+reconciliation scans in `UploadSync`, the third in `UploadDispatch`, and keeps
+request policy, durable activation, Auth-lease retention, and
+activation-before-resume ordering checks with the dispatch owner.
+
+Documentation closure redirects current upload/retry references to the focused
+owners and corrects the historical-ingest checkpoint documentation from 50 to
+the existing `MerianConfig` value of 100. Neither correction changes runtime
+policy.
+
+Verification for this slice includes byte-stable XcodeGen output, project and
+source-membership validation, the complete iOS CI-tooling regression suite, an
+exact 34-declaration implementation-body comparison, the complete 77-test
+selector/rehome inventory, the 34-owner architecture mirror, Swift parsing,
+strict SwiftLint across every changed Swift file, changed-Markdown formatting,
+and whitespace validation. A generic iOS Simulator build-for-testing passes for
+both Simulator architectures with code signing disabled, including the complete
+app, `merianTests`, and UI test bundles. Runtime execution of the focused matrix
+and complete unit target could not run because CoreSimulatorService refused the
+device-set connection at Simulator discovery; no runtime result is inferred from
+the successful build.
+
+### Core Data OfflineSync Queue Maintenance
+
+The third Core Data OfflineSync slice moves queue count projection, failed-state
+tombstoning, main-context flushes, explicit deletion, and purge out of
+`OfflineQueueManager+Queue.swift`. `Services/QueueMaintenance` separates the
+state mutations from the destructive workflow; both focused production files
+remain below the 600-line review ceiling. The residual aggregate retains
+funding, Field Trip replay, capture admission, retry/cancel, and uploaded-scan
+inference replay.
+
+The extraction preserves the public manager signatures, queue transitions,
+notification behavior, persistence locking, generation and server-poll fences,
+URLSession cancellation, adopted-media exclusions, database-first commit, file
+cleanup, scheduling, and library-change publication. The formerly private
+offline-job lookup and preferred-goal-hint deletion are not widened on the
+manager. They become narrow `ModelContext` persistence helpers consumed by all
+queue owners.
+
+`QueueMaintenanceTests` rehomes the aggregate's tombstone, automatic-work count,
+purge, and flush coverage and adds an explicit retained-attention failure plus
+goal-hint cleanup assertions. Existing `OfflineQueuedScanDeletionTests` retain
+the generation-fenced and disk-deletion integration cases.
+`OfflineQueueMaintenanceArchitectureTests` freezes exact declaration and file
+ownership, framework imports, private destructive helpers, persistence-lock
+ordering, database-before-file deletion, and the 600-line ceiling.
+
+The post-extraction audit compared the token stream of all seven moved manager
+methods with their pre-extraction definitions, allowing only the intentional
+calls through the new `ModelContext` helpers. It also corrected the manager's
+source ownership inventory and closed a test-isolation leak:
+`QueueMaintenanceTests` now restores the published unsynced count as well as the
+injected context after every case. These review fixes do not change production
+behavior.
+
+Verification includes byte-stable XcodeGen output, project and source-membership
+validation, the complete iOS CI-tooling and event-routing contract suites, the
+seven-method equivalence comparison, full current-source Swift semantic
+typechecking, focused maintenance-test semantic typechecking, Swift parsing,
+strict SwiftLint with zero violations, changed-Markdown formatting, and
+whitespace validation. A current `xcodebuild build-for-testing` and simulator
+runtime execution remain unavailable in this environment because
+CoreSimulatorService cannot provide a device set and SwiftPM cannot write its
+manifest diagnostics cache through the sandbox. No build or runtime result is
+inferred from the semantic checks.
+
+This slice changes no endpoint, payload, task-description, SwiftData schema,
+queue-state, retry, authentication, funding, lifecycle, feature-flag, or
+navigation contract.
+
+### Core Data OfflineSync Queue Admission and Replay
+
+The fourth Core Data OfflineSync slice retires the 1,598-line residual
+`OfflineQueueManager+Queue.swift`. Seven focused owners under
+`Services/CaptureAdmission`, `Services/Funding`, `Services/FieldTripProgress`,
+and `Services/InferenceReplay` separate capture-file persistence, visual and
+nonvisual admission, the Describe compatibility entry point, live foreground
+handoff, funding reconciliation, durable goal-hint replay, and uploaded-scan
+inference reconciliation. No production file in the slice exceeds 600 lines.
+
+All 26 manager method implementations are token-equivalent to the pre-split
+source after mapping the four calls into the stateless
+`OfflineCaptureFileStore`. Six additional equivalence checks cover byte
+estimation, shared file-list persistence, the removed duplicate audio/video
+wrappers, single-file moves, and captured-media serialization. Public manager
+signatures, actor isolation, funding claims, queue transitions, file rollback,
+media ordering and source indices, task descriptions, generation fences, status
+recovery, URLSession dispatch, and Field Trip semantics are unchanged.
+
+Ten existing tests move from the 2,812-line aggregate into
+`CaptureAdmissionTests`, `LiveCaptureLifecycleTests`, and `InferenceReplayTests`
+without dropping or duplicating a declaration. Capture tests now install and
+restore shared manager state explicitly and await visual queue persistence
+through the existing completion callback instead of fixed sleeps. The XCResult
+validator follows the exact protected replay and durable capture cases to their
+new suites, and its positive, missing-suite, missing-case, duplicate, failed,
+skipped, and incomplete-result fixtures remain green.
+`OfflineQueueAdmissionArchitectureTests` freezes the seven production owners,
+exact declarations and imports, private helper containment, the exact
+`OfflineCaptureFileStore` consumer allowlist, durable-before-dispatch and
+persistence-lock ordering, the three mirrored test owners, the retired
+aggregate, and the 600-line ceiling.
+
+A post-split review found no production behavior or concurrency defect. It
+closed one encapsulation and test-contract gap by limiting
+`OfflineCaptureFileStore` references to the store declaration and
+`OfflineQueueManager+CaptureEnqueue.swift`, and by freezing each mirrored
+suite's exact Swift type, display name, `.serialized` trait, and
+`.sharedProcessState(.offlineQueueManager)` lease. These guardrails protect the
+XCResult selectors and process-wide singleton fixtures without changing runtime
+code.
+
+Verification includes byte-stable XcodeGen output, project/resource and source-
+membership validation, the complete iOS CI-tooling regression suite, 26 manager
+method and six file-store equivalence checks, current-source Swift parsing,
+focused iOS semantic typechecking with compiler macros loaded in process, and
+strict SwiftLint with zero violations. A generic Simulator build-for-testing
+passed after the production split and compiled the app, unit target, and UI
+target. After the test rehome, a fresh build and runtime attempt could not enter
+dependency resolution because CoreSimulatorService disconnected and SwiftPM
+attempted to emit diagnostics into the sandboxed user cache; no runtime result
+is inferred from the prior build or current semantic checks.
+
+This slice changes no endpoint, JSON payload, task-description, SwiftData
+schema, persistence, queue-state, retry, Auth, funding, Field Trip, lifecycle,
+feature-flag, or navigation contract.
+
+### Core Data OfflineSync Background Transfer Ownership (Pass 5A)
+
+The fifth Core Data OfflineSync slice begins the 3,123-line
+`OfflineQueueManager+URLSession.swift` extraction without widening its private
+terminal-validation helpers. At that checkpoint, `Services/BackgroundTransfer`
+established ownership of the lock-protected
+`BackgroundURLSessionTerminalWorkTracker`, the system-completion fence, task
+Auth-lease retention and bounded durable retirement, Auth-transition quiescence,
+and the sole nonisolated URLSession delegate conformance. The root manager
+retains only stored background-session, completion-handler, tracker, and lease
+state; the residual URLSession pipeline retained private relaunched-task
+validation plus upload/inference processing for the following slices.
+
+The extracted tracker, completion boundary, five account-work methods, and
+delegate extension are token-equivalent to their pre-split definitions. The
+split preserves synchronous tracker registration before every asynchronous
+handoff, durable retirement before transport cancellation, exact-session lease
+reacquisition before the first actor suspension, terminal persistence before
+lease/tracker release, and tracker drain before the iOS completion handler.
+
+Seven tests move from `OfflineQueueManagerTests` into the serialized
+`BackgroundTransferOwnershipTests` suite without changing or duplicating a test
+name. `BackgroundTransferArchitectureTests` initially froze the three focused
+files, exact declaration/import ownership, private tracker state, exact tracker
+and lease-map consumers, residual private validation, registration and
+quiescence ordering, mirrored test ownership, and the 600-line ceilings.
+
+Verification includes a generic iOS Simulator build-for-testing for the app,
+unit-test, and UI-test bundles plus 46 focused tests covering the new suites,
+the residual manager suite, and media-upload sync on an iPhone 17 Pro iOS 26.4.1
+Simulator. The complete `merianTests` target subsequently passed 3,047 top-level
+tests, representing 5,031 parameterized executions, with zero failures or skips
+on the same destination. Its canonical XCResult check exposed six stale suite
+owners retained from the earlier queue-maintenance, staging, media-upload, and
+cloud-deletion extractions. The validator and its positive, missing-suite,
+missing-case, retired-owner, duplicate, failed, skipped, and incomplete fixtures
+now bind those unchanged test names to their focused suites; validation against
+the real complete-target result passes. XcodeGen regeneration, project/source
+membership, Swift parsing, strict SwiftLint, the iOS CI-tooling suite, Markdown
+formatting, and whitespace validation remain part of the slice closure.
+
+A post-split concurrency review removed the tracker's production
+`activeCountForTesting` surface and strengthened its tests to cover multiple
+tokens, multiple concurrent waiters, exactly-once handler consumption, duplicate
+finishes, and the idle fast path through observable behavior. The review also
+corrected the pipeline documentation: `URLSession.allTasks` is only an
+active-sibling wait signal; advancement requires the generation-scoped
+successful-key accumulator to cover the exact expected media manifest. Current
+Swift source parsing, focused iOS test-target typechecking, strict SwiftLint,
+project generation, source membership, and documentation checks pass. A fresh
+native build and runtime rerun could not start because CoreSimulatorService was
+unavailable and SwiftPM attempted to write manifest diagnostics outside the
+workspace sandbox; the earlier native results above remain historical evidence
+and are not presented as execution of the added idle-path case.
+
+This slice changes no endpoint, JSON payload, task-description, background-
+session identifier, SwiftData schema, persistence transition, queue state,
+retry, Auth, funding, lifecycle, feature-flag, or navigation contract.
+
+### Core Data OfflineSync Background Terminal Routing (Pass 5B)
+
+The next URLSession slice moves private relaunched-task owner validation and
+adoption plus the three upload/inference terminal bridges into
+`Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift`.
+The routing owner verifies or atomically adopts exact-session work before it
+forwards accepted callbacks to the residual upload/inference processors. A
+rejected callback instead completes its bounded durable retirement before it
+invalidates an upload generation or finishes a matching process-local inference
+generation.
+
+The shared rejected-work retirement mutation lives with Auth-bound account work
+because both terminal routing and inference dispatch require the same
+durable-before-cancel fence. Its internal visibility is constrained by an exact
+three-file consumer allowlist. The two owner-validation helpers remain private
+to terminal routing, and stored lease/generation state remains on the root
+manager. Including the post-review guards below, this reduces
+`OfflineQueueManager+URLSession.swift` from 2,740 to 2,500 lines without
+changing callback order, actor isolation, cancellation, generation fencing,
+background-session completion, or queue transitions.
+
+`BackgroundTransferArchitectureTests` now freezes four focused production files,
+the relocated declaration owners, private validation containment, exact
+tracker/lease/retirement consumers, and registration, adoption, retirement, and
+terminal-release ordering. A post-extraction review also closed a pre-existing
+fail-closed mismatch in inference dispatch: exhausted retirement of a newly
+created but unresumed task now preserves its active process generation alongside
+the durable `.inferencing` owner instead of finishing the generation before the
+queue transition commits. The same review now closes the complementary delayed
+success path: an Auth sweep or rejected terminal callback that later commits
+retirement immediately finishes the exact process generation; the Auth sweep
+does so before transport cancellation. The architecture suite freezes the
+successful retirement/completion/cancellation path, the completion consumer
+allowlist, and failed-retirement preservation. The focused iPhone Simulator
+matrix passes 58 tests across the architecture, ownership, residual
+queue-manager, media-upload, and sync-state suites on iOS 26.5. The complete
+`merianTests` target passes 3,049 tests with zero failures or skips from the
+same current build products. Swift parsing, strict SwiftLint, byte-stable
+XcodeGen regeneration, project and source-membership validation, the iOS
+CI-tooling suite, and a generic iOS Simulator build also pass.
+
+This slice changes no endpoint, JSON payload, task-description, background-
+session identifier, SwiftData schema, persistence transition, queue state,
+retry, Auth, funding, lifecycle, feature-flag, or navigation contract.
+
+### Core Data OfflineSync Upload Completion and Queue Extraction (Pass 5C)
+
+The third URLSession slice moves generation-fenced upload callback processing
+into `Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift`. That
+focused owner retains successful-member accumulation, transport and HTTP
+fallback classification, exact-manifest confirmation, durable `.staged` commit,
+legacy audio repair, foreground-inference exclusion, preparation ownership, and
+the handoff to background inference. Its completion-only metadata and fallback
+helpers remain private. Upload generation validation/invalidation moves beside
+sync completion and expiry in `UploadLifecycle`; stored generation and callback
+state stays on the root manager.
+
+`Persistence/OfflineQueueManager+QueuedScanExtraction.swift` now owns the
+main-actor mapping from an `OfflineQueuedScan` SwiftData row to the Sendable
+`ExtractedScanData` replay snapshot. The mapper uses the reusable
+`ModelContext.preferredGoalHint(scanId:)` read paired with deletion in
+`ModelContext+FieldTripGoalHints.swift`, so upload completion, inference replay,
+and completed-server recovery do not duplicate the goal-hint fetch. The mapper
+has no singleton, endpoint, URLSession, or application-container resolution.
+These moves reduce the residual `OfflineQueueManager+URLSession.swift` from
+2,500 to 1,924 lines; it now owns inference dispatch/result recovery plus retry
+and probe lifetime rather than upload finalization.
+
+Six deterministic queue-mapping tests move from the aggregate manager suite to
+`QueuedScanExtractionTests` without changing their names or assertions. That
+suite creates isolated stores without installing shared manager state. Seven
+upload-generation, manifest, callback-token, durable-staging, and legacy-audio
+ordering tests move to the serialized `MediaUploadCompletionTests` suite, which
+retains the offline-queue shared-process lease and explicitly restores the
+manager context it installs. `OfflineSyncFoundationArchitectureTests` freezes
+mapper ownership, focused test ownership, and the exact
+extraction/preferred-goal consumer allowlists.
+`OfflineQueueSyncArchitectureTests` freezes the seventh live sync source,
+completion-private helpers, generation-lifecycle ownership, mirrored test
+ownership, exact imports, and the 600-line ceiling.
+
+Verification includes current-source Swift parsing, strict SwiftLint with zero
+violations, byte-stable XcodeGen regeneration, project/resource and source
+membership validation, the complete iOS CI-tooling contract, Markdown
+formatting, and a generic iOS Simulator build-for-testing that compiled the app,
+unit-test, and UI-test targets. Runtime Simulator execution could not start
+because CoreSimulatorService was unavailable; no runtime result is inferred from
+the successful build.
+
+A follow-up review rechecked completion-token lifetime, generation precedence
+and invalidation, exact-manifest accumulation, durable staging outcomes,
+legacy-audio interception, foreground-inference exclusion, queued-row mapping,
+and preferred-goal lookup semantics. No production correction was required. The
+review corrected the current cleanup inventory and reliability source map, then
+aligned the Audio, Field Trips, AI architecture, database-actor, test-strategy,
+and codebase-map references with the focused owners. Swift parsing, strict
+SwiftLint, byte-stable XcodeGen, project/source membership, the complete iOS
+CI-tooling contracts, Markdown formatting, Supabase tree formatting, and
+whitespace validation pass on the reviewed tree. A focused runtime attempt could
+not start after CoreSimulatorService disconnected again and SwiftPM was unable
+to emit diagnostics into the sandboxed user cache; it supplies no test result.
+
+This slice changes no endpoint, JSON payload, task-description, background
+session identifier, SwiftData schema, persistence transition, queue state,
+retry, Auth, funding, Field Trip, lifecycle, feature-flag, or navigation
+contract.
+
+### Core Data OfflineSync Background Inference Dispatch (Pass 5D)
+
+The fourth URLSession slice moves the exact process-generation claim,
+validation, and completion methods into
+`Services/BackgroundInference/OfflineQueueManager+InferenceLifecycle.swift`. Its
+sibling dispatch owner contains server-status preflight, generation checks
+across every suspension, bounded request preparation, exact Auth-work lease
+transfer, durable `.inferencing` activation, task identity, resume, and status-
+probe handoff. Dispatch no longer reads the active-generation map directly; the
+focused lifecycle seam is its only process-owner query.
+
+`Policies/BackgroundInferencePolicy.swift` is the actor-independent owner of
+platform-route and response classification, media-restaging decisions,
+server-status recovery, retry-date parsing, dispatch admission, and the stable
+consent-attention message. Keeping those decisions off the `@MainActor` manager
+allows deterministic policy tests without creating a queue instance. The
+residual `OfflineQueueManager+URLSession.swift` falls from 1,924 to 1,325 lines
+and now owns accepted result processing, server-result hydration/recovery, and
+retry/probe lifetime.
+
+The extracted preparation race also closes two pre-existing timeout edges. It
+emits the explicit timeout before cancelling the losing preparation and uses a
+first-result stream boundary so returning does not depend on that operation
+cooperatively observing cancellation. Late values are ignored. An actual caller
+cancellation still surfaces as `CancellationError`, while an elapsed timeout
+cannot nondeterministically look like preparation cancellation.
+
+`BackgroundInferenceLifecycleTests` covers exact and idempotent claims, retired
+generation rejection, legacy adoption, and replacement-generation completion
+fencing under the shared offline-queue lease. `BackgroundInferenceDispatchTests`
+covers preparation success, deterministic timeout/cancellation behavior, a
+non-cooperative losing operation, suspension-point revalidation, and durable
+retirement ordering. `BackgroundInferencePolicyTests` rehomes route, response,
+restaging, status-recovery, and dispatch-admission cases from the aggregate
+manager suite. `BackgroundInferenceArchitectureTests` freezes the three focused
+owners, imports, declarations, exact cross-file consumers, direct-map
+containment, mirrored test ownership, and both focused and residual line
+ceilings.
+
+A follow-up integration review corrected the remaining durability caller from
+the retired manager-qualified retry-date parser to
+`BackgroundInferencePolicy.parseRetryAfterDate`; the architecture suite now
+freezes that qualified consumer. It also removed the permanently disabled
+WeatherKit/geocoding branch from background request construction. Replay still
+sends the same already-persisted telemetry without waiting on optional
+enrichment.
+
+Verification includes byte-stable XcodeGen output, project/resource and source-
+membership validation, the complete iOS CI-tooling suite, current-source Swift
+parsing, focused cached-module typechecking for lifecycle, dispatch,
+architecture, and media-upload source guards, a standalone semantic typecheck of
+the current actor-independent policy and its tests, and strict SwiftLint with
+zero violations. Markdown formatting, the Supabase function/script format gate,
+and whitespace validation also pass. The first generic Simulator
+`build-for-testing` compiled both production architectures but exposed the
+rehomed policy suite's missing actor context in the unit target; that issue is
+fixed and covered by the successful focused typechecks. A fresh full build and
+runtime rerun could not enter package resolution after CoreSimulatorService
+became unavailable and SwiftPM attempted to emit manifest diagnostics into the
+sandboxed user cache. No current full-build or runtime result is inferred from
+the partial build or semantic checks.
+
+This slice changes no endpoint, JSON payload, task-description, background
+session identifier, SwiftData schema, persistence transition, queue state,
+retry, Auth, funding, Field Trip, lifecycle, feature-flag, or navigation
+contract.
+
+### Core Data OfflineSync Background Inference Completion (Pass 5E)
+
+The fifth URLSession slice moves accepted background inference task completion
+into
+`Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift`.
+That focused owner now contains `processInferenceDownloadResult`,
+`handleInferenceTaskNetworkFailure`, and the file-private
+`cancelInferenceStatusProbe` helper. It owns response disposition, exact
+generation claim and retirement, task-result file cleanup, final persistence
+handoff, stale-completion revalidation, post-persistence side effects, and
+transport-failure routing. Delegate adaptation remains under
+`Services/BackgroundTransfer`; server-result recovery and retry/probe lifetime
+remain in the residual URLSession extension.
+
+The move preserves the critical ordering. Completion claims its generation
+before mutating task state, cancels only the matching status probe, persists and
+cleans the scan before user-facing side effects, revalidates ownership after
+each suspension-sensitive phase, and retires only the exact claimed generation.
+A stale callback still removes its task-specific result file but cannot clear a
+replacement active generation, completion lock, dispatch timestamp, or status
+probe. The residual falls from 1,325 to 945 lines; the completion owner is 390
+lines, and every focused Background Inference production file remains below the
+600-line review ceiling.
+
+`BackgroundInferenceCompletionTests` adds serialized shared-state coverage for
+exact cancellation retirement and probe cleanup, stale transport-failure
+fencing, and stale result-file cleanup while preserving the replacement active
+generation, completion lock, dispatch timestamp, and status-probe owner.
+`BackgroundInferenceArchitectureTests` now freezes four production owners,
+completion imports and declaration ownership, the exact lifecycle/helper
+consumer sets, absence of direct network-client/background-session access in
+completion, result-file cleanup registration before generation claim,
+compare-before-clear completion teardown, persistence ordering, the mirrored
+test suite, and a 1,000-line residual ceiling. The transfer and foundation
+architecture suites were updated for the relocated consumers.
+
+The stale comment that implied dispatch performed a WeatherKit backfill now
+accurately states that completion consumes telemetry persisted before dispatch.
+The follow-up review also made completion-lock diagnostics truthful: an exact
+owner reports that its lock was cleared, while a stale teardown reports that the
+replacement lock was preserved. No state transition, optional enrichment, or
+direct endpoint call was added.
+
+Verification includes byte-stable XcodeGen regeneration, project/resource and
+source-membership validation, current-source Swift parsing, strict SwiftLint
+with zero violations, all six executable focused architecture tests, the
+completion suite's strict iOS semantic typecheck, and every portable iOS
+CI-tooling contract. Generic Simulator and device build-for-testing attempts
+could not enter compilation because CoreSimulatorService was unavailable and the
+local sandbox rejected SwiftPM's package-manifest helper. No completion runtime
+result is inferred from those blocked attempts.
+
+This slice changes no endpoint, JSON payload, task-description, background
+session identifier, SwiftData schema, persistence transition, queue state,
+retry, Auth, funding, Field Trip, lifecycle, feature-flag, or navigation
+contract.
+
+### Core Data OfflineSync Background Inference Watchdog (Pass 5F)
+
+The sixth URLSession slice moves delayed inference status probing and exact
+background-task inspection/retirement into
+`Services/BackgroundInference/OfflineQueueManager+InferenceWatchdog.swift`. That
+focused owner now contains `scheduleInferenceStatusProbe`,
+`isLiveInferenceTask`, and the private exact-generation cancellation and active
+task-count helpers. The residual URLSession extension retains server-result
+hydration/recovery plus retry and server-poll lifetime.
+
+The move preserves the existing cumulative 10-, 30-, and 65-second probe
+schedule, server recovery before task cancellation, compare-before-clear probe
+ownership, exact generation checks around every suspension-sensitive phase,
+generation completion before retry, current and legacy task-description parsing,
+and OS-owned background-session recovery. A replacement probe or generation
+therefore cannot be cleared by the stale watchdog it displaced. The residual
+falls from 945 to 766 lines; the watchdog owner is 196 lines, and every focused
+Background Inference production file remains below the 600-line review ceiling.
+
+`BackgroundInferenceWatchdogTests` adds serialized shared-state coverage for
+probe replacement, current and legacy parsed task identity with terminal-state
+rejection, and recovery-before-cancellation plus retirement-before-retry source
+ordering. `BackgroundInferenceArchitectureTests` now freezes five production
+owners, the watchdog's Foundation-only import and exact declaration ownership,
+task/session and probe-registry consumer sets, mirrored test ownership, and an
+800-line residual ceiling.
+
+The follow-up review closed the remaining suspension fence inside the extracted
+owner. Both `backgroundSession.allTasks` cancellation paths now revalidate the
+exact probe token and active generation after task enumeration and before
+clearing either owner. The focused ordering test requires those post-suspension
+checks in both the server-owned and watchdog-deadline branches.
+
+Verification includes byte-stable XcodeGen regeneration, project/resource and
+source-membership validation, current-source Swift parsing, strict SwiftLint
+with zero violations, all six executable focused architecture tests, the
+watchdog suite's focused iOS semantic typecheck, every portable iOS CI-tooling
+contract, Markdown formatting, documentation-contract tests, and whitespace
+validation. The CI workflow fixture preserves the former residual file's 12
+connectivity-guard occurrences as an exact 11-in-residual plus 1-in-watchdog
+ownership split; dispatch retains its separate five occurrences. A fresh generic
+Simulator build could not enter compilation because CoreSimulatorService was
+unavailable and the local sandbox rejected SwiftPM's package-manifest helper; no
+runtime result is inferred from that blocked build.
+
+This slice changes no endpoint, JSON payload, task-description, background
+session identifier, SwiftData schema, persistence transition, queue state, probe
+timing, retry policy, Auth, funding, Field Trip, lifecycle, feature-flag, or
+navigation contract.
+
+### Core Data OfflineSync Background Inference Recovery and Retry (Pass 5G)
+
+The seventh URLSession slice retires the 766-line
+`OfflineQueueManager+URLSession.swift` aggregate. Server-result lookup, durable
+server-ownership evidence, targeted and full historical hydration, queue
+cleanup, and server-owned orphan detection now live in
+`Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift`.
+Recovery also owns retryable server-status persistence and its
+durable-wake-first post-save fence. Compare-before-clear server-poll ownership,
+general transport-retry preflight/persistence, server polling, and generic retry
+wake restoration live in
+`Services/BackgroundInference/OfflineQueueManager+InferenceRetry.swift`.
+
+Recovery is 598 lines after the follow-up concurrency fence, so its hydration
+policy, retryable-status transition, and private mutation helpers stay
+co-located rather than widening across files. Retry is 180 lines. The two
+poll-ownership helpers consumed by Recovery are module-internal, and the
+pre-existing retry entry point remains shared only by its focused pipeline
+consumers; the architecture suite freezes all three exact consumer sets. All
+seven focused Background Inference production owners—the stateless policy and
+six service files—are below the 600-line review ceiling, and the retired
+aggregate has no replacement catch-all.
+
+`BackgroundInferenceRecoveryTests` rehomes the durable-found-evidence and
+terminal-contract-mismatch cases. `BackgroundInferenceRetryTests` rehomes the
+critical durable server-failure marker case and adds deterministic replacement
+poll-token coverage. Both suites remain serialized and lease
+`.offlineQueueManager` process state. The architecture suite freezes the new
+owners, declarations, imports, cross-file consumers, mirrored suite ownership,
+retired aggregate, and uniform production-file ceiling. The critical XCResult
+gate now expects `scheduledServerFailureMarkerIsReadFromDurableStore` under the
+Retry suite.
+
+The final review closed a post-persistence ABA window in the retryable
+server-status path. Once `scheduleInferenceRetry` commits, Recovery restores the
+central persisted wake before checking task cancellation, network eligibility,
+any supplied server-poll token, and inference-generation ownership. Only a
+current caller may then replace the keyed process-local poll. This preserves the
+durable retry when the awaiting poll is cancelled or replaced while preventing
+stale work from displacing a newer poll. The architecture suite freezes that
+exact order, and Recovery fixtures cancel any shared scheduler wake before
+restoring the singleton manager context.
+
+The OfflineSync-wide integration audit found and closed the equivalent window in
+the general inference-retry path. Retry now restores the central persisted wake
+immediately after the actor commits, before task cancellation, poll-token, or
+generation revalidation can reject its process-local continuation. The
+executable Retry suite proves a committed deadline can still arm from a
+cancelled process owner, while the architecture suite freezes the production
+persist/wake/revalidate/local-task order and forbids another suspension between
+the persistence return and central wake restoration.
+
+Verification includes byte-stable XcodeGen regeneration, project/resource and
+source-membership validation, portable CI-workflow and critical-result fixture
+tests, Swift parsing, strict SwiftLint with zero violations, a direct semantic
+typecheck of the complete current main-target source set, and executable
+architecture coverage across all 22 OfflineSync ownership tests. The workflow
+guard preserves the connectivity predicates as nine Recovery, three Retry, five
+Dispatch, and one Watchdog occurrence; no reachability gate was dropped during
+the move. The final review also completed a generic iOS Simulator build and full
+build-for-testing with code signing disabled, the focused Background Inference
+runtime suites, and the complete `merianTests` target: 893 XCTest cases plus
+2,184 Swift Testing cases, 3,077 top-level tests and 5,061 expanded executions,
+with zero failures or skips. The UI-test bundle compiled but was not executed.
+
+This slice changes no endpoint, JSON payload, task-description, background
+session identifier, SwiftData schema, persistence transition, queue state,
+server-poll timing, retry policy, Auth, funding, Field Trip, lifecycle,
+feature-flag, or navigation contract.
 
 ## Phase 3: Ownership Cleanup
 

@@ -103,7 +103,8 @@ enum ScanStagingTransitionOutcome: Sendable, Equatable {
 /// All methods are safe to call from `Task { }` or `BackgroundTaskWrapper.execute` contexts.
 ///
 /// Shared data transfer objects (`ExtractedScanData`, `OfflineScanProcessingResult`,
-/// `PendingScanPayload`, `ScanUploadItem`) live in `OfflineSyncTypes.swift`.
+/// `PendingScanPayload`, `ScanUploadItem`) live in the focused `OfflineSync/Models`
+/// owners documented by `OfflineSync/README.md`.
 @ModelActor
 actor BackgroundDatabaseActor {
 

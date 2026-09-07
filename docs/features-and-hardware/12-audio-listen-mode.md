@@ -363,8 +363,19 @@ merge, not the workspace view model.
 ## 5. `OfflineQueueManager.enqueueNonVisualCapture` — Queue Record
 
 **Files**:
-`apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`,
-`OfflineQueueManager+URLSession.swift`
+`apps/ios/Merian/Core/Data/OfflineSync/Services/CaptureAdmission/OfflineQueueManager+CaptureEnqueue.swift`,
+`apps/ios/Merian/Core/Data/OfflineSync/Services/CaptureAdmission/OfflineCaptureFileStore.swift`,
+`apps/ios/Merian/Core/Data/OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadPreparation.swift`,
+`apps/ios/Merian/Core/Data/OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift`,
+`apps/ios/Merian/Core/Data/OfflineSync/Persistence/OfflineQueueManager+QueuedScanExtraction.swift`,
+`apps/ios/Merian/Core/Data/OfflineSync/Services/InferenceReplay/OfflineQueueManager+InferenceReplay.swift`,
+`apps/ios/Merian/Core/Data/OfflineSync/Policies/BackgroundInferencePolicy.swift`,
+`apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceLifecycle.swift`,
+`apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceDispatch.swift`,
+`apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift`,
+`apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceWatchdog.swift`,
+`apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift`,
+`apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceRetry.swift`
 
 Audio now uses the same ordered queue shape as every other mixed-media
 submission. The queue record stores the serialized media timeline in

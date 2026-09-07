@@ -4,57 +4,6 @@ import Observation
 import os
 import SwiftData
 
-/// Tracks asynchronous terminal persistence spawned by background URLSession
-/// delegate callbacks. Registration is synchronous and lock-protected so
-/// `urlSessionDidFinishEvents` cannot overtake a hop to the main actor.
-final class BackgroundURLSessionTerminalWorkTracker: @unchecked Sendable {
-    struct Token: Hashable, Sendable {
-        fileprivate let id = UUID()
-    }
-
-    private let lock = NSLock()
-    private var activeTokens: Set<Token> = []
-    private var idleWaiters: [CheckedContinuation<Void, Never>] = []
-
-    func begin() -> Token {
-        let token = Token()
-        _ = lock.withLock { activeTokens.insert(token) }
-        return token
-    }
-
-    func finish(_ token: Token) {
-        let waiters: [CheckedContinuation<Void, Never>] = lock.withLock {
-            guard activeTokens.remove(token) != nil,
-                  activeTokens.isEmpty else {
-                return []
-            }
-            let pending = idleWaiters
-            idleWaiters.removeAll()
-            return pending
-        }
-        for waiter in waiters {
-            waiter.resume()
-        }
-    }
-
-    func waitUntilIdle() async {
-        await withCheckedContinuation { continuation in
-            let isAlreadyIdle = lock.withLock {
-                guard !activeTokens.isEmpty else { return true }
-                idleWaiters.append(continuation)
-                return false
-            }
-            if isAlreadyIdle {
-                continuation.resume()
-            }
-        }
-    }
-
-    var activeCountForTesting: Int {
-        lock.withLock { activeTokens.count }
-    }
-}
-
 // MARK: - Offline Queue Manager
 
 /// Persistent background sync engine for upload queuing and cloud deletions.
@@ -63,10 +12,18 @@ final class BackgroundURLSessionTerminalWorkTracker: @unchecked Sendable {
 /// queued operations when connectivity is restored. All sync work runs in
 /// `BackgroundTaskWrapper` tasks so iOS grants extended execution time.
 ///
-/// Extensions:
-/// - `OfflineQueueManager+Sync` — upload, deletion, and collection sync flows
-/// - `OfflineQueueManager+URLSession` — background session delegate and inference pipeline
-/// - `OfflineQueueManager+Queue` — capture enqueue and local queue maintenance
+/// Extensions and service owners:
+/// - `Services/CloudDeletion` — durable cloud-deletion recovery
+/// - `Services/Collections` — serialized collection sync
+/// - `Services/MediaUpload` — upload preparation, dispatch, lifecycle, and completion
+/// - `Services/QueueMaintenance` — queue state, deletion, and purge
+/// - `Services/CaptureAdmission` — durable capture admission and live handoff
+/// - `Services/Funding` — funding restoration and reconciliation
+/// - `Services/FieldTripProgress` — durable goal-hint replay
+/// - `Services/InferenceReplay` — uploaded-scan inference reconciliation
+/// - `Services/BackgroundInference` — generation lifecycle, dispatch, completion, recovery, watchdog, and retry
+/// - `Services/BackgroundTransfer` — Auth quiescence, terminal tracking, and URLSession delegate routing
+/// - `OfflineQueueDurability` — durable retry and state mutations
 @MainActor
 @Observable final class OfflineQueueManager: NSObject {
 
@@ -107,17 +64,6 @@ final class BackgroundURLSessionTerminalWorkTracker: @unchecked Sendable {
     /// their Auth-work leases before the app tells iOS it may suspend again.
     nonisolated static let backgroundTerminalWorkTracker =
         BackgroundURLSessionTerminalWorkTracker()
-
-    /// Testable system-completion boundary shared by the URLSession delegate.
-    /// The handler is taken only after every synchronously registered terminal
-    /// processor has committed its durable state and released its Auth lease.
-    static func invokeBackgroundSessionCompletionAfterTerminalWork(
-        tracker: BackgroundURLSessionTerminalWorkTracker,
-        takeHandler: @MainActor () -> (() -> Void)?
-    ) async {
-        await tracker.waitUntilIdle()
-        takeHandler()?()
-    }
 
     // MARK: - State
 

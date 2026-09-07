@@ -39,9 +39,13 @@ queued_context_source="$repo_root/apps/ios/Merian/Models/QueuedScanContext.swift
 queue_state_source="$repo_root/apps/ios/Merian/Models/ScanQueueState.swift"
 queue_durability_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueDurability.swift"
 queue_manager_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift"
-queue_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift"
-queue_sync_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Sync.swift"
-queue_url_session_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
+queue_replay_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/InferenceReplay/OfflineQueueManager+InferenceReplay.swift"
+queue_upload_sync_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadSync.swift"
+queue_upload_dispatch_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadDispatch.swift"
+queue_inference_dispatch_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceDispatch.swift"
+queue_inference_watchdog_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceWatchdog.swift"
+queue_inference_recovery_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift"
+queue_inference_retry_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceRetry.swift"
 background_database_actor_source="$repo_root/apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift"
 network_client_source="$repo_root/apps/ios/Merian/Core/Network/MerianNetworkClient.swift"
 pinned_network_transport_source="$repo_root/apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift"
@@ -892,61 +896,79 @@ assert_file_contains \
   "$queue_manager_source" \
   "var allowsAutomaticNetworkWorkOnCurrentPath: Bool"
 assert_file_contains \
-  "$queue_url_session_source" \
+  "$queue_inference_dispatch_source" \
   "guard allowsAutomaticNetworkWorkOnCurrentPath,"
 assert_file_contains \
-  "$queue_url_session_source" \
+  "$queue_inference_watchdog_source" \
   "self.allowsAutomaticNetworkWorkOnCurrentPath else"
 assert_file_count \
-  "$queue_url_session_source" \
-  17 \
+  "$queue_inference_dispatch_source" \
+  5 \
   "allowsAutomaticNetworkWorkOnCurrentPath"
 assert_file_count \
-  "$queue_sync_source" \
+  "$queue_inference_recovery_source" \
+  9 \
+  "allowsAutomaticNetworkWorkOnCurrentPath"
+assert_file_count \
+  "$queue_inference_retry_source" \
   3 \
+  "allowsAutomaticNetworkWorkOnCurrentPath"
+assert_file_count \
+  "$queue_inference_watchdog_source" \
+  1 \
+  "allowsAutomaticNetworkWorkOnCurrentPath"
+assert_file_count \
+  "$queue_upload_sync_source" \
+  2 \
+  "Set<String>(liveTasks.compactMap { task -> String? in"
+assert_file_count \
+  "$queue_upload_dispatch_source" \
+  1 \
   "Set<String>(liveTasks.compactMap { task -> String? in"
 assert_file_contains \
-  "$queue_source" \
+  "$queue_replay_source" \
   "Set<String>(allTasks.compactMap { task -> String? in"
 assert_file_contains \
-  "$queue_sync_source" \
+  "$queue_upload_dispatch_source" \
   "func queuedUploadRequest("
 assert_file_contains \
-  "$queue_sync_source" \
+  "$queue_upload_dispatch_source" \
   "request.allowsConstrainedNetworkAccess = false"
 assert_file_contains \
-  "$queue_sync_source" \
+  "$queue_upload_dispatch_source" \
   "request.allowsExpensiveNetworkAccess ="
-assert_file_contains "$queue_sync_source" "finalPolicy.isOnline"
+assert_file_contains "$queue_upload_sync_source" "finalPolicy.isOnline"
 assert_file_contains \
-  "$queue_sync_source" \
+  "$queue_upload_dispatch_source" \
   "var entriesByScanId: [String: [UploadDispatchEntry]]"
 assert_file_contains \
-  "$queue_sync_source" \
+  "$queue_upload_dispatch_source" \
   "let durableOwnership = BackgroundAccountWorkOwnership("
 assert_file_contains \
-  "$queue_sync_source" \
+  "$queue_upload_dispatch_source" \
   "guard await queueActor.activateBackgroundAccountWork("
 assert_file_contains \
-  "$queue_sync_source" \
+  "$queue_upload_dispatch_source" \
   "var uploadTasks: [URLSessionUploadTask] = []"
 assert_file_contains \
-  "$queue_sync_source" \
+  "$queue_upload_dispatch_source" \
   "guard retainBackgroundAccountWork("
 assert_file_contains \
-  "$queue_sync_source" \
+  "$queue_upload_dispatch_source" \
   "uploadTasks.count == entries.count"
-assert_file_contains "$queue_sync_source" "for uploadTask in uploadTasks"
+assert_file_contains \
+  "$queue_upload_dispatch_source" \
+  "for uploadTask in uploadTasks"
 assert_file_before \
-  "$queue_sync_source" \
+  "$queue_upload_dispatch_source" \
   "guard await queueActor.activateBackgroundAccountWork(" \
   "let task = session.uploadTask("
 assert_file_before \
-  "$queue_sync_source" \
+  "$queue_upload_dispatch_source" \
   "guard retainBackgroundAccountWork(" \
   "uploadTask.resume()"
 assert_file_contains \
-  "$queue_sync_source" \
+  "$queue_upload_sync_source" \
   "candidateScanIds: undispatchedScanIDs"
 assert_file_contains \
   "$background_database_actor_source" \

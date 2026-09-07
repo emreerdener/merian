@@ -1373,7 +1373,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     releaseVersioningSource,
     releasePreflightImplementationSource,
     releaseArchiveValidatorSource,
-    queueDurabilityImplementationSource,
+    queueDurabilityAndDiagnosticsImplementationSource,
     settingsImplementationSource,
     settingsReadmeSource,
     offlineQueueTestsSource,
@@ -1554,9 +1554,14 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read("docs/development-guides/14-ios-release-versioning.md"),
     read("scripts/check-ios-release-prep.sh"),
     read("scripts/validate-ios-archive.sh"),
-    read(
-      "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueDurability.swift",
-    ),
+    Promise.all([
+      read(
+        "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueDurability.swift",
+      ),
+      read(
+        "apps/ios/Merian/Core/Data/OfflineSync/Services/OfflineQueueManager+Diagnostics.swift",
+      ),
+    ]).then((sources) => sources.join("\n")),
     read(
       "apps/ios/Merian/Features/Profile/Settings/Views/SettingsTabView.swift",
     ),
@@ -1840,7 +1845,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     ]
   ) {
     assertStringIncludes(
-      queueDurabilityImplementationSource,
+      queueDurabilityAndDiagnosticsImplementationSource,
       implementationFragment,
     );
   }
@@ -2434,7 +2439,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 100 exact cases. Twenty-seven were added by the joined scan-reliability follow-up. Eleven more form the live-connectivity follow-up: nine engine-level ownership, presentation, and exact-generation recovery fences plus two network-client replay-policy controls.",
+    "The current validator protects 98 exact cases. Twenty-seven were added by the joined scan-reliability follow-up. Eleven more form the live-connectivity follow-up: nine engine-level ownership, presentation, and exact-generation recovery fences plus two network-client replay-policy controls.",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2486,7 +2491,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "extracts all 100 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
+    "extracts all 98 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -3136,7 +3141,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow",
       "testLiveInsightConnectivityFailureTransitionsToDurableQueue",
       "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
-      "workflow harness requires all 100 protected declarations to resolve uniquely",
+      "workflow harness requires all 98 protected declarations to resolve uniquely",
       "including the three ownership-aligned connectivity-policy cases, pre-import paywall admission, automatic single-capture toolbar suppression, the separate required-crop chrome fence, and exact durable scan-ID/generation pairing",
       "exact three-case set: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`, `testLiveInsightConnectivityFailureTransitionsToDurableQueue`, and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`",
       "a valid Documents PCM WAV",

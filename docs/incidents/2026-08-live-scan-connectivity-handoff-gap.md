@@ -372,7 +372,7 @@ declarations into six ownership-aligned cases under Core Utilities and Capture
 Shell. The Capture-wide integration audit adds two exact lifecycle cases that
 resume controlled still-capture and video-admission work after cancellation and
 prove stale generations cannot publish. The current validator therefore protects
-100 exact cases without broadening the behaviors established here. The complete
+98 exact cases without broadening the behaviors established here. The complete
 local candidate/tooling gate now passes: 186 standard TypeScript tooling tests,
 16 isolated DTO tests, executable Identify contract tests, every shell/tooling
 check, and all 18 documentation contracts. All 262 migration source assertions

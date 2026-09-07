@@ -132,15 +132,90 @@ endpoint checks with the existing queue and deletion-service tests.
 
 ## Offline Scan Durability Boundary
 
+The [Offline Sync README](OfflineSync/README.md) defines the focused ownership
+inside this boundary. Sendable values live under `OfflineSync/Models`, stateless
+metadata/staging/storage/retry and background-inference policy under
+`OfflineSync/Policies`, process-local task ownership under
+`OfflineSync/Coordinators`, shared SwiftData lookups plus queued-record
+extraction under `OfflineSync/Persistence`, and diagnostics under
+`OfflineSync/Services`. The same service boundary gives cloud deletion,
+collection sync, media-upload preparation/dispatch/completion, queue
+maintenance, capture admission, funding, Field Trip progress, inference replay,
+background inference, and background transfer focused subdirectories. Queue
+maintenance separates count/tombstone/flush state from persistence-fenced
+deletion. Capture admission separates stateless file staging from manager-owned
+admission and foreground lifecycle state. The internal `OfflineCaptureFileStore`
+may be referenced only by its own declaration and the capture-enqueue owner.
+Background Transfer separates lock-protected terminal tracking, Auth quiescence,
+private terminal owner validation/adoption, terminal routing, and nonisolated
+delegate routing from the remaining result pipeline. Background Inference
+separates exact process-generation lifecycle, generation-fenced request
+dispatch, accepted task completion, generation-fenced watchdog probing/task
+retirement, server-result recovery plus retryable-status persistence, and
+general transport-retry/server-poll lifetime into focused owners. Reusable
+offline-job and Field Trip goal hint lookups plus the queue-to-inference
+snapshot mapper remain in `Persistence`. Upload completion owns callback
+accumulation and durable staging handoff; generation validation/invalidation
+stays in upload lifecycle. `OfflineQueueDurability.swift` retains only the live
+manager mutations that consume those owners.
+`OfflineSyncFoundationArchitectureTests`, `OfflineQueueSyncArchitectureTests`,
+`OfflineQueueMaintenanceArchitectureTests`, and
+`OfflineQueueAdmissionArchitectureTests`, plus
+`BackgroundTransferArchitectureTests` and
+`BackgroundInferenceArchitectureTests`, freeze relocated declarations, exact
+focused-file/framework-import inventories, private mutable state, ordering,
+responsibility boundaries, retired aggregates, mirrored test ownership, and
+focused 600-line ceilings. The foundation and sync suites additionally freeze
+queued scan extraction and upload-completion test ownership plus exact
+mapper/goal-hint consumer allowlists. The admission suite additionally freezes
+the three mirrored test types and display names, their
+serialized/shared-process-state traits, and the exact file-store consumer
+allowlist. The background-transfer suite freezes delegate conformance,
+tracker/lease-state and rejected-retirement consumer allowlists, the exact
+inference-completion consumers, registration and quiescence ordering, and
+private terminal validation in the focused routing owner. It prevents failed
+durable retirement from finishing an undispatched inference generation ahead of
+its SwiftData owner and requires a later successful retirement to close that
+observable generation immediately; Auth quiescence does so before cancellation.
+The background-inference suite freezes its policy, lifecycle, dispatch,
+completion, and watchdog owners; exact result/failure, task-inspection,
+probe-registry, and generation consumers; lack of direct network-client/session
+access in completion; and persistence-before-cleanup plus exact-generation
+retirement ordering. It also freezes both inference retry paths' durable save,
+immediate central wake restoration without an intervening suspension, post-save
+cancellation/poll/generation revalidation, and optional process-local poll/retry
+replacement in that order. `QueueMaintenanceTests` covers state transitions,
+fresh automatic-work counts, purging, and flush behavior;
+`SyncStateManagerTests` retains generation-aware upload, inference, finalizing,
+and forced-idle projection coverage. Queue-maintenance and capture-admission
+cases snapshot and restore the shared manager state they mutate; creating an
+isolated store alone does not mutate a singleton field. `CaptureAdmissionTests`,
+`LiveCaptureLifecycleTests`, and `InferenceReplayTests` mirror the newly focused
+owners. `BackgroundTransferOwnershipTests` mirrors terminal tracking, delegate
+routing, Auth quiescence, relaunched lease adoption, and durable retirement. The
+background-inference lifecycle, dispatch, and policy suites mirror exact
+generation fencing, a hard preparation deadline that does not await a
+non-cooperative loser, caller-cancellation identity, durable dispatch ordering,
+and actor-independent response/status decisions. The completion suite mirrors
+exact cancellation retirement, stale callback fencing, and task-result file
+cleanup without disturbing a replacement generation. The watchdog suite mirrors
+exact probe replacement, parsed open-task identity, exact probe/generation
+revalidation after both task-enumeration suspensions, and
+recovery/cancellation/retirement/retry ordering. The recovery and retry suites
+mirror durable result evidence, terminal contract mismatch handling,
+replacement-token fencing, durable marker recovery, and cancellation-independent
+restoration of a committed general-retry wake.
+
 `OfflineJobScheduler` owns persisted wake timing and the ordered drain: funding
 reconciliation, pending uploads, inference replay, Field trip progress, cloud
 deletion, then collections. Its small `DrainOperations` value keeps the six
 existing live manager calls together; fresh scheduler instances can inject inert
 effects without replacing global queue behavior. Mirrored
-`Core/Data/OfflineSync/OfflineJobSchedulerTests.swift` verifies that future work
-is armed before a suspended drain, every asynchronous effect is awaited in
-order, and an offline drain cancels only its own wake without dispatching. These
-are scheduler dispatch-policy proofs, not real provider-replay tests.
+`MerianTests/Core/Data/OfflineSync/OfflineJobSchedulerTests.swift` verifies that
+future work is armed before a suspended drain, every asynchronous effect is
+awaited in order, and an offline drain cancels only its own wake without
+dispatching. These are scheduler dispatch-policy proofs, not real
+provider-replay tests.
 
 Admission is durable state, not a read of an entitlement boolean. Before this
 layer writes capture files or allows foreground inference, `EntitlementManager`

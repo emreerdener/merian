@@ -107,6 +107,7 @@ struct InferenceArchitectureTests {
             "Core/AI/InferenceEngineTests.swift",
             "Core/AI/Inference/InferenceIntegrationAuditTests.swift",
             "Core/Data/OfflineQueueManagerTests.swift",
+            "Core/Data/OfflineSync/BackgroundTransferOwnershipTests.swift",
             "Core/Data/OfflineSync/OfflineQueuedScanDeletionTests.swift",
             "Core/Data/OfflineSync/OfflineJobSchedulerTests.swift",
             "Core/Data/BackgroundDatabaseActorTests.swift",

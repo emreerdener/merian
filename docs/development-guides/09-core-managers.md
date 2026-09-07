@@ -408,7 +408,7 @@ triggering excessive SwiftUI view rebuilds.
   `completionHandler([])` so the SwiftUI milestone banner owns active in-app
   unlock UX without stacking under an iOS banner. Background delivery bypasses
   the delegate and remains native. **Both notification call sites
-  (`InferenceEngine` and `OfflineQueueManager+URLSession`) schedule
+  (`InferenceEngine` and `OfflineQueueManager+InferenceCompletion`) schedule
   notifications unconditionally — without any `applicationState != .active`
   guard.** Foreground suppression is delegated entirely to this `willPresent`
   path; background delivery bypasses the delegate and is shown automatically by
@@ -646,6 +646,72 @@ triggering excessive SwiftUI view rebuilds.
 
 - Manages background `URLSession` uploads, queuing scan media to the local
   Documents Directory when the device is off-grid.
+- **Focused queue maintenance owners**:
+  `Services/QueueMaintenance/OfflineQueueManager+QueueState.swift` owns
+  automatic-work count projection, failed-state tombstones, and main-context
+  flushes. Its sibling `QueueDeletion` file owns persistence-fenced explicit
+  deletion, task cancellation, adopted-media exclusions, database-before-file
+  cleanup, and purge. Shared offline-job and Field Trip goal-hint reads/deletion
+  plus queued-record snapshot mapping live under `OfflineSync/Persistence`.
+  Context-only lookups are not exposed as manager helpers.
+- **Focused admission and replay owners**: `Services/CaptureAdmission` owns
+  funding-gated capture/Describe admission, stateless local-file persistence,
+  and generation-fenced foreground handoff. Its internal
+  `OfflineCaptureFileStore` is consumed only by the capture-enqueue owner; the
+  architecture suite rejects any additional OfflineSync consumer.
+  `Services/Funding` owns reservation restoration, reconciliation, and proven
+  pre-dispatch release; `Services/FieldTripProgress` owns durable goal-hint
+  acknowledgement/replay; and `Services/InferenceReplay` owns coalesced
+  uploaded-scan reconciliation. The former queue aggregate is retired; retry
+  mutations remain in `OfflineQueueDurability.swift`.
+- **Focused background inference owners**:
+  `Policies/BackgroundInferencePolicy.swift` owns actor-independent route,
+  response, status-recovery, restaging, and dispatch-admission decisions.
+  `Services/BackgroundInference/OfflineQueueManager+InferenceLifecycle.swift`
+  owns exact process-generation claims and completion, and its dispatch sibling
+  owns server preflight, a hard-bounded request-preparation race, durable
+  activation, and background download dispatch. The completion sibling owns
+  accepted task-result processing, transport-failure handling, final persistence
+  handoff, compare-before-clear completion-lock teardown, and private probe
+  cancellation. The watchdog sibling owns delayed status probes, parsed
+  background-task inspection, exact-generation cancellation, and the
+  recovery/retirement/retry handoff. It repeats both the compare-before-clear
+  probe-token check and exact-generation check after each background-task
+  enumeration, keeping a replacement probe and generation intact across that
+  suspension. Completion diagnostics distinguish an exact lock clear from a
+  replacement owner preserved across suspension. Timeout cancels and ignores a
+  late non-cooperative preparation without delaying the caller; explicit caller
+  cancellation remains `CancellationError`. Replay sends only telemetry already
+  persisted with the queue row and performs no WeatherKit or reverse-geocoding
+  lookup. `OfflineQueueManager+InferenceRecovery.swift` owns server-result
+  hydration/recovery and retryable server-status persistence. After that durable
+  save it restores the central wake before revalidating cancellation, network,
+  poll-token, and generation ownership for optional process-local replacement.
+  `OfflineQueueManager+InferenceRetry.swift` owns compare-before-clear poll
+  validation, general transport-retry persistence, and server-poll execution. It
+  applies the same durable-first boundary: after the actor commits, it restores
+  the central wake without another suspension before cancellation, poll-token,
+  and generation checks can gate the optional local retry task.
+- **Focused media-upload completion owner**:
+  `Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift` owns
+  successful-member accumulation, transport/HTTP fallback classification,
+  exact-manifest confirmation, durable `.staged` finalization, legacy-audio
+  repair handoff, and inference dispatch handoff. Upload generation
+  validation/invalidation stays with `UploadLifecycle`; the completion file's
+  metadata fetch consumes the shared queued-scan mapper.
+- **Focused background transfer owners**: `Services/BackgroundTransfer` owns the
+  lock-protected terminal-work tracker, retained task Auth leases and transition
+  quiescence, private relaunched-task owner validation/adoption, main-actor
+  terminal callback routing, and the sole nonisolated URLSession delegate
+  conformance. Delegate callbacks capture immutable task properties and route
+  into that focused terminal owner. The root manager retains only the stored
+  session, tracker instance, completion handler, and lease map; accepted uploads
+  and inference work are forwarded to their focused completion owners. If an
+  unresumed inference task cannot be durably retired, the focused dispatcher
+  preserves its active generation instead of reporting process-local completion
+  ahead of the `.inferencing` row. Once a later Auth sweep or rejected terminal
+  callback commits retirement, it immediately closes the matching observable
+  generation; the Auth sweep does so before transport cancellation.
 - **Durable live-scan suppression**:
   `enqueueCapture(...,
   startSyncImmediately: false)` persists eligible online
@@ -1115,15 +1181,15 @@ triggering excessive SwiftUI view rebuilds.
 
 | Constant                              | Value  | Consumer                                               |
 | ------------------------------------- | ------ | ------------------------------------------------------ |
-| `uploadBatchSize`                     | 5      | `OfflineQueueManager+Sync`                             |
-| `pendingScanFetchLimit`               | 50     | `OfflineQueueManager+Sync`                             |
+| `uploadBatchSize`                     | 5      | `OfflineQueueManager+UploadPreparation`                |
+| `pendingScanFetchLimit`               | 50     | `OfflineQueueManager+UploadSync`                       |
 | `mediaStagingMaxFilesPerRequest`      | 6      | `MediaStagingContract`                                 |
 | `mediaStagingMaxImageFilesPerRequest` | 5      | `MediaStagingContract`                                 |
 | `stagedImagePayloadMaxBytes`          | 5 MB   | `MediaStagingContract`, Edge image fetch contract      |
 | `audioPayloadMaxBytes`                | 2.7 MB | `MediaStagingContract`, `MerianNetworkClient`          |
 | `historicalSyncPageSize`              | 200    | `ScanRepository`                                       |
 | `collectionsSyncPageSize`             | 100    | `ScanRepository`                                       |
-| `ingestCheckpointInterval`            | 50     | `HistoricalDatabaseActor`                              |
+| `ingestCheckpointInterval`            | 100    | `HistoricalDatabaseActor`                              |
 | `imageCompressionQuality`             | 0.85   | `Capture`, `CaptureWorkspaceViewModel`                 |
 | `visionConfidenceThreshold`           | 0.65   | `VisionSubjectClassificationResolver`                  |
 | `visionMarginThreshold`               | 0.15   | `VisionSubjectClassificationResolver`                  |

@@ -815,6 +815,49 @@ scan-admission bridge that validates the exact PostgREST route plus nonempty
 bearer and anon-key credentials before using that transport; it exposes no
 general raw-request capability.
 
+Within Core Data, the OfflineSync foundation pass replaces the former aggregate
+type file with focused `Models`, `Policies`, `Coordinators`, `Persistence`, and
+`Services` owners. The second slice replaces the sync aggregate with focused
+`CloudDeletion`, `Collections`, and `MediaUpload` service files for eligibility,
+preparation, signing, generation lifecycle, dispatch, and recovery. Queue
+maintenance is split between a state owner for counts, tombstones, and
+main-context flushes and a deletion owner for persistence-fenced task
+cancellation, retained-media selection, database commits, file cleanup, and
+purge. Shared offline-job and Field Trip goal-hint lookups live under
+`Persistence` rather than gaining wider manager visibility. The former queue
+aggregate is now split into `CaptureAdmission`, `Funding`, `FieldTripProgress`,
+and `InferenceReplay` services. Capture admission keeps stateless file staging
+separate from manager-owned admission and live handoff; funding, goal-hint
+replay, and uploaded-scan reconciliation have distinct owners.
+`OfflineQueueDurability.swift` retains only live manager mutations and retry
+orchestration. The first URLSession slice moves terminal-work tracking, Auth
+lease retention and transition quiescence, and nonisolated delegate routing
+under `Services/BackgroundTransfer`; the following terminal-routing slice adds
+private owner validation/adoption and accepted/rejected callback routing to the
+same boundary. Upload completion is now a fifth focused `MediaUpload` owner: it
+contains callback accumulation, durable staging finalization, legacy-audio
+repair handoff, and inference dispatch handoff. Generation
+validation/invalidation stays with `UploadLifecycle`; queued SwiftData records
+map to Sendable inference snapshots under `Persistence`, alongside reusable
+preferred-goal reads. `Policies/BackgroundInferencePolicy.swift` owns
+actor-independent route/response and server-status decisions, while the six
+`Services/BackgroundInference` files separately own exact process-generation
+lifecycle, generation-fenced request dispatch, accepted task-result and
+transport-failure completion, delayed status probing and exact-generation
+background-task retirement, server-result recovery plus retryable-status
+persistence, and general transport-retry/server-poll lifetime. The former
+URLSession aggregate is retired. The dispatch/retirement handoff stays
+fail-closed: an unsuccessful durable inference retirement preserves the
+suspended task and active process generation, while a later committed retirement
+finishes that exact generation immediately. When Auth owns the retirement sweep,
+generation completion precedes transport cancellation. The
+[Offline Sync ownership guide](../apps/ios/Merian/Core/Data/OfflineSync/README.md)
+is the canonical source inventory. Its architecture suites freeze every
+relocated declaration plus exact focused-file/import sets, private mutable
+state, durable/destructive ordering, responsibility boundaries, mirrored test
+ownership, retired aggregates, and 600-line ceilings. This organization changes
+no SwiftData, wire, queue-state, task-description, or endpoint contract.
+
 ## SwiftData Actors
 
 | Actor                                  | File                                                                                            | Lifecycle                                                                                                                                                                                                                                                 |
@@ -1512,6 +1555,54 @@ Swift unit tests live under `apps/ios/MerianTests/` and cover:
   [focused inference matrix](development-guides/08-testing-strategy.md#live-inference-requestresult-verification)
   joins those suites with the queue, persistence, Capture, and shared-state
   fixtures; runtime acceptance requires current-source build products.
+- `Core/Data/OfflineSync/CaptureAdmissionTests.swift`,
+  `LiveCaptureLifecycleTests.swift`, and `InferenceReplayTests.swift` own
+  capture-file/media ordering, explicit shared-manager isolation, foreground
+  generation fencing, and replay-coalescing behavior. Their architecture suite
+  freezes the matching production ownership, the file-store consumer allowlist,
+  each test suite's exact type/display identity, and its serialized
+  `.offlineQueueManager` process-state lease.
+- `Core/Data/OfflineSync/QueuedScanExtractionTests.swift` owns deterministic
+  queue-to-inference media and telemetry mapping without installing shared
+  manager state. `MediaUploadCompletionTests.swift` owns generation, sibling,
+  exact-manifest, durable-staging, callback-token, and legacy-audio completion
+  regressions under a serialized `.offlineQueueManager` lease.
+  `OfflineSyncFoundationArchitectureTests.swift` and
+  `OfflineQueueSyncArchitectureTests.swift` freeze their production and test
+  ownership, imports, consumer allowlists, private helper containment, retired
+  aggregate files, and focused 600-line ceilings.
+- `Core/Data/OfflineSync/BackgroundTransferOwnershipTests.swift` owns terminal
+  tracker completion, synchronous delegate registration, durable-before-cancel
+  Auth quiescence, relaunched task lease adoption, and bounded retirement retry.
+  `BackgroundTransferArchitectureTests.swift` freezes the four focused
+  production owners, exact declaration/import and mutable-state consumers,
+  focused private validation, rejected-retirement and inference-completion
+  consumers, mirrored test ownership, failed-retirement generation preservation,
+  successful-retirement process completion, and 600-line ceilings.
+- `Core/Data/OfflineSync/BackgroundInferenceLifecycleTests.swift`,
+  `BackgroundInferenceDispatchTests.swift`,
+  `BackgroundInferenceCompletionTests.swift`,
+  `BackgroundInferenceWatchdogTests.swift`,
+  `BackgroundInferenceRecoveryTests.swift`,
+  `BackgroundInferenceRetryTests.swift`, and
+  `BackgroundInferencePolicyTests.swift` own exact generation claims and stale
+  completion fencing, hard preparation timeout, non-cooperative loser
+  cancellation, caller-cancellation identity, dispatch ordering, accepted
+  result/failure fencing, stale result-file cleanup with replacement active and
+  completion-owner preservation, compare-before-clear probe replacement, parsed
+  open-task identity, post-enumeration probe/generation revalidation,
+  recovery/cancellation/retirement/retry ordering, durable server-result
+  evidence, terminal contract mismatch handling, replacement poll-token
+  rejection, durable retry-marker recovery, cancellation-independent restoration
+  of a committed general-retry wake, and route/response/status policy.
+  `BackgroundInferenceArchitectureTests.swift` freezes their seven production
+  owners, policy actor independence, declaration, import and consumer
+  boundaries, direct-map containment, cleanup-registration-before-claim and
+  compare-before-clear completion and watchdog ordering, durable retry save
+  before immediate central wake restoration in both retry paths, no intervening
+  suspension before that restoration, post-save poll/generation revalidation
+  before process-local replacement, mirrored test ownership, and the 600-line
+  production-file ceiling.
 - Typed event delivery and route priority/FIFO, coalescing, expiry, overflow,
   account/session fencing, occupied-presentation deferral, exact dismissal,
   missing-target rejection, framework main-actor hops, and detached-player

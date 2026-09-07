@@ -387,7 +387,7 @@ HTTP request is dispatched. See the
    for each critical boundary and reports every named scan-flow regression
    exactly once under exactly one matching passed suite as `Passed`. A duplicate
    matching suite, duplicate protected case, or failed-suite/passed-child
-   contradiction is invalid evidence. The current validator protects 100 exact
+   contradiction is invalid evidence. The current validator protects 98 exact
    cases. Twenty-seven were added by the joined scan-reliability follow-up.
    Eleven more form the live-connectivity follow-up: nine engine-level
    ownership, presentation, and exact-generation recovery fences plus two
@@ -501,11 +501,15 @@ HTTP request is dispatched. See the
    and independently prove that omitting or skipping it is rejected; never use
    substring or suite-only matching as a workaround.
 
-   `OfflineQueueManagerTests` is explicitly serialized because its cases
-   temporarily reconfigure the process-wide queue singleton, injected
-   `ModelContext`, background-session state, and retained media. Main-actor
-   isolation alone does not prevent async test cases from interleaving at
-   suspension points.
+   `OfflineQueueManagerTests`, `BackgroundTransferOwnershipTests`,
+   `BackgroundInferenceLifecycleTests`, `BackgroundInferenceCompletionTests`,
+   `BackgroundInferenceWatchdogTests`, `BackgroundInferenceRecoveryTests`,
+   `BackgroundInferenceRetryTests`, `CaptureAdmissionTests`,
+   `LiveCaptureLifecycleTests`, and `InferenceReplayTests` are explicitly
+   serialized because their cases temporarily reconfigure process-wide queue,
+   entitlement, URLSession, or generation state. Each focused suite also uses
+   the shared offline-queue process-state lease. Main-actor isolation alone does
+   not prevent async test cases from interleaving at suspension points.
 
    The actor-level starvation regression supplies deterministic expensive-path
    eligibility inputs, but it does not drive a physical `NWPathMonitor`. Release
@@ -529,10 +533,20 @@ HTTP request is dispatched. See the
    indentation-sensitive multiline literal can fail after formatting while all
    guarded network boundaries remain present.
 
-   The exact protected replay case is
-   `inferenceReplayReconciliationCoalescesConcurrentWakeSources()`. It proves
-   simultaneous Library, scheduler, reconnect, and URLSession wakes produce one
-   active reconciliation and at most one trailing pass.
+   The exact protected replay function is
+   `inferenceReplayReconciliationCoalescesConcurrentWakeSources()`, now owned by
+   `InferenceReplayTests`. It proves simultaneous Library, scheduler, reconnect,
+   and URLSession wakes produce one active reconciliation and at most one
+   trailing pass. The exact durable admission function remains
+   `testEnqueueCapture_WithValidData_PersistsQueuedScan()` and now belongs to
+   `CaptureAdmissionTests`.
+
+   The validator also follows six retained regression names out of the retired
+   queue aggregate: runnable-count evidence belongs to `QueueMaintenanceTests`,
+   upload-batch starvation evidence to `MediaUploadSyncTests`, empty staged-file
+   rejection to `MediaStagingBudgetTests`, and all three cloud-deletion cases to
+   `CloudDeletionSyncTests`. Evidence under `OfflineQueueManagerTests` is
+   rejected for those cases even though their function names did not change.
 
    These checks live in `scripts/validate-ios-critical-test-results.sh`; their
    positive, missing-case, and skipped-case fixtures live in
@@ -543,7 +557,7 @@ HTTP request is dispatched. See the
    also requires replacing its exact structured suite name in both files; the
    validator must never keep accepting a retired aggregate merely because the
    case function name survived. `scripts/test-ios-build-and-test-workflow.sh`
-   additionally extracts all 100 exact allowlist entries, requires every Swift
+   additionally extracts all 98 exact allowlist entries, requires every Swift
    function name to resolve to exactly one declaration bound to `@Test` in
    `MerianTests`, and binds the two explicit Swift Testing display-name aliases
    to their corresponding declarations. This prevents a duplicate declaration,
@@ -1784,14 +1798,61 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   compatibility, registered scan-ID mapping after cloud renaming,
   high-confidence timestamp groups, Explore fallback rendering from Documents,
   and rejection of unrelated/unsafe URLs.
-- **`OfflineQueueManagerTests.swift`**: Mocks queue payload insertions.
+- **`BackgroundTransferOwnershipTests.swift`**: Covers lock-protected terminal
+  completion, synchronous URLSession delegate registration, durable-before-
+  cancel Auth-transition quiescence, relaunched task lease adoption, and bounded
+  retirement retry. Its completion cases prove that multiple waiters remain
+  suspended until the last active token finishes, the system handler is consumed
+  exactly once, duplicate finishes are harmless, and an idle tracker returns
+  immediately. The suite is serialized and leases shared `.offlineQueueManager`
+  process state.
+- **`OfflineQueueManagerTests.swift`**: Covers the remaining integrated
+  background upload and accepted inference-result processing, retry, status
+  recovery, diagnostics, and queue behavior.
+- **`BackgroundInferenceLifecycleTests.swift`**: Covers exact/idempotent
+  process-generation claims, retired-generation rejection, legacy generation
+  adoption, and stale completion against a replacement owner under serialized
+  shared queue state.
+- **`BackgroundInferenceDispatchTests.swift`**: Covers request-preparation
+  success, deterministic timeout cancellation without awaiting a non-cooperative
+  loser, caller cancellation, generation/preparation revalidation across
+  suspensions, and durable retirement-before-cancel dispatch ordering.
+- **`BackgroundInferencePolicyTests.swift`**: Covers platform-route and response
+  classification, retry/restaging policy, server-ingestion status recovery, and
+  dispatch admission through the actor-independent policy owner.
+- **`BackgroundInferenceCompletionTests.swift`**: Covers exact cancellation
+  retirement and status-probe cleanup, stale transport-failure fencing, and
+  stale task-result file cleanup while preserving the active replacement
+  generation, completion lock, dispatch timestamp, and status-probe owner. The
+  suite is serialized and leases shared `.offlineQueueManager` process state.
+- **`BackgroundInferenceWatchdogTests.swift`**: Covers exact probe-owner
+  replacement, current and legacy parsed scan identity with terminal-task
+  rejection, exact probe/generation revalidation after task-enumeration
+  suspensions, and the recovery-before-cancellation plus retirement-before-retry
+  ordering. The suite is serialized and leases shared `.offlineQueueManager`
+  process state.
+- **`BackgroundInferenceRecoveryTests.swift`**: Covers durable found-result
+  evidence before local hydration and terminal server-result contract mismatch
+  handling without a retry loop. The suite is serialized, leases shared
+  `.offlineQueueManager` process state, and cancels any singleton scheduler wake
+  it arms before restoring the manager context.
+- **`BackgroundInferenceRetryTests.swift`**: Covers recovery of the durable
+  server-failure marker when queue-row state drifts, cancellation-independent
+  restoration of a committed retry wake, and compare-before-clear rejection of a
+  replaced server-poll token. The suite is serialized and leases shared
+  `.offlineQueueManager` process state.
+- **`BackgroundInferenceArchitectureTests.swift`**: Freezes focused
+  policy/lifecycle/dispatch/completion/watchdog/recovery/retry ownership,
+  imports and declaration/consumer allowlists, direct generation-map
+  containment, completion result-file cleanup registration before generation
+  claim, compare-before-clear completion/watchdog ordering, absence of direct
+  network-client/session access from completion, durable retry persistence
+  before central wake restoration in both retry paths with no intervening
+  suspension, post-save ownership revalidation before process-local replacement,
+  mirrored behavioral tests, and the 600-line production-file ceiling.
   - **Temporary-store isolation**: Spins up a `@MainActor ModelContext` on a
     unique test-store URL to isolate test data from the user's real offline
     queue while preserving save/context behavior.
-  - **Core Lifecycles**: Exercises `.enqueueCapture` / non-visual queue
-    insertion (asserting SwiftData record counts increment correctly), canonical
-    mixed-media serialization, and `.purgeSoftDeletedRecords()` (asserting
-    soft-deleted items are removed while undeleted items persist).
   - **Media staging contract drift**: Loads
     `docs/contracts/media-staging-upload-manifest.json` and asserts
     `MerianConfig` matches the documented file, audio, and video budgets and
@@ -1932,6 +1993,22 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   Assertions must prove B remains registered and active, not merely that A
   reports `Task.isCancelled`. Swift task cancellation is cooperative and is not
   an ownership assertion.
+- **`CaptureAdmissionTests.swift`**: Owns visual, nonvisual, and Describe queue
+  admission; canonical image/audio/video/description ordering; separate display
+  and inference media; valid-WAV admission; durable queue insertion; and
+  idempotent deferred-upload release. Every case explicitly installs and
+  restores the queue manager's context, online state, and published count, and
+  awaits visual persistence through `onQueued` instead of sleeping.
+- **`LiveCaptureLifecycleTests.swift`**: Owns body-upload handoff and durable
+  compare-before-clear generation fencing so stale foreground cleanup cannot
+  release or delete replacement work.
+- **`InferenceReplayTests.swift`**: Owns process-single-flight replay wake
+  coalescing. `OfflineQueueAdmissionArchitectureTests.swift` freezes those test
+  owners together with their exact Swift type/display identities and required
+  `.serialized` plus `.sharedProcessState(.offlineQueueManager)` traits. It also
+  freezes the seven focused production files, private helper containment, the
+  exact `OfflineCaptureFileStore` consumer allowlist, framework imports,
+  durable-before-dispatch ordering, retired aggregate, and 600-line ceiling.
 - **`ScansShellViewModelTests.swift`**
   (`apps/ios/MerianTests/Features/Scans/Shell/`): Locks default and
   Non-biological initial navigation, incident summary/signature presentation,
@@ -2100,6 +2177,39 @@ xcodebuild test-without-building \
   -only-testing:merianTests/CircuitBreakerManagerTests \
   -only-testing:merianTests/BackgroundDatabaseActorTests \
   -only-testing:merianTests/OfflineQueueManagerTests \
+  -only-testing:merianTests/BackgroundTransferOwnershipTests \
+  -only-testing:merianTests/BackgroundTransferArchitectureTests \
+  -only-testing:merianTests/BackgroundInferenceLifecycleTests \
+  -only-testing:merianTests/BackgroundInferenceDispatchTests \
+  -only-testing:merianTests/BackgroundInferenceCompletionTests \
+  -only-testing:merianTests/BackgroundInferenceWatchdogTests \
+  -only-testing:merianTests/BackgroundInferenceRecoveryTests \
+  -only-testing:merianTests/BackgroundInferenceRetryTests \
+  -only-testing:merianTests/BackgroundInferencePolicyTests \
+  -only-testing:merianTests/BackgroundInferenceArchitectureTests \
+  -only-testing:merianTests/CaptureAdmissionTests \
+  -only-testing:merianTests/LiveCaptureLifecycleTests \
+  -only-testing:merianTests/InferenceReplayTests \
+  -only-testing:merianTests/OfflineSyncTests \
+  -only-testing:merianTests/SyncStateManagerTests \
+  -only-testing:merianTests/OfflineQueueRetryPolicyTests \
+  -only-testing:merianTests/MediaStagingContractTests \
+  -only-testing:merianTests/MediaStagingBudgetTests \
+  -only-testing:merianTests/MediaStagingIdentityTests \
+  -only-testing:merianTests/MediaStagingCompletionStateTests \
+  -only-testing:merianTests/InferenceURLSessionTaskContractTests \
+  -only-testing:merianTests/GenerationTaskRegistryTests \
+  -only-testing:merianTests/QueuedScanExtractionTests \
+  -only-testing:merianTests/OfflineSyncFoundationArchitectureTests \
+  -only-testing:merianTests/QueueMaintenanceTests \
+  -only-testing:merianTests/OfflineQueueMaintenanceArchitectureTests \
+  -only-testing:merianTests/OfflineQueueAdmissionArchitectureTests \
+  -only-testing:merianTests/CloudDeletionSyncTests \
+  -only-testing:merianTests/CollectionSyncTests \
+  -only-testing:merianTests/LegacyAudioRepairTests \
+  -only-testing:merianTests/MediaUploadSyncTests \
+  -only-testing:merianTests/MediaUploadCompletionTests \
+  -only-testing:merianTests/OfflineQueueSyncArchitectureTests \
   -only-testing:merianTests/OfflineQueuedScanDeletionTests \
   -only-testing:merianTests/OfflineJobSchedulerTests \
   -only-testing:merianTests/ScanRepositoryTests \
@@ -2171,12 +2281,18 @@ functional, format changed Markdown with `deno fmt`, and finish with
   unrelated Core test class. This gives deterministic coverage without
   simulator-driven UI automation. The complete unit target, including these
   workspace and camera-generation tests plus `InferenceEngineTests`,
-  `OfflineQueueManagerTests`, and `SyncStateManagerTests`, runs in
-  `.github/workflows/ios-build-and-test.yml` for every relevant source change.
-  The post-run XCResult validator additionally requires the exact critical scan,
-  offline-finalization, Community/Explore, and Field Chat regressions described
-  above to pass, so one unrelated passing case cannot stand in for a protected
-  workflow.
+  `OfflineQueueManagerTests`, `BackgroundTransferOwnershipTests`,
+  `BackgroundTransferArchitectureTests`, `BackgroundInferenceLifecycleTests`,
+  `BackgroundInferenceDispatchTests`, `BackgroundInferenceCompletionTests`,
+  `BackgroundInferenceWatchdogTests`, `BackgroundInferenceRecoveryTests`,
+  `BackgroundInferenceRetryTests`, `BackgroundInferencePolicyTests`,
+  `BackgroundInferenceArchitectureTests`, `CaptureAdmissionTests`,
+  `LiveCaptureLifecycleTests`, `InferenceReplayTests`, and
+  `SyncStateManagerTests`, runs in `.github/workflows/ios-build-and-test.yml`
+  for every relevant source change. The post-run XCResult validator additionally
+  requires the exact critical scan, offline-finalization, Community/Explore, and
+  Field Chat regressions described above to pass, so one unrelated passing case
+  cannot stand in for a protected workflow.
 - **`apps/ios/MerianTests/Features/Capture/Scan/`**: Mirrors the visual modality
   owner. `CaptureScanMediaPolicyTests` locks deterministic five-frame sampling,
   short-duration clamping, and prepared playback presentation.
@@ -2258,7 +2374,7 @@ functional, format changed Markdown with `deno fmt`, and finish with
   real ImageIO plus dictionary fixtures for date/GPS, date-only,
   coordinate-only, absent, incomplete, and malformed metadata. Telemetry tests
   prove a gallery item never falls back to the current device location.
-- **`OfflineQueueManagerTests` gallery replay cases**: Persist gallery
+- **`QueuedScanExtractionTests` gallery replay cases**: Persist gallery
   provenance in the existing visual-media manifest and prove offline replay
   keeps embedded dates while omitting a queue bookkeeping timestamp when the
   photo contained coordinates only or no date. Local-only provenance must remain
@@ -3884,20 +4000,103 @@ that previously passed in isolation:
 
 iOS regression coverage is intentionally joined as well:
 
-- `OfflineQueueManagerTests` validates exact server-key task handoff, complete
-  signing-response validation, persisted-session owner preference, whole-batch
-  sibling failure fencing, exact all-member success accumulation, relaunch
-  orphan recovery, fresh staging after consumed-key failure, and that retry
-  updates report an attempt only after persistence commits. Its diagnostics
-  fixture plants private media paths, description, Field notes, location/GPS,
-  raw metadata, and arbitrary persisted messages, then proves the shared JSON
-  excludes every value while retaining lifecycle/error/status evidence and
-  binary-provenance fields. It also plants arbitrary values in retained
-  machine-token fields and proves they are omitted. A second fixture inserts 510
-  jobs, scans, and events; it proves all sections cap at 500 while zero and
-  `Int.max` event requests serialize exactly one and 500 event rows.
-- `OfflineSyncTests` validates queue state/backoff decisions against the
-  owner-safe server ledger.
+- `BackgroundTransferOwnershipTests` owns terminal tracker completion,
+  synchronous delegate registration, failure-before-cancellation fences,
+  relaunched exact-session lease adoption, and bounded retirement. The
+  `BackgroundTransferArchitectureTests` suite freezes the four focused files,
+  exact declarations and imports, private tracker and terminal-validation state,
+  tracker/lease, rejected-retirement, and inference-completion consumer
+  allowlists, ordering, mirrored test ownership, failed-retirement generation
+  preservation, successful-retirement process completion, and 600-line ceilings.
+- `BackgroundInferenceLifecycleTests`, `BackgroundInferenceDispatchTests`,
+  `BackgroundInferenceCompletionTests`, `BackgroundInferenceWatchdogTests`,
+  `BackgroundInferenceRecoveryTests`, `BackgroundInferenceRetryTests`, and
+  `BackgroundInferencePolicyTests` own exact generation lifecycle, preparation
+  timeout/cancellation plus dispatch fencing, accepted result/failure fencing,
+  file cleanup, replacement active and completion-owner preservation,
+  compare-before-clear probe replacement, parsed open-task identity,
+  post-enumeration probe/generation revalidation,
+  recovery/cancellation/retirement/retry ordering, durable result evidence,
+  terminal contract mismatch handling, replacement poll-token rejection, durable
+  retry-marker recovery, and stateless route/response/status decisions.
+  `BackgroundInferenceArchitectureTests` freezes the seven focused production
+  owners, actor-independent policy, imports, declaration and consumer
+  allowlists, direct generation-map containment,
+  cleanup-registration-before-claim and compare-before-clear completion and
+  watchdog ordering, durable-wake-first persistence across retryable-status and
+  general inference retries with no intervening suspension before post-save
+  poll/generation revalidation, mirrored test ownership, and the 600-line
+  production-file ceiling.
+- `OfflineQueueManagerTests` retains the remaining integrated background
+  URLSession and durable-queue processing, including retry persistence and wake
+  restoration, status recovery, and fresh restaging after consumed-key failures.
+  Its diagnostics fixture plants private media paths, description, Field notes,
+  location/GPS, raw metadata, and arbitrary persisted messages, then proves the
+  shared JSON excludes every value while retaining lifecycle/error/status
+  evidence and binary-provenance fields. It also plants arbitrary values in
+  retained machine-token fields and proves they are omitted. A second fixture
+  inserts 510 jobs, scans, and events; it proves all sections cap at 500 while
+  zero and `Int.max` event requests serialize exactly one and 500 event rows.
+- `OfflineSyncTests` retains lightweight lock-release, free-admission,
+  weather-gate, and terminal-file-corruption examples; it does not replace the
+  integrated manager, actor, URLSession, or endpoint suites.
+  `OfflineQueueRetryPolicyTests` validates retry eligibility, deterministic base
+  delay caps, and jitter bounds. `MediaStagingContractTests`,
+  `MediaStagingBudgetTests`, `MediaStagingIdentityTests`,
+  `MediaStagingCompletionStateTests`, `InferenceURLSessionTaskContractTests`,
+  and `GenerationTaskRegistryTests` mirror the extracted staging,
+  owner-identity, task-identity, completion, and cancellation owners.
+- `CaptureAdmissionTests`, `LiveCaptureLifecycleTests`, and
+  `InferenceReplayTests` own durable capture insertion, media ordering and
+  identity, explicit shared-state restoration, foreground generation fencing,
+  and process-single-flight replay coalescing. Hosted result validation follows
+  their two relocated protected cases, plus the six maintenance, staging,
+  upload, and cloud-deletion cases below, to their exact focused suites.
+- `SyncStateManagerTests` retains generation-aware upload, inference,
+  finalizing, and forced-idle projection coverage.
+- `OfflineSyncFoundationArchitectureTests` freezes the complete relocated
+  declaration inventory, exact focused-file and framework-import inventory,
+  dependency direction, private task/diagnostic state, removal of the former
+  aggregate source, exact queued-scan-mapper and preferred-goal consumer
+  allowlists, mirrored extraction-test ownership, and the 600-line ceiling for
+  the foundation owners. `QueuedScanExtractionTests` covers gallery timestamp
+  provenance, persisted/sparse audio identity, conservative legacy visual
+  replay, and mixed-media timeline alignment without mutating shared manager
+  state.
+- `QueueMaintenanceTests` covers failed-state tombstoning, fresh-context
+  automatic-work counts, retention of failures that still need attention, purge
+  of non-actionable failures, and queue/goal-hint flushes. Every case snapshots
+  and restores both `OfflineQueueManager.modelContext` and the published
+  `unsyncedItemsCount`; the shared-process lease does not replace that state
+  restoration. The XCResult validator binds the protected automatic-work-count
+  case to this suite. `OfflineQueueMaintenanceArchitectureTests` freezes the two
+  maintenance service owners, shared persistence helper ownership, framework
+  imports, private destructive helpers, persistence-lock ordering,
+  database-before-file deletion, and the 600-line ceiling.
+- `OfflineQueueAdmissionArchitectureTests` freezes the seven focused admission
+  and replay production files, exact declarations/imports, private helper
+  containment, the `OfflineCaptureFileStore` consumer allowlist,
+  durable-before-dispatch and persistence-lock ordering, mirrored test
+  type/display identities, serialized/shared-process-state traits, retired queue
+  aggregate, and the 600-line ceiling.
+- `CloudDeletionSyncTests`, `CollectionSyncTests`, `LegacyAudioRepairTests`,
+  `MediaUploadSyncTests`, and `MediaUploadCompletionTests` mirror the focused
+  live sync services without dropping the rehomed aggregate test names. The
+  completion suite covers legacy-audio ordering, whole-generation sibling
+  fencing, exact all-key staging commits, callback-token ownership, retry
+  persistence, and stale-generation rejection.
+  `OfflineQueueSyncArchitectureTests` freezes their exact source/declaration
+  ownership, imports, completion-helper containment, responsibility boundaries,
+  retired sync aggregate, mirrored completion-test ownership, and 600-line
+  ceiling. The iOS workflow contract mirrors that boundary by requiring two
+  live-task reconciliation scans in `UploadSync`, one in `UploadDispatch`, and
+  keeping upload request-policy and activation-before-resume assertions with the
+  dispatch owner. The shared isolated-store fixture only creates a context;
+  every serialized singleton-backed test must explicitly install it and restore
+  the manager's previous context. Structured-result validation binds the upload
+  starvation case to `MediaUploadSyncTests` and all three durable-erasure cases
+  to `CloudDeletionSyncTests`; the staged empty-file case is similarly bound to
+  `MediaStagingBudgetTests`.
 - `BackgroundDatabaseActorTests` validates immediate non-visual durability and
   late optional context merge. Its staging-transition cases assert committed,
   already-advanced, retry-required, and discarded outcomes so an HTTP callback
@@ -5074,9 +5273,9 @@ one primary identification model call.
 
 Retryable status recovery must also exercise deliberate drift between
 `OfflineQueuedScan` and its scan-ingestion `OfflineJobRecord`.
-`scheduledServerFailureMarkerIsReadFromDurableStore` erases the queue-row
-marker/count while the job survives and proves a transient re-stage failure
-advances to attempt two.
+`BackgroundInferenceRetryTests/scheduledServerFailureMarkerIsReadFromDurableStore`
+erases the queue-row marker/count while the job survives and proves a transient
+re-stage failure advances to attempt two.
 `testMarkScanAsStagedPreservesScheduledServerFailureRetry` passes the same
 topology through upload claim and staging.
 `testScheduleInferenceRetryUsesMonotonicMirroredAttempt` proves the writer uses
@@ -6046,7 +6245,7 @@ The surrounding export suite is intentionally split by boundary:
   locks the request-before-storage/completion-after-storage RPC boundary.
 - `ScanDeletionEndpointTests.testDeleteScanRejectsUnconfirmedSuccessResponse`
   rejects empty, false, missing-key, and non-object 2xx bodies.
-  `OfflineQueueManagerTests.cloudDeletionRequiresExplicitNetworkConfirmation`
+  `CloudDeletionSyncTests.cloudDeletionRequiresExplicitNetworkConfirmation`
   proves `invalidResponse`, HTTP, and transport errors all retain durable cloud
   erasure work; only a validated nil dispatch error may remove the pending task.
   `cloudDeletionRetriesNeverEnterAnUnrecoverableState` proves exhausted legacy

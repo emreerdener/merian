@@ -875,7 +875,16 @@ struct CoreNetworkIntegrationArchitectureTests {
             )
         )
         #expect(client.contains("request.httpMethod == \"POST\""))
-        #expect(pinnedTransport.contains("withThrowingTaskGroup("))
+        #expect(!pinnedTransport.contains("withThrowingTaskGroup("))
+        #expect(
+            pinnedTransport.contains(
+                "private final class PinnedNetworkDataTaskState: Sendable"
+            )
+        )
+        #expect(pinnedTransport.contains("OSAllocatedUnfairLock(initialState:"))
+        #expect(pinnedTransport.contains("withTaskCancellationHandler"))
+        #expect(pinnedTransport.contains("withCheckedThrowingContinuation"))
+        #expect(pinnedTransport.contains("deadlineQueue.asyncAfter"))
         #expect(
             pinnedTransport.contains(
                 "boundedRequest.cachePolicy = .reloadIgnoringLocalCacheData"

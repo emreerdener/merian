@@ -2,100 +2,6 @@
 import XCTest
 
 final class OfflineSyncTests: XCTestCase {
-
-    // MARK: - 1. Exact Upload Outcome Contract
-
-    func test_processUploadCompletion_defersInferenceUntilEveryKeySucceeds() {
-        let generation = UUID()
-        let firstKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/scan_image_0.webp"
-        let secondKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/scan_image_1.webp"
-        var completion = MediaStagingUploadCompletionState(generation: generation)
-
-        completion.recordSuccess(objectKey: secondKey)
-
-        XCTAssertFalse(
-            completion.matchesExactly(expectedObjectKeys: [firstKey, secondKey]),
-            "Task disappearance is not success evidence for the missing first key."
-        )
-    }
-
-    func test_processUploadCompletion_acceptsOutOfOrderSuccessForEveryExactKey() {
-        let generation = UUID()
-        let firstKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/scan_image_0.webp"
-        let secondKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/scan_image_1.webp"
-        var completion = MediaStagingUploadCompletionState(generation: generation)
-
-        completion.recordSuccess(objectKey: secondKey)
-        completion.recordSuccess(objectKey: firstKey)
-
-        XCTAssertTrue(
-            completion.matchesExactly(expectedObjectKeys: [firstKey, secondKey])
-        )
-    }
-
-    func test_processUploadCompletion_rejectsSuccessfulKeysOutsideExactManifest() {
-        let generation = UUID()
-        let firstKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/scan_image_0.webp"
-        let secondKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/scan_image_1.webp"
-        let staleKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/stale_image.webp"
-        var completion = MediaStagingUploadCompletionState(generation: generation)
-
-        completion.recordSuccess(objectKey: firstKey)
-        completion.recordSuccess(objectKey: secondKey)
-        completion.recordSuccess(objectKey: staleKey)
-
-        XCTAssertFalse(
-            completion.matchesExactly(expectedObjectKeys: [firstKey, secondKey]),
-            "A successful stale upload must not be silently omitted from the durable manifest."
-        )
-    }
-
-    func test_processUploadCompletion_rejectsDuplicateExpectedKeys() {
-        let generation = UUID()
-        let objectKey = "staging/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/scan_image.webp"
-        var completion = MediaStagingUploadCompletionState(generation: generation)
-        completion.recordSuccess(objectKey: objectKey)
-
-        XCTAssertFalse(
-            completion.matchesExactly(expectedObjectKeys: [objectKey, objectKey]),
-            "Expected manifests must remain duplicate-free rather than collapsing through Set."
-        )
-    }
-
-    // MARK: - 2. Server-Authoritative Staging Identity
-
-    func test_stagingOwnerComesFromCanonicalServerIssuedKey() {
-        let authenticatedOwner = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
-        let fileName = "scan123_image.webp"
-        let serverKey = "staging/\(authenticatedOwner)/\(fileName)"
-
-        XCTAssertTrue(
-            MediaStagingContract.isCanonicalObjectKey(
-                serverKey,
-                fileName: fileName
-            )
-        )
-        XCTAssertEqual(
-            MediaStagingContract.ownerId(fromObjectKey: serverKey),
-            authenticatedOwner
-        )
-    }
-
-    func test_predictedDeviceIdentityCannotOverrideServerIssuedOwner() {
-        let predictedDeviceOwner = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-        let authenticatedOwner = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
-        let serverKey = "staging/\(authenticatedOwner)/scan123_image.webp"
-
-        XCTAssertNotEqual(
-            MediaStagingContract.ownerId(fromObjectKey: serverKey),
-            predictedDeviceOwner
-        )
-        XCTAssertEqual(
-            MediaStagingContract.ownerId(fromObjectKey: serverKey),
-            authenticatedOwner
-        )
-    }
-
     // MARK: - 3. Pipeline Lock Release Tests
     
     func test_missingSourceFile_dropsIsSyncingLock() async {
@@ -105,7 +11,7 @@ final class OfflineSyncTests: XCTestCase {
         var isSyncing = true // Locked initially by syncPendingScans
         let activeURLSessionTaskCount = 0
         
-        // This is the literal inline evaluation logic from `OfflineQueueManager+Sync`
+        // This mirrors the terminal latch evaluation in `OfflineQueueManager.syncPendingScans()`.
         if dispatchedScanIDs.isEmpty {
             if activeURLSessionTaskCount == 0 {
                 isSyncing = false
@@ -114,58 +20,6 @@ final class OfflineSyncTests: XCTestCase {
         
         // Assert that when dispatch generates no payloads, the queue gracefully drops its own lock rather than waiting for OS delegate.
         XCTAssertFalse(isSyncing, "Pipeline Deadlock: isSyncing did not drop when all source files were missing.")
-    }
-
-    func test_inferencePipeline_transientRetryUsesDurableBackoffInsteadOfTombstoneThreshold() async {
-        let firstDelay = OfflineQueueRetryPolicy.delay(forAttempt: 1)
-        let laterDelay = OfflineQueueRetryPolicy.delay(forAttempt: 10)
-
-        XCTAssertGreaterThan(firstDelay, 0, "Transient retries should schedule a future retry window.")
-        XCTAssertGreaterThan(laterDelay, firstDelay, "Later attempts should back off instead of deleting queued media.")
-        XCTAssertEqual(laterDelay, OfflineQueueRetryPolicy.maximumRetryDelay)
-    }
-
-    func test_exponentialBackoff_jitterStaysWithinRetryBounds() async {
-        for _ in 0..<20 {
-            let delay = OfflineQueueRetryPolicy.jitteredDelay(forAttempt: 10)
-            XCTAssertGreaterThanOrEqual(delay, 5)
-            XCTAssertLessThanOrEqual(delay, OfflineQueueRetryPolicy.maximumRetryDelay)
-        }
-    }
-
-    func test_retryScopesKeepScansFastWithoutShorteningMaintenance() async {
-        XCTAssertEqual(
-            OfflineQueueRetryPolicy.delay(
-                forAttempt: 20,
-                scope: .scanAnalysis
-            ),
-            30
-        )
-        XCTAssertEqual(
-            OfflineQueueRetryPolicy.delay(
-                forAttempt: 20,
-                scope: .maintenance
-            ),
-            15 * 60
-        )
-        XCTAssertEqual(
-            OfflineQueueRetryPolicy.maximumServerDirectedRetryDelay,
-            15 * 60
-        )
-        XCTAssertEqual(
-            OfflineQueueRetryPolicy.scanRetryDelay(
-                forAttempt: 1,
-                serverMinimumDelay: 120
-            ),
-            120
-        )
-        XCTAssertEqual(
-            OfflineQueueRetryPolicy.scanRetryDelay(
-                forAttempt: 1,
-                serverMinimumDelay: 3_600
-            ),
-            15 * 60
-        )
     }
 
     // MARK: - 4. Enqueue Bounds (Free Tier Hoarding)
@@ -179,16 +33,6 @@ final class OfflineSyncTests: XCTestCase {
         let canEnqueue = isProActive || queuedScansInDatabase < maxFreeScansPerDay
         
         XCTAssertFalse(canEnqueue, "Hoarding Breach: A free-tier user was incorrectly allowed to enqueue a 2nd offline scan into local DB.")
-    }
-
-    // MARK: - 5. Exponential Backoff Constraints
-    
-    func test_exponentialBackoff_calculatesAndClampsCorrectly() async {
-        let firstDelay = OfflineQueueRetryPolicy.delay(forAttempt: 1)
-        let cappedDelay = OfflineQueueRetryPolicy.delay(forAttempt: 20)
-
-        XCTAssertEqual(firstDelay, 5)
-        XCTAssertEqual(cappedDelay, OfflineQueueRetryPolicy.maximumRetryDelay)
     }
 
     // MARK: - 6. WeatherKit Hydration Logic
@@ -210,48 +54,6 @@ final class OfflineSyncTests: XCTestCase {
 
     // MARK: - 7. Terminal Failure Classification
     
-    func test_runInferencePipeline_keepsTransientFailuresRetryable() async {
-        let disposition = OfflineQueueRetryPolicy.classifyUpload(
-            error: NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost),
-            statusCode: nil,
-            currentAttempt: 8
-        )
-
-        if case .retry = disposition {
-            XCTAssertTrue(true)
-        } else {
-            XCTFail("Transient network failures should remain retryable while automatic retry budget remains.")
-        }
-    }
-
-    func test_runInferencePipeline_pausesTransientFailuresAfterRetryBudget() async {
-        let disposition = OfflineQueueRetryPolicy.classifyUpload(
-            error: NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost),
-            statusCode: nil,
-            currentAttempt: OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts
-        )
-
-        if case .needsAttention(let code, _) = disposition {
-            XCTAssertEqual(code, "automatic_retry_limit_reached")
-        } else {
-            XCTFail("Transient failures should pause for user attention after the automatic retry budget is exhausted.")
-        }
-    }
-
-    func test_offlineJobRetryBudget_isSharedByDurableOfflineJobs() async {
-        XCTAssertTrue(OfflineQueueRetryPolicy.canScheduleAutomaticRetry(currentAttempt: 0))
-        XCTAssertTrue(
-            OfflineQueueRetryPolicy.canScheduleAutomaticRetry(
-                currentAttempt: OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts - 1
-            )
-        )
-        XCTAssertFalse(
-            OfflineQueueRetryPolicy.canScheduleAutomaticRetry(
-                currentAttempt: OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts
-            )
-        )
-    }
-
     func test_processUploadCompletion_tombstonesOnTerminalFileCorruption() async {
         var isDeleted = false
         

@@ -21,6 +21,33 @@ retries. The
 [scan lifecycle verification matrix](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-verification)
 joins endpoint tests with the queue and deletion-service tests described here.
 
+The iOS implementation boundary is inventoried in the
+[Offline Sync ownership guide](../../apps/ios/Merian/Core/Data/OfflineSync/README.md).
+`Models` owns Sendable queue and inference values; `Policies` owns stateless
+metadata, task-description, staging, storage, retry, and background-inference
+response/status decisions; `Coordinators` owns process-local generation task
+cancellation; `Persistence` owns shared SwiftData lookups; and `Services` owns
+diagnostics plus the focused cloud-deletion, collection-sync, media-upload,
+queue-maintenance, capture-admission, funding, Field Trip progress,
+inference-replay, and background-inference orchestration.
+`Services/BackgroundInference` owns exact process-generation lifecycle,
+generation-fenced request preparation and dispatch, plus accepted task-result
+and transport-failure completion, delayed status probing, and exact-generation
+background-task retirement. `Services/BackgroundTransfer` owns terminal
+tracking, Auth quiescence, owner validation/adoption, terminal callback routing,
+and URLSession delegate routing.
+`Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift` owns
+generation-fenced upload callback accumulation and the durable
+staging-to-inference handoff, while
+`Persistence/OfflineQueueManager+QueuedScanExtraction.swift` owns queued-row
+snapshot mapping.
+`Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift` owns
+server-result hydration/recovery and retryable server-status persistence, while
+its `InferenceRetry` sibling owns compare-before-clear poll validation, general
+transport-retry persistence, and server-poll execution. The existing manager and
+durability file remain the other live orchestration owners; there is no longer a
+queue, sync, or URLSession aggregate.
+
 ## How the Queue Works
 
 ### 1. Realtime Inference Mapper (`saveLiveScanRecord`)
@@ -418,6 +445,12 @@ rebuilds paths through `CapturedMediaSnapshot` so image, audio, video,
 thumbnail, and extracted-audio cleanup all follow the same canonical media
 timeline. File removal happens after the SwiftData save via
 `FileIOActor.deleteFiles(at:)`, keeping the database state authoritative.
+`Services/QueueMaintenance/OfflineQueueManager+QueueState.swift` owns the live
+count, tombstone, and main-context flush mutations;
+`Services/QueueMaintenance/OfflineQueueManager+QueueDeletion.swift` owns
+persistence-fenced explicit deletion and purge. Their shared offline-job and
+Field Trip goal-hint lookups live under `OfflineSync/Persistence`, so the split
+does not expose manager implementation helpers.
 
 **The Circuit Breaker (`CircuitBreakerManager`)**: If repeated HTTP errors or
 timeouts cross a threshold, the circuit "trips", routing all new captures
@@ -433,6 +466,14 @@ reserved complimentary Pro, immediate Flash, or deferred Flash with earlier
 complimentary blocker scan IDs. Verified server availability is reduced by all
 unresolved local complimentary and conservative legacy blockers, so one stale
 remaining credit cannot admit multiple queued Pro scans.
+
+`Services/CaptureAdmission` owns that durable admission and its stateless local
+file staging. Its internal `OfflineCaptureFileStore` is consumed only by
+`OfflineQueueManager+CaptureEnqueue.swift`; other OfflineSync owners cannot turn
+it into a parallel persistence entry point. `Services/Funding` separately owns
+reservation restoration, server reconciliation, and proven pre-dispatch release;
+capture admission calls its existing manager API without duplicating funding
+policy. The admission architecture suite enforces this consumer allowlist.
 
 Exactly one image, one standalone audio clip, or one description with no video
 is Flash-eligible. Mixed, multi-item, and video captures without Pro funding
@@ -739,25 +780,29 @@ caller supplies zero or an unbounded integer. The export uses complete data
 protection at rest.
 
 **`MediaStagingContract` + `ScanUploadItem`** (defined in
-`OfflineSyncTypes.swift`): The flat arrays previously used to pass per-image
-metadata (`fileNames`, `fileURLs`, `scanIDs`, `imageIndices`) have been
-consolidated into a typed staging manifest. Each `ScanUploadItem` carries
-`scanId`, `uploadIndex`, `mediaKind`, `localPath`, sanitized `fileName`,
+`OfflineSync/Policies/MediaStagingContract.swift` and
+`OfflineSync/Models/MediaStagingModels.swift`): The flat arrays previously used
+to pass per-image metadata (`fileNames`, `fileURLs`, `scanIDs`, `imageIndices`)
+have been consolidated into a typed staging manifest. Each `ScanUploadItem`
+carries `scanId`, `uploadIndex`, `mediaKind`, `localPath`, sanitized `fileName`,
 `fileURL`, `contentType`, expected `objectKey`, and a `StagingUploadFile`
 request DTO carrying `sizeBytes`, `clientScanId`, and `mediaRole` together,
 eliminating the class of flat-index bug where indexing into parallel arrays at
 position `N` could silently return mismatched values for mixed-media batches.
-URLSession upload task descriptions now use
-`upload|{scanId}|{uploadIndex}|{syncGeneration}|{serverObjectKey}` through the
-same contract, preserving scan IDs that contain underscores, binding each
-callback to its originating batch, and carrying the authenticated destination
-through suspension. The parser still accepts the previous three-/four-part forms
-and the legacy underscore form for OS-owned tasks created by an older app build.
-Legacy callbacks recover and validate the key from the signed request path.
-Before signing, local validation rejects duplicate sanitized filenames or object
-keys, including collisions produced by distinct local path spellings. Staged
-image roles are a signing-time hint; final user-visible media still comes from
-the saved `captured_media` manifest and ready `scan_media_assets` rows.
+New URLSession upload task descriptions use
+`upload_v2|{ownerUUID}|{scanId}|{uploadIndex}|{syncGeneration}|{serverObjectKey}`
+through the same contract, preserving scan IDs that contain underscores, binding
+each callback to its originating batch and authenticated account, and carrying
+the authenticated destination through suspension. The parser still accepts the
+earlier three-, four-, and five-part `upload|...` forms plus the legacy
+underscore form for OS-owned tasks created by an older app build. Legacy
+callbacks recover and validate the key from the signed request path. Before
+signing, local validation rejects duplicate sanitized filenames or object keys,
+including collisions produced by distinct local path spellings. Staged image
+roles are a signing-time hint; final user-visible media still comes from the
+saved `captured_media` manifest and ready `scan_media_assets` rows. The focused
+source boundaries are inventoried in the
+[Offline Sync README](../../apps/ios/Merian/Core/Data/OfflineSync/README.md).
 
 Connectivity, constrained-path policy, live-upload ownership, and playback-video
 cellular eligibility are rechecked immediately after the serialized database
@@ -822,14 +867,21 @@ continue to treat the scan as server-owned and can never redispatch Identify.
 | _(reserved)_   | 4         | —                                                                                                                                                          |
 | `.failed`      | 5         | Terminal — tombstoned, awaiting purge                                                                                                                      |
 
-After the last media file for a scan receives HTTP 200,
+Each HTTP 200 callback records its exact server-issued object key in a
+generation-scoped successful-member accumulator. Once no active sibling task
+remains and that accumulator exactly covers the queued media manifest,
 `BackgroundDatabaseActor.markScanAsStaged(scanId:r2Keys:)` atomically persists
 the confirmed R2 object keys into `stagedR2Keys: [String]?` and transitions to
-`.staged`. Storing the keys at upload time eliminates the auth-expiry 403 edge
-case that occurred when keys were reconstructed from the current session UUID at
-inference time — a session that may have expired hours later.
-`replayInferenceForUploadedScans()` queries for `.staged` scans and re-enters
-them via `dispatchInferenceDownloadTask` using the persisted keys.
+`.staged`. A task disappearing from `URLSession.allTasks` is only evidence that
+transport work stopped; it is not evidence that the upload succeeded. Storing
+the keys at upload time eliminates the auth-expiry 403 edge case that occurred
+when keys were reconstructed from the current session UUID at inference time — a
+session that may have expired hours later.
+`Services/InferenceReplay/OfflineQueueManager+InferenceReplay.swift` owns
+`replayInferenceForUploadedScans()`. It queries for `.staged` scans and
+re-enters them through
+`Services/BackgroundInference/OfflineQueueManager+InferenceDispatch.swift` using
+the persisted keys.
 
 The transition returns a durable `ScanStagingTransitionOutcome`; HTTP success is
 not itself permission to start inference. Only `.staged` or `.alreadyAdvanced`
@@ -918,7 +970,22 @@ additional callback fence, but they are not the persistence authority:
   `inference_v3|{ownerUUID}|{generation}|{scanId}` in the background download
   task. Request preparation, delayed status probes, retry scheduling, delegate
   callbacks, result processing, task cancellation, and queue deletion all
-  compare that UUID before mutating state.
+  compare that UUID before mutating state. Because background-task enumeration
+  suspends, the watchdog repeats both its compare-before-clear probe-token check
+  and exact-generation check after `URLSession.allTasks` returns and before it
+  clears or retires either owner. Request construction races a 30-second hard
+  deadline: timeout cancels and ignores the losing preparation without awaiting
+  cooperative cancellation, while explicit caller cancellation remains
+  `CancellationError`. An inference task created after the durable
+  `.inferencing` claim does not resume until its exact Auth lease is retained.
+  If lease retention fails, the queue row must return to pending before the
+  suspended task is cancelled and the process-local generation is finished.
+  Exhausted durable-retirement retries leave both the suspended task and active
+  generation in place so an Auth-transition sweep or relaunch recovery still
+  sees the unresolved durable owner; process state never claims completion ahead
+  of SwiftData. When a later sweep or rejected terminal callback does commit
+  that retirement, it immediately closes the matching process-local inference
+  generation; an Auth sweep does so before transport cancellation.
 - An online queue-backed submission receives a foreground inference UUID before
   enqueue. The queue transaction stores it in the scan-ingestion job and
   registers the same in-memory owner before upload/replay can start. Provider
@@ -961,7 +1028,14 @@ additional callback fence, but they are not the persistence authority:
   that slot through their awaited status, cancellation, database-transition, and
   recovery work, then compare before clearing it. A replacement also cancels the
   old Swift task, and post-await guards require both a live token and
-  non-cancelled task before mutation.
+  non-cancelled task before mutation. After a retryable server-status transition
+  commits, the central durable wake is restored first; the caller must then
+  revalidate task cancellation, network policy, any supplied poll token, and the
+  inference generation before it may replace the keyed process-local server
+  poll. General inference retries use the same immediate durable-first ordering,
+  with no suspension between the actor's return and central wake restoration,
+  before their cancellation and ownership fences; only their optional in-process
+  retry task depends on the surviving process owner.
 - Upload-completion callbacks use independent membership tokens until ownership
   transfers to inference preparation. A callback removes only its own token;
   another callback for the same multi-file scan remains visible to orphan
@@ -1107,9 +1181,10 @@ checksummed ledgers, and invokes the canonical finalizer without reopening quota
 or inference.
 
 > **Critical**: The `taskDescription` for each new upload task is
-> `upload|{scanId}|{uploadIndex}|{syncGeneration}|{serverObjectKey}`, where
-> `uploadIndex` is the per-scan media slot across the canonical upload list. It
-> must not use the flat position across the entire batch.
+> `upload_v2|{ownerUUID}|{scanId}|{uploadIndex}|{syncGeneration}|{serverObjectKey}`,
+> where `uploadIndex` is the per-scan media slot across the canonical upload
+> list. It must not use the flat position across the entire batch, and the
+> explicit owner must match the owner encoded in `serverObjectKey`.
 > `processUploadCompletion` parses the identity structurally and records an
 > HTTP-successful upload under its exact canonical server key. Because iOS
 > multiplexed HTTP/3 background tasks can complete and dispatch callbacks out of
@@ -1152,6 +1227,19 @@ the latch without waiting for a URLSession delegate callback.
 
 ### 5. Upload Lifecycle via URLSession Delegates
 
+The four focused owners under `Services/BackgroundTransfer` separate the
+lock-protected terminal-work tracker, Auth-bound lease retention/quiescence,
+private task-owner validation/adoption plus main-actor terminal routing, and
+nonisolated delegate callbacks. Accepted upload callbacks enter
+`Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift`.
+`Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift` owns
+server recovery, hydration, and retryable server-status persistence, while
+`OfflineQueueManager+InferenceRetry.swift` owns general transport-retry and
+server-poll processing. Generation lifecycle, request dispatch, accepted task
+completion, and delayed status-probe/task-retirement handling live in the other
+four focused `Services/BackgroundInference` owners. This source split does not
+change the sequence:
+
 - **Step A**: iOS transmits the staged file to the Cloudflare R2 staging bucket.
 - **Step B**: `urlSession(_:task:didCompleteWithError:)` and inference
   `urlSession(_:downloadTask:didFinishDownloadingTo:)` callbacks synchronously
@@ -1169,10 +1257,11 @@ the latch without waiting for a URLSession delegate callback.
   every registered terminal processor, then takes and invokes the `AppDelegate`
   completion handler exactly once so the system knows it is safe to suspend. For
   upload completion, non-Sendable task properties are captured as local
-  immutable variables before crossing the actor boundary through the newly
-  distinct `fetchScanMetadata` helper. The handler cleans up the temp staging
-  file unconditionally, then evaluates the payload explicitly through
-  `handleUploadFallback`:
+  immutable variables before crossing the actor boundary. Terminal routing
+  forwards only accepted work to the focused upload-completion owner, whose
+  private `fetchScanMetadata` helper consumes the shared queued-scan extraction
+  mapper. The upload processor evaluates the callback explicitly through its
+  private `handleUploadFallback` helper:
   - **Transport errors — file missing** (`NSURLErrorFileDoesNotExist`,
     `NSURLErrorCannotOpenFile`): terminal local problem — mark
     `queueNeedsAttention` and keep the row visible for user retry/cancel.
@@ -1193,8 +1282,11 @@ the latch without waiting for a URLSession delegate callback.
     `queueNeedsAttention`. The user media is not silently deleted after a fixed
     retry count. Inference response handling separately recognizes exact
     `403 ai_consent_required` as the no-auto-retry disclosure transition.
-  - **HTTP 200**: Evaluates the image against `session.allTasks` to ensure it is
-    the _final_ chunk completing, then calls `dispatchInferenceDownloadTask()`.
+  - **HTTP 200**: Records the exact server-issued object key in the current
+    upload generation's successful-member accumulator, then uses an active
+    sibling-task snapshot only as a wait condition. Inference can start only
+    after the accumulator contains the complete expected media-key manifest;
+    task disappearance alone is never treated as success evidence.
 
   > **Retry durability**: `uploadRetryCount` is no longer the source of truth.
   > Retry ownership lives on `OfflineQueuedScan.queue*` fields and the paired
@@ -1225,27 +1317,33 @@ the latch without waiting for a URLSession delegate callback.
   claimed before any suspending status/request work and becomes the task
   identity: `"inference_v3|{ownerUUID}|{generation}|{scanId}"`.
   `SyncStateManager.shared.beginInferencing(generation:)` registers that exact
-  token. The inference download is suppressed until the **last** media file for
-  the scan and upload generation has landed (guarded by the strict
-  `session.allTasks` lookahead filter validated in Step C), preventing
-  partial-payload submissions. The request body is small for queued media:
-  images travel as `r2ObjectKeys`, audio travels as `audioR2ObjectKeys`, and
-  only descriptions/telemetry are inline. Because this is a background
-  URLSession download task (not a data task), iOS can deliver the response body
-  even while the app is completely suspended. To pass the server's
-  case-sensitive IDOR block, the deterministically awaited user UUID embedded
-  within the R2 keys is strictly lowercased. Weather backfill is persisted to
-  `OfflineQueuedScan` via `BackgroundDatabaseActor.updateScanTelemetry` before
-  dispatch so the delegate can read hydrated telemetry from SwiftData on result
-  delivery. The current implementation deliberately skips optional WeatherKit
-  backfill during background replay so request construction cannot hold the
-  queue; already persisted telemetry is still included.
+  token. The inference download is suppressed while an active sibling upload
+  remains and until the generation-scoped successful-member accumulator exactly
+  covers the queued media manifest. The `session.allTasks` snapshot is only the
+  sibling wait signal; it is never upload-success evidence. This prevents
+  partial-payload submissions even when completed tasks disappear before their
+  callbacks finish. The request body is small for queued media: images travel as
+  `r2ObjectKeys`, audio travels as `audioR2ObjectKeys`, and only
+  descriptions/telemetry are inline. Because this is a background URLSession
+  download task (not a data task), iOS can deliver the response body even while
+  the app is completely suspended. To pass the server's case-sensitive IDOR
+  block, the deterministically awaited user UUID embedded within the R2 keys is
+  strictly lowercased. Background replay deliberately performs no WeatherKit or
+  reverse-geocoding lookup during request construction, so optional enrichment
+  cannot hold the queue. Telemetry already persisted on `OfflineQueuedScan` is
+  still included.
 - **Step E (background)**: When the inference download task completes,
   `urlSession(_:downloadTask:didFinishDownloadingTo:)` fires. The temp file is
   immediately copied to a task-specific stable path and
   `processInferenceDownloadResult(scanId:generation:resultFileURL:statusCode:functionRouteEvidence:)`
+  in
+  `Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift`
   is invoked inside a `BackgroundTaskWrapper`. The parsed generation must still
-  own the scan; otherwise the result is discarded as stale.
+  own the scan; otherwise the result is discarded as stale and the task-specific
+  result file is still removed. Once claimed, the process-local completion lock
+  is tagged with that exact generation. Deferred teardown clears it only when it
+  still matches; a replacement completion owner installed across a suspension is
+  preserved, and diagnostics distinguish the cleared and preserved branches.
   `SyncStateManager.shared.beginFinalizing(generation:)` transitions that exact
   token to `.finalizing`. `BackgroundDatabaseActor.processAndCleanupOfflineScan`
   decodes the JSON, inserts `LocalScanRecord` when confidence is positive,
@@ -1271,13 +1369,14 @@ the latch without waiting for a URLSession delegate callback.
   stay suppressed until a later retry can commit cleanup. On zero-confidence
   HTTP 200 responses no `LocalScanRecord` is inserted; successful queue deletion
   removes the queued row and purges its media footprint. Inference download task
-  failures and retryable non-200 HTTP responses route through
+  failures and retryable non-200 HTTP responses route through the same
+  completion owner's
   `handleInferenceTaskNetworkFailure(scanId:generation:error:)` before entering
-  `handleInferenceRetry(scanId:generation:reason:)`. `NSURLErrorCancelled`
-  (Code=-999) is short-circuited because it is produced when an owner path
-  cancels background work after live inference already succeeded or the user
-  deleted the queued scan. Before scheduling a retry, `handleInferenceRetry`
-  calls
+  the residual `handleInferenceRetry(scanId:generation:reason:)` recovery path.
+  `NSURLErrorCancelled` (Code=-999) is short-circuited because it is produced
+  when an owner path cancels background work after live inference already
+  succeeded or the user deleted the queued scan. Before scheduling a retry,
+  `handleInferenceRetry` calls
   `MerianNetworkClient.shared.checkScanStatusDetails(scanId:requiredVideoCount:)`
   (POST `/check-scan-status`) to probe whether the scan already landed in
   `public.scans` or is still owned by a server ingestion job. For queued video
@@ -1294,32 +1393,37 @@ the latch without waiting for a URLSession delegate callback.
   `processing`, `finalizing`, or `retrying`, the local row stays `.inferencing`
   and another server poll is scheduled. The first `failed_retryable` observation
   honors `retry_after` and atomically writes the exact
-  `server_retryable_failure` latch plus incremented attempt count. A not-found
-  durability/promotion generation that consumed staging clears `stagedR2Keys`,
-  returns to `.pending`, and uploads retained local media again; its latch and
-  attempt survive successful `.uploading → .staged`. The marker and count are
-  mirrored on `OfflineQueuedScan` and its `OfflineJobRecord`. Fresh reads
-  consult both copies; claim, retry, upload-claim, and staging transitions
-  repair drift from the surviving high-authority marker and nonnegative
-  monotonic maximum before mutation. A cloud-complete marker wins over retry
-  state in either copy. Transient signer or PUT retries also retain the latch,
-  append their precise failure event, and increment from the maximum committed
-  count rather than a cached snapshot. After the persisted delay, only that
-  exact durable marker lets the next generation-fenced status preflight dispatch
-  Identify and reclaim the backend attempt. Marker-free, unrelated, manual,
-  processing/finalizing, completed-result, and terminal states still reject
-  duplicate inference. Both marker and attempt reads use a fresh context and
-  both mirrored rows so cached main-context faults or a migrated queue-row
-  snapshot cannot hide background-actor authority. Expected duplicate retreats
-  already committed by another serialized owner are silent. Retry exhaustion
-  cancels server polling and retains the scan in needs-attention state rather
-  than creating a status/upload loop. Other provider/inference failures return
-  the row to `.staged`. A retry timestamp that is already stale schedules a
-  one-second recheck rather than a newly computed backoff, so clock skew or an
-  expired lease cannot stall recovery. Scan-analysis backoff has a five-second
-  minimum, jittered exponential growth, a 30-second ordinary local maximum, and
-  ten automatic attempts. HTTP `401`, `408`, `409`, `425`, and `429` are
-  retryable; a safe integer `Retry-After`, or a status-poll `retry_after`, is an
+  `server_retryable_failure` latch plus incremented attempt count. It restores
+  the central persisted wake immediately after that save; only a non-cancelled
+  caller on an eligible network whose generation and any supplied poll token
+  remain current may then replace the process-local server poll. Cancellation or
+  replacement therefore cannot strand the durable deadline or overwrite a newer
+  local poll slot. A not-found durability/promotion generation that consumed
+  staging clears `stagedR2Keys`, returns to `.pending`, and uploads retained
+  local media again; its latch and attempt survive successful
+  `.uploading → .staged`. The marker and count are mirrored on
+  `OfflineQueuedScan` and its `OfflineJobRecord`. Fresh reads consult both
+  copies; claim, retry, upload-claim, and staging transitions repair drift from
+  the surviving high-authority marker and nonnegative monotonic maximum before
+  mutation. A cloud-complete marker wins over retry state in either copy.
+  Transient signer or PUT retries also retain the latch, append their precise
+  failure event, and increment from the maximum committed count rather than a
+  cached snapshot. After the persisted delay, only that exact durable marker
+  lets the next generation-fenced status preflight dispatch Identify and reclaim
+  the backend attempt. Marker-free, unrelated, manual, processing/finalizing,
+  completed-result, and terminal states still reject duplicate inference. Both
+  marker and attempt reads use a fresh context and both mirrored rows so cached
+  main-context faults or a migrated queue-row snapshot cannot hide
+  background-actor authority. Expected duplicate retreats already committed by
+  another serialized owner are silent. Retry exhaustion cancels server polling
+  and retains the scan in needs-attention state rather than creating a
+  status/upload loop. Other provider/inference failures return the row to
+  `.staged`. A retry timestamp that is already stale schedules a one-second
+  recheck rather than a newly computed backoff, so clock skew or an expired
+  lease cannot stall recovery. Scan-analysis backoff has a five-second minimum,
+  jittered exponential growth, a 30-second ordinary local maximum, and ten
+  automatic attempts. HTTP `401`, `408`, `409`, `425`, and `429` are retryable;
+  a safe integer `Retry-After`, or a status-poll `retry_after`, is an
   authoritative minimum and may exceed 30 seconds within the existing safety
   bound. Exact `403 ai_consent_required` preserves local media in
   `queueNeedsAttention`, durably closes the active account's consent gate, and
@@ -1410,11 +1514,14 @@ the latch without waiting for a URLSession delegate callback.
   deduplication are now the contract. The Retryable progress failures leave the
   SwiftData goal-hint outbox intact and schedule bounded in-process retries; a
   later scheduler pass replays it after termination.
-  `UserDefaultsKeys.hasUnseenScan` is set to trigger the MainTabBar red dot,
-  **unless** `suppressInferenceBanners` is `true` (the insight sheet is open and
-  the user is watching the transition to results — setting the badge in that
-  case would cause it to appear and immediately need clearing on sheet dismiss).
-  The push notification is scheduled unconditionally via
+  `Services/FieldTripProgress/OfflineQueueManager+FieldTripProgress.swift` owns
+  goal-hint acknowledgement and that replay bridge; the milestone coordinator
+  retains receipt and presentation semantics. `UserDefaultsKeys.hasUnseenScan`
+  is set to trigger the MainTabBar red dot, **unless**
+  `suppressInferenceBanners` is `true` (the insight sheet is open and the user
+  is watching the transition to results — setting the badge in that case would
+  cause it to appear and immediately need clearing on sheet dismiss). The push
+  notification is scheduled unconditionally via
   `PushNotificationManager.shared.sendInferenceCompleteNotification` —
   foreground banner suppression is delegated to
   `PushNotificationManager.willPresent`, which reads `suppressInferenceBanners`
@@ -1422,15 +1529,13 @@ the latch without waiting for a URLSession delegate callback.
   insight sheet is currently visible.
 
 **Offline telemetry at dispatch**: Background replay includes the environmental
-telemetry already persisted on `OfflineQueuedScan`. Although the request builder
-retains a bounded historical-weather backfill branch for compatibility, current
-policy sets `shouldFetchWeatherBackfill = false`: queue recovery must not wait
-on WeatherKit or reverse geocoding before the OS-owned inference task is
-created. A scan without stored weather therefore proceeds with its durable GPS,
-location, and capture-time fields as available. If this policy is re-enabled,
-the backfill must remain generation-guarded and must be persisted before task
-dispatch because there is no opportunity to alter the request after URLSession
-takes ownership.
+telemetry already persisted on `OfflineQueuedScan`. Its request builder has no
+WeatherKit or reverse-geocoding branch: queue recovery must not wait on optional
+enrichment before the OS-owned inference task is created. A scan without stored
+weather therefore proceeds with its durable GPS, location, and capture-time
+fields as available. Any future backfill must remain generation-guarded and be
+persisted before task dispatch because there is no opportunity to alter the
+request after URLSession takes ownership.
 
 When all background upload tasks for a batch settle,
 `finishUploadSync(generation:)` calls
@@ -1797,7 +1902,7 @@ Each page passes through these steps inside the actor:
    to push before the downward sync.
 3. **`ingestScans`**: Inserts new `LocalScanRecord` rows for cloud records
    absent locally entirely. Checkpoint-saves every
-   `MerianConfig.ingestCheckpointInterval` (50) records to limit data loss if a
+   `MerianConfig.ingestCheckpointInterval` (100) records to limit data loss if a
    background task is killed mid-ingest. _Crucially, it defaults
    `hasBeenViewed: true` when instantiating the record to prevent re-installing
    users from being inundated with thousands of "New" badges on their historical
@@ -1873,7 +1978,7 @@ All magic numbers governing the sync pipeline live in `MerianConfig.swift`
 | `videoPayloadMaxBytes`                | 12 MB  | Hard maximum staged video bytes accepted for persistence             |
 | `historicalSyncPageSize`              | 200    | Records per page for scans rehydration                               |
 | `collectionsSyncPageSize`             | 100    | Records per page for collections rehydration                         |
-| `ingestCheckpointInterval`            | 50     | SwiftData save frequency during bulk ingest                          |
+| `ingestCheckpointInterval`            | 100    | SwiftData save frequency during bulk ingest                          |
 
 ## 2026-04 Hardening Updates
 
