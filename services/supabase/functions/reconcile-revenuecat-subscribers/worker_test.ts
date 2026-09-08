@@ -591,11 +591,48 @@ Deno.test("oldest due age and expired leases drive health severity", () => {
   assertEquals(
     revenueCatReconciliationHealthStatus({
       ...HEALTHY_QUEUE,
+      signoutPreparedCount: 1,
+      oldestSignoutPendingAt: "2026-07-22T05:00:00.000Z",
+      oldestSignoutPendingAgeSeconds: 3 * 24 * 60 * 60,
+    }),
+    "ok",
+  );
+  assertEquals(
+    revenueCatReconciliationHealthStatus({
+      ...HEALTHY_QUEUE,
+      signoutPreparedCount: 100,
+      oldestSignoutPendingAt: "2026-07-25T04:59:00.000Z",
+      oldestSignoutPendingAgeSeconds: 60,
+    }),
+    "warning",
+  );
+  assertEquals(
+    revenueCatReconciliationHealthStatus({
+      ...HEALTHY_QUEUE,
+      signoutPreparedCount: 500,
+      oldestSignoutPendingAt: "2026-07-25T04:59:00.000Z",
+      oldestSignoutPendingAgeSeconds: 60,
+    }),
+    "critical",
+  );
+  assertEquals(
+    revenueCatReconciliationHealthStatus({
+      ...HEALTHY_QUEUE,
       signoutBoundCount: 1,
       oldestSignoutPendingAt: "2026-07-25T04:30:00.000Z",
       oldestSignoutPendingAgeSeconds: 30 * 60,
     }),
     "warning",
+  );
+  assertEquals(
+    revenueCatReconciliationHealthStatus({
+      ...HEALTHY_QUEUE,
+      signoutPreparedCount: 1,
+      signoutBoundCount: 1,
+      oldestSignoutPendingAt: "2026-07-25T04:00:00.000Z",
+      oldestSignoutPendingAgeSeconds: 60 * 60,
+    }),
+    "critical",
   );
   assertEquals(
     revenueCatReconciliationHealthStatus(

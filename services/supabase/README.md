@@ -1902,9 +1902,14 @@ The service-only `get_revenuecat_reconciliation_health()` RPC reports due and
 expired-claim counts, oldest queue age, unexpired prepared and all bound
 sign-out purchase handoffs, and oldest pending-handoff age. A separate
 pinned-action GitHub monitor checks both durable paths every 15 minutes, fails
-on a 30-minute warning by default, and marks 60 minutes critical. It uses the
-existing Production `SUPABASE_ACCESS_TOKEN` to resolve the service-role key; no
-additional monitor secret is required.
+on a 30-minute actionable-backlog warning by default, and marks 60 minutes
+critical. An unbound legacy prepared proof remains aggregate telemetry rather
+than actionable backlog during its 30-day device recovery window; no receipt has
+moved, and a later same-source preparation supersedes it. Bound legacy handoffs,
+stable rotations, pending principals, and reconciliation work retain the age
+thresholds. Legacy prepared-proof volume still warns at 100 and becomes critical
+at 500. The monitor uses the existing Production `SUPABASE_ACCESS_TOKEN` to
+resolve the service-role key; no additional monitor secret is required.
 
 Keep `revenueCatWebhookCoverage.test.ts`,
 `revenueCatWebhookMigrationContract.test.ts`, the route's focused unit tests,

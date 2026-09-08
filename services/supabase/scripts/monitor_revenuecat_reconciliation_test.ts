@@ -337,6 +337,34 @@ Deno.test("revenueCatBacklogStatus alerts on age and expired leases", () => {
     revenueCatBacklogStatus(
       {
         ...HEALTHY,
+        signout_prepared_count: 100,
+        oldest_signout_pending_at: "2026-07-26T03:29:00.000Z",
+        oldest_signout_pending_age_seconds: 60,
+      },
+      30,
+      60,
+      PRINCIPAL_HEALTHY,
+    ),
+    "warning",
+  );
+  assertEquals(
+    revenueCatBacklogStatus(
+      {
+        ...HEALTHY,
+        signout_prepared_count: 500,
+        oldest_signout_pending_at: "2026-07-26T03:29:00.000Z",
+        oldest_signout_pending_age_seconds: 60,
+      },
+      30,
+      60,
+      PRINCIPAL_HEALTHY,
+    ),
+    "critical",
+  );
+  assertEquals(
+    revenueCatBacklogStatus(
+      {
+        ...HEALTHY,
         signout_bound_count: 1,
         oldest_signout_pending_at: "2026-07-26T03:00:00.000Z",
         oldest_signout_pending_age_seconds: 30 * 60,
@@ -346,6 +374,21 @@ Deno.test("revenueCatBacklogStatus alerts on age and expired leases", () => {
       PRINCIPAL_HEALTHY,
     ),
     "warning",
+  );
+  assertEquals(
+    revenueCatBacklogStatus(
+      {
+        ...HEALTHY,
+        signout_prepared_count: 1,
+        signout_bound_count: 1,
+        oldest_signout_pending_at: "2026-07-26T02:30:00.000Z",
+        oldest_signout_pending_age_seconds: 60 * 60,
+      },
+      30,
+      60,
+      PRINCIPAL_HEALTHY,
+    ),
+    "critical",
   );
   assertEquals(
     revenueCatBacklogStatus(
@@ -421,6 +464,39 @@ Deno.test("revenueCatBacklogStatus alerts on age and expired leases", () => {
   );
 });
 
+Deno.test("prepared-only legacy handoffs remain informational during device recovery", () => {
+  const preparedOnly: RevenueCatReconciliationHealth = {
+    ...HEALTHY,
+    signout_prepared_count: 1,
+    oldest_signout_pending_at: "2026-07-23T03:30:00.000Z",
+    oldest_signout_pending_age_seconds: 3 * 24 * 60 * 60,
+  };
+
+  assertEquals(
+    revenueCatBacklogStatus(
+      preparedOnly,
+      30,
+      60,
+      PRINCIPAL_HEALTHY,
+      ROTATION_HEALTHY,
+    ),
+    "ok",
+  );
+
+  const summary = buildRevenueCatMonitorSummary(
+    preparedOnly,
+    parseRevenueCatMonitorArgs([]),
+    new Date("2026-07-26T03:30:00.000Z"),
+    PRINCIPAL_HEALTHY,
+    ROTATION_HEALTHY,
+  );
+  const markdown = renderRevenueCatMonitorMarkdown(summary);
+
+  assertEquals(summary.failure_policy.should_fail, false);
+  assertStringIncludes(markdown, "Unbound legacy prepared proofs");
+  assertStringIncludes(markdown, "30-day device recovery window");
+});
+
 Deno.test("shouldFailRevenueCatMonitor honors the configured severity", () => {
   assertEquals(shouldFailRevenueCatMonitor("ok", "warning"), false);
   assertEquals(shouldFailRevenueCatMonitor("warning", "warning"), true);
@@ -464,6 +540,10 @@ Deno.test("renderRevenueCatMonitorMarkdown includes backlog and operator action"
   assertStringIncludes(markdown, "- Prepared rotations: `0`");
   assertStringIncludes(markdown, "- Completed in 24h: `3`");
   assertStringIncludes(markdown, "Prepared-rotation warning count: `100`");
+  assertStringIncludes(
+    markdown,
+    "Legacy prepared-handoff warning count: `100`",
+  );
   assertStringIncludes(markdown, "Do not edit subscription tiers");
   assertStringIncludes(markdown, "discard bound proofs");
 });

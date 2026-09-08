@@ -6417,11 +6417,18 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   retain the three-fetch concurrency bound, apply newer snapshots, release
   durable failures, and prevent a background sweep from newly granting
   historical non-renewing pass history in both legacy and stable-principal
-  queues.
+  queues. Worker-health tests keep unbound legacy prepared-proof age
+  informational below the 100-proof warning threshold, warn/critical at 100/500
+  proofs, and retain the combined 30/60-minute age policy once any legacy proof
+  is bound.
 - **`scripts/monitor_revenuecat_reconciliation_test.ts`**: Proves the 30/60
   minute age thresholds, expired-lease warning, fail policy, response schema,
-  CLI safety, and operator summary. It also locks the protocol-3 rotation-health
-  contract: the service RPC atomically terminalizes overdue `prepared` rows,
+  CLI safety, and operator summary. The tests lock parity with worker health:
+  prepared-only legacy age is informational below the 100-proof warning count,
+  legacy prepared-proof volume warns at 100 and becomes critical at 500, and a
+  mixed prepared-plus-bound aggregate uses its combined oldest age
+  conservatively. They also lock the protocol-3 rotation-health contract: the
+  service RPC atomically terminalizes overdue `prepared` rows,
   `expired_prepared_count` is the number newly terminalized by that invocation,
   the returned prepared count/oldest age includes only still-live rows, any
   newly expired row warns, and live volume warns at 100 or becomes critical at

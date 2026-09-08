@@ -91,18 +91,26 @@ contribute that access.
 The independent `.github/workflows/revenuecat-reconciliation-health-monitor.yml`
 check runs every 15 minutes and reads both aggregate health RPCs in required
 mode. A missing principal-health RPC is a failure, not an expand-compatible
-success. The check fails default when the oldest unclaimed/expired due row,
-pending sign-out handoff, or pending purchase principal is at least 30 minutes
-old, when any lease has expired, or when an active principal with current
-StoreKit access has no Auth binding; 60 minutes is critical. It writes JSON and
-Markdown artifacts without exposing subscriber, handoff, source, or destination
-identities. A failed RPC or network check also fails the monitor. Sign-out
-telemetry counts unexpired prepared proofs and every bound proof; expired
-unbound bearer capabilities are terminal and do not alert forever.
+success. The check fails by default when the oldest unclaimed/expired due row,
+bound legacy sign-out handoff, pending purchase principal, or prepared stable
+sign-out rotation is at least 30 minutes old, when any lease has expired, or
+when an active principal with current StoreKit access has no Auth binding; 60
+minutes is critical. It writes JSON and Markdown artifacts without exposing
+subscriber, handoff, source, or destination identities. A failed RPC or network
+check also fails the monitor. Sign-out telemetry counts unexpired prepared
+legacy proofs and every bound proof, but a prepared-only legacy proof remains
+informational during its 30-day device recovery window because no StoreKit
+receipt has moved. A same-source preparation supersedes it. Expired unbound
+bearer capabilities are terminal and do not alert forever. Legacy prepared-proof
+volume still warns at 100 proofs and becomes critical at 500, catching abnormal
+proof accumulation without treating one recoverable device handoff as stuck
+server work.
 
 Runtime diagnostics use fixed operation/error kinds and aggregate counts only.
 Neither queue lane logs an Auth UUID, RevenueCat App User ID, purchase-principal
-ID, provider response/body, URL, or raw error string.
+ID, provider response/body, URL, or raw error string. The worker applies the
+same prepared-only age exemption and 100/500 legacy-volume thresholds as the
+scheduled monitor defaults.
 
 For an alert, inspect the worker's structured `revenuecat_reconciliation_health`
 event and the queue's bounded `last_error_code`/attempt state with the

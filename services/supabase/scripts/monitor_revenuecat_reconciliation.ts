@@ -12,6 +12,12 @@
 
 import { createServiceRoleClientFromEnvironmentWithOptions } from "../functions/_shared/serviceRoleClient.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  actionableLegacySignoutAgeSeconds,
+  LEGACY_PREPARED_HANDOFF_CRITICAL_COUNT,
+  LEGACY_PREPARED_HANDOFF_WARNING_COUNT,
+  legacyPreparedHandoffVolumeStatus,
+} from "../functions/_shared/revenueCatReconciliationHealthPolicy.ts";
 
 const MONITOR_REQUEST_TIMEOUT_MS = 15_000;
 const MONITOR_MAXIMUM_RESPONSE_BYTES = 64 * 1_024;
@@ -78,6 +84,8 @@ export interface RevenueCatMonitorSummary {
   thresholds: {
     warning_after_minutes: number;
     critical_after_minutes: number;
+    warning_legacy_prepared_handoffs: number;
+    critical_legacy_prepared_handoffs: number;
     warning_prepared_rotations: number;
     critical_prepared_rotations: number;
   };
@@ -431,15 +439,31 @@ export function revenueCatBacklogStatus(
   warningPreparedRotations = DEFAULT_WARNING_PREPARED_ROTATIONS,
   criticalPreparedRotations = DEFAULT_CRITICAL_PREPARED_ROTATIONS,
 ): RevenueCatBacklogStatus {
-  const oldestDueAgeSeconds = Math.max(
+  // The legacy aggregate exposes one combined oldest age for prepared and
+  // bound handoffs. A prepared-only proof has not moved a StoreKit receipt and
+  // deliberately remains available for the 30-day device recovery window. It
+  // is therefore telemetry, not server backlog. Once any proof is bound, use
+  // the combined age conservatively: an older prepared proof may make the
+  // alert earlier, but a stuck receipt transfer can never be hidden.
+  const oldestBoundSignoutAgeSeconds = actionableLegacySignoutAgeSeconds(
+    health.signout_bound_count,
+    health.oldest_signout_pending_age_seconds,
+  );
+  const legacyPreparedHandoffStatus = legacyPreparedHandoffVolumeStatus(
+    health.signout_prepared_count,
+  );
+  const oldestActionableAgeSeconds = Math.max(
     health.oldest_due_age_seconds ?? 0,
-    health.oldest_signout_pending_age_seconds ?? 0,
+    oldestBoundSignoutAgeSeconds,
     purchasePrincipalHealth.oldest_due_age_seconds ?? 0,
     purchasePrincipalHealth.oldest_pending_age_seconds ?? 0,
     purchasePrincipalSignoutRotationHealth
       ?.oldest_prepared_age_seconds ?? 0,
   );
-  if (oldestDueAgeSeconds >= criticalAfterMinutes * 60) {
+  if (
+    oldestActionableAgeSeconds >= criticalAfterMinutes * 60 ||
+    legacyPreparedHandoffStatus === "critical"
+  ) {
     return "critical";
   }
   if (
@@ -452,10 +476,11 @@ export function revenueCatBacklogStatus(
     health.expired_claim_count > 0 ||
     purchasePrincipalHealth.expired_claim_count > 0 ||
     purchasePrincipalHealth.unbound_active_principal_count > 0 ||
+    legacyPreparedHandoffStatus === "warning" ||
     (purchasePrincipalSignoutRotationHealth?.expired_prepared_count ?? 0) > 0 ||
     (purchasePrincipalSignoutRotationHealth?.prepared_count ?? 0) >=
       warningPreparedRotations ||
-    oldestDueAgeSeconds >= warningAfterMinutes * 60
+    oldestActionableAgeSeconds >= warningAfterMinutes * 60
   ) {
     return "warning";
   }
@@ -486,6 +511,8 @@ export function buildRevenueCatMonitorSummary(
     thresholds: {
       warning_after_minutes: args.warningAfterMinutes,
       critical_after_minutes: args.criticalAfterMinutes,
+      warning_legacy_prepared_handoffs: LEGACY_PREPARED_HANDOFF_WARNING_COUNT,
+      critical_legacy_prepared_handoffs: LEGACY_PREPARED_HANDOFF_CRITICAL_COUNT,
       warning_prepared_rotations: args.warningPreparedRotations,
       critical_prepared_rotations: args.criticalPreparedRotations,
     },
@@ -561,10 +588,15 @@ export function renderRevenueCatMonitorMarkdown(
       `- Completed in 24h: \`${summary.purchase_principal_signout_rotation_health.completed_last_24h}\``,
       `- Cancelled in 24h: \`${summary.purchase_principal_signout_rotation_health.cancelled_last_24h}\``,
     ];
+  const hasPreparedOnlyLegacyHandoff =
+    summary.health.signout_prepared_count > 0 &&
+    summary.health.signout_bound_count === 0;
   const operatorAction = summary.status !== "ok"
     ? "Inspect the reconciliation, stable purchase-principal, server-authorized rotation, and sign-out purchase-handoff Edge logs; inspect queue error codes, entitled unbound principals, expired rotations, and pending ages; repair provider/database configuration and let device-safe retries plus claim-fenced reconciliation complete. Do not edit subscription tiers, move bindings, or discard bound proofs directly."
     : summary.purchase_principal_signout_rotation_health === null
     ? "No deployed backlog action required. The unavailable rotation aggregate remains in the bounded compatibility window; its scheduled resolver selects required mode after qualifying production-deploy evidence or at the hard compatibility deadline."
+    : hasPreparedOnlyLegacyHandoff
+    ? "No server backlog action required. Unbound legacy prepared proofs remain visible for their 30-day device recovery window but do not indicate that a StoreKit receipt moved. The originating device can complete or cancel the proof, and a later preparation by the same source supersedes it."
     : "No action required.";
   return [
     "# RevenueCat Reconciliation Health",
@@ -602,6 +634,8 @@ export function renderRevenueCatMonitorMarkdown(
     "",
     `- Warning after: \`${summary.thresholds.warning_after_minutes}m\``,
     `- Critical after: \`${summary.thresholds.critical_after_minutes}m\``,
+    `- Legacy prepared-handoff warning count: \`${summary.thresholds.warning_legacy_prepared_handoffs}\``,
+    `- Legacy prepared-handoff critical count: \`${summary.thresholds.critical_legacy_prepared_handoffs}\``,
     `- Prepared-rotation warning count: \`${summary.thresholds.warning_prepared_rotations}\``,
     `- Prepared-rotation critical count: \`${summary.thresholds.critical_prepared_rotations}\``,
     "",

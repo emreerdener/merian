@@ -20,6 +20,10 @@ import {
   RevenueCatReconciliationHealth,
 } from "./db.ts";
 import { logIdentitySafeError } from "../_shared/edgeHandler.ts";
+import {
+  actionableLegacySignoutAgeSeconds,
+  legacyPreparedHandoffVolumeStatus,
+} from "../_shared/revenueCatReconciliationHealthPolicy.ts";
 
 const FETCH_CONCURRENCY = 3;
 // The worker drains two independent identity queues. Three claims per lane
@@ -231,19 +235,29 @@ export function revenueCatReconciliationHealthStatus(
   health: RevenueCatReconciliationHealth,
   principalHealth: PurchasePrincipalHealth = EMPTY_PURCHASE_PRINCIPAL_HEALTH,
 ): RevenueCatReconciliationHealthStatus {
-  const oldestDueAgeSeconds = Math.max(
+  const legacyPreparedHandoffStatus = legacyPreparedHandoffVolumeStatus(
+    health.signoutPreparedCount,
+  );
+  const oldestActionableAgeSeconds = Math.max(
     health.oldestDueAgeSeconds ?? 0,
-    health.oldestSignoutPendingAgeSeconds ?? 0,
+    actionableLegacySignoutAgeSeconds(
+      health.signoutBoundCount,
+      health.oldestSignoutPendingAgeSeconds,
+    ),
     principalHealth.oldestDueAgeSeconds ?? 0,
     principalHealth.oldestPendingAgeSeconds ?? 0,
   );
-  if (oldestDueAgeSeconds >= BACKLOG_CRITICAL_AGE_SECONDS) {
+  if (
+    oldestActionableAgeSeconds >= BACKLOG_CRITICAL_AGE_SECONDS ||
+    legacyPreparedHandoffStatus === "critical"
+  ) {
     return "critical";
   }
   if (
     health.expiredClaimCount > 0 || principalHealth.expiredClaimCount > 0 ||
     principalHealth.unboundActivePrincipalCount > 0 ||
-    oldestDueAgeSeconds >= BACKLOG_WARNING_AGE_SECONDS
+    legacyPreparedHandoffStatus === "warning" ||
+    oldestActionableAgeSeconds >= BACKLOG_WARNING_AGE_SECONDS
   ) {
     return "warning";
   }

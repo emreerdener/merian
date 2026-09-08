@@ -6581,19 +6581,27 @@ written to logs or artifacts. The rotation health call atomically marks overdue
 preparations expired and reports only the count newly terminalized in that pass;
 it retains the terminal tombstones.
 
-Scheduled runs warn and fail at an oldest due age of 30 minutes, become critical
-at 60 minutes, and warn immediately on any expired lease. The same thresholds
-apply to the oldest unexpired prepared handoff or any bound sign-out purchase
-handoff. Prepared stable sign-out rotation volume warns at 100 rows and becomes
-critical at 500 rows by default; manual dispatch exposes reviewed choices for
-both thresholds and rejects a critical value that does not exceed the warning
-value. Any preparation newly expired during the health call also warns. A
+Scheduled runs warn and fail at an oldest actionable age of 30 minutes, become
+critical at 60 minutes, and warn immediately on any expired lease. Those age
+thresholds cover reconciliation work, bound legacy sign-out purchase handoffs,
+pending purchase principals, and prepared stable sign-out rotations. An unbound
+legacy prepared proof remains visible aggregate telemetry during its intentional
+30-day device recovery window: no StoreKit receipt has moved, and a later
+same-source preparation supersedes it. Because the legacy aggregate exposes one
+combined oldest prepared-or-bound age, the monitor applies that age once any
+bound proof exists; an older prepared proof may conservatively raise the bound
+alert earlier but can never hide a stuck transfer. Legacy prepared-proof volume
+warns at 100 rows and becomes critical at 500. Prepared stable sign-out rotation
+volume uses the same defaults; manual dispatch exposes reviewed choices for the
+stable thresholds and rejects a critical value that does not exceed the warning
+value. Any stable preparation newly expired during the health call also warns. A
 monitor request has a 15-second deadline and 64 KiB response ceiling. A failed
-run therefore means the queue or purchase handoff is overdue, reservation volume
-is abnormal, a worker lease or reservation expired, or the monitor could not
-read health. Start with the structured reconciliation and sign-out handoff logs
-plus queue error codes; preserve claim fencing and device proofs, and let
-idempotent recovery finish. Do not cancel or delete a bound proof manually.
+run therefore means the queue or an actionable purchase transition is overdue,
+reservation volume is abnormal, a worker lease or reservation expired, or the
+monitor could not read health. Start with the structured reconciliation and
+sign-out handoff logs plus queue error codes; preserve claim fencing and device
+proofs, and let idempotent recovery finish. Do not cancel or delete a bound
+proof manually.
 
 The scheduled command makes the already-deployed principal aggregate
 unconditionally required; the CLI exposes no compatibility flag for that RPC.

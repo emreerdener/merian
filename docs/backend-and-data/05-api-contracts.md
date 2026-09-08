@@ -10373,15 +10373,25 @@ from restoring access. Its response is aggregate only:
     "dueCount": 0,
     "expiredClaimCount": 0,
     "oldestDueAt": null,
-    "oldestDueAgeSeconds": null
+    "oldestDueAgeSeconds": null,
+    "signoutPreparedCount": 0,
+    "signoutBoundCount": 0,
+    "oldestSignoutPendingAt": null,
+    "oldestSignoutPendingAgeSeconds": null
   }
 }
 ```
 
 `get_revenuecat_reconciliation_health()` is a separate service-role-only Data
-API RPC. It returns one aggregate row and no customer identity. The scheduled
-GitHub monitor invokes it directly, warning when oldest due age reaches 30
-minutes or any claim expires and marking 60 minutes critical.
+API RPC. It returns one aggregate row and no customer identity. In addition to
+queue health, its snake-case Data API row counts unexpired `prepared` legacy
+sign-out proofs and all `bound` proofs and exposes one combined oldest pending
+age. A prepared proof has not moved a StoreKit receipt and deliberately remains
+recoverable by the originating device for 30 days, so prepared-only age does not
+change worker or GitHub monitor severity. Legacy prepared-proof volume warns at
+100 and becomes critical at 500 regardless of whether a bound proof also exists.
+Once any bound proof exists, the combined oldest age is used conservatively: 30
+minutes warns and 60 minutes is critical. Expired queue claims also warn.
 
 The stable-principal migration adds the separate service-role-only
 `get_purchase_principal_health()` aggregate. The monitor JSON records its
