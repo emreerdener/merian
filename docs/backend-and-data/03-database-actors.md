@@ -29,6 +29,7 @@ declarations in one aggregate file:
 | Type                                  | Purpose                                                                                                                                                                                                                                                                                                |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `PendingScanPayload`                  | Minimal snapshot of a queued scan returned by `fetchPendingScans(limit:)`, including local image, audio, and video paths. Safe to pass across actor boundaries.                                                                                                                                        |
+| `CollectionSyncSnapshot`              | Immutable desired state projected from a non-Favorites collection and its direct scan relationships. Core Network maps it to the private wire DTO.                                                                                                                                                     |
 | `ScanUploadItem`                      | One local media file ready for a presigned R2 PUT — `scanId`, per-scan `uploadIndex`, `mediaKind`, `fileName`, `fileURL`, `contentType`, and expected `objectKey`.                                                                                                                                     |
 | `ExtractedScanData`                   | Full `OfflineQueuedScan` snapshot captured on the main actor for handoff to background inference. Carries the canonical ordered `capturedMediaItems: [SerializedMediaItem]` timeline, from which image paths, audio paths, prompt text, and serialized observation contexts are derived on demand.     |
 | `OfflineScanProcessingResult`         | Result of `processAndCleanupOfflineScan` — species name, discovery flag, `speciesData` for engine hydration, and `wasCleaned` flag controlling main-actor queue flush.                                                                                                                                 |
@@ -48,7 +49,7 @@ generation is never overwritten by a different attempt.
 
 ## Actor Inventory
 
-### `BackgroundDatabaseActor` (`Core/Data/Database/BackgroundDatabaseActor.swift`)
+### `BackgroundDatabaseActor` (`Core/Data/Database/BackgroundDatabaseActor*.swift`)
 
 **Declaration**: `@ModelActor actor BackgroundDatabaseActor`
 
@@ -174,7 +175,47 @@ _Offline scan processing:_
   audio/description live completion cannot race the background completion for
   the same queued scan. Save failure rolls back and returns `.notSaved`.
 
+_Non-biological retention and deletion:_
+
+These operations and their result/input values live in
+`Core/Data/Database/BackgroundDatabaseActor+NonBiologicalRetention.swift`. The
+focused extension retains the actor and method signatures and has no endpoint,
+Auth, file-system, or UI dependency.
+
+`ScanErasurePayload.mediaPaths` intentionally carries image, audio, and video
+paths. `ExpiredNonBiologicalPurgeResult` separately exposes committed erasure
+work and actual row deletion so its repository caller can route durable cleanup
+and presentation invalidation correctly.
+
+- `bulkDeleteNonBiologicalScans(payloads:)` — re-fetches each candidate at
+  commit time, skips a row now classified as biological, deletes eligible
+  records, and creates or reuses their `PendingCloudDeletionTask` values in the
+  same save. It returns only local media paths, and only after the save commits;
+  save failure rolls back the entire actor context.
+- `purgeExpiredNonBiologicalScans(cutoffDate:limit:)` — fetches an oldest-first,
+  bounded batch of expired non-biological records and delegates to the same
+  atomic deletion boundary. Its result distinguishes accepted erasure work from
+  rows actually deleted. `ScanRepository` uses the first count to drain files
+  and cloud tombstones and the second to publish the library change, so a
+  missing row finishes idempotent cleanup while commit-time reclassification
+  publishes no false effects. Foreground cleanup can process another batch later
+  instead of materializing a pathological library at once.
+
+`NonBiologicalRetentionPersistenceTests` mirrors commit ordering, idempotent
+tombstone reuse, missing-row retry cleanup, biological reclassification fencing,
+expired-only selection, and oldest-first batch limiting.
+`NonBiologicalRetentionArchitectureTests` inventories the complete production
+and test Swift trees for sole declaration/test ownership, exact narrow imports,
+committed-count fencing, repository effect routing, forbidden dependencies, and
+600-line focused-file ceilings.
+
 _Enrichment and metadata:_
+
+These operations are implemented together in
+`Core/Data/Database/BackgroundDatabaseActor+SpeciesMetadata.swift`. The focused
+extension retains the existing actor and method signatures, and keeps its
+fetch-mutate-save and identification-presentation reset helpers private. It owns
+no request DTO, endpoint call, Auth lease, file access, or UI presentation.
 
 - `beginScanIdentificationOverride(scanId:scientificName:)` — atomically
   persists the local override state, clears confirmation/legacy flag state, and
@@ -188,13 +229,14 @@ _Enrichment and metadata:_
   atomically replaces common-name, hazard, taxonomy, Wikipedia, reference,
   conservation, habitat, GBIF, lookalike, and alternate-name values with the
   original scientific-name placeholder.
-- `updateScanWithWikipedia(scanId:extract:url:imageUrl:)` — retroactively
-  hydrates a scan with Wikipedia or GBIF data. By accepting optional `String?`
-  parameters, this method permits selective patching (e.g., updating only
-  `referenceImageUrl` from GBIF without overwriting an existing
-  `wikipediaOverview`). Save failure rolls back the actor context, matching the
-  shared `mutateScan(...)` containment used by enrichment and override
-  point-updates.
+- `updateScanWithWikipedia(scanId:extract:url:imageUrl:expectedScientificName:)`
+  — retroactively hydrates a scan with Wikipedia or GBIF data. By accepting
+  optional `String?` parameters, this method permits selective patching (e.g.,
+  updating only `referenceImageUrl` from GBIF without overwriting an existing
+  `wikipediaOverview`). When supplied, `expectedScientificName` must match the
+  record's effective override-or-original identity; stale work returns `false`
+  without saving. Save failure rolls back the actor context, matching the shared
+  `mutateScan(...)` containment used by enrichment and override point-updates.
 - `updateScanWithOverrideSpeciesData(scanId:commonName:hazardType:wikipediaOverview:wikipediaUrl:referenceImageUrl:iucnRedListStatus:habitatDescription:gbifTaxonKey:taxonomy:replacingSpeciesIdentity:)`
   — persists species-dictionary data fetched for an identification override or
   reset so the corrected fields survive sheet dismissal and reopen.
@@ -203,7 +245,7 @@ _Enrichment and metadata:_
   `InferenceEngine.load(from:)`. Interactive replacement passes `true` to clear
   prior taxonomy/lookalikes; historical refresh passes `false` so a sparse row
   preserves valid same-species values.
-- `updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:alternativeCommonNames:)`
+- `updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:alternativeCommonNames:expectedScientificName:)`
   — retroactively persists enrichment data returned by the `enrich-scan` Edge
   Function. Called by `InferenceEngine.fetchAndApplyEnrichment` after the async
   enrichment call completes. Updates `habitatDescription`, `gbifTaxonKey`,
@@ -212,31 +254,43 @@ _Enrichment and metadata:_
   `LocalScanRecord`. When `alternativeCommonNames` is non-nil, the method also
   writes it to `record.alternativeCommonNames` on the `LocalScanRecord`. The
   caller is responsible for encoding `[SimilarSpeciesEntry]` to `Data` via
-  `JSONEncoder` before calling this method.
+  `JSONEncoder` before calling this method. A supplied `expectedScientificName`
+  must match the record's original AI scientific name, preventing a stale
+  enrichment response from mutating a replacement record.
 - `clearAllLocalLookalikesCache()` — recovery path for stale similar-species
   caches. Fetches only biological records with `lookalikesData` or
   `similarSpecies` present, in 200-record batches, saving after each batch. Save
   failure rolls back the current batch and exits. It must not use an unbounded
   `FetchDescriptor<LocalScanRecord>()`.
-- `collectionSyncPayloads()` / `pushCollectionsToEdge()` — fetches only
+- `updateScanAsUnflagged(scanId:)` — clears the legacy manual-review flag
+  through the shared fetch-mutate-save helper when an identification changes or
+  resets.
+- `collectionSyncSnapshots()` / `purgeSyncedCollectionTombstones(ids:)` live in
+  `BackgroundDatabaseActor+CollectionSync.swift`. The projection fetches only
   non-Favorites `ScanCollection` rows, prefetches their direct inverse `scans`
   relationships, and emits deterministic, sorted membership IDs. It does not
-  enumerate unrelated `LocalScanRecord` rows and does not use OFFSET pagination.
-  The Edge function then computes the database membership delta. When the
-  outgoing payload actually contains an application tombstone, a successful HTTP
-  200 response causes the actor to purge that acknowledged local row. A purge
-  save failure rolls back and returns `false`, so `OfflineQueueManager` retains
-  the pending collection job. The active V51 model reads its durable
-  `isPendingDeletion` marker, mapped to the released `isDeleted` column, so the
-  projection can emit the unchanged `is_deleted` wire value. Callers must use
-  the shared collection drain (`syncCollectionsIfPending()` /
-  `drainCollectionSyncIfPossible()`), never an unsynchronised side path.
+  enumerate unrelated `LocalScanRecord` rows or use OFFSET pagination. After a
+  successful remote response, a fresh actor purges only requested rows that are
+  still application tombstones at commit time. A save failure rolls back and
+  returns failure through `CollectionSyncService`, so `OfflineQueueManager`
+  retains the pending job. The actor owns no request DTO, Auth lease, or network
+  call. Callers must use the shared collection drain
+  (`syncCollectionsIfPending()` / `drainCollectionSyncIfPossible()`), never an
+  unsynchronised side path.
+
+`SpeciesMetadataPersistenceTests` mirrors the species-metadata behavior above.
+`SpeciesMetadataArchitectureTests` inventories every Swift file in the iOS
+production and test trees, requiring each of the seven extracted persistence
+methods and each rehomed behavior test to have exactly one focused owner. It
+also locks the private helper boundary, exact framework imports, dependency
+exclusions, and 600-line ceilings.
 
 **When to create**: Two patterns — ad-hoc for most operations, long-lived for
 the offline queue state machine:
 
 ```swift
-// Ad-hoc: for live scan saving, enrichment, Wikipedia, collections
+// Ad-hoc: for live saves, metadata, retention deletion, or collections.
+// Focused sibling extensions own metadata, retention, and collection operations.
 let container = modelContext.container
 let dbActor = BackgroundDatabaseActor(modelContainer: container)
 let fence = LiveInferencePersistenceFence(
@@ -562,7 +616,7 @@ single shared resource (the Documents directory).
 ## 2026-07 Collection Projection Rule
 
 Collection upload reads must begin with the changed relationship owners.
-`BackgroundDatabaseActor.collectionSyncPayloads()` fetches the bounded
+`BackgroundDatabaseActor.collectionSyncSnapshots()` fetches the bounded
 non-Favorites `ScanCollection` set and prefetches each row's inverse `scans`
 relationship. Do not restore the former 200-row `LocalScanRecord.collections`
 OFFSET walk: it scanned unrelated records, repeated progressively more SQLite
@@ -578,18 +632,21 @@ rather than projecting an existing local relationship.
 The projection and acknowledgement-purge code reads the active
 `ScanCollection.isPendingDeletion` Boolean, which survives `ModelContext.save()`
 and is mapped to the released `isDeleted` column with
-`@Attribute(originalName:)`. `collectionSyncPayloads()` therefore emits the
-unchanged `is_deleted` wire field. The inbound shield ignores delayed cloud
-upserts while the local marker is set, and acknowledgement-only purge removes
-the row only after the matching delete response succeeds.
+`@Attribute(originalName:)`. `collectionSyncSnapshots()` carries this domain
+value without wire naming; `MerianNetworkClient+Collections.swift` maps it to
+the unchanged `is_deleted` field. The inbound shield ignores delayed cloud
+upserts while the local marker is set. After remote acknowledgement, a fresh
+actor refetches by ID plus `isPendingDeletion == true`, so a collection
+reactivated during the request cannot be removed by a stale snapshot.
 
 The V50 source graph is frozen under `Models/Schema/SchemaV50Snapshots.swift`.
 The active V51 model retains the mapped source name; `MerianActiveSchemaV50`
 serves as the source bridge for the separate preferred-name ownership migration.
 The disk-backed released-V50 fixture proves true/false values and relationship
-retention while migrating to V51. Keep this boundary in the actor and do not
-synthesize payloads from transient view state or hard-delete before server
-acknowledgement.
+retention while migrating to V51. Keep persistence projection and conditional
+purge in the actor, wire mapping in Core Network, and account-lifecycle
+orchestration in `CollectionSyncService`; do not synthesize snapshots from
+transient view state or hard-delete before server acknowledgement.
 
 ## 2026-06 Smart Collection Boundary
 
@@ -623,7 +680,8 @@ payload unless a future explicit conversion feature creates normal collections.
 | Write scan image files to disk                           | `FileIOActor.shared`                                                                                                                                           |
 | Delete scan media files from disk                        | `FileIOActor.shared`                                                                                                                                           |
 | Validate scan media paths                                | `FileIOActor.shared`                                                                                                                                           |
-| Push collections to Edge                                 | `BackgroundDatabaseActor` (ad-hoc)                                                                                                                             |
+| Commit non-biological bulk deletion or retention purge   | Fresh `BackgroundDatabaseActor`; focused persistence lives in `BackgroundDatabaseActor+NonBiologicalRetention.swift`                                           |
+| Project/commit a collection sync                         | Fresh `BackgroundDatabaseActor` instances through `CollectionSyncService`; Core Network owns the Edge request                                                  |
 | Persist enrichment data after enrich-scan returns        | `BackgroundDatabaseActor` (ad-hoc)                                                                                                                             |
 
 ## 2026-04 Hardening Updates

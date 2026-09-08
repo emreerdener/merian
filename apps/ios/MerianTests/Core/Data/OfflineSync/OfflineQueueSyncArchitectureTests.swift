@@ -92,6 +92,45 @@ struct OfflineQueueSyncArchitectureTests {
         )
     }
 
+    @Test func collectionSyncTestsMirrorOwners() throws {
+        let repository = try repositoryRoot()
+        let focusedTests = try contents(
+            of: repository.appendingPathComponent(
+                "apps/ios/MerianTests/Core/Data/OfflineSync/CollectionSyncTests.swift"
+            )
+        )
+        let endpointTests = try contents(
+            of: repository.appendingPathComponent(
+                "apps/ios/MerianTests/Core/Network/Endpoints/CollectionSyncEndpointTests.swift"
+            )
+        )
+        let actorAggregate = try contents(
+            of: repository.appendingPathComponent(
+                "apps/ios/MerianTests/Core/Data/BackgroundDatabaseActorTests.swift"
+            )
+        )
+
+        #expect(focusedTests.contains("struct CollectionSyncTests"))
+        #expect(focusedTests.contains("\"Collection Sync\""))
+        #expect(focusedTests.contains(".serialized"))
+        for declaration in Self.collectionSyncTestDeclarations {
+            #expect(focusedTests.contains(declaration))
+            #expect(!actorAggregate.contains(declaration))
+        }
+        #expect(endpointTests.contains("struct CollectionSyncEndpointTests"))
+        #expect(endpointTests.contains("func testSyncCollectionPayloadEncoding()"))
+        #expect(endpointTests.contains(
+            "func classifiedUnauthorizedDefersRecoveryToDurableRetryOwner()"
+        ))
+        #expect(!FileManager.default.fileExists(
+            atPath: repository.appendingPathComponent(
+                "apps/ios/MerianTests/CollectionPayloadTests.swift"
+            ).path
+        ))
+        #expect(lineCount(of: focusedTests) <= 600)
+        #expect(lineCount(of: endpointTests) <= 600)
+    }
+
     @Test func privateHelpersAndResponsibilityBoundariesRemainContained() throws {
         let root = try offlineSyncRoot()
         let cloudDeletion = try source(
@@ -101,6 +140,28 @@ struct OfflineQueueSyncArchitectureTests {
         let collections = try source(
             "Services/Collections/OfflineQueueManager+CollectionSync.swift",
             below: root
+        )
+        let collectionService = try source(
+            "Services/Collections/CollectionSyncService.swift",
+            below: root
+        )
+        let databaseRoot = try repositoryRoot().appendingPathComponent(
+            "apps/ios/Merian/Core/Data/Database"
+        )
+        let databaseAggregate = try contents(
+            of: databaseRoot.appendingPathComponent(
+                "BackgroundDatabaseActor.swift"
+            )
+        )
+        let collectionPersistence = try contents(
+            of: databaseRoot.appendingPathComponent(
+                "BackgroundDatabaseActor+CollectionSync.swift"
+            )
+        )
+        let collectionEndpoint = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Collections.swift"
+            )
         )
         let uploadSync = try source(
             "Services/MediaUpload/OfflineQueueManager+UploadSync.swift",
@@ -140,9 +201,65 @@ struct OfflineQueueSyncArchitectureTests {
 
         #expect(collections.contains("private func fetchCollectionSyncJob("))
         #expect(collections.contains("private func markCollectionSyncStarted("))
-        #expect(collections.contains("pushCollectionsToEdge"))
+        #expect(collections.contains("CollectionSyncService("))
+        #expect(!collections.contains("pushCollectionsToEdge"))
+        #expect(!collections.contains("MerianNetworkClient"))
         #expect(!collections.contains("generateUploadURLs"))
         #expect(!collections.contains("uploadTask("))
+
+        #expect(collectionService.contains("struct Dependencies: Sendable"))
+        #expect(collectionService.contains("MerianNetworkClient.shared.syncCollections("))
+        #expect(collectionService.contains("beginUnownedAccountBoundWork("))
+        #expect(collectionService.contains("isAccountBoundWorkLeaseCurrent("))
+        #expect(collectionService.contains("finishAccountBoundWork("))
+        #expect(collectionService.contains("collectionSyncSnapshots("))
+        #expect(collectionService.contains("purgeSyncedCollectionTombstones("))
+        #expect(!collectionService.contains("import Supabase"))
+
+        let snapshot = try #require(collectionService.range(
+            of: "let snapshots = try await snapshotActor.collectionSyncSnapshots()"
+        ))
+        let preDispatchFence = try #require(collectionService.range(
+            of: "guard await dependencies.isAccountWorkCurrent(lease) else {",
+            range: snapshot.upperBound ..< collectionService.endIndex
+        ))
+        let dispatch = try #require(collectionService.range(
+            of: "try await dependencies.pushSnapshots(snapshots)",
+            range: preDispatchFence.upperBound ..< collectionService.endIndex
+        ))
+        let postResponseFence = try #require(collectionService.range(
+            of: "guard await dependencies.isAccountWorkCurrent(lease) else {",
+            range: dispatch.upperBound ..< collectionService.endIndex
+        ))
+        let commit = try #require(collectionService.range(
+            of: ".purgeSyncedCollectionTombstones(ids: tombstoneIDs)",
+            range: postResponseFence.upperBound ..< collectionService.endIndex
+        ))
+        #expect(snapshot.lowerBound < preDispatchFence.lowerBound)
+        #expect(preDispatchFence.lowerBound < dispatch.lowerBound)
+        #expect(dispatch.lowerBound < postResponseFence.lowerBound)
+        #expect(postResponseFence.lowerBound < commit.lowerBound)
+
+        #expect(!databaseAggregate.contains("import Supabase"))
+        #expect(!databaseAggregate.contains("SyncCollectionPayload"))
+        #expect(!databaseAggregate.contains("pushCollectionsToEdge"))
+        #expect(collectionPersistence.contains("func collectionSyncSnapshots("))
+        #expect(collectionPersistence.contains("func purgeSyncedCollectionTombstones("))
+        #expect(collectionPersistence.contains("$0.isPendingDeletion"))
+        #expect(!collectionPersistence.contains("MerianNetworkClient"))
+        #expect(!collectionPersistence.contains("SupabaseManager"))
+
+        #expect(collectionEndpoint.contains("private struct CollectionSyncRequestPayload"))
+        #expect(collectionEndpoint.contains("private struct CollectionSyncItemPayload"))
+        #expect(collectionEndpoint.contains("func syncCollections("))
+        #expect(collectionEndpoint.contains("DateUtilities.iso8601Formatter"))
+        #expect(collectionEndpoint.contains(
+            "allowsUnauthorizedSessionRecovery: false"
+        ))
+        #expect(!collectionEndpoint.contains("import SwiftData"))
+        #expect(!collectionEndpoint.contains("BackgroundDatabaseActor"))
+        #expect(!collectionEndpoint.contains("OfflineQueueManager"))
+        #expect(!collectionEndpoint.contains("SupabaseManager"))
 
         #expect(uploadSync.contains("private func activeUploadTaskCount("))
         #expect(uploadSync.contains("private func trackUploadPreparation("))
@@ -199,6 +316,8 @@ struct OfflineQueueSyncArchitectureTests {
     ]
 
     private static let declarationOwners: [String: String] = [
+        "struct CollectionSyncService":
+            "Services/Collections/CollectionSyncService.swift",
         "func syncPendingDeletions":
             "Services/CloudDeletion/OfflineQueueManager+CloudDeletionSync.swift",
         "func cloudDeletionWasConfirmed":
@@ -286,6 +405,10 @@ struct OfflineQueueSyncArchitectureTests {
             "import Foundation",
             "import SwiftData"
         ],
+        "Services/Collections/CollectionSyncService.swift": [
+            "import Foundation",
+            "import SwiftData"
+        ],
         "Services/Collections/OfflineQueueManager+CollectionSync.swift": [
             "import Foundation",
             "import SwiftData"
@@ -316,6 +439,12 @@ struct OfflineQueueSyncArchitectureTests {
         "func testCompleteUploadManifestResetsRetryOnlyWithDurableStagingCommit()",
         "func testUploadCompletionClearsOnlyTheOwningCallbackToken()",
         "func testStaleUploadGenerationCannotFinishReplacementSync()"
+    ]
+
+    private static let collectionSyncTestDeclarations = [
+        "func testCollectionSyncPayloadsReadDirectRelationshipsAndExcludeUnrelatedScans()",
+        "func collectionSyncDoesNotInvokeDuringAuthTransition()",
+        "func collectionSyncRetainsTombstoneWhenTransitionStartsInFlight()"
     ]
 
     private func offlineSyncRoot() throws -> URL {

@@ -96,23 +96,23 @@ reconciles the current session without invoking SDK replacement.
 Field Trips, Community Identification browsing/contribution, Explore browsing,
 Explore interactions, notifications, public-profile operations, Explore post
 management, inference, scan publication, Field Chat, Species Dictionary, scan
-lifecycle, scan enrichment and deferred context, exports, product feedback,
-media storage, and account deletion live below `Endpoints/`. Inference request
-values, JSON/media/account policy, and the narrow identification-review
-PostgREST/RPC adapter live in `Inference/`. Raw signed uploads, foreground video
-planning, and publication-media restoration live in `Media/`; owned-row
-publication and Field Chat recovery live in `Recovery/`; stateless endpoint URL,
-route/error classification, retry allowlist, account binding, value-only
-Auth-recovery decisions, and the request-scoped executor live in `Transport/`.
-The executor owns logical request construction, bounded retry state,
-cancellation checkpoints, response mapping, and injected Auth, entitlement, and
-consent effects. `PinnedNetworkTransport` owns the sole configured `URLSession`,
-lock-backed one-time initialization, exact Supabase host/subdomain policy, TLS
-delegate, raw dispatch, caller-bounded wall-clock dispatch, and DEBUG session
-override. Supabase server-trust challenges require both the platform trust
-evaluation and a matching pin, and fail closed when either check fails or the
-certificate chain cannot be read. Unrelated hosts and non-server-trust
-challenges keep the platform's default handling.
+lifecycle, collection sync, scan enrichment and deferred context, exports,
+product feedback, media storage, and account deletion live below `Endpoints/`.
+Inference request values, JSON/media/account policy, and the narrow
+identification-review PostgREST/RPC adapter live in `Inference/`. Raw signed
+uploads, foreground video planning, and publication-media restoration live in
+`Media/`; owned-row publication and Field Chat recovery live in `Recovery/`;
+stateless endpoint URL, route/error classification, retry allowlist, account
+binding, value-only Auth-recovery decisions, and the request-scoped executor
+live in `Transport/`. The executor owns logical request construction, bounded
+retry state, cancellation checkpoints, response mapping, and injected Auth,
+entitlement, and consent effects. `PinnedNetworkTransport` owns the sole
+configured `URLSession`, lock-backed one-time initialization, exact Supabase
+host/subdomain policy, TLS delegate, raw dispatch, caller-bounded wall-clock
+dispatch, and DEBUG session override. Supabase server-trust challenges require
+both the platform trust evaluation and a matching pin, and fail closed when
+either check fails or the certificate chain cannot be read. Unrelated hosts and
+non-server-trust challenges keep the platform's default handling.
 `AuthenticatedTransportDispatcher` owns per-attempt Auth leases and headers,
 transition validation, the constrained-network header, and its file-local upload
 delegate. `MerianNetworkClient.swift` retains configuration diagnostics and
@@ -135,8 +135,11 @@ request and wall-clock deadline plus no-cache policy; PostgREST keeps retry
 disabled. `performAuthenticatedEncodedJSONPost` encodes an `Encodable` body with
 `JSONEncoder` and returns bytes for domain-specific validation. It forwards the
 timeout and optional idempotency key without catching encoding, transport, or
-cancellation errors. None of these bridges adds a retry or task owner or exposes
-mutable transport state.
+cancellation errors. Classified-401 recovery remains enabled by default. A
+durable caller that is itself part of Auth-transition quiescence may explicitly
+defer that recovery so it cannot recursively await its own task; the original
+HTTP failure then returns to that caller's retry policy. None of these bridges
+adds a retry or task owner or exposes mutable transport state.
 
 `performAuthenticatedJSONDataPost` serializes an untyped JSON body and returns
 bytes for scan lifecycle's explicit-key decoder. Its optional expected Auth user
@@ -627,6 +630,29 @@ organization, not a new recovery policy. See the canonical
 [deletion contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-delete-scan-edge-node),
 and [focused matrix](#scan-lifecycle-verification).
 
+### Collection sync endpoint
+
+[`Endpoints/MerianNetworkClient+Collections.swift`](Endpoints/MerianNetworkClient+Collections.swift)
+owns the authenticated `/sync-collections` request. It maps immutable
+`CollectionSyncSnapshot` values to a private request DTO with the unchanged
+`created_at`, `is_deleted`, and `scan_ids` keys, uses an explicit 30-second
+client deadline, adds no idempotency key, and intentionally ignores successful
+response bytes. Because the durable collection task and its outer account-work
+lease are themselves drained before an Auth transition can advance, this one
+endpoint returns a classified `401` to the durable retry owner without starting
+nested session recovery. Other endpoints retain the default classified-401
+recovery behavior. The endpoint owns no SwiftData access, scheduling,
+Auth-transition lifecycle, or local acknowledgement policy.
+
+Core Data retains those responsibilities: `CollectionSyncService` holds the
+outer account-work lease across snapshot, request, and commit; the focused
+database actor extension projects non-Favorites relationships and commits only
+tombstones still pending deletion. `CollectionSyncEndpointTests` owns the exact
+wire mapping through a private client and scoped transport. See the canonical
+[offline collection pipeline](../../../../../docs/backend-and-data/01-offline-sync-pipeline.md#the-collections-pipeline)
+and
+[`/sync-collections` contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-sync-collections-edge-node).
+
 ### Enrichment, export, and product feedback endpoints
 
 These small operations have separate domain owners rather than a miscellaneous
@@ -785,7 +811,7 @@ and [focused matrix](#account-deletion-and-recovery-verification).
 ### Core Network integration audit
 
 `CoreNetworkIntegrationArchitectureTests` protects the complete boundary across
-the individually extracted slices. It requires exactly 17 endpoint-extension
+the individually extracted slices. It requires exactly 18 endpoint-extension
 owners, rejects an endpoint entry point duplicated in the remaining aggregate,
 and applies the 600-line review ceiling to every Swift owner under `Auth/`,
 `Endpoints/`, `Inference/`, `Media/`, `Recovery/`, and `Transport/`, plus the
@@ -1115,9 +1141,10 @@ single-read body with its generated cache-buster. Rereading a request can
 compare drained streams instead of the transmitted bodies.
 `NetworkEndpointTestSupportTests` covers data- and stream-backed bodies,
 byte-distinct but semantically equal JSON, key/timeout identity, and
-scalar/null/omission distinctions. It tests the assertion helper with synthetic
-requests; it does not execute the authenticated client or replace endpoint
-transport tests.
+scalar/null/omission distinctions. `CollectionSyncEndpointTests` uses the same
+fixture to freeze its single body-ignoring request. The support suite tests the
+assertion helper with synthetic requests; it does not execute the authenticated
+client or replace endpoint transport tests.
 
 Changes to any shared JSON bridge, the configuration guard,
 `NetworkTransportTestSupport.swift`, or `NetworkEndpointTestSupport.swift`
@@ -1159,6 +1186,7 @@ xcodebuild test \
   -only-testing:merianTests/ScanLifecycleAPIModelsTests \
   -only-testing:merianTests/ScanLifecycleResponseDecoderTests \
   -only-testing:merianTests/ScanLifecycleNetworkArchitectureTests \
+  -only-testing:merianTests/CollectionSyncEndpointTests \
   -only-testing:merianTests/ScanEnrichmentEndpointTests \
   -only-testing:merianTests/ExportEndpointTests \
   -only-testing:merianTests/ProductFeedbackEndpointTests \
@@ -2776,57 +2804,61 @@ scheduled and active consent synchronization handle—including superseded and
 previously invalidated work—closes `InferenceEngine` write admission, cancels
 and awaits even non-cooperative presentation/metadata tasks, waits for all
 admitted leases and collection work, and only then mutates the Auth SDK session.
-HTTP retries release their lease before 401 recovery so recovery cannot deadlock
-on its initiating request; payloads that embed an Auth UUID also pass that UUID
-as an expected owner and fail before dispatch if the live account differs. Every
-recursive transport, route, refresh, and service retry remains pinned to the
-account that initiated the request; an unowned request cannot silently recapture
-a replacement session. Foreground and background inference keep the request
-body, JWT, and expected Auth UUID in one typed request value; the background
-dispatcher persists that Auth UUID plus generation in the job metadata and
-`inference_v3` task description before resume, then retains the exact account
-lease until the URLSession terminal callback. Offline media staging does the
-same through `upload_v2`, requires every returned R2 key to equal the prepared
-owner key, and retains one exact lease per task through its terminal callback.
-The transition drain first commits each affected queue row back to pending and
-clears its source-owned staging keys, then cancels every matching task and waits
-for both URLSession disappearance and lease release; there is no timeout that
-allows Auth mutation to outrun a presigned PUT, and a failed durable retreat,
-task cancellation, or bounded drain expiry aborts the transition and leaves the
-source session intact for retry. Callbacks and relaunched tasks may mutate local
-state only when their explicit owner/generation matches both the live Auth
-session and durable job metadata. Before a relaunched terminal callback crosses
-its first actor boundary, it atomically reacquires and retains an exact-session
-account-work lease, so the transition drain cannot overtake persistence merely
-because the original process-local lease was lost. Legacy or unprovable tasks
-are cancelled and restaged rather than adopted by a replacement account.
-Inference refuses any staged key whose canonical owner differs from its typed
-request account. Realtime channels are keyed to the final account and close
-while a transition is active. If collection work was already in flight, the
-source session remains stable until it finishes, and local tombstones are
-retained whenever the transition began before the local commit. Each URLSession
-terminal delegate callback registers its asynchronous durable work synchronously
-before crossing actors. The background-session `urlSessionDidFinishEvents`
-callback waits for that tracker to drain before invoking the system completion
-handler, preventing suspension between network completion and final queue/result
-persistence. `Core/Data/OfflineSync/Services/BackgroundTransfer` owns the
-tracker, retained task leases, transition quiescence, private owner/generation
-validation and adoption, terminal callback routing, and delegate adapter. The
-focused upload- and inference-completion processors receive only accepted
-terminal work. `Services/BackgroundInference` owns exact generation lifecycle,
-request dispatch, accepted result/failure completion, and delayed
-status-probe/task retirement, with focused Recovery and Retry siblings owning
-server-result hydration, retryable-status persistence, general transport retry,
-and server-poll lifetime. When dispatch cannot transfer its exact Auth lease
-after the durable claim, it cancels the still-suspended task and finishes the
-process generation only after durable retirement succeeds. Exhausted retirement
-retries preserve the suspended task and active generation, keeping process state
-aligned with the unresolved `.inferencing` row until a later quiescence or
-recovery pass. A later successful Auth sweep or rejected terminal retirement
-immediately closes that exact process generation; the Auth sweep does so before
-cancelling its transport. Anonymous bootstrap is itself a coordinator-owned
-transition, so restore/create cannot be overtaken by Apple, Google, Sign out,
-recovery, or deletion.
+Ordinary HTTP retries release their per-attempt lease before 401 recovery so
+recovery cannot deadlock on its initiating request. Collection sync is the
+narrow exception because its service retains a separate outer lease across
+snapshot, request, and commit; that endpoint returns the classified `401` to its
+durable retry owner instead of entering recovery. Payloads that embed an Auth
+UUID also pass that UUID as an expected owner and fail before dispatch if the
+live account differs. Every recursive transport, route, refresh, and service
+retry remains pinned to the account that initiated the request; an unowned
+request cannot silently recapture a replacement session. Foreground and
+background inference keep the request body, JWT, and expected Auth UUID in one
+typed request value; the background dispatcher persists that Auth UUID plus
+generation in the job metadata and `inference_v3` task description before
+resume, then retains the exact account lease until the URLSession terminal
+callback. Offline media staging does the same through `upload_v2`, requires
+every returned R2 key to equal the prepared owner key, and retains one exact
+lease per task through its terminal callback. The transition drain first commits
+each affected queue row back to pending and clears its source-owned staging
+keys, then cancels every matching task and waits for both URLSession
+disappearance and lease release; there is no timeout that allows Auth mutation
+to outrun a presigned PUT, and a failed durable retreat, task cancellation, or
+bounded drain expiry aborts the transition and leaves the source session intact
+for retry. Callbacks and relaunched tasks may mutate local state only when their
+explicit owner/generation matches both the live Auth session and durable job
+metadata. Before a relaunched terminal callback crosses its first actor
+boundary, it atomically reacquires and retains an exact-session account-work
+lease, so the transition drain cannot overtake persistence merely because the
+original process-local lease was lost. Legacy or unprovable tasks are cancelled
+and restaged rather than adopted by a replacement account. Inference refuses any
+staged key whose canonical owner differs from its typed request account.
+Realtime channels are keyed to the final account and close while a transition is
+active. If collection work was already in flight, the source session remains
+stable until it finishes, and local tombstones are retained whenever the
+transition began before the local commit. Each URLSession terminal delegate
+callback registers its asynchronous durable work synchronously before crossing
+actors. The background-session `urlSessionDidFinishEvents` callback waits for
+that tracker to drain before invoking the system completion handler, preventing
+suspension between network completion and final queue/result persistence.
+`Core/Data/OfflineSync/Services/BackgroundTransfer` owns the tracker, retained
+task leases, transition quiescence, private owner/generation validation and
+adoption, terminal callback routing, and delegate adapter. The focused upload-
+and inference-completion processors receive only accepted terminal work.
+`Services/BackgroundInference` owns exact generation lifecycle, request
+dispatch, accepted result/failure completion, and delayed status-probe/task
+retirement, with focused Recovery and Retry siblings owning server-result
+hydration, retryable-status persistence, general transport retry, and
+server-poll lifetime. When dispatch cannot transfer its exact Auth lease after
+the durable claim, it cancels the still-suspended task and finishes the process
+generation only after durable retirement succeeds. Exhausted retirement retries
+preserve the suspended task and active generation, keeping process state aligned
+with the unresolved `.inferencing` row until a later quiescence or recovery
+pass. A later successful Auth sweep or rejected terminal retirement immediately
+closes that exact process generation; the Auth sweep does so before cancelling
+its transport. Anonymous bootstrap is itself a coordinator-owned transition, so
+restore/create cannot be overtaken by Apple, Google, Sign out, recovery, or
+deletion.
 
 Every usable session outside a pending protocol-3 stable sign-out first calls
 the additive `/resolve-purchase-principal` route. Its explicit `mode` selects

@@ -2,9 +2,9 @@
 
 This record joins five repository fixes that share one release boundary:
 collection ownership, staging-upload size enforcement, offline complimentary
-funding admission, redirect construction, and taxonomy cursor checkpointing.
-It records what is implemented, where the normative contracts live, and what
-must be proven before production promotion. It does not supersede the linked
+funding admission, redirect construction, and taxonomy cursor checkpointing. It
+records what is implemented, where the normative contracts live, and what must
+be proven before production promotion. It does not supersede the linked
 canonical documents.
 
 ## Status
@@ -24,18 +24,18 @@ tests. Repository-corrected and production-verified are separate states:
 
 ## Remediation matrix
 
-| Area | Repository contract | Fail-closed boundary | Compatibility |
-| --- | --- | --- | --- |
-| Collection sync | `upsert_owned_collections` atomically admits only new or same-owner collection IDs; `insert_owned_collection_scans` joins both parents to the authenticated owner | RPC errors stop membership work; a trigger rejects cross-owner parents; `service_role` can update only `name` and `created_at` directly | Foreign IDs and missing/foreign scans are logged and skipped |
-| Staging upload | Every manifest member declares a positive exact `sizeBytes`; each signed response declares required `Content-Type` and decimal `Content-Length` | Both headers and `host` are signed; iOS re-stats immediately before PUT and re-signs changed files | Legacy `fileNames`, missing sizes, arrays, and other old shapes intentionally return `400 size_bytes_required` |
-| Complimentary admission | A stable scan/account funding reservation is claimed synchronously before file writes or foreground inference and persisted in the scan job | Verified server availability is reduced by unresolved local blockers; uncertainty under-admits; 402 invalidates local proof | Protocol-2 remains accepted only during the dual-mode rollout; protocol-3 is required at atomic cutover |
-| Redirects | Admin callbacks derive from validated `NEXT_PUBLIC_ADMIN_ORIGIN`; web aliases derive from fixed `CANONICAL_ORIGIN` | Absolute, protocol-relative, backslash, recursively encoded separator, and hostile Host inputs cannot select an origin | Valid local paths retain pathname, query, and hash; web aliases retain pathname and query |
-| Taxonomy import | Every successfully fetched page checkpoints its raw-page `nextOffset`, even when all rows normalize out | Fetch failure leaves the failed page uncheckpointed; dry runs simulate movement without writes | Stop only at GBIF `endOfRecords`, a raw empty page, or requested `page_count` |
+| Area                    | Repository contract                                                                                                                                               | Fail-closed boundary                                                                                                                    | Compatibility                                                                                                  |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Collection sync         | `upsert_owned_collections` atomically admits only new or same-owner collection IDs; `insert_owned_collection_scans` joins both parents to the authenticated owner | RPC errors stop membership work; a trigger rejects cross-owner parents; `service_role` can update only `name` and `created_at` directly | Foreign IDs and missing/foreign scans are logged and skipped                                                   |
+| Staging upload          | Every manifest member declares a positive exact `sizeBytes`; each signed response declares required `Content-Type` and decimal `Content-Length`                   | Both headers and `host` are signed; iOS re-stats immediately before PUT and re-signs changed files                                      | Legacy `fileNames`, missing sizes, arrays, and other old shapes intentionally return `400 size_bytes_required` |
+| Complimentary admission | A stable scan/account funding reservation is claimed synchronously before file writes or foreground inference and persisted in the scan job                       | Verified server availability is reduced by unresolved local blockers; uncertainty under-admits; 402 invalidates local proof             | Protocol-2 remains accepted only during the dual-mode rollout; protocol-3 is required at atomic cutover        |
+| Redirects               | Admin callbacks derive from validated `NEXT_PUBLIC_ADMIN_ORIGIN`; web aliases derive from fixed `CANONICAL_ORIGIN`                                                | Absolute, protocol-relative, backslash, recursively encoded separator, and hostile Host inputs cannot select an origin                  | Valid local paths retain pathname, query, and hash; web aliases retain pathname and query                      |
+| Taxonomy import         | Every successfully fetched page checkpoints its raw-page `nextOffset`, even when all rows normalize out                                                           | Fetch failure leaves the failed page uncheckpointed; dry runs simulate movement without writes                                          | Stop only at GBIF `endOfRecords`, a raw empty page, or requested `page_count`                                  |
 
 ## Collection ownership boundary
 
-`sync-collections` resolves the caller from the verified JWT and passes that UUID
-as `p_user_id`; ownership is never accepted from collection JSON. One
+`sync-collections` resolves the caller from the verified JWT and passes that
+UUID as `p_user_id`; ownership is never accepted from collection JSON. One
 `INSERT ... ON CONFLICT ... DO UPDATE` statement updates `name` and `created_at`
 only when the existing row has the same owner. Its accepted/rejected result is
 the sole input to membership hydration and delta calculation. A concurrent UUID
@@ -49,19 +49,29 @@ select/delete from own-collection-plus-own-scan insert; membership updates are
 unsupported. Both RPCs use empty search paths and explicit `service_role`-only
 execute grants.
 
+The current iOS caller preserves that server boundary behind durable local
+ownership. `OfflineQueueManager` owns the coalesced job and single-flight
+revision, `CollectionSyncService` holds one account-work lease across snapshot,
+request, and acknowledgement, and a fresh database actor purges only
+acknowledged rows still marked for deletion. A concurrent local reactivation
+therefore survives. The focused network endpoint retains the unchanged payload
+and returns classified `401` failures to the durable job because nested Auth
+recovery would have to quiesce the task and lease that initiated it.
+
 Normative details:
 
 - [collection API contract](./05-api-contracts.md#deno-sync-collections-edge-node)
 - [database schema and privileges](./04-database-schema.md#collections-and-collection_scans)
 - [route README](../../services/supabase/functions/sync-collections/README.md)
+- [durable iOS pipeline](./01-offline-sync-pipeline.md#the-collections-pipeline)
 
 ## Exact-size staging uploads
 
 The manifest size is a signing input, not trusted evidence that the object was
 uploaded. The Edge signer validates per-kind and aggregate budgets before
-issuing a URL. SigV4 covers `content-length;content-type;host`, and each response
-item repeats the two caller-supplied headers under `requiredHeaders`. Every iOS
-data, file, repair, restore, and background PUT applies that map. A
+issuing a URL. SigV4 covers `content-length;content-type;host`, and each
+response item repeats the two caller-supplied headers under `requiredHeaders`.
+Every iOS data, file, repair, restore, and background PUT applies that map. A
 `ScanUploadItem` retains the signing-time size; a final file stat mismatch
 invalidates the URL before task creation. A post-upload HEAD check remains the
 authoritative verification that R2 stored the declared number of bytes.

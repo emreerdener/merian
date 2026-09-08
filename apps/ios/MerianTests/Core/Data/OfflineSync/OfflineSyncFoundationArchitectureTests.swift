@@ -164,6 +164,8 @@ struct OfflineSyncFoundationArchitectureTests {
     }
 
     private static let declarationOwners: [String: String] = [
+        "struct CollectionSyncSnapshot":
+            "Models/CollectionSyncSnapshot.swift",
         "struct PendingScanPayload": "Models/OfflineScanPayloads.swift",
         "struct LegacyQueuedAudioRepairCandidate":
             "Models/OfflineScanPayloads.swift",
@@ -263,6 +265,7 @@ struct OfflineSyncFoundationArchitectureTests {
 
     private static let extractedOwnerPaths: Set<String> = [
         "Coordinators/GenerationTaskRegistry.swift",
+        "Models/CollectionSyncSnapshot.swift",
         "Models/ExtractedScanData.swift",
         "Models/InferenceOwnershipModels.swift",
         "Models/MediaStagingModels.swift",
@@ -281,6 +284,7 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let modelAndPolicyPaths: Set<String> = [
+        "Models/CollectionSyncSnapshot.swift",
         "Models/ExtractedScanData.swift",
         "Models/InferenceOwnershipModels.swift",
         "Models/MediaStagingModels.swift",
@@ -295,6 +299,7 @@ struct OfflineSyncFoundationArchitectureTests {
 
     private static let expectedImportsByPath: [String: Set<String>] = [
         "Coordinators/GenerationTaskRegistry.swift": ["import Foundation"],
+        "Models/CollectionSyncSnapshot.swift": ["import Foundation"],
         "Models/ExtractedScanData.swift": [
             "import Foundation",
             "import SwiftData"

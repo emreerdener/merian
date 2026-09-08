@@ -7112,6 +7112,14 @@ healthy loaded page's toolbar action.
 Synchronizes locally created Scan Collections with the PostgreSQL `collections`
 and `collection_scans` schemas, handling diffing and missing FK references.
 
+iOS request ownership lives in
+`Core/Network/Endpoints/MerianNetworkClient+Collections.swift`. Its private wire
+DTO maps the Core Data-owned `CollectionSyncSnapshot` to the canonical keys and
+uses the shared authenticated encoded-body transport. Durable job and
+single-flight state remain in `OfflineQueueManager`; account-lease transaction
+ownership remains in `CollectionSyncService`; local projection and conditional
+tombstone purge remain in `BackgroundDatabaseActor+CollectionSync.swift`.
+
 ### Request Payload
 
 ```json
@@ -7196,6 +7204,21 @@ collection shape, payload, nor deletion semantics.
    newer collection mutation was enqueued while that request was in flight. This
    prevents race conditions where a stale `.upsert()` snapshot lands after a
    newer `.delete()`, causing ghost resurrections.
+9. **Account and Acknowledgement Fencing**: `CollectionSyncService` holds one
+   outer account-work lease for the snapshot/request/commit transaction and
+   revalidates it immediately before dispatch and after the HTTP response. The
+   commit uses a fresh database actor and deletes only acknowledged IDs still
+   marked `isPendingDeletion`. A local reactivation during an in-flight request
+   therefore survives; its newer dirty revision remains queued for the next
+   desired-state push.
+10. **Non-Reentrant Auth Recovery**: A classified `401` is returned to the
+    durable collection job without starting ordinary session recovery inside the
+    request. Auth recovery must quiesce this exact collection task and its outer
+    account-work lease; initiating it from inside the task would create a
+    self-wait. The local desired state and its job remain durable for a bounded
+    retry after Auth becomes stable. This exception is collection-specific; the
+    shared encoded-body transport keeps classified-401 recovery enabled by
+    default.
 
 > **Parameter naming**: The `syncMembershipDelta` function parameter names were
 > updated from `validCollections`/`activeIds` to `ownedCollections`/`ownedIds`

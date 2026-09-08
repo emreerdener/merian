@@ -10,9 +10,10 @@ The canonical behavioral contract is the
 
 ## Ownership
 
-- `Models/` contains `Sendable` queue snapshots, media-staging values,
-  generation and account-work identities, completion accumulators, and extracted
-  scan results. These values do not start work or resolve services.
+- `Models/` contains `Sendable` queue and collection desired-state snapshots,
+  media-staging values, generation and account-work identities, completion
+  accumulators, and extracted scan results. These values do not start work or
+  resolve services.
 - `Policies/` contains stateless metadata, task-description, staging, storage,
   retry, and background-inference response/status contracts. Staging and storage
   policy may inspect local files, and retry timing may apply bounded jitter;
@@ -30,9 +31,11 @@ The canonical behavioral contract is the
   helpers remain private to that implementation file.
 - `Services/CloudDeletion/`, `Services/Collections/`, and
   `Services/MediaUpload/` contain the live sync orchestration for their named
-  work types. Media upload keeps signing, preparation, dispatch, generation
-  lifecycle, and completion/finalization separate while preserving the queue's
-  existing manager API.
+  work types. Collection sync separates manager-owned durable scheduling,
+  dirty-revision, and single-flight state from the initializer-injected
+  account-lease transaction. Media upload keeps signing, preparation, dispatch,
+  generation lifecycle, and completion/finalization separate while preserving
+  the queue's existing manager API.
 - `Services/QueueMaintenance/` owns observable queue counts, tombstoning,
   main-context flushes, explicit deletion, and failed-record purging. Deletion
   keeps persistence locking and database-before-file ordering in one file.
@@ -74,6 +77,7 @@ The canonical behavioral contract is the
 | `Models/MediaStagingModels.swift`                                                 | Staging manifests, media/object-key values, upload-task identity, and exact completion accumulation.                                                                                               |
 | `Models/InferenceOwnershipModels.swift`                                           | Inference task and generation identities, foreground persistence fences, funding reservations, and account-work ownership.                                                                         |
 | `Models/ExtractedScanData.swift`                                                  | Durable replay snapshots and background processing results.                                                                                                                                        |
+| `Models/CollectionSyncSnapshot.swift`                                             | Immutable local collection desired state passed from persistence to the network adapter.                                                                                                           |
 | `Policies/OfflineScanJobMetadataContract.swift`                                   | Generation and funding metadata composition that preserves unrelated job metadata.                                                                                                                 |
 | `Policies/InferenceURLSessionTaskContract.swift`                                  | Current owner-scoped inference task descriptions and legacy parsing.                                                                                                                               |
 | `Policies/MediaStagingContract.swift`                                             | Filename and object-key construction, staging manifests and budgets, upload task descriptions, and compatibility parsing.                                                                          |
@@ -90,6 +94,7 @@ The canonical behavioral contract is the
 | `OfflineQueueManager+AudioQueue.swift`                                            | Single-audio convenience admission into the shared nonvisual queue path.                                                                                                                           |
 | `Services/CloudDeletion/OfflineQueueManager+CloudDeletionSync.swift`              | Durable cloud-deletion drain, explicit confirmation, job recovery, and bounded retry persistence.                                                                                                  |
 | `Services/Collections/OfflineQueueManager+CollectionSync.swift`                   | Collection dirty-revision tracking, persisted job state, serialized drain, and auth-transition quiescence.                                                                                         |
+| `Services/Collections/CollectionSyncService.swift`                                | Injected account-work lease, pre-dispatch and post-response fencing, remote snapshot push, and acknowledgement commit orchestration.                                                               |
 | `Services/MediaUpload/OfflineQueueManager+UploadSync.swift`                       | Upload eligibility, durable claims, signing, and whole-generation orchestration.                                                                                                                   |
 | `Services/MediaUpload/OfflineQueueManager+UploadLifecycle.swift`                  | Generation validation/invalidation plus generation-aware upload latch completion and expiry.                                                                                                       |
 | `Services/MediaUpload/OfflineQueueManager+UploadPreparation.swift`                | Legacy queued-audio repair, staging-owner resolution, media preparation, and bounded batch selection.                                                                                              |
@@ -129,9 +134,26 @@ transitions, and OS-owned background task recovery. The retired queue, sync, and
 URLSession aggregates have no replacement catch-all; each live path is owned by
 the focused service files above.
 
+Collection persistence and transport deliberately remain outside this folder's
+service owner. `Core/Data/Database/BackgroundDatabaseActor+CollectionSync.swift`
+projects the non-Favorites relationship snapshot and purges only rows still
+marked for deletion in a fresh context.
+`Core/Network/Endpoints/MerianNetworkClient+Collections.swift` privately maps
+that domain snapshot to the existing snake-case request and owns the
+authenticated HTTP call. A classified `401` returns to the durable job instead
+of starting Auth recovery inside the collection task: Auth recovery drains that
+same task and outer account-work lease, so nested recovery would otherwise form
+a self-wait. The bounded retry remains pending and can dispatch after Auth is
+stable again.
+
 ## Compatibility
 
 This organization pass preserves the existing public and persistence contracts.
+A collection-specific follow-up also closes an existing acknowledgement race:
+the service revalidates its exact account lease after snapshot extraction and
+after the remote response, then uses a fresh database actor that deletes only
+rows still marked `isPendingDeletion`. A local reactivation during the request
+therefore survives, while the dirty revision schedules the newer desired state.
 A post-extraction audit also closes one existing fail-closed state mismatch: if
 retiring a newly created but unresumed inference task exhausts its durable
 retries, the process-local inference generation now remains active alongside the
@@ -186,10 +208,10 @@ Focused tests mirror the extracted owners:
   declaration inventory, exact focused-file and framework-import inventory,
   dependency direction, private mutable state, and the 600-line ceiling for this
   foundation slice.
-- `OfflineQueueSyncArchitectureTests` freezes the seven live sync service files,
+- `OfflineQueueSyncArchitectureTests` freezes the eight live sync service files,
   their declaration and import ownership, completion-helper containment,
-  responsibility boundaries, mirrored upload-completion tests, retired
-  aggregate, and 600-line ceiling.
+  responsibility boundaries, mirrored collection-sync and upload-completion
+  tests, retired aggregates, and 600-line ceiling.
 - `OfflineQueueMaintenanceArchitectureTests` freezes the two maintenance service
   owners, shared persistence lookup owners, private destructive helpers,
   persistence-lock ordering, database-before-file deletion, exact framework
@@ -229,6 +251,11 @@ Focused tests mirror the extracted owners:
   repository-source fixtures. Creating an isolated store has no singleton side
   effect; each serialized test explicitly installs and restores its manager
   context plus any other mutable singleton state it changes.
+  `CollectionSyncTests` additionally covers bounded relationship projection,
+  unavailable and stale account leases, pre-dispatch and post-response fencing,
+  remote failure, confirmed purge, in-flight local reactivation, dirty-revision
+  retention, and retry exhaustion. `CollectionSyncEndpointTests` owns the exact
+  path, snake-case body, timeout, and body-ignoring 2xx transport mapping.
 - `MediaStagingContractTests`, `MediaStagingBudgetTests`,
   `MediaStagingIdentityTests`, and `MediaStagingCompletionStateTests` cover
   manifests, resource bounds, server-authoritative ownership, and exact

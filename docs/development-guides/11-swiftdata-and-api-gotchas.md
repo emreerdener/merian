@@ -1612,16 +1612,18 @@ final class ScanCollection {
     var isPendingDeletion = false
 }
 
-let payload = SyncCollectionPayload(
+let snapshot = CollectionSyncSnapshot(
     // ...
-    is_deleted: collection.isPendingDeletion
+    isPendingDeletion: collection.isPendingDeletion
 )
 ```
 
 For Merian, the released V50 graph is frozen in `SchemaV50Snapshots.swift`; the
 V51 active `ScanCollection` keeps `@Attribute(originalName: "isDeleted")`,
 preserving the persisted column and existing `is_deleted` JSON contract. A
-disk-backed V50 fixture passes through the production selector and
+private DTO in `MerianNetworkClient+Collections.swift` maps `isPendingDeletion`
+to `is_deleted`; SwiftData code does not own wire naming. A disk-backed V50
+fixture passes through the production selector and
 `MerianRecentV50MigrationPlan`, then proves save, refetch, restart, offline
 retention, exact payload mapping, inbound reconciliation fencing, and
 acknowledgement-only purge. The custom stage changes only preferred-name

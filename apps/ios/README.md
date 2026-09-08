@@ -181,7 +181,7 @@ living in the aggregate client suite. See the
 and mirrored test boundaries.
 
 `CoreNetworkIntegrationArchitectureTests` owns the cross-slice source guard: it
-freezes the 17 endpoint owners, prevents duplicate aggregate entry points,
+freezes the 18 endpoint owners, prevents duplicate aggregate entry points,
 enforces the 600-line ceiling across extracted Auth, Endpoint, Inference, Media,
 Recovery, and Transport owners, and applies the same ceiling to the client
 façade. It freezes ownership of the exact nine Auth paths, relocated
@@ -230,6 +230,16 @@ main-actor terminal routing, and nonisolated URLSession delegate routing from
 the remaining result pipeline. `OfflineQueueDurability.swift` retains live
 durable mutations and retry orchestration.
 
+Collection sync keeps durable job/revision and single-flight state on
+`OfflineQueueManager`, while `CollectionSyncService` owns the injected
+account-lease transaction. A focused database-actor extension projects immutable
+desired-state snapshots and revalidates tombstones in a fresh context at commit;
+`MerianNetworkClient+Collections.swift` alone maps those snapshots to the
+unchanged `/sync-collections` wire contract. This prevents a collection
+reactivated during an in-flight request from being purged locally. Its
+classified-401 path returns to the durable retry owner instead of starting Auth
+recovery from inside the exact task and account lease that recovery must drain.
+
 The root `OfflineQueueManager` retains stored state and background-session
 construction; the focused inference-completion extension owns accepted result
 and transport-failure processing plus generation-tagged completion-lock
@@ -238,7 +248,7 @@ background-task inspection/cancellation, the recovery extension owns
 server-result hydration, durable recovery, and retryable server-status
 persistence, while the retry extension owns general transport-retry
 preflight/persistence and server-poll execution. The former sync aggregate is
-seven focused service files under `CloudDeletion`, `Collections`, and
+eight focused service files under `CloudDeletion`, `Collections`, and
 `MediaUpload`; media-upload completion and generation fencing have explicit
 owners, while queued SwiftData rows map to inference snapshots under
 `Persistence`. Queue count, tombstone, flush, deletion, and purge behavior is
@@ -267,6 +277,24 @@ deadline that cancels and ignores late non-cooperative work, caller-cancellation
 identity, durable-wake restoration without an intervening suspension in both
 retry paths before post-save poll/generation revalidation and optional
 process-local replacement, and the 600-line production-file ceiling.
+
+## Core Data Database Actor Ownership
+
+The [Core Data guide](Merian/Core/Data/README.md) is the canonical ownership
+inventory for SwiftData actors. `BackgroundDatabaseActor.swift` retains the
+actor declaration and unextracted persistence domains; focused sibling
+extensions keep collection synchronization, species metadata, and non-biological
+retention persistence separate without changing actor method signatures. The
+internal non-biological payload label is `mediaPaths` because it carries image,
+audio, and video paths. That extension owns only erasure values, bounded
+retention selection, and the atomic record/cloud-tombstone commit. Its purge
+result distinguishes accepted erasures from rows actually deleted so
+`ScanRepository` can drain files/tombstones without publishing a false library
+mutation. Local file cleanup remains in `FileIOActor`. The focused extensions
+contain no endpoint, authentication, file, or UI dependency. Mirrored behavior
+suites preserve the persistence contracts, while architecture suites scan the
+complete production and test Swift trees for sole method and test ownership,
+repository effect routing, and the 600-line review ceiling.
 
 ## Core Preferences Ownership
 
@@ -426,9 +454,13 @@ snapshots share `ScanQueueState.isManualRetryEligible`; mutation owners still
 re-fetch and revalidate the live row before changing durable state.
 
 For bulk non-biological deletion, view state supplies immutable candidate
-snapshots while `BackgroundDatabaseActor` remains the commit-time authority. It
-re-fetches each ID and skips a row that has since become biological before any
-record, local-path, or cloud-deletion mutation is accepted.
+snapshots while the focused
+`BackgroundDatabaseActor+NonBiologicalRetention.swift` extension remains the
+commit-time authority. It re-fetches each ID and skips a row that has since
+become biological before any record, local-path, or cloud-deletion mutation is
+accepted. For automatic retention, accepted missing-row cleanup is reported
+separately from actual row deletion: the former still drains files and cloud
+tombstones, while only the latter publishes `scanLibraryChanged`.
 
 ## Profile Ownership
 

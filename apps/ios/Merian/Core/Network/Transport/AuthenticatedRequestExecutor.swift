@@ -22,6 +22,7 @@ struct AuthenticatedRequestExecutor {
         let timeoutInterval: TimeInterval
         let idempotencyKey: String?
         let allowsTransientTransportRetry: Bool
+        let allowsUnauthorizedSessionRecovery: Bool
         let onRequestBodySent: (@Sendable () -> Void)?
         let authTransitionOwner: AuthTransitionToken?
         let expectedAuthUserID: UUID?
@@ -325,7 +326,12 @@ struct AuthenticatedRequestExecutor {
             throw MerianError.aiConsentRequired
         }
 
-        if response.statusCode == 401, !state.isRetry {
+        // Durable operations that participate in Auth quiescence must surface
+        // this failure to their own retry owner instead of starting a recovery
+        // transition that would recursively await the same task.
+        if response.statusCode == 401,
+           request.allowsUnauthorizedSessionRecovery,
+           !state.isRetry {
             return try await handleUnauthorized(
                 request,
                 state: state,

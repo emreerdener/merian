@@ -95,14 +95,16 @@ write_test_tree() {
             ]),
             suite("OfflineQueueManagerTests"; [
               "generationFenceTest",
-              "backgroundInferencePreservesRecoverableHTTPFailures",
-              "scheduledServerFailureRetryBreaksStatusUploadDeadlock",
               "testRetryQueuedScanNowRejectsLegacyExternalImport",
               "testManualRetryResetsBudgetForDescriptionOnlyScan",
               "consentReapprovalResumesOnlyNewestOwnedFundedScan",
               "consentReapprovalSkipsUnownedOrUnfundedScans",
               "queueDiagnosticsExportOmitsPrivateAndFreeFormValues",
               "queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred"
+            ]),
+            suite("Background Inference Policy"; [
+              "backgroundInferencePreservesRecoverableHTTPFailures",
+              "scheduledServerFailureRetryBreaksStatusUploadDeadlock"
             ]),
             suite("Background Inference Retry"; [
               "scheduledServerFailureMarkerIsReadFromDurableStore"
@@ -354,6 +356,7 @@ for omitted_suite in \
   "Inference Engine Tests" \
   "Inference Endpoint Transport" \
   "OfflineQueueManagerTests" \
+  "Background Inference Policy" \
   "Background Inference Retry" \
   "Inference Replay Tests" \
   "Capture Admission Tests" \
@@ -486,6 +489,8 @@ for rehomed_case in \
 done
 
 for rehomed_offline_case in \
+  "backgroundInferencePreservesRecoverableHTTPFailures" \
+  "scheduledServerFailureRetryBreaksStatusUploadDeadlock" \
   "unsyncedCountIncludesOnlyAutomaticallyRunnableScans" \
   "uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork" \
   "testMediaStagingContractRejectsEmptyFilesBeforeUpload" \
@@ -524,6 +529,7 @@ for skipped_suite in \
   "CameraManagerTests" \
   "Inference Engine Tests" \
   "OfflineQueueManagerTests" \
+  "Background Inference Policy" \
   "Background Inference Retry" \
   "SyncStateManagerTests"; do
   write_test_tree

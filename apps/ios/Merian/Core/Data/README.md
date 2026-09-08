@@ -3,6 +3,18 @@
 The `Data` directory manages the local persistence and offline-first data
 pipeline.
 
+`Database/BackgroundDatabaseActor.swift` remains the actor declaration and
+aggregate owner for the persistence domains that have not yet been extracted.
+Focused sibling extensions own bounded persistence surfaces without changing the
+actor's public call sites. `BackgroundDatabaseActor+CollectionSync.swift` owns
+collection snapshot and acknowledgement persistence, while
+`BackgroundDatabaseActor+SpeciesMetadata.swift` owns Wikipedia/reference-image
+patches, inference enrichment, lookalike-cache recovery, and identification
+review persistence. `BackgroundDatabaseActor+NonBiologicalRetention.swift` owns
+the non-biological erasure values, bounded retention purge, and atomic
+record/cloud-tombstone commit. All focused files are persistence-only: they
+perform no networking, authentication, file I/O, or UI work.
+
 ## Purpose
 
 This area acts as the source of truth for app data. It encompasses SwiftData
@@ -39,12 +51,13 @@ live Capture. Keeping this separate preserved the released V49 queue entity. The
 current V51 schema retains that companion through
 `ActiveOfflineQueuedScanGoalHint` and keeps the collection tombstone
 `ScanCollection.isPendingDeletion` mapped to the released `isDeleted` column
-while continuing to emit the `is_deleted` wire field. V51 separately makes
-preferred species names account-scoped. Foreground/background completion read
-the same goal hint. Successful queue finalization preserves it as a durable
-progress outbox until acknowledgement; explicit cancellation and terminal orphan
-repair remove it. Persistent Insight contribution cards are server-backed and
-are intentionally not cached in SwiftData.
+while the Core Network adapter continues to emit the `is_deleted` wire field.
+V51 separately makes preferred species names account-scoped.
+Foreground/background completion read the same goal hint. Successful queue
+finalization preserves it as a durable progress outbox until acknowledgement;
+explicit cancellation and terminal orphan repair remove it. Persistent Insight
+contribution cards are server-backed and are intentionally not cached in
+SwiftData.
 
 Authenticated historical reconciliation treats a nonempty `scans.captured_media`
 projection as authoritative only when domain mapping yields a usable image or
@@ -158,6 +171,20 @@ snapshot mapper remain in `Persistence`. Upload completion owns callback
 accumulation and durable staging handoff; generation validation/invalidation
 stays in upload lifecycle. `OfflineQueueDurability.swift` retains only the live
 manager mutations that consume those owners.
+
+Collection sync specifically keeps job/revision/single-flight state in the
+manager extension and moves the snapshot/request/commit transaction into the
+initializer-injected `CollectionSyncService`. The immutable desired-state value
+lives under `OfflineSync/Models`; persistence projection and commit-time
+tombstone revalidation live in
+`Database/BackgroundDatabaseActor+CollectionSync.swift`; and Core Network alone
+owns the private snake-case request DTO and authenticated endpoint call. The
+service checks the same account-work lease before dispatch and after the remote
+response, then uses a fresh actor so a locally reactivated collection cannot be
+purged from a stale snapshot. A classified `401` remains a durable job failure:
+starting Auth recovery inside collection sync would recursively await the same
+task and outer lease during Auth quiescence.
+
 `OfflineSyncFoundationArchitectureTests`, `OfflineQueueSyncArchitectureTests`,
 `OfflineQueueMaintenanceArchitectureTests`, and
 `OfflineQueueAdmissionArchitectureTests`, plus
@@ -400,6 +427,12 @@ already-complete job is accepted without appending a duplicate completion event.
 
 ## Identification Review Replacement
 
+All persistence operations in this section live in
+`Database/BackgroundDatabaseActor+SpeciesMetadata.swift`. Its shared
+fetch-mutate-save helper and identification-presentation replacement helper are
+private implementation details; moving them out of the aggregate does not widen
+mutable state or alter the existing method signatures.
+
 Identification review changes species identity without changing
 `LocalScanRecord.scientificName`, which remains the original AI reset key.
 `BackgroundDatabaseActor.beginScanIdentificationOverride` atomically writes the
@@ -420,6 +453,14 @@ already-active override passes `false`, preserving valid taxonomy and
 collections when the Species Dictionary row is sparse. These are data
 replacements only; they add no SwiftData field or migration.
 
+`SpeciesMetadataPersistenceTests` owns the matching actor behavior, including
+the stale-identification fence, complete enrichment-field persistence, bounded
+lookalike-cache clearing, override/reset replacement, sparse historical refresh,
+confirmation, and legacy unflagging. The companion species-metadata architecture
+suite scans every Swift file under `Merian` and `MerianTests` to freeze sole
+declaration and test ownership. It also locks narrow imports, private helpers,
+and the 600-line focused-file ceiling.
+
 ## Long-Lived Actor Cache Boundaries
 
 `OfflineQueueManager` lazily retains both its queue database actor and the
@@ -438,6 +479,12 @@ or timestamp. Feature rendering continues to create an ad-hoc actor through
 
 ## Non-Biological Bulk Deletion
 
+`Database/BackgroundDatabaseActor+NonBiologicalRetention.swift` is the focused
+persistence owner for `ScanErasurePayload`, `ExpiredNonBiologicalPurgeResult`,
+the bounded retention purge, and bulk deletion. The actor and method signatures
+remain unchanged. The internal payload member is named `mediaPaths` because the
+value carries image, audio, and video paths.
+
 The UI's non-biological erasure snapshots are advisory values, not deletion
 authority. `BackgroundDatabaseActor.bulkDeleteNonBiologicalScans` re-fetches
 each supplied scan ID in its actor-isolated context immediately before mutation.
@@ -449,8 +496,20 @@ remove.
 
 The actor saves the record deletions and pending cloud-deletion tasks together,
 rolls back the context on failure, and returns local paths only after the commit
-succeeds. `FileIOActor` cleanup therefore cannot run for a row rejected by
-commit-time revalidation or get ahead of durable database state.
+succeeds. A retention result distinguishes accepted erasure work from records
+actually deleted. An accepted row that disappeared after selection still drains
+its local paths and cloud tombstone, while only a real row deletion publishes a
+library change. A candidate rejected by commit-time biological revalidation
+triggers neither effect. `FileIOActor` cleanup therefore cannot run for a
+rejected row or get ahead of durable database state.
+
+`NonBiologicalRetentionPersistenceTests` owns the six matching actor
+regressions: commit-before-path-return, idempotent tombstone reuse, biological
+reclassification fencing, missing-row retry cleanup, expired-only purge, and
+oldest-first batch limiting. The companion architecture suite scans the complete
+production and test Swift trees for sole declaration and test ownership, narrow
+imports and dependencies, committed-count fencing, repository effect routing,
+and the 600-line focused-file ceilings.
 
 Cloud-deletion draining uses a process-local single-flight latch in addition to
 durable restartable job state. Competing scheduler, repository, and UI wake

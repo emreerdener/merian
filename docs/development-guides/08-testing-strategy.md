@@ -541,10 +541,12 @@ HTTP request is dispatched. See the
    `testEnqueueCapture_WithValidData_PersistsQueuedScan()` and now belongs to
    `CaptureAdmissionTests`.
 
-   The validator also follows six retained regression names out of the retired
-   queue aggregate: runnable-count evidence belongs to `QueueMaintenanceTests`,
-   upload-batch starvation evidence to `MediaUploadSyncTests`, empty staged-file
-   rejection to `MediaStagingBudgetTests`, and all three cloud-deletion cases to
+   The validator also follows eight retained regression names out of the retired
+   queue aggregate: background HTTP-success disposition and retryable
+   status/upload deadlock evidence belong to `BackgroundInferencePolicyTests`,
+   runnable-count evidence belongs to `QueueMaintenanceTests`, upload-batch
+   starvation evidence to `MediaUploadSyncTests`, empty staged-file rejection to
+   `MediaStagingBudgetTests`, and all three cloud-deletion cases to
    `CloudDeletionSyncTests`. Evidence under `OfflineQueueManagerTests` is
    rejected for those cases even though their function names did not change.
 
@@ -560,13 +562,14 @@ HTTP request is dispatched. See the
    additionally extracts all 98 exact allowlist entries, requires every Swift
    function name to resolve to exactly one declaration bound to `@Test` in
    `MerianTests`, and binds the two explicit Swift Testing display-name aliases
-   to their corresponding declarations. This prevents a duplicate declaration,
-   helper method, or stale evidence name from surviving portable checks. The
-   exact-case allowlist validates evidence after the complete target runs; it
-   must never replace the complete-target selector with a focused test
-   invocation. A successful validation is recorded as
-   `Critical scan-flow regressions:
-   passed` in the hosted job summary.
+   to their corresponding declarations. It also requires each validator primary
+   suite type to be declared in the protected case's source file. This prevents
+   a duplicate declaration, helper method, stale evidence name, or stale suite
+   mapping from surviving portable checks. The exact-case allowlist validates
+   evidence after the complete target runs; it must never replace the
+   complete-target selector with a focused test invocation. Successful hosted
+   validation records `Critical scan-flow regressions: passed` in the job
+   summary.
 
    After the complete unit target passes, the same checkout, simulator
    destination, locked packages, and `build-for-testing` output execute four
@@ -1229,8 +1232,8 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   pending ceiling, overflow rejection, presentation-reset cancellation,
   cancellation-ignoring Auth quiescence, ordered review writes, stale-action
   rejection, confirmation/review generation independence, and bounded per-scan
-  action history. `BackgroundDatabaseActorTests` separately locks atomic local
-  override admission, destructive reset/identity replacement, and
+  action history. `SpeciesMetadataPersistenceTests` separately locks atomic
+  local override admission, destructive reset/identity replacement, and
   non-destructive historical override refresh.
 - **`Core/AI/Inference/InferenceHydrationCoordinatorTests.swift`**: Executes the
   hydration lifecycle and request-policy owner with injected clocks and storage.
@@ -1440,15 +1443,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   correctly (covering the `MerianSchemaV27` field added for rich lookalike
   persistence). `BackgroundDatabaseActorTests` uses `CurrentSchema` and a
   disk-isolated container to validate actor-boundary `Sendable` payload
-  extraction across a `Task.detached` boundary. Its non-biological bulk-delete
-  coverage also proves a row reclassified as biological after presentation
-  snapshotting is preserved without local-file or cloud-deletion side effects.
-  Its upload and inference reconciliation tests seed rows on both sides of an
-  `observedThrough` cutoff and prove the older orphan resets while newer
-  replacement work remains claimed. Its terminal replay test accepts an absent
-  queue only for the exact generation's completed durable job, while rejecting
-  nonterminal and mismatched-generation jobs. `SyncStateManagerTests` also locks
-  the generation-fencing contract: a stale upload completion cannot clear a
+  extraction across a `Task.detached` boundary. Its upload and inference
+  reconciliation tests seed rows on both sides of an `observedThrough` cutoff
+  and prove the older orphan resets while newer replacement work remains
+  claimed. Its terminal replay test accepts an absent queue only for the exact
+  generation's completed durable job, while rejecting nonterminal and
+  mismatched-generation jobs. `SyncStateManagerTests` also locks the
+  generation-fencing contract: a stale upload completion cannot clear a
   replacement batch; a completion delivered after `forceIdle()` cannot remove a
   newer inference token; a stale finalizing transition cannot advance the
   replacement's UI phase; and `GenerationTaskRegistry` rejects
@@ -1457,11 +1458,30 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   five states (`.pending`, `.uploading`, `.staged`, `.inferencing`, `.failed`)
   and asserts `fetchPendingScans` returns only the `.pending` record — directly
   validating the V33 `scanStateRaw == 0` predicate that prevents re-dispatching
-  in-flight or tombstoned scans. Identification-review persistence coverage
-  verifies `.unreviewed` atomically clears override-owned species fields and a
-  nil override-species placeholder clears prior taxonomy, lookalikes, and
-  alternate names. The suite also covers the legacy-state cleanup path in
-  `updateScanAsUnflagged`.
+  in-flight or tombstoned scans.
+- **`Core/Data/Database/SpeciesMetadataPersistenceTests.swift`**: Owns the
+  extracted species-metadata actor behavior. It verifies stale Wikipedia and
+  enrichment work cannot overwrite a replacement identification; all supplied
+  enrichment fields persist; Wikipedia uses the effective override identity and
+  reports no-op writes; lookalike recovery clears biological rows across batches
+  only; and identification override, reset, confirmation, sparse historical
+  refresh, and legacy unflagging preserve their prior semantics.
+  `SpeciesMetadataArchitectureTests` scans every Swift file under the production
+  `Merian` and `MerianTests` trees, requiring one focused owner for each of the
+  seven extracted methods and each mirrored behavior test. It also freezes both
+  private helper boundaries, exact framework imports, forbidden dependencies,
+  and the 600-line ceilings for production and behavior-test files.
+- **`Core/Data/Database/NonBiologicalRetentionPersistenceTests.swift`**: Owns
+  the extracted non-biological retention actor behavior. It proves database
+  commit precedes local-path return, an existing cloud-deletion task is reused,
+  missing-row retries remain idempotent, commit-time reclassification preserves
+  biological rows and their media, and bounded purge selects expired records in
+  oldest-first batches. The companion `NonBiologicalRetentionArchitectureTests`
+  scans the complete production and test Swift trees for sole ownership of both
+  methods, both nested values, and all six behavior tests. It also freezes exact
+  framework imports, committed erasure/deletion-count ownership, repository
+  effect routing, forbidden endpoint/Auth/file/UI dependencies, and both
+  600-line focused-file ceilings.
 - **`FileIOActorTests.swift`**: Covers the audio persistence resolver across the
   current supported path shapes: bare Documents filename, bare temp filename,
   and absolute temp path. This is the regression suite for "audio disappears
@@ -2176,6 +2196,10 @@ xcodebuild test-without-building \
   -only-testing:merianTests/InferenceEngineTests \
   -only-testing:merianTests/CircuitBreakerManagerTests \
   -only-testing:merianTests/BackgroundDatabaseActorTests \
+  -only-testing:merianTests/SpeciesMetadataPersistenceTests \
+  -only-testing:merianTests/SpeciesMetadataArchitectureTests \
+  -only-testing:merianTests/NonBiologicalRetentionPersistenceTests \
+  -only-testing:merianTests/NonBiologicalRetentionArchitectureTests \
   -only-testing:merianTests/OfflineQueueManagerTests \
   -only-testing:merianTests/BackgroundTransferOwnershipTests \
   -only-testing:merianTests/BackgroundTransferArchitectureTests \
@@ -2674,7 +2698,7 @@ import, and permission-denial UI require the physical-device checklist in
 - **Core Network integration architecture boundary**:
   `MerianTests/Core/Network/Endpoints/CoreNetworkIntegrationArchitectureTests.swift`
   protects the cross-slice inventory after the focused endpoint extractions. It
-  requires exactly 17 endpoint owners, rejects duplicate endpoint entry points
+  requires exactly 18 endpoint owners, rejects duplicate endpoint entry points
   in `MerianNetworkClient.swift`, applies the 600-line ceiling to every Swift
   owner in `Auth/`, `Endpoints/`, `Inference/`, `Media/`, `Recovery/`, and
   `Transport/` plus the client façade. It requires the exact nine Auth
@@ -3165,10 +3189,19 @@ import, and permission-denial UI require the physical-device checklist in
   refresh/preview rejection, durable-state recovery, cancellation before startup
   location access, and reset during in-flight startup and manual location
   lookups.
-- **`BackgroundDatabaseActorTests.swift` collection projection**: Creates member
-  and unrelated scans plus Favorites, then verifies `collectionSyncPayloads()`
-  returns only the non-Favorites collection's direct, deterministically sorted
-  membership IDs.
+- **`Core/Data/OfflineSync/CollectionSyncTests.swift` collection transaction**:
+  Creates member and unrelated scans plus Favorites, then verifies
+  `collectionSyncSnapshots()` returns only the non-Favorites collection's
+  direct, deterministically sorted membership IDs. The same suite injects the
+  account and remote effects to cover unavailable leases, a stale lease before
+  dispatch, a transition after the response, remote failure, confirmed purge,
+  and a collection reactivated while the request is in flight.
+- **`Core/Network/Endpoints/CollectionSyncEndpointTests.swift` wire mapping**:
+  Executes a private client through the scoped transport and freezes the exact
+  `/sync-collections` path, snake-case JSON, 30-second timeout, and absence of
+  an idempotency key. A classified-401 regression also proves the endpoint
+  returns after one attempt without entering ordinary Auth recovery from inside
+  the durable collection task.
 - **`Core/Data/SpeciesPreferences/SpeciesPreferredNameRepositoryTests.swift`
   preferred-name coverage**: Verifies matching normalized cloud values and
   existing tombstones are converged without an upsert, while real conflicts
@@ -3359,10 +3392,11 @@ The Non-biological suite replaces `NonBiologicalDependencies` with deterministic
 closures. It verifies feature-owned filtering, routing, presentation, and
 mutation orchestration without calling live persistence actors, the file system,
 the app event publisher, the offline queue, or haptics. Core
-`BackgroundDatabaseActor`, `ScanRepository`, `FileIOActor`, and offline-deletion
-tests remain authoritative for their lower-level durability and cleanup
-contracts, including the actor-side eligibility recheck that prevents a stale
-Clear All snapshot from deleting a row reclassified as biological.
+`NonBiologicalRetentionPersistenceTests`, `ScanRepository`, `FileIOActor`, and
+offline-deletion tests remain authoritative for their lower-level durability and
+cleanup contracts, including the actor-side eligibility recheck that prevents a
+stale Clear All snapshot from deleting a row reclassified as biological. The
+retention architecture suite freezes that focused actor/test ownership.
 
 After `make xcodegen` and build-for-testing, run:
 
@@ -3372,7 +3406,8 @@ xcodebuild test-without-building \
   -project Merian.xcodeproj \
   -destination 'id=<booted-simulator-id>' \
   -only-testing:merianTests/NonBiologicalScansViewModelTests \
-  -only-testing:merianTests/BackgroundDatabaseActorTests
+  -only-testing:merianTests/NonBiologicalRetentionPersistenceTests \
+  -only-testing:merianTests/NonBiologicalRetentionArchitectureTests
 ```
 
 Run the focused navigation regression against the same built test products:
@@ -6463,19 +6498,22 @@ The identity test matrix now has two explicit lanes:
   `urlSessionDidFinishEvents` cannot invoke the system completion handler until
   every asynchronous queue/result write is finished. Failed inference dispatch
   must durably return `.inferencing` work to pending before cancellation or
-  return. The same suite must prove stale species metadata cannot overwrite a
-  replacement identification. `InferenceEngineTests.swift` retains the
-  engine-level Auth integration proof, while
-  `InferenceWriteCoordinatorTests.swift` directly uses a cancellation-ignoring
-  active write to prove the fence remains blocked until that task terminates and
-  rejects newly submitted writes while closed. UI tests require the competing
-  buttons to disable and forbid both “Ghost” and “guest session” presentation.
-  `BackgroundDatabaseActorTests.swift` proves collection sync neither invokes
-  Edge when an Auth transition owns the session nor removes a tombstone when a
-  transition begins during an in-flight request. RevenueCat tests admit only
-  `verified` or `verifiedOnDevice` CustomerInfo and prove stable mode rejects
-  promotional and missing/unknown store provenance for the annual alias while
-  the explicitly approved legacy/account lane may admit its account grant.
+  return. `SpeciesMetadataPersistenceTests.swift` must prove stale species
+  metadata cannot overwrite a replacement identification.
+  `InferenceEngineTests.swift` retains the engine-level Auth integration proof,
+  while `InferenceWriteCoordinatorTests.swift` directly uses a
+  cancellation-ignoring active write to prove the fence remains blocked until
+  that task terminates and rejects newly submitted writes while closed. UI tests
+  require the competing buttons to disable and forbid both “Ghost” and “guest
+  session” presentation. `CollectionSyncTests.swift` proves collection sync
+  neither invokes Edge when an Auth transition owns the session nor removes a
+  tombstone when a transition begins during an in-flight request. It also proves
+  a local reactivation cannot be deleted by the stale acknowledged snapshot,
+  while the endpoint suite proves a classified `401` cannot start the Auth
+  transition that would wait on its own collection task. RevenueCat tests admit
+  only `verified` or `verifiedOnDevice` CustomerInfo and prove stable mode
+  rejects promotional and missing/unknown store provenance for the annual alias
+  while the explicitly approved legacy/account lane may admit its account grant.
   Shared authenticated-request tests also prove every recursive retry remains
   pinned to the initiating account and cannot adopt a replacement session.
   SDK/provider log bodies are discarded. Physical-device evidence remains

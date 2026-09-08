@@ -594,12 +594,22 @@ recreates it after reconnect. If iOS suspends or terminates the process, exact
 wall-clock execution is not promised—the foreground/reconnect drain immediately
 re-evaluates all elapsed dates.
 
-When a collection job drains, `BackgroundDatabaseActor.collectionSyncPayloads()`
-fetches only non-Favorites `ScanCollection` rows and prefetches their direct
-inverse `scans` relationships. It emits sorted scan IDs for deterministic
-retries; it does not page through the full `LocalScanRecord` table. The
-`sync-collections` Edge function compares that desired snapshot with current
-membership and writes only the server-side delta.
+When a collection job drains, `CollectionSyncService` holds one account-work
+lease across local projection, remote replacement, and acknowledgement commit.
+`BackgroundDatabaseActor.collectionSyncSnapshots()` fetches only non-Favorites
+`ScanCollection` rows and prefetches their direct inverse `scans` relationships.
+It emits sorted scan IDs for deterministic retries; it does not page through the
+full `LocalScanRecord` table. The service revalidates the lease before dispatch
+and after the response, while `MerianNetworkClient+Collections.swift` owns the
+exact wire mapping and request. The `sync-collections` Edge function compares
+that desired snapshot with current membership and writes only the server-side
+delta. A fresh database actor then purges only rows still marked for deletion,
+preserving a collection reactivated while the request was in flight. Collection
+sync explicitly defers classified-401 session recovery to its durable retry
+boundary. Starting recovery inside this task would make Auth quiescence await
+the collection task and its outer lease while that task awaited the same
+recovery. The failed job therefore retains its desired state and may retry after
+Auth stabilizes; other client endpoints keep ordinary classified-401 recovery.
 
 ### 4. Background Processing & Batch Uploads
 
@@ -1716,14 +1726,18 @@ disconnected.
    imports any legacy `UserDefaultsKeys.needsCollectionSync` bit into that job
    record, then the shared `syncCollectionsIfPending()` /
    `drainCollectionSyncIfPossible()` single-flight path pushes
-   `SyncCollectionPayload` arrays to the `sync-collections` Edge function. The
-   upload is wrapped in `BackgroundTaskWrapper.execute(name: "CollectionSync")`
-   so iOS grants additional background time if the user closes the app
-   immediately after creating a collection. Repeated automatic push failures use
-   the same bounded retry budget as other offline jobs; after the budget is
-   exhausted, the coalesced job moves to `needsAttention`. A later local
-   collection mutation re-queues the job and resets that retry budget because it
-   represents new user intent.
+   `CollectionSyncSnapshot` arrays through `CollectionSyncService` and the
+   `MerianNetworkClient+Collections.swift` endpoint owner. The private network
+   DTO preserves the `sync-collections` Edge contract. The upload is wrapped in
+   `BackgroundTaskWrapper.execute(name: "CollectionSync")` so iOS grants
+   additional background time if the user closes the app immediately after
+   creating a collection. Repeated automatic push failures use the same bounded
+   retry budget as other offline jobs; after the budget is exhausted, the
+   coalesced job moves to `needsAttention`. A later local collection mutation
+   re-queues the job and resets that retry budget because it represents new user
+   intent. A classified `401` also returns through this durable failure path
+   rather than starting Auth recovery from inside the task that Auth recovery
+   must first drain.
 
    **Diff-based Edge sync**: The `sync-collections` Deno function handles
    explicitly passed soft-deletions (`is_deleted: true` or `isDeleted: true`)
@@ -1766,10 +1780,12 @@ disconnected.
    the UI, `CollectionMutationService` assigns the local marker and executes its
    injected `ModelContext.save()` boundary before enqueueing sync. It restores
    the previous value, rolls back, and suppresses downstream work when that save
-   throws. Once an acknowledged payload contains `is_deleted: true`,
-   `BackgroundDatabaseActor` hard-deletes the matching local tombstone. The
-   released V50 Swift property name is retained only in the frozen fixture; the
-   V51 active model owns the durable boundary.
+   throws. Once an acknowledged payload contains `is_deleted: true`, a fresh
+   `BackgroundDatabaseActor` hard-deletes the matching local row only if it is
+   still marked `isPendingDeletion`. A concurrent local reactivation therefore
+   survives the stale acknowledgement. The released V50 Swift property name is
+   retained only in the frozen fixture; the V51 active model owns the durable
+   boundary.
 
    The V50 repair froze the released graph and mapped the active non-reserved
    property with `@Attribute(originalName:)`. V51 retains that field and wire

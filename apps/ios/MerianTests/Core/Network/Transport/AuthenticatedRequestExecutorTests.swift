@@ -105,6 +105,40 @@ struct AuthenticatedRequestExecutorTests {
         })
     }
 
+    @Test func unauthorizedRecoveryCanBeDeferredToDurableRetryOwner()
+        async throws {
+        let userID = UUID()
+        let probe = AuthenticatedRequestExecutorProbe(
+            authUserIDs: [userID],
+            outcomes: [
+                .response(
+                    statusCode: 401,
+                    data: Data(
+                        #"{"code":"invalid_session_token"}"#.utf8
+                    )
+                )
+            ],
+            refreshResult: true
+        )
+
+        do {
+            _ = try await makeExecutor(probe: probe).execute(try makeRequest(
+                function: "sync-collections",
+                allowsUnauthorizedSessionRecovery: false
+            ))
+            Issue.record("Expected deferred unauthorized failure")
+        } catch MerianError.httpError(let statusCode, _) {
+            #expect(statusCode == 401)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+
+        #expect(probe.refreshTargets.isEmpty)
+        #expect(probe.attempts.count == 1)
+        #expect(probe.resetGhostSessionCount == 0)
+        #expect(probe.clearLocalSessionCount == 0)
+    }
+
     @Test func unavailableRouteUsesBoundedOneTwoFourSecondSchedule()
         async throws {
         let userID = UUID()
@@ -287,7 +321,8 @@ struct AuthenticatedRequestExecutorTests {
         idempotencyKey: String? = nil,
         onRequestBodySent: (@Sendable () -> Void)? = nil,
         authTransitionOwner: AuthTransitionToken? = nil,
-        expectedAuthUserID: UUID? = nil
+        expectedAuthUserID: UUID? = nil,
+        allowsUnauthorizedSessionRecovery: Bool = true
     ) throws -> AuthenticatedRequestExecutor.Request {
         let url = try #require(URL(
             string: "https://example.supabase.co/functions/v1/\(function)"
@@ -299,6 +334,8 @@ struct AuthenticatedRequestExecutorTests {
             timeoutInterval: 37,
             idempotencyKey: idempotencyKey,
             allowsTransientTransportRetry: true,
+            allowsUnauthorizedSessionRecovery:
+                allowsUnauthorizedSessionRecovery,
             onRequestBodySent: onRequestBodySent,
             authTransitionOwner: authTransitionOwner,
             expectedAuthUserID: expectedAuthUserID

@@ -1098,6 +1098,22 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(executor.contains("case .ordinary:"))
         #expect(executor.contains("case let .transitionOwned(owner):"))
         #expect(executor.contains("ownedBy: owner"))
+        #expect(executor.contains(
+            "request.allowsUnauthorizedSessionRecovery"
+        ))
+        #expect(client.contains(
+            "allowsUnauthorizedSessionRecovery: Bool = true"
+        ))
+        let unauthorizedRecoveryOptOutOwners = Set(
+            try networkSources().compactMap { path, source in
+                source.contains("allowsUnauthorizedSessionRecovery: false")
+                    ? path
+                    : nil
+            }
+        )
+        #expect(unauthorizedRecoveryOptOutOwners == [
+            "Endpoints/MerianNetworkClient+Collections.swift"
+        ])
         #expect(dispatcher.contains("final class AuthenticatedTransportDispatcher"))
         #expect(dispatcher.contains("private let sessionTransport: PinnedNetworkTransport"))
         #expect(dispatcher.contains("private func applyingAuthHeaders("))
@@ -1244,6 +1260,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             "retryKeepsExactBodyAndInitiatingAccountBinding",
             "refreshableUnauthorizedAppliesOrdinaryRefreshAndRetriesOnce",
             "transitionOwnedUnauthorizedUsesItsExactRefreshTarget",
+            "unauthorizedRecoveryCanBeDeferredToDurableRetryOwner",
             "unavailableRouteUsesBoundedOneTwoFourSecondSchedule",
             "paymentRequiredRunsEntitlementRecoveryBeforeReturningHTTPError",
             "serverConsentRejectionClosesConsentGateWithoutRetry",
@@ -1278,6 +1295,7 @@ struct CoreNetworkIntegrationArchitectureTests {
     private static let endpointOwnerFilenames: Set<String> = [
         "MerianNetworkClient+AccountDeletion.swift",
         "MerianNetworkClient+CommunityIdentification.swift",
+        "MerianNetworkClient+Collections.swift",
         "MerianNetworkClient+ExploreBrowsing.swift",
         "MerianNetworkClient+ExploreInteractions.swift",
         "MerianNetworkClient+ExplorePostManagement.swift",

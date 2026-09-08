@@ -2121,10 +2121,18 @@ selection but before an inline purge deleted the row.
 The iOS app mirrors this retention boundary locally.
 `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)` is invoked on
 foreground and when `NonBiologicalScansView` opens. It delegates to
-`BackgroundDatabaseActor.purgeExpiredNonBiologicalScans(cutoffDate:)`, which
-fetches a bounded batch of expired local non-biological records, deletes rows,
-queues `PendingCloudDeletionTask` tombstones, commits SwiftData first, and only
-then returns local media paths for `FileIOActor` cleanup.
+`BackgroundDatabaseActor.purgeExpiredNonBiologicalScans(cutoffDate:)`, which is
+implemented in the focused persistence-only
+`BackgroundDatabaseActor+NonBiologicalRetention.swift` extension. It fetches a
+bounded batch of expired local non-biological records, deletes rows, queues
+`PendingCloudDeletionTask` tombstones, commits SwiftData first, and only then
+returns local media paths for `FileIOActor` cleanup. Its result separates the
+number of accepted erasures from the number of rows actually deleted.
+`ScanRepository` uses accepted erasures to drain local paths and pending cloud
+deletions, but publishes `scanLibraryChanged` only when a row was removed. A row
+that disappeared after selection therefore completes idempotent cleanup, while a
+candidate reclassified as biological produces neither cleanup nor a false
+library mutation.
 
 Explore audio moderation attestations are database metadata, not R2 media.
 Deleting a scan or its audio removes the media object and public references but
@@ -2590,6 +2598,16 @@ and applies a diff-based delta against the server. Key bounds and IDOR guards:
   unbounded `scan_ids` array would create a massive PostgREST `.in()` validation
   query and large membership delta writes. Values over this limit are rejected
   with `HTTP 400` before any DB access.
+- **Durable iOS caller boundary**: `OfflineQueueManager` owns the coalesced job,
+  revision, retry, and single-flight state; `CollectionSyncService` owns the
+  account-lease transaction; a focused database actor extension owns immutable
+  relationship projection and commit-time tombstone revalidation; and
+  `MerianNetworkClient+Collections.swift` alone owns the private wire DTO and
+  request. The commit refetches through a fresh actor and purges only rows still
+  marked for deletion, so an in-flight local reactivation survives. Collection
+  sync returns a classified `401` to its durable retry owner because ordinary
+  Auth recovery must first quiesce this exact task and outer lease; other client
+  endpoints retain the shared recovery default.
 - **Atomic ownership admission**: service-only
   `upsert_owned_collections(p_user_id, p_collections)` performs the ownership
   decision inside the same `INSERT ... ON CONFLICT ... DO UPDATE` statement as

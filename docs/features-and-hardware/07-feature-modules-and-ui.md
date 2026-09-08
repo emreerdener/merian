@@ -423,8 +423,10 @@ production Shell and Library file remains below the 600-line review guard.
   rematerialize its previous value. The Insight sheet retains the same
   save-first contract at its own feature boundary. Successful changes trigger
   the `OfflineQueueManager.enqueueCollectionSync()` pipeline, which drains
-  `SyncCollectionPayload` arrays against the upstream `sync-collections`
-  Supabase Edge Function through a shared single-flight sync path.
+  immutable `CollectionSyncSnapshot` arrays through `CollectionSyncService` and
+  the `MerianNetworkClient+Collections.swift` endpoint owner. The manager keeps
+  the shared single-flight and dirty-revision state; the private network DTO
+  preserves the upstream `sync-collections` wire contract.
 - **Collection-Deletion Persistence**: The active V51 `ScanCollection` model
   names its application soft-delete field `isPendingDeletion` and maps it to the
   released `isDeleted` column with `@Attribute(originalName:)`. The released V50
@@ -458,7 +460,13 @@ production Shell and Library file remains below the 600-line review guard.
   after `MerianConfig.nonBiologicalRetentionDays` through the feature's injected
   service and `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)`
   on app foreground and again when the destination opens, preserving the
-  save-first tombstone and file-cleanup contract.
+  save-first tombstone and file-cleanup contract. The focused
+  `BackgroundDatabaseActor+NonBiologicalRetention.swift` extension owns the
+  bounded SwiftData selection and atomic record/tombstone commit. Its retention
+  result distinguishes accepted erasures from rows actually deleted;
+  `ScanRepository` drains files and cloud tombstones for the first count and
+  publishes `scanLibraryChanged` only for the second. The feature service owns
+  purge initiation plus user-requested bulk-deletion and presentation effects.
 - **Correction Reanalysis Flow**: `NonBiologicalScansView` no longer mutates an
   existing record into a biological placeholder. The `Reanalyze as biological`
   action opens a local confirmation first (`Reanalyze identification?`)

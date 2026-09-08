@@ -265,8 +265,8 @@ assert_suite_has_passed_test_case \
   "generatedConfidenceZeroBackgroundResultIsTerminal"
 assert_suite_has_passed_test_case \
   "Background HTTP-success disposition" \
-  "OfflineQueueManagerTests" \
-  "Offline Queue Manager Tests" \
+  "BackgroundInferencePolicyTests" \
+  "Background Inference Policy" \
   "backgroundInferencePreservesRecoverableHTTPFailures"
 assert_suite_has_passed_test_case \
   "Inference replay process single-flight" \
@@ -275,8 +275,8 @@ assert_suite_has_passed_test_case \
   "inferenceReplayReconciliationCoalescesConcurrentWakeSources"
 assert_suite_has_passed_test_case \
   "Retryable status/upload deadlock dispatch" \
-  "OfflineQueueManagerTests" \
-  "Offline Queue Manager Tests" \
+  "BackgroundInferencePolicyTests" \
+  "Background Inference Policy" \
   "scheduledServerFailureRetryBreaksStatusUploadDeadlock"
 assert_suite_has_passed_test_case \
   "Durable server-failure retry latch" \

@@ -373,6 +373,10 @@ TestFlight, App Store, support, and QA.
 
 - Non-biological scan notices now link directly to their collection in the scans
   library.
+- Automatic local retention now completes pending file and cloud cleanup for an
+  already-missing scan without announcing a false library mutation. A scan
+  reclassified as biological during cleanup is preserved without cleanup, sync,
+  or refresh side effects.
 
 ### Field Trip Card Layout
 

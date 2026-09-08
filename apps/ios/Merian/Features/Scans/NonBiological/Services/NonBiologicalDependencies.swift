@@ -59,7 +59,7 @@ struct NonBiologicalDependencies {
                 let payloads = snapshots.map {
                     BackgroundDatabaseActor.ScanErasurePayload(
                         id: $0.id,
-                        imagePaths: $0.mediaPaths
+                        mediaPaths: $0.mediaPaths
                     )
                 }
                 return try await actor.bulkDeleteNonBiologicalScans(
@@ -67,7 +67,7 @@ struct NonBiologicalDependencies {
                 )
             },
             deleteFiles: { paths in
-                await FileIOActor.shared.deleteImages(at: paths)
+                await FileIOActor.shared.deleteFiles(at: paths)
             },
             sendLibraryChanged: {
                 container.appEventPublisher.send(.scanLibraryChanged)

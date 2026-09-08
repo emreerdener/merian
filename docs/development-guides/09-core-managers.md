@@ -1558,6 +1558,18 @@ consults that Keychain entry.
   `Core/Network/Recovery/`; queue/deletion scheduling remains in Core Data. See
   the
   [scan lifecycle ownership and matrix](../../apps/ios/Merian/Core/Network/README.md#scan-lifecycle-endpoints-and-decoding).
+- `MerianNetworkClient+Collections.swift` is the eighteenth endpoint owner. It
+  privately maps `CollectionSyncSnapshot` values to the unchanged snake-case
+  `/sync-collections` body, uses an explicit 30-second client deadline, adds no
+  idempotency key, and ignores successful response bytes. It defers classified-
+  401 recovery to the durable retry owner because Auth recovery must first drain
+  the same collection task and outer lease; all other encoded-body callers keep
+  the bridge's default recovery behavior. `CollectionSyncService` owns the outer
+  account-work transaction; `OfflineQueueManager` retains durable job,
+  dirty-revision, and single-flight state; and the focused database actor
+  extension owns relationship projection plus commit-time tombstone
+  revalidation. See the
+  [collection endpoint boundary](../../apps/ios/Merian/Core/Network/README.md#collection-sync-endpoint).
 - `MerianNetworkClient+ScanEnrichment.swift` owns deferred context and
   enrichment, `MerianNetworkClient+Exports.swift` owns export intake, and
   `MerianNetworkClient+ProductFeedback.swift` owns both product feedback
@@ -1642,7 +1654,7 @@ consults that Keychain entry.
   [ownership guide](../../apps/ios/Merian/Core/Network/README.md#scan-publication-and-owned-recovery)
   and
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#scan-publication-and-owned-recovery-verification).
-- `MerianNetworkClient+Inference.swift` is the seventeenth endpoint owner. It
+- `MerianNetworkClient+Inference.swift` owns the inference endpoint slice. It
   retains the existing prewarm, `/identify` compatibility request, multimodal
   request construction, consent boundary, 90-second direct path, and 15-second
   queue-backed path that suppresses the shared transient-`URLError` replay.
@@ -1660,7 +1672,7 @@ consults that Keychain entry.
   and
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#inference-verification).
 - `CoreNetworkIntegrationArchitectureTests` owns the cross-slice Network source
-  contract. It freezes the exact 17 endpoint owners, rejects aggregate method
+  contract. It freezes the exact 18 endpoint owners, rejects aggregate method
   duplication, enforces the 600-line owner ceiling across Auth, Endpoint,
   Inference, Media, Recovery, Transport, and the client façade, and requires the
   exact nine Auth foundation paths plus six Transport files. The Auth guard

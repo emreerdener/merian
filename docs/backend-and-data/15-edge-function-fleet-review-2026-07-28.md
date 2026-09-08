@@ -116,7 +116,8 @@ acceptance still requires both consumers to execute on the exact hosted
 candidate in addition to non-skipped database execution and hosted real-token
 wrapper evidence.
 
-The only direct iOS SDK callers were reviewed separately:
+The direct iOS SDK callers present when this review was performed were reviewed
+separately:
 
 - collection sync sends a stable set-state payload and is designed to preserve
   local tombstones until a confirmed response, then retry on the next sync
@@ -140,6 +141,16 @@ reference a missing or unconfigured route.
 > save/refetch. The earlier source-only rename preserves the released V50
 > collection shape, and the subsequent V50→V51 preferred-name migration does not
 > alter this Edge payload or its deletion semantics.
+
+> [!NOTE]
+> **September 2026 client-ownership correction:** collection sync no longer
+> invokes the Supabase Functions SDK directly. The current iOS path keeps its
+> durable job and single-flight task in `OfflineQueueManager`, runs snapshot,
+> request, and commit through `CollectionSyncService`, and sends the unchanged
+> payload through `MerianNetworkClient+Collections.swift` over the shared pinned
+> transport. A fresh actor conditionally purges only tombstones still pending at
+> acknowledgement time, and classified `401` recovery is deferred to the durable
+> job to avoid making Auth quiescence wait on its own task and lease.
 
 ## Validation Evidence
 

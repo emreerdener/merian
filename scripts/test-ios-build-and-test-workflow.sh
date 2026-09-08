@@ -998,7 +998,10 @@ assert_file_contains "$ui_test_source" 'app.buttons["FieldChatToolbarButton"]'
 assert_file_contains "$ui_test_source" 'app.buttons["InsightShareButton"]'
 
 protected_case_count=0
-while IFS="|" read -r protected_case_name protected_display_name; do
+while IFS="|" read -r \
+  protected_case_name \
+  protected_display_name \
+  protected_suite_name; do
   [[ -n "$protected_case_name" ]] \
     || fail "Critical-result validator emitted an empty protected test-case name."
 
@@ -1043,12 +1046,19 @@ while IFS="|" read -r protected_case_name protected_display_name; do
     fail \
       "Critical-result validator display name is not bound to $protected_case_name: $protected_display_name"
   fi
+  if ! grep -Eq \
+    "^[[:space:]]*(final[[:space:]]+)?(struct|class|extension|enum)[[:space:]]+${protected_suite_name}([[:space:]:{]|$)" \
+    "$protected_declaration_file"; then
+    fail \
+      "Critical-result validator maps $protected_case_name to $protected_suite_name, but that suite is not declared in $protected_declaration_file."
+  fi
   protected_case_count=$((protected_case_count + 1))
 done < <(
   awk '
     /assert_suite_has_passed_test_case \\/ {
       in_call = 1
       quoted_count = 0
+      primary_suite = ""
       required_case = ""
       alternate_case = ""
       next
@@ -1056,14 +1066,16 @@ done < <(
     in_call && match($0, /"[^"]+"/) {
       value = substr($0, RSTART + 1, RLENGTH - 2)
       quoted_count += 1
-      if (quoted_count == 4) {
+      if (quoted_count == 2) {
+        primary_suite = value
+      } else if (quoted_count == 4) {
         required_case = value
       } else if (quoted_count == 5) {
         alternate_case = value
       }
     }
     in_call && $0 !~ /\\[[:space:]]*$/ {
-      printf "%s|%s\n", required_case, alternate_case
+      printf "%s|%s|%s\n", required_case, alternate_case, primary_suite
       in_call = 0
     }
   ' "$critical_results_check"

@@ -284,6 +284,13 @@ the deletion-sync request. Failure publishes no library event or sync request.
 The event remains a loss-tolerant refresh hint; persisted tombstones and rows
 remain the durable authority.
 
+Automatic non-biological retention has a narrower event rule. Its actor result
+separates accepted erasure work from rows actually deleted. `ScanRepository`
+uses accepted work to finish file cleanup and pending-deletion sync, including
+the idempotent already-missing-row case, but emits `scanLibraryChanged` only
+when `deletedRecordCount` is positive. A candidate rejected because it became
+biological emits no cleanup, sync, or library event.
+
 Local follow-up sheets use `pendingLocalSheet` and mount only after the current
 root sheet's `onDismiss`, provided no queued `AppRoute` has precedence.
 Delivery-critical routes defer through the coordinator rather than sleeping for

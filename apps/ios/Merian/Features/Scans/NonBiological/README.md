@@ -41,13 +41,14 @@ replacement pipeline remains authoritative.
 ## Bulk deletion
 
 Delete All copies record IDs and ordered media paths into lightweight erasure
-snapshots on the main actor. The service passes those values to
-`BackgroundDatabaseActor`, which re-fetches each ID and skips any row that was
-reclassified as biological after the snapshot was taken. It then sends only the
-committed deletion paths to `FileIOActor`. Only after database and file work
-finish does the view model publish `scanLibraryChanged`, success feedback, a
-typed toast, and pending-deletion sync. Failure restores interaction and
-suppresses commit-only effects.
+snapshots on the main actor. The service passes those values to the focused
+`Core/Data/Database/BackgroundDatabaseActor+NonBiologicalRetention.swift`
+extension, which re-fetches each ID and skips any row that was reclassified as
+biological after the snapshot was taken. It then sends only the committed
+deletion paths to `FileIOActor`. Only after database and file work finish does
+the view model publish `scanLibraryChanged`, success feedback, a typed toast,
+and pending-deletion sync. Failure restores interaction and suppresses
+commit-only effects.
 
 The compact progress badge has hit testing disabled. The affected grid and
 destructive toolbar action are disabled during the operation, while unrelated
@@ -58,10 +59,17 @@ navigation chrome remains available.
 `NonBiologicalScansViewModelTests` locks copy and route parity, Shell-record
 filtering, refresh identity, mixed-media erasure mapping, ordered completion
 effects, failure restoration, overlap rejection, retention purge, correction
-routing, and single-delete feedback.
-`BackgroundDatabaseActorTests.testBulkDeleteNonBiologicalScansRevalidatesEligibilityBeforeCommit`
-locks the commit-time fence that preserves a scan reclassified as biological,
-its local paths, and the absence of a cloud-deletion task. The UI regression
+routing, and single-delete feedback. `NonBiologicalRetentionPersistenceTests`
+locks the commit-before-file boundary, idempotent cloud-tombstone reuse,
+missing-row retry cleanup, expired-only selection, oldest-first batch limits,
+and the commit-time fence that preserves a scan reclassified as biological, its
+local paths, and the absence of a cloud-deletion task. The purge result counts
+accepted erasure work separately from committed row deletions: an accepted
+missing row still drains its local paths and cloud tombstone, a real row
+deletion also publishes the library change, and a rejected stale candidate does
+neither. Its architecture companion freezes the focused production and test
+owners plus repository effect routing across the complete iOS Swift trees. The
+UI regression
 `merianUITests.testNonBiologicalCollectionBackReturnsToCollectionsTab` seeds the
 typed destination, uses the native Back action, verifies that Collections stays
 selected, and confirms that the Non-biological card is visible and hittable.

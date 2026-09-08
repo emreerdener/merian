@@ -2080,23 +2080,26 @@ Users can add or remove the current scan from any `ScanCollection`:
 func toggleScanInCollection(
     _ collection: ScanCollection,
     modelContext: ModelContext,
-    expectedScanId: String?
+    expectedScanId: String?,
+    expectedGeneration: UInt64?
 ) {
+    // revalidates the presented record ID and generation
     // toggles record.collections membership
-    // saves modelContext
-    // calls OfflineQueueManager.shared.enqueueCollectionSync() for immediate cloud push
-    // fires a toast message
+    // saves or rolls back the ModelContext
+    // invokes the injected collection-sync and feedback effects after save
 }
 ```
 
 "New Collection" is handled by the `newCollectionAlert` view modifier attached
 to `InsightSheetView`. It creates a `ScanCollection` in SwiftData with a UUID
-immediately, saves locally, and then schedules cloud sync through
-`OfflineQueueManager`'s shared collection drain. The alert captures the exact
-local record ID and presentation generation when it opens and passes that
-immutable record ID into the modifier. The modifier revalidates `canCreate`
-before inserting or attaching anything, so even an alert action racing dismissal
-cannot mutate an obsolete presentation.
+immediately, saves locally, and then schedules cloud sync through the shared
+`CollectionActionAlertModifier` and its `CollectionMutationService`. The
+service's live dependency delegates to `OfflineQueueManager`'s shared collection
+drain; the view and modifier do not resolve that manager directly. The alert
+captures the exact local record ID and presentation generation when it opens and
+passes that immutable record ID into the modifier. The modifier revalidates
+`canCreate` before inserting or attaching anything, so even an alert action
+racing dismissal cannot mutate an obsolete presentation.
 
 ---
 

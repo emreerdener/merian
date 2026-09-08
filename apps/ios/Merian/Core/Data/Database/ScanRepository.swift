@@ -451,10 +451,14 @@ final class ScanRepository {
 
         do {
             let result = try await actor.purgeExpiredNonBiologicalScans(cutoffDate: cutoffDate)
-            guard result.deletedRecordCount > 0 else { return }
+            // Missing rows can still commit file/tombstone work.
+            guard result.committedErasureCount > 0 else { return }
 
             await FileIOActor.shared.deleteFiles(at: result.localMediaPaths)
-            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
+            // Refresh projections only when this transaction removed a row.
+            if result.deletedRecordCount > 0 {
+                AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
+            }
             await offlineQueue.syncPendingDeletions()
             MerianLog.data.debug(
                 "purgeExpiredNonBiologicalScans: purged \(result.deletedRecordCount, privacy: .public) records and \(result.localMediaPaths.count, privacy: .public) local media paths"

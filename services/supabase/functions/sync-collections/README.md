@@ -29,11 +29,12 @@ may be reparented or joined across owners.
 
 The canonical current iOS payload uses `is_deleted`; the route also accepts
 `isDeleted` as a backwards-compatible alias for historical Swift encoder output.
-Senders do not need to include both keys. In the active iOS V50 model,
+Senders do not need to include both keys. In the active iOS V51 model,
 `ScanCollection.isPendingDeletion` maps to the released SwiftData `isDeleted`
 column with `@Attribute(originalName:)` and is explicitly projected to
-`is_deleted`. This source-only rename does not change the persisted V50 model or
-the wire contract. Bounds are enforced before database work:
+`is_deleted`. The released V50 graph remains frozen as a migration fixture; the
+V50→V51 preferred-name migration changes neither the collection shape nor this
+wire contract. Bounds are enforced before database work:
 
 - at most 200 collections per request; and
 - at most 5,000 `scan_ids` per collection.
@@ -53,6 +54,33 @@ Success remains additive and does not enumerate skipped IDs:
 
 Rejected collection IDs and unavailable memberships are emitted only as bounded
 structured server warnings for operational monitoring.
+
+## iOS caller and durable retry boundary
+
+The iOS feature never invokes this route directly. `OfflineQueueManager` owns
+the coalesced `collection-sync` job, dirty revision, retry budget, and
+single-flight task. `CollectionSyncService` holds one account-work lease across
+snapshot, request, and acknowledgement commit;
+`BackgroundDatabaseActor+CollectionSync.swift` projects the immutable
+`CollectionSyncSnapshot` values and conditionally purges acknowledged
+tombstones; and `MerianNetworkClient+Collections.swift` alone maps those values
+to this route's private request DTO.
+
+The client request has a 30-second deadline, no idempotency key, no automatic
+ambiguous mutation replay, and treats any `2xx` response as acknowledgement.
+Commit uses a fresh SwiftData actor and deletes only rows that are still marked
+`isPendingDeletion`, so a collection reactivated while the request is in flight
+survives and its newer dirty revision remains queued. A classified `401` is
+returned to the durable job instead of starting session recovery from inside the
+collection task: Auth recovery must quiesce that same task and its outer lease
+before changing sessions. Other authenticated iOS endpoints retain the shared
+transport's ordinary classified-401 recovery.
+
+See the canonical
+[iOS offline-sync pipeline](../../../../docs/backend-and-data/01-offline-sync-pipeline.md#the-collections-pipeline)
+and
+[wire contract](../../../../docs/backend-and-data/05-api-contracts.md#deno-sync-collections-edge-node)
+for the complete cross-surface boundary.
 
 ## Owner-safe reconciliation
 
@@ -143,4 +171,8 @@ Regression coverage must prove:
 Source and migration-shape tests live beside this route and under
 `functions/_tests/collectionOwnershipMigrationContract.test.ts`. Executable
 catalog/ACL/RLS behavior lives in `tests/collection_ownership_security.sql` and
-must run against a fresh disposable database before promotion.
+must run against a fresh disposable database before promotion. On iOS,
+`CollectionSyncTests` owns snapshot, lease, acknowledgement, reactivation, and
+durable-retry behavior; `CollectionSyncEndpointTests` owns exact request mapping
+and classified-401 deferral; and `AuthenticatedRequestExecutorTests` locks the
+shared opt-out seam without changing other endpoints' default recovery.

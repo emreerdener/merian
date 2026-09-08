@@ -135,11 +135,14 @@ final class MerianNetworkClient {
 
     /// Encodes a typed request body and returns bytes for domain-specific validation.
     /// URL construction, Auth, replay, and cancellation stay behind this boundary.
+    /// Durable work that is itself drained by Auth transitions can defer
+    /// classified-401 recovery to avoid recursively waiting for its own task.
     func performAuthenticatedEncodedJSONPost<Body: Encodable>(
         function: String,
         body: Body,
         timeoutInterval: TimeInterval,
-        idempotencyKey: String? = nil
+        idempotencyKey: String? = nil,
+        allowsUnauthorizedSessionRecovery: Bool = true
     ) async throws -> Data {
         let url = try endpointURL(function)
         let bodyData = try JSONEncoder().encode(body)
@@ -148,7 +151,9 @@ final class MerianNetworkClient {
             method: "POST",
             body: bodyData,
             timeoutInterval: timeoutInterval,
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            allowsUnauthorizedSessionRecovery:
+                allowsUnauthorizedSessionRecovery
         )
         return data
     }
@@ -476,6 +481,7 @@ final class MerianNetworkClient {
         timeoutInterval: TimeInterval = 30.0,
         idempotencyKey: String? = nil,
         allowsTransientTransportRetry: Bool = true,
+        allowsUnauthorizedSessionRecovery: Bool = true,
         onRequestBodySent: (@Sendable () -> Void)? = nil,
         authTransitionOwner: AuthTransitionToken? = nil,
         expectedAuthUserID: UUID? = nil
@@ -504,6 +510,8 @@ final class MerianNetworkClient {
                 idempotencyKey: idempotencyKey,
                 allowsTransientTransportRetry:
                     allowsTransientTransportRetry,
+                allowsUnauthorizedSessionRecovery:
+                    allowsUnauthorizedSessionRecovery,
                 onRequestBodySent: onRequestBodySent,
                 authTransitionOwner: authTransitionOwner,
                 expectedAuthUserID: expectedAuthUserID

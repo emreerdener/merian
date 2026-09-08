@@ -81,8 +81,9 @@ extension OfflineQueueManager {
 
             let task = BackgroundTaskWrapper.execute(name: "CollectionSync") { [weak self] _ in
                 guard let self else { return false }
-                let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                let success = await dbActor.pushCollectionsToEdge()
+                let success = await CollectionSyncService(
+                    dependencies: .live
+                ).sync(modelContainer: container)
 
                 await MainActor.run {
                     self.finishCollectionSyncAttempt(success: success, capturedRevision: capturedRevision)

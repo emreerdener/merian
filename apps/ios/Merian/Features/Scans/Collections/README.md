@@ -62,8 +62,14 @@ a singleton or broad protocol.
   boundary and only purges locally after the matching cloud acknowledgement.
 
 The feature does not call a network endpoint directly. The injected live sync
-closure delegates to `OfflineQueueManager`, whose durable job and
-`/sync-collections` behavior are documented in the
+closure delegates to `OfflineQueueManager`, which owns the durable job,
+dirty-revision, retry, and single-flight state. `CollectionSyncService` owns the
+account-lease transaction, the focused database actor extension owns snapshot
+projection and acknowledgement-only purge, and
+`MerianNetworkClient+Collections.swift` owns the private wire DTO and request. A
+classified `401` returns to the durable job instead of starting Auth recovery
+inside the task and outer lease that recovery must first drain. The complete
+`/sync-collections` behavior is documented in the
 [offline sync pipeline](../../../../../../docs/backend-and-data/01-offline-sync-pipeline.md#the-collections-pipeline).
 
 ## SwiftData Tombstone Contract (V51)

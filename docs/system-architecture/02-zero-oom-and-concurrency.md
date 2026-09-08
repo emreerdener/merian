@@ -94,11 +94,12 @@ zombies.
 Repeating `FetchDescriptor` and localized `try? modelContext.save()` blocks
 across different inference review mutations (`updateScanWithOverride`,
 `updateScanAsUnflagged`) injected unnecessary SQLite boilerplate and compilation
-overhead. These mutations are consolidated efficiently via a shared
-`private func mutateScan(id: String, mutation: (LocalScanRecord) -> Void)`. By
-stripping repeated fetches and saves, localized data mutations are isolated
-within primitive Swift closures, protecting background threads and streamlining
-SQL execution performance.
+overhead. These mutations are consolidated in
+`BackgroundDatabaseActor+SpeciesMetadata.swift` via a shared private
+`mutateScan(id:expectedScientificName:mutation:)`. By stripping repeated fetches
+and saves, localized data mutations are isolated within primitive Swift
+closures, protecting background threads and streamlining SQL execution
+performance without widening the helper beyond its focused owner.
 
 The scan-creation paths follow the same bounded abstraction rule without merging
 modality behavior. Offline result processing, live visual persistence, and
@@ -109,8 +110,9 @@ nonvisual persistence now share `resolveSpeciesIdAndDiscoveryStatus(...)`,
 overwrite an existing local record; live and nonvisual saves use
 `insertReplacingLocalScanRecord(...)` so a richer foreground inference can
 replace a queued skeleton while preserving the existing species UUID and staged
-field notes. The helpers stay private to `BackgroundDatabaseActor`, keeping
-SwiftData fetch/delete/insert work on the actor executor.
+field notes. Those scan-creation helpers stay private to the aggregate
+`BackgroundDatabaseActor.swift`, keeping SwiftData fetch/delete/insert work on
+the actor executor; they are separate from the species-metadata mutation helper.
 
 Those scan-creation paths also share `ScanFinalizationCoordinator`, a tiny
 actor-level lock keyed by stable scan ID. The lock is required because live
@@ -147,24 +149,35 @@ preserves the previous substring semantics while moving the expensive work from
 "full library per keypress" to "bounded candidate verification per keypress",
 including single-character queries that used to fall back to the entire library.
 
-The same principle applies to `BackgroundDatabaseActor.pushCollectionsToEdge()`,
-which previously fetched every `ScanCollection` unconditionally including
-Favorites (which is never synced). The fetch now uses a
-`#Predicate { $0.name != "Favorites" }` to exclude Favorites at the SQLite
-layer. `propertiesToFetch` is intentionally absent: `ScanCollection` has only
-three stored attributes (`id`, `name`, `createdAt`) so there is nothing to skip,
-and partial-attribute mode can prevent the `scans` relationship fault from
-firing correctly, causing `scan_ids` to be serialised as `[]`.
+The same principle applies to
+`BackgroundDatabaseActor.collectionSyncSnapshots()`. Its focused actor extension
+fetches the relationship owners directly and excludes Favorites (which is never
+synced) at the SQLite layer with `#Predicate { $0.name != "Favorites" }`.
+`propertiesToFetch` is intentionally absent: `ScanCollection` has only three
+stored attributes (`id`, `name`, `createdAt`) so there is nothing to skip, and
+partial-attribute mode can prevent the `scans` relationship fault from firing
+correctly, causing `scan_ids` to be serialised as `[]`.
 
-`pushCollectionsToEdge()` projects membership from the exact relationship owners
-it is synchronizing: non-Favorites `ScanCollection` rows with their inverse
-`scans` relationship prefetched. It never enumerates unrelated `LocalScanRecord`
-rows and therefore needs neither OFFSET pagination nor a full-library membership
-map. Membership IDs are sorted for deterministic retries, while the Edge
-endpoint reads existing memberships with a composite primary-key cursor and
-applies only the database delta. Historical download reconciliation remains
-separately page-bounded, and stale lookalike cache clearing still loops with a
-biological/cache-present predicate plus `fetchLimit`.
+`collectionSyncSnapshots()` projects membership from the exact relationship
+owners it is synchronizing: non-Favorites `ScanCollection` rows with their
+inverse `scans` relationship prefetched. It never enumerates unrelated
+`LocalScanRecord` rows and therefore needs neither OFFSET pagination nor a
+full-library membership map. Membership IDs are sorted for deterministic
+retries, while the Edge endpoint reads existing memberships with a composite
+primary-key cursor and applies only the database delta. Historical download
+reconciliation remains separately page-bounded, and stale lookalike cache
+clearing still loops with a biological/cache-present predicate plus
+`fetchLimit`.
+
+The projection is one phase of an account-fenced transaction, not a complete
+sync owner. `CollectionSyncService` revalidates the same account-work lease
+before dispatch and after the response, then creates a fresh actor that deletes
+only acknowledged rows still marked `isPendingDeletion`. This prevents a stale
+context from purging a collection reactivated during the request. The durable
+collection task explicitly declines inline classified-401 recovery: an Auth
+transition must first drain that task and its outer lease, so recovery initiated
+from inside it would recursively wait on itself. The manager retains the failed
+job and bounded retry state until a later eligible drain.
 
 Species Observation Charts also obey the "no full library fetch on `@MainActor`"
 rule. `SpeciesObservationStatsViewModel` invokes an injected
@@ -975,10 +988,15 @@ successful mark prunes the whole dictionary again.
 when `cancelActiveRequest()` cancelled only the parent live or historical task
 (e.g. user starts a new scan), the GBIF task kept running. It would eventually
 complete and call
-`BackgroundDatabaseActor.updateScanWithWikipedia(scanId:..., imageUrl:)` —
-writing image URLs to a record that might now belong to a completely different
-species or, worse, to a record that was deleted between task spawn and
-completion.
+`BackgroundDatabaseActor.updateScanWithWikipedia(scanId:..., imageUrl:)` in the
+focused `BackgroundDatabaseActor+SpeciesMetadata.swift` extension—writing image
+URLs to a record that might now belong to a completely different species or,
+worse, to a record that was deleted between task spawn and completion.
+
+The current persistence call also carries `expectedScientificName`. The actor
+compares that value with the record's effective override-or-original identity
+and refuses a stale patch, providing a second fence even when upstream work does
+not cooperate with cancellation.
 
 GBIF hydration now remains a structured child of the operation that resolved or
 loaded the taxon key:
@@ -1216,11 +1234,12 @@ copies only IDs and ordered image/audio/video paths into
 `NonBiologicalScanErasureSnapshot` values. These immutable `Sendable` values
 cross the injected service boundary; the live adapter converts them into
 `BackgroundDatabaseActor.ScanErasurePayload` values, and the database actor
-re-fetches every ID before mutation. It skips an existing row that is now
-biological, including its local paths and cloud-deletion job; eligible or
-already-missing IDs retain the idempotent deletion path. The actor saves the
-batch once, and only locally owned paths returned after that commit are passed
-to `FileIOActor` for cleanup. No detached task transports SwiftData models.
+extension `BackgroundDatabaseActor+NonBiologicalRetention.swift` re-fetches
+every ID before mutation. It skips an existing row that is now biological,
+including its local paths and cloud-deletion job; eligible or already-missing
+IDs retain the idempotent deletion path. The actor saves the batch once, and
+only locally owned paths returned after that commit are passed to `FileIOActor`
+for cleanup. No detached task transports SwiftData models.
 
 The observable view model owns the one-operation overlap fence, grid/toolbar
 interactivity, compact progress badge, and feedback state. After database and
@@ -1228,6 +1247,15 @@ file completion it publishes `scanLibraryChanged`, success haptics, the typed
 toast, and pending-deletion sync in order. A database failure restores
 interaction and emits only error feedback; it does not delete files, publish a
 commit event, or enqueue sync.
+
+Foreground retention uses the same actor transaction but returns two explicit
+counts. `committedErasureCount` includes eligible rows and already-missing rows
+whose local paths and cloud tombstones must still drain; `deletedRecordCount`
+includes only rows removed by the commit. `ScanRepository` starts cleanup and
+deletion sync from the first count and publishes `scanLibraryChanged` only from
+the second. A row reclassified as biological at commit time contributes to
+neither count, preventing stale selection state from producing cleanup or
+presentation effects.
 
 ### Bulk Export OOM Exhaustion (`MediaExportService` & `PhotoLibraryManager`)
 

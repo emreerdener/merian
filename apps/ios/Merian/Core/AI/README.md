@@ -602,9 +602,9 @@ invariants are enforced by the Deno tests beside `identify-multimodal`.
 `Core/AI/InferenceEngineTests.swift` retains the integration proofs for Auth
 quiescence, closed-fence review rejection, stale confirmation rejection after an
 override, and presentation-reset hydration cancellation.
-`Core/Data/BackgroundDatabaseActorTests.swift` separately locks atomic override
-admission, destructive reset/identity replacement, and non-destructive
-same-species historical refresh.
+`Core/Data/Database/SpeciesMetadataPersistenceTests.swift` separately locks
+atomic override admission, destructive reset/identity replacement, and
+non-destructive same-species historical refresh.
 
 `Core/AI/Inference/InferenceScanReplacementTests.swift` uses isolated current-
 schema stores to cover persisted-result admission, missing/same/blank IDs,
