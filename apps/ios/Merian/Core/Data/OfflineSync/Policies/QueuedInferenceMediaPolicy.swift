@@ -32,7 +32,9 @@ enum QueuedInferenceMediaPolicy {
                 guard let components = URLComponents(string: reference.path),
                       components.user == nil,
                       components.password == nil,
-                      components.host == nil || components.host == "localhost",
+                      (components.host ?? "").isEmpty ||
+                        components.host?.caseInsensitiveCompare("localhost") ==
+                        .orderedSame,
                       let fileURL = components.url,
                       fileURL.isFileURL else {
                     return nil
