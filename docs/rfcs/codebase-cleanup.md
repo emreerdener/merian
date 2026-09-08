@@ -134,7 +134,7 @@ Suggested first targets:
 | `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                      | Complete for this hygiene round. `Core/Preferences` owns `AppSettings`, keyed compatibility stores, the verified accepted-account-deletion cache inventory, and an injected post-persistence runtime reset; `Core/Data/SpeciesPreferences` owns SwiftData CRUD, normalization/conflict policy, exact PostgREST values, the narrow injected live client, focused local-mutation recovery, and contained single-flight cloud coordination. The residual aggregate is 450 lines and imports only Foundation. Mirrored suites cover settings/store behavior, schema-complete local erasure, explicit-null wire encoding, stable pagination, account fencing, clock skew, interruption recovery, mid-upsert edit fencing, trailing reconciliation, and process-state reset delegation. Account-deletion recovery state and Keychain keys intentionally remain for their separately reviewed security ownership. |
 | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`      | Retired. Capture admission and live handoff, funding, Field Trip progress, and uploaded-scan inference replay now have focused Services owners; retry mutations remain in `OfflineQueueDurability.swift`. All production files in this slice are below 600 lines, and mirrored suites plus hosted-result validation follow the new ownership.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift` | Retired. Passes 5A through 5G moved terminal tracking, Auth quiescence, exact owner adoption, terminal routing, and delegate conformance into `Services/BackgroundTransfer`; generation-fenced upload completion into `Services/MediaUpload`; queued-row snapshot mapping into `Persistence`; actor-independent inference decisions into `Policies`; and inference generation lifecycle, request dispatch, accepted task-result/transport-failure completion, delayed status probing, exact-generation task retirement, server-result recovery, and retry/server-poll lifetime into six focused `Services/BackgroundInference` files. Both inference retry paths restore the durable wake immediately after persistence, before post-save ownership revalidation and optional process-local replacement. All seven Background Inference production owners, including policy, are below 600 lines.          |
-| `apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift`           | In progress. Collection sync now lives across an immutable OfflineSync snapshot, an injected account-lease service, a persistence-only actor extension, and a Core Network endpoint owner. Species metadata lives in a second persistence-only actor extension with private mutation/reset helpers and mirrored focused tests. Non-biological retention and bulk deletion now live in a third persistence-only extension with their nested values, mirrored persistence tests, and repository-wide ownership guards. The residual aggregate is 2,744 lines, no longer imports Supabase, and retains the persistence domains that require later focused slices.                                                                                                                                                                                                                                             |
+| `apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift`           | In progress. Collection sync lives across an immutable OfflineSync snapshot, an injected account-lease service, a persistence-only actor extension, and a Core Network endpoint owner. Species metadata and non-biological retention have separate persistence-only extensions with mirrored behavior and repository-wide architecture tests. A source audit removed the speculative queued-audio repair path; the aggregate retains only the final unsupported-audio inference-claim fence. The residual aggregate is 2,430 lines, no longer imports Supabase, and retains the persistence domains that require later focused slices.                                                                                                                                                                                                                                                                     |
 
 Rules for this phase:
 
@@ -2882,18 +2882,17 @@ private. Endpoint calls, queue transitions, actor hops, generation fences, retry
 accounting, task-description formats, authentication leases, and background
 URLSession behavior are unchanged.
 
-Existing cloud-deletion, collection-sync, legacy-audio repair, upload batching,
-and request-policy tests move from `OfflineQueueManagerTests` into four mirrored
-suites without changing or dropping a test declaration. A namespaced
-`OfflineSyncTestSupport` owner provides the shared isolated-store and
-repository-source fixtures rather than coupling the new suites to private
-helpers in the residual aggregate suite. `OfflineQueueSyncArchitectureTests`
-freezes the current eight-file inventory, declaration and framework-import
-ownership, responsibility boundaries, private state, retired aggregate, and
-600-line ceiling. Follow-up review removed the isolated-store helper's hidden
-singleton mutation: each serialized caller now explicitly installs and restores
-the manager context, and the architecture suite rejects a return to implicit
-shared-state installation.
+Existing cloud-deletion, collection-sync, upload batching, and request-policy
+tests move from `OfflineQueueManagerTests` into focused mirrored suites without
+changing or dropping a test declaration. A namespaced `OfflineSyncTestSupport`
+owner provides the shared isolated-store and repository-source fixtures rather
+than coupling the new suites to private helpers in the residual aggregate suite.
+`OfflineQueueSyncArchitectureTests` freezes the current eight-file inventory,
+declaration and framework-import ownership, responsibility boundaries, private
+state, retired aggregate, and 600-line ceiling. Follow-up review removed the
+isolated-store helper's hidden singleton mutation: each serialized caller now
+explicitly installs and restores the manager context, and the architecture suite
+rejects a return to implicit shared-state installation.
 
 The iOS build-and-test workflow contract now follows the focused owners instead
 of inspecting the retired aggregate. It requires the two live-task
@@ -3134,11 +3133,11 @@ The third URLSession slice moves generation-fenced upload callback processing
 into `Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift`. That
 focused owner retains successful-member accumulation, transport and HTTP
 fallback classification, exact-manifest confirmation, durable `.staged` commit,
-legacy audio repair, foreground-inference exclusion, preparation ownership, and
-the handoff to background inference. Its completion-only metadata and fallback
-helpers remain private. Upload generation validation/invalidation moves beside
-sync completion and expiry in `UploadLifecycle`; stored generation and callback
-state stays on the root manager.
+unsupported-audio quarantine, foreground-inference exclusion, preparation
+ownership, and the handoff to background inference. Its completion-only metadata
+and fallback helpers remain private. Upload generation validation/invalidation
+moves beside sync completion and expiry in `UploadLifecycle`; stored generation
+and callback state stays on the root manager.
 
 `Persistence/OfflineQueueManager+QueuedScanExtraction.swift` now owns the
 main-actor mapping from an `OfflineQueuedScan` SwiftData row to the Sendable
@@ -3154,8 +3153,8 @@ and probe lifetime rather than upload finalization.
 Six deterministic queue-mapping tests move from the aggregate manager suite to
 `QueuedScanExtractionTests` without changing their names or assertions. That
 suite creates isolated stores without installing shared manager state. Seven
-upload-generation, manifest, callback-token, durable-staging, and legacy-audio
-ordering tests move to the serialized `MediaUploadCompletionTests` suite, which
+upload-generation, manifest, callback-token, durable-staging, and audio-format
+fencing tests move to the serialized `MediaUploadCompletionTests` suite, which
 retains the offline-queue shared-process lease and explicitly restores the
 manager context it installs. `OfflineSyncFoundationArchitectureTests` freezes
 mapper ownership, focused test ownership, and the exact
@@ -3174,16 +3173,17 @@ the successful build.
 
 A follow-up review rechecked completion-token lifetime, generation precedence
 and invalidation, exact-manifest accumulation, durable staging outcomes,
-legacy-audio interception, foreground-inference exclusion, queued-row mapping,
-and preferred-goal lookup semantics. No production correction was required. The
-review corrected the current cleanup inventory and reliability source map, then
-aligned the Audio, Field Trips, AI architecture, database-actor, test-strategy,
-and codebase-map references with the focused owners. Swift parsing, strict
-SwiftLint, byte-stable XcodeGen, project/source membership, the complete iOS
-CI-tooling contracts, Markdown formatting, Supabase tree formatting, and
-whitespace validation pass on the reviewed tree. A focused runtime attempt could
-not start after CoreSimulatorService disconnected again and SwiftPM was unable
-to emit diagnostics into the sandboxed user cache; it supplies no test result.
+unsupported-audio quarantine, foreground-inference exclusion, queued-row
+mapping, and preferred-goal lookup semantics. No production correction was
+required. The review corrected the current cleanup inventory and reliability
+source map, then aligned the Audio, Field Trips, AI architecture,
+database-actor, test-strategy, and codebase-map references with the focused
+owners. Swift parsing, strict SwiftLint, byte-stable XcodeGen, project/source
+membership, the complete iOS CI-tooling contracts, Markdown formatting, Supabase
+tree formatting, and whitespace validation pass on the reviewed tree. A focused
+runtime attempt could not start after CoreSimulatorService disconnected again
+and SwiftPM was unable to emit diagnostics into the sandboxed user cache; it
+supplies no test result.
 
 This slice changes no endpoint, JSON payload, task-description, background
 session identifier, SwiftData schema, persistence transition, queue state,
@@ -3572,6 +3572,54 @@ build and runtime selectors could not be repeated in the restricted review
 environment because CoreSimulatorService was unavailable and SwiftPM manifest
 sandboxing could not start; those checks remain required in CI and are not
 represented as passed by the follow-up.
+
+### Core Data Unsupported Queued-Audio Fence
+
+A follow-up producer audit found no supported installed population for the
+queued-audio conversion path. Standalone iOS audio capture and video companion
+tracks have written local WAV files since their initial implementations. The
+only M4A capture producer is watchOS, which has no supported receiver into the
+iOS inference queue. Historical Explore publication playback and restore are a
+separate domain. The speculative conversion state machine, its actor extension,
+its transient value types, and its repair-specific suites were therefore removed
+rather than retained as unexercised queue complexity.
+
+The replacement is a smaller fail-closed boundary. Upload preparation rejects
+unsupported audio before signing. Upload completion checks the persisted media
+snapshot and quarantines a surviving callback before durable `.staged`
+finalization. Staged replay applies the same quarantine before dispatch, and
+`BackgroundDatabaseActor.tryClaimForInference` independently refuses any remote
+or non-WAV audio reference. `QueuedInferenceMediaPolicy` owns the storage-aware,
+manifest-only decision instead of placing queue behavior on the persisted media
+model. Queue Maintenance owns the shared needs-attention boundary: ordinary rows
+receive `queued_media_invalid`, while a completed cloud-result marker and
+funding evidence remain intact so retry can hydrate that result without another
+provider request. No queue owner transcodes or rewrites persisted inference
+media.
+
+`QueuedInferenceMediaPolicyTests` freezes the accepted local-WAV manifest
+boundary; `MediaStagingBudgetTests`, `MediaUploadCompletionTests`,
+`QueueMaintenanceTests`, and `BackgroundDatabaseActorTests` cover pre-signing
+rejection, callback quarantine ordering, completed-result and funding
+preservation, durable attention state, and the final claim fence. OfflineSync
+architecture suites freeze the policy, preparation, completion, replay, and
+maintenance ownership. The released V49+ `queueSchemaRepairGeneration` property
+remains inert in V51, preserving the schema shape without carrying runtime
+repair semantics.
+
+The initial removal slice passed a fresh generic iOS Simulator
+build-for-testing, all 118 focused queue/audio selections, and the complete
+`merianTests` target at 3,093 top-level tests (5,077 expanded parameterized
+cases), with zero failures and zero skips. The follow-up ownership and
+completed-result corrections add one deterministic recovery case after that
+execution. On the corrected tree, byte-stable XcodeGen regeneration,
+project/resource and source-membership validation, migration guardrails, the
+complete iOS CI-tooling contract, Swift parsing, and strict affected-source
+SwiftLint with zero violations pass. Changed Markdown, the complete Supabase
+Function/script tree, the 26-test documentation contract, changelog JSON, and
+whitespace validation also pass. Clean build and simulator-test reruns for the
+corrected tree are not represented as passed because CoreSimulatorService and
+SwiftPM manifest sandboxing are unavailable in the current environment.
 
 ## Phase 3: Ownership Cleanup
 

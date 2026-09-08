@@ -113,6 +113,18 @@ _Upload state machine (V33):_
   replacement inference claim cannot be mistaken for an orphan while the actor
   call is queued. Save failure rolls back the actor context.
 
+_Unsupported queued audio:_
+
+`BackgroundDatabaseActor` does not transcode or rewrite persisted inference
+media. Pending upload validation, surviving upload completion callbacks, and
+staged replay quarantine any row whose audio reference is remote or not a local
+WAV. `tryClaimForInference(scanId:)` independently repeats that format fence as
+the final serialized transition guard. Quarantine preserves the scan and job as
+needs-attention work with `queued_media_invalid`, allowing explicit retry or
+cancellation without forwarding an unsupported manifest to signing or inference.
+The released `queueSchemaRepairGeneration` property remains an inert V49+
+compatibility field until a future intentional schema migration removes it.
+
 _Offline scan processing:_
 
 - `processAndCleanupOfflineScan(...)` — the top-level orchestration boundary.

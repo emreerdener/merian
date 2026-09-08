@@ -4,7 +4,7 @@ import Testing
 
 @Suite("Media Staging Budget")
 struct MediaStagingBudgetTests {
-    @Test func ordinaryUploadValidationRejectsUnmigratedM4A() throws {
+    @Test func ordinaryUploadValidationRejectsUnsupportedM4A() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(
@@ -12,12 +12,12 @@ struct MediaStagingBudgetTests {
             withIntermediateDirectories: true
         )
         defer { try? FileManager.default.removeItem(at: directory) }
-        let fileName = "legacy.m4a"
+        let fileName = "unsupported.m4a"
         try Data(repeating: 0x41, count: 512).write(
             to: directory.appendingPathComponent(fileName)
         )
         let payload = PendingScanPayload(
-            id: "unmigrated-m4a",
+            id: "unsupported-m4a",
             localImagePaths: [],
             localAudioPaths: [fileName],
             localVideoPaths: []

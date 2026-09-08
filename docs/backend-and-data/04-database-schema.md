@@ -5092,13 +5092,13 @@ The current active schema is `MerianSchemaV51`. Recent milestones:
   adds `OfflineQueuedScan.queueSchemaRepairGeneration`, and migrates both the
   known-good V48 source and the accidental optional-queue V48 TestFlight source
   forward through source-specific V48→V49 plans. The field was introduced as a
-  repair-generation/support marker and is now also the durable runtime latch for
-  upgrading queued compressed inference audio; this semantic reuse does not
-  change the released V49 model shape or require a later schema version. Startup
-  diagnostics record redacted store metadata, model-version fingerprints,
-  attempted plan names, and error-domain/code fingerprints so failing devices
-  can share evidence without exposing local paths, account IDs, scan text, or
-  media URLs.
+  repair-generation/support marker. It remains in every released V49+ model as
+  an inert compatibility scalar; the current queue runtime neither reads nor
+  mutates it. Removing it would change the persisted model and therefore
+  requires a separately planned future migration. Startup diagnostics record
+  redacted store metadata, model-version fingerprints, attempted plan names, and
+  error-domain/code fingerprints so failing devices can share evidence without
+  exposing local paths, account IDs, scan text, or media URLs.
 - V50 adds the scan-keyed `OfflineQueuedScanGoalHint` companion through a
   lightweight V49→V50 migration. The released V49 `OfflineQueuedScan` model is
   reused unchanged. A dedicated `MerianRecentV49MigrationPlan` isolates the
@@ -5328,16 +5328,10 @@ mirror for migration safety and compatibility.
 - `queueUpdatedAt`: Date (Added in V48. Last durable queue metadata mutation.)
 - `queueNeedsAttention`: Bool (Added in V48. Terminal user-actionable local
   problems stay visible instead of being purged as disposable tombstones.)
-- `queueSchemaRepairGeneration`: Int (Added in V49 without changing again in
-  V50. It defaults to `1`. Current queue runtime also uses `-1` as the durable
-  in-progress latch for upgrading pre-WAV queued audio and `2` after the media
-  timeline has been atomically rewritten to canonical WAV references. A staged
-  repair retreats to pending and clears its old staging keys before transcoding;
-  upload and inference claims exclude `-1`. Cancellation returns the row to
-  ordinary pending generation `1`; a deterministic conversion failure also
-  returns the generation to `1` but marks the scan/job needs-attention with
-  `queued_audio_upgrade_failed`. Reusing this existing scalar changes no
-  SwiftData entity, checksum, migration stage, or V50 schema shape.)
+- `queueSchemaRepairGeneration`: Int (Added in V49 and unchanged through V51.
+  Defaults to `1`. It is a released compatibility field; the current queue
+  runtime does not read or mutate it. Preserve it until a future intentional
+  schema version and migration remove it.)
 
 The V47→V49 migration is custom. It initializes the retry/status fields for
 every existing queued scan and creates a `scan-ingestion:{scanId}`

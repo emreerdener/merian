@@ -362,7 +362,7 @@ contains "$active_queue_file" "@Attribute public var queueUpdatedAt: Date = Date
 contains "$active_queue_file" "@Attribute public var queueNeedsAttention: Bool = false" \
   || fail "Active V51 OfflineQueuedScan.queueNeedsAttention must remain non-optional to preserve current-store compatibility."
 contains "$active_queue_file" "@Attribute public var queueSchemaRepairGeneration: Int = 1" \
-  || fail "Active V51 OfflineQueuedScan.queueSchemaRepairGeneration must retain the startup repair generation."
+  || fail "Active V51 OfflineQueuedScan.queueSchemaRepairGeneration must retain the released compatibility field."
 not_contains "$active_queue_file" "queueAttemptCount: Int?"
 not_contains "$active_queue_file" "queueUpdatedAt: Date?"
 not_contains "$active_queue_file" "queueNeedsAttention: Bool?"

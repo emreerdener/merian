@@ -695,10 +695,14 @@ triggering excessive SwiftUI view rebuilds.
 - **Focused media-upload completion owner**:
   `Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift` owns
   successful-member accumulation, transport/HTTP fallback classification,
-  exact-manifest confirmation, durable `.staged` finalization, legacy-audio
-  repair handoff, and inference dispatch handoff. Upload generation
+  exact-manifest confirmation, unsupported-audio quarantine, durable `.staged`
+  finalization, and inference dispatch handoff. Upload generation
   validation/invalidation stays with `UploadLifecycle`; the completion file's
   metadata fetch consumes the shared queued-scan mapper.
+  `Policies/QueuedInferenceMediaPolicy.swift` owns the storage-aware,
+  manifest-only local-WAV decision. Queue Maintenance preserves any completed
+  cloud-result marker and funding evidence before pausing invalid media, so a
+  manual retry cannot dispatch a duplicate provider request.
 - **Focused background transfer owners**: `Services/BackgroundTransfer` owns the
   lock-protected terminal-work tracker, retained task Auth leases and transition
   quiescence, private relaunched-task owner validation/adoption, main-actor
@@ -871,24 +875,22 @@ triggering excessive SwiftUI view rebuilds.
   media-asset session rows for scan uploads. Ordinary inference audio is
   `.wav`/`audio/wav` only. M4A is a durable restore/playback format and requires
   exact `scan_share_restore` metadata plus `.m4a`/`audio/mp4`; the signer
-  rejects extension/MIME mismatches. Before this validator runs, older
-  pending/staged queue rows with local M4A atomically clear stale keys, hold a
-  persisted repair latch, transcode into a Documents-owned WAV, rewrite both
-  persisted media representations, and re-enter `.pending` for fresh signing.
-  Upload and inference claims cannot consume an in-progress repair, and a failed
-  legacy decode becomes needs-attention instead of a retry loop. The complete
-  position-aligned signed response is validated before any PUT. Every response
-  item declares the exact signed `Content-Type` and `Content-Length`; iOS
-  applies both, and a signing-time file-size snapshot is rechecked immediately
-  before task creation. Changed files discard their URL and re-sign on the next
-  scheduler pass. Exact server keys—not locally predicted owner segments—travel
-  in task descriptions. Swift and Deno tests both load
-  `docs/contracts/media-staging-upload-manifest.json` to catch drift in limits,
-  allowed content types, and optional session fields. This prevents upload
-  completion, replay, request construction, and Edge signing from reconstructing
-  object keys differently. The server later recovers those upload-session ids
-  from `scan_media_assets` and includes them in the ingestion-job manifest
-  checksum.
+  rejects extension/MIME mismatches. Supported iOS queue producers write WAV;
+  unexpected non-local or non-WAV queue audio is rejected before signing,
+  quarantined by surviving upload callbacks and staged replay, and refused by
+  the final serialized inference claim. Persisted inference rows are not
+  transcoded. The complete position-aligned signed response is validated before
+  any PUT. Every response item declares the exact signed `Content-Type` and
+  `Content-Length`; iOS applies both, and a signing-time file-size snapshot is
+  rechecked immediately before task creation. Changed files discard their URL
+  and re-sign on the next scheduler pass. Exact server keys—not locally
+  predicted owner segments—travel in task descriptions. Swift and Deno tests
+  both load `docs/contracts/media-staging-upload-manifest.json` to catch drift
+  in limits, allowed content types, and optional session fields. This prevents
+  upload completion, replay, request construction, and Edge signing from
+  reconstructing object keys differently. The server later recovers those
+  upload-session ids from `scan_media_assets` and includes them in the
+  ingestion-job manifest checksum.
 - **Concurrent upload staging (`withTaskGroup`)**: File copy and
   `URLSession.uploadTask` creation for each image in a batch are fanned out via
   `withTaskGroup`. Pre-flight guards (URL validation, file existence,

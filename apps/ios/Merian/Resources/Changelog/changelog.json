@@ -11,7 +11,7 @@
           "items": [
             "Reanalyzing an older library scan now safely prepares saved local or cloud audio and can use standalone audio, video audio, or the saved description when an old image is unavailable.",
             "A completed cloud scan with unreadable legacy media data now pauses for attention instead of repeating the same recovery, while keeping its completed result safe for retry after an update.",
-            "Queued recordings created by older builds are upgraded before upload or analysis, with stale uploads discarded and conversion failures paused visibly instead of retried forever."
+            "Unexpected queued recordings in an unsupported format now pause visibly before upload or analysis, so they can be retried or canceled instead of looping forever."
           ]
         }
       ]

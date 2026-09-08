@@ -284,17 +284,20 @@ The [Core Data guide](Merian/Core/Data/README.md) is the canonical ownership
 inventory for SwiftData actors. `BackgroundDatabaseActor.swift` retains the
 actor declaration and unextracted persistence domains; focused sibling
 extensions keep collection synchronization, species metadata, and non-biological
-retention persistence separate without changing actor method signatures. The
-internal non-biological payload label is `mediaPaths` because it carries image,
-audio, and video paths. That extension owns only erasure values, bounded
-retention selection, and the atomic record/cloud-tombstone commit. Its purge
-result distinguishes accepted erasures from rows actually deleted so
-`ScanRepository` can drain files/tombstones without publishing a false library
-mutation. Local file cleanup remains in `FileIOActor`. The focused extensions
-contain no endpoint, authentication, file, or UI dependency. Mirrored behavior
-suites preserve the persistence contracts, while architecture suites scan the
-complete production and test Swift trees for sole method and test ownership,
-repository effect routing, and the 600-line review ceiling.
+retention persistence separate without changing actor method signatures.
+Unsupported queued inference audio is rejected by upload preflight, quarantined
+by staged replay and surviving upload callbacks, and refused again by the
+serialized inference claim. The internal non-biological payload label is
+`mediaPaths` because it carries image, audio, and video paths. That extension
+owns only erasure values, bounded retention selection, and the atomic
+record/cloud-tombstone commit. Its purge result distinguishes accepted erasures
+from rows actually deleted so `ScanRepository` can drain files/tombstones
+without publishing a false library mutation. Local file cleanup remains in
+`FileIOActor`. The focused extensions contain no endpoint, authentication, file,
+or UI dependency. Mirrored behavior suites preserve the persistence contracts,
+while architecture suites scan the complete production and test Swift trees for
+sole method and test ownership, cross-owner effect routing, and the 600-line
+review ceiling.
 
 ## Core Preferences Ownership
 

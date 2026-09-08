@@ -176,11 +176,11 @@ Recent schema milestones:
   optional-queue V48 TestFlight checksum. Startup diagnostics record redacted
   store metadata and attempted plan names so failing devices can share evidence
   without exposing paths, account data, scan text, or media URLs. The existing
-  integer is also the durable runtime generation/latch for converting pre-WAV
-  queued audio before upload or replay (`-1` claimed, `2` committed, `1`
-  ordinary/reset). This semantic reuse does not alter the V49/V50 model shape or
-  add a migration stage. `MigrationPlanTests` carries the disk-store fixture
-  matrix for image, video, audio, description-only, and mixed queued media, and
+  integer remains an inert released-compatibility field in V51; the current
+  queue runtime neither reads nor mutates it. Removing it would alter the model
+  shape and requires a future intentional migration. `MigrationPlanTests`
+  carries the disk-store fixture matrix for image, video, audio,
+  description-only, and mixed queued media, and
   `.github/workflows/ios-startup-safety.yml` runs that suite beside store
   recovery tests.
 - V50 adds `OfflineQueuedScanGoalHint`, a scan-keyed companion containing the
@@ -537,6 +537,14 @@ iOS production and test Swift trees. Each of its seven persistence methods and
 11 mirrored behavior tests must resolve to exactly one focused owner; private
 helper, import, dependency, and 600-line boundaries are enforced separately.
 
+Unsupported inference audio crosses narrow fail-closed owners. Media Upload
+rejects non-local or non-WAV audio before signing, and surviving terminal
+callbacks quarantine it before durable staging. Inference Replay applies the
+same quarantine to persisted staged rows, while `BackgroundDatabaseActor`
+rechecks the contract before its serialized inference claim. Queue Maintenance
+owns the shared needs-attention transition. No owner converts or rewrites
+persisted inference audio.
+
 Within `Core/Security/Consent/Coordinators`,
 `RequiredConsentRestorationCoordinator` owns the restoration state machine,
 retry budget, UUID-keyed outstanding-task retention, cancellation snapshot and
@@ -854,12 +862,14 @@ lease retention and transition quiescence, and nonisolated delegate routing
 under `Services/BackgroundTransfer`; the following terminal-routing slice adds
 private owner validation/adoption and accepted/rejected callback routing to the
 same boundary. Upload completion is now a fifth focused `MediaUpload` owner: it
-contains callback accumulation, durable staging finalization, legacy-audio
-repair handoff, and inference dispatch handoff. Generation
-validation/invalidation stays with `UploadLifecycle`; queued SwiftData records
-map to Sendable inference snapshots under `Persistence`, alongside reusable
-preferred-goal reads. `Policies/BackgroundInferencePolicy.swift` owns
-actor-independent route/response and server-status decisions, while the six
+contains callback accumulation, unsupported-audio quarantine, durable staging
+finalization, and inference dispatch handoff. Generation validation/invalidation
+stays with `UploadLifecycle`; queued SwiftData records map to Sendable inference
+snapshots under `Persistence`, alongside reusable preferred-goal reads.
+`Policies/QueuedInferenceMediaPolicy.swift` owns the storage-aware,
+manifest-only local-WAV fence; generic persisted media models remain free of
+queue policy. `Policies/BackgroundInferencePolicy.swift` owns actor-independent
+route/response and server-status decisions, while the six
 `Services/BackgroundInference` files separately own exact process-generation
 lifecycle, generation-fenced request dispatch, accepted task-result and
 transport-failure completion, delayed status probing and exact-generation
@@ -1589,8 +1599,11 @@ Swift unit tests live under `apps/ios/MerianTests/` and cover:
 - `Core/Data/OfflineSync/QueuedScanExtractionTests.swift` owns deterministic
   queue-to-inference media and telemetry mapping without installing shared
   manager state. `MediaUploadCompletionTests.swift` owns generation, sibling,
-  exact-manifest, durable-staging, callback-token, and legacy-audio completion
-  regressions under a serialized `.offlineQueueManager` lease.
+  exact-manifest, durable-staging, callback-token, and unsupported-audio
+  quarantine regressions under a serialized `.offlineQueueManager` lease.
+  `QueuedInferenceMediaPolicyTests.swift` owns local-WAV storage/format
+  classification, while `QueueMaintenanceTests.swift` proves invalid-media
+  quarantine preserves completed-result and funding authority.
   `OfflineSyncFoundationArchitectureTests.swift` and
   `OfflineQueueSyncArchitectureTests.swift` freeze their production and test
   ownership, imports, consumer allowlists, private helper containment, retired

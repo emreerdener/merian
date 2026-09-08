@@ -191,4 +191,30 @@ extension OfflineQueueManager {
         }
         return true
     }
+
+    /// Stops a queue row before provider dispatch when its local media cannot
+    /// satisfy the canonical staging contract. The existing needs-attention
+    /// presentation lets the user retry or cancel without silently discarding
+    /// the durable capture.
+    @discardableResult
+    func quarantineInvalidQueuedMedia(scanId: String) -> Bool {
+        if hasDurableCompletedServerResult(scanId: scanId) {
+            // A completed provider result outranks local media validity. Keep
+            // that no-redispatch marker and its funding evidence intact so a
+            // manual retry resumes result hydration instead of buying another
+            // provider request.
+            return markQueuedScanNeedsAttention(
+                scanId: scanId,
+                code: Self.completedServerResultRecoveryCode,
+                message: Self.completedServerResultRecoveryMessage
+            )
+        }
+
+        releaseFundingForProvenPredispatchFailure(scanId: scanId)
+        return softDeleteQueuedScan(
+            scanId: scanId,
+            reason: "Queued media is missing, invalid, or exceeds the upload limit.",
+            errorCode: "queued_media_invalid"
+        )
+    }
 }

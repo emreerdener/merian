@@ -1487,10 +1487,13 @@ The focused regression inventory includes:
   before post-save poll/generation revalidation and optional process-local
   replacement, actor-independent route/response/status policy, and focused
   ownership/consumer boundaries;
-- `CloudDeletionSyncTests`, `CollectionSyncTests`, `LegacyAudioRepairTests`, and
-  `MediaUploadSyncTests`;
+- `CloudDeletionSyncTests`, `CollectionSyncTests`, `MediaUploadSyncTests`,
+  `MediaUploadCompletionTests`, and `QueueMaintenanceTests`, including
+  unsupported-audio rejection before signing, completion-time and staged-replay
+  quarantine, and stable needs-attention diagnostics;
 - `OfflineQueueSyncArchitectureTests`;
-- `BackgroundDatabaseActorTests`;
+- `BackgroundDatabaseActorTests`, including the final serialized
+  unsupported-audio inference-claim fence;
 - `InferenceEngineTests`, including visual and nonvisual transport/retirement
   races;
 - `InferenceEndpointTransportTests`, including queue-backed no-transient-

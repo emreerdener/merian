@@ -679,28 +679,34 @@ cannot inspect the future object body; after upload, Identify fetches the
 bounded object and verifies its RIFF/WAVE structure before provider dispatch,
 rejecting an extension-only content spoof at that boundary.
 
-Pre-WAV installed queues are upgraded before either signing or staged replay.
-The database actor fences each pending/staged M4A row with the persisted
-negative `queueSchemaRepairGeneration`, retreats it to `.pending`, and clears
-stale `stagedR2Keys` before asynchronous Core Audio conversion begins. Upload
-claims ignore the latch. A successful exact-state commit rewrites the ordered
-scalar/relationship media timeline to Documents-owned WAV references and sends
-the row through fresh signing; cancellation keeps it pending, while a
-deterministic conversion failure becomes `queued_audio_upgrade_failed`
-needs-attention work. Holding the per-scan inference-persistence lock across
-conversion prevents a staged inference claim from racing the rewrite. Process
-death is safe because the source M4A is not deleted and the next serialized
-repair pass can reclaim the durable latch.
+The queue does not convert persisted inference audio. A source- and
+release-history audit found no supported iOS queue producer that wrote M4A:
+standalone capture and video companion tracks have used local WAV files from
+their initial implementations. Watch capture still writes M4A, but there is no
+supported watch-to-iOS queue receiver. Historical Explore publication playback
+and restore are separate from inference admission and retain their own M4A
+compatibility.
 
-A pre-upgrade background PUT may still finish after the new app launches. Its
-completion handler first commits the exact uploaded manifest as `.staged`, then
-checks the persisted media snapshot before any inference claim. If compressed
-audio remains, it runs the same serialized repair, clears the just-uploaded M4A
-keys, and returns the row to fresh WAV signing. A lost repair-state race or
-transient actor read also stops dispatch and hands the row to normal durable
-replay. As a final defense, the serialized `.staged` → `.inferencing` database
-claim itself refuses any timeline that still contains legacy compressed audio; a
-known M4A manifest is never forwarded to ordinary inference.
+Unexpected non-WAV queue rows therefore fail closed instead of entering a
+speculative migration state machine. Pending upload preflight rejects them
+before signing. A surviving background upload callback checks the persisted
+media snapshot and quarantines the row before durable `.staged` finalization;
+staged replay applies the same needs-attention transition before dispatch. The
+storage-aware, manifest-only decision belongs to
+`OfflineSync/Policies/QueuedInferenceMediaPolicy.swift`, not the persisted media
+model; byte inspection remains staging-owned. Documents storage accepts only
+relative, scheme- and host-free paths without parent traversal. Absolute storage
+accepts a slash-rooted path or a credential-free local `file://` URL whose host
+is absent or `localhost`; remote storage is rejected even when its suffix is
+`.wav`. The serialized `.staged` → `.inferencing` actor claim is the final fence
+and refuses unsupported or remote audio references. The user-visible row remains
+available for retry or cancellation with the stable `queued_media_invalid`
+diagnostic. A completed cloud-result marker in either durable authority outranks
+this local-media failure: quarantine preserves that marker and funding evidence,
+and manual retry returns to result hydration without dispatching the provider
+again. The released V49+ `queueSchemaRepairGeneration` property remains in V51
+as an inert compatibility field; removing it requires a separately planned
+SwiftData schema migration.
 
 The locally predicted owner segment is planning data, not server authority.
 `/generate-upload-urls` derives its owner from the authenticated request, which

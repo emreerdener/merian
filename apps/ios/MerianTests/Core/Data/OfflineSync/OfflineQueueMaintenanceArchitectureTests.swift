@@ -71,6 +71,19 @@ struct OfflineQueueMaintenanceArchitectureTests {
         #expect(!state.contains("backgroundSession"))
         #expect(!state.contains("FileIOActor"))
         #expect(state.contains("PushNotificationManager.shared"))
+        #expect(state.contains(
+            "func quarantineInvalidQueuedMedia(scanId: String)"
+        ))
+        #expect(state.contains(
+            "hasDurableCompletedServerResult(scanId: scanId)"
+        ))
+        #expect(state.contains(
+            "code: Self.completedServerResultRecoveryCode"
+        ))
+        #expect(state.contains(
+            "releaseFundingForProvenPredispatchFailure(scanId: scanId)"
+        ))
+        #expect(state.contains("errorCode: \"queued_media_invalid\""))
         #expect(deletion.contains(
             "private func deleteQueuedScanAssumingPersistenceLock("
         ))
@@ -81,6 +94,20 @@ struct OfflineQueueMaintenanceArchitectureTests {
         #expect(!deletion.contains("UIApplication"))
         #expect(goalHints.contains("extension ModelContext"))
         #expect(!goalHints.contains("extension OfflineQueueManager"))
+
+        let normalizedState = normalizedSource(state)
+        let invalidMediaQuarantine = try #require(normalizedState.range(
+            of: "func quarantineInvalidQueuedMedia(scanId: String)"
+        ))
+        let completedResultFence = try #require(normalizedState.range(
+            of: "hasDurableCompletedServerResult(scanId: scanId)",
+            range: invalidMediaQuarantine.upperBound..<normalizedState.endIndex
+        ))
+        let fundingRelease = try #require(normalizedState.range(
+            of: "releaseFundingForProvenPredispatchFailure(scanId: scanId)",
+            range: completedResultFence.upperBound..<normalizedState.endIndex
+        ))
+        #expect(completedResultFence.lowerBound < fundingRelease.lowerBound)
 
         let normalized = normalizedSource(deletion)
         let persistenceLock = try #require(normalized.range(
@@ -118,6 +145,8 @@ struct OfflineQueueMaintenanceArchitectureTests {
         "func updateUnsyncedItemCount":
             "Services/QueueMaintenance/OfflineQueueManager+QueueState.swift",
         "func softDeleteQueuedScan":
+            "Services/QueueMaintenance/OfflineQueueManager+QueueState.swift",
+        "func quarantineInvalidQueuedMedia":
             "Services/QueueMaintenance/OfflineQueueManager+QueueState.swift",
         "func deleteQueuedScan":
             "Services/QueueMaintenance/OfflineQueueManager+QueueDeletion.swift",

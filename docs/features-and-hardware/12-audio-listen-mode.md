@@ -21,6 +21,7 @@ The audio pipeline is split across explicit ownership and isolation boundaries:
 | Shared rendering       | `Core/UI/Components/AudioSpectrogramView`                                               | `@MainActor` SwiftUI                |
 | Record presentation    | `Capture/Record/{Models,Services,ViewModels,Views,Components}`                          | Value Models; `@MainActor` UI/state |
 | Controls and submit    | `Capture/Shell`, `Core/UI/Components/CaptureControlBar.swift`, and `Capture/Submission` | `@MainActor` orchestration          |
+| Queue format fencing   | `Core/Data/OfflineSync` and `Core/Data/Database`                                        | Main-actor quarantine; actor claim  |
 
 This matches the camera pipeline's `CameraManager` → `ViewfinderIntelligence` →
 `CameraPreviewView` separation and avoids the IPC deadlock pattern that would
@@ -407,18 +408,20 @@ large inline audio request body. New queue admission rejects non-WAV and
 URL-scheme audio paths. M4A remains an accepted durable playback/legacy Explore
 restore format only; it is never signed as ordinary inference input.
 
-Installed queues can still contain local M4A references written by an older
-build. Before pending upload or staged replay, the queue serializes an upgrade
-claim, clears any stale staged keys, and persists a negative
-`queueSchemaRepairGeneration` latch while Core Audio creates Documents-owned WAV
-replacements outside the database transaction. One atomic commit rewrites both
-`capturedMediaJSON` and relationship entries, preserves timeline order and
-source indices, advances the repair generation, and returns the row to
-`.pending` for fresh signing. A crash leaves the original M4A and persisted
-latch, so the next pass safely repeats the conversion; a deterministic decode
-failure becomes `queued_audio_upgrade_failed` needs-attention work rather than a
-signing/inference retry loop. The original compressed source is retained because
-another historical playback row may still reference it.
+A source- and release-history audit found no supported iOS queue producer that
+wrote M4A. Standalone capture and video companion tracks have queued local WAV
+files from their initial implementations. Watch capture writes M4A, but the app
+does not support receiving watch captures into the iOS inference queue.
+Historical Explore publication playback and restore remain separate M4A-capable
+paths.
+
+Unexpected non-local or non-WAV inference audio fails closed rather than being
+converted. Upload preparation rejects it before signing; a surviving terminal
+upload callback and staged replay quarantine it as `queued_media_invalid`
+needs-attention work before inference dispatch. The database actor repeats the
+same contract at the serialized inference claim. The released
+`queueSchemaRepairGeneration` property remains an inert V49+ compatibility field
+until a future intentional SwiftData migration removes it.
 
 **Cleanup on delete**: Audio files stored in `Documents/` are cleaned up through
 the same canonical media snapshot walk used for images. Delete and purge paths
@@ -1030,7 +1033,7 @@ decision valid for that request.
 | Offline replay audio dispatch path               | **Complete** — queued audio uploads to R2 and replays as `audioR2ObjectKeys`                                                      |
 | Two-phase R2 audio upload                        | **Complete for queued replay** — foreground live audio remains inline by design                                                   |
 | Historical refinement audio preparation          | **Complete** — bounded local/HTTPS references materialize as Documents-owned canonical WAV sidecars before reanalysis             |
-| Pre-WAV installed-queue repair                   | **Complete** — durable latch, stale-key reset, active-PUT interception, atomic timeline rewrite, and central claim refusal        |
+| Unexpected non-WAV queue handling                | **Complete** — pre-signing rejection, callback/replay quarantine, durable needs-attention state, and central claim refusal        |
 | Purpose-aware audio signing and byte validation  | **Complete** — ordinary inference is WAV-only; M4A is restore-only; Identify verifies RIFF and full WAV structure                 |
 | `deleteQueuedScan` / purge audio cleanup         | **Complete** — cleans Documents WAV on delete/purge                                                                               |
 | Durable standalone audio media                   | **Complete** — promoted into `audio_storage_urls`, `captured_media`, and ready normalized asset rows                              |

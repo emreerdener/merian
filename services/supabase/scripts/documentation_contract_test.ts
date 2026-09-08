@@ -2867,7 +2867,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
 });
 
-Deno.test("WAV inference documentation preserves repair and rollout boundaries", async () => {
+Deno.test("WAV inference documentation preserves client and rollout boundaries", async () => {
   const [
     schemaSource,
     offlineSource,
@@ -2902,19 +2902,23 @@ Deno.test("WAV inference documentation preserves repair and rollout boundaries",
     const [source, fragment] of [
       [
         schemaSource,
-        "`-1` as the durable in-progress latch for upgrading pre-WAV queued audio and `2` after the media timeline has been atomically rewritten",
+        "It is a released compatibility field; the current queue runtime does not read or mutate it.",
       ],
       [
         schemaSource,
-        "Reusing this existing scalar changes no SwiftData entity, checksum, migration stage, or V50 schema shape.",
+        "Preserve it until a future intentional schema version and migration remove it.",
       ],
       [
         offlineSource,
-        "A pre-upgrade background PUT may still finish after the new app launches.",
+        "Unexpected non-WAV queue rows therefore fail closed instead of entering a speculative migration state machine.",
+      ],
+      [
+        offlineSource,
+        "Documents storage accepts only relative, scheme- and host-free paths without parent traversal.",
       ],
       [
         coreDataSource,
-        "Cloud-complete local-recovery markers veto the repair entirely",
+        "The speculative conversion state machine was therefore removed.",
       ],
       [
         aiSource,
@@ -2948,7 +2952,7 @@ Deno.test("WAV inference documentation preserves repair and rollout boundaries",
   const rollout = compact(deploymentRunbookSource);
   assertStringIncludes(
     rollout,
-    "Make the repair-capable iOS build available before enforcing the server restriction.",
+    "A source- and release-history audit found no supported iOS inference-queue producer that wrote M4A",
   );
   assertStringIncludes(
     rollout,
@@ -2963,8 +2967,16 @@ Deno.test("WAV inference documentation preserves repair and rollout boundaries",
     "A cloud result with unreadable legacy media data now pauses for attention on the first attempt instead of cycling through the same recovery repeatedly.",
   );
   assertStringIncludes(
+    compact(changelogSource),
+    "A source- and release-history audit confirmed that supported iOS capture has always queued WAV",
+  );
+  assertStringIncludes(
     compact(inAppChangelogSource),
     '"id": "2026-08-23-library-reanalysis-audio-recovery"',
+  );
+  assertStringIncludes(
+    compact(inAppChangelogSource),
+    "Unexpected queued recordings in an unsupported format now pause visibly before upload or analysis",
   );
 
   const signerIndex = deploymentScriptSource.indexOf("generate-upload-urls");

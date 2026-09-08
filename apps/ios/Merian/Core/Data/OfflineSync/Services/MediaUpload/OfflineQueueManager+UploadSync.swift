@@ -59,17 +59,6 @@ extension OfflineQueueManager {
             let dbActor = await MainActor.run {
                 self.resolvedQueueDbActor(container: container)
             }
-            let legacyAudioRepairIds = await dbActor
-                .legacyQueuedAudioRepairCandidateIds(
-                    limit: MerianConfig.pendingScanFetchLimit
-                )
-            _ = await self.repairLegacyQueuedAudio(
-                scanIds: legacyAudioRepairIds,
-                dbActor: dbActor
-            )
-            guard await MainActor.run(body: {
-                self.isCurrentUploadSync(generation)
-            }) else { return }
             let initialAllowsLargeUploads = await MainActor.run {
                 self.allowsLargeQueuedUploadsOnCurrentNetwork
             }
@@ -204,14 +193,7 @@ extension OfflineQueueManager {
                 await MainActor.run {
                     guard self.isCurrentUploadSync(generation) else { return }
                     for scanId in preparation.rejectedScanIds {
-                        self.releaseFundingForProvenPredispatchFailure(
-                            scanId: scanId
-                        )
-                        self.softDeleteQueuedScan(
-                            scanId: scanId,
-                            reason: "Queued media is missing, invalid, or exceeds the upload limit.",
-                            errorCode: "queued_media_invalid"
-                        )
+                        self.quarantineInvalidQueuedMedia(scanId: scanId)
                     }
                 }
             }

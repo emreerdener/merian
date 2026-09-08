@@ -143,9 +143,9 @@ a local or secure remote WAV/M4A reference, materialize a new canonical WAV
 sidecar, and then submit that local file. It must never forward an HTTPS string
 through a generic file-path API. Missing historical visual media can fall back
 to standalone audio, a video companion track, or description in timeline order.
-Pre-WAV rows already persisted by older builds are owned by the durable repair
-state machine documented in [Core Data](../../../Core/Data/README.md), not by
-this presentation layer.
+Unexpected non-WAV queue rows are rejected and surfaced through the durable
+needs-attention path documented in [Core Data](../../../Core/Data/README.md),
+not converted by this presentation layer.
 
 ## Entitlement and fallback
 

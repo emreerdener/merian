@@ -1187,7 +1187,9 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `serializedCapturedMediaItems` / `capturedMediaSnapshot` return the JSON
   timeline. This guards the May 12, 2026 TestFlight crash class where SwiftUI
   layout faulted `CapturedMediaEntry.kindRaw` through an invalid SwiftData
-  future backing object.
+  future backing object. The suite also proves queued inference audio accepts
+  local WAV references, including video companion audio, while flagging local
+  M4A and remote WAV references as unsupported.
 - **`InferenceEngineTests.swift`**: Asserts decoding of `EdgeResponseWrapper`
   and `EnrichScanResponse` payloads via `JSONDecoder`. Also covers
   `activeScanId` lifecycle: `testPrepareForNewScanClearsActiveScanId` verifies
@@ -1448,7 +1450,9 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   and prove the older orphan resets while newer replacement work remains
   claimed. Its terminal replay test accepts an absent queue only for the exact
   generation's completed durable job, while rejecting nonterminal and
-  mismatched-generation jobs. `SyncStateManagerTests` also locks the
+  mismatched-generation jobs. Its inference-claim coverage also proves an
+  unsupported queued-audio manifest cannot cross the serialized `.staged` →
+  `.inferencing` transition. `SyncStateManagerTests` also locks the
   generation-fencing contract: a stale upload completion cannot clear a
   replacement batch; a completion delivered after `forceIdle()` cannot remove a
   newer inference token; a stale finalizing transition cannot advance the
@@ -2230,7 +2234,6 @@ xcodebuild test-without-building \
   -only-testing:merianTests/OfflineQueueAdmissionArchitectureTests \
   -only-testing:merianTests/CloudDeletionSyncTests \
   -only-testing:merianTests/CollectionSyncTests \
-  -only-testing:merianTests/LegacyAudioRepairTests \
   -only-testing:merianTests/MediaUploadSyncTests \
   -only-testing:merianTests/MediaUploadCompletionTests \
   -only-testing:merianTests/OfflineQueueSyncArchitectureTests \
@@ -4076,11 +4079,15 @@ iOS regression coverage is intentionally joined as well:
   weather-gate, and terminal-file-corruption examples; it does not replace the
   integrated manager, actor, URLSession, or endpoint suites.
   `OfflineQueueRetryPolicyTests` validates retry eligibility, deterministic base
-  delay caps, and jitter bounds. `MediaStagingContractTests`,
-  `MediaStagingBudgetTests`, `MediaStagingIdentityTests`,
-  `MediaStagingCompletionStateTests`, `InferenceURLSessionTaskContractTests`,
-  and `GenerationTaskRegistryTests` mirror the extracted staging,
-  owner-identity, task-identity, completion, and cancellation owners.
+  delay caps, and jitter bounds. `QueuedInferenceMediaPolicyTests`,
+  `MediaStagingContractTests`, `MediaStagingBudgetTests`,
+  `MediaStagingIdentityTests`, `MediaStagingCompletionStateTests`,
+  `InferenceURLSessionTaskContractTests`, and `GenerationTaskRegistryTests`
+  mirror the extracted staging, queued-audio policy, owner-identity,
+  task-identity, completion, and cancellation owners. Policy coverage rejects
+  remote, compressed, and storage/path-incoherent audio, including Documents
+  parent traversal and non-local hosted `file://` references; budget coverage
+  rejects non-WAV inference audio before upload signing.
 - `CaptureAdmissionTests`, `LiveCaptureLifecycleTests`, and
   `InferenceReplayTests` own durable capture insertion, media ordering and
   identity, explicit shared-state restoration, foreground generation fencing,
@@ -4099,38 +4106,41 @@ iOS regression coverage is intentionally joined as well:
   replay, and mixed-media timeline alignment without mutating shared manager
   state.
 - `QueueMaintenanceTests` covers failed-state tombstoning, fresh-context
-  automatic-work counts, retention of failures that still need attention, purge
-  of non-actionable failures, and queue/goal-hint flushes. Every case snapshots
-  and restores both `OfflineQueueManager.modelContext` and the published
-  `unsyncedItemsCount`; the shared-process lease does not replace that state
-  restoration. The XCResult validator binds the protected automatic-work-count
-  case to this suite. `OfflineQueueMaintenanceArchitectureTests` freezes the two
-  maintenance service owners, shared persistence helper ownership, framework
-  imports, private destructive helpers, persistence-lock ordering,
-  database-before-file deletion, and the 600-line ceiling.
+  automatic-work counts, invalid-media quarantine with its stable
+  `queued_media_invalid` diagnostic, preservation of higher-authority completed
+  result and funding evidence, retention of failures that still need attention,
+  purge of non-actionable failures, and queue/goal-hint flushes. Every case
+  snapshots and restores both `OfflineQueueManager.modelContext` and the
+  published `unsyncedItemsCount`; the shared-process lease does not replace that
+  state restoration. The XCResult validator binds the protected
+  automatic-work-count case to this suite.
+  `OfflineQueueMaintenanceArchitectureTests` freezes the two maintenance service
+  owners, shared persistence helper ownership, framework imports, private
+  destructive helpers, persistence-lock ordering, database-before-file deletion,
+  and the 600-line ceiling.
 - `OfflineQueueAdmissionArchitectureTests` freezes the seven focused admission
   and replay production files, exact declarations/imports, private helper
   containment, the `OfflineCaptureFileStore` consumer allowlist,
   durable-before-dispatch and persistence-lock ordering, mirrored test
   type/display identities, serialized/shared-process-state traits, retired queue
   aggregate, and the 600-line ceiling.
-- `CloudDeletionSyncTests`, `CollectionSyncTests`, `LegacyAudioRepairTests`,
-  `MediaUploadSyncTests`, and `MediaUploadCompletionTests` mirror the focused
-  live sync services without dropping the rehomed aggregate test names. The
-  completion suite covers legacy-audio ordering, whole-generation sibling
-  fencing, exact all-key staging commits, callback-token ownership, retry
-  persistence, and stale-generation rejection.
-  `OfflineQueueSyncArchitectureTests` freezes their exact source/declaration
-  ownership, imports, completion-helper containment, responsibility boundaries,
-  retired sync aggregate, mirrored completion-test ownership, and 600-line
-  ceiling. The iOS workflow contract mirrors that boundary by requiring two
-  live-task reconciliation scans in `UploadSync`, one in `UploadDispatch`, and
-  keeping upload request-policy and activation-before-resume assertions with the
-  dispatch owner. The shared isolated-store fixture only creates a context;
-  every serialized singleton-backed test must explicitly install it and restore
-  the manager's previous context. Structured-result validation binds the upload
-  starvation case to `MediaUploadSyncTests` and all three durable-erasure cases
-  to `CloudDeletionSyncTests`; the staged empty-file case is similarly bound to
+- `CloudDeletionSyncTests`, `CollectionSyncTests`, `MediaUploadSyncTests`, and
+  `MediaUploadCompletionTests` mirror the focused live sync services without
+  dropping the rehomed aggregate test names. The completion suite covers
+  unsupported-audio quarantine ordering, whole-generation sibling fencing, exact
+  all-key staging commits, callback-token ownership, retry persistence, and
+  stale-generation rejection. `OfflineQueueSyncArchitectureTests` freezes their
+  exact source/declaration ownership, imports, completion-helper containment,
+  responsibility boundaries, retired sync aggregate, mirrored completion-test
+  ownership, and 600-line ceiling. The iOS workflow contract mirrors that
+  boundary by requiring two live-task reconciliation scans in `UploadSync`, one
+  in `UploadDispatch`, and keeping upload request-policy and
+  activation-before-resume assertions with the dispatch owner. The shared
+  isolated-store fixture only creates a context; every serialized
+  singleton-backed test must explicitly install it and restore it.
+  Structured-result validation binds the upload starvation case to
+  `MediaUploadSyncTests` and all three durable-erasure cases to
+  `CloudDeletionSyncTests`; the staged empty-file case is similarly bound to
   `MediaStagingBudgetTests`.
 - `BackgroundDatabaseActorTests` validates immediate non-visual durability and
   late optional context merge. Its staging-transition cases assert committed,

@@ -267,9 +267,6 @@ struct OfflineQueueSyncArchitectureTests {
         #expect(uploadSync.contains("generateUploadURLs"))
 
         #expect(uploadPreparation.contains(
-            "nonisolated private func removeInterruptedLegacyQueuedAudioOutputs("
-        ))
-        #expect(uploadPreparation.contains(
             "\n    nonisolated func prepareUploadItems("
         ))
         #expect(!uploadPreparation.contains("generateUploadURLs"))
@@ -352,10 +349,6 @@ struct OfflineQueueSyncArchitectureTests {
             "Services/MediaUpload/OfflineQueueManager+UploadLifecycle.swift",
         "func expireUploadSync":
             "Services/MediaUpload/OfflineQueueManager+UploadLifecycle.swift",
-        "func repairLegacyQueuedAudio":
-            "Services/MediaUpload/OfflineQueueManager+UploadPreparation.swift",
-        "func removeInterruptedLegacyQueuedAudioOutputs":
-            "Services/MediaUpload/OfflineQueueManager+UploadPreparation.swift",
         "func currentMediaStagingUserId":
             "Services/MediaUpload/OfflineQueueManager+UploadPreparation.swift",
         "func prepareUploadItems":
@@ -432,7 +425,7 @@ struct OfflineQueueSyncArchitectureTests {
     ]
 
     private static let mediaUploadCompletionTestDeclarations = [
-        "func survivingLegacyUploadCompletionRepairsBeforeInferenceClaim()",
+        "func unsupportedAudioUploadCompletionStopsBeforeDurableStaging()",
         "func testUploadGenerationRejectsDelayedReplacementCallback()",
         "func testUploadFailureFencesEverySiblingCallbackInGeneration()",
         "func testUploadManifestWaitsForEverySiblingCallbackOutcome()",

@@ -48,6 +48,96 @@ struct QueueMaintenanceTests {
         #expect(fetched?.queueNeedsAttention == true)
     }
 
+    @Test func invalidQueuedMediaQuarantineUsesStableAttentionState() throws {
+        let context = try OfflineSyncTestSupport.makeIsolatedContext()
+        let manager = OfflineQueueManager.shared
+        let originalState = ManagerState(manager: manager)
+        defer { originalState.restore(manager: manager) }
+        manager.modelContext = context
+
+        let scanId = UUID().uuidString.lowercased()
+        let scan = OfflineQueuedScan(id: scanId, scanState: .staged)
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .waiting
+        )
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+
+        manager.quarantineInvalidQueuedMedia(scanId: scanId)
+
+        #expect(scan.queueState == .failed)
+        #expect(scan.queueNeedsAttention)
+        #expect(scan.queueLastErrorCode == "queued_media_invalid")
+        #expect(job.status == .needsAttention)
+        #expect(job.lastErrorCode == "queued_media_invalid")
+        #expect(OfflineScanJobMetadataContract.fundingWasReleased(
+            in: job.metadataJSON
+        ))
+    }
+
+    @Test func invalidQueuedMediaPreservesCompletedResultAndFunding() throws {
+        let context = try OfflineSyncTestSupport.makeIsolatedContext()
+        let manager = OfflineQueueManager.shared
+        let originalState = ManagerState(manager: manager)
+        defer { originalState.restore(manager: manager) }
+        manager.modelContext = context
+
+        let scanId = UUID().uuidString.lowercased()
+        let funding = ScanFundingReservation(
+            accountId: UUID(),
+            scanId: scanId,
+            source: .complimentaryPro
+        )
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            capturedMediaJSON: MediaJSONParser.jsonString(from: [
+                .audio(.documents("unsupported-recording.m4a"))
+            ]),
+            scanState: .staged
+        )
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .waiting,
+            lastErrorCode: OfflineQueueManager.completedServerResultRecoveryCode,
+            metadataJSON: try #require(
+                OfflineScanJobMetadataContract.json(
+                    generation: nil,
+                    funding: funding
+                )
+            )
+        )
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+
+        #expect(manager.quarantineInvalidQueuedMedia(scanId: scanId))
+
+        #expect(scan.queueState == .failed)
+        #expect(scan.queueNeedsAttention)
+        #expect(
+            scan.queueLastErrorCode ==
+                OfflineQueueManager.completedServerResultRecoveryCode
+        )
+        #expect(job.status == .needsAttention)
+        #expect(
+            job.lastErrorCode ==
+                OfflineQueueManager.completedServerResultRecoveryCode
+        )
+        #expect(
+            OfflineScanJobMetadataContract.funding(in: job.metadataJSON) ==
+                funding
+        )
+        #expect(!OfflineScanJobMetadataContract.fundingWasReleased(
+            in: job.metadataJSON
+        ))
+    }
+
     @Test func unsyncedCountIncludesOnlyAutomaticallyRunnableScans() throws {
         let context = try OfflineSyncTestSupport.makeIsolatedContext()
         let manager = OfflineQueueManager.shared

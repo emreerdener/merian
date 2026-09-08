@@ -73,7 +73,7 @@ The canonical behavioral contract is the
 
 | File                                                                              | Ownership                                                                                                                                                                                          |
 | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Models/OfflineScanPayloads.swift`                                                | Pending-scan snapshots and legacy queued-audio repair values.                                                                                                                                      |
+| `Models/OfflineScanPayloads.swift`                                                | Immutable pending-scan snapshots shared across persistence and queue services.                                                                                                                     |
 | `Models/MediaStagingModels.swift`                                                 | Staging manifests, media/object-key values, upload-task identity, and exact completion accumulation.                                                                                               |
 | `Models/InferenceOwnershipModels.swift`                                           | Inference task and generation identities, foreground persistence fences, funding reservations, and account-work ownership.                                                                         |
 | `Models/ExtractedScanData.swift`                                                  | Durable replay snapshots and background processing results.                                                                                                                                        |
@@ -81,6 +81,7 @@ The canonical behavioral contract is the
 | `Policies/OfflineScanJobMetadataContract.swift`                                   | Generation and funding metadata composition that preserves unrelated job metadata.                                                                                                                 |
 | `Policies/InferenceURLSessionTaskContract.swift`                                  | Current owner-scoped inference task descriptions and legacy parsing.                                                                                                                               |
 | `Policies/MediaStagingContract.swift`                                             | Filename and object-key construction, staging manifests and budgets, upload task descriptions, and compatibility parsing.                                                                          |
+| `Policies/QueuedInferenceMediaPolicy.swift`                                       | Manifest-only local-WAV admission for durable queue inference; byte validation remains with media staging.                                                                                         |
 | `Policies/OfflineQueueRetryPolicy.swift`                                          | Retry classification, capped base delays, and bounded jitter.                                                                                                                                      |
 | `Policies/OfflineQueueStoragePolicy.swift`                                        | File-backed queue admission and available-capacity checks.                                                                                                                                         |
 | `Policies/BackgroundInferencePolicy.swift`                                        | Actor-independent response, route, status-recovery, restaging, dispatch-admission, retry-date, and consent-attention decisions.                                                                    |
@@ -97,14 +98,14 @@ The canonical behavioral contract is the
 | `Services/Collections/CollectionSyncService.swift`                                | Injected account-work lease, pre-dispatch and post-response fencing, remote snapshot push, and acknowledgement commit orchestration.                                                               |
 | `Services/MediaUpload/OfflineQueueManager+UploadSync.swift`                       | Upload eligibility, durable claims, signing, and whole-generation orchestration.                                                                                                                   |
 | `Services/MediaUpload/OfflineQueueManager+UploadLifecycle.swift`                  | Generation validation/invalidation plus generation-aware upload latch completion and expiry.                                                                                                       |
-| `Services/MediaUpload/OfflineQueueManager+UploadPreparation.swift`                | Legacy queued-audio repair, staging-owner resolution, media preparation, and bounded batch selection.                                                                                              |
+| `Services/MediaUpload/OfflineQueueManager+UploadPreparation.swift`                | Staging-owner resolution, media preparation, invalid-media rejection, and bounded batch selection.                                                                                                 |
 | `Services/MediaUpload/OfflineQueueManager+UploadDispatch.swift`                   | Signed-manifest validation, request policy, background task dispatch, and signing-failure recovery.                                                                                                |
-| `Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift`                 | Generation-fenced upload callback accumulation, durable staging finalization, legacy-audio repair handoff, and inference dispatch handoff.                                                         |
-| `Services/QueueMaintenance/OfflineQueueManager+QueueState.swift`                  | Main-context flushes, automatic-work count projection, and failed-state tombstoning.                                                                                                               |
+| `Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift`                 | Generation-fenced upload callback accumulation, unsupported-audio quarantine, durable staging finalization, and inference dispatch handoff.                                                        |
+| `Services/QueueMaintenance/OfflineQueueManager+QueueState.swift`                  | Main-context flushes, automatic-work count projection, invalid-media quarantine, and failed-state tombstoning.                                                                                     |
 | `Services/QueueMaintenance/OfflineQueueManager+QueueDeletion.swift`               | Persistence-fenced explicit deletion, task cancellation, retained-media policy, and failed-record purging.                                                                                         |
 | `Services/Funding/OfflineQueueManager+Funding.swift`                              | Funding restoration, deferred-reservation reconciliation, and durable proven-failure release.                                                                                                      |
 | `Services/FieldTripProgress/OfflineQueueManager+FieldTripProgress.swift`          | Durable preferred-goal acknowledgement and replay through the milestone coordinator.                                                                                                               |
-| `Services/InferenceReplay/OfflineQueueManager+InferenceReplay.swift`              | Coalesced uploaded-scan and staged-scan inference replay, status recovery, and dispatch handoff.                                                                                                   |
+| `Services/InferenceReplay/OfflineQueueManager+InferenceReplay.swift`              | Coalesced uploaded-scan and staged-scan inference replay, unsupported-audio quarantine, status recovery, and dispatch handoff.                                                                     |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceLifecycle.swift`       | Exact process-local inference generation claim, validation, retirement, and observable sync completion.                                                                                            |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceDispatch.swift`        | Generation-fenced server preflight, hard-bounded request preparation, durable ownership activation, and background download dispatch.                                                              |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift`      | Generation-fenced task-result processing, compare-before-clear completion ownership and diagnostics, transport-failure handling, final persistence handoff, and private status-probe cancellation. |
@@ -145,6 +146,24 @@ of starting Auth recovery inside the collection task: Auth recovery drains that
 same task and outer account-work lease, so nested recovery would otherwise form
 a self-wait. The bounded retry remains pending and can dispatch after Auth is
 stable again.
+
+Queued inference audio is intentionally fail-closed. Supported iOS capture and
+video-companion producers persist local WAV files, and pending upload preflight
+rejects any other format before signing. `QueuedInferenceMediaPolicy` owns the
+storage-aware manifest check instead of placing queue behavior on the persisted
+media model. Documents storage accepts only relative, scheme- and host-free
+paths without parent traversal. Absolute storage accepts a slash-rooted path or
+a credential-free local `file://` URL whose host is absent or `localhost`;
+remote storage is never queue-inference input even when its suffix is `.wav`. A
+surviving background upload callback checks the snapshot before staging, while
+staged replay quarantines unsupported audio through the shared needs-attention
+transition. If either durable authority already records a completed cloud
+result, quarantine preserves that marker and its funding evidence so manual
+retry resumes result hydration rather than provider dispatch.
+`BackgroundDatabaseActor.tryClaimForInference` repeats the format fence as the
+final persistence boundary. The queue does not transcode persisted rows;
+historical publication playback and restore remain separate from inference
+admission.
 
 ## Compatibility
 
@@ -242,12 +261,12 @@ Focused tests mirror the extracted owners:
   requires the two upload-task reconciliation scans in `UploadSync`, the third
   in `UploadDispatch`, and keeps request policy plus activation-before-resume
   ordering checks with the dispatch owner.
-- `CloudDeletionSyncTests`, `CollectionSyncTests`, `LegacyAudioRepairTests`,
-  `MediaUploadSyncTests`, and `MediaUploadCompletionTests` mirror the
-  corresponding live service owners. The completion suite preserves sibling
-  fencing across a whole generation, exact all-key staging commits, token
-  ownership, legacy-audio ordering, retry persistence, and stale-generation
-  rejection. `OfflineSyncTestSupport` owns their shared isolated-store and
+- `CloudDeletionSyncTests`, `CollectionSyncTests`, `MediaUploadSyncTests`, and
+  `MediaUploadCompletionTests` mirror the corresponding live service owners. The
+  completion suite preserves sibling fencing across a whole generation, exact
+  all-key staging commits, token ownership, unsupported-audio quarantine before
+  durable staging, retry persistence, and stale-generation rejection.
+  `OfflineSyncTestSupport` owns their shared isolated-store and
   repository-source fixtures. Creating an isolated store has no singleton side
   effect; each serialized test explicitly installs and restores its manager
   context plus any other mutable singleton state it changes.
@@ -256,8 +275,9 @@ Focused tests mirror the extracted owners:
   remote failure, confirmed purge, in-flight local reactivation, dirty-revision
   retention, and retry exhaustion. `CollectionSyncEndpointTests` owns the exact
   path, snake-case body, timeout, and body-ignoring 2xx transport mapping.
-- `MediaStagingContractTests`, `MediaStagingBudgetTests`,
-  `MediaStagingIdentityTests`, and `MediaStagingCompletionStateTests` cover
+- `QueuedInferenceMediaPolicyTests`, `MediaStagingContractTests`,
+  `MediaStagingBudgetTests`, `MediaStagingIdentityTests`, and
+  `MediaStagingCompletionStateTests` cover storage-aware local-WAV admission,
   manifests, resource bounds, server-authoritative ownership, and exact
   completion accumulation.
 - `InferenceURLSessionTaskContractTests` covers current and legacy inference
@@ -271,9 +291,10 @@ Focused tests mirror the extracted owners:
   freezes its test ownership plus the exact mapper and preferred-goal consumer
   allowlists.
 - `QueueMaintenanceTests` covers tombstoning, fresh-context automatic-work
-  counts, non-actionable failed-record purging, and queue/goal-hint flushes. Its
-  cases snapshot and restore both the manager context and published unsynced
-  count because maintenance intentionally mutates both.
+  counts, invalid-media quarantine, completed-result/funding preservation,
+  non-actionable failed-record purging, and queue/goal-hint flushes. Its cases
+  snapshot and restore both the manager context and published unsynced count
+  because maintenance intentionally mutates both.
 - `CaptureAdmissionTests`, `LiveCaptureLifecycleTests`, and
   `InferenceReplayTests` mirror queue admission, media ordering and identity,
   foreground generation fencing, and replay coalescing. Admission cases

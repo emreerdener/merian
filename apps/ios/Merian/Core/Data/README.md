@@ -284,27 +284,28 @@ stream.
 Inference audio has an additional durable admission boundary. A newly enqueued
 audio reference must be a local, structurally valid PCM/Float WAV within the
 inference byte budget before funding is claimed or a queue row is persisted;
-upload preparation repeats the same validation before signing. Older installed
-queues may still contain local M4A/MP4 references. Before pending upload or
-staged replay can claim those rows, the queue writes
-`queueSchemaRepairGeneration = -1`, retreats the row to pending, clears every
-old staging key and background-work generation, and records a diagnostic event.
-Core Audio transcoding then runs outside the SwiftData transaction while the
-same per-scan persistence coordinator used by inference claims is held. One
-atomic commit rewrites both `capturedMediaJSON` and `capturedMediaEntries` to
-Documents-owned mono 44.1 kHz Int16 WAV sidecars, sets generation `2`, and
-returns the job to fresh signing. Cancellation removes only uncommitted sidecars
-and resets generation `1`; deterministic conversion failure records
-`queued_audio_upgrade_failed` and needs-attention instead of looping.
+upload preparation repeats the same validation before signing. Source and
+release-history review found no supported iOS producer of compressed queue
+audio: standalone capture and video companions have always used WAV, and the
+watchOS M4A sender has no iOS receiver. The speculative conversion state machine
+was therefore removed.
 
-A background PUT created by a pre-WAV app can outlive the upgrade. Its terminal
-callback first persists the completed manifest, then invokes the same repair and
-clears those now-stale compressed-audio keys before any inference dispatch.
-`tryClaimForInference` independently refuses every remaining legacy compressed
-reference as a final defense. Cloud-complete local-recovery markers veto the
-repair entirely, preserving server ownership and the no-redispatch fence. The
-repair reuses the V49 integer field and changes no SwiftData model shape or
-migration plan.
+Unexpected non-WAV or remote audio references still fail closed. Pending upload
+preflight rejects them before signing, staged replay and surviving upload
+callbacks move them to the existing needs-attention boundary, and
+`tryClaimForInference` independently refuses them as a final defense.
+`QueuedInferenceMediaPolicy` owns this manifest-only storage/format decision.
+Documents references must be relative, scheme- and host-free, and free of parent
+traversal. Absolute references must be slash-rooted paths or credential-free
+local `file://` URLs with no host other than `localhost`; remote references are
+unsupported even with a `.wav` suffix. An ordinary row receives
+`queued_media_invalid`; a known completed cloud result retains its
+higher-authority recovery marker and funding evidence so retry can hydrate that
+result without a second provider request. Historical playback and explicit
+`scan_share_restore` publication recovery may still use M4A; those contracts do
+not make M4A valid queue inference input. The V49 `queueSchemaRepairGeneration`
+field remains in the V51 model as inert persisted compatibility storage and is
+not read or mutated by the current queue runtime.
 
 Fetch, job-read, manifest-mismatch, or save failure returns a retry-required
 outcome before inference. Once the callback token releases, timestamp-fenced

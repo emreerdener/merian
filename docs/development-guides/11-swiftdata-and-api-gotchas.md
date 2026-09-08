@@ -1531,39 +1531,39 @@ retry.
 
 ---
 
-## 28. Compatibility Media Repair Must Be a Durable Queue Transition
+## 28. Prove a Persisted Compatibility Producer Before Adding Repair
 
-A process-local preflight is not enough when an old app version could already
-have persisted or started uploading a media format that a new inference contract
-rejects. The app may terminate during conversion, a background PUT may finish
-after upgrade, or staged object keys may still refer to the old bytes. Merely
-transcoding a snapshot in memory leaves each of those paths able to replay the
-incompatible object.
+A compatibility state machine is justified only when source, release, fixture,
+or telemetry evidence proves that a supported producer persisted the rejected
+shape. First inventory every capture and transfer path, identify the released
+versions that shipped it, and separate inference queue media from publication or
+playback formats. Without that evidence, fail closed at every dispatch boundary
+instead of adding speculative mutation and conversion paths.
 
-Use this sequence for persisted compatibility repair:
+Queued inference audio is the canonical example. An audit found that supported
+iOS standalone capture and video companion tracks have always entered the queue
+as local WAV files. Watch capture writes M4A, but no supported watch-to-iOS
+queue receiver exists; historical Explore publication restore is a separate
+domain. The speculative queued-audio conversion state machine was therefore
+removed.
 
-1. Hold the same per-subject coordinator used by the downstream claim.
-2. In a short database transaction, re-fetch the exact eligible state, write a
-   durable in-progress latch, retreat to a runnable pre-upload state, clear
-   every derived staging key and background generation, and save.
-3. Perform expensive file conversion outside the `ModelActor` transaction. Keep
-   the source until commit and delete only newly generated artifacts on
-   cancellation or failure.
-4. Re-fetch and commit only if the state and latch still match. Rewrite every
-   redundant persisted media representation atomically, record the completed
-   generation, and require fresh signing.
-5. Make all ordinary upload and inference claim sites reject the in-progress or
-   still-legacy row. Intercept terminal callbacks from pre-upgrade uploads and
-   route them through the same repair before dispatch.
-6. Let higher-authority terminal state win. In particular, a proven
-   cloud-complete recovery marker must veto local conversion and redispatch.
+The current boundary rejects unsupported audio before signing, quarantines it if
+a background callback or staged replay reaches a later boundary, and repeats the
+check in the serialized inference claim. The manifest-only decision belongs to
+`QueuedInferenceMediaPolicy`, not the persisted media model. An ordinary row
+stays visible as `queued_media_invalid` needs-attention work. A completed-result
+marker in either durable authority outranks local media failure; quarantine
+preserves that marker and its funding evidence so manual retry returns to result
+hydration instead of provider dispatch. The released V49+
+`queueSchemaRepairGeneration` property remains inert in V51 because removing a
+persisted property does require the full schema-version and migration process.
 
-The queued-audio implementation reuses the existing V49
-`queueSchemaRepairGeneration` scalar (`-1` claimed, `2` committed, `1`
-ordinary/reset). That is a semantics change, not a persisted-model change, so it
-does not justify a new SwiftData schema version. If a repair needs a new field,
-relationship, uniqueness rule, or enum storage shape instead, follow the full
-schema-update procedure and migration fixture matrix.
+If future evidence establishes a real compatibility population, design the
+repair as an explicit versioned migration or durable queue transition: fence
+downstream claims, preserve source bytes until atomic commit, validate redundant
+authority copies, keep conversion outside database transactions, intercept
+surviving callbacks, and add representative disk-store fixtures before enabling
+the new path.
 
 ---
 

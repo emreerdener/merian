@@ -198,28 +198,17 @@ extension OfflineQueueManager {
             MerianLog.data.debug("replayInferenceStagedScans: no staged scans")
             return
         }
-        let legacyAudioRepairScanIds = Set(fetched.compactMap { scan in
-            scan.capturedMediaSnapshot.legacyQueuedAudioReferences.isEmpty
-                ? nil
-                : scan.id
+        let invalidAudioScanIds = Set(fetched.compactMap { scan in
+            QueuedInferenceMediaPolicy.containsUnsupportedAudio(
+                in: scan.capturedMediaSnapshot
+            ) ? scan.id : nil
         })
-        if !legacyAudioRepairScanIds.isEmpty {
-            let dbActor = resolvedQueueDbActor(container: container)
-            let orderedScanIds = legacyAudioRepairScanIds.sorted()
-            Task { [weak self] in
-                guard let self else { return }
-                let repairResult = await self.repairLegacyQueuedAudio(
-                    scanIds: orderedScanIds,
-                    dbActor: dbActor
-                )
-                if repairResult.didMutate {
-                    self.syncPendingScans()
-                }
-            }
+        for scanId in invalidAudioScanIds {
+            quarantineInvalidQueuedMedia(scanId: scanId)
         }
         let now = Date()
         let staged = fetched.filter { scan in
-            !legacyAudioRepairScanIds.contains(scan.id) &&
+            !invalidAudioScanIds.contains(scan.id) &&
                 !foregroundInferenceScanIds.contains(scan.id) &&
                 activeInferenceGenerations[scan.id] == nil &&
                 inferencePreparationGenerations[scan.id] == nil &&

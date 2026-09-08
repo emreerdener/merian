@@ -132,6 +132,12 @@ struct OfflineQueueAdmissionArchitectureTests {
 
         #expect(replay.contains("private func replayInferenceStagedScans("))
         #expect(replay.contains("backgroundSession.allTasks"))
+        #expect(replay.contains(
+            "QueuedInferenceMediaPolicy.containsUnsupportedAudio("
+        ))
+        #expect(replay.contains(
+            "quarantineInvalidQueuedMedia(scanId: scanId)"
+        ))
         #expect(!replay.contains("FileManager.default.moveItem"))
 
         #expect(capture.contains("private func claimFundingAdmission("))

@@ -606,10 +606,10 @@ downstream derivation — prompt text, `observation_contexts`, local image paths
 audio paths, cleanup paths, and result hydration — is rebuilt from that one
 source. New audio rows require a structurally supported local WAV before
 admission. Historical local/HTTPS audio is materialized into a bounded canonical
-WAV sidecar before refinement, and pre-WAV M4A/MP4 queue rows cross a durable
-repair latch that clears old staging keys and atomically rewrites both timeline
-representations before upload or replay. See the
-[offline media contract](../backend-and-data/01-offline-sync-pipeline.md).
+WAV sidecar before refinement. Unexpected non-local or non-WAV queue audio is
+quarantined before signing or replay, and the serialized inference claim repeats
+the refusal as a final fence; persisted inference media is not converted. See
+the [offline media contract](../backend-and-data/01-offline-sync-pipeline.md).
 
 ## Text-Only Describe Path
 

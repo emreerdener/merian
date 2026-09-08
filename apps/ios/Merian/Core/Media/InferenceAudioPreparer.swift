@@ -79,31 +79,6 @@ enum InferenceAudioPreparer {
         )
     }
 
-    /// Produces a queue-owned upgrade file with a distinct prefix so partial
-    /// repair artifacts can never be mistaken for refinement sidecars.
-    static func prepareLegacyQueuedFile(
-        at sourceURL: URL,
-        scanId: String,
-        outputDirectory: URL = .documentsDirectory
-    ) async throws -> URL {
-        try await prepareLocalFile(
-            at: sourceURL,
-            outputDirectory: outputDirectory,
-            outputFilePrefix: legacyQueueOutputPrefix(scanId: scanId)
-        )
-    }
-
-    static func legacyQueueOutputPrefix(scanId: String) -> String {
-        let sanitizedScanId = scanId.unicodeScalars.map { scalar in
-            CharacterSet.alphanumerics.contains(scalar)
-                || scalar == "-"
-                || scalar == "_"
-                ? String(scalar)
-                : "_"
-        }.joined()
-        return "queued-audio-upgrade-\(sanitizedScanId.prefix(80))-"
-    }
-
     private static func prepareLocalFile(
         at sourceURL: URL,
         outputDirectory: URL,

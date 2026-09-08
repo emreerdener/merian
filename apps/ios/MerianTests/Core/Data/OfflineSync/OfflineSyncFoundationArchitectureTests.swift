@@ -167,16 +167,6 @@ struct OfflineSyncFoundationArchitectureTests {
         "struct CollectionSyncSnapshot":
             "Models/CollectionSyncSnapshot.swift",
         "struct PendingScanPayload": "Models/OfflineScanPayloads.swift",
-        "struct LegacyQueuedAudioRepairCandidate":
-            "Models/OfflineScanPayloads.swift",
-        "struct LegacyQueuedAudioRepairReplacement":
-            "Models/OfflineScanPayloads.swift",
-        "enum LegacyQueuedAudioRepairState":
-            "Models/OfflineScanPayloads.swift",
-        "struct LegacyQueuedAudioRepairResult":
-            "Models/OfflineScanPayloads.swift",
-        "typealias LegacyQueuedAudioFilePreparer":
-            "Models/OfflineScanPayloads.swift",
         "enum StagedMediaKind": "Models/MediaStagingModels.swift",
         "enum StagingUploadPurpose": "Models/MediaStagingModels.swift",
         "struct StagedMediaObjectKeys": "Models/MediaStagingModels.swift",
@@ -215,6 +205,8 @@ struct OfflineSyncFoundationArchitectureTests {
         "enum InferenceURLSessionTaskContract":
             "Policies/InferenceURLSessionTaskContract.swift",
         "enum MediaStagingContract": "Policies/MediaStagingContract.swift",
+        "enum QueuedInferenceMediaPolicy":
+            "Policies/QueuedInferenceMediaPolicy.swift",
         "enum OfflineQueueRetryDisposition":
             "Policies/OfflineQueueRetryPolicy.swift",
         "enum OfflineQueueRetryPolicy":
@@ -277,6 +269,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "Policies/InferenceURLSessionTaskContract.swift",
         "Policies/BackgroundInferencePolicy.swift",
         "Policies/MediaStagingContract.swift",
+        "Policies/QueuedInferenceMediaPolicy.swift",
         "Policies/OfflineQueueRetryPolicy.swift",
         "Policies/OfflineQueueStoragePolicy.swift",
         "Policies/OfflineScanJobMetadataContract.swift",
@@ -292,6 +285,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "Policies/BackgroundInferencePolicy.swift",
         "Policies/InferenceURLSessionTaskContract.swift",
         "Policies/MediaStagingContract.swift",
+        "Policies/QueuedInferenceMediaPolicy.swift",
         "Policies/OfflineQueueRetryPolicy.swift",
         "Policies/OfflineQueueStoragePolicy.swift",
         "Policies/OfflineScanJobMetadataContract.swift"
@@ -306,7 +300,7 @@ struct OfflineSyncFoundationArchitectureTests {
         ],
         "Models/InferenceOwnershipModels.swift": ["import Foundation"],
         "Models/MediaStagingModels.swift": ["import Foundation"],
-        "Models/OfflineScanPayloads.swift": ["import Foundation"],
+        "Models/OfflineScanPayloads.swift": [],
         "OfflineQueueDurability.swift": [
             "import Foundation",
             "import SwiftData"
@@ -326,6 +320,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "Policies/BackgroundInferencePolicy.swift": ["import Foundation"],
         "Policies/InferenceURLSessionTaskContract.swift": ["import Foundation"],
         "Policies/MediaStagingContract.swift": ["import Foundation"],
+        "Policies/QueuedInferenceMediaPolicy.swift": ["import Foundation"],
         "Policies/OfflineQueueRetryPolicy.swift": ["import Foundation"],
         "Policies/OfflineQueueStoragePolicy.swift": ["import Foundation"],
         "Policies/OfflineScanJobMetadataContract.swift": ["import Foundation"],

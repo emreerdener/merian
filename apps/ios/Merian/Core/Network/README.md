@@ -1676,7 +1676,6 @@ xcodebuild test \
   -only-testing:merianTests/SyncStateManagerTests \
   -only-testing:merianTests/CloudDeletionSyncTests \
   -only-testing:merianTests/CollectionSyncTests \
-  -only-testing:merianTests/LegacyAudioRepairTests \
   -only-testing:merianTests/MediaUploadSyncTests \
   -only-testing:merianTests/MediaUploadCompletionTests \
   -only-testing:merianTests/OfflineQueueRetryPolicyTests \

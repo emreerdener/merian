@@ -10,7 +10,7 @@ import Testing
 )
 @MainActor
 struct MediaUploadCompletionTests {
-    @Test func survivingLegacyUploadCompletionRepairsBeforeInferenceClaim() throws {
+    @Test func unsupportedAudioUploadCompletionStopsBeforeDurableStaging() throws {
         let source = try OfflineSyncTestSupport.loadRepositorySource(
             at: "apps/ios/Merian/Core/Data/OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift"
         )
@@ -24,30 +24,35 @@ struct MediaUploadCompletionTests {
         let completionBody = source[
             completionStart.lowerBound..<helperStart.lowerBound
         ]
-        let durableStaging = try #require(completionBody.range(
-            of: "let stagingOutcome = await queueActor.markScanAsStaged("
+        let audioFence = try #require(completionBody.range(
+            of: "QueuedInferenceMediaPolicy.containsUnsupportedAudio("
         ))
-        let legacyAudioFence = try #require(completionBody.range(
-            of: ".legacyQueuedAudioReferences.isEmpty",
-            range: durableStaging.upperBound..<completionBody.endIndex
+        let invalidation = try #require(completionBody.range(
+            of: "invalidateUploadGeneration(",
+            range: audioFence.upperBound..<completionBody.endIndex
         ))
-        let repair = try #require(completionBody.range(
-            of: "let repairResult = await repairLegacyQueuedAudio(",
-            range: legacyAudioFence.upperBound..<completionBody.endIndex
+        let quarantine = try #require(completionBody.range(
+            of: "quarantineInvalidQueuedMedia(scanId: scanId)",
+            range: invalidation.upperBound..<completionBody.endIndex
         ))
-        let stopLegacyDispatch = try #require(completionBody.range(
+        let stopDispatch = try #require(completionBody.range(
             of: "return",
-            range: repair.upperBound..<completionBody.endIndex
+            range: quarantine.upperBound..<completionBody.endIndex
+        ))
+        let durableStaging = try #require(completionBody.range(
+            of: "let stagingOutcome = await queueActor.markScanAsStaged(",
+            range: stopDispatch.upperBound..<completionBody.endIndex
         ))
         let inferencePreparation = try #require(completionBody.range(
             of: "self.beginInferencePreparation(scanId: scanId)",
-            range: stopLegacyDispatch.upperBound..<completionBody.endIndex
+            range: durableStaging.upperBound..<completionBody.endIndex
         ))
 
-        #expect(durableStaging.lowerBound < legacyAudioFence.lowerBound)
-        #expect(legacyAudioFence.lowerBound < repair.lowerBound)
-        #expect(repair.lowerBound < stopLegacyDispatch.lowerBound)
-        #expect(stopLegacyDispatch.lowerBound < inferencePreparation.lowerBound)
+        #expect(audioFence.lowerBound < invalidation.lowerBound)
+        #expect(invalidation.lowerBound < quarantine.lowerBound)
+        #expect(quarantine.lowerBound < stopDispatch.lowerBound)
+        #expect(stopDispatch.lowerBound < durableStaging.lowerBound)
+        #expect(durableStaging.lowerBound < inferencePreparation.lowerBound)
     }
 
     @Test func testUploadGenerationRejectsDelayedReplacementCallback() {
