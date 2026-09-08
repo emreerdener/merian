@@ -18,8 +18,11 @@ struct BackgroundInferenceDispatchTests {
 
         do {
             _ = try await BackgroundInferencePreparationRace.firstValue(
-                timeout: {}
+                timeout: {
+                    await recorder.waitForPreparationStart()
+                }
             ) {
+                await recorder.recordPreparationStart()
                 do {
                     try await Task.sleep(for: .seconds(30))
                     return "late"
@@ -35,8 +38,7 @@ struct BackgroundInferenceDispatchTests {
             Issue.record("Unexpected preparation error: \(error)")
         }
 
-        let observedCancellation = await recorder.observedCancellation
-        #expect(observedCancellation)
+        #expect(await recorder.waitForCancellation())
     }
 
     @Test func callerCancellationCancelsPreparationRace() async {
@@ -225,10 +227,37 @@ struct BackgroundInferenceDispatchTests {
 }
 
 private actor CancellationRecorder {
+    private var preparationStarted = false
+    private var preparationStartWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var observedCancellation = false
+
+    func recordPreparationStart() {
+        preparationStarted = true
+        let waiters = preparationStartWaiters
+        preparationStartWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+    }
+
+    func waitForPreparationStart() async {
+        if preparationStarted { return }
+        await withCheckedContinuation { continuation in
+            preparationStartWaiters.append(continuation)
+        }
+    }
 
     func recordCancellation() {
         observedCancellation = true
+    }
+
+    func waitForCancellation(
+        timeout: Duration = .seconds(5)
+    ) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !observedCancellation, clock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return observedCancellation
     }
 }
 
