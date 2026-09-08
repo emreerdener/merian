@@ -14,7 +14,9 @@ schema_v35_file="apps/ios/Merian/Models/Schema/SchemaV35.swift"
 schema_v37_file="apps/ios/Merian/Models/Schema/SchemaV37.swift"
 schema_v38_file="apps/ios/Merian/Models/Schema/SchemaV38.swift"
 schema_v39_file="apps/ios/Merian/Models/Schema/SchemaV39.swift"
-background_database_actor_file="apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift"
+collection_sync_database_file="apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+CollectionSync.swift"
+collection_sync_snapshot_file="apps/ios/Merian/Core/Data/OfflineSync/Models/CollectionSyncSnapshot.swift"
+collection_sync_endpoint_file="apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Collections.swift"
 test_file="apps/ios/MerianTests/Models/MigrationPlanTests.swift"
 recovery_file="apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift"
 recovery_test_file="apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift"
@@ -66,10 +68,15 @@ for frozen_preference_schema_file in \
   fi
 done
 
-if [ ! -f "$background_database_actor_file" ]; then
-  echo "Missing $background_database_actor_file" >&2
-  exit 1
-fi
+for collection_sync_file in \
+  "$collection_sync_database_file" \
+  "$collection_sync_snapshot_file" \
+  "$collection_sync_endpoint_file"; do
+  if [ ! -f "$collection_sync_file" ]; then
+    echo "Missing $collection_sync_file" >&2
+    exit 1
+  fi
+done
 
 if [ ! -f "$test_file" ]; then
   echo "Missing $test_file" >&2
@@ -366,8 +373,14 @@ contains "$active_collection_file" "@Attribute(originalName: \"isDeleted\")" \
 contains "$active_collection_file" "public var isPendingDeletion: Bool = false" \
   || fail "Active V51 ScanCollection must expose an unambiguous persistent tombstone property."
 not_contains "$active_collection_file" "public var isDeleted: Bool"
-contains "$background_database_actor_file" "is_deleted: collection.isPendingDeletion" \
-  || fail "Collection synchronization must preserve the is_deleted wire key while reading the V50 tombstone."
+contains "$collection_sync_database_file" "isPendingDeletion: collection.isPendingDeletion" \
+  || fail "Collection synchronization must project the active V50 tombstone into its immutable snapshot."
+contains "$collection_sync_snapshot_file" "let isPendingDeletion: Bool" \
+  || fail "CollectionSyncSnapshot must preserve the active V50 tombstone value across the persistence boundary."
+contains "$collection_sync_endpoint_file" "case isDeleted = \"is_deleted\"" \
+  || fail "Collection synchronization must preserve the is_deleted wire key."
+contains "$collection_sync_endpoint_file" "isDeleted: snapshot.isPendingDeletion" \
+  || fail "Collection synchronization must map the V50 tombstone snapshot to the is_deleted wire value."
 
 recent_v42_plan="$(extract_block "enum MerianRecentV42MigrationPlan" "enum MerianRecentV43MigrationPlan")"
 recent_v43_plan="$(extract_block "enum MerianRecentV43MigrationPlan" "enum MerianRecentV44MigrationPlan")"
