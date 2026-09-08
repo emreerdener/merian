@@ -215,10 +215,24 @@ blocked on the current network, and media-less legacy rows until the
 runnable-media limit is filled or the eligible set is exhausted. Media-less rows
 use a separate bounded quarantine budget, so older locally blocked or malformed
 rows cannot starve newer ready work, while explicit user-forced video upload
-remains eligible. The worker rechecks and, when needed, refetches after a
-process-local policy change. Global server-owner reconciliation reads through
-the serialized queue actor and excludes attention-paused inference rows; a
-cached main-context fault cannot bypass that fence.
+remains eligible.
+
+`Core/Data/Database/BackgroundDatabaseActor+QueueSelection.swift` owns this
+actor-isolated persistence boundary, and Media Upload's `UploadSync` is its sole
+production consumer. Before scanning pages, the actor reads scan-ingestion
+funding jobs once and applies the established stable tiers: complimentary Pro
+and legacy rows, paid Pro, then immediate Flash; deferred Flash is not runnable.
+If funding state cannot be read, selection returns no work rather than
+dispatching rows under an assumed legacy tier. Empty-media quarantine re-fetches
+state and media, loads any existing matching job through the shared persistence
+helper, and commits scan/job/event attention state in one save. Scan/job fetch
+or save failure rolls back the batch. A truly missing job remains compatible for
+a legacy row, in which case the scan and diagnostic event still commit together.
+
+The worker rechecks and, when needed, refetches after a process-local policy
+change. Global server-owner reconciliation reads through the serialized queue
+actor and excludes attention-paused inference rows; a cached main-context fault
+cannot bypass that fence.
 
 An eligible live visual Capture can also supply a selected standard-outing goal
 as `preferredGoal`. V50 stores the two goal IDs in the scan-keyed companion
@@ -628,8 +642,9 @@ Batch sizing is governed by `MerianConfig`:
 
 - **`pendingScanFetchLimit`** (50): maximum runnable `OfflineQueuedScan` records
   returned per cycle by `BackgroundDatabaseActor.fetchPendingScans(limit:)`. The
-  actor may inspect additional deterministic pages to move past future-dated
-  retries, deferred live uploads, and network-blocked videos.
+  focused queue-selection actor extension may inspect additional deterministic
+  pages to move past future-dated retries, deferred live uploads, and
+  network-blocked videos.
 - **`uploadBatchSize`** (5): maximum scans considered for R2 staging per cycle.
   Selection scans the full bounded runnable window, skips empty rows and
   non-fitting combinations, and admits later work that still fits. A malformed

@@ -7,13 +7,15 @@ pipeline.
 aggregate owner for the persistence domains that have not yet been extracted.
 Focused sibling extensions own bounded persistence surfaces without changing the
 actor's public call sites. `BackgroundDatabaseActor+CollectionSync.swift` owns
-collection snapshot and acknowledgement persistence, while
-`BackgroundDatabaseActor+SpeciesMetadata.swift` owns Wikipedia/reference-image
-patches, inference enrichment, lookalike-cache recovery, and identification
-review persistence. `BackgroundDatabaseActor+NonBiologicalRetention.swift` owns
-the non-biological erasure values, bounded retention purge, and atomic
-record/cloud-tombstone commit. All focused files are persistence-only: they
-perform no networking, authentication, file I/O, or UI work.
+collection snapshot and acknowledgement persistence,
+`BackgroundDatabaseActor+QueueSelection.swift` owns pending upload selection and
+empty-media quarantine, while `BackgroundDatabaseActor+SpeciesMetadata.swift`
+owns Wikipedia/reference-image patches, inference enrichment, lookalike-cache
+recovery, and identification review persistence.
+`BackgroundDatabaseActor+NonBiologicalRetention.swift` owns the non-biological
+erasure values, bounded retention purge, and atomic record/cloud-tombstone
+commit. All focused files are persistence-only: they perform no networking,
+authentication, file I/O, or UI work.
 
 ## Purpose
 
@@ -426,6 +428,35 @@ classified as cancellation, and local file cleanup runs only after this save. If
 crash replay reaches the same proven generation after the queue row is gone, an
 already-complete job is accepted without appending a duplicate completion event.
 
+## Queue Selection Persistence
+
+`Database/BackgroundDatabaseActor+QueueSelection.swift` is the focused
+persistence owner for pending upload selection and empty-media quarantine. Its
+actor and method signatures are unchanged. Selection pages through the complete
+pending set so delayed, locally excluded, video-blocked, or media-less rows
+cannot starve newer runnable work. It preserves stable oldest-first order within
+the existing funding tiers, excludes deferred Flash work, and returns a
+separately bounded set of media-less candidates for quarantine. An unreadable
+funding-job query fails selection closed instead of treating every row as
+legacy/unfunded work.
+
+Quarantine re-fetches each candidate inside the actor and mutates only a row
+that is still pending, not already marked for attention, and still has no local
+image, audio, or video. The scan failure, any existing matching offline-job
+attention state, and diagnostic event commit in one context save; a scan, job,
+or save failure rolls back the batch. The extension reuses the shared
+`ModelContext.fetchOfflineJob` lookup and performs no networking,
+authentication, file I/O, or UI work.
+
+`OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadSync.swift` is the
+only production consumer and retains live-transfer exclusions, network policy,
+and upload orchestration. `QueueSelectionPersistenceTests` covers actor
+isolation, state filtering, full-set paging, funding priority, and atomic
+state-bound quarantine with both existing and legacy-missing matching jobs.
+`QueueSelectionArchitectureTests` freezes sole declaration and test ownership,
+the consumer allowlist, shared-helper use, narrow imports and dependencies, and
+the 600-line focused-file ceilings.
+
 ## Identification Review Replacement
 
 All persistence operations in this section live in
@@ -562,9 +593,16 @@ persistence.
 
 - `ModelStoreRecoveryCoordinator` decides whether a `ModelContainer` startup
   failure is a verified SQLite/Core Data corruption case.
-- It reads actual store metadata before container creation. Fresh and V51 stores
-  open as current; known V42...V50 sources use finite, source-isolated plans;
-  only unknown older stores use the full historical plan.
+- It resolves the store URL from the same automatic SwiftData configuration used
+  by the production container, then reads actual metadata before container
+  creation. This keeps App Group-backed stores aligned with migration,
+  diagnostics, quarantine, and rescue. Fresh and V51 stores open as current;
+  known V42...V50 sources use finite, source-isolated plans; only unknown older
+  stores use the full historical plan.
+- The current automatic App Group location is a shipped-store compatibility
+  constraint, not an extension data-sharing contract. Extensions never open the
+  SwiftData database; a future move to private Application Support requires a
+  data-preserving store relocation first.
 - A released V50 store selects `MerianRecentV50MigrationPlan` and applies the
   custom V50→V51 account-partition stage. A released V49 store selects
   `MerianRecentV49MigrationPlan` and advances through lightweight V49→V50 plus

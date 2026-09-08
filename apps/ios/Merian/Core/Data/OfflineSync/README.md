@@ -65,6 +65,11 @@ The canonical behavioral contract is the
   main-actor terminal routing; accepted work then enters the existing
   upload/inference processors. The delegate adapter does not own SwiftData
   decisions.
+- `Core/Data/Database/BackgroundDatabaseActor+QueueSelection.swift` remains the
+  actor-isolated persistence owner for pending upload selection and empty-media
+  quarantine. Media Upload's `UploadSync` is its only production consumer and
+  retains live-transfer exclusions, video-network eligibility, and
+  orchestration.
 - `OfflineQueueDurability.swift` contains live `OfflineQueueManager` durable
   state mutations and retry orchestration. It consumes the extracted policies;
   it does not own their definitions.
@@ -146,6 +151,17 @@ of starting Auth recovery inside the collection task: Auth recovery drains that
 same task and outer account-work lease, so nested recovery would otherwise form
 a self-wait. The bounded retry remains pending and can dispatch after Auth is
 stable again.
+
+Pending upload selection also remains outside the service owner.
+`Core/Data/Database/BackgroundDatabaseActor+QueueSelection.swift` pages through
+all pending rows, applies the existing retry, process-local exclusion, video,
+and funding gates, and returns a bounded media-less quarantine set without
+letting it consume the runnable-media limit. Empty-media quarantine revalidates
+the persisted row and commits scan, any existing matching job, and event
+attention state atomically. Funding lookup fails selection closed, while a scan,
+job, or save failure rolls back quarantine rather than committing partial state.
+`Services/MediaUpload/OfflineQueueManager+UploadSync.swift` supplies transient
+policy and is the sole caller; neither owner duplicates the other's state.
 
 Queued inference audio is intentionally fail-closed. Supported iOS capture and
 video-companion producers persist local WAV files, and pending upload preflight
@@ -275,6 +291,12 @@ Focused tests mirror the extracted owners:
   remote failure, confirmed purge, in-flight local reactivation, dirty-revision
   retention, and retry exhaustion. `CollectionSyncEndpointTests` owns the exact
   path, snake-case body, timeout, and body-ignoring 2xx transport mapping.
+- `QueueSelectionPersistenceTests` covers actor-isolated pending selection,
+  blocked-row paging, stable funding priority, and state-bound atomic quarantine
+  with and without an existing matching job. `QueueSelectionArchitectureTests`
+  freezes its focused production and test owners, fail-closed SwiftData reads,
+  shared offline-job lookup, upload-sync consumer allowlist, dependency
+  exclusions, and 600-line ceilings.
 - `QueuedInferenceMediaPolicyTests`, `MediaStagingContractTests`,
   `MediaStagingBudgetTests`, `MediaStagingIdentityTests`, and
   `MediaStagingCompletionStateTests` cover storage-aware local-WAV admission,

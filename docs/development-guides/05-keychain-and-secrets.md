@@ -565,9 +565,17 @@ Merian uses `group.app.merian.shared` for non-secret extension coordination:
 - Messages scan share cache (`message-scan-share-cache.json`,
   `MessageScanThumbnails/`, `MessageScanAttachments/`)
 
-Do not put provider secrets, service-role keys, raw private notes dumps, or
-SwiftData stores in the App Group. The App Group is for small, explicit handoff
+Do not put provider secrets, service-role keys, raw private notes dumps, or new
+databases in the App Group. The App Group is for small, explicit handoff
 artifacts whose schema is owned by shared Swift structs.
+
+Compatibility exception: shipped main-app builds relied on SwiftData's
+`.automatic` group selection, so an existing local store may already reside in
+the App Group. Extensions must never open or inspect it. Startup recovery must
+preserve that store and use its configured URL until a separately reviewed,
+data-preserving relocation moves it to private Application Support. Do not
+switch the production configuration to `.none` or delete the grouped store
+without that rollout.
 
 ---
 

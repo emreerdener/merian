@@ -7,14 +7,14 @@ telemetry, and verification.
 
 ## Ownership
 
-| Area                         | File                                                                                                                                           | Responsibility                                                                                                                                                                                                                                                                                      |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App bootstrap                | `apps/ios/Merian/App/MerianApp.swift`                                                                                                          | Orchestrates startup, builds the model container, shows safe-mode/recovery notices, and emits recovery telemetry after analytics starts.                                                                                                                                                            |
-| Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`                                                                                              | Converts Objective-C `NSException`s raised by SwiftData/Core Data into Swift errors.                                                                                                                                                                                                                |
-| Store recovery policy        | `apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`                                                                  | Reads store metadata for migration strategy selection, detects corruption signatures, archives unrecoverable legacy stores, quarantines corrupt local store artifacts, and writes support manifests.                                                                                                |
-| Tests                        | `apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift`, `apps/ios/MerianTests/Models/MigrationPlanTests.swift`                    | Verifies store-aware migration hints, duplicate-checksum detection, corruption gating, legacy rescue, manifest writing, recent source-isolated migration plans, and isolation from auth/session managers.                                                                                           |
-| Startup CI guardrails        | `.github/workflows/ios-project-guardrails.yml`, `.github/workflows/ios-startup-safety.yml`, `scripts/check-ios-migration-source-guardrails.sh` | Runs fast source/project/release-tooling checks on Ubuntu, then focused startup store-recovery and migration tests on macOS when startup inputs change.                                                                                                                                             |
-| Broad compiled CI            | `.github/workflows/ios-build-and-test.yml`, `scripts/check-ios-project-source-membership.sh`, `scripts/validate-ios-critical-test-results.sh`  | Compiles both shared test bundles, executes the complete unit-test target including the startup suites, runs all four deterministic progressive-analyzing, live-to-queue, queued-retry, and queued-completion UI smokes, and independently verifies an exact-SHA unsigned Release archive and dSYM. |
+| Area                         | File                                                                                                                                                                                      | Responsibility                                                                                                                                                                                                                                                                                      |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App bootstrap                | `apps/ios/Merian/App/MerianApp.swift`                                                                                                                                                     | Orchestrates startup, builds the model container, shows safe-mode/recovery notices, and emits recovery telemetry after analytics starts.                                                                                                                                                            |
+| Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`                                                                                                                                         | Converts Objective-C `NSException`s raised by SwiftData/Core Data into Swift errors.                                                                                                                                                                                                                |
+| Store recovery policy        | `apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`                                                                                                             | Reads store metadata for migration strategy selection, detects corruption signatures, archives unrecoverable legacy stores, quarantines corrupt local store artifacts, and writes support manifests.                                                                                                |
+| Tests                        | `apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift`, `apps/ios/MerianTests/Core/Data/LocalImageLoaderTests.swift`, `apps/ios/MerianTests/Models/MigrationPlanTests.swift` | Verifies configured store location, store-aware migration hints, duplicate-checksum detection, corruption gating, legacy rescue ordering, manifest writing, recent source-isolated migration plans, and isolation from auth/session managers.                                                       |
+| Startup CI guardrails        | `.github/workflows/ios-project-guardrails.yml`, `.github/workflows/ios-startup-safety.yml`, `scripts/check-ios-migration-source-guardrails.sh`                                            | Runs fast source/project/release-tooling checks on Ubuntu, then focused startup store-recovery and migration tests on macOS when startup inputs change.                                                                                                                                             |
+| Broad compiled CI            | `.github/workflows/ios-build-and-test.yml`, `scripts/check-ios-project-source-membership.sh`, `scripts/validate-ios-critical-test-results.sh`                                             | Compiles both shared test bundles, executes the complete unit-test target including the startup suites, runs all four deterministic progressive-analyzing, live-to-queue, queued-retry, and queued-completion UI smokes, and independently verifies an exact-SHA unsigned Release archive and dSYM. |
 
 Startup Safety is a focused drift and migration-diagnostic lane, not the only
 compile gate. Every build-relevant startup or schema change must also pass
@@ -22,8 +22,14 @@ compile gate. Every build-relevant startup or schema change must also pass
 
 ## Startup Open And Recovery Ladder
 
-1. Inspect the on-disk SwiftData store metadata before creating the persistent
-   `ModelContainer`.
+1. Resolve the on-disk store URL from the same production SwiftData
+   `ModelConfiguration` used to create the persistent `ModelContainer`, then
+   inspect that store's metadata. With Naturebook's App Group entitlement,
+   SwiftData's `.automatic` group configuration places the store in the primary
+   App Group container rather than the app's Application Support directory. This
+   is compatibility with already shipped stores, not permission for an extension
+   to open the database. Moving the store to a private container requires a
+   separate data-preserving rollout before `.automatic` can change.
 2. Choose the narrowest safe startup strategy:
    - no store artifacts or current-schema store → open without a migration plan
    - known recent source store (V42, V43, V44, V45, V46, V47, V48, V49, or V50)
@@ -66,6 +72,12 @@ compile gate. Every build-relevant startup or schema change must also pass
 
 Generic current-store startup failures must not move local store files. They
 skip quarantine/rescue and go directly to safe mode.
+
+Recovery code must not reconstruct the store location as
+`Application Support/default.store`. Migration selection, diagnostics,
+quarantine, rescue, and container creation must all refer to SwiftData's
+configured URL. Rescue-media lookup checks that configured directory first and
+also checks Application Support for archives produced by older builds.
 
 When a persistent or safe-mode container is available, its recovery notice is a
 dismissible top card so Capture and the rest of the workspace remain usable. The
@@ -329,6 +341,7 @@ swiftlint lint \
   apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift \
   apps/ios/Merian/Core/Analytics/AppTelemetry.swift \
   apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift \
+  apps/ios/MerianTests/Core/Data/LocalImageLoaderTests.swift \
   apps/ios/MerianTests/Models/MigrationPlanTests.swift \
   apps/ios/MerianTests/Core/Analytics/AppTelemetryTests.swift
 git diff --check
@@ -343,6 +356,7 @@ xcodebuild test \
   -project Merian.xcodeproj \
   -destination "$destination" \
   -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
+  -only-testing:merianTests/LocalImageLoaderTests \
   -only-testing:merianTests/MigrationPlanTests
 ```
 

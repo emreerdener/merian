@@ -226,6 +226,55 @@ struct LocalImageLoaderTests {
         #expect(recoveredURL == localURL)
     }
 
+    @Test func legacyRecoveryStoreLocatorPrefersConfiguredRootAndNewestArchives() throws {
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let configuredDirectory = temporaryDirectory.appendingPathComponent(
+            "a-configured",
+            isDirectory: true
+        )
+        let legacyDirectory = temporaryDirectory.appendingPathComponent(
+            "z-legacy",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+        func makeStore(in directory: URL, archive: String) throws -> URL {
+            let archiveDirectory = directory
+                .appendingPathComponent("store-rescue", isDirectory: true)
+                .appendingPathComponent(archive, isDirectory: true)
+            try FileManager.default.createDirectory(
+                at: archiveDirectory,
+                withIntermediateDirectories: true
+            )
+            let storeURL = archiveDirectory.appendingPathComponent("default.store")
+            try Data([0x01]).write(to: storeURL)
+            return storeURL
+        }
+
+        let configuredOlder = try makeStore(
+            in: configuredDirectory,
+            archive: "2026-07-01T10-00-00Z-AAAA"
+        )
+        let configuredNewer = try makeStore(
+            in: configuredDirectory,
+            archive: "2026-08-01T10-00-00Z-BBBB"
+        )
+        let legacyOlder = try makeStore(
+            in: legacyDirectory,
+            archive: "2026-07-01T10-00-00Z-CCCC"
+        )
+        let legacyNewer = try makeStore(
+            in: legacyDirectory,
+            archive: "2026-08-01T10-00-00Z-DDDD"
+        )
+
+        #expect(LegacyScanMediaRecoveryStoreLocator.storeURLs(
+            configuredStoreDirectory: configuredDirectory,
+            legacyApplicationSupportDirectory: legacyDirectory
+        ) == [configuredNewer, configuredOlder, legacyNewer, legacyOlder])
+    }
+
     @Test func localScanMediaRecoveryUsesHighConfidenceWriteTimestampGroup() throws {
         let temporaryDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

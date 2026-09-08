@@ -57,11 +57,30 @@ generation is never overwritten by a different attempt.
 
 _Upload state machine (V33):_
 
-- `fetchPendingScans(limit:)` — fetches `.pending` (state 0) `OfflineQueuedScan`
-  records for upload dispatch and returns both image and audio paths derived
-  from the canonical media timeline. Scans in `.uploading`, `.staged`,
-  `.inferencing`, or `.failed` states are excluded — they are either in-flight
-  or terminal.
+Pending selection and empty-media quarantine are implemented in the focused
+`Core/Data/Database/BackgroundDatabaseActor+QueueSelection.swift` extension. The
+extension owns SwiftData reads and mutations only; Media Upload's
+`Core/Data/OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadSync.swift`
+is its sole production consumer and retains live-transfer exclusions,
+video-network policy, and orchestration.
+
+- `fetchPendingScans(limit:)` — pages the complete `.pending` (state 0),
+  non-attention set in deterministic timestamp/ID order, moving past future
+  retry deadlines, process-local exclusions, and video rows that are ineligible
+  on the current network. It returns up to `limit` runnable-media payloads plus
+  a separately bounded empty-media quarantine set. Complimentary Pro and legacy
+  rows retain the first funding tier, followed by paid Pro and immediate Flash;
+  deferred Flash is excluded. Order remains stable within each tier. An
+  unreadable funding-job query fails selection closed and returns no candidates
+  instead of treating every row as legacy/unfunded work. Scans in `.uploading`,
+  `.staged`, `.inferencing`, or `.failed` remain excluded.
+- `quarantineEmptyPendingScans(scanIds:)` — re-fetches each candidate on the
+  actor and changes only a row that is still pending, is not already marked for
+  attention, and still has no local image, audio, or video. The scan failure,
+  any existing matching offline-job attention state, and diagnostic event commit
+  in one save. Scan/job fetch or save failure rolls back the complete batch and
+  returns no accepted IDs. A genuinely absent matching job remains a supported
+  legacy case: the scan and event still commit atomically.
 - `markScansAsUploading(scanIds:)` — transitions scans from
   `.pending → .uploading`, persists before URLSession tasks are dispatched, and
   returns the claimed scan IDs. Source-state guard: predicate restricts the
@@ -112,6 +131,13 @@ _Upload state machine (V33):_
   resetting `.inferencing → .staged`. It uses the same snapshot cutoff, so a
   replacement inference claim cannot be mistaken for an orphan while the actor
   call is queued. Save failure rolls back the actor context.
+
+`QueueSelectionPersistenceTests` mirrors state filtering, complete-set paging,
+stable funding priority, actor-isolated payload extraction, and empty-media
+quarantine with both an existing matching job and the supported missing-job
+case. `QueueSelectionArchitectureTests` freezes sole declaration/test ownership,
+the exact Upload Sync consumer allowlist, fail-closed funding/job reads, shared
+offline-job lookup, narrow dependencies, and 600-line focused-file ceilings.
 
 _Unsupported queued audio:_
 
@@ -318,7 +344,8 @@ await dbActor.saveLiveScanRecord(
     persistenceFence: fence
 )
 
-// Long-lived: for offline upload/inference claims, retries, and orphan recovery.
+// Long-lived: for pending selection/quarantine, upload/inference claims,
+// retries, and orphan recovery.
 // OfflineQueueManager maintains one instance via resolvedQueueDbActor(container:).
 // The shared executor plus observedThrough cutoffs keep a stale reconcile from
 // overwriting a replacement upload or inference claim.
@@ -676,25 +703,26 @@ payload unless a future explicit conversion feature creates normal collections.
 
 ## Decision Guide
 
-| Task                                                     | Actor to use                                                                                                                                                   |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Save a live scan result                                  | `BackgroundDatabaseActor` (ad-hoc) via `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)` |
-| Save a text-only, audio-only, or mixed non-visual result | `BackgroundDatabaseActor` (ad-hoc) via `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`                |
-| Transition scan state for upload pipeline                | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                                              |
-| Claim a scan for inference (`tryClaimForInference`)      | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                                              |
-| Reset scan to `.staged` on transient failure             | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                                              |
-| Process an offline scan after upload                     | Fresh `BackgroundDatabaseActor` for final record persistence; shared `resolvedQueueDbActor` for queue transitions                                              |
-| Startup/ongoing orphan reconciliation                    | `BackgroundDatabaseActor` via `resolvedQueueDbActor`, with a pre-enumeration `observedThrough` cutoff                                                          |
-| Sync historical scans from cloud                         | `HistoricalDatabaseActor` (ad-hoc)                                                                                                                             |
-| Calculate all profile data (stats + heatmap + awards)    | `ProfileDatabaseActor.calculateAll()` (ad-hoc)                                                                                                                 |
-| Calculate achievement awards only (post-inference)       | `ProfileDatabaseActor.calculateAwards()` via `resolvedProfileDbActor` (long-lived)                                                                             |
-| Calculate profile stats (species count, streak)          | `ProfileDatabaseActor.calculateProfileStats()` (ad-hoc)                                                                                                        |
-| Write scan image files to disk                           | `FileIOActor.shared`                                                                                                                                           |
-| Delete scan media files from disk                        | `FileIOActor.shared`                                                                                                                                           |
-| Validate scan media paths                                | `FileIOActor.shared`                                                                                                                                           |
-| Commit non-biological bulk deletion or retention purge   | Fresh `BackgroundDatabaseActor`; focused persistence lives in `BackgroundDatabaseActor+NonBiologicalRetention.swift`                                           |
-| Project/commit a collection sync                         | Fresh `BackgroundDatabaseActor` instances through `CollectionSyncService`; Core Network owns the Edge request                                                  |
-| Persist enrichment data after enrich-scan returns        | `BackgroundDatabaseActor` (ad-hoc)                                                                                                                             |
+| Task                                                     | Actor to use                                                                                                                                                                  |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Save a live scan result                                  | `BackgroundDatabaseActor` (ad-hoc) via `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`                |
+| Save a text-only, audio-only, or mixed non-visual result | `BackgroundDatabaseActor` (ad-hoc) via `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`                               |
+| Select pending uploads or quarantine empty candidates    | `BackgroundDatabaseActor` via `resolvedQueueDbActor`; focused persistence lives in `BackgroundDatabaseActor+QueueSelection.swift`, called only by Media Upload's `UploadSync` |
+| Transition scan state for upload pipeline                | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                                                             |
+| Claim a scan for inference (`tryClaimForInference`)      | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                                                             |
+| Reset scan to `.staged` on transient failure             | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                                                             |
+| Process an offline scan after upload                     | Fresh `BackgroundDatabaseActor` for final record persistence; shared `resolvedQueueDbActor` for queue transitions                                                             |
+| Startup/ongoing orphan reconciliation                    | `BackgroundDatabaseActor` via `resolvedQueueDbActor`, with a pre-enumeration `observedThrough` cutoff                                                                         |
+| Sync historical scans from cloud                         | `HistoricalDatabaseActor` (ad-hoc)                                                                                                                                            |
+| Calculate all profile data (stats + heatmap + awards)    | `ProfileDatabaseActor.calculateAll()` (ad-hoc)                                                                                                                                |
+| Calculate achievement awards only (post-inference)       | `ProfileDatabaseActor.calculateAwards()` via `resolvedProfileDbActor` (long-lived)                                                                                            |
+| Calculate profile stats (species count, streak)          | `ProfileDatabaseActor.calculateProfileStats()` (ad-hoc)                                                                                                                       |
+| Write scan image files to disk                           | `FileIOActor.shared`                                                                                                                                                          |
+| Delete scan media files from disk                        | `FileIOActor.shared`                                                                                                                                                          |
+| Validate scan media paths                                | `FileIOActor.shared`                                                                                                                                                          |
+| Commit non-biological bulk deletion or retention purge   | Fresh `BackgroundDatabaseActor`; focused persistence lives in `BackgroundDatabaseActor+NonBiologicalRetention.swift`                                                          |
+| Project/commit a collection sync                         | Fresh `BackgroundDatabaseActor` instances through `CollectionSyncService`; Core Network owns the Edge request                                                                 |
+| Persist enrichment data after enrich-scan returns        | `BackgroundDatabaseActor` (ad-hoc)                                                                                                                                            |
 
 ## 2026-04 Hardening Updates
 

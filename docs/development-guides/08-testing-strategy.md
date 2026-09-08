@@ -1430,9 +1430,10 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
 - **`ViewfinderIntelligenceTests.swift`**: Validates real-time analysis logic,
   ensuring frames are evaluated correctly before inference is triggered.
 - **`ArchiveManagerTests.swift`, `SyncStateManagerTests.swift`,
-  `ScanRepositoryTests.swift`, `BackgroundDatabaseActorTests.swift`**: Verifies
-  bi-directional SwiftData relationship behavior within an isolated context,
-  without triggering SwiftData loop issues. `ScanRepositoryTests` includes
+  `ScanRepositoryTests.swift`, `BackgroundDatabaseActorTests.swift`,
+  `QueueSelectionPersistenceTests.swift`**: Verifies bi-directional SwiftData
+  relationship behavior within an isolated context, without triggering SwiftData
+  loop issues. `ScanRepositoryTests` includes
   `testIngestScansTimestampGuardSkipsNilAndUnparseableTimestamps` — verifies the
   `guard let parsedDate = exifDate else { continue }` path in `ingestScans` by
   replicating the exact `flatMap + ISO 8601 formatter` derivation and asserting
@@ -1443,26 +1444,26 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `LocalScanRecord` with `lookalikesData: Data?` (JSON-encoded
   `[SimilarSpeciesEntry]`) and verifies the blob round-trips and decodes
   correctly (covering the `MerianSchemaV27` field added for rich lookalike
-  persistence). `BackgroundDatabaseActorTests` uses `CurrentSchema` and a
+  persistence). `QueueSelectionPersistenceTests` uses `CurrentSchema` and a
   disk-isolated container to validate actor-boundary `Sendable` payload
-  extraction across a `Task.detached` boundary. Its upload and inference
-  reconciliation tests seed rows on both sides of an `observedThrough` cutoff
-  and prove the older orphan resets while newer replacement work remains
-  claimed. Its terminal replay test accepts an absent queue only for the exact
-  generation's completed durable job, while rejecting nonterminal and
-  mismatched-generation jobs. Its inference-claim coverage also proves an
-  unsupported queued-audio manifest cannot cross the serialized `.staged` →
-  `.inferencing` transition. `SyncStateManagerTests` also locks the
+  extraction across a `Task.detached` boundary. `BackgroundDatabaseActorTests`
+  keeps upload and inference reconciliation coverage on both sides of an
+  `observedThrough` cutoff, proving the older orphan resets while newer
+  replacement work remains claimed. Its terminal replay test accepts an absent
+  queue only for the exact generation's completed durable job, while rejecting
+  nonterminal and mismatched-generation jobs. Its inference-claim coverage also
+  proves an unsupported queued-audio manifest cannot cross the serialized
+  `.staged` → `.inferencing` transition. `SyncStateManagerTests` also locks the
   generation-fencing contract: a stale upload completion cannot clear a
   replacement batch; a completion delivered after `forceIdle()` cannot remove a
   newer inference token; a stale finalizing transition cannot advance the
   replacement's UI phase; and `GenerationTaskRegistry` rejects
   compare-before-clear and owner-cancel attempts from a replaced slot.
-  **`testFetchPendingScansExcludesNonPendingScans`** (V33) seeds scans in all
-  five states (`.pending`, `.uploading`, `.staged`, `.inferencing`, `.failed`)
-  and asserts `fetchPendingScans` returns only the `.pending` record — directly
-  validating the V33 `scanStateRaw == 0` predicate that prevents re-dispatching
-  in-flight or tombstoned scans.
+  `QueueSelectionPersistenceTests.testFetchPendingScansExcludesNonPendingScans`
+  (V33) seeds scans in all five states (`.pending`, `.uploading`, `.staged`,
+  `.inferencing`, `.failed`) and asserts `fetchPendingScans` returns only the
+  `.pending` record — directly validating the V33 `scanStateRaw == 0` predicate
+  that prevents re-dispatching in-flight or tombstoned scans.
 - **`Core/Data/Database/SpeciesMetadataPersistenceTests.swift`**: Owns the
   extracted species-metadata actor behavior. It verifies stale Wikipedia and
   enrichment work cannot overwrite a replacement identification; all supplied
@@ -1820,8 +1821,9 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   permit tests prove concurrency remains bounded and a cancelled waiter cannot
   consume the next released slot. Recovery cases cover promoted basename
   compatibility, registered scan-ID mapping after cloud renaming,
-  high-confidence timestamp groups, Explore fallback rendering from Documents,
-  and rejection of unrelated/unsafe URLs.
+  configured-root-before-legacy rescue archive ordering, high-confidence
+  timestamp groups, Explore fallback rendering from Documents, and rejection of
+  unrelated/unsafe URLs.
 - **`BackgroundTransferOwnershipTests.swift`**: Covers lock-protected terminal
   completion, synchronous URLSession delegate registration, durable-before-
   cancel Auth-transition quiescence, relaunched task lease adoption, and bounded
@@ -2200,6 +2202,8 @@ xcodebuild test-without-building \
   -only-testing:merianTests/InferenceEngineTests \
   -only-testing:merianTests/CircuitBreakerManagerTests \
   -only-testing:merianTests/BackgroundDatabaseActorTests \
+  -only-testing:merianTests/QueueSelectionPersistenceTests \
+  -only-testing:merianTests/QueueSelectionArchitectureTests \
   -only-testing:merianTests/SpeciesMetadataPersistenceTests \
   -only-testing:merianTests/SpeciesMetadataArchitectureTests \
   -only-testing:merianTests/NonBiologicalRetentionPersistenceTests \
@@ -4146,6 +4150,17 @@ iOS regression coverage is intentionally joined as well:
   late optional context merge. Its staging-transition cases assert committed,
   already-advanced, retry-required, and discarded outcomes so an HTTP callback
   cannot treat a rolled-back local write as inference readiness.
+- `QueueSelectionPersistenceTests` owns pending-state filtering, paging past
+  delayed and locally blocked rows, stable funding-tier priority, actor-isolated
+  Sendable extraction, and atomic state-bound empty-media quarantine both with
+  an existing matching job and with a legacy missing job.
+  `QueueSelectionArchitectureTests` scans the complete production and test Swift
+  trees for sole declaration and behavior-test ownership, restricts production
+  callers to Media Upload's `UploadSync`, requires fail-closed funding/job reads
+  through the shared offline-job lookup, and enforces narrow dependencies plus
+  600-line focused-file ceilings. The critical-XCResult validator maps the
+  protected paging, funding-priority, and quarantine regressions to this focused
+  suite rather than the residual actor suite.
 - `SpeciesDataTests`, `InferenceEngineTests`, `InsightShellCapabilitiesTests`,
   `InsightMediaSuppressionTests`, `FieldChatViewModelStateTests`, and
   `ScanRepositoryTests` cover Human canonical presentation/safeguards,
@@ -4776,10 +4791,10 @@ Owned scan-image recovery has five complementary boundaries:
   replacement without substring damage, normalized storage-key repair, and
   atomic Explore snapshot repair plus health-state reset.
 - iOS `LocalImageLoaderTests` covers safe local filename compatibility,
-  rescue-store scan-ID mapping, constrained timestamp grouping, and
-  unsafe/unrelated URL rejection. `ScanImageCloudEndpointTests` owns
-  authenticated inspection/repair payloads and response projection;
-  `MediaStorageAPIModelsTests` owns wire decoding. The
+  configured-root-first rescue-store lookup and scan-ID mapping, constrained
+  timestamp grouping, and unsafe/unrelated URL rejection.
+  `ScanImageCloudEndpointTests` owns authenticated inspection/repair payloads
+  and response projection; `MediaStorageAPIModelsTests` owns wire decoding. The
   [media storage matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification)
   adds signing, signed PUT, transport, and workflow integration coverage.
 

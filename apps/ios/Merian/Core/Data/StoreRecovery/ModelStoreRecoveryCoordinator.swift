@@ -1,6 +1,7 @@
 import CoreData
 import CryptoKit
 import Foundation
+import SwiftData
 
 /// Handles launch-time SwiftData store recovery without touching account identity.
 ///
@@ -82,8 +83,21 @@ enum ModelStoreRecoveryCoordinator {
         "version checksum"
     ]
 
+    /// Preserves the location selected by shipped builds that relied on
+    /// SwiftData's automatic App Group behavior. Extensions must not open this
+    /// store; moving it to a private container requires a data-preserving rollout.
+    static func productionStoreConfiguration(for schema: Schema) -> ModelConfiguration {
+        ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            groupContainer: .automatic,
+            cloudKitDatabase: .automatic
+        )
+    }
+
     static func defaultStoreURL() -> URL {
-        URL.applicationSupportDirectory.appending(path: "default.store")
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        return productionStoreConfiguration(for: schema).url
     }
 
     static func makeStartupDiagnostic(
@@ -214,6 +228,17 @@ enum ModelStoreRecoveryCoordinator {
             return StartupStoreDiagnosticArtifact(
                 name: artifact.lastPathComponent,
                 sizeBytes: size?.int64Value
+            )
+        }
+
+        guard !artifactSummaries.isEmpty else {
+            return StartupStoreDiagnosticStore(
+                hasArtifacts: false,
+                artifacts: [],
+                storedSchemaMajorVersion: nil,
+                modelVersionIdentifiers: [],
+                metadataFingerprints: [:],
+                metadataReadError: nil
             )
         }
 

@@ -1080,9 +1080,9 @@ done < <(
     }
   ' "$critical_results_check"
 )
-[[ "$protected_case_count" == "98" ]] \
+[[ "$protected_case_count" == "99" ]] \
   || fail \
-    "Expected 98 exact protected iOS test cases; found $protected_case_count."
+    "Expected 99 exact protected iOS test cases; found $protected_case_count."
 
 for exact_scan_regression in \
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual" \
@@ -1113,6 +1113,7 @@ for exact_scan_regression in \
   "pausedScansCannotBeClaimedOrReconciled" \
   "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive" \
   "pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork" \
+  "pendingFetchPrioritizesFundingAndPreservesTierOrder" \
   "emptyPendingQuarantineIsAtomicAndStateBound" \
   "unsyncedCountIncludesOnlyAutomaticallyRunnableScans" \
   "uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork" \

@@ -1494,6 +1494,11 @@ The focused regression inventory includes:
 - `OfflineQueueSyncArchitectureTests`;
 - `BackgroundDatabaseActorTests`, including the final serialized
   unsupported-audio inference-claim fence;
+- `QueueSelectionPersistenceTests` and `QueueSelectionArchitectureTests`,
+  covering complete pending-set paging, stable funding priority, actor-isolated
+  payload extraction, atomic empty-media quarantine with and without an existing
+  matching job, sole method/test ownership, and the Upload Sync consumer
+  allowlist;
 - `InferenceEngineTests`, including visual and nonvisual transport/retirement
   races;
 - `InferenceEndpointTransportTests`, including queue-backed no-transient-

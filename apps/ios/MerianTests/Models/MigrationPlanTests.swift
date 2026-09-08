@@ -583,6 +583,41 @@ struct MigrationPlanTests {
         )
     }
 
+    /// Mirrors the production branch used when no `default.store` artifacts
+    /// exist: create the current schema on disk without validating a migration
+    /// plan, then prove that the newly created store can be opened again.
+    @Test func currentSchemaFreshDiskStoreOpensWithoutMigrationPlan() throws {
+        let url = migrationStoreURL(named: "v51_fresh_current_store_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
+
+        let recordID = "fresh-current-store-record"
+        try autoreleasepool {
+            let schema = Schema(versionedSchema: CurrentSchema.self)
+            let config = ModelConfiguration(schema: schema, url: url)
+            let container = try makeModelContainer(
+                for: schema,
+                configurations: [config]
+            )
+            let context = ModelContext(container)
+            context.insert(LocalScanRecord(
+                id: recordID,
+                speciesId: "fresh-current-store-species",
+                scientificName: "Persistus initialis",
+                commonName: "Fresh Store Fixture"
+            ))
+            try context.save()
+        }
+
+        try autoreleasepool {
+            let store = try openCurrentStore(at: url)
+            var descriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.id == recordID }
+            )
+            descriptor.fetchLimit = 1
+            #expect(try store.context.fetch(descriptor).count == 1)
+        }
+    }
+
     @Test func currentSchemaColdStartPersistsCapturedMediaEntriesAcrossReload() throws {
         let url = migrationStoreURL(named: "v41coldstart_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }

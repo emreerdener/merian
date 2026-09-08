@@ -687,6 +687,37 @@ private struct LegacyScanMediaRecoveryRecord {
     let capturedMediaJSON: String?
 }
 
+enum LegacyScanMediaRecoveryStoreLocator {
+    static func storeURLs(
+        configuredStoreDirectory: URL,
+        legacyApplicationSupportDirectory: URL,
+        fileManager: FileManager = .default
+    ) -> [URL] {
+        var visitedDirectories = Set<String>()
+        let storeDirectories = [configuredStoreDirectory, legacyApplicationSupportDirectory]
+            .filter { visitedDirectories.insert($0.standardizedFileURL.path).inserted }
+
+        return storeDirectories.flatMap { storeDirectory in
+            let rescueRoot = storeDirectory.appendingPathComponent(
+                "store-rescue",
+                isDirectory: true
+            )
+            let archiveDirectories = (try? fileManager.contentsOfDirectory(
+                at: rescueRoot,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )) ?? []
+
+            return archiveDirectories
+                .sorted { $0.path > $1.path }
+                .map {
+                    $0.appendingPathComponent("default.store", isDirectory: false)
+                }
+                .filter { fileManager.fileExists(atPath: $0.path) }
+        }
+    }
+}
+
 private final class LocalScanMediaRecoveryRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var fileNamesByRemoteURL: [String: String] = [:]
@@ -762,24 +793,14 @@ private final class LegacyScanMediaRecoveryIndex: @unchecked Sendable {
         applicationSupportDirectory: URL = .applicationSupportDirectory,
         fileManager: FileManager = .default
     ) -> [String: LegacyScanMediaRecoveryRecord] {
-        let rescueRoot = applicationSupportDirectory.appendingPathComponent(
-            "store-rescue",
-            isDirectory: true
+        let configuredStoreDirectory = ModelStoreRecoveryCoordinator
+            .defaultStoreURL()
+            .deletingLastPathComponent()
+        let storeURLs = LegacyScanMediaRecoveryStoreLocator.storeURLs(
+            configuredStoreDirectory: configuredStoreDirectory,
+            legacyApplicationSupportDirectory: applicationSupportDirectory,
+            fileManager: fileManager
         )
-        guard let archiveDirectories = try? fileManager.contentsOfDirectory(
-            at: rescueRoot,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else {
-            return [:]
-        }
-
-        let storeURLs = archiveDirectories
-            .map {
-                $0.appendingPathComponent("default.store", isDirectory: false)
-            }
-            .filter { fileManager.fileExists(atPath: $0.path) }
-            .sorted { $0.path > $1.path }
 
         var recordsByID: [String: LegacyScanMediaRecoveryRecord] = [:]
         for storeURL in storeURLs {

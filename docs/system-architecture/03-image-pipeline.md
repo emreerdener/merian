@@ -876,7 +876,8 @@ evidence is evaluated in this order:
 1. the public basename and the current `{scanId}_{localFilename}` promotion
    convention;
 2. scan-ID and media-order alignment against read-only databases preserved under
-   `Library/Application Support/store-rescue/`; and
+   `store-rescue/` beside the configured SwiftData store, followed by legacy
+   `Library/Application Support/store-rescue/` archives; and
 3. high-confidence timestamp groups only for current scans absent from the
    rescue index.
 

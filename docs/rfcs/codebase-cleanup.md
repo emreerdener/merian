@@ -134,7 +134,7 @@ Suggested first targets:
 | `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                      | Complete for this hygiene round. `Core/Preferences` owns `AppSettings`, keyed compatibility stores, the verified accepted-account-deletion cache inventory, and an injected post-persistence runtime reset; `Core/Data/SpeciesPreferences` owns SwiftData CRUD, normalization/conflict policy, exact PostgREST values, the narrow injected live client, focused local-mutation recovery, and contained single-flight cloud coordination. The residual aggregate is 450 lines and imports only Foundation. Mirrored suites cover settings/store behavior, schema-complete local erasure, explicit-null wire encoding, stable pagination, account fencing, clock skew, interruption recovery, mid-upsert edit fencing, trailing reconciliation, and process-state reset delegation. Account-deletion recovery state and Keychain keys intentionally remain for their separately reviewed security ownership. |
 | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`      | Retired. Capture admission and live handoff, funding, Field Trip progress, and uploaded-scan inference replay now have focused Services owners; retry mutations remain in `OfflineQueueDurability.swift`. All production files in this slice are below 600 lines, and mirrored suites plus hosted-result validation follow the new ownership.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift` | Retired. Passes 5A through 5G moved terminal tracking, Auth quiescence, exact owner adoption, terminal routing, and delegate conformance into `Services/BackgroundTransfer`; generation-fenced upload completion into `Services/MediaUpload`; queued-row snapshot mapping into `Persistence`; actor-independent inference decisions into `Policies`; and inference generation lifecycle, request dispatch, accepted task-result/transport-failure completion, delayed status probing, exact-generation task retirement, server-result recovery, and retry/server-poll lifetime into six focused `Services/BackgroundInference` files. Both inference retry paths restore the durable wake immediately after persistence, before post-save ownership revalidation and optional process-local replacement. All seven Background Inference production owners, including policy, are below 600 lines.          |
-| `apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift`           | In progress. Collection sync lives across an immutable OfflineSync snapshot, an injected account-lease service, a persistence-only actor extension, and a Core Network endpoint owner. Species metadata and non-biological retention have separate persistence-only extensions with mirrored behavior and repository-wide architecture tests. A source audit removed the speculative queued-audio repair path; the aggregate retains only the final unsupported-audio inference-claim fence. The residual aggregate is 2,430 lines, no longer imports Supabase, and retains the persistence domains that require later focused slices.                                                                                                                                                                                                                                                                     |
+| `apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift`           | In progress. Collection sync lives across an immutable OfflineSync snapshot, an injected account-lease service, a persistence-only actor extension, and a Core Network endpoint owner. Queue selection, species metadata, and non-biological retention have separate persistence-only extensions with mirrored behavior and repository-wide architecture tests. A source audit removed the speculative queued-audio repair path; the aggregate retains only the final unsupported-audio inference-claim fence. The residual aggregate is 2,195 lines, no longer imports Supabase, and retains the persistence domains that require later focused slices.                                                                                                                                                                                                                                                   |
 
 Rules for this phase:
 
@@ -3620,6 +3620,50 @@ Function/script tree, the 26-test documentation contract, changelog JSON, and
 whitespace validation also pass. Clean build and simulator-test reruns for the
 corrected tree are not represented as passed because CoreSimulatorService and
 SwiftPM manifest sandboxing are unavailable in the current environment.
+
+### Core Data Queue Selection Persistence Boundary
+
+Pending upload selection and empty-media quarantine now live in the 253-line
+`BackgroundDatabaseActor+QueueSelection.swift` extension. The public actor
+surface and Media Upload call sites are unchanged. The focused owner preserves
+complete pending-set paging, retry deadlines, live-transfer exclusions, current
+video eligibility and forced-video exceptions, deferred-Flash exclusion, stable
+funding-tier priority, and the independently bounded media-less candidate set.
+It reuses the existing `ModelContext.fetchOfflineJob` helper rather than adding
+another job lookup.
+
+A follow-up correctness review closes two swallowed SwiftData error paths.
+Unreadable funding jobs now fail selection closed instead of collapsing every
+row into the legacy compatibility tier. A matching-job fetch failure now rolls
+back the quarantine batch instead of allowing scan and event state to commit
+without updating an existing job. Missing jobs remain supported for legacy rows,
+and there are no success-path ordering or transition changes.
+
+Quarantine re-fetches candidates in the actor context and mutates only rows that
+are still pending, are not already marked for attention, and still have no local
+upload media. The scan failure, matching job state, and diagnostic event remain
+one atomic save with rollback on failure when that job exists. `UploadSync` is
+the sole production consumer and continues to own transient upload/network
+decisions. No SwiftData schema, stored value, queue transition, funding, retry,
+endpoint, payload, authentication, file, or UI contract changes in this slice.
+The residual actor aggregate is 2,195 lines.
+
+Four existing actor cases moved to `QueueSelectionPersistenceTests`, and a
+deterministic funding-priority case was added there. The focused architecture
+suite freezes declaration and behavior-test ownership, the exact Upload Sync
+consumer allowlist, shared-helper reuse, dependency exclusions, and both focused
+files' 600-line ceilings. The quarantine fixture covers both an existing
+matching job and the supported legacy missing-job path. The critical-XCResult
+validator now maps its protected paging, funding-priority, and quarantine
+regressions to the focused suite. XcodeGen includes the three new Swift files;
+project and source-membership validation, migration guardrails, Swift parsing,
+strict affected-source SwiftLint, and a generic code-signing-disabled Simulator
+build pass. A fresh queue-selection build and runtime pass executes all 56
+focused, residual actor, and Upload Sync tests with zero failures. The same
+candidate's serialized complete `merianTests` run passes 3,103 top-level tests
+and 5,087 expanded executions with zero failures, skips, or expected failures.
+An earlier Simulator host exited before XCTest connected and executed no
+assertions; the clean rebuilt and complete passes supersede that runner failure.
 
 ## Phase 3: Ownership Cleanup
 

@@ -155,11 +155,14 @@ write_test_tree() {
               "generatedConfidenceZeroBackgroundResultIsTerminal",
               "pausedScansCannotBeClaimedOrReconciled",
               "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive",
-              "pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork",
-              "emptyPendingQuarantineIsAtomicAndStateBound",
               "testMarkScanAsStagedPreservesScheduledServerFailureRetry",
               "testScheduleInferenceRetryUsesMonotonicMirroredAttempt",
               "testInferenceRetryCannotOverrideCompletedCloudOwnership"
+            ]),
+            suite("Queue Selection Persistence"; [
+              "pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork",
+              "pendingFetchPrioritizesFundingAndPreservesTierOrder",
+              "emptyPendingQuarantineIsAtomicAndStateBound"
             ]),
             suite("Offline Queued Scan Deletion Tests"; [
               "completedInferenceAndQueueDeletionCommitTogether"
@@ -418,6 +421,7 @@ required_cases=(
   "pausedScansCannotBeClaimedOrReconciled"
   "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive"
   "pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork"
+  "pendingFetchPrioritizesFundingAndPreservesTierOrder"
   "emptyPendingQuarantineIsAtomicAndStateBound"
   "unsyncedCountIncludesOnlyAutomaticallyRunnableScans"
   "uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork"

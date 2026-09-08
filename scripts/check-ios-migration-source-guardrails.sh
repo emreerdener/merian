@@ -20,7 +20,10 @@ collection_sync_endpoint_file="apps/ios/Merian/Core/Network/Endpoints/MerianNetw
 test_file="apps/ios/MerianTests/Models/MigrationPlanTests.swift"
 recovery_file="apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift"
 recovery_test_file="apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift"
+image_file="apps/ios/Merian/Core/Data/Images/LocalImageLoader.swift"
+image_test_file="apps/ios/MerianTests/Core/Data/LocalImageLoaderTests.swift"
 app_file="apps/ios/Merian/App/MerianApp.swift"
+startup_workflow_file=".github/workflows/ios-startup-safety.yml"
 
 if [ ! -f "$schema_file" ]; then
   echo "Missing $schema_file" >&2
@@ -116,13 +119,13 @@ fi
 contains() {
   local file="$1"
   local needle="$2"
-  grep -Fq "$needle" "$file"
+  grep -Fq -- "$needle" "$file"
 }
 
 not_contains() {
   local file="$1"
   local needle="$2"
-  if grep -Fq "$needle" "$file"; then
+  if grep -Fq -- "$needle" "$file"; then
     fail "$file must not contain: $needle"
   fi
 }
@@ -626,6 +629,13 @@ for marker in "${checksum_retry_markers[@]}"; do
 done
 contains "$recovery_file" "shouldRescueStoreAfterMigrationFailure" \
   || fail "Store recovery must keep the legacy migration rescue decision."
+contains "$recovery_file" "groupContainer: .automatic" \
+  || fail "Store recovery must resolve the persistent URL through SwiftData's automatic App Group configuration."
+not_contains "$recovery_file" 'URL.applicationSupportDirectory.appending(path: "default.store")'
+contains "$app_file" "ModelStoreRecoveryCoordinator.productionStoreConfiguration(for: schema)" \
+  || fail "MerianApp and recovery must share one production SwiftData configuration factory."
+contains "$app_file" "let storeURL = ModelStoreRecoveryCoordinator.defaultStoreURL()" \
+  || fail "MerianApp must inspect the exact SwiftData-configured store URL before migration selection."
 contains "$recovery_file" "store-rescue" \
   || fail "Store recovery must archive unrecoverable legacy stores under store-rescue."
 contains "$recovery_file" "legacy_migration_rescue" \
@@ -640,5 +650,17 @@ contains "$recovery_test_file" "testRescuesLegacyMigrationFailuresEvenWhenSwiftD
   || fail "ModelStoreRecoveryCoordinatorTests must cover generic SwiftDataError legacy rescue."
 contains "$recovery_test_file" "testRescueArchivesStoreArtifacts" \
   || fail "ModelStoreRecoveryCoordinatorTests must cover store-rescue archive manifests."
+contains "$recovery_test_file" "testRecoveryStoreURLMatchesSwiftDataAutomaticConfiguration" \
+  || fail "ModelStoreRecoveryCoordinatorTests must keep recovery aligned with SwiftData's configured store URL."
+contains "$recovery_test_file" "testFreshStoreDiagnosticDoesNotReportMetadataReadFailure" \
+  || fail "Fresh-store diagnostics must not report the expected absence of metadata as an error."
+contains "$test_file" "currentSchemaFreshDiskStoreOpensWithoutMigrationPlan" \
+  || fail "MigrationPlanTests must prove a fresh current-schema disk store can reopen without a migration plan."
+contains "$image_file" "LegacyScanMediaRecoveryStoreLocator.storeURLs" \
+  || fail "Rescue-media lookup must use the configured and legacy store locator."
+contains "$image_test_file" "legacyRecoveryStoreLocatorPrefersConfiguredRootAndNewestArchives" \
+  || fail "LocalImageLoaderTests must keep configured-root rescue archives ahead of legacy archives."
+contains "$startup_workflow_file" "-only-testing:merianTests/LocalImageLoaderTests" \
+  || fail "Startup Safety must execute the rescue-store locator regression suite."
 
 echo "iOS migration source guardrails passed."

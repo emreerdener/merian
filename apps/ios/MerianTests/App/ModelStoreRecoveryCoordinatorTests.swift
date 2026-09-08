@@ -150,6 +150,39 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         XCTAssertEqual(hint, .currentStore)
     }
 
+    func testRecoveryStoreURLMatchesSwiftDataAutomaticConfiguration() {
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let configuration = ModelStoreRecoveryCoordinator
+            .productionStoreConfiguration(for: schema)
+
+        XCTAssertEqual(ModelStoreRecoveryCoordinator.defaultStoreURL(), configuration.url)
+        XCTAssertEqual(configuration.url.lastPathComponent, "default.store")
+    }
+
+    func testFreshStoreDiagnosticDoesNotReportMetadataReadFailure() throws {
+        let currentSchemaMajor = CurrentSchema.versionIdentifier.major
+        let tempDirectory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let storeURL = tempDirectory.appendingPathComponent("default.store")
+        let decision = ModelStoreRecoveryCoordinator.StoreMigrationDecision(
+            hasStoreArtifacts: false,
+            storedSchemaMajorVersion: nil,
+            hint: .currentStore
+        )
+        let diagnostic = ModelStoreRecoveryCoordinator.makeStartupDiagnostic(
+            storeURL: storeURL,
+            currentSchemaMajor: currentSchemaMajor,
+            migrationSchemas: "50,51",
+            migrationStages: "50>51:C",
+            decision: decision
+        )
+
+        XCTAssertFalse(diagnostic.store.hasArtifacts)
+        XCTAssertTrue(diagnostic.store.artifacts.isEmpty)
+        XCTAssertNil(diagnostic.store.metadataReadError)
+    }
+
     func testStoreMigrationHintOpensAlreadyCurrentStoresWithoutMigrationPlan() {
         let currentSchemaMajor = CurrentSchema.versionIdentifier.major
         let hint = ModelStoreRecoveryCoordinator.migrationHint(

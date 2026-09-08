@@ -360,13 +360,18 @@ assert_suite_has_passed_test_case \
   "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive"
 assert_suite_has_passed_test_case \
   "Pending queue retry-deadline starvation fence" \
-  "BackgroundDatabaseActorTests" \
-  "Background Database Actor Tests" \
+  "QueueSelectionPersistenceTests" \
+  "Queue Selection Persistence" \
   "pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork"
 assert_suite_has_passed_test_case \
+  "Pending queue funding priority" \
+  "QueueSelectionPersistenceTests" \
+  "Queue Selection Persistence" \
+  "pendingFetchPrioritizesFundingAndPreservesTierOrder"
+assert_suite_has_passed_test_case \
   "Empty pending queue atomic quarantine fence" \
-  "BackgroundDatabaseActorTests" \
-  "Background Database Actor Tests" \
+  "QueueSelectionPersistenceTests" \
+  "Queue Selection Persistence" \
   "emptyPendingQuarantineIsAtomicAndStateBound"
 assert_suite_has_passed_test_case \
   "Runnable offline queue count" \

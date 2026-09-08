@@ -1259,10 +1259,7 @@ struct MerianApp: App {
         migrationPlan: MigrationPlan.Type
     ) throws -> ModelContainer {
         let schema = Schema(versionedSchema: CurrentSchema.self)
-        let config = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: TestExecutionCoordinator.isRunningTests
-        )
+        let config = persistentStoreConfiguration(for: schema)
         return try ModelContainer(for: schema, migrationPlan: migrationPlan, configurations: [config])
     }
 
@@ -1272,11 +1269,15 @@ struct MerianApp: App {
 
     private static func makePersistentContainerUncheckedWithoutMigrationPlan() throws -> ModelContainer {
         let schema = Schema(versionedSchema: CurrentSchema.self)
-        let config = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: TestExecutionCoordinator.isRunningTests
-        )
+        let config = persistentStoreConfiguration(for: schema)
         return try ModelContainer(for: schema, configurations: [config])
+    }
+
+    private static func persistentStoreConfiguration(for schema: Schema) -> ModelConfiguration {
+        guard !TestExecutionCoordinator.isRunningTests else {
+            return ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        }
+        return ModelStoreRecoveryCoordinator.productionStoreConfiguration(for: schema)
     }
 
     private static func makeInMemoryContainerUnchecked() throws -> ModelContainer {
