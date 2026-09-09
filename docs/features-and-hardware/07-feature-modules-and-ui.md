@@ -865,9 +865,10 @@ production Shell and Library file remains below the 600-line review guard.
   `body`. It starts a `.task(id:)`, decodes via
   `DetachedWork.value(category: .imagePreparation)`, then commits the resulting
   `UIImage` to `@State` and `NSCache`.
-- **Historical Payload Override**: The hydration engine
-  (`ScanRepository.syncHistoricalScansDown`) restores historical Cloudflare R2
-  URLs into the scan's media payload while keeping `.referenceImageUrl` bound to
+- **Historical Payload Override**: The historical hydration path
+  (`ScanRepository.syncHistoricalScansDown`, with persistence owned by
+  `HistoricalDatabaseActor`) restores historical Cloudflare R2 URLs into the
+  scan's media payload while keeping `.referenceImageUrl` bound to
   Wikipedia/GBIF. `ScanThumbnail` and the cross-feature
   `Core/UI/Components/AsyncLocalImageView` resolve those paths through narrow
   Core UI service adapters backed by `LocalImageLoader`. For an eligible durable

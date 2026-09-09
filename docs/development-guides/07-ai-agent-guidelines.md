@@ -109,7 +109,9 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
     plus its split classifier, image, trait, cue, and phrase policies
   - `Data/Database/`: the declaration-only `BackgroundDatabaseActor`, its
     focused persistence extensions, scan-record factory and coordinators,
-    `FileIOActor`, `HistoricalDatabaseActor`, and `ScanRepository`
+    `FileIOActor`, `ScanRepository`, and the focused
+    `HistoricalSync/{Models,Decoding,Services,Persistence}` boundary containing
+    `HistoricalDatabaseActor`
   - `Data/Images/`: `MediaPreparationActor`, `LocalImageLoader`, `ImageCache`,
     `ArchiveManager`, `PhotoLibraryManager`
   - `Data/OfflineSync/`: `OfflineQueueManager`, `SyncStateManager`, and

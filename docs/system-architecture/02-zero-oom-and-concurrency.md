@@ -1099,11 +1099,11 @@ pathological case where a schema migration or bug creating duplicate collections
 causes the entire collection graph to be loaded and faulted into memory before
 sync begins.
 
-### `ScanRepository.syncCollections` N+1 Fix (`ScanRepository`)
+### `HistoricalDatabaseActor.syncCollections` N+1 Fix
 
-`ScanRepository.syncCollections` (the iOS-side cloud-down reconciliation)
-previously used an `fetchIdentifiers + model(for:)` loop to look up
-`LocalScanRecord` instances for each scan referenced in a remote collection's
+`HistoricalDatabaseActor.syncCollections` (the iOS-side cloud-down
+reconciliation) previously used an `fetchIdentifiers + model(for:)` loop to look
+up `LocalScanRecord` instances for each scan referenced in a remote collection's
 `collection_scans` array. On a library of thousands of scans, this faulted a
 separate DB round-trip per referenced scan ID, producing an N+1 query pattern.
 
@@ -2427,9 +2427,9 @@ enum MerianConfig {
 }
 ```
 
-The focused OfflineSync media-upload services and `ScanRepository` reference
-these constants exclusively. Tuning any policy requires a change in exactly one
-place.
+The focused OfflineSync media-upload services, `ScanRepository`, and
+`HistoricalDatabaseActor` reference these constants exclusively. Tuning any
+policy requires a change in exactly one place.
 
 ### Transactional Scan Deletion (`eradicateScan`)
 
@@ -2466,12 +2466,19 @@ always 200 records — regardless of how large the user's library grows.
 let dbActor = HistoricalDatabaseActor(modelContainer: container)
 var scanOffset = 0
 while true {
-    let page: [HistoricalScanResponse] = try await ...
-        .range(from: scanOffset, to: scanOffset + pageSize - 1).execute().value
+    let rawPage = try await historicalCloudClient.fetchScanPage(
+        HistoricalScanPageRequest(
+            userID: userID,
+            offset: scanOffset,
+            pageSize: pageSize
+        )
+    )
+    let decodedPage = try HistoricalScanPageDecoder.decode(rawPage)
+    let page = decodedPage.responses
     if !page.isEmpty {
         try await dbActor.reconcileScanPage(responses: page)
     }
-    if page.count < pageSize { break }
+    if decodedPage.remoteRowCount < pageSize { break }
     scanOffset += pageSize
 }
 try await dbActor.syncCollectionsDown(remoteCollections: allCollections)
@@ -2738,7 +2745,7 @@ because successful biological evidence is durable in cloud storage regardless of
 subscription tier. `ArchiveManager` is now limited to generated dataset archive
 ZIP downloads.
 
-### Historical Sync PostgREST Response Bloat — `species_dictionary(*)` Wildcard (`ScanRepository`)
+### Historical Sync PostgREST Response Bloat — `species_dictionary(*)` Wildcard (`HistoricalSyncCloudClient`)
 
 `syncHistoricalScansDown` used `species_dictionary(*)` in its PostgREST embedded
 join, fetching every column in `species_dictionary` for every scan on every sync
@@ -2764,7 +2771,9 @@ species_dictionary(scientific_name, kingdom, phylum, class, order, family, genus
 decodes it for the historical insight sheet display. All other
 `species_dictionary` columns (e.g., `gbif_taxon_key`, `colors`,
 `similar_species`, internal audit fields) are excluded, immediately reducing
-per-page response size.
+per-page response size. The projection now has a single owner in
+`HistoricalSyncCloudClient`; `ScanRepository` supplies typed page requests and
+does not construct PostgREST queries.
 
 ### Live Inference Hydration Task Proliferation (`InferenceEngine.analyze()`)
 
@@ -2844,7 +2853,7 @@ inference pass then acquires candidate persistence fences in stable ID order,
 passes only scan IDs across suspension, and rereads durable eligibility through
 a fresh context before loading shared-actor models for its atomic batch save.
 
-### `reconcileScanPage` ID-Only Column Projection (`ScanRepository`)
+### `reconcileScanPage` ID-Only Column Projection (`HistoricalDatabaseActor`)
 
 Inside `reconcileScanPage`, the per-page existence check previously used the
 `fetchIdentifiers + model(for:)` pattern — first fetching opaque

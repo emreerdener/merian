@@ -545,8 +545,8 @@ as their permanent engineering identity.
 
 - **[`/backend-and-data/01-offline-sync-pipeline.md`](./backend-and-data/01-offline-sync-pipeline.md)**
   — Zero-data-loss architecture, SwiftData queues, live/background upload
-  ownership, V51 collection tombstone synchronization, and AppDelegate
-  background URLSession mappings.
+  ownership, layered historical hydration, V51 collection tombstone
+  synchronization, and AppDelegate background URLSession mappings.
 - **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)**
   — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species
   dictionary workers, private Insight, Explore, and in-app Dictionary Field chat
@@ -554,10 +554,11 @@ as their permanent engineering identity.
   cron/webhook boundaries.
 - **[`/backend-and-data/03-database-actors.md`](./backend-and-data/03-database-actors.md)**
   — SwiftData actor model: the declaration-only `BackgroundDatabaseActor` and
-  its focused persistence extensions, `HistoricalDatabaseActor`, and
-  `FileIOActor`, including scan finalization, collection projection, and
-  tombstone boundaries plus fail-closed historical reads, saves, and
-  cancellation-safe collection pruning.
+  its focused persistence extensions, the layered Historical Sync models,
+  decoder, cloud adapter, and `HistoricalDatabaseActor`, plus `FileIOActor`,
+  including scan finalization, collection projection, and tombstone boundaries
+  with fail-closed historical reads, saves, and cancellation-safe collection
+  pruning.
 - **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)**
   — Physical table maps for PostgreSQL and the SwiftData persistent schemas,
   including the V41 `CapturedMediaEntry` mixed-media model, V47 offline video

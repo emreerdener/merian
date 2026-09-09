@@ -1029,9 +1029,12 @@ triggering excessive SwiftUI view rebuilds.
   wiping collections created offline or before authentication, while also
   preventing historical sync from bypassing the normal collection ordering
   guarantees. If collection mutations cannot be drained safely, reconciliation
-  aborts rather than reading stale cloud state. After the push, fetches cloud
-  scan and collection history with pagination
-  (`MerianConfig.historicalSyncPageSize`,
+  aborts rather than reading stale cloud state. The repository owns this
+  ordering, pagination, lease fencing, and event publication; the focused
+  `HistoricalSyncCloudClient` owns the live Auth/PostgREST effects,
+  `HistoricalScanPageDecoder` owns row isolation, and `HistoricalDatabaseActor`
+  owns only SwiftData reconciliation. After the push, it fetches cloud scan and
+  collection history with pagination (`MerianConfig.historicalSyncPageSize`,
   `MerianConfig.collectionsSyncPageSize`). Each raw PostgREST scan page is split
   into rows and decoded with the SDK's production decoder; malformed rows are
   quarantined with a bounded coding path while valid neighbors reconcile
@@ -1053,12 +1056,13 @@ triggering excessive SwiftUI view rebuilds.
   `FileIOActor.shared.deleteImages(at:)` runs only after a successful
   `modelContext.save()`; save failures rollback pending context changes and
   abort disk deletion, preventing partial-failure inconsistency.
-- **`ingestScans` timestamp guard**: During historical cloud sync, each scan's
-  `timestamp` string is parsed via `DateUtilities.iso8601FractionalFormatter`
-  (with whole-second fallback). If both formatters fail on a malformed
-  timestamp, the scan record is **skipped with a logged error** rather than
-  defaulting to `Date()` (which would fabricate a current timestamp and make the
-  scan appear as "Today", corrupting sort order). Caller sees a
+- **`HistoricalDatabaseActor.ingestScans` timestamp guard**: During historical
+  cloud sync, each scan's `timestamp` string is parsed via
+  `DateUtilities.iso8601FractionalFormatter` (with whole-second fallback). If
+  both formatters fail on a malformed timestamp, the scan record is **skipped
+  with a logged error** rather than defaulting to `Date()` (which would
+  fabricate a current timestamp and make the scan appear as "Today", corrupting
+  sort order). Caller sees a
   `MerianLog.data.error("ingestScans: unparseable timestamp ...")` in the logs
   for affected scan IDs.
 

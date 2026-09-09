@@ -224,13 +224,13 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     provenance for the recorded owner.
   - **Account Rehydration**: Intercepting the initial payload from
     `SupabaseManager.setupAuthStateListener`, Merian calls
-    `ScanRepository.shared.syncHistoricalScansDown`, which fetches the user's
-    scan history and loads it into local SwiftData structures. The deferred task
-    starts only while the exact manager-published user, nonexpired SDK session,
-    and originating Auth-event generation remain current, and repeats that fence
-    after preferred-name synchronization before scan hydration. A replacement
-    account therefore cannot receive or complete the predecessor's historical
-    work.
+    `ScanRepository.shared.syncHistoricalScansDown`, which orchestrates the
+    user's scan-history fetch through `HistoricalSyncCloudClient` and loads it
+    through `HistoricalDatabaseActor`. The deferred task starts only while the
+    exact manager-published user, nonexpired SDK session, and originating
+    Auth-event generation remain current, and repeats that fence after
+    preferred-name synchronization before scan hydration. A replacement account
+    therefore cannot receive or complete the predecessor's historical work.
   - User-facing **Sign out** calls `transitionToGhostSession()` but displays no
     internal Ghost or guest-session terminology. Stable mode first journals a
     random rotation ID and device-only proof, then prepares a server-owned

@@ -3923,6 +3923,52 @@ Sync runtime matrix exposed and then verified corrections to five relocated
 architecture expectations; the final complete `merianTests` run passed all 3,148
 tests on an iPhone 17 Pro simulator running iOS 26.5 with no failures or skips.
 
+### Core Data Historical Sync Ownership
+
+The former 1,332-line `ScanRepository.swift` mixed main-actor orchestration,
+Auth/PostgREST effects, row decoding, wire DTOs, and actor-isolated SwiftData
+reconciliation. Historical hydration now has four focused owners under
+`Core/Data/Database/HistoricalSync`: Models contains request values, typed
+outcomes, and unchanged DTOs; Decoding contains per-row quarantine using the
+production PostgREST decoder; Services contains the sole live account-lease and
+scan/collection query adapter; and Persistence contains
+`HistoricalDatabaseActor`. `ScanRepository` retains push-before-pull ordering,
+page advancement, account fencing, Explore share-state reconciliation, and app
+events without importing Supabase or constructing queries.
+
+The existing scan projection is byte-identical after relocation, including the
+captured-media compatibility columns, nullable biological classification,
+identification-review values, and owner-visible Explore relation. Query filters,
+ordering, ranges, collection projection, decoder behavior, actor implementation,
+live method signatures, and the 33 existing repository tests are preserved. The
+uncalled `reconcileAllHistoricalData` test-compatibility shim was removed after
+the review confirmed it had no production or test consumer. The test aggregate
+is now a selector-compatible suite root with focused decoding, ingestion,
+reconciliation, model-persistence, and deletion files; a new injected-client
+test covers account-lease and request-value forwarding. The ingestion timestamp
+guard exercises the production actor rather than duplicating its parsing
+implementation inside a deletion test.
+
+`CoreDataIntegrationArchitectureTests` freezes the exact four-file production
+inventory and imports, 600-line ceilings, Supabase/SwiftData dependency
+direction, sole query ownership, repository boundary, and mirrored Historical
+Sync test inventory. This slice changes no JSON field, endpoint, SwiftData
+schema or migration, persistence semantics, feature flag, navigation route, or
+visible behavior.
+
+Verification passed byte-stable XcodeGen, project/resource and source-membership
+guards, event-routing validation and adversarial fixtures, migration guardrails,
+the generated Captured Media DTO contract, user-skill link validation,
+individual Swift parsing, strict affected-file SwiftLint, Markdown formatting,
+and whitespace validation. A generic code-signing-disabled iOS Simulator build
+passed for both simulator architectures and its production lint phase reported
+zero violations across 1,097 files. After the corrective review, a clean generic
+Simulator `build-for-testing` compiled the app, unit-test, and UI-test source
+graphs. The focused Historical Sync/Scan Repository review matrix passed 41
+tests in three suites, including the actor-backed malformed-timestamp case. The
+complete `merianTests` action then passed; Swift Testing reported 2,253 tests in
+325 suites alongside the successful XCTest suites.
+
 ## Phase 3: Ownership Cleanup
 
 After the large files are split, move code to clearer long-term homes:

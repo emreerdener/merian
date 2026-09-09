@@ -35,11 +35,18 @@ the non-biological erasure values, bounded retention purge, and atomic
 record/cloud-tombstone commit. Actor extensions perform no networking,
 authentication, direct file I/O, or UI work.
 
+`Database/HistoricalSync/` separates cloud-history request/DTO values,
+row-isolated decoding, the sole live Auth/PostgREST adapter, and actor-isolated
+SwiftData reconciliation. `ScanRepository` retains only ordering, pagination,
+account fencing, and app-event orchestration. See the
+[Historical Sync README](Database/HistoricalSync/README.md) for the layer
+invariants and canonical contract links.
+
 ## Purpose
 
 This area acts as the source of truth for app data. It encompasses SwiftData
-configurations, the `HistoricalDatabaseActor` for cloud sync reconciliation, and
-the `OfflineQueuedScan` persistence mechanism. It ensures that data remains
+configurations, the layered Historical Sync boundary for cloud reconciliation,
+and the `OfflineQueuedScan` persistence mechanism. It ensures that data remains
 durable even when inference fails or network connectivity is absent.
 
 `SpeciesPreferences/` owns the smaller cross-feature preferred-common-name data
@@ -651,14 +658,17 @@ substituting absence.
 
 `CoreDataIntegrationArchitectureTests` freezes the exact bounded
 `BackgroundDatabaseActor` file/import inventory, declaration-only aggregate,
-directory-wide no-silent-fetch rule, single-context durable-authority read, and
-bounded authority consumers, and cross-surface throwing contracts.
-`ScanRepositoryTests` proves invalid-timestamp rows are excluded from insertion
-counts and a pre-cancelled collection pass preserves local rows. Focused queue,
-collection, deletion, inference, and finalization suites retain the remaining
-behavioral evidence. This audit changes no SwiftData schema or migration, API
-payload, endpoint, queue state, feature flag, navigation route, or visible UI
-contract.
+directory-wide no-silent-fetch rule, single-context durable-authority read,
+bounded authority consumers, cross-surface throwing contracts, and the exact
+four-file Historical Sync production inventory. It also freezes the mirrored
+Historical Sync test inventory and 600-line ceilings. `ScanRepositoryTests`
+remains the selector-compatible suite root; its focused decoding, ingestion,
+reconciliation, model-persistence, and deletion extensions preserve the existing
+tests, while `HistoricalSyncCloudClientTests` verifies injected lease and
+request forwarding. Focused queue, collection, inference, and finalization
+suites retain the remaining behavioral evidence. This audit changes no SwiftData
+schema or migration, API payload, endpoint, queue state, feature flag,
+navigation route, or visible UI contract.
 
 ## Identification Review Replacement
 

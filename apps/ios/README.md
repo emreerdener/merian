@@ -339,8 +339,14 @@ complete production and test Swift trees for sole method and test ownership,
 cross-owner effect routing, exact selection/upload-lifecycle consumer ownership,
 bounded actor-isolated retry-mirror use, and the 600-line review ceiling.
 
-`HistoricalDatabaseActor` remains an ad-hoc, page-streaming owner behind
-`ScanRepository`. Its scan, collection, membership, and save boundaries throw:
+Historical hydration is split under
+[`Core/Data/Database/HistoricalSync`](Merian/Core/Data/Database/HistoricalSync/README.md):
+Models owns request values and unchanged PostgREST DTOs, Decoding owns
+row-isolated scan-page decoding, Services owns the sole live Auth/PostgREST
+adapter, and Persistence owns `HistoricalDatabaseActor` SwiftData work.
+`ScanRepository` remains the main-actor ordering, pagination, lease-fencing, and
+event orchestrator. The actor is created ad hoc per sync and streams one scan
+page at a time. Its scan, collection, membership, and save boundaries throw:
 storage failure aborts the current reconciliation instead of becoming an empty
 successful result, targeted completed-result hydration maps local failure to
 durable transient recovery, and cancellation rolls back before collection

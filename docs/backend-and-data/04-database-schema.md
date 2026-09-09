@@ -5211,7 +5211,7 @@ making it a safe anchor for revert operations regardless of how many times the
 user cycles through overrides.
 
 **Historical Sync DTO**
-(`apps/ios/Merian/Core/Data/Database/ScanRepository.swift`):
+(`apps/ios/Merian/Core/Data/Database/HistoricalSync/Models/HistoricalSyncModels.swift`):
 `HistoricalScanResponse` (the cloud sync DTO) includes
 `candidates: [CloudIdentificationCandidate]?`,
 `pet_identification: PetIdentification?`, `is_biological_subject: Bool?`,
@@ -5221,12 +5221,12 @@ boundary. Raw PostgREST scan pages are split into rows and decoded independently
 with the SDK's production decoder. A malformed Captured Media row is quarantined
 with bounded structural diagnostics, while valid neighbors continue; pagination
 advances by the raw remote row count rather than the accepted DTO count.
-`CloudIdentificationCandidate` is a plain `Codable` struct
+`CloudIdentificationCandidate` is a plain `Decodable` struct
 (`scientific_name: String`, `confidence_score: Double`) that maps the JSONB
-array from `public.scans`. `ingestScans` re-encodes candidates to
-`[IdentificationCandidate]`, writes `is_biological_subject` when present
-(retaining the historical `true` default only for older null rows), writes
-`user_identification_override`, writes `user_confirmed_identification`
+array from `public.scans`. `HistoricalDatabaseActor.ingestScans` re-encodes
+candidates to `[IdentificationCandidate]`, writes `is_biological_subject` when
+present (retaining the historical `true` default only for older null rows),
+writes `user_identification_override`, writes `user_confirmed_identification`
 (defaulting to `false`), and writes `image_quality_score`. `updateExistingScans`
 reconciles `isBiological` only from a non-null cloud value, only writes
 `candidatesData` if `existing.candidatesData == nil`, only writes
@@ -5540,9 +5540,9 @@ Tracks locally synchronized species scans for the Scans library.
   `[IdentificationCandidate]` blob — each entry is
   `{ scientificName, confidenceScore }`. Written by
   `BackgroundDatabaseActor.saveLiveScanRecord` from the live `/identify`
-  response, and by `ScanRepository.ingestScans` / `updateExistingScans` on
-  historical cloud sync. `InferenceEngine.load(from:)` decodes this field back
-  to `[IdentificationCandidate]` via `JSONDecoder` and sets it as
+  response, and by `HistoricalDatabaseActor.ingestScans` / `updateExistingScans`
+  on historical cloud sync. `InferenceEngine.load(from:)` decodes this field
+  back to `[IdentificationCandidate]` via `JSONDecoder` and sets it as
   `speciesData.candidates`. `nil` for scans at or above the diagnostic trigger
   where the server stripped candidates, and for all scans captured before V28. A
   lightweight migration (`migrateV27toV28`) handles the version bump — no data
@@ -5557,14 +5557,14 @@ Tracks locally synchronized species scans for the Scans library.
   `false`. Set to `true` when the user taps "Yes, correct" in `CandidatesCard`.
   Cloud-synced via `InferenceEngine.syncIdentificationReviewToCloud` (same PATCH
   payload as `userIdentificationOverride`). Backfilled from
-  `public.scans.user_confirmed_identification` by `ScanRepository.ingestScans`
-  and `updateExistingScans`. `updateExistingScans` propagates this field in the
-  `true` direction only — a cloud `false` (written by
-  `resetIdentificationReview` on another device) does not overwrite a local
-  `true`. Full bidirectional review-state sync across devices is deferred. Used
-  to trigger the `ConfidenceBadge` "Confirmed" state and to render
-  `ConfirmedView` in `ConfidenceExplanationSheet`; `CandidatesCard` unmounts
-  after confirmation.)
+  `public.scans.user_confirmed_identification` by
+  `HistoricalDatabaseActor.ingestScans` and `updateExistingScans`.
+  `updateExistingScans` propagates this field in the `true` direction only — a
+  cloud `false` (written by `resetIdentificationReview` on another device) does
+  not overwrite a local `true`. Full bidirectional review-state sync across
+  devices is deferred. Used to trigger the `ConfidenceBadge` "Confirmed" state
+  and to render `ConfirmedView` in `ConfidenceExplanationSheet`;
+  `CandidatesCard` unmounts after confirmation.)
 - `userReviewStateRaw`: String (Added in `MerianSchemaV36`, defaults to
   `"unreviewed"`. Replaces the boolean/string combinator logic and maps cleanly
   to the `UserReviewState` Swift enum and the `public.user_review_state`
@@ -5586,9 +5586,10 @@ Tracks locally synchronized species scans for the Scans library.
   something that changes. `nil` for scans captured before V30. A lightweight
   migration (`migrateV29toV30`) handles the version bump — no data transform
   required since the field is optional with a nil default. Backfilled from
-  `public.scans.image_quality_score` by `ScanRepository.updateExistingScans`
-  when the local value is nil and the cloud has a value. Gathered for future
-  community reference-photo curation use cases.)
+  `public.scans.image_quality_score` by
+  `HistoricalDatabaseActor.updateExistingScans` when the local value is nil and
+  the cloud has a value. Gathered for future community reference-photo curation
+  use cases.)
 - `lookalikesData`: Data? (Added in `MerianSchemaV27`. JSON-encoded
   `[SimilarSpeciesEntry]` blob persisting the full rich lookalike payload —
   `scientificName`, `commonName`, `referenceImageUrl`, `iucnRedListStatus`, and

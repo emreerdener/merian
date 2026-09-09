@@ -1070,7 +1070,7 @@ provider dispatch:
       already stored on the record. `scientificName` is intentionally excluded
       from this write — `record.scientificName` is preserved as the original-AI
       identifier and reused as `aiScientificName`. `commonName` is resolved with
-      locale preference matching `ScanRepository.ingestScans`:
+      locale preference matching `HistoricalDatabaseActor.ingestScans`:
       `names["en"].flatMap { $0 } ?? names.compactMap { $0.value }.first ?? scientificName`.
       The `restoringAiReasoning` parameter controls the `aiReasoning` field in
       `InsightData`: pass `nil` (default) when calling from

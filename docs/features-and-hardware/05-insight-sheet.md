@@ -1516,12 +1516,12 @@ threshold, or when a Strong primary has a genuinely competitive alternative.
    `InferenceEngine.load(from:)` snapshots the blob before async hydration and
    decodes it back via `JSONDecoder` for historical scans.
 5. **Historical sync** (`ScanRepository.syncHistoricalScansDown`): The
-   `candidates` column is included in the `SELECT` query. A
+   service-owned scan projection includes the `candidates` column. A
    `CloudIdentificationCandidate` DTO
    (`{ scientific_name: String, common_name: String?, confidence_score: Double, distinguishing_feature: String? }`)
-   decodes the cloud JSONB. `ingestScans` re-encodes it to
-   `IdentificationCandidate` (including `distinguishingFeature`) and persists as
-   `candidatesData`. The `updateExistingScans` backfill path checks
+   decodes the cloud JSONB. `HistoricalDatabaseActor.ingestScans` re-encodes it
+   to `IdentificationCandidate` (including `distinguishingFeature`) and persists
+   as `candidatesData`. The actor's `updateExistingScans` backfill path checks
    `existing.candidatesData == nil` before writing, ensuring cloud candidates
    are retroactively available in pre-existing local records.
    `distinguishing_feature` is `String?` in the DTO to decode gracefully from
@@ -1829,12 +1829,12 @@ re-enter the selection flow:
   `CandidateReviewVisibilityPolicy` would keep candidate actions suppressed
   after reset.
 
-**Cross-device sync caveat**: `ScanRepository.updateExistingScans` propagates
-`userConfirmedIdentification` in the `true` direction only — a reset performed
-on device A (which syncs `user_confirmed_identification = false` to the cloud)
-will not propagate to device B during that device's next sync. Device B retains
-its local confirmed/overridden state. Full bidirectional review-state sync is
-deferred.
+**Cross-device sync caveat**: `HistoricalDatabaseActor.updateExistingScans`
+propagates `userConfirmedIdentification` in the `true` direction only — a reset
+performed on device A (which syncs `user_confirmed_identification = false` to
+the cloud) will not propagate to device B during that device's next sync. Device
+B retains its local confirmed/overridden state. Full bidirectional review-state
+sync is deferred.
 
 ---
 

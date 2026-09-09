@@ -5917,23 +5917,29 @@ optionality, header, timeout, or server contract.
   post-insert recovery uses the same retain-all decision as the original write.
 - Authenticated iOS history hydration treats a nonempty `captured_media`
   manifest as authoritative only when mapping yields a usable image or video. It
-  dual-reads `audio_storage_urls`, `image_storage_urls`, `video_storage_urls`,
-  and `user_observation_context` so `[]`, device-only references, or an
-  otherwise incomplete legacy manifest cannot erase durable media or description
-  provenance. Those existing scan columns are compatibility fallbacks, never
-  public-feed projections. Because they do not retain cross-modal positions,
-  legacy hydration appends missing audio in stored-array order, then appends the
-  stored context. `audio_storage_urls` is supplemental recovery data, not
-  deletion authority. Cloud audio replaces an existing standalone clip only when
-  its exact path or a unique `sourceIndex` matches. Unindexed legacy and restore
-  references never consume a local clip by ordinal guess; unmatched references
-  are retained, which can temporarily expose both a local alias and a durable
-  URL but cannot delete the wrong recording. Unmatched local descriptions are
-  retained because this compatibility column stores only one context. History
-  pages decode each PostgREST row independently: a malformed row is quarantined
-  with bounded structural diagnostics while valid rows on the same page continue
-  reconciling. A targeted completed-result read classifies a malformed row as a
-  contract mismatch rather than a transport failure.
+  keeps request/DTO values in `Core/Data/Database/HistoricalSync/Models`,
+  row-isolated decoding in `HistoricalSync/Decoding`, and the exact live
+  scan/collection projections plus account lease in
+  `HistoricalSync/Services/HistoricalSyncCloudClient.swift`. `ScanRepository`
+  orchestrates these owners but no longer resolves the Supabase client or
+  constructs PostgREST queries directly. It dual-reads `audio_storage_urls`,
+  `image_storage_urls`, `video_storage_urls`, and `user_observation_context` so
+  `[]`, device-only references, or an otherwise incomplete legacy manifest
+  cannot erase durable media or description provenance. Those existing scan
+  columns are compatibility fallbacks, never public-feed projections. Because
+  they do not retain cross-modal positions, legacy hydration appends missing
+  audio in stored-array order, then appends the stored context.
+  `audio_storage_urls` is supplemental recovery data, not deletion authority.
+  Cloud audio replaces an existing standalone clip only when its exact path or a
+  unique `sourceIndex` matches. Unindexed legacy and restore references never
+  consume a local clip by ordinal guess; unmatched references are retained,
+  which can temporarily expose both a local alias and a durable URL but cannot
+  delete the wrong recording. Unmatched local descriptions are retained because
+  this compatibility column stores only one context. History pages decode each
+  PostgREST row independently: a malformed row is quarantined with bounded
+  structural diagnostics while valid rows on the same page continue reconciling.
+  A targeted completed-result read classifies a malformed row as a contract
+  mismatch rather than a transport failure.
 - The same authenticated history projection requires the nullable
   `explore_posts(id, unshared_at)` relation key on every accepted scan row.
   Because `explore_posts.scan_id` is unique, PostgREST embeds this as one object

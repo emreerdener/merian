@@ -1447,11 +1447,15 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `CoreDataIntegrationArchitectureTests.swift`**: Exercises Core Data
   persistence and lifecycle behavior through isolated SwiftData containers and
   deterministic process-state fixtures. Coverage is assigned below to the suite
-  that owns each boundary. `ScanRepositoryTests` includes
-  `testIngestScansTimestampGuardSkipsNilAndUnparseableTimestamps` — verifies the
-  `guard let parsedDate = exifDate else { continue }` path in `ingestScans` by
-  replicating the exact `flatMap + ISO 8601 formatter` derivation and asserting
-  nil/garbage inputs produce nil (not a fabricated `Date()`). Also includes
+  that owns each boundary. `ScanRepositoryTests.swift` is now the
+  selector-compatible suite root and shared isolated-container support. Its
+  historical decoding, ingestion, and reconciliation tests live under
+  `Core/Data/HistoricalSync`; model round-trip and repository-deletion tests
+  have focused sibling files. The rehomed
+  `testIngestScansTimestampGuardSkipsNilAndUnparseableTimestamps` verifies the
+  real `HistoricalDatabaseActor.ingestScans` boundary: missing, malformed, and
+  date-only timestamps do not create records, while both supported ISO 8601
+  forms do. The focused model persistence tests also include
   `testV26SimilarSpeciesRoundTrip` — inserts a `LocalScanRecord` with
   `similarSpecies: [String]?` and verifies the array round-trips through
   SwiftData without corruption; and `testV27LookalikesDataRoundTrip` — inserts a
@@ -1496,9 +1500,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   root, one-context mirrored queue-authority read, exact authority consumers,
   and the throwing absence/failure boundaries used by scan finalization, Field
   Trip goal hints, queue maintenance, cloud deletion, and historical
-  reconciliation. `ScanRepositoryTests` complements that static contract by
+  reconciliation. It additionally freezes the exact four-file Historical Sync
+  production inventory, imports, dependency exclusions, mirrored test files, and
+  600-line ceilings. `ScanRepositoryTests` complements that static contract by
   proving historical inserted counts exclude invalid-timestamp rows and a
   pre-cancelled collection reconciliation preserves every local collection.
+  `HistoricalSyncCloudClientTests` verifies that injected account leases and
+  scan/collection request values cross the service seam unchanged.
   `SyncStateManagerTests` also locks the generation-fencing contract: a stale
   upload completion cannot clear a replacement batch; a completion delivered
   after `forceIdle()` cannot remove a newer inference token; a stale finalizing
@@ -2302,6 +2310,7 @@ xcodebuild test-without-building \
   -only-testing:merianTests/OfflineQueuedScanDeletionTests \
   -only-testing:merianTests/OfflineJobSchedulerTests \
   -only-testing:merianTests/ScanRepositoryTests \
+  -only-testing:merianTests/HistoricalSyncCloudClientTests \
   -only-testing:merianTests/ProfileActorCacheTests \
   -only-testing:merianTests/HardwareOrchestratorTests \
   -only-testing:merianTests/AppLifecycleManagerTests \

@@ -1504,10 +1504,12 @@ The focused regression inventory includes:
   ordered-media mapping, end-to-end persistence, dependency/lock ownership,
   compiler-checked response/result sendability, focused production-file
   ceilings, and cross-domain paused-state behavior;
-- `CoreDataIntegrationArchitectureTests` and `ScanRepositoryTests`, covering the
-  Core Data-wide silent-fetch ban, throwing historical reconciliation
-  boundaries, invalid-timestamp insertion accounting, and cancellation-safe
-  collection preservation;
+- `CoreDataIntegrationArchitectureTests`, `ScanRepositoryTests`, and
+  `HistoricalSyncCloudClientTests`, covering the exact layered Historical Sync
+  production/test inventory, Core Data-wide silent-fetch ban, sole query owner,
+  throwing historical reconciliation boundaries, production-path invalid-
+  timestamp insertion accounting, cancellation-safe collection preservation, and
+  injected account-lease/request forwarding;
 - `QueueSelectionPersistenceTests` and `QueueSelectionArchitectureTests`,
   covering complete pending-set paging, stable funding priority, actor-isolated
   payload extraction, atomic empty-media quarantine with and without an existing

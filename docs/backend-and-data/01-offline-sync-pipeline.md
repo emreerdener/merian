@@ -1969,7 +1969,12 @@ deleted.
 
 To support multi-device access and app reinstalls,
 `ScanRepository.syncHistoricalScansDown(modelContext:)` pulls cloud history and
-reconciles it with local SwiftData.
+reconciles it with local SwiftData. `ScanRepository` owns push-before-pull
+ordering, pagination, account fencing, and event publication;
+`HistoricalSyncCloudClient` is the sole live Auth/PostgREST query owner;
+`HistoricalScanPageDecoder` isolates malformed rows; and
+`HistoricalDatabaseActor` owns actor-isolated persistence. The repository does
+not resolve Supabase or construct scan/collection queries directly.
 
 ### Paginated Cloud Fetch
 

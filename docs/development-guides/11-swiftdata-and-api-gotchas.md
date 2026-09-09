@@ -813,14 +813,15 @@ with `UserTagsDependencies`, `OfflineQueueManager.flushOfflineQueuedScan(...)`,
 `BackgroundDatabaseActor.markScansAsUploading(...)`, `MerianMigrationPlan`
 custom saves, `ScanRepository.eradicateScan(...)`,
 `ScanRepository.purgeAllData(modelContext:userDefaults:resetDerivedState:resetRuntimeState:)`,
-and historical `updateExistingScans` / `ingestScans` / `syncCollections` follow
-this containment pattern. For custom tags, each successful local commit enqueues
-an immutable cloud snapshot behind its predecessor; do not restore independent
-fire-and-forget RPC tasks, because an older add may otherwise finish after a
-newer removal. The snapshot must retain the authoring account ID and acquire an
-exact `beginUnownedAccountBoundWork(expectedUserID:)` lease before using the
-Supabase client. A remote failure is best-effort and does not roll back the
-already committed local tag or search-index invalidation. The all-data purge
+and `HistoricalDatabaseActor.updateExistingScans` / `ingestScans` /
+`syncCollections` follow this containment pattern. For custom tags, each
+successful local commit enqueues an immutable cloud snapshot behind its
+predecessor; do not restore independent fire-and-forget RPC tasks, because an
+older add may otherwise finish after a newer removal. The snapshot must retain
+the authoring account ID and acquire an exact
+`beginUnownedAccountBoundWork(expectedUserID:)` lease before using the Supabase
+client. A remote failure is best-effort and does not roll back the already
+committed local tag or search-index invalidation. The all-data purge
 additionally requires its `resetDerivedState` closure. Callers must pass the
 app-owned private-map sensitive reset so exact-coordinate snapshots, actor
 indexes, and preview renders are detached and the active-map presentation reset

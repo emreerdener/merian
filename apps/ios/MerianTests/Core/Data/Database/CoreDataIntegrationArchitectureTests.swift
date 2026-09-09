@@ -52,6 +52,80 @@ struct CoreDataIntegrationArchitectureTests {
         }
     }
 
+    @Test func historicalSyncHasBoundedLayeredOwners() throws {
+        let sources = try DatabaseActorTestSupport.swiftSources(
+            below: Self.historicalSyncDirectory
+        )
+
+        #expect(
+            Set(sources.map(\.relativePath))
+                == Set(Self.expectedHistoricalSyncImports.keys),
+            "Historical sync ownership changed without an integration review"
+        )
+        for source in sources {
+            #expect(
+                DatabaseActorTestSupport.lineCount(of: source.contents) <= 600,
+                "\(source.relativePath) exceeds the 600-line review ceiling"
+            )
+            #expect(
+                imports(in: source.contents)
+                    == Self.expectedHistoricalSyncImports[source.relativePath],
+                "\(source.relativePath) has an unexpected dependency"
+            )
+        }
+
+        let repository = try source("Database/ScanRepository.swift")
+        #expect(DatabaseActorTestSupport.lineCount(of: repository) <= 600)
+        #expect(imports(in: repository) == [
+            "import Foundation",
+            "import os",
+            "import SwiftData"
+        ])
+        #expect(repository.contains(
+            "private let historicalCloudClient = HistoricalSyncCloudClient.live"
+        ))
+        #expect(!repository.contains("SupabaseManager.shared"))
+        #expect(!repository.contains(".from(\""))
+        #expect(!repository.contains("import Supabase"))
+
+        let models = try source(
+            "Database/HistoricalSync/Models/HistoricalSyncModels.swift"
+        )
+        let decoder = try source(
+            "Database/HistoricalSync/Decoding/HistoricalScanPageDecoder.swift"
+        )
+        let persistence = try source(
+            "Database/HistoricalSync/Persistence/HistoricalDatabaseActor.swift"
+        )
+        let service = try source(
+            "Database/HistoricalSync/Services/HistoricalSyncCloudClient.swift"
+        )
+
+        for declaration in [
+            "struct HistoricalScanPageRequest: Equatable, Sendable",
+            "struct HistoricalScanRecordRequest: Equatable, Sendable",
+            "struct HistoricalCollectionPageRequest: Equatable, Sendable",
+            "struct HistoricalScanResponse: Decodable, Sendable",
+            "struct CloudCollectionResponse: Decodable, Sendable"
+        ] {
+            #expect(models.contains(declaration))
+        }
+        #expect(decoder.contains("enum HistoricalScanPageDecoder"))
+        #expect(persistence.contains("actor HistoricalDatabaseActor"))
+        #expect(!persistence.contains("reconcileAllHistoricalData"))
+        #expect(!persistence.contains("SupabaseManager"))
+        #expect(!persistence.contains("URLSession"))
+        #expect(service.contains("struct HistoricalSyncCloudClient"))
+        #expect(service.contains("static let live = HistoricalSyncCloudClient("))
+        #expect(occurrences(of: ".from(\"scans\")", in: service) == 2)
+        #expect(occurrences(of: ".from(\"collections\")", in: service) == 1)
+        #expect(service.contains(".eq(\"user_id\", value: request.userID)"))
+        #expect(service.contains(".order(\"timestamp\", ascending: false)"))
+        #expect(service.contains(
+            ".select(\"id, name, created_at, collection_scans(scan_id)\")"
+        ))
+    }
+
     @Test func mirroredQueueAuthorityUsesOneFreshThrowingSnapshot() throws {
         let authority = try source(
             "OfflineSync/Persistence/OfflineQueueDurableAuthorityReader.swift"
@@ -73,6 +147,55 @@ struct CoreDataIntegrationArchitectureTests {
         #expect(authority.contains("jobAttemptCount: job?.attemptCount"))
         #expect(authority.contains("requiredVideoCount:"))
         #expect(!authority.contains("try?"))
+    }
+
+    @Test func historicalSyncTestsMirrorTheLayeredOwners() throws {
+        let historicalTests = try DatabaseActorTestSupport.swiftSources(
+            below: Self.historicalSyncTestsDirectory
+        )
+        #expect(
+            Set(historicalTests.map(\.relativePath))
+                == Self.expectedHistoricalSyncTestFiles,
+            "Historical sync tests changed ownership without an integration review"
+        )
+
+        for source in historicalTests {
+            #expect(
+                DatabaseActorTestSupport.lineCount(of: source.contents) <= 600,
+                "\(source.relativePath) exceeds the 600-line review ceiling"
+            )
+        }
+
+        let suiteRoot = try DatabaseActorTestSupport.loadRepositorySource(
+            at: "\(Self.coreDataTestsDirectory)/ScanRepositoryTests.swift"
+        )
+        let deletion = try DatabaseActorTestSupport.loadRepositorySource(
+            at: "\(Self.coreDataTestsDirectory)/ScanRepositoryDeletionTests.swift"
+        )
+        let ingestion = try DatabaseActorTestSupport.loadRepositorySource(
+            at: "\(Self.historicalSyncTestsDirectory)/HistoricalScanIngestionTests.swift"
+        )
+        let persistence = try DatabaseActorTestSupport.loadRepositorySource(
+            at: "\(Self.coreDataTestsDirectory)/ScanRepositoryModelPersistenceTests.swift"
+        )
+        let cloudClient = try DatabaseActorTestSupport.loadRepositorySource(
+            at: "\(Self.historicalSyncTestsDirectory)/HistoricalSyncCloudClientTests.swift"
+        )
+
+        #expect(suiteRoot.contains("struct ScanRepositoryTests {}"))
+        #expect(deletion.contains("extension ScanRepositoryTests"))
+        #expect(!deletion.contains("testIngestScansTimestampGuard"))
+        #expect(ingestion.contains(
+            "testIngestScansTimestampGuardSkipsNilAndUnparseableTimestamps"
+        ))
+        #expect(ingestion.contains(
+            "try await actor.reconcileScanPage("
+        ))
+        #expect(persistence.contains("extension ScanRepositoryTests"))
+        #expect(cloudClient.contains("struct HistoricalSyncCloudClientTests"))
+        #expect(cloudClient.contains(
+            "forwardsLeaseAndRequestValuesThroughInjectedHandlers"
+        ))
     }
 
     @Test func durableQueueAuthorityConsumersStayBounded() throws {
@@ -118,6 +241,9 @@ struct CoreDataIntegrationArchitectureTests {
             "OfflineSync/Services/CloudDeletion/OfflineQueueManager+CloudDeletionSync.swift"
         )
         let repository = try source("Database/ScanRepository.swift")
+        let historicalPersistence = try source(
+            "Database/HistoricalSync/Persistence/HistoricalDatabaseActor.swift"
+        )
 
         #expect(support.contains(
             "func localScanRecord(id recordId: String) throws"
@@ -136,21 +262,21 @@ struct CoreDataIntegrationArchitectureTests {
         #expect(!cloudDeletion.contains("try? context.fetchOfflineJob"))
         #expect(!repository.contains("try? modelContext.fetch"))
         #expect(!repository.contains("(try? modelContext.fetch"))
-        #expect(repository.contains(
+        #expect(historicalPersistence.contains(
             "func reconcileScanPage(\n        responses: [HistoricalScanResponse]\n    ) throws -> Int"
         ))
-        #expect(repository.contains(
+        #expect(historicalPersistence.contains(
             "func syncCollectionsDown(\n        remoteCollections: [CloudCollectionResponse]\n    ) throws"
         ))
-        #expect(repository.contains(
+        #expect(historicalPersistence.contains(
             "private func saveHistoricalContext(_ logContext: String) throws"
         ))
-        #expect(!repository.contains("_ = saveHistoricalContext"))
-        #expect(!repository.contains("if Task.isCancelled { break }"))
-        #expect(repository.contains(
+        #expect(!historicalPersistence.contains("_ = saveHistoricalContext"))
+        #expect(!historicalPersistence.contains("if Task.isCancelled { break }"))
+        #expect(historicalPersistence.contains(
             "try Task.checkCancellation()\n        for (_, obsolete) in existingLookup"
         ))
-        #expect(repository.contains(
+        #expect(historicalPersistence.contains(
             "try Task.checkCancellation()\n        try saveHistoricalContext(\"syncCollections inbound reconciliation\")"
         ))
     }
@@ -173,6 +299,12 @@ struct CoreDataIntegrationArchitectureTests {
 
     private static let coreDataDirectory = "apps/ios/Merian/Core/Data"
     private static let databaseDirectory = "\(coreDataDirectory)/Database"
+    private static let historicalSyncDirectory =
+        "\(databaseDirectory)/HistoricalSync"
+    private static let coreDataTestsDirectory =
+        "apps/ios/MerianTests/Core/Data"
+    private static let historicalSyncTestsDirectory =
+        "\(coreDataTestsDirectory)/HistoricalSync"
     private static let silentFetchPattern =
         #"try\?\s*(?:await\s+)?[A-Za-z_][A-Za-z0-9_]*\.(?:fetch|fetchCount)\s*\("#
 
@@ -223,5 +355,31 @@ struct CoreDataIntegrationArchitectureTests {
             "import Foundation",
             "import SwiftData"
         ]
+    ]
+
+    private static let expectedHistoricalSyncImports: [String: Set<String>] = [
+        "Decoding/HistoricalScanPageDecoder.swift": [
+            "import Foundation",
+            "import Supabase"
+        ],
+        "Models/HistoricalSyncModels.swift": [
+            "import Foundation"
+        ],
+        "Persistence/HistoricalDatabaseActor.swift": [
+            "import Foundation",
+            "import os",
+            "import SwiftData"
+        ],
+        "Services/HistoricalSyncCloudClient.swift": [
+            "import Foundation",
+            "import Supabase"
+        ]
+    ]
+
+    private static let expectedHistoricalSyncTestFiles: Set<String> = [
+        "HistoricalScanDecodingTests.swift",
+        "HistoricalScanIngestionTests.swift",
+        "HistoricalScanReconciliationTests.swift",
+        "HistoricalSyncCloudClientTests.swift"
     ]
 }

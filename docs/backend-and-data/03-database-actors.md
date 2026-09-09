@@ -486,9 +486,20 @@ guard await queueActor.tryClaimForInference(scanId: scanId) else { return }
 
 ---
 
-### `HistoricalDatabaseActor` (`Core/Data/Database/ScanRepository.swift`)
+### `HistoricalDatabaseActor`
+
+**File**:
+`Core/Data/Database/HistoricalSync/Persistence/HistoricalDatabaseActor.swift`
 
 **Declaration**: `@ModelActor actor HistoricalDatabaseActor`
+
+Historical hydration has four bounded owners. `HistoricalSyncModels.swift`
+contains request values and unchanged wire DTOs,
+`HistoricalScanPageDecoder.swift` owns row-isolated PostgREST decoding,
+`HistoricalSyncCloudClient.swift` is the sole live Auth/PostgREST adapter, and
+this actor owns only SwiftData reconciliation. `ScanRepository.swift` retains
+push-before-pull ordering, pagination, account-lease checks, and app-event
+orchestration.
 
 **Responsibilities:**
 
@@ -521,31 +532,17 @@ guard await queueActor.tryClaimForInference(scanId: scanId) else { return }
   Save failures rollback the actor-isolated `ModelContext` so partial inbound
   names, deletes, or membership rewrites do not remain pending after
   reconciliation fails. Cancellation follows the same rollback rule without
-  being logged as a storage error.
-- `reconcileAllHistoricalData(responses:collections:)` — **legacy, kept for test
-  compatibility only**. Delegates to `reconcileScanPage` once, then calls
-  `syncCollectionsDown`. New call sites should use the `reconcileScanPage` /
-  `syncCollectionsDown` pair.
-
-**When to create**: Ad-hoc, once per `syncHistoricalScansDown` call. Use the
-paged API to stream one page at a time rather than accumulating the full cloud
-response in memory:
+  being logged as a storage error. **When to create**: Ad-hoc, once per
+  `syncHistoricalScansDown` call. The repository and its focused cloud adapter
+  stream and decode one page at a time; the persistence actor accepts
+  already-decoded values and performs no network or Auth work:
 
 ```swift
 let dbActor = HistoricalDatabaseActor(modelContainer: container)
 
-// Stream scan pages one at a time — never accumulate full allScans[] in memory
-var scanOffset = 0
-while true {
-    let page: [HistoricalScanResponse] = try await ...
-        .range(from: scanOffset, to: scanOffset + pageSize - 1)
-        .execute().value
-    if !page.isEmpty {
-        try await dbActor.reconcileScanPage(responses: page)
-    }
-    if page.count < pageSize { break }
-    scanOffset += pageSize
-}
+// ScanRepository supplies one decoded page, then releases it before fetching
+// the next raw page through HistoricalSyncCloudClient.
+try await dbActor.reconcileScanPage(responses: decodedPage.responses)
 
 // Collections are small in count — still fully accumulated, then synced once
 try await dbActor.syncCollectionsDown(remoteCollections: allCollections)
