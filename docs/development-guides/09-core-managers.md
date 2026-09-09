@@ -1467,12 +1467,16 @@ consults that Keychain entry.
 
 ### `LocalImageLoader`
 
-- A Zero-OOM actor governing remote image fetches, APFS extraction, and
-  thundering-herd cache coalescing.
+- A Zero-OOM actor governing cache lookup, local/remote routing, the isolated
+  media session, and thundering-herd request coalescing.
+- A small initializer-injected `Dependencies` value isolates recovery, decoding,
+  fetching, diagnostics, and cloud repair. `.live` preserves the shared
+  production adapters; focused tests supply deterministic closures.
 - Prevents redundant remote fetches using tracked `Task` closures off the
   `@MainActor`.
-- **Async Decode Bounds**: A cancellation-aware four-permit pool suspends excess
-  callers without blocking threads. Admitted synchronous ImageIO work runs on an
+- **Async Decode Bounds**: `Core/Data/Images/Concurrency/AsyncPermitPool.swift`
+  owns a cancellation-aware four-permit pool that suspends excess callers
+  without blocking threads. Admitted synchronous ImageIO work runs on an
   explicitly QoS-tagged concurrent queue, preventing both decode
   over-subscription JetSam panics and priority-inversion hang warnings.
 - **Isolated media session**: `mediaSession` uses
@@ -1484,6 +1488,15 @@ consults that Keychain entry.
   decode capacity.
 - Supports fallback fetching: loops natively through comma-separated URLs via
   Zero-OOM `ImageDownsampler` bounds.
+- `Core/Data/Images/Policies/` owns credential-free HTTPS/content admission and
+  retry classification. `Core/Data/Images/Recovery/` owns canonical source
+  identity, its lock-protected process-local registry, exact filename, read-only
+  rescue-store, and constrained timestamp evidence.
+- `Core/Data/Images/Services/CloudScanImageRepairActor.swift` owns the injected
+  inspect, sign, file-backed upload, repair, and app-event workflow. A canonical
+  source URL stays fenced through every suspension; equivalent casing,
+  default-port, query, and fragment variants share that fence. Failures pause
+  the process-local queue for 15 minutes.
 - I/O helpers (`loadLocal`, `fetchRemote`) are `static nonisolated` — prevents
   `Task.detached` from re-entering the actor executor mid-operation and keeps
   network orchestration off the actor executor; synchronous decode work is
@@ -1614,21 +1627,21 @@ consults that Keychain entry.
   and
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
 - `MerianNetworkClient+MediaStorage.swift` owns signing and scan-image
-  inspect/repair endpoints; `MediaStorageAPIModels.swift` owns their unchanged
-  hand-written DTOs. Signing's narrow account-bound encoded bridge captures the
-  explicit/private Auth UUID before body construction, lowercases only the wire
-  owner, and forwards the same UUID to private transport without bypassing
-  current session resolution. All three endpoints keep 30-second deadlines,
-  plain decoding errors, classified refresh, and ambiguous-replay refusal.
-  `Media/` owns Data/file PUTs and foreground video upload:
-  `PresignedMediaUpload` checks HTTPS, exact signed headers, and HTTP 200;
-  `StagedVideoUploadPlan` resolves all files and enforces existing count/byte
-  limits before signing. File PUTs re-stat before request validation and stay
-  file-backed through two raw session bridges, without new Auth, retries, or
-  cancellation mapping. Queue manifest validation/task binding, inference
-  attempt fencing, LocalImageLoader repair, and Profile avatar promotion retain
-  their owners. Publication's Recovery owner coordinates the dedicated Media
-  restorer through the same signing and PUT primitives. See the
+  inspect/repair endpoints; `MediaStorageAPIModels.swift` owns their
+  wire-unchanged, value-only `Sendable` DTOs. Signing's narrow account-bound
+  encoded bridge captures the explicit/private Auth UUID before body
+  construction, lowercases only the wire owner, and forwards the same UUID to
+  private transport without bypassing current session resolution. All three
+  endpoints keep 30-second deadlines, plain decoding errors, classified refresh,
+  and ambiguous-replay refusal. `Media/` owns Data/file PUTs and foreground
+  video upload: `PresignedMediaUpload` checks HTTPS, exact signed headers, and
+  HTTP 200; `StagedVideoUploadPlan` resolves all files and enforces existing
+  count/byte limits before signing. File PUTs re-stat before request validation
+  and stay file-backed through two raw session bridges, without new Auth,
+  retries, or cancellation mapping. Queue manifest validation/task binding,
+  inference attempt fencing, Core Data Images cloud repair, and Profile avatar
+  promotion retain their owners. Publication's Recovery owner coordinates the
+  dedicated Media restorer through the same signing and PUT primitives. See the
   [ownership guide](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-ownership)
   and
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification).

@@ -2070,14 +2070,18 @@ offline-queue account leases remain the mutation authority inside each sync.
 
 Historical scans restore their Cloudflare R2 URLs directly into `localImagePath`
 and `additionalImagePaths` when the physical photo is absent locally.
-`LocalImageLoader` evaluates HTTP boundaries implicitly. Eligible durable R2
-URLs first consult the process-local recovery registry for a surviving Documents
-file established by exact filename, read-only rescue-store alignment, or
-constrained timestamp grouping. Without a match, the loader routes the bounded
+`Core/Data/Images/Policies/ExternalReferenceImagePolicy.swift` admits only
+credential-free HTTPS image URLs before `LocalImageLoader` routes them. Eligible
+durable R2 URLs first consult `Recovery/LocalScanMediaRecoveryResolver.swift`
+for a surviving Documents file established by exact filename, read-only
+rescue-store alignment, or constrained timestamp grouping. Recovery identity is
+credential-free HTTPS normalized across scheme/host casing, the default port,
+query parameters, and fragments. Without a match, the loader routes the bounded
 async network fetch transparently so the user downloads only what is on screen.
-A local recovery hit can enqueue authenticated cloud repair that promotes a new
-object and atomically updates Scan and Explore references; it does not change
-offline-queue inference ownership.
+A local recovery hit can enqueue `Services/CloudScanImageRepairActor.swift`. Its
+live adapter performs the authenticated inspect, staging upload, and atomic
+Scan/Explore reference repair; this does not change offline-queue inference
+ownership.
 
 ### SwiftData Typealias UI Quirks
 

@@ -22,8 +22,8 @@ collection_sync_endpoint_file="apps/ios/Merian/Core/Network/Endpoints/MerianNetw
 test_file="apps/ios/MerianTests/Models/MigrationPlanTests.swift"
 recovery_file="apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift"
 recovery_test_file="apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift"
-image_file="apps/ios/Merian/Core/Data/Images/LocalImageLoader.swift"
-image_test_file="apps/ios/MerianTests/Core/Data/LocalImageLoaderTests.swift"
+image_recovery_file="apps/ios/Merian/Core/Data/Images/Recovery/LegacyScanMediaRecoveryIndex.swift"
+image_test_file="apps/ios/MerianTests/Core/Data/Images/LocalImageLoaderTests.swift"
 app_file="apps/ios/Merian/App/MerianApp.swift"
 startup_workflow_file=".github/workflows/ios-startup-safety.yml"
 
@@ -728,7 +728,7 @@ contains "$recovery_test_file" "testFreshStoreDiagnosticDoesNotReportMetadataRea
   || fail "Fresh-store diagnostics must not report the expected absence of metadata as an error."
 contains "$test_file" "currentSchemaFreshDiskStoreOpensWithoutMigrationPlan" \
   || fail "MigrationPlanTests must prove a fresh current-schema disk store can reopen without a migration plan."
-contains "$image_file" "LegacyScanMediaRecoveryStoreLocator.storeURLs" \
+contains "$image_recovery_file" "LegacyScanMediaRecoveryStoreLocator.storeURLs" \
   || fail "Rescue-media lookup must use the configured and legacy store locator."
 contains "$image_test_file" "legacyRecoveryStoreLocatorPrefersConfiguredRootAndNewestArchives" \
   || fail "LocalImageLoaderTests must keep configured-root rescue archives ahead of legacy archives."

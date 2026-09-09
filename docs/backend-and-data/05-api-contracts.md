@@ -8611,15 +8611,20 @@ metadata. The same transaction updates matching Scan Library and Explore media
 references.
 
 Native inspect/repair requests live in
-`Core/Network/Endpoints/MerianNetworkClient+MediaStorage.swift`; their unchanged
-DTOs live in `Core/Network/MediaStorageAPIModels.swift`. The endpoint forwards
-raw source/key values, preserves omitted versus supplied keys, and decodes the
-required `data` envelope with explicit wire keys, known statuses, and zero
-defaults for absent/null counts. It retains the 30-second deadline, plain
-decoding errors, classified refresh, and no ambiguous-failure replay. Core
-Data's LocalImageLoader still owns inspection, local-byte admission, signing,
-file PUT, repair, cache handling, and library-change notification; status
-decoding alone does not execute that workflow. See the
+`Core/Network/Endpoints/MerianNetworkClient+MediaStorage.swift`; their
+wire-unchanged, value-only `Sendable` DTOs live in
+`Core/Network/MediaStorageAPIModels.swift`. The endpoint forwards raw source/key
+values, preserves omitted versus supplied keys, and decodes the required `data`
+envelope with explicit wire keys, known statuses, and zero defaults for
+absent/null counts. It retains the 30-second deadline, plain decoding errors,
+classified refresh, and no ambiguous-failure replay. Core Data Images'
+`Services/CloudScanImageRepairActor.swift` owns inspection, local-byte
+admission, signing, file PUT, repair, and library-change notification behind
+injected dependencies. Before inspection, the recovery boundary canonicalizes
+credential-free HTTPS source identity across scheme/host casing, the default
+port, query parameters, and fragments. `LocalImageLoader` owns only the
+cache/load orchestration that discovers a recovered local file and enqueues the
+service. Status decoding alone does not execute that workflow. See the
 [native media storage matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification).
 
 ### Request Payloads

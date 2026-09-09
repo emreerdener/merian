@@ -42,6 +42,13 @@ account fencing, and app-event orchestration. See the
 [Historical Sync README](Database/HistoricalSync/README.md) for the layer
 invariants and canonical contract links.
 
+`Images/` separates loader orchestration from decode admission, URL/retry
+policy, local recovery evidence, and the owner-authenticated cloud-repair
+service. Only live dependency adapters resolve network or app-event effects; the
+recovery layer remains read-only with respect to cloud metadata. See the
+[Core Data Images README](Images/README.md) for ownership and verification
+details.
+
 ## Purpose
 
 This area acts as the source of truth for app data. It encompasses SwiftData

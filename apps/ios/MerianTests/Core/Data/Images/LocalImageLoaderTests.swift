@@ -3,6 +3,7 @@ import Foundation
 import Testing
 import UIKit
 
+@Suite("Local Image Loader")
 struct LocalImageLoaderTests {
     private actor ConcurrencyProbe {
         private(set) var active = 0
@@ -15,6 +16,15 @@ struct LocalImageLoaderTests {
 
         func leave() {
             active -= 1
+        }
+    }
+
+    private actor RemoteFetchProbe {
+        private(set) var requestCount = 0
+
+        func recordRequest() async {
+            requestCount += 1
+            try? await Task.sleep(for: .milliseconds(25))
         }
     }
 
@@ -362,53 +372,97 @@ struct LocalImageLoaderTests {
     @Test func localScanMediaRecoveryRejectsNonCaptureAndUnsafeURLs() throws {
         let externalURL = try #require(URL(string: "https://example.com/public_uploads/free/user/image.webp"))
         let avatarURL = try #require(URL(string: "https://media.merian.app/avatars/user/image.webp"))
+        let credentialedURL = try #require(URL(
+            string:
+                "https://user:secret@media.merian.app/public_uploads/free/user/image.webp"
+        ))
         let nonImageURL = try #require(URL(
             string: "https://media.merian.app/public_uploads/pro/user/recording.wav"
         ))
 
         #expect(LocalScanMediaRecoveryResolver.candidateFileNames(for: externalURL).isEmpty)
         #expect(LocalScanMediaRecoveryResolver.candidateFileNames(for: avatarURL).isEmpty)
+        #expect(LocalScanMediaRecoveryResolver.candidateFileNames(for: credentialedURL).isEmpty)
         #expect(LocalScanMediaRecoveryResolver.candidateFileNames(for: nonImageURL).isEmpty)
     }
 
+    @Test func localScanMediaRecoveryCanonicalizesEquivalentSecureSources() throws {
+        let sourceURL = try #require(URL(
+            string:
+                "HTTPS://MEDIA.MERIAN.APP:443/public_uploads/free/user/image.webp?width=900#preview"
+        ))
+
+        #expect(
+            LocalScanMediaRecoveryResolver.canonicalRecoverySourceURL(
+                for: sourceURL
+            )?.absoluteString ==
+                "https://media.merian.app/public_uploads/free/user/image.webp"
+        )
+        #expect(
+            LocalScanMediaRecoveryResolver.candidateFileNames(
+                for: sourceURL
+            ) == ["image.webp"]
+        )
+    }
+
+    @Test func localRecoveryRegistrySharesEquivalentSourceIdentity() throws {
+        let registry = LocalScanMediaRecoveryRegistry()
+        let registeredURL = try #require(URL(
+            string:
+                "HTTPS://MEDIA.MERIAN.APP:443/public_uploads/free/user/image.webp?width=900"
+        ))
+        let lookupURL = try #require(URL(
+            string:
+                "https://media.merian.app/public_uploads/free/user/image.webp#preview"
+        ))
+
+        #expect(registry.register(
+            remoteURL: registeredURL,
+            fileName: "local_scan.webp"
+        ))
+        #expect(registry.fileName(for: lookupURL) == "local_scan.webp")
+        #expect(!registry.register(
+            remoteURL: lookupURL,
+            fileName: "duplicate_scan.webp"
+        ))
+    }
+
     @Test func testLocalImageLoader_ConcurrentDeduplication() async throws {
-        let loader = LocalImageLoader.shared
-        
-        // We use a dummy payload URL that will just simulate a network flight
-        let testUrlString = "https://example.com/dummy.jpg"
-        
-        // Clear caches to ensure cold start
+        let probe = RemoteFetchProbe()
+        let loader = LocalImageLoader(dependencies: .init(
+            existingLocalImageURL: { _ in nil },
+            decodeImage: { _, _, _ in nil },
+            loadLocalImage: { _, _, _ in nil },
+            fetchRemoteImage: { _, _, _ in
+                await probe.recordRequest()
+                return nil
+            },
+            recordLocalRecovery: { _ in },
+            enqueueCloudRepair: { _, _ in }
+        ))
+        let testUrlString = "https://media.merian.app/test/deduplicated.jpg"
+
         ImageCache.shared.clearCache()
-        
-        actor TaskCollector {
-            var images: [UIImage?] = []
-            func add(_ img: UIImage?) { images.append(img) }
-        }
-        
-        let collector = TaskCollector()
-        
-        // Fire 5 concurrent requests for the exact same URL payload
+
+        var results: [UIImage?] = []
         await withTaskGroup(of: UIImage?.self) { group in
             for _ in 0..<5 {
                 group.addTask {
-                    return await loader.loadImage(fromPath: nil, fallbackUrl: testUrlString, maxDimension: 500)
+                    await loader.loadImage(
+                        fromPath: nil,
+                        fallbackUrl: testUrlString,
+                        maxDimension: 500
+                    )
                 }
             }
-            
+
             for await result in group {
-                await collector.add(result)
+                results.append(result)
             }
         }
-        
-        let results = await collector.images
-        
-        // Since it's a dummy URL that will 404/fail, they all should return exactly nil safely.
-        // We are just verifying that the internal Task.detached deduplication dictionary allows
-        // 5 concurrent requests without blowing up or entering a race condition!
+
         #expect(results.count == 5)
-        
-        for result in results {
-            #expect(result == nil)
-        }
+        #expect(results.allSatisfy { $0 == nil })
+        #expect(await probe.requestCount == 1)
     }
 }

@@ -1,8 +1,8 @@
 # July 2026 Account-Scoped R2 Image Loss
 
-**Status (2026-07-26):** Contained in the repository; production deployment
-and runtime verification are still pending. Device-assisted recovery is in
-progress and is incomplete.
+**Status (2026-07-26):** Contained in the repository; production deployment and
+runtime verification are still pending. Device-assisted recovery is in progress
+and is incomplete.
 
 ## Summary
 
@@ -17,12 +17,11 @@ media URLs in Supabase Postgres. The image bytes at those URLs live in
 Cloudflare R2 object storage. Keeping a URL in Postgres does not preserve the
 corresponding R2 object.
 
-The strongest code-level explanation is a historical account-deletion outbox
-row that was made actionable by the 2026-07-25 storage-erasure migration. That
+The strongest code-level explanation is a historical account-deletion outbox row
+that was made actionable by the 2026-07-25 storage-erasure migration. That
 explanation fits the owner-prefix scope and timing exactly, but remains the
-**leading cause**, not a production-log-proven root cause. The production
-outbox row, worker claim, and R2 delete audit evidence have not yet been
-verified.
+**leading cause**, not a production-log-proven root cause. The production outbox
+row, worker claim, and R2 delete audit evidence have not yet been verified.
 
 ## Impact and Scope
 
@@ -86,17 +85,16 @@ The following sequence is consistent with every observed cloud symptom:
    `pending_storage_deletions` before later tombstone/Auth steps completed.
 2. If a later deletion step failed, the account could remain live while a stale
    storage marker survived.
-3. Migration
-   `20260725052337_enforce_account_storage_erasure.sql` upgraded and reset all
-   historical unconsumed markers to pending five-prefix sweep jobs.
+3. Migration `20260725052337_enforce_account_storage_erasure.sql` upgraded and
+   reset all historical unconsumed markers to pending five-prefix sweep jobs.
 4. Its original `claim_pending_storage_deletions` implementation checked queue
    status, due time, and lease state, but did not require a matching
    `storage_pending` account-deletion job and did not reject a live public user
    or owned scans.
 5. If the impacted owner had such a stale marker and the migration/worker were
    active in production, the scheduled worker could delete
-   `public_uploads/free/{owner}/` and `public_uploads/pro/{owner}/` while leaving
-   all Postgres references intact.
+   `public_uploads/free/{owner}/` and `public_uploads/pro/{owner}/` while
+   leaving all Postgres references intact.
 
 This would affect exactly one owner, blank both Scan Library and Explore, and
 leave other owners' media untouched.
@@ -112,14 +110,14 @@ leave other owners' media untouched.
 
 ## Timeline
 
-| Time | Event |
-| --- | --- |
-| 2026-04-05 | Safe-delete ordering was corrected so destructive cleanup no longer begins from an outbox marker alone. Historical markers were not purged by that code change. |
-| 2026-07-10 04:16:39Z | App 1.0.1 (209) encountered `SwiftDataError 1`. The old local store was preserved under `store-rescue/2026-07-10T04-16-39Z-BE7C8548-CD59-4E95-A420-4602CE91D89B/default.store` with reason `legacy_migration_rescue`, and a fresh store was built. |
-| 2026-07-25 | The repository introduced the storage-erasure migration that upgrades every historical unconsumed marker and schedules five-minute reconciliation. Missing owner media was reported in Scan Library and Explore; production migration/worker evidence remains pending. |
-| 2026-07-26 | Repository safeguards, the owner-scoped repair API, and local recovery matching were implemented. A reversible Explore media-health quarantine, scheduled direct-origin reconciliation, owner recovery queue, and automatic repair restoration were added. Production deployment remains unverified. |
-| 2026-07-26 | The `38` count / `9` preview / `5` full-grid mismatch was traced to legacy count projection plus local preview backfill. A canonical count/grid contract, owner recovery totals, explicit pagination cursor, and deploy-wide aggregate scope smoke were implemented in the repository. |
-| 2026-07-27 | Comprehensive review rejected deleting a historical orphan marker merely to clear monitoring. Guidance now requires restricted provenance classification and a reviewed durable request or forward metadata migration. User-FK indexing, exposed-schema RLS/default ACLs, and workflow evidence controls joined the release gate. |
+| Time                 | Event                                                                                                                                                                                                                                                                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-04-05           | Safe-delete ordering was corrected so destructive cleanup no longer begins from an outbox marker alone. Historical markers were not purged by that code change.                                                                                                                                                                   |
+| 2026-07-10 04:16:39Z | App 1.0.1 (209) encountered `SwiftDataError 1`. The old local store was preserved under `store-rescue/2026-07-10T04-16-39Z-BE7C8548-CD59-4E95-A420-4602CE91D89B/default.store` with reason `legacy_migration_rescue`, and a fresh store was built.                                                                                |
+| 2026-07-25           | The repository introduced the storage-erasure migration that upgrades every historical unconsumed marker and schedules five-minute reconciliation. Missing owner media was reported in Scan Library and Explore; production migration/worker evidence remains pending.                                                            |
+| 2026-07-26           | Repository safeguards, the owner-scoped repair API, and local recovery matching were implemented. A reversible Explore media-health quarantine, scheduled direct-origin reconciliation, owner recovery queue, and automatic repair restoration were added. Production deployment remains unverified.                              |
+| 2026-07-26           | The `38` count / `9` preview / `5` full-grid mismatch was traced to legacy count projection plus local preview backfill. A canonical count/grid contract, owner recovery totals, explicit pagination cursor, and deploy-wide aggregate scope smoke were implemented in the repository.                                            |
+| 2026-07-27           | Comprehensive review rejected deleting a historical orphan marker merely to clear monitoring. Guidance now requires restricted provenance classification and a reviewed durable request or forward metadata migration. User-FK indexing, exposed-schema RLS/default ACLs, and workflow evidence controls joined the release gate. |
 
 ## Containment and Remediation
 
@@ -172,25 +170,24 @@ Timestamp recovery accepts only a single `_scan` file plus contiguous
 `_additional_N` files written in the same second, an exact remote/local media
 count, a local write no more than 60 seconds before the scan row, a minimum
 three-second margin over the next candidate, and globally one-to-one file use.
-Bare nearest-time matching was rejected because calibration showed
-approximately 70% precision.
+Bare nearest-time matching was rejected because calibration showed approximately
+70% precision.
 
-Calibration against known pre-rescue mappings found the correct `_scan` file
-for all 77 matched candidates inside the 60-second one-way window. Direct
-filename matching covered 68 URL references/63 covers; rescue-store scan-ID
-alignment covered 139 URL references/129 covers. Because those lanes overlap,
-their combined pre-timestamp coverage was 161 URL references/150 covers.
-Constrained timestamp matching then added 84 URL references across 79
-post-rescue scans.
+Calibration against known pre-rescue mappings found the correct `_scan` file for
+all 77 matched candidates inside the 60-second one-way window. Direct filename
+matching covered 68 URL references/63 covers; rescue-store scan-ID alignment
+covered 139 URL references/129 covers. Because those lanes overlap, their
+combined pre-timestamp coverage was 161 URL references/150 covers. Constrained
+timestamp matching then added 84 URL references across 79 post-rescue scans.
 
 Current mapping coverage is:
 
-| Recovery state | Recovered | Total |
-| --- | ---: | ---: |
-| Cloud image URL references with a local match | 245 | 332 |
-| Scan covers with a local match | 229 | 315 |
-| Unresolved cloud image URL references | 87 | 332 |
-| Unresolved scan covers | 86 | 315 |
+| Recovery state                                | Recovered | Total |
+| --------------------------------------------- | --------: | ----: |
+| Cloud image URL references with a local match |       245 |   332 |
+| Scan covers with a local match                |       229 |   315 |
+| Unresolved cloud image URL references         |        87 |   332 |
+| Unresolved scan covers                        |        86 |   315 |
 
 The 347 cloud-incident URL count and 332 device-recovery URL count are different
 denominators: the first is the unique active cloud-row scope, while the second
@@ -200,9 +197,9 @@ recovery reporting.
 
 For mapped URLs, the iOS client can render the surviving local file immediately
 and, while online, enqueue the authenticated cloud repair flow. These counts are
-candidate/reference coverage, not proof that production re-upload completed.
-The currently installed recovery build has not yet been visually/runtime
-verified because the device was locked during remote launch.
+candidate/reference coverage, not proof that production re-upload completed. The
+currently installed recovery build has not yet been visually/runtime verified
+because the device was locked during remote launch.
 
 The app-group media cache was absent, no Finder/iTunes backup was found, and
 Save to Camera Roll defaults to off. A Photos-library search requires explicit
@@ -211,10 +208,10 @@ user permission and is a separate recovery step.
 ### Published Explore Behavior
 
 Migrations `20260726144647` and `20260726144754` add the durable product
-response for present and future media incidents. One client/CDN failure does
-not change publication. Two direct R2-origin `404` checks at least five minutes
-apart confirm a primary object as missing. Public projection then omits only
-the confirmed-missing item; it system-quarantines an all-missing post without
+response for present and future media incidents. One client/CDN failure does not
+change publication. Two direct R2-origin `404` checks at least five minutes
+apart confirm a primary object as missing. Public projection then omits only the
+confirmed-missing item; it system-quarantines an all-missing post without
 changing `unshared_at`, moderation, the post row, likes, comments, or reports.
 
 The owner receives one `media_missing` incident plus a persistent Scan Library
@@ -234,8 +231,8 @@ See
 ## R2 Durability and Recoverability
 
 Cloudflare R2 is object storage, not the relational database. R2 durability
-protects stored objects against infrastructure failure; it does not undo a
-valid intentional delete request. Object deletion is irreversible unless an
+protects stored objects against infrastructure failure; it does not undo a valid
+intentional delete request. Object deletion is irreversible unless an
 independent copy, backup, replication target, or surviving device file exists.
 
 See Cloudflare's official documentation:
@@ -254,8 +251,8 @@ Do not mark this incident resolved until all of the following are complete:
    - `20260726041109_fence_storage_erasure_claims.sql`
    - `20260726041338_repair_owned_scan_image_references.sql`
    - `20260727001630_monitor_account_deletion_health.sql`
-2. Verify `safe-delete`, `reconcile-account-deletions`, and
-   `repair-scan-image` are the expected deployed bundles.
+2. Verify `safe-delete`, `reconcile-account-deletions`, and `repair-scan-image`
+   are the expected deployed bundles.
 3. Verify the installed claim routine contains every database authorization
    fence:
 
@@ -314,14 +311,14 @@ Do not mark this incident resolved until all of the following are complete:
    ```
 
    A nonzero count requires restricted operator review because it can reveal the
-   historical stale-marker cohort. It is not proof that those rows are
-   claimable under the fenced routine. Classify the exact outbox row, matching
-   private job, request/audit provenance, live profile, and owned scans without
-   copying identifiers outside the restricted session. If deletion intent is
-   legitimate, restore it only through the reviewed durable request boundary.
-   If it is stale or unauthorized, preserve evidence and prepare a reviewed
-   forward metadata migration after the cause is understood. Do not delete the
-   marker ad hoc, make it actionable, or sweep its prefixes to clear the count.
+   historical stale-marker cohort. It is not proof that those rows are claimable
+   under the fenced routine. Classify the exact outbox row, matching private
+   job, request/audit provenance, live profile, and owned scans without copying
+   identifiers outside the restricted session. If deletion intent is legitimate,
+   restore it only through the reviewed durable request boundary. If it is stale
+   or unauthorized, preserve evidence and prepare a reviewed forward metadata
+   migration after the cause is understood. Do not delete the marker ad hoc,
+   make it actionable, or sweep its prefixes to clear the count.
 5. On staging, create an orphaned storage marker for a live fixture account and
    prove the worker does not claim it.
 6. On staging, run a legitimate safe-delete job and prove it becomes claimable
@@ -332,25 +329,25 @@ Do not mark this incident resolved until all of the following are complete:
    are deployed, the `*/5` reconciliation cron is active, and recent
    reconciliation-run audit rows succeed.
 9. Verify migration `20260726174555`, redeployed author-profile/post functions,
-   and the service aggregate smoke. Record `affected_author_count` without
-   owner identifiers; any value above the known incident cohort expands scope.
+   and the service aggregate smoke. Record `affected_author_count` without owner
+   identifiers; any value above the known incident cohort expands scope.
 10. Verify profile visible count, preview posts, and every full-grid page agree,
     while preserved/recovery-needed totals remain owner-only.
 11. On staging, complete the healthy -> degraded -> quarantined -> degraded ->
-   healthy projection matrix, including two spaced origin checks, owner
-   notification/banner behavior, unchanged author/engagement state, continuity
-   through snapshot refresh, and automatic repair restoration.
+    healthy projection matrix, including two spaced origin checks, owner
+    notification/banner behavior, unchanged author/engagement state, continuity
+    through snapshot refresh, and automatic repair restoration.
 12. Confirm lifecycle rules match `docs/r2-lifecycle.json` and contain no
-   durable-prefix expiration.
+    durable-prefix expiration.
 13. Retain aggregate query output and request-correlated logs as incident
-   evidence without publishing owner identifiers or object keys.
+    evidence without publishing owner identifiers or object keys.
 14. Manually dispatch **Account Deletion Health Monitor** with its default
     thresholds and retain its bounded JSON and Markdown artifacts. Confirm the
     health row reports active cron and configured credentials. An orphan count
     is deliberately critical: keep the failed run as evidence and follow the
     restricted provenance procedure above. Require a successful Production run
-    only after every critical has a legitimate reviewed resolution; never
-    mutate queue state merely to obtain green. Also inspect recent reaper cron
+    only after every critical has a legitimate reviewed resolution; never mutate
+    queue state merely to obtain green. Also inspect recent reaper cron
     requests: the health configuration boolean proves only nonblank effective
     values, not a successful format-aware worker call.
 
@@ -377,8 +374,8 @@ Do not mark this incident resolved until all of the following are complete:
 - Storage events are hints only; scheduled origin reconciliation is
   authoritative.
 - Reference imagery never substitutes for missing observation evidence.
-- Incident status must distinguish repository mitigation, production
-  deployment, runtime verification, and data recovery.
+- Incident status must distinguish repository mitigation, production deployment,
+  runtime verification, and data recovery.
 
 ## Relevant Source
 
@@ -397,6 +394,8 @@ Do not mark this incident resolved until all of the following are complete:
 - `services/supabase/scripts/monitor_account_deletion_health.ts`
 - `.github/workflows/account-deletion-health-monitor.yml`
 - `apps/ios/Merian/Core/Data/Images/LocalImageLoader.swift`
+- `apps/ios/Merian/Core/Data/Images/Recovery/`
+- `apps/ios/Merian/Core/Data/Images/Services/CloudScanImageRepairActor.swift`
 - `docs/r2-lifecycle.json`
 - `docs/backend-and-data/08-startup-store-recovery.md`
 - `docs/backend-and-data/12-explore-media-health-and-quarantine.md`

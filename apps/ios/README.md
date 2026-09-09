@@ -353,6 +353,17 @@ durable transient recovery, and cancellation rolls back before collection
 pruning and commit. Historical insertion metrics include only rows with valid
 timestamps that reached the successful save path.
 
+## Core Image Ownership
+
+[Core Data Images](Merian/Core/Data/Images/README.md) separates
+`LocalImageLoader` orchestration from decode admission, external URL and retry
+policy, local scan-media recovery, and cloud repair. The injected live adapters
+retain the existing network and app-event effects, while pure policy and
+recovery owners contain neither UI nor endpoint calls. Focused behavior and
+architecture suites freeze coalescing, recovery evidence, canonical
+single-flight repair, imports, test ownership, and the 600-line production
+guard.
+
 ## Core Preferences Ownership
 
 [Core Preferences](Merian/Core/Preferences/README.md) owns the observable

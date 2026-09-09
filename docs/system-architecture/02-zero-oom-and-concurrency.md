@@ -67,16 +67,19 @@ While pre-fetching bounds concurrent image downloads, unbounded programmatic
 calls to `LocalImageLoader.loadLocal` and `fetchRemote` historically spawned
 dozens of unbounded `Task.detached` blocks on the global concurrent executor,
 driving immediate ImageIO over-subscription JetSam crashes during grid
-scrolling. The zero-OOM architecture uses a four-permit asynchronous pool:
-excess callers suspend without occupying an OS thread, and cancellation removes
-queued waiters without consuming a later permit. Admitted ImageIO work runs on
-an explicitly user-initiated concurrent decode queue. This preserves the
-four-decode memory valve without `DispatchSemaphore.wait()` priority inversions
-or cooperative-executor blocking. The remote loader's dedicated `mediaSession`
-is also capped to `httpMaximumConnectionsPerHost = 4` and uses a dedicated,
-bounded `URLCache` (24 MB memory and 256 MB disk). This aligns network fan-out
-with decode capacity, keeps thumbnail responses out of the shared cache, and
-allows immutable media reuse across view reconstruction and app launches.
+scrolling. The zero-OOM architecture uses the four-permit asynchronous pool in
+`Core/Data/Images/Concurrency/AsyncPermitPool.swift`: excess callers suspend
+without occupying an OS thread, and cancellation removes queued waiters without
+consuming a later permit. If cancellation races a waiter's resumption, the pool
+returns the just-granted slot before reporting cancellation. Admitted ImageIO
+work runs on an explicitly user-initiated concurrent decode queue. This
+preserves the four-decode memory valve without `DispatchSemaphore.wait()`
+priority inversions or cooperative-executor blocking. The remote loader's
+dedicated `mediaSession` is also capped to `httpMaximumConnectionsPerHost = 4`
+and uses a dedicated, bounded `URLCache` (24 MB memory and 256 MB disk). This
+aligns network fan-out with decode capacity, keeps thumbnail responses out of
+the shared cache, and allows immutable media reuse across view reconstruction
+and app launches.
 
 ### TaskGroup Retain Cycles (`InferenceEngine`)
 
@@ -2159,16 +2162,21 @@ Uncached `CGImageSourceCreateWithURL` fallback loads are removed, forcing the OS
 to honor `[kCGImageSourceShouldCache: false]` and CGImageSource size scaling,
 protecting device RAM.
 
-The loader also implements local recovery plus a recursive network fallback
-pipeline. For an eligible durable R2 URL, `LocalImageLoader` first asks
-`LocalScanMediaRecoveryResolver` for a strongly matched surviving Documents
-file. A local hit renders immediately and queues owner-authenticated cloud
-inspection/repair. Without a local hit, the loader splits aggregated
-`fallbackUrl` values and cascades through permitted R2, Wikipedia, and GBIF URLs
-sequentially. A terminal failure displays the “Visuals archived” placeholder
-without spinning, but that label is a presentation fallback—not an R2 archive
-class. Recovery matching, one-to-one timestamp constraints, and atomic
-Scan/Explore repair are defined in
+The loader coordinates local recovery plus a recursive network fallback pipeline
+through its injected dependencies. For an eligible durable R2 URL,
+`Core/Data/Images/Recovery/LocalScanMediaRecoveryResolver.swift` first seeks a
+strongly matched surviving Documents file. A local hit renders immediately and
+queues `Core/Data/Images/Services/CloudScanImageRepairActor.swift` for
+owner-authenticated cloud inspection/repair. That actor keeps the canonical
+source URL single-flight across every suspension; scheme/host casing, explicit
+default-port, query, and fragment variants cannot create parallel repair work.
+Without a local hit, the loader splits aggregated `fallbackUrl` values and
+cascades through permitted R2, Wikipedia, and GBIF URLs sequentially.
+HTTPS/content admission and retry classification live under
+`Core/Data/Images/Policies`. A terminal failure displays the “Visuals archived”
+placeholder without spinning, but that label is a presentation fallback—not an
+R2 archive class. Recovery matching, one-to-one timestamp constraints, and
+atomic Scan/Explore repair are defined in
 [`03-image-pipeline.md`](./03-image-pipeline.md).
 
 The loader protects against "thundering herd" memory leaks. If the UI queries a

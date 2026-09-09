@@ -1147,6 +1147,16 @@ for startup_requirement in \
   grep -Fq -- "$startup_requirement" "$startup_workflow" \
     || fail "Startup Safety is missing its shared toolchain invariant: $startup_requirement"
 done
+for startup_suite in \
+  "ModelStoreRecoveryCoordinatorTests" \
+  "LocalImageLoaderTests" \
+  "CloudScanImageRepairActorTests" \
+  "ImageLoadingArchitectureTests" \
+  "MigrationPlanTests"; do
+  assert_file_contains \
+    "$startup_workflow" \
+    "-only-testing:merianTests/$startup_suite"
+done
 if grep -Fq "macos-latest" "$startup_workflow"; then
   fail "Startup Safety must use the same reviewed macOS/Xcode baseline."
 fi

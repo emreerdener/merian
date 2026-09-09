@@ -708,10 +708,12 @@ Implemented Core Network slices:
   success, validation order, video count/byte caps, 30-second endpoint
   deadlines, error propagation, refresh/replay/cancellation policy, and
   sequential foreground video behavior remain unchanged. Queue manifest and
-  background-task authority, inference attempt fencing, LocalImageLoader repair,
-  Profile avatar promotion, and main-client publication/restore orchestration do
-  not move in that storage slice; the later scan-publication slice above moves
-  the publication owners without changing these primitives. No API, schema,
+  background-task authority, inference attempt fencing, the then-local
+  `LocalImageLoader` scan-image repair workflow, Profile avatar promotion, and
+  main-client publication/restore orchestration do not move in that storage
+  slice; the later scan-publication slice above moves the publication owners,
+  and the later Core Data Image Loading slice below moves scan-image repair out
+  of `LocalImageLoader`, without changing these primitives. No API, schema,
   persistence, backend, feature-flag, UI, hosted mutation, or deployment change
   is included.
 - Six aggregate regressions move intact to `MediaStorageEndpointTests`,
@@ -3968,6 +3970,60 @@ graphs. The focused Historical Sync/Scan Repository review matrix passed 41
 tests in three suites, including the actor-backed malformed-timestamp case. The
 complete `merianTests` action then passed; Swift Testing reported 2,253 tests in
 325 suites alongside the successful XCTest suites.
+
+### Core Data Image Loading Ownership
+
+The former 1,427-line `LocalImageLoader.swift` mixed load orchestration,
+concurrency admission, URL and retry policy, local recovery evidence, legacy
+SQLite indexing, and authenticated cloud repair. Those responsibilities now have
+eight focused owners: the loader root plus `Concurrency`, `Policies`,
+`Recovery`, and `Services` files under `Core/Data/Images`. Every production
+Swift file in that area remains at or below the 600-line review guard.
+
+`LocalImageLoader` keeps its shared entry point, signatures, isolated session,
+cache/coalescing behavior, and detached cancellation semantics. Its small
+injected `Dependencies` value exposes deterministic recovery, decode, fetch,
+diagnostic, and repair seams while `.live` preserves the existing behavior.
+`CloudScanImageRepairActor` similarly injects its clock, file evidence,
+endpoint/upload operations, and library event. The review closed one
+pre-existing race: a canonical source URL now remains in the actor's
+queued-or-in-flight set throughout inspection, signing, upload, and repair, so
+an enqueue during suspension cannot start a duplicate workflow.
+
+The second-pass review closed the remaining equivalent-URL gap: recovery now
+uses one canonical credential-free HTTPS identity across its resolver, mapping
+registry, and cloud repair actor. Scheme/host case, an explicit default port,
+query parameters, and fragments can no longer create duplicate registry or
+repair work. The lock-protected registry was extracted into its own focused file
+to preserve the line ceiling. The decode permit pool also returns a just-granted
+slot to the pool when cancellation races waiter resumption, and Startup Safety
+now explicitly selects the relocated cloud-repair and architecture suites that
+its path filters watch.
+
+`LocalImageLoaderTests` moved into the mirrored Core Data Images test tree
+without changing its selector type and now uses an injected probe for
+deterministic request coalescing. `CloudScanImageRepairActorTests` covers the
+exact missing-image pipeline order and the equivalent-URL in-flight duplicate
+fence. Recovery tests also cover canonical registry identity.
+`ImageLoadingArchitectureTests` freezes declaration ownership, dependency
+direction, focused imports, the test rehome, and the line ceiling. Value-only
+media storage DTOs gained `Sendable` conformance for the injected boundary;
+their JSON shape is unchanged.
+
+Initial verification passed XcodeGen, project/resource and source-membership
+guards, Swift parsing, strict SwiftLint with zero violations, a
+code-signing-disabled generic iOS device build, and complete app/unit/UI
+`build-for-testing`. The initial focused simulator matrix executed 28 tests with
+zero failures, and the complete `merianTests` action then passed; its result
+bundle reports 3,157 tests, zero failures, and zero skips. After the second-pass
+corrections, byte-stable XcodeGen, project/source membership, CI-tooling,
+migration, Markdown, Swift parsing, standalone permit strict-concurrency, and
+full-graph SwiftLint gates passed. A fresh 30-test image matrix and compiled
+build could not start because CoreSimulatorService disconnected and the sandbox
+denied SwiftPM's manifest diagnostics-cache writes; no post-correction runtime
+result is inferred from that environment failure. No API payload, SwiftData
+schema, persistence, feature flag, navigation, Supabase, deployment, or
+external-publication change is included.
 
 ## Phase 3: Ownership Cleanup
 

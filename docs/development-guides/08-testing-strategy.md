@@ -1133,18 +1133,19 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   and a source-scan boundary that prevents store recovery from referencing
   `KeychainManager`, `SupabaseManager`, sign-out flows, or current-user state.
   The focused drift lane is `.github/workflows/ios-startup-safety.yml`; it runs
-  both `ModelStoreRecoveryCoordinatorTests` and `MigrationPlanTests` so startup
-  safe mode and schema-upgrade failures are caught together. The cheap
+  `ModelStoreRecoveryCoordinatorTests` and `MigrationPlanTests` alongside the
+  loader, cloud-repair, and image-ownership suites so startup recovery and
+  image-loading boundary failures are caught together. The cheap
   `.github/workflows/ios-project-guardrails.yml` lane runs
   `make validate-ios-project`, `make validate-ios-migration-guardrails`, and
   `make validate-ios-event-routing` first, so known-bad source shapes fail on
   Ubuntu before the slower macOS simulator job spends time resolving packages,
   building, or booting a simulator. Startup Safety remains path-filtered to
-  startup/schema/recovery surfaces, manual dispatch, and the daily drift check;
-  broad iOS changes instead enter the full compiled gate described above.
-  Workflow/tooling-only changes can start the Startup Safety workflow to
-  validate cheap guardrails, but its simulator steps are skipped unless startup
-  runtime files changed.
+  startup/schema/recovery and image-loading surfaces, manual dispatch, and the
+  daily drift check; broad iOS changes instead enter the full compiled gate
+  described above. Workflow/tooling-only changes can start the Startup Safety
+  workflow to validate cheap guardrails, but its simulator steps are skipped
+  unless startup runtime files changed.
   - Source-level migration guardrails fail if `SchemaVersions.swift`
     reintroduces `try? context.save()` / `try? modelContext.save()` in custom
     stages, active/global `FetchDescriptor` types inside `MerianMigrationPlan`,
@@ -1870,14 +1871,22 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   links the application, validates resources, or replaces the hosted
   `xcodebuild build-for-testing` and complete `merianTests` execution. Record an
   environment failure as such; do not reinterpret it as a passing native build.
-- **`LocalImageLoaderTests.swift`**: Locks concurrent network payload boundaries
-  and request coalescing to prevent multi-grid fetch flooding. The async decode
-  permit tests prove concurrency remains bounded and a cancelled waiter cannot
-  consume the next released slot. Recovery cases cover promoted basename
-  compatibility, registered scan-ID mapping after cloud renaming,
-  configured-root-before-legacy rescue archive ordering, high-confidence
-  timestamp groups, Explore fallback rendering from Documents, and rejection of
-  unrelated/unsafe URLs.
+- **`Core/Data/Images/LocalImageLoaderTests.swift`**: Locks concurrent network
+  payload boundaries and deterministic injected request coalescing to prevent
+  multi-grid fetch flooding. The async decode permit tests prove concurrency
+  remains bounded and a cancelled waiter cannot consume the next released slot.
+  Recovery cases cover promoted basename compatibility, registered scan-ID
+  mapping after cloud renaming, configured-root-before-legacy rescue archive
+  ordering, high-confidence timestamp groups, Explore fallback rendering from
+  Documents, canonical registry identity across equivalent secure URLs, and
+  rejection of credentialed, unrelated, non-image, or otherwise unsafe URLs.
+- **`Core/Data/Images/CloudScanImageRepairActorTests.swift`**: Uses injected
+  endpoint/file/event effects to verify canonical source normalization, exact
+  inspect → sign → file upload → repair → invalidation order, and single-flight
+  de-duplication when another enqueue arrives during suspended inspection.
+- **`Core/Data/Images/ImageLoadingArchitectureTests.swift`**: Freezes focused
+  declaration ownership, pure policy/recovery imports, live-effect containment,
+  test rehoming, and the 600-line production guard.
 - **`BackgroundTransferOwnershipTests.swift`**: Covers lock-protected terminal
   completion, synchronous URLSession delegate registration, durable-before-
   cancel Auth-transition quiescence, relaunched task lease adoption, and bounded
@@ -3779,7 +3788,7 @@ occurrence `5938154750`. iOS coverage must prove:
   so the first permitted success wins; and
 - blocked-only/all-failed dictionary galleries use the leaf placeholder.
 
-These assertions live in `LocalImageLoaderTests.swift`,
+These assertions live in `Core/Data/Images/LocalImageLoaderTests.swift`,
 `SpeciesDataTests.swift`,
 `Features/SpeciesDictionary/Detail/SpeciesDictionaryDetailPresentationTests.swift`,
 and `Features/SpeciesReference/SimilarSpeciesImageFetcherTests.swift`. Do not
@@ -4903,11 +4912,15 @@ Owned scan-image recovery has five complementary boundaries:
   disposable catalog and proves media order preservation, exact JSON string
   replacement without substring damage, normalized storage-key repair, and
   atomic Explore snapshot repair plus health-state reset.
-- iOS `LocalImageLoaderTests` covers safe local filename compatibility,
-  configured-root-first rescue-store lookup and scan-ID mapping, constrained
-  timestamp grouping, and unsafe/unrelated URL rejection.
-  `ScanImageCloudEndpointTests` owns authenticated inspection/repair payloads
-  and response projection; `MediaStorageAPIModelsTests` owns wire decoding. The
+- iOS `Core/Data/Images/LocalImageLoaderTests` covers safe local filename
+  compatibility, configured-root-first rescue-store lookup and scan-ID mapping,
+  constrained timestamp grouping, and unsafe/unrelated URL rejection.
+  `CloudScanImageRepairActorTests` owns the exact injected client workflow and
+  canonical in-flight duplicate fence. `ImageLoadingArchitectureTests` owns
+  declaration relocation, live-effect containment, and the production line
+  ceiling. `ScanImageCloudEndpointTests` owns authenticated inspection/repair
+  payloads and response projection; `MediaStorageAPIModelsTests` owns wire
+  decoding. The
   [media storage matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification)
   adds signing, signed PUT, transport, and workflow integration coverage.
 

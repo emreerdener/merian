@@ -50,9 +50,11 @@ IDs, plain decoding errors, classified refresh, and ambiguous-replay refusal.
 and immutable foreground video planning. File uploads remain file-backed and
 re-stat before request validation. The durable queue retains whole-response
 validation and background task/account binding; foreground video retains its
-existing count check, sequential uploads, and server-order keys. Profile,
-LocalImageLoader, inference, and scan publication retain their workflows. The
-shared signer does not substitute for caller-level manifest validation.
+existing count check, sequential uploads, and server-order keys. Profile, Core
+Data Images' cloud-repair service, Inference, and scan publication retain their
+workflows. `LocalImageLoader` only discovers an eligible recovered file and
+enqueues that repair owner. The shared signer does not substitute for
+caller-level manifest validation.
 
 See the
 [native ownership guide](../../../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-ownership),

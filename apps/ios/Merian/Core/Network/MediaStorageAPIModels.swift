@@ -1,10 +1,10 @@
 import Foundation
 
-struct PreSignedURLResponse: Codable {
+struct PreSignedURLResponse: Codable, Sendable {
     let urls: [PreSignedURL]
 }
 
-struct PreSignedURL: Codable {
+struct PreSignedURL: Codable, Sendable {
     let fileName: String
     let signedUrl: String
     let objectKey: String

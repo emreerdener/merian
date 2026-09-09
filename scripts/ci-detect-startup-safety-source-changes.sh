@@ -47,6 +47,10 @@ is_startup_runtime_file() {
     apps/ios/Merian/App/MerianObjCExceptionBridge.* | \
     apps/ios/Merian/Configuration/Merian-Bridging-Header.h | \
     apps/ios/Merian/Core/Data/Images/LocalImageLoader.swift | \
+    apps/ios/Merian/Core/Data/Images/Concurrency/* | \
+    apps/ios/Merian/Core/Data/Images/Policies/* | \
+    apps/ios/Merian/Core/Data/Images/Recovery/* | \
+    apps/ios/Merian/Core/Data/Images/Services/CloudScanImageRepairActor.swift | \
     apps/ios/Merian/Core/Data/StoreRecovery/* | \
     apps/ios/Merian/Models/Aliases.swift | \
     apps/ios/Merian/Models/Schema/SchemaV49Snapshots.swift | \
@@ -54,7 +58,9 @@ is_startup_runtime_file() {
     apps/ios/Merian/Models/Schema/SchemaV50ReleasedActiveSnapshots.swift | \
     apps/ios/Merian/Models/SchemaVersions.swift | \
     apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift | \
-    apps/ios/MerianTests/Core/Data/LocalImageLoaderTests.swift | \
+    apps/ios/MerianTests/Core/Data/Images/CloudScanImageRepairActorTests.swift | \
+    apps/ios/MerianTests/Core/Data/Images/ImageLoadingArchitectureTests.swift | \
+    apps/ios/MerianTests/Core/Data/Images/LocalImageLoaderTests.swift | \
     apps/ios/MerianTests/Models/MigrationPlanTests.swift)
       return 0
       ;;

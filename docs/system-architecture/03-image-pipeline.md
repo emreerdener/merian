@@ -575,7 +575,11 @@ FileIOActor.shared.deleteImages(at: [String])
 
 `LocalImageLoader.shared` (`Core/Data/Images/LocalImageLoader.swift`) is a Swift
 `actor` that serves as the single entry point for all image loads — both local
-and remote.
+and remote. It owns orchestration, request-coalescing state, and the isolated
+media session; focused `Concurrency`, `Policies`, `Recovery`, and `Services`
+owners define the work it coordinates. The local
+[ownership guide](../../apps/ios/Merian/Core/Data/Images/README.md) records
+those boundaries.
 
 ```swift
 // Core UI ScanThumbnailLoader adapter — small decode for grid cells
@@ -601,17 +605,18 @@ load identity, cancellation, retry, fallback, and rendering state.
 
 **Resolution order:**
 
-| Step | Check                             | Action                                                          |
-| ---- | --------------------------------- | --------------------------------------------------------------- |
-| 1    | RAM cache hit (`ImageCache`)      | Return immediately                                              |
-| 2    | Duplicate in-flight request       | Coalesce — await the existing `Task`                            |
-| 3    | `imagePath` starts with `http://` | Download via `LocalImageLoader.mediaSession`, downsample, cache |
-| 4    | `imagePath` is a local filename   | Resolve to `documentsDirectory`, downsample, cache              |
-| 5    | Local file missing                | Try `fallbackUrl` (supports comma-separated list)               |
+| Step | Check                                   | Action                                                                                          |
+| ---- | --------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 1    | RAM cache hit (`ImageCache`)            | Return immediately                                                                              |
+| 2    | Duplicate in-flight request             | Coalesce — await the existing `Task`                                                            |
+| 3    | `imagePath` is an admitted HTTPS URL    | Decode a strongly matched local recovery file; otherwise download, downsample, and cache        |
+| 4    | `imagePath` is a local filename         | Resolve to `documentsDirectory`, downsample, and cache                                          |
+| 5    | Primary path is absent or does not load | Try each admitted `fallbackUrl` in order, applying the same local-recovery-before-download rule |
 
 **External reference URL policy:** Third-party reference imagery passes through
-`ExternalReferenceImagePolicy` before it can become a cache key or network
-request. The current exact rule rejects every URL whose normalized host is
+`Policies/ExternalReferenceImagePolicy.swift` before it can become a cache key
+or network request. The policy first requires a credential-free HTTPS URL. The
+current exact content rule rejects every URL whose normalized host is
 `inaturalist-open-data.s3.amazonaws.com` and whose path starts with
 `/photos/605615444/`; resized filenames, queries, and fragments cannot bypass
 the match. User-captured local media, Merian R2 media, unrelated iNaturalist
@@ -641,22 +646,25 @@ whether a remote asset is permitted at all; the separate
 reference is already owned by the scan being displayed. Explore passes the post
 hero, canonical media URLs, and media thumbnails as exclusions. Insight passes
 its image/video item paths plus persisted/queued thumbnails and cover path.
-Naturebook media identity is the normalized host and encoded object path, so
-signed, resized, or fragmented variants do not repeat the same storage object.
-External media keeps strict full-URL identity. Filtering precedes page counts
-and inline/fullscreen page construction, preserves reference ordering, and
-converts an all-duplicate loaded set into the normal empty state.
+Merian media identity is the normalized host and encoded object path, so signed,
+resized, or fragmented variants do not repeat the same storage object. External
+media keeps strict full-URL identity. Filtering precedes page counts and
+inline/fullscreen page construction, preserves reference ordering, and converts
+an all-duplicate loaded set into the normal empty state.
 
 This boundary is intentionally exact-scan only. It does not remove every image
 by the same author and does not perform perceptual matching across separately
 uploaded objects.
 
 Both local and downloaded files enter the same decode boundary.
-`AsyncPermitPool` admits at most four images, suspends additional tasks without
-tying up an OS thread, removes cancelled waiters safely, and dispatches admitted
-synchronous ImageIO work to `app.merian.image-decode` at explicit user-initiated
-QoS. The permit is released only after decoding and RAM-cache insertion
-complete.
+`Concurrency/AsyncPermitPool.swift` admits at most four images, suspends
+additional tasks without tying up an OS thread, removes cancelled waiters
+safely, and dispatches admitted synchronous ImageIO work to
+`app.merian.image-decode` at explicit user-initiated QoS. The permit is released
+only after decoding and RAM-cache insertion complete. If cancellation races a
+waiter's resumption, the pool returns the just-granted slot before reporting
+cancellation. Retryable HTTP and transport failures plus bounded backoff live in
+`Policies/RemoteImageRetryPolicy.swift`.
 
 **Dynamic GBIF Hydration** When a species is scanned for the first time globally
 (Cache Miss), primary Wikipedia/GBIF species resolution may run inside the
@@ -859,19 +867,21 @@ bytes.
 When a user reinstalls the app or signs in on a new device,
 `LocalScanRecord.localImagePath` can contain a Cloudflare R2 URL rather than a
 local filename. `LocalImageLoader` handles this transparently. For an eligible
-durable Naturebook URL, it first checks the local recovery resolver, then
-downloads from R2 if no surviving local file is known. Network media is
-downsampled to the caller-provided `maxDimension`, cached in RAM, and decoded
-away from the main actor. Legacy records that already contain local filenames
-continue to load directly from Documents.
+durable Merian URL, it first checks the local recovery resolver, then downloads
+from R2 if no surviving local file is known. Network media is downsampled to the
+caller-provided `maxDimension`, cached in RAM, and decoded away from the main
+actor. Legacy records that already contain local filenames continue to load
+directly from Documents.
 
 ### Local scan-media recovery
 
 `LocalScanMediaRecoveryResolver` reconnects a durable
 `public_uploads/free|pro/{owner}/...` URL to a surviving image in the app's
-Documents directory. It refuses unrelated hosts, avatars, non-image files,
-unsafe filenames, query/fragment identity drift, and path traversal. Recovery
-evidence is evaluated in this order:
+Documents directory. It refuses credentials, cleartext transport, unrelated
+hosts, avatars, non-image files, unsafe filenames, and path traversal. The
+canonical recovery identity lowercases the HTTPS scheme and host, removes an
+explicit default port, and discards query and fragment variants before registry
+or repair de-duplication. Recovery evidence is evaluated in this order:
 
 1. the public basename and the current `{scanId}_{localFilename}` promotion
    convention;
@@ -917,12 +927,20 @@ Local rendering is therefore possible before cloud repair completes; a visible
 image on one device is not proof that the R2 object or Explore snapshot has been
 restored.
 
-LocalImageLoader's repair actor retains this workflow and its cache/event
-handling. Network's `Endpoints/MerianNetworkClient+MediaStorage.swift` owns the
-thin inspect/sign/repair requests, `MediaStorageAPIModels.swift` owns their wire
+`Services/CloudScanImageRepairActor.swift` retains this workflow behind a small
+injected `Dependencies` value. Its live adapter is the only owner in this layer
+that resolves `MerianNetworkClient.shared` or publishes the library-change app
+event. The actor keeps a canonical source URL in its queued-or-in-flight set
+across inspection, signing, upload, and repair suspensions, so a duplicate
+enqueue cannot start a second workflow while the first request is in flight.
+Equivalent scheme/host casing, explicit `:443`, query, and fragment variants
+share that identity. Network's
+`Endpoints/MerianNetworkClient+MediaStorage.swift` owns the thin
+inspect/sign/repair requests, `MediaStorageAPIModels.swift` owns their wire
 DTOs, and `Media/` owns signed-request policy and file-backed PUTs. The
 [media storage verification matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification)
-joins endpoint/upload tests with the unchanged LocalImageLoader workflow suite.
+joins endpoint/upload tests with `LocalImageLoaderTests` and the deterministic
+`CloudScanImageRepairActorTests` workflow and in-flight de-duplication cases.
 
 See the
 [July 2026 account-scoped R2 image-loss incident report](../incidents/2026-07-account-scoped-r2-image-loss.md)
@@ -1037,14 +1055,17 @@ destination is retained as a user-attention failure rather than submitted.
 
 ## Component Responsibilities Summary
 
-| Component                   | Location                                  | Responsibility                                                                                                                                                            |
-| --------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ImageDownsampler`          | `Core/Utilities/`                         | CGImageSource thumbnail decoding; `public enum` with `static func` — no actor overhead; autoreleasepool                                                                   |
-| `ExternalImageImportStore`  | `Core/Data/Images/`                       | Durable Application Support inbox for security-scoped Photos document imports; manifest recovery, acknowledgement, and pre-preparation EXIF extraction                    |
-| `MediaPreparationActor`     | `Core/Data/Images/`                       | File-backed still-image preparation; owns inference/display encoding and budget metrics                                                                                   |
-| `FileIOActor`               | `Core/Data/Database/`                     | Disk reads/writes; isolated from Main and SwiftData actors                                                                                                                |
-| `LocalImageLoader`          | `Core/Data/Images/`                       | Load orchestration; exact external-reference URL policy; scan-media recovery registry/rescue/timestamp matching; RAM cache hits; request coalescing; local/remote routing |
-| `MediaPlaybackObservation`  | `Core/Media/`                             | Exact AVPlayer KVO/notification/time-token ownership and generation-fenced replacement callbacks                                                                          |
-| `CloudScanImageRepairActor` | `Core/Data/Images/LocalImageLoader.swift` | Serial owner-authenticated inspection, staging upload, and cloud-reference repair for strongly matched surviving local images                                             |
-| `ImageCache`                | `Core/Data/Images/`                       | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap                                                                                                |
-| `ArchiveManager`            | `Core/Data/Images/`                       | `@MainActor` coordinator for generated dataset archive ZIP downloads                                                                                                      |
+| Component                   | Location                        | Responsibility                                                                                                                         |
+| --------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `ImageDownsampler`          | `Core/Utilities/`               | CGImageSource thumbnail decoding; `public enum` with `static func` — no actor overhead; autoreleasepool                                |
+| `ExternalImageImportStore`  | `Core/Data/Images/`             | Durable Application Support inbox for security-scoped Photos document imports; manifest recovery, acknowledgement, and EXIF extraction |
+| `MediaPreparationActor`     | `Core/Data/Images/`             | File-backed still-image preparation; owns inference/display encoding and budget metrics                                                |
+| `FileIOActor`               | `Core/Data/Database/`           | Disk reads/writes; isolated from Main and SwiftData actors                                                                             |
+| `LocalImageLoader`          | `Core/Data/Images/`             | Load orchestration, RAM cache hits, request coalescing, local/remote routing, and the isolated media session                           |
+| `AsyncPermitPool`           | `Core/Data/Images/Concurrency/` | Cancellation-safe four-slot decode admission                                                                                           |
+| Image loading policies      | `Core/Data/Images/Policies/`    | HTTPS/content admission plus retryable HTTP/transport classification and bounded backoff                                               |
+| Local scan-media recovery   | `Core/Data/Images/Recovery/`    | Exact filename, read-only rescue-store, and constrained timestamp evidence for surviving local files                                   |
+| `MediaPlaybackObservation`  | `Core/Media/`                   | Exact AVPlayer KVO/notification/time-token ownership and generation-fenced replacement callbacks                                       |
+| `CloudScanImageRepairActor` | `Core/Data/Images/Services/`    | Serial owner-authenticated inspection, staging upload, and cloud-reference repair for strongly matched surviving local images          |
+| `ImageCache`                | `Core/Data/Images/`             | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap                                                             |
+| `ArchiveManager`            | `Core/Data/Images/`             | `@MainActor` coordinator for generated dataset archive ZIP downloads                                                                   |

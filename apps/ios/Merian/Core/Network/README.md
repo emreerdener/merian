@@ -711,11 +711,12 @@ and [focused matrix](#enrichment-export-and-feedback-verification).
   All three retain 30-second deadlines, plain JSONDecoder failures, classified
   401 refresh, and no ambiguous-failure replay or new idempotency key.
 - [`MediaStorageAPIModels.swift`](MediaStorageAPIModels.swift) owns the
-  unchanged hand-written signing and scan-image inspection DTOs. Signing
-  requires `urls` and every URL's filename, signed URL, object key, and headers;
-  lifecycle IDs remain optional. Inspection requires the private `data` envelope
-  and known status, preserves explicit snake-case keys, and defaults absent/null
-  counts to zero. Private request/envelope types stay with the endpoint.
+  wire-unchanged, value-only `Sendable` signing and scan-image inspection DTOs.
+  Signing requires `urls` and every URL's filename, signed URL, object key, and
+  headers; lifecycle IDs remain optional. Inspection requires the private `data`
+  envelope and known status, preserves explicit snake-case keys, and defaults
+  absent/null counts to zero. Private request/envelope types stay with the
+  endpoint.
 - [`Media/MerianNetworkClient+MediaUploads.swift`](Media/MerianNetworkClient+MediaUploads.swift)
   owns both `uploadToR2` overloads and `uploadStagedVideoFiles`.
   [`PresignedMediaUpload.swift`](Media/PresignedMediaUpload.swift) owns HTTPS
@@ -737,10 +738,13 @@ and [focused matrix](#enrichment-export-and-feedback-verification).
 These primitives do not own durable jobs or feature workflows. OfflineSync's
 media-upload services retain complete signing-response validation, background
 task/account binding, and durable retry authority. Inference's live request
-service retains attempt fencing; LocalImageLoader retains inspect → validate
-local image → sign → upload → repair and cache/event handling; shared Profile
-state retains avatar preparation and promotion. Scan publication's dedicated
-Recovery owner coordinates the Media restorer through these same signing and PUT
+service retains attempt fencing. Core Data Images'
+[`CloudScanImageRepairActor`](../Data/Images/Services/CloudScanImageRepairActor.swift)
+retains inspect → validate local image → sign → upload → repair and
+library-event handling; `LocalImageLoader` retains only cache/load
+orchestration, local-file discovery, and repair enqueueing. Shared Profile state
+retains avatar preparation and promotion. Scan publication's dedicated Recovery
+owner coordinates the Media restorer through these same signing and PUT
 primitives. The signing primitive decodes the response; it does not replace the
 queue's stronger whole-manifest checks or add server-side input policy.
 
@@ -2042,6 +2046,11 @@ rehomes all three foreground video regressions and adds invalid-plan,
 wrong-response-count, post-signing file-change, and failed-PUT coverage.
 `MediaStorageBoundaryTests` guards the five owners, ordering, private bridges,
 file-backed transfer, retained workflow owners, DTOs, and test rehomes.
+`CloudScanImageRepairActorTests` verifies the injected inspect → sign → upload →
+repair → library-invalidation workflow and canonical single-flight identity
+while inspection is suspended. `ImageLoadingArchitectureTests` freezes the
+relocated repair owner, live-effect containment, and Core Data Images 600-line
+production boundary.
 
 The raw-upload mock asserts body bytes only for the Data overload. Its file
 cases exercise request headers, validation, response/error handling, and
@@ -2085,6 +2094,8 @@ xcodebuild test \
   -only-testing:merianTests/BackgroundTransferArchitectureTests \
   -only-testing:merianTests/InferenceLiveRequestServiceTests \
   -only-testing:merianTests/LocalImageLoaderTests \
+  -only-testing:merianTests/CloudScanImageRepairActorTests \
+  -only-testing:merianTests/ImageLoadingArchitectureTests \
   -only-testing:merianTests/ProfileViewModelTests
 ```
 

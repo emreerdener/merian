@@ -112,8 +112,11 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
     `FileIOActor`, `ScanRepository`, and the focused
     `HistoricalSync/{Models,Decoding,Services,Persistence}` boundary containing
     `HistoricalDatabaseActor`
-  - `Data/Images/`: `MediaPreparationActor`, `LocalImageLoader`, `ImageCache`,
-    `ArchiveManager`, `PhotoLibraryManager`
+  - `Data/Images/`: image preparation, loading, caching, import/export,
+    recovery, and thumbnail infrastructure. `LocalImageLoader` retains load
+    orchestration; `Concurrency/`, `Policies/`, `Recovery/`, and `Services/` own
+    decode admission, URL/retry policy, local scan-media evidence, and cloud
+    repair
   - `Data/OfflineSync/`: `OfflineQueueManager`, `SyncStateManager`, and
     `OfflineJobScheduler` for ordered drains and persisted retry-wake
     restoration
