@@ -196,16 +196,55 @@ struct OfflineQueueSyncArchitectureTests {
 
         #expect(cloudDeletion.contains("private func dispatchDeleteBatches("))
         #expect(cloudDeletion.contains("private func markCloudDeletionJob("))
+        #expect(cloudDeletion.contains(
+            "context: ModelContext\n    ) throws {"
+        ))
         #expect(!cloudDeletion.contains("generateUploadURLs"))
         #expect(!cloudDeletion.contains("pushCollectionsToEdge"))
 
+        let runningClaim = try #require(cloudDeletion.range(
+            of: "job.status = .running"
+        ))
+        let claimSave = try #require(cloudDeletion.range(
+            of: "try context.save()",
+            range: runningClaim.upperBound ..< cloudDeletion.endIndex
+        ))
+        let deletionDispatch = try #require(cloudDeletion.range(
+            of: "let allResults = await dispatchDeleteBatches(scanIds: scanIds)",
+            range: claimSave.upperBound ..< cloudDeletion.endIndex
+        ))
+        let successfulJobMutation = try #require(cloudDeletion.range(
+            of: "try markCloudDeletionJob(",
+            range: deletionDispatch.upperBound ..< cloudDeletion.endIndex
+        ))
+        let taskRemoval = try #require(cloudDeletion.range(
+            of: "context.delete(task)",
+            range: successfulJobMutation.upperBound ..< cloudDeletion.endIndex
+        ))
+        #expect(runningClaim.lowerBound < claimSave.lowerBound)
+        #expect(claimSave.lowerBound < deletionDispatch.lowerBound)
+        #expect(successfulJobMutation.lowerBound < taskRemoval.lowerBound)
+
         #expect(collections.contains("private func fetchCollectionSyncJob("))
         #expect(collections.contains("private func markCollectionSyncStarted("))
+        #expect(collections.contains("guard markCollectionSyncStarted() else"))
+        #expect(collections.contains(
+            "hasPendingCollectionSyncJob: fetch failed:"
+        ))
         #expect(collections.contains("CollectionSyncService("))
         #expect(!collections.contains("pushCollectionsToEdge"))
         #expect(!collections.contains("MerianNetworkClient"))
         #expect(!collections.contains("generateUploadURLs"))
         #expect(!collections.contains("uploadTask("))
+
+        let collectionClaim = try #require(collections.range(
+            of: "guard markCollectionSyncStarted() else"
+        ))
+        let collectionTask = try #require(collections.range(
+            of: "let task = BackgroundTaskWrapper.execute(",
+            range: collectionClaim.upperBound ..< collections.endIndex
+        ))
+        #expect(collectionClaim.lowerBound < collectionTask.lowerBound)
 
         #expect(collectionService.contains("struct Dependencies: Sendable"))
         #expect(collectionService.contains("MerianNetworkClient.shared.syncCollections("))
@@ -282,7 +321,10 @@ struct OfflineQueueSyncArchitectureTests {
         #expect(uploadCompletion.contains("func processUploadCompletion("))
         #expect(uploadCompletion.contains("private func isUploadCompletionCurrent("))
         #expect(uploadCompletion.contains("private func handleUploadFallback("))
-        #expect(uploadCompletion.contains("private func fetchScanMetadata("))
+        #expect(uploadCompletion.contains(
+            "try extractedQueuedScanData(scanId: scanId)"
+        ))
+        #expect(!uploadCompletion.contains("private func fetchScanMetadata("))
         #expect(uploadCompletion.contains("queueActor.markScanAsStaged("))
         #expect(uploadCompletion.contains("dispatchInferenceDownloadTask("))
         #expect(!uploadCompletion.contains("func isUploadGenerationCurrent("))
@@ -367,8 +409,6 @@ struct OfflineQueueSyncArchitectureTests {
             "Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift",
         "func handleUploadFallback":
             "Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift",
-        "func fetchScanMetadata":
-            "Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift",
         "func enqueueCollectionSync":
             "Services/Collections/OfflineQueueManager+CollectionSync.swift",
         "var hasPendingCollectionSyncJob":
@@ -419,8 +459,7 @@ struct OfflineQueueSyncArchitectureTests {
             "import Foundation"
         ],
         "Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift": [
-            "import Foundation",
-            "import SwiftData"
+            "import Foundation"
         ]
     ]
 

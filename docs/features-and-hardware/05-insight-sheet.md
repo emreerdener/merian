@@ -520,9 +520,10 @@ property to the released `isDeleted` column with `@Attribute(originalName:)`, so
 the filter remains effective after save/refetch and reopening the store. The
 complete contract is described in
 [Collections](./07-feature-modules-and-ui.md#collections-top-level-photo-albums).
-The released V50 schema is the historical source for this rename: its
-`isDeleted` field is preserved in the frozen migration snapshot and is never
-read by current UI code.
+The original released V50 graph is the historical source for this rename: its
+`isDeleted` field is preserved in one frozen migration snapshot. A second frozen
+V50 graph captures the later processed release that already used
+`isPendingDeletion`; current UI code reads only the active property.
 
 Explore share state in the bottom toolbar uses a two-step hydration path.
 `InsightSheetViewModel.fetchLocalRecord(for:modelContext:)` first restores

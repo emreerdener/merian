@@ -312,7 +312,8 @@ The capture submission layer logs Analyze tap, durable queue commit, the still-
 image or non-visual context grace, and inference dispatch.
 `InferenceLiveRequestService` measures visual preparation/provider duration,
 `MerianNetworkClient` measures upload/response transport,
-`InferenceProcessingActor` measures parse and persistence, and
+`InferenceResponsePreparationService` measures response parsing,
+`InferenceProcessingActor` measures foreground result persistence, and
 `InsightSheetView` records the first rendered result frame. Awards, Field trips,
 and optional enrichment must not be awaited before that frame.
 

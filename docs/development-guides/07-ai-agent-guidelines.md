@@ -100,14 +100,16 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
   `Onboarding`, `Profile`, `Scans`, `SpeciesDictionary`).
 - `Core/`: Foundational logic organized into subdirectories:
   - `AI/`: `InferenceEngine`, generated Edge DTOs, `InferenceProcessingActor`,
-    the private `Inference/Hydration` lifecycle and `Inference/State` write
+    the stateless shared `Inference/Services` response-preparation boundary, the
+    private `Inference/Hydration` lifecycle and `Inference/State` write
     coordinators, the injected `Inference/Request` live provider and
     `Inference/Result` parse/save adaptation and synchronous reanalysis metadata
     safety boundaries, stateless `Inference/Recovery` failure/presentation
     policies, and the `Inference/LocalAnalysis` ephemeral model/cadence owner
     plus its split classifier, image, trait, cue, and phrase policies
-  - `Data/Database/`: `BackgroundDatabaseActor`, `FileIOActor`,
-    `HistoricalDatabaseActor`, `ScanRepository`
+  - `Data/Database/`: the declaration-only `BackgroundDatabaseActor`, its
+    focused persistence extensions, scan-record factory and coordinators,
+    `FileIOActor`, `HistoricalDatabaseActor`, and `ScanRepository`
   - `Data/Images/`: `MediaPreparationActor`, `LocalImageLoader`, `ImageCache`,
     `ArchiveManager`, `PhotoLibraryManager`
   - `Data/OfflineSync/`: `OfflineQueueManager`, `SyncStateManager`, and

@@ -89,10 +89,17 @@ This README maps that contract to native source and test ownership.
   the shared public Wikipedia/GBIF session, request construction, wire DTOs, and
   off-main parsing used by Inference and thumbnail recovery. The engine still
   owns presentation identity, observable mutations, and persistence.
-- `InferenceProcessingActor` owns off-main image encoding and response parsing,
-  delegates media writes to `FileIOActor` and scan persistence to
-  `BackgroundDatabaseActor`, and retains the existing main-actor entitlement
-  reconciliation. The result service does not replace those owners.
+- `InferenceProcessingActor` owns off-main image encoding and the foreground
+  parse-to-persistence workflow. It delegates response decoding, success
+  validation, domain mapping, and entitlement/usage reconciliation to the
+  stateless `Inference/Services/InferenceResponsePreparationService.swift`,
+  delegates media writes to `FileIOActor`, and delegates scan persistence to
+  `BackgroundDatabaseActor`. Background URLSession completion uses that same
+  response-preparation service directly, so it does not await the processing
+  actor while holding a per-scan persistence fence. Prepared responses and their
+  `SpeciesData` value graph use compiler-checked `Sendable` conformances rather
+  than an unchecked actor-boundary assertion. The live result service does not
+  replace those owners.
 - `Inference/LocalAnalysis/` separates the injected Vision classifier and broad-
   category policy, bounded-image builder, deterministic pixel-trait extractor,
   phrase coordinator, Foundation visual-cue seam, validation, and runtime
@@ -335,10 +342,10 @@ reference imagery for Human or unresolved subjects.
 `EdgeResponseWrapper.entitlement` is optional so historical stored envelopes
 remain decodable. A usable current response may carry the server's `plan_used`,
 whether a complimentary credit was consumed, and the complete entitlement-after
-snapshot. `InferenceProcessingActor` forwards that metadata to
+snapshot. `InferenceResponsePreparationService` forwards that metadata to
 `EntitlementManager` and reconciles the advisory daily meter from the server's
-actual funding plan; it does not derive a trial or decrement a complimentary
-counter locally.
+actual funding plan for both foreground and background completion; it does not
+derive a trial or decrement a complimentary counter locally.
 
 A scan response is already behind the server's scan-and-required-media
 durability fence. Local record persistence can still fail and enter exact-ID

@@ -42,9 +42,10 @@ use the following standard Apple APIs:**
 Never write queries to SwiftData from standard ViewModels. All data inserts must
 go through `@ModelActor` global bounds:
 
-The aggregate file retains the actor declaration and unextracted persistence;
-focused sibling extensions own collection sync, queue selection, species
-metadata, and non-biological retention without changing the actor call surface.
+The primary file contains only the actor declaration. Focused sibling extensions
+own collection sync, queue selection, upload/account/inference lifecycle, live
+and offline finalization, species metadata, and non-biological retention without
+changing the actor call surface.
 
 ```swift
 // WRONG: Blocks UI

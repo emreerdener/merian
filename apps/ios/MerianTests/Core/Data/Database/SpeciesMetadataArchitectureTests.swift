@@ -28,6 +28,8 @@ struct SpeciesMetadataArchitectureTests {
 
         #expect(source.contains("extension BackgroundDatabaseActor"))
         #expect(source.contains("private func mutateScan("))
+        #expect(!source.contains("try? modelContext.fetch"))
+        #expect(source.contains("mutateScan: fetch failed"))
         #expect(
             source.contains(
                 "private func replaceIdentificationPresentation("

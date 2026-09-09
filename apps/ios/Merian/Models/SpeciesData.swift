@@ -143,7 +143,7 @@ enum SpeciesDataPresentationRole: Sendable, Equatable {
 }
 
 /// Parsed result from the AI edge function, representing a single identified biological observation.
-struct SpeciesData {
+struct SpeciesData: Sendable {
     let scanId: String?
     /// Explicit UI semantics for this transient value. Error routing must never
     /// be inferred from user-facing copy such as `commonName`.
@@ -624,7 +624,7 @@ extension SpeciesData {
 
 // MARK: - Supporting Types
 
-struct TaxonomyData {
+struct TaxonomyData: Sendable {
     let kingdom: String?
     let phylum: String?
     let className: String?
@@ -649,7 +649,7 @@ extension TaxonomyData {
     }
 }
 
-struct InsightData {
+struct InsightData: Sendable {
     /// Per-scan AI vision reasoning — unique to the specific photo submitted.
     let aiReasoning: String
     /// AI-classified hazard type. One of: `"none"` | `"poisonous"` | `"venomous"` | `"allergenic"` | `"irritant"`.
@@ -657,7 +657,7 @@ struct InsightData {
     var isHazardous: Bool { hazardType != "none" }
 }
 
-struct SimilarSpeciesEntry: Codable {
+struct SimilarSpeciesEntry: Codable, Sendable {
     let speciesId: String?
     let scientificName: String
     let commonName: String?
@@ -772,7 +772,7 @@ struct SimilarSpeciesEntry: Codable {
 
 }
 
-struct SimilarSpecies {
+struct SimilarSpecies: Sendable {
     let entries: [SimilarSpeciesEntry]
 
     /// Backwards-compatible accessor returning the flat array of scientific names.
@@ -807,7 +807,7 @@ struct SimilarSpecies {
 
 /// A single alternative species the model actively considered during identification.
 /// Scan-specific — reflects genuine uncertainty for this image, not a fixed species-level list.
-struct IdentificationCandidate: Codable {
+struct IdentificationCandidate: Codable, Sendable {
     let scientificName: String
     let commonName: String?
     let confidenceScore: Double

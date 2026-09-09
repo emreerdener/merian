@@ -139,6 +139,56 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         )
     }
 
+    func testRecognizesReleasedActiveV50ModelChecksum() {
+        let metadata: [String: Any] = [
+            "NSStoreModelVersionIdentifiers": ["50.0.0"],
+            "NSStoreModelVersionChecksumKey": "+dx/dTSCWpD8SHFdhzJkUjXCtRV172JY0C1pwGsl4z8="
+        ]
+
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.v50StoreVariant(from: metadata),
+            .releasedActive
+        )
+    }
+
+    func testRecognizesFrozenSnapshotV50ModelChecksum() {
+        let metadata: [String: Any] = [
+            "NSStoreModelVersionIdentifiers": ["50.0.0"],
+            "NSStoreModelVersionChecksumKey": "zwOw+VMIYDnV2lZqCjKds6BvDT0Tndh6YCc0XmatW0c="
+        ]
+
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.v50StoreVariant(from: metadata),
+            .frozenSnapshot
+        )
+    }
+
+    func testRejectsUnknownV50ModelChecksum() {
+        let metadata: [String: Any] = [
+            "NSStoreModelVersionIdentifiers": ["50.0.0"],
+            "NSStoreModelVersionChecksumKey": "unrecognized-v50-model"
+        ]
+
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.v50StoreVariant(from: metadata),
+            .unknown
+        )
+    }
+
+    func testReleasedActiveV50StrategyNamesTheSelectedGraph() {
+        let decision = ModelStoreRecoveryCoordinator.StoreMigrationDecision(
+            hasStoreArtifacts: true,
+            storedSchemaMajorVersion: 50,
+            hint: .recentSource(.v50),
+            v50StoreVariant: .releasedActive
+        )
+
+        XCTAssertEqual(
+            decision.strategyDescription,
+            "recent-source-v50-released-active"
+        )
+    }
+
     func testStoreMigrationHintOpensFreshStoresAsCurrentStore() {
         let currentSchemaMajor = CurrentSchema.versionIdentifier.major
         let hint = ModelStoreRecoveryCoordinator.migrationHint(

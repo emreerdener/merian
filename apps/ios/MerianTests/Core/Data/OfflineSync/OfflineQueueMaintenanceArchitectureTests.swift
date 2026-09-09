@@ -74,8 +74,9 @@ struct OfflineQueueMaintenanceArchitectureTests {
         #expect(state.contains(
             "func quarantineInvalidQueuedMedia(scanId: String)"
         ))
-        #expect(state.contains(
-            "hasDurableCompletedServerResult(scanId: scanId)"
+        let normalizedState = normalizedSource(state)
+        #expect(normalizedState.contains(
+            "hasDurableCompletedServerResult( scanId: scanId )"
         ))
         #expect(state.contains(
             "code: Self.completedServerResultRecoveryCode"
@@ -83,6 +84,8 @@ struct OfflineQueueMaintenanceArchitectureTests {
         #expect(state.contains(
             "releaseFundingForProvenPredispatchFailure(scanId: scanId)"
         ))
+        #expect(state.contains("job = try context.fetchOfflineJob("))
+        #expect(!state.contains("try? context.fetchOfflineJob("))
         #expect(state.contains("errorCode: \"queued_media_invalid\""))
         #expect(deletion.contains(
             "private func deleteQueuedScanAssumingPersistenceLock("
@@ -92,15 +95,25 @@ struct OfflineQueueMaintenanceArchitectureTests {
         ))
         #expect(!deletion.contains("PushNotificationManager"))
         #expect(!deletion.contains("UIApplication"))
+        #expect(deletion.contains("if let job = try context.fetchOfflineJob("))
+        #expect(!deletion.contains("try? context.fetchOfflineJob("))
         #expect(goalHints.contains("extension ModelContext"))
         #expect(!goalHints.contains("extension OfflineQueueManager"))
 
-        let normalizedState = normalizedSource(state)
+        let tombstoneJobFetch = try #require(normalizedState.range(
+            of: "job = try context.fetchOfflineJob("
+        ))
+        let tombstoneMutation = try #require(normalizedState.range(
+            of: "match.scanStateRaw = ScanQueueState.failed.rawValue",
+            range: tombstoneJobFetch.upperBound..<normalizedState.endIndex
+        ))
+        #expect(tombstoneJobFetch.lowerBound < tombstoneMutation.lowerBound)
+
         let invalidMediaQuarantine = try #require(normalizedState.range(
             of: "func quarantineInvalidQueuedMedia(scanId: String)"
         ))
         let completedResultFence = try #require(normalizedState.range(
-            of: "hasDurableCompletedServerResult(scanId: scanId)",
+            of: "hasDurableCompletedServerResult( scanId: scanId )",
             range: invalidMediaQuarantine.upperBound..<normalizedState.endIndex
         ))
         let fundingRelease = try #require(normalizedState.range(

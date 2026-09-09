@@ -257,7 +257,16 @@ extension OfflineQueueManager {
             predicate: #Predicate { $0.id == scanId }
         )
         descriptor.fetchLimit = 1
-        guard let scan = try? modelContext.fetch(descriptor).first else { return }
+        let scan: OfflineQueuedScan?
+        do {
+            scan = try modelContext.fetch(descriptor).first
+        } catch {
+            MerianLog.data.error(
+                "updateDeferredContext: fetch failed scanId=\(scanId, privacy: .private) error=\(error, privacy: .private)"
+            )
+            return
+        }
+        guard let scan else { return }
 
         scan.gpsElevation = telemetry.gpsElevation ?? scan.gpsElevation
         scan.weatherCondition = telemetry.weatherCondition ?? scan.weatherCondition

@@ -487,6 +487,12 @@ status probes, or orphan transitions. The trailing pass prevents a durable state
 change from being dropped; the single active driver prevents duplicate retry
 accounting and log storms.
 
+Inference orphan persistence also joins the per-scan claim/retry/finalization
+fence. It acquires a batch's IDs in stable order, then rereads current durable
+eligibility in a fresh context before loading every job and performing the
+single save. A deletion, completion, or retry that wins while reconciliation is
+waiting therefore remains authoritative instead of being reset to `.staged`.
+
 Likewise, server status `found` starts local result recovery but does not zero
 the attempt count, backoff, or prior error first. If exact-owner hydration or
 local promotion fails, the queue stays server-owned and `.inferencing`, retains
@@ -1485,20 +1491,46 @@ The focused regression inventory includes:
   marker recovery, cancellation-independent wake restoration for committed
   general retries, durable-wake restoration without an intervening suspension
   before post-save poll/generation revalidation and optional process-local
-  replacement, actor-independent route/response/status policy, and focused
-  ownership/consumer boundaries;
+  replacement, actor-independent route/response/status policy, shared
+  foreground/background response preparation without a finalization-to-
+  processing-actor hop, and focused ownership/consumer boundaries;
 - `CloudDeletionSyncTests`, `CollectionSyncTests`, `MediaUploadSyncTests`,
   `MediaUploadCompletionTests`, and `QueueMaintenanceTests`, including
   unsupported-audio rejection before signing, completion-time and staged-replay
   quarantine, and stable needs-attention diagnostics;
 - `OfflineQueueSyncArchitectureTests`;
-- `BackgroundDatabaseActorTests`, including the final serialized
-  unsupported-audio inference-claim fence;
+- `BackgroundDatabaseActorTests`, `CapturedMediaPersistenceServiceTests`, and
+  `ScanFinalizationArchitectureTests`, covering finalization, deterministic
+  ordered-media mapping, end-to-end persistence, dependency/lock ownership,
+  compiler-checked response/result sendability, focused production-file
+  ceilings, and cross-domain paused-state behavior;
+- `CoreDataIntegrationArchitectureTests` and `ScanRepositoryTests`, covering the
+  Core Data-wide silent-fetch ban, throwing historical reconciliation
+  boundaries, invalid-timestamp insertion accounting, and cancellation-safe
+  collection preservation;
 - `QueueSelectionPersistenceTests` and `QueueSelectionArchitectureTests`,
   covering complete pending-set paging, stable funding priority, actor-isolated
   payload extraction, atomic empty-media quarantine with and without an existing
   matching job, sole method/test ownership, and the Upload Sync consumer
   allowlist;
+- `UploadLifecyclePersistenceTests` and `UploadLifecycleArchitectureTests`,
+  covering pending-only claims, durable staging outcomes, retry-marker
+  preservation, scan/job orphan release, task-snapshot fencing, exact production
+  consumers, fail-closed matching-job reads, and the bounded actor-isolated
+  retry-mirror support owner;
+- `BackgroundAccountWorkPersistenceTests` and
+  `BackgroundAccountWorkArchitectureTests`, covering exact upload-owner
+  retirement, rejected inference-dispatch requeue, the staged callback race,
+  legacy missing-job activation, sole declaration/test ownership, exact
+  Background Transfer and Media Upload consumers, throwing scan/job reads, and
+  balanced per-scan persistence fences;
+- `InferenceLifecyclePersistenceTests`, `InferenceRetryPersistenceTests`, and
+  `InferencePersistenceArchitectureTests`, covering durable inference claims,
+  retreats, generation checks, timestamp-fenced orphan release, post-wait
+  terminal-state revalidation, monotonic and cloud-complete retry authority,
+  missing-job compatibility, cancellation fence release, throwing scan/job
+  reads, orphan-batch preload, exact production consumers, and focused/residual
+  size boundaries;
 - `InferenceEngineTests`, including visual and nonvisual transport/retirement
   races;
 - `InferenceEndpointTransportTests`, including queue-backed no-transient-

@@ -123,6 +123,10 @@ struct OfflineQueueAdmissionArchitectureTests {
 
         #expect(funding.contains("MerianNetworkClient.shared"))
         #expect(funding.contains("private func localFundingBlockerIsTerminal("))
+        #expect(!funding.contains("try? context.fetchOfflineJob(id: jobId)"))
+        #expect(funding.contains(
+            "Could not validate local funding terminal state"
+        ))
         #expect(!funding.contains("backgroundSession"))
         #expect(!funding.contains("FileIOActor"))
 

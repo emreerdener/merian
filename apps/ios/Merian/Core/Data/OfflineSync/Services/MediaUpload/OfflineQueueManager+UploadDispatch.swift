@@ -325,7 +325,15 @@ extension OfflineQueueManager {
 
         var retryDelays: [TimeInterval] = []
         for scanId in affectedScanIds {
-            let currentAttempt = queueAttemptCount(for: scanId)
+            let currentAttempt: Int
+            do {
+                currentAttempt = try queueAttemptCount(for: scanId)
+            } catch {
+                MerianLog.data.error(
+                    "syncPendingScans: durable attempt fetch failed scanId=\(scanId, privacy: .private) error=\(error, privacy: .private)"
+                )
+                continue
+            }
             guard OfflineQueueRetryPolicy.canScheduleAutomaticRetry(currentAttempt: currentAttempt) else {
                 markQueuedScanNeedsAttention(
                     scanId: scanId,

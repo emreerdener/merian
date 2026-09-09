@@ -3,19 +3,37 @@
 The `Data` directory manages the local persistence and offline-first data
 pipeline.
 
-`Database/BackgroundDatabaseActor.swift` remains the actor declaration and
-aggregate owner for the persistence domains that have not yet been extracted.
-Focused sibling extensions own bounded persistence surfaces without changing the
-actor's public call sites. `BackgroundDatabaseActor+CollectionSync.swift` owns
-collection snapshot and acknowledgement persistence,
-`BackgroundDatabaseActor+QueueSelection.swift` owns pending upload selection and
-empty-media quarantine, while `BackgroundDatabaseActor+SpeciesMetadata.swift`
-owns Wikipedia/reference-image patches, inference enrichment, lookalike-cache
-recovery, and identification review persistence.
-`BackgroundDatabaseActor+NonBiologicalRetention.swift` owns the non-biological
-erasure values, bounded retention purge, and atomic record/cloud-tombstone
-commit. All focused files are persistence-only: they perform no networking,
-authentication, file I/O, or UI work.
+`Database/BackgroundDatabaseActor.swift` is now the declaration-only
+`@ModelActor` owner. Focused sibling extensions own every bounded persistence
+surface without changing the actor's live scan entry points.
+`BackgroundDatabaseActor+CollectionSync.swift` owns collection snapshot and
+acknowledgement persistence, `BackgroundDatabaseActor+QueueSelection.swift` owns
+pending upload selection and empty-media quarantine, and
+`BackgroundDatabaseActor+UploadLifecycle.swift` owns upload claim, staging, and
+orphan-release persistence.
+`BackgroundDatabaseActor+BackgroundAccountWork.swift` owns durable
+background-account activation, validation, candidate selection, and retirement.
+`BackgroundDatabaseActor+InferenceLifecycle.swift` owns durable inference
+eligibility, claims, retreats, generation validation, telemetry hydration, and
+orphan recovery, including ordered per-scan fencing and a fresh durable
+eligibility read after any fence wait.
+`BackgroundDatabaseActor+InferenceRetry.swift` owns the two generation-fenced
+retry commits. `BackgroundDatabaseActor+RetryMirror.swift` keeps the
+retry-mirror mutation actor-isolated while sharing it across upload and
+inference persistence owners.
+`BackgroundDatabaseActor+LiveScanPersistence.swift` owns visual and nonvisual
+foreground record commits; `BackgroundDatabaseActor+OfflineFinalization.swift`
+owns generation validation/adoption and prepared background-result commits; and
+`BackgroundDatabaseActor+ScanRecordSupport.swift` contains only their shared
+actor-isolated fetch/insert support. `LocalScanRecordFactory` owns value
+mapping, while `CapturedMediaPersistenceService` owns ordered media
+serialization and delegates file adoption through narrow injected closures.
+`BackgroundDatabaseActor+SpeciesMetadata.swift` owns Wikipedia/reference-image
+patches, inference enrichment, lookalike-cache recovery, and identification
+review persistence. `BackgroundDatabaseActor+NonBiologicalRetention.swift` owns
+the non-biological erasure values, bounded retention purge, and atomic
+record/cloud-tombstone commit. Actor extensions perform no networking,
+authentication, direct file I/O, or UI work.
 
 ## Purpose
 
@@ -89,6 +107,15 @@ manifest. Historical pages decode rows independently, quarantining malformed
 rows while reconciling valid neighbors. Targeted completed-result hydration
 returns a typed contract mismatch; the queue immediately pauses that scan as
 needs-attention while preserving the cloud-complete no-redispatch fence.
+
+Local historical reconciliation is a throwing persistence boundary. A failed
+scan, collection, membership, or save operation rolls back pending work and
+stops the current sync; targeted completed-result hydration reports a transient
+failure so the durable queue retries instead of claiming success. Cancellation
+is handled separately from storage failure and rolls back before collection
+deletion, preventing a partially traversed cloud collection page from deleting
+unprocessed local rows. The inserted-record count includes only rows that passed
+timestamp validation and reached the successful save path.
 
 The historical scan projection also selects the existing `is_biological_subject`
 column. New local records use that value when it is present, and existing
@@ -165,14 +192,16 @@ Background Transfer separates lock-protected terminal tracking, Auth quiescence,
 private terminal owner validation/adoption, terminal routing, and nonisolated
 delegate routing from the remaining result pipeline. Background Inference
 separates exact process-generation lifecycle, generation-fenced request
-dispatch, accepted task completion, generation-fenced watchdog probing/task
-retirement, server-result recovery plus retryable-status persistence, and
+dispatch, accepted task completion, response-to-persistence finalization,
+generation-fenced watchdog probing/task retirement, server-result recovery plus
+retryable-status persistence, durable-authority orphan reconciliation, and
 general transport-retry/server-poll lifetime into focused owners. Reusable
-offline-job and Field Trip goal hint lookups plus the queue-to-inference
-snapshot mapper remain in `Persistence`. Upload completion owns callback
-accumulation and durable staging handoff; generation validation/invalidation
-stays in upload lifecycle. `OfflineQueueDurability.swift` retains only the live
-manager mutations that consume those owners.
+offline-job and Field Trip goal hint lookups, the one-context mirrored
+queue-authority reader, and the throwing queue-to-inference snapshot mapper
+remain in `Persistence`. Upload completion owns callback accumulation and
+durable staging handoff; generation validation/invalidation stays in upload
+lifecycle. `OfflineQueueDurability.swift` retains only the live manager
+mutations that consume those owners.
 
 Collection sync specifically keeps job/revision/single-flight state in the
 manager extension and moves the snapshot/request/commit transaction into the
@@ -194,24 +223,26 @@ task and outer lease during Auth quiescence.
 `BackgroundInferenceArchitectureTests`, freeze relocated declarations, exact
 focused-file/framework-import inventories, private mutable state, ordering,
 responsibility boundaries, retired aggregates, mirrored test ownership, and
-focused 600-line ceilings. The foundation and sync suites additionally freeze
-queued scan extraction and upload-completion test ownership plus exact
-mapper/goal-hint consumer allowlists. The admission suite additionally freezes
-the three mirrored test types and display names, their
-serialized/shared-process-state traits, and the exact file-store consumer
-allowlist. The background-transfer suite freezes delegate conformance,
-tracker/lease-state and rejected-retirement consumer allowlists, the exact
-inference-completion consumers, registration and quiescence ordering, and
-private terminal validation in the focused routing owner. It prevents failed
-durable retirement from finishing an undispatched inference generation ahead of
-its SwiftData owner and requires a later successful retirement to close that
-observable generation immediately; Auth quiescence does so before cancellation.
-The background-inference suite freezes its policy, lifecycle, dispatch,
-completion, and watchdog owners; exact result/failure, task-inspection,
-probe-registry, and generation consumers; lack of direct network-client/session
-access in completion; and persistence-before-cleanup plus exact-generation
-retirement ordering. It also freezes both inference retry paths' durable save,
-immediate central wake restoration without an intervening suspension, post-save
+focused 600-line ceilings. Background Inference additionally freezes shared
+response preparation without a finalization-to-processing-actor hop. The
+foundation and sync suites additionally freeze queued scan extraction and
+upload-completion test ownership plus exact mapper/goal-hint consumer
+allowlists. The admission suite additionally freezes the three mirrored test
+types and display names, their serialized/shared-process-state traits, and the
+exact file-store consumer allowlist. The background-transfer suite freezes
+delegate conformance, tracker/lease-state and rejected-retirement consumer
+allowlists, the exact inference-completion consumers, registration and
+quiescence ordering, and private terminal validation in the focused routing
+owner. It prevents failed durable retirement from finishing an undispatched
+inference generation ahead of its SwiftData owner and requires a later
+successful retirement to close that observable generation immediately; Auth
+quiescence does so before cancellation. The background-inference suite freezes
+its policy, lifecycle, dispatch, completion, and watchdog owners; exact
+result/failure, task-inspection, probe-registry, and generation consumers; lack
+of direct network-client/session access in completion; and
+persistence-before-cleanup plus exact-generation retirement ordering. It also
+freezes both inference retry paths' durable save, immediate central wake
+restoration without an intervening suspension, post-save
 cancellation/poll/generation revalidation, and optional process-local poll/retry
 replacement in that order. `QueueMaintenanceTests` covers state transitions,
 fresh automatic-work counts, purging, and flush behavior;
@@ -457,6 +488,178 @@ state-bound quarantine with both existing and legacy-missing matching jobs.
 the consumer allowlist, shared-helper use, narrow imports and dependencies, and
 the 600-line focused-file ceilings.
 
+## Upload Lifecycle Persistence
+
+`Database/BackgroundDatabaseActor+UploadLifecycle.swift` is the focused
+persistence owner for upload claim, staging commit, and orphaned-upload release.
+Its actor method signatures and callers are unchanged. `markScansAsUploading`
+revalidates pending state, attention, and retry deadlines before committing the
+claim; `markScanAsStaged` requires the exact upload source state or an already
+advanced matching manifest; and `reconcileOrphanedUploadingScans` retains the
+existing task-snapshot cutoff and optional candidate fence. A matching-job read
+failure aborts and rolls back the complete claim or orphan-recovery batch;
+genuinely absent legacy job rows remain supported.
+
+The owner performs no signing, endpoint access, URLSession enumeration, file
+I/O, authentication, or UI work. Media Upload retains preparation, dispatch,
+callback accumulation, live-network policy, and task recovery. Inference Replay
+retains the cross-transfer orphan scan that wakes durable work.
+`BackgroundDatabaseActor+RetryMirror.swift` keeps the mirrored scan/job attempt
+and server-recovery marker mutation on the database actor; an architecture
+allowlist limits its production consumers to the focused inference lifecycle,
+inference retry, and upload-lifecycle extensions.
+
+`UploadLifecyclePersistenceTests` owns the ten rehomed actor regressions for
+claim source-state filtering, staging outcomes and retry-marker preservation,
+durable-job orphan release, empty active-task recovery, and timestamp/candidate
+fencing. `UploadLifecycleArchitectureTests` freezes declaration, outcome,
+consumer, throwing job-lookup, actor-isolated retry support, dependency,
+test-ownership, 600-line focused-file, and 1,900-line residual-aggregate
+boundaries.
+
+## Background Account Work Persistence
+
+`Database/BackgroundDatabaseActor+BackgroundAccountWork.swift` is the focused
+persistence owner for exact Auth-account and generation ownership of background
+upload and inference tasks. Its actor method signatures and callers are
+unchanged. Activation commits the owner marker before task resume; current-owner
+validation joins that marker to the required queue state; candidate selection
+projects the durable work that must be quiesced; and retirement commits pending
+state, clears source-account staging keys, and removes the marker before
+transport cancellation.
+
+Every scan/job lookup is throwing and fail-closed. An unreadable record is not
+treated as an absent legacy row, persistence failures retain private diagnostic
+context, and a stale expected owner cannot mutate newer durable work. A
+genuinely absent legacy ingestion job is created in the same activation save as
+its owner marker. The owner performs no Auth SDK work, networking, URLSession
+enumeration or cancellation, file I/O, or UI work. Background Transfer retains
+account leases, transition quiescence, terminal routing, and cancellation; Media
+Upload retains dispatch and its signing-failure retirement call site.
+
+`BackgroundAccountWorkPersistenceTests` contains the three rehomed actor
+regressions for upload retirement, rejected inference dispatch, and the staged
+upload-callback race, plus the missing-job compatibility case that proves a
+legacy scan still receives a durable ingestion job during activation.
+`BackgroundAccountWorkArchitectureTests` freezes sole declaration and test
+ownership, exact Offline Sync consumers, throwing reads, balanced per-scan
+persistence fences, dependency exclusions, a 400-line focused owner/test
+ceiling, and a 1,600-line residual-aggregate non-growth cap.
+
+## Inference Lifecycle and Retry Persistence
+
+`Database/BackgroundDatabaseActor+InferenceLifecycle.swift` is the focused
+persistence owner for server-owned eligibility reads, `.staged → .inferencing`
+claims, `.inferencing → .staged` retreats, background/live durable-generation
+validation, timestamp-fenced orphan recovery, and pre-dispatch telemetry
+hydration. `Database/BackgroundDatabaseActor+InferenceRetry.swift` owns both the
+general inference retry and completed-server-result hydration retry commits.
+Offline Sync call-site spelling is unchanged; orphan reconciliation is now
+explicitly asynchronous so it can wait for the shared persistence fences.
+
+Every scan/job decision now uses a throwing SwiftData read and fails closed with
+private diagnostics. A genuinely absent legacy ingestion job is still created
+for an unfenced claim or relaunch retry, but a read failure can no longer
+masquerade as absence. Orphan recovery acquires candidate fences in stable ID
+order, rereads durable eligibility in a fresh context after waiting, and loads
+every matching job before mutating any row. Newer deletion, completion, or retry
+work therefore wins, while one unreadable job still aborts the complete batch
+rather than committing split scan/job state. Both serialized mutation owners
+release `ScanInferencePersistenceCoordinator` after cancellation as well as
+normal completion. They perform no networking, Auth, URLSession inspection, file
+I/O, or UI work; Background Inference, Inference Replay, Media Upload, and Queue
+Maintenance retain those orchestration responsibilities.
+
+`InferenceLifecyclePersistenceTests` owns the rehomed claim, retreat,
+generation-validation, and orphan-reconciliation regressions—including a
+fence-wait overlap—plus missing-job compatibility and cancellation fence
+release. `InferenceRetryPersistenceTests` owns monotonic mirror repair,
+cloud-complete veto, media-restaging, server-result evidence, both missing-job
+compatibility paths, and cancellation fence release.
+`InferencePersistenceArchitectureTests` freezes sole declaration and test
+ownership, exact production consumers, throwing reads, batch preload, private
+helpers, balanced persistence fences, dependency exclusions, respective 600- and
+400-line focused owner ceilings, 600-line behavior suites, and a 1,000-line
+residual actor cap.
+
+## Scan Finalization Persistence
+
+`Database/BackgroundDatabaseActor+LiveScanPersistence.swift` preserves the
+existing `saveLiveScanRecord` and `saveNonVisualRecord` entry points while
+sharing their fence, media, replacement, cancellation, rollback, and commit
+flow. `BackgroundDatabaseActor+OfflineFinalization.swift` accepts only prepared
+domain data and owns the durable generation validation/adoption plus final
+background record commit. Shared SwiftData reads and insert/replace operations
+remain actor-isolated in `BackgroundDatabaseActor+ScanRecordSupport.swift`;
+complete model construction is centralized in the stateless
+`LocalScanRecordFactory`.
+
+`CapturedMediaPersistenceService` preserves canonical timeline order and
+standalone-audio source identity. Its live dependencies delegate audio/video
+adoption to `FileIOActor`; deterministic tests inject closures and never touch
+Documents storage. Background URLSession completion is coordinated by
+`OfflineSync/Services/BackgroundInference/BackgroundInferenceFinalizationService`.
+That service holds the per-scan persistence fence across durable generation
+validation, shared response preparation, and the SwiftData commit, but it never
+awaits `InferenceProcessingActor` while holding the fence. Completion supplies a
+fresh persistence actor so a failed save cannot contaminate the long-lived queue
+state-machine context. The stateless
+`Core/AI/Inference/Services/InferenceResponsePreparationService` gives live and
+background completion one decode, success-validation, mapping, and entitlement
+reconciliation policy without creating another actor or singleton with mutable
+state. Its prepared value, the complete `SpeciesData` graph, and the foreground
+and background result carriers use compiler-checked `Sendable` conformances.
+
+`CapturedMediaPersistenceServiceTests` covers explicit/default timeline order,
+invalid-item filtering, source-index preservation, and the generic-constrained
+compile check for the complete finalization response/result graph.
+`ScanFinalizationArchitectureTests` freezes declaration ownership, narrow
+dependencies, coordinator containment, shared response preparation, the
+no-finalizer-to-processing-actor dependency, explicit checked-sendability
+declarations, rejection of an unchecked prepared-response conformance, and
+focused production-file ceilings. Existing end-to-end finalization behavior
+remains in `BackgroundDatabaseActorTests`. No SwiftData schema, DTO, endpoint,
+queue-state, media-order, or UI contract changes in this slice.
+
+## Core Data Integration Guardrails
+
+The Core Data-wide integration audit makes absence and storage failure distinct
+across this directory. Production `fetch` and `fetchCount` calls under
+`Core/Data` must not use `try?`: a successful read with no row may take a
+documented compatibility path, while an unreadable store must log privately,
+roll back or abort its mutation, and leave durable work eligible for a later
+retry. `ScanRepository` follows the same rule when reconciling scans,
+collections, memberships, and Favorites state, so a failed read cannot
+manufacture an empty local snapshot.
+
+`OfflineSync/Persistence/OfflineQueueDurableAuthorityReader.swift` projects the
+mirrored scan/job error markers, retry attempts, and video count from one fresh,
+throwing `ModelContext`. Missing queue context is an error rather than an empty
+authority. Queued-scan extraction is also throwing: Background Inference turns
+an unreadable snapshot into the existing durable retry path, Media Upload arms
+the persisted scheduler wake, and only a successful read returning no row is
+treated as an already-removed scan.
+
+Durable mutations stay ahead of external effects. Collection sync starts its
+network task only after the `.running` job claim saves; an unreadable job
+remains conservatively pending but is not dispatchable. Cloud deletion resolves
+and claims every task/job pair before transport, and retains the deletion task
+if the result-side job cannot be read or updated. Offline finalization checks
+cancellation again after acquiring the per-scan persistence fence, and its
+record/species/Field Trip hint helpers propagate read failures instead of
+substituting absence.
+
+`CoreDataIntegrationArchitectureTests` freezes the exact bounded
+`BackgroundDatabaseActor` file/import inventory, declaration-only aggregate,
+directory-wide no-silent-fetch rule, single-context durable-authority read, and
+bounded authority consumers, and cross-surface throwing contracts.
+`ScanRepositoryTests` proves invalid-timestamp rows are excluded from insertion
+counts and a pre-cancelled collection pass preserves local rows. Focused queue,
+collection, deletion, inference, and finalization suites retain the remaining
+behavioral evidence. This audit changes no SwiftData schema or migration, API
+payload, endpoint, queue state, feature flag, navigation route, or visible UI
+contract.
+
 ## Identification Review Replacement
 
 All persistence operations in this section live in
@@ -603,18 +806,25 @@ persistence.
   constraint, not an extension data-sharing contract. Extensions never open the
   SwiftData database; a future move to private Application Support requires a
   data-preserving store relocation first.
-- A released V50 store selects `MerianRecentV50MigrationPlan` and applies the
-  custom V50→V51 account-partition stage. A released V49 store selects
+- V50 shipped two model graphs under the same schema identifier. The coordinator
+  fingerprints `NSStoreModelVersionChecksumKey` and selects either
+  `MerianRecentV50MigrationPlan` for the original frozen graph or
+  `MerianReleasedActiveV50MigrationPlan` for the processed release's
+  `isPendingDeletion` graph. Both apply a source-exact custom V50→V51
+  account-partition stage; unknown V50 signatures are preserved through rescue
+  instead of guessed. A released V49 store selects
   `MerianRecentV49MigrationPlan` and advances through lightweight V49→V50 plus
   custom V50→V51 hops. The full historical plan remains linear through
   V42→V49→V50→V51; V43...V48 use their source-isolated plans. The
-  duplicate-checksum retry ladder is ordered current store, then V50 down
-  through V42.
+  duplicate-checksum retry ladder is ordered current store, both V50 graphs,
+  then V49 down through V42.
 - Only confirmed corruption may quarantine `default.store`, `default.store-shm`,
   and `default.store-wal`.
 - Non-corrupt failures on legacy migration strategies may archive those same
   artifacts under `store-rescue/` before Merian rebuilds a fresh persistent
   store.
+- Successful persistent opens and lossless migrations are silent. Recovery and
+  safe-mode notices remain visible only after an actual fallback boundary.
 - Each quarantine or rescue directory includes `recovery-manifest.json` with
   app/build/OS metadata, archive reason, moved artifact names, and a sanitized
   error reason for support.

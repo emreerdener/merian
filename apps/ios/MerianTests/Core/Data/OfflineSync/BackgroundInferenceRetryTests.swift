@@ -10,6 +10,17 @@ import Testing
 )
 @MainActor
 struct BackgroundInferenceRetryTests {
+    @Test func durableAuthorityRequiresPersistenceBoundary() throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        manager.modelContext = nil
+        defer { manager.modelContext = originalContext }
+
+        #expect(throws: OfflineQueueDurableAuthorityReadError.self) {
+            try manager.durableQueueAuthority(scanId: "missing-context")
+        }
+    }
+
     @Test func scheduledServerFailureMarkerIsReadFromDurableStore() async throws {
         let manager = OfflineQueueManager.shared
         let originalContext = manager.modelContext
@@ -50,9 +61,9 @@ struct BackgroundInferenceRetryTests {
         )
 
         #expect(
-            manager.hasDurableScheduledServerFailureRetry(scanId: scanId)
+            try manager.hasDurableScheduledServerFailureRetry(scanId: scanId)
         )
-        #expect(manager.queueAttemptCount(for: scanId) == 1)
+        #expect(try manager.queueAttemptCount(for: scanId) == 1)
 
         // Reproduce the migrated-store failure seen on TestFlight: one
         // SwiftData context loses the queue-row copy while the durable job
@@ -66,9 +77,9 @@ struct BackgroundInferenceRetryTests {
         driftedScan.queueAttemptCount = 0
         try driftContext.save()
         #expect(
-            manager.hasDurableScheduledServerFailureRetry(scanId: scanId)
+            try manager.hasDurableScheduledServerFailureRetry(scanId: scanId)
         )
-        #expect(manager.queueAttemptCount(for: scanId) == 1)
+        #expect(try manager.queueAttemptCount(for: scanId) == 1)
 
         // A transient signer/PUT failure is part of the required re-stage, not
         // a new inference decision. Its event keeps the precise upload error,
@@ -83,9 +94,9 @@ struct BackgroundInferenceRetryTests {
             ) == 2
         )
         #expect(
-            manager.hasDurableScheduledServerFailureRetry(scanId: scanId)
+            try manager.hasDurableScheduledServerFailureRetry(scanId: scanId)
         )
-        #expect(manager.queueAttemptCount(for: scanId) == 2)
+        #expect(try manager.queueAttemptCount(for: scanId) == 2)
 
         let verificationContext = ModelContext(context.container)
         let persisted = try #require(

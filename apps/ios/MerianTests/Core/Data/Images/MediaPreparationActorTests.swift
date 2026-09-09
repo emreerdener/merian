@@ -74,7 +74,7 @@ struct MediaPreparationActorTests {
             )
             Issue.record("Invalid image bytes must not produce staged media")
         } catch MediaPreparationError.unreadableImage {
-            #expect(true)
+            return
         } catch {
             Issue.record("Expected unreadableImage, got \(error)")
         }

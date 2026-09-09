@@ -35,6 +35,13 @@ struct QueueMaintenanceTests {
             timestamp: Date(),
             scanState: .pending
         ))
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running
+        )
+        context.insert(job)
         try context.save()
 
         let didDelete = manager.softDeleteQueuedScan(scanId: scanId)
@@ -46,6 +53,7 @@ struct QueueMaintenanceTests {
         #expect(didDelete)
         #expect(fetched?.queueState == .failed)
         #expect(fetched?.queueNeedsAttention == true)
+        #expect(job.status == .needsAttention)
     }
 
     @Test func invalidQueuedMediaQuarantineUsesStableAttentionState() throws {
@@ -215,6 +223,20 @@ struct QueueMaintenanceTests {
             timestamp: Date(),
             scanState: .pending
         ))
+        let purgeableJob = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: purgeableId),
+            kind: .scanIngestion,
+            subjectId: purgeableId,
+            status: .waiting
+        )
+        let attentionJob = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: attentionId),
+            kind: .scanIngestion,
+            subjectId: attentionId,
+            status: .needsAttention
+        )
+        context.insert(purgeableJob)
+        context.insert(attentionJob)
         try context.save()
 
         manager.purgeSoftDeletedRecords()
@@ -224,6 +246,8 @@ struct QueueMaintenanceTests {
         #expect(!remainingIds.contains(purgeableId))
         #expect(remainingIds.contains(attentionId))
         #expect(remainingIds.contains(pendingId))
+        #expect(purgeableJob.status == .cancelled)
+        #expect(attentionJob.status == .needsAttention)
     }
 
     @Test func flushRemovesQueueRecordAndPreferredGoalHint() throws {

@@ -1,5 +1,4 @@
 import Foundation
-import SwiftData
 
 // MARK: - Upload Completion
 
@@ -159,7 +158,16 @@ extension OfflineQueueManager {
         }
 
         // Fetch scan metadata on the main actor before handing off to background inference.
-        let extracted = await fetchScanMetadata(for: scanId)
+        let extracted: ExtractedScanData?
+        do {
+            extracted = try extractedQueuedScanData(scanId: scanId)
+        } catch {
+            MerianLog.data.error(
+                "processUploadCompletion: durable snapshot fetch failed scanId=\(scanId, privacy: .private) error=\(error, privacy: .private)"
+            )
+            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
+            return
+        }
         guard isUploadCompletionCurrent(
             scanId: scanId,
             generation: uploadIdentity.syncGeneration,
@@ -385,7 +393,15 @@ extension OfflineQueueManager {
         ) else {
             return true
         }
-        let currentAttempt = queueAttemptCount(for: scanId)
+        let currentAttempt: Int
+        do {
+            currentAttempt = try queueAttemptCount(for: scanId)
+        } catch {
+            MerianLog.data.error(
+                "handleUploadFallback: durable attempt fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return true
+        }
         let disposition = OfflineQueueRetryPolicy.classifyUpload(
             error: uploadError,
             statusCode: responseStatusCode,
@@ -444,22 +460,4 @@ extension OfflineQueueManager {
         }
     }
 
-    /// Fetches the queued scan's snapshot and maps it to ExtractedScanData on the main actor.
-    private func fetchScanMetadata(for scanId: String) async -> ExtractedScanData? {
-        return await MainActor.run { () -> ExtractedScanData? in
-            guard let context = modelContext else { return nil }
-            let container = context.container
-            var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-            descriptor.fetchLimit = 1
-            let scan: OfflineQueuedScan?
-            do {
-                scan = try context.fetch(descriptor).first
-            } catch {
-                MerianLog.data.debug("urlSession: fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)")
-                return nil
-            }
-            guard let scan else { return nil }
-            return buildExtractedScanData(from: scan, container: container)
-        }
-    }
 }

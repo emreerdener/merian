@@ -1,12 +1,11 @@
-import Testing
-import SwiftData
 import Foundation
 @testable import Merian
+import SwiftData
+import Testing
 
 @MainActor
 @Suite(.sharedProcessState(.offlineQueueManager))
 struct OfflineQueuedScanDeletionTests {
-    
     private func createIsolatedContext() throws -> ModelContext {
         let schema = Schema(CurrentSchema.models)
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -53,7 +52,7 @@ struct OfflineQueuedScanDeletionTests {
         )
         descriptor.fetchLimit = 1
         let reloadedScan = try #require(reloadedContext.fetch(descriptor).first)
-        let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+        let extracted = try OfflineQueueManager.shared.buildExtractedScanData(
             from: reloadedScan,
             container: context.container
         )

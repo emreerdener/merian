@@ -32,7 +32,11 @@ extension OfflineQueueManager {
               let container = modelContext?.container else {
             return
         }
-        let currentAttempt = queueAttemptCount(for: scanId)
+        guard let authority = durableQueueAuthorityIfReadable(
+            scanId: scanId,
+            operation: "scheduleRetryableServerFailure"
+        ) else { return }
+        let currentAttempt = authority.maximumAttemptCount
         guard OfflineQueueRetryPolicy.canScheduleAutomaticRetry(
             currentAttempt: currentAttempt
         ) else {
@@ -60,8 +64,15 @@ extension OfflineQueueManager {
             // retreat, or a cloud-complete marker may have superseded it. Both
             // are expected coalescing outcomes, not an error worth repeating
             // on every library/scheduler wake.
-            if hasDurableScheduledServerFailureRetry(scanId: scanId) ||
-                hasDurableCompletedServerResult(scanId: scanId) {
+            guard let authority = durableQueueAuthorityIfReadable(
+                scanId: scanId,
+                operation: "scheduleRetryableServerFailure"
+            ) else { return }
+            if authority.containsErrorCode(
+                matching: Self.isServerRetryableFailureCode
+            ) || authority.containsErrorCode(
+                matching: Self.isCompletedServerResultRecoveryCode
+            ) {
                 return
             }
             MerianLog.data.debug(
@@ -131,8 +142,16 @@ extension OfflineQueueManager {
         serverPollToken: UUID? = nil,
         reuseScheduledServerFailureRetry: Bool = false
     ) async -> ScanStatusRecoveryAction {
-        let hadDurableCompletedServerResult =
-            hasDurableCompletedServerResult(scanId: scanId)
+        guard let authority = durableQueueAuthorityIfReadable(
+            scanId: scanId,
+            operation: "recoverCompletedInferenceFromServer"
+        ) else {
+            return .waitForServer(1)
+        }
+        let hadDurableCompletedServerResult = authority.containsErrorCode(
+            matching: Self.isCompletedServerResultRecoveryCode
+        )
+        let requiredVideoCount = authority.requiredVideoCount
         guard !Task.isCancelled,
               allowsAutomaticNetworkWorkOnCurrentPath,
               isServerIngestionPollCurrent(
@@ -147,7 +166,6 @@ extension OfflineQueueManager {
                 ? .waitForServer(1)
                 : .unresolved
         }
-        let requiredVideoCount = requiredVideoCountForQueuedScan(scanId: scanId)
         let response: ScanStatusResponse
         do {
             response = try await MerianNetworkClient.shared.checkScanStatusDetails(
@@ -203,8 +221,17 @@ extension OfflineQueueManager {
         MerianLog.data.debug(
             "recoverCompletedInferenceFromServer: scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) status=\(response.status.rawValue, privacy: .public) jobStatus=\((response.jobStatus?.rawValue ?? "nil"), privacy: .public) jobStage=\((response.jobStage ?? "nil"), privacy: .public) requiredVideos=\(requiredVideoCount, privacy: .public)"
         )
-        if action != .recovered,
-           hasDurableCompletedServerResult(scanId: scanId) {
+        guard let currentAuthority = durableQueueAuthorityIfReadable(
+            scanId: scanId,
+            operation: "recoverCompletedInferenceFromServer"
+        ) else {
+            return .waitForServer(1)
+        }
+        let stillHasDurableCompletedServerResult = currentAuthority
+            .containsErrorCode(
+                matching: Self.isCompletedServerResultRecoveryCode
+            )
+        if action != .recovered, stillHasDurableCompletedServerResult {
             // A prior exact-owner `found` observation is stronger than a later
             // unavailable or temporarily inconsistent status response. Keep
             // this row server-owned and bound recovery rather than allowing a
@@ -406,12 +433,22 @@ extension OfflineQueueManager {
             )
             return .retryable
         }
-        await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
-            scanId: scanId,
-            speciesData: nil,
-            modelContainer: modelContext?.container,
-            preferredGoal: modelContext?.preferredGoalHint(scanId: scanId)
-        )
+        do {
+            let preferredGoal = try modelContext?.preferredGoalHint(
+                scanId: scanId
+            )
+            await AppDIContainer.shared.scanMilestoneCoordinator
+                .processCompletedScan(
+                    scanId: scanId,
+                    speciesData: nil,
+                    modelContainer: modelContext?.container,
+                    preferredGoal: preferredGoal
+                )
+        } catch {
+            MerianLog.data.error(
+                "recoverCompletedInferenceFromServer: preferred goal fetch failed scanId=\(scanId, privacy: .private) error=\(error, privacy: .private)"
+            )
+        }
         guard !Task.isCancelled,
               isServerIngestionPollCurrent(
                   scanId: scanId,
@@ -457,7 +494,13 @@ extension OfflineQueueManager {
             return .waitForServer(1)
         }
 
-        let currentAttempt = queueAttemptCount(for: scanId)
+        guard let authority = durableQueueAuthorityIfReadable(
+            scanId: scanId,
+            operation: "deferCompletedServerResultRecovery"
+        ) else {
+            return .waitForServer(1)
+        }
+        let currentAttempt = authority.maximumAttemptCount
         guard OfflineQueueRetryPolicy.canScheduleAutomaticRetry(
             currentAttempt: currentAttempt
         ) else {
@@ -519,47 +562,6 @@ extension OfflineQueueManager {
         return .waitForServer(delay)
     }
 
-    private func requiredVideoCountForQueuedScan(scanId: String) -> Int {
-        guard let context = modelContext else { return 0 }
-        let readContext = ModelContext(context.container)
-        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-        descriptor.fetchLimit = 1
-        guard let scan = (try? readContext.fetch(descriptor))?.first else { return 0 }
-        return scan.capturedMediaSnapshot.videoPaths.count
-    }
-
-    func serverOwnedInferencingScanIds(
-        excluding locallyActiveScanIds: Set<String>,
-        reason: String,
-        observedThrough: Date
-    ) async -> Set<String> {
-        guard allowsAutomaticNetworkWorkOnCurrentPath,
-              let context = modelContext else {
-            return []
-        }
-        let dbActor = resolvedQueueDbActor(container: context.container)
-        let candidateIds = await dbActor.fetchServerOwnedInferencingScanIds(
-            excludingScanIds: locallyActiveScanIds,
-            observedThrough: observedThrough
-        )
-
-        var retained = Set<String>()
-        for scanId in candidateIds {
-            let action = await recoverCompletedInferenceFromServer(
-                scanId: scanId,
-                reason: reason,
-                expectedGeneration: nil
-            )
-            switch action {
-            case .waitForServer, .retryAfter:
-                retained.insert(scanId)
-            case .recovered, .terminalFailure, .unresolved:
-                break
-            }
-        }
-        return retained
-    }
-
     private func promoteRecoveredLocalScan(
         scanId: String
     ) -> LocalScanRecord? {
@@ -577,7 +579,6 @@ extension OfflineQueueManager {
             )
             return nil
         }
-
         guard let record else { return nil }
         if record.captureDate == nil {
             record.captureDate = record.timestamp

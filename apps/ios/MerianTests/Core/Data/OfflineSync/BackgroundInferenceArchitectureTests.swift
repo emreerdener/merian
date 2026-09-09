@@ -54,8 +54,13 @@ struct BackgroundInferenceArchitectureTests {
         let lifecycle = try source(Self.lifecyclePath, below: root)
         let dispatch = try source(Self.dispatchPath, below: root)
         let completion = try source(Self.completionPath, below: root)
+        let finalization = try source(Self.finalizationPath, below: root)
         let watchdog = try source(Self.watchdogPath, below: root)
         let recovery = try source(Self.recoveryPath, below: root)
+        let reconciliation = try source(
+            Self.reconciliationPath,
+            below: root
+        )
         let retry = try source(Self.retryPath, below: root)
         let policy = try source(Self.policyPath, below: root)
         let durability = try source(Self.durabilityPath, below: root)
@@ -99,6 +104,27 @@ struct BackgroundInferenceArchitectureTests {
             "weather backfill persisted by dispatchInferenceDownloadTask"
         ))
 
+        #expect(finalization.contains(
+            "struct BackgroundInferenceFinalizationService"
+        ))
+        #expect(finalization.contains("func processAndCleanupOfflineScan("))
+        #expect(finalization.contains(
+            "InferenceResponsePreparationService.live.prepare("
+        ))
+        #expect(finalization.contains(
+            "persistOfflineScanResultAssumingPersistenceLock("
+        ))
+        #expect(finalization.contains(
+            "ScanInferencePersistenceCoordinator.shared.acquire("
+        ))
+        #expect(finalization.contains(
+            "ScanInferencePersistenceCoordinator.shared.release("
+        ))
+        #expect(!finalization.contains("import SwiftData"))
+        #expect(!finalization.contains("JSONDecoder"))
+        #expect(!finalization.contains("EntitlementManager"))
+        #expect(!finalization.contains("modelContext"))
+
         #expect(watchdog.contains("func scheduleInferenceStatusProbe("))
         #expect(watchdog.contains("func isLiveInferenceTask("))
         #expect(watchdog.contains(
@@ -119,10 +145,18 @@ struct BackgroundInferenceArchitectureTests {
             "func recoverCompletedInferenceFromServer("
         ))
         #expect(recovery.contains("func recoverFoundScanFromServer("))
-        #expect(recovery.contains("func serverOwnedInferencingScanIds("))
         #expect(recovery.contains("MerianNetworkClient.shared"))
         #expect(recovery.contains("AppDIContainer.shared.scanRepository"))
         #expect(!recovery.contains("backgroundSession"))
+
+        #expect(reconciliation.contains(
+            "func serverOwnedInferencingScanIds("
+        ))
+        #expect(reconciliation.contains(
+            "recoverCompletedInferenceFromServer("
+        ))
+        #expect(!reconciliation.contains("MerianNetworkClient"))
+        #expect(!reconciliation.contains("import SwiftData"))
 
         #expect(retry.contains("func isServerIngestionPollCurrent("))
         #expect(retry.contains("func scheduleServerIngestionPoll("))
@@ -395,10 +429,14 @@ struct BackgroundInferenceArchitectureTests {
         "Services/BackgroundInference/OfflineQueueManager+InferenceDispatch.swift"
     private static let completionPath =
         "Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift"
+    private static let finalizationPath =
+        "Services/BackgroundInference/BackgroundInferenceFinalizationService.swift"
     private static let watchdogPath =
         "Services/BackgroundInference/OfflineQueueManager+InferenceWatchdog.swift"
     private static let recoveryPath =
         "Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift"
+    private static let reconciliationPath =
+        "Services/BackgroundInference/OfflineQueueManager+InferenceReconciliation.swift"
     private static let retryPath =
         "Services/BackgroundInference/OfflineQueueManager+InferenceRetry.swift"
     private static let retiredAggregatePath =
@@ -414,9 +452,11 @@ struct BackgroundInferenceArchitectureTests {
         policyPath: ["import Foundation"],
         lifecyclePath: ["import Foundation"],
         dispatchPath: ["import Foundation"],
-        completionPath: ["import Foundation", "import SwiftData"],
+        completionPath: ["import Foundation"],
+        finalizationPath: ["import Foundation"],
         watchdogPath: ["import Foundation"],
         recoveryPath: ["import Foundation", "import SwiftData"],
+        reconciliationPath: ["import Foundation"],
         retryPath: ["import Foundation"]
     ]
 
@@ -441,6 +481,9 @@ struct BackgroundInferenceArchitectureTests {
         "func processInferenceDownloadResult": completionPath,
         "func handleInferenceTaskNetworkFailure": completionPath,
         "func cancelInferenceStatusProbe": completionPath,
+        "struct BackgroundInferenceFinalizationService": finalizationPath,
+        "func processAndCleanupOfflineScan": finalizationPath,
+        "func processAssumingPersistenceLock": finalizationPath,
         "func scheduleInferenceStatusProbe": watchdogPath,
         "func isLiveInferenceTask": watchdogPath,
         "func cancelActiveInferenceTasks": watchdogPath,
@@ -451,8 +494,7 @@ struct BackgroundInferenceArchitectureTests {
         "func recoverCompletedInferenceFromServer": recoveryPath,
         "func recoverFoundScanFromServer": recoveryPath,
         "func deferCompletedServerResultRecovery": recoveryPath,
-        "func requiredVideoCountForQueuedScan": recoveryPath,
-        "func serverOwnedInferencingScanIds": recoveryPath,
+        "func serverOwnedInferencingScanIds": reconciliationPath,
         "func promoteRecoveredLocalScan": recoveryPath,
         "func isServerIngestionPollCurrent": retryPath,
         "func scheduleServerIngestionPoll": retryPath,
@@ -486,6 +528,7 @@ struct BackgroundInferenceArchitectureTests {
         ],
         "recoverCompletedInferenceFromServer(": [
             dispatchPath,
+            reconciliationPath,
             recoveryPath,
             retryPath,
             watchdogPath
@@ -521,6 +564,10 @@ struct BackgroundInferenceArchitectureTests {
         ],
         "cancelInferenceStatusProbe(": [
             completionPath
+        ],
+        "processAndCleanupOfflineScan(": [
+            completionPath,
+            finalizationPath
         ],
         "inferenceCompletionGenerations": [
             completionPath,

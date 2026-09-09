@@ -115,8 +115,16 @@ extension OfflineQueueManager {
         // cannot normally issue a second primary Gemini call. If the status
         // endpoint itself is unavailable, preserve zero-data-loss behavior by
         // allowing the queued recovery request to proceed.
-        let hasScheduledServerFailureRetry =
-            hasDurableScheduledServerFailureRetry(scanId: scanId)
+        let hasScheduledServerFailureRetry: Bool
+        do {
+            hasScheduledServerFailureRetry = try
+                hasDurableScheduledServerFailureRetry(scanId: scanId)
+        } catch {
+            MerianLog.data.error(
+                "dispatchInferenceDownloadTask: durable authority fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return
+        }
         let serverRecovery = await recoverCompletedInferenceFromServer(
             scanId: scanId,
             reason: "pre-background-inference dispatch",

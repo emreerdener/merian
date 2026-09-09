@@ -199,12 +199,15 @@ pin tests to historical versioned schemas — a pinned schema silently drops new
 model fields (e.g. `similarSpecies` added in `MerianSchemaV26`), causing
 persistence tests to pass against the wrong shape.
 
-The current persisted schema is V51. The released-V50 fixture intentionally
-creates the historical `ScanCollection.isDeleted` Swift property, then opens it
-through `MerianRecentV50MigrationPlan` and asserts the active
-`isPendingDeletion` mapping after the V50→V51 preference migration. Keep
-`isDeleted` in that fixture and in historical schema tests; production tests
-should use the active property name and predicate.
+The current persisted schema is V51. Two released-V50 fixtures are required
+because builds emitted distinct model checksums under the same schema version.
+The original fixture creates `ScanCollection.isDeleted` and opens through
+`MerianRecentV50MigrationPlan`; the later processed-release fixture creates
+`isPendingDeletion` with `@Attribute(originalName: "isDeleted")` and opens
+through `MerianReleasedActiveV50MigrationPlan`. Both assert the active
+`isPendingDeletion` value after the V50→V51 preference migration. Keep each
+fixture's exact property shape frozen; production tests should use the active
+property name and predicate.
 
 An in-memory container is not sufficient evidence for a stored-property rename,
 schema migration, restart guarantee, or property-name collision with
@@ -1108,17 +1111,19 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     species preferences are discarded. Before opening each fixture, the test
     calls the production metadata decision path and proves the real disk store
     reports major `49` or `50` and selects `.recentSource(.v49)` or
-    `.recentSource(.v50)`. The V49 fixture opens with
-    `MerianRecentV49MigrationPlan` (`[V49, frozen V50, V51]` and two hops); the
-    V50 fixture opens with `MerianRecentV50MigrationPlan` (`[frozen V50, V51]`
-    and one custom hop). Store-recovery tests keep the exhaustive recent-source
-    enum consecutive and ending at `CurrentSchema - 1`; app dispatch has no
-    default branch, so a future source case cannot silently use the full
-    historical plan. Queue and collection tests cover hint/tombstone persistence
-    through foreground and background completion, inbound shielding,
-    acknowledgement purge, and deletion/orphan cleanup. The real-device
-    install-over gate remains separate release evidence; a simulator-created V49
-    store cannot satisfy it.
+    `.recentSource(.v50)`. The V50 fixtures must additionally prove checksum
+    classification as `.frozenSnapshot` or `.releasedActive`. The V49 fixture
+    opens with `MerianRecentV49MigrationPlan` (`[V49, frozen V50, V51]` and two
+    hops); original V50 opens with `MerianRecentV50MigrationPlan`, and
+    processed- release V50 opens with `MerianReleasedActiveV50MigrationPlan`.
+    Each V50 plan contains its exact source graph and one custom hop to V51.
+    Store-recovery tests keep the exhaustive recent-source enum consecutive and
+    ending at `CurrentSchema - 1`; app dispatch has no default branch, so a
+    future source case cannot silently use the full historical plan. Queue and
+    collection tests cover hint/tombstone persistence through foreground and
+    background completion, inbound shielding, acknowledgement purge, and
+    deletion/orphan cleanup. The real-device install-over gate remains separate
+    release evidence; simulator-created stores cannot satisfy it.
 - **`ModelStoreRecoveryCoordinatorTests.swift`**: Launch-recovery guard for
   damaged and legacy-unmigratable local stores. It verifies corruption-only
   quarantine, legacy migration rescue for generic SwiftData migration failures,
@@ -1159,11 +1164,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     the shared V49→V50→V51 tail. The full historical plan must remain a single
     linear chain through V42→V49→frozen V50→V51; V43...V48 belong only to
     source-isolated plans. V49 must select a dedicated `[V49, frozen V50, V51]`
-    plan, and V50 must select `[frozen V50, V51]`. The source guardrail must
-    preserve retry order as current store, V50, V49, V48, then V47 through V42;
-    checking only that every label exists is insufficient. It must also keep the
-    V35...V48 `UserSpeciesPreference` aliases chained to the immutable V34
-    model; pointing any retired schema at the active V51 type rewrites that
+    plan. V50 must select either `[released-active V50, V51]` or
+    `[frozen V50, V51]` from an allowlisted store checksum, and an unknown V50
+    graph must not be guessed. The source guardrail must preserve retry order as
+    current store, released-active V50, frozen V50, V49, V48, then V47 through
+    V42; checking only that every label exists is insufficient. It must also
+    keep the V35...V48 `UserSpeciesPreference` aliases chained to the immutable
+    V34 model; pointing any retired schema at the active V51 type rewrites that
     source schema's checksum. Disk-backed SwiftData migration tests should use
     unique temporary store URLs and must not unlink the `.sqlite`,
     `.sqlite-shm`, or `.sqlite-wal` files during the test process. Core Data may
@@ -1431,9 +1438,16 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   ensuring frames are evaluated correctly before inference is triggered.
 - **`ArchiveManagerTests.swift`, `SyncStateManagerTests.swift`,
   `ScanRepositoryTests.swift`, `BackgroundDatabaseActorTests.swift`,
-  `QueueSelectionPersistenceTests.swift`**: Verifies bi-directional SwiftData
-  relationship behavior within an isolated context, without triggering SwiftData
-  loop issues. `ScanRepositoryTests` includes
+  `CapturedMediaPersistenceServiceTests.swift`,
+  `QueueSelectionPersistenceTests.swift`,
+  `UploadLifecyclePersistenceTests.swift`,
+  `BackgroundAccountWorkPersistenceTests.swift`,
+  `InferenceLifecyclePersistenceTests.swift`, and
+  `InferenceRetryPersistenceTests.swift`, plus
+  `CoreDataIntegrationArchitectureTests.swift`**: Exercises Core Data
+  persistence and lifecycle behavior through isolated SwiftData containers and
+  deterministic process-state fixtures. Coverage is assigned below to the suite
+  that owns each boundary. `ScanRepositoryTests` includes
   `testIngestScansTimestampGuardSkipsNilAndUnparseableTimestamps` — verifies the
   `guard let parsedDate = exifDate else { continue }` path in `ingestScans` by
   replicating the exact `flatMap + ISO 8601 formatter` derivation and asserting
@@ -1446,19 +1460,51 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   correctly (covering the `MerianSchemaV27` field added for rich lookalike
   persistence). `QueueSelectionPersistenceTests` uses `CurrentSchema` and a
   disk-isolated container to validate actor-boundary `Sendable` payload
-  extraction across a `Task.detached` boundary. `BackgroundDatabaseActorTests`
-  keeps upload and inference reconciliation coverage on both sides of an
-  `observedThrough` cutoff, proving the older orphan resets while newer
-  replacement work remains claimed. Its terminal replay test accepts an absent
-  queue only for the exact generation's completed durable job, while rejecting
-  nonterminal and mismatched-generation jobs. Its inference-claim coverage also
-  proves an unsupported queued-audio manifest cannot cross the serialized
-  `.staged` → `.inferencing` transition. `SyncStateManagerTests` also locks the
-  generation-fencing contract: a stale upload completion cannot clear a
-  replacement batch; a completion delivered after `forceIdle()` cannot remove a
-  newer inference token; a stale finalizing transition cannot advance the
-  replacement's UI phase; and `GenerationTaskRegistry` rejects
-  compare-before-clear and owner-cancel attempts from a replaced slot.
+  extraction across a `Task.detached` boundary.
+  `UploadLifecyclePersistenceTests` owns upload reconciliation on both sides of
+  an `observedThrough` cutoff, proving the older orphan resets while newer
+  replacement work remains claimed. `BackgroundAccountWorkPersistenceTests` owns
+  exact account/generation retirement for upload and inference, including the
+  callback race that advances upload to staged before Auth quiescence, plus
+  activation-time ingestion-job creation for a legacy scan without one.
+  `InferenceLifecyclePersistenceTests` owns inference claims, retreats, durable
+  generation checks, timestamp-fenced orphan reconciliation, terminal-state
+  revalidation after a persistence-fence wait, missing-job compatibility, and
+  cancellation fence release. `InferenceRetryPersistenceTests` owns mirrored
+  retry authority, cloud-complete veto, media restaging, server-result evidence,
+  both missing-job compatibility paths, and cancellation fence release.
+  `BackgroundDatabaseActorTests` retains cross-domain paused-state,
+  finalization, post-lock cancellation, and end-to-end persistence coverage. Its
+  cancellation overlap case holds the per-scan lock, cancels the waiting
+  finalizer, and proves no record commits after the lock becomes available. Its
+  terminal replay test accepts an absent queue only for the exact generation's
+  completed durable job, while rejecting nonterminal and mismatched-generation
+  jobs. Its inference-claim coverage also proves an unsupported queued-audio
+  manifest cannot cross the serialized `.staged` → `.inferencing` transition.
+  `CapturedMediaPersistenceServiceTests` separately locks explicit/default media
+  order, invalid-item filtering, video companions, and standalone-audio source
+  identity through injected file-adoption closures. Its generic-constrained
+  compile guard also requires the complete finalization response/result graph to
+  remain `Sendable`. `ScanFinalizationArchitectureTests` freezes the
+  declaration-only actor file, exact finalization owners, dependency direction,
+  coordinator containment, shared response preparation, explicit
+  checked-sendability declarations, the absence of an unchecked
+  prepared-response conformance, and focused production-file ceilings.
+  `CoreDataIntegrationArchitectureTests` scans the complete `Core/Data` surface
+  to ban silently discarded SwiftData fetch failures. It also freezes the exact
+  bounded `BackgroundDatabaseActor` file/import inventory, declaration-only
+  root, one-context mirrored queue-authority read, exact authority consumers,
+  and the throwing absence/failure boundaries used by scan finalization, Field
+  Trip goal hints, queue maintenance, cloud deletion, and historical
+  reconciliation. `ScanRepositoryTests` complements that static contract by
+  proving historical inserted counts exclude invalid-timestamp rows and a
+  pre-cancelled collection reconciliation preserves every local collection.
+  `SyncStateManagerTests` also locks the generation-fencing contract: a stale
+  upload completion cannot clear a replacement batch; a completion delivered
+  after `forceIdle()` cannot remove a newer inference token; a stale finalizing
+  transition cannot advance the replacement's UI phase; and
+  `GenerationTaskRegistry` rejects compare-before-clear and owner-cancel
+  attempts from a replaced slot.
   `QueueSelectionPersistenceTests.testFetchPendingScansExcludesNonPendingScans`
   (V33) seeds scans in all five states (`.pending`, `.uploading`, `.staged`,
   `.inferencing`, `.failed`) and asserts `fetchPendingScans` returns only the
@@ -1868,14 +1914,16 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   replaced server-poll token. The suite is serialized and leases shared
   `.offlineQueueManager` process state.
 - **`BackgroundInferenceArchitectureTests.swift`**: Freezes focused
-  policy/lifecycle/dispatch/completion/watchdog/recovery/retry ownership,
-  imports and declaration/consumer allowlists, direct generation-map
-  containment, completion result-file cleanup registration before generation
-  claim, compare-before-clear completion/watchdog ordering, absence of direct
-  network-client/session access from completion, durable retry persistence
-  before central wake restoration in both retry paths with no intervening
-  suspension, post-save ownership revalidation before process-local replacement,
-  mirrored behavioral tests, and the 600-line production-file ceiling.
+  policy/lifecycle/dispatch/completion/finalization/watchdog/recovery/
+  reconciliation/retry ownership, imports and declaration/consumer allowlists,
+  direct generation-map containment, completion result-file cleanup registration
+  before generation claim, compare-before-clear completion/watchdog ordering,
+  absence of direct network-client/session access from completion, durable retry
+  persistence before central wake restoration in both retry paths with no
+  intervening suspension, post-save ownership revalidation before process-local
+  replacement, shared response preparation without a
+  finalization-to-processing-actor hop, mirrored behavioral tests, and the
+  600-line production-file ceiling.
   - **Temporary-store isolation**: Spins up a `@MainActor ModelContext` on a
     unique test-store URL to isolate test data from the user's real offline
     queue while preserving save/context behavior.
@@ -1885,12 +1933,12 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     locks the exact signed `Content-Length`/`Content-Type` response contract,
     including WAV-only inference audio and purpose-scoped M4A restore audio.
     File-mutation coverage proves a signing-time size mismatch is discarded for
-    re-signing before task creation. Persisted M4A fixtures prove pending/staged
-    rows are fenced, rewritten to valid WAV, stripped of stale R2 keys, and
-    admitted only after fresh validation; an unmigrated M4A still fails before
-    signing. Also covers the canonical video scan upload shape: five sampled
-    inference frame files plus one playback video file must fit in one signing
-    batch.
+    re-signing before task creation. Persisted M4A fixtures prove pending and
+    staged queue rows fail closed before signing or inference; the queue does
+    not rewrite legacy audio. Purpose-scoped historical publication playback and
+    restore retain their separate M4A compatibility. Coverage also includes the
+    canonical video scan upload shape: five sampled inference frame files plus
+    one playback video file must fit in one signing batch.
   - **Historical audio preparation**: `InferenceAudioPreparerTests.swift`
     transcodes a real stereo 48 kHz PCM input to the Documents-owned mono 44.1
     kHz Int16 WAV contract, proves hardware-rate PCM WAV remains
@@ -2202,8 +2250,18 @@ xcodebuild test-without-building \
   -only-testing:merianTests/InferenceEngineTests \
   -only-testing:merianTests/CircuitBreakerManagerTests \
   -only-testing:merianTests/BackgroundDatabaseActorTests \
+  -only-testing:merianTests/CapturedMediaPersistenceServiceTests \
+  -only-testing:merianTests/ScanFinalizationArchitectureTests \
+  -only-testing:merianTests/CoreDataIntegrationArchitectureTests \
   -only-testing:merianTests/QueueSelectionPersistenceTests \
   -only-testing:merianTests/QueueSelectionArchitectureTests \
+  -only-testing:merianTests/UploadLifecyclePersistenceTests \
+  -only-testing:merianTests/UploadLifecycleArchitectureTests \
+  -only-testing:merianTests/BackgroundAccountWorkPersistenceTests \
+  -only-testing:merianTests/BackgroundAccountWorkArchitectureTests \
+  -only-testing:merianTests/InferenceLifecyclePersistenceTests \
+  -only-testing:merianTests/InferenceRetryPersistenceTests \
+  -only-testing:merianTests/InferencePersistenceArchitectureTests \
   -only-testing:merianTests/SpeciesMetadataPersistenceTests \
   -only-testing:merianTests/SpeciesMetadataArchitectureTests \
   -only-testing:merianTests/NonBiologicalRetentionPersistenceTests \
@@ -3386,12 +3444,13 @@ the feature's 600-line review guard.
 
 The V51 matrix keeps the durable-delete regression enabled. It verifies that the
 renamed application tombstone survives `ModelContext.save()`, refetch, disk
-migration from V49, released-V50 migration into V51, and a second context, while
-the V50 fixture graph remains frozen. Run the complete `MigrationPlanTests`
-suite with the disk-backed V49→V50→V51 and V50→V51 fixtures, the focused
-Collections suites without exclusions, startup recovery coverage, and the full
-`merianTests` target. Any duplicate-checksum initialization failure remains a
-release blocker and must be fixed in the migration plan rather than bypassed.
+migration from V49, both released-V50 graphs migrating into V51, and a second
+context, while both V50 fixture graphs remain frozen. Run the complete
+`MigrationPlanTests` suite with the disk-backed V49→V50→V51 and both V50→V51
+fixtures, the focused Collections suites without exclusions, startup recovery
+coverage, and the full `merianTests` target. Any duplicate-checksum
+initialization failure remains a release blocker and must be fixed in the
+migration plan rather than bypassed.
 
 ### Scans Non-Biological
 
@@ -4061,14 +4120,15 @@ iOS regression coverage is intentionally joined as well:
   recovery/cancellation/retirement/retry ordering, durable result evidence,
   terminal contract mismatch handling, replacement poll-token rejection, durable
   retry-marker recovery, and stateless route/response/status decisions.
-  `BackgroundInferenceArchitectureTests` freezes the seven focused production
-  owners, actor-independent policy, imports, declaration and consumer
-  allowlists, direct generation-map containment,
+  `BackgroundInferenceArchitectureTests` freezes the nine focused production
+  owners, including reconciliation, actor-independent policy, imports,
+  declaration and consumer allowlists, direct generation-map containment,
   cleanup-registration-before-claim and compare-before-clear completion and
   watchdog ordering, durable-wake-first persistence across retryable-status and
   general inference retries with no intervening suspension before post-save
   poll/generation revalidation, mirrored test ownership, and the 600-line
-  production-file ceiling.
+  production-file ceiling. It also freezes shared response preparation and
+  forbids a finalization-to-processing-actor hop under the persistence fence.
 - `OfflineQueueManagerTests` retains the remaining integrated background
   URLSession and durable-queue processing, including retry persistence and wake
   restoration, status recovery, and fresh restaging after consumed-key failures.
@@ -4135,21 +4195,65 @@ iOS regression coverage is intentionally joined as well:
   all-key staging commits, callback-token ownership, retry persistence, and
   stale-generation rejection. `OfflineQueueSyncArchitectureTests` freezes their
   exact source/declaration ownership, imports, completion-helper containment,
-  responsibility boundaries, retired sync aggregate, mirrored completion-test
-  ownership, and 600-line ceiling. The iOS workflow contract mirrors that
-  boundary by requiring two live-task reconciliation scans in `UploadSync`, one
-  in `UploadDispatch`, and keeping upload request-policy and
-  activation-before-resume assertions with the dispatch owner. The shared
-  isolated-store fixture only creates a context; every serialized
-  singleton-backed test must explicitly install it and restore it.
-  Structured-result validation binds the upload starvation case to
-  `MediaUploadSyncTests` and all three durable-erasure cases to
-  `CloudDeletionSyncTests`; the staged empty-file case is similarly bound to
+  responsibility boundaries, collection/cloud claim-before-dispatch and cloud
+  job-before-task-removal ordering, retired sync aggregate, mirrored
+  completion-test ownership, and 600-line ceiling. The iOS workflow contract
+  mirrors that boundary by requiring two live-task reconciliation scans in
+  `UploadSync`, one in `UploadDispatch`, and keeping upload request-policy and
+  activation-before-resume assertions with the dispatch owner. It also assigns
+  the moved automatic-network admission reference to Inference Reconciliation
+  while retaining the other eight in Recovery. The shared isolated-store fixture
+  only creates a context; every serialized singleton-backed test must explicitly
+  install it and restore it. Structured-result validation binds the upload
+  starvation case to `MediaUploadSyncTests` and all three durable-erasure cases
+  to `CloudDeletionSyncTests`; the staged empty-file case is similarly bound to
   `MediaStagingBudgetTests`.
-- `BackgroundDatabaseActorTests` validates immediate non-visual durability and
-  late optional context merge. Its staging-transition cases assert committed,
-  already-advanced, retry-required, and discarded outcomes so an HTTP callback
-  cannot treat a rolled-back local write as inference readiness.
+- `BackgroundDatabaseActorTests` validates immediate non-visual durability, late
+  optional context merge, finalization, end-to-end queue persistence, and
+  cross-domain paused-state behavior.
+- `CapturedMediaPersistenceServiceTests` validates canonical media ordering,
+  invalid-item filtering, video companions, and standalone-audio source-index
+  preservation through deterministic injected closures.
+- `ScanFinalizationArchitectureTests` freezes declaration and dependency
+  ownership across live/background persistence, record mapping, media adoption,
+  shared response preparation, and both per-scan coordinators. It also keeps all
+  focused production owners below their review ceilings and forbids the
+  background finalizer from awaiting `InferenceProcessingActor` under lock.
+- `CoreDataIntegrationArchitectureTests` scans all Core Data production Swift
+  sources for silently discarded SwiftData fetch failures, freezes the exact
+  13-file `BackgroundDatabaseActor` surface and imports, bounds direct/logging
+  durable-authority consumers, and requires throwing scan-record, goal-hint,
+  queue, cloud-deletion, and repository read boundaries.
+- `UploadLifecyclePersistenceTests` owns pending-only upload claims, staging
+  outcomes, retry-marker preservation, and orphaned scan/job release. Its
+  committed, already-advanced, retry-required, and discarded cases prevent an
+  HTTP callback from treating a rolled-back local write as inference readiness.
+  `UploadLifecycleArchitectureTests` freezes sole declaration and behavior-test
+  ownership, exact Media Upload/Inference Replay consumers, throwing job reads,
+  actor-isolated shared retry-mirror use, dependency exclusions, 600-line
+  focused-file ceilings, and the residual actor's non-growth cap. The
+  critical-XCResult validator maps scheduled retry survival and durable orphan
+  release to this focused suite.
+- `InferenceLifecyclePersistenceTests` owns staged/inferencing claims and
+  retreats, durable generation validation, timestamp-fenced orphan release,
+  post-wait terminal-state revalidation, missing-job compatibility, and
+  cancellation fence release. `InferenceRetryPersistenceTests` owns
+  general/server-result retry commits, monotonic mirrored authority,
+  cloud-complete veto, media restaging, missing-job compatibility, and
+  cancellation fence release. `InferencePersistenceArchitectureTests` freezes
+  sole declaration and behavior ownership, exact Offline Sync consumers,
+  throwing scan/job reads, orphan-batch preload, private helper containment,
+  balanced fences, dependency exclusions, focused source/test ceilings, and the
+  residual actor non-growth cap. The critical-XCResult validator maps monotonic
+  retry and cloud-complete veto cases to `InferenceRetryPersistenceTests`.
+- `BackgroundAccountWorkPersistenceTests` owns the exact upload-owner
+  retirement, rejected inference-dispatch requeue, staged callback-race, and
+  legacy missing-job activation regressions.
+  `BackgroundAccountWorkArchitectureTests` freezes sole declaration and
+  behavior-test ownership, exact Background Transfer and Media Upload consumers,
+  throwing scan/job reads, balanced per-scan persistence fences, dependency
+  exclusions, 400-line focused-file ceilings, and the residual actor's
+  non-growth cap.
 - `QueueSelectionPersistenceTests` owns pending-state filtering, paging past
   delayed and locally blocked rows, stable funding-tier priority, actor-isolated
   Sendable extraction, and atomic state-bound empty-media quarantine both with
@@ -5336,21 +5440,23 @@ Retryable status recovery must also exercise deliberate drift between
 `BackgroundInferenceRetryTests/scheduledServerFailureMarkerIsReadFromDurableStore`
 erases the queue-row marker/count while the job survives and proves a transient
 re-stage failure advances to attempt two.
-`testMarkScanAsStagedPreservesScheduledServerFailureRetry` passes the same
-topology through upload claim and staging.
-`testScheduleInferenceRetryUsesMonotonicMirroredAttempt` proves the writer uses
-the maximum copy, while
-`testInferenceRetryCannotOverrideCompletedCloudOwnership` proves a job-only
-cloud-complete marker vetoes a late retry. All four are required named Release
-results, not merely compiled tests.
+`UploadLifecyclePersistenceTests/testMarkScanAsStagedPreservesScheduledServerFailureRetry`
+passes the same topology through upload claim and staging.
+`InferenceRetryPersistenceTests/testScheduleInferenceRetryUsesMonotonicMirroredAttempt`
+proves the writer uses the maximum copy, while
+`InferenceRetryPersistenceTests/testInferenceRetryCannotOverrideCompletedCloudOwnership`
+proves a job-only cloud-complete marker vetoes a late retry. All four are
+required named Release results, not merely compiled tests.
 
 Fixtures that persist a future queue or job retry deadline must not immediately
 expect upload or inference claim success: that would contradict the production
 backoff contract. Claim-success fixtures must either omit the deadline or
 advance both mirrored deadlines to the scheduled wake before claiming.
-`pausedScansCannotBeClaimedOrReconciled` owns future-deadline rejection, while
-`testTryClaimForInferenceSucceedsOnStagedScan` verifies that an elapsed deadline
-is accepted and cleared atomically from both durable rows.
+`BackgroundDatabaseActorTests/pausedScansCannotBeClaimedOrReconciled` owns
+future-deadline rejection, while
+`InferenceLifecyclePersistenceTests/testTryClaimForInferenceSucceedsOnStagedScan`
+verifies that an elapsed deadline is accepted and cleared atomically from both
+durable rows.
 
 Field trip capture guidance has focused coverage on both sides of the Edge
 boundary. `_tests/fieldTripsMigrationContract.test.ts` source-locks the private
@@ -6523,35 +6629,36 @@ The identity test matrix now has two explicit lanes:
   R2 manifest, carry the captured Auth UUID into URL signing and `upload_v2`,
   and hold that same account lease through upload completion. Parser tests
   retain legacy task compatibility but classify unprovable ownership as
-  fail-closed. `BackgroundDatabaseActorTests.swift` must prove upload/inference
-  retirement commits pending state and clears source-owned staging keys before
-  task cancellation. `OfflineQueueManagerTests.swift` must prove terminal
-  callback registration happens before the actor hop and that
-  `urlSessionDidFinishEvents` cannot invoke the system completion handler until
-  every asynchronous queue/result write is finished. Failed inference dispatch
-  must durably return `.inferencing` work to pending before cancellation or
-  return. `SpeciesMetadataPersistenceTests.swift` must prove stale species
-  metadata cannot overwrite a replacement identification.
-  `InferenceEngineTests.swift` retains the engine-level Auth integration proof,
-  while `InferenceWriteCoordinatorTests.swift` directly uses a
-  cancellation-ignoring active write to prove the fence remains blocked until
-  that task terminates and rejects newly submitted writes while closed. UI tests
-  require the competing buttons to disable and forbid both “Ghost” and “guest
-  session” presentation. `CollectionSyncTests.swift` proves collection sync
-  neither invokes Edge when an Auth transition owns the session nor removes a
-  tombstone when a transition begins during an in-flight request. It also proves
-  a local reactivation cannot be deleted by the stale acknowledged snapshot,
-  while the endpoint suite proves a classified `401` cannot start the Auth
-  transition that would wait on its own collection task. RevenueCat tests admit
-  only `verified` or `verifiedOnDevice` CustomerInfo and prove stable mode
-  rejects promotional and missing/unknown store provenance for the annual alias
-  while the explicitly approved legacy/account lane may admit its account grant.
-  Shared authenticated-request tests also prove every recursive retry remains
-  pinned to the initiating account and cannot adopt a replacement session.
-  SDK/provider log bodies are discarded. Physical-device evidence remains
-  mandatory for double taps, delayed provider sheets, kill/relaunch at each
-  persistence boundary, first-unlock Keychain failure, 401 recovery, deletion,
-  and account switch.
+  fail-closed. `BackgroundAccountWorkPersistenceTests.swift` must prove
+  upload/inference retirement commits pending state and clears source-owned
+  staging keys before task cancellation, while a legacy scan without an
+  ingestion job receives one before background transport can resume.
+  `OfflineQueueManagerTests.swift` must prove terminal callback registration
+  happens before the actor hop and that `urlSessionDidFinishEvents` cannot
+  invoke the system completion handler until every asynchronous queue/result
+  write is finished. Failed inference dispatch must durably return
+  `.inferencing` work to pending before cancellation or return.
+  `SpeciesMetadataPersistenceTests.swift` must prove stale species metadata
+  cannot overwrite a replacement identification. `InferenceEngineTests.swift`
+  retains the engine-level Auth integration proof, while
+  `InferenceWriteCoordinatorTests.swift` directly uses a cancellation-ignoring
+  active write to prove the fence remains blocked until that task terminates and
+  rejects newly submitted writes while closed. UI tests require the competing
+  buttons to disable and forbid both “Ghost” and “guest session” presentation.
+  `CollectionSyncTests.swift` proves collection sync neither invokes Edge when
+  an Auth transition owns the session nor removes a tombstone when a transition
+  begins during an in-flight request. It also proves a local reactivation cannot
+  be deleted by the stale acknowledged snapshot, while the endpoint suite proves
+  a classified `401` cannot start the Auth transition that would wait on its own
+  collection task. RevenueCat tests admit only `verified` or `verifiedOnDevice`
+  CustomerInfo and prove stable mode rejects promotional and missing/unknown
+  store provenance for the annual alias while the explicitly approved
+  legacy/account lane may admit its account grant. Shared authenticated-request
+  tests also prove every recursive retry remains pinned to the initiating
+  account and cannot adopt a replacement session. SDK/provider log bodies are
+  discarded. Physical-device evidence remains mandatory for double taps, delayed
+  provider sheets, kill/relaunch at each persistence boundary, first-unlock
+  Keychain failure, 401 recovery, deletion, and account switch.
 
 - **Legacy compatibility**: iOS seams prove prepare and verified Keychain
   persistence precede local sign-out, then bind → uppercase UUID RevenueCat link

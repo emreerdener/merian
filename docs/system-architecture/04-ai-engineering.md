@@ -173,12 +173,20 @@ its capture integration:
   to `Double` numeric conversions for depth estimations map cleanly to payload
   schemas without risking memory bounding loops or precision errors crossing
   into the network interface.
+- **`Inference/Services/InferenceResponsePreparationService.swift`**: A
+  stateless shared decoder, usable-success validator, `SpeciesData` mapper, and
+  entitlement/usage reconciler for foreground and background completion. It owns
+  no task, actor, persistence, or presentation state. Its `PreparedResponse` and
+  complete domain-value graph use compiler-checked `Sendable` conformances; this
+  boundary does not rely on `@unchecked Sendable`.
 - **`InferenceProcessingActor.swift`**: An off-main-thread actor responsible for
-  base64 encoding image data, parsing Edge responses, and routing results to the
+  base64 encoding image data and routing foreground prepared results to the
   correct `BackgroundDatabaseActor` save path. Its `parseAndSave(...)`
   parameters thread the ordered media timeline, structured observation contexts,
   and optional audio file paths through to both `saveLiveScanRecord` and
-  `saveNonVisualRecord`.
+  `saveNonVisualRecord`. Background finalization calls the stateless preparation
+  service directly, avoiding an actor hop while its per-scan persistence fence
+  is held.
 - **`InferenceEdgeDTOs.swift`**: Codable DTOs used for Edge communication.
   `APIError` remains hand-written; the marked `EdgeResponseWrapper`,
   `EdgeResponse`, pet, candidate, taxonomy, quality, and insight graph is

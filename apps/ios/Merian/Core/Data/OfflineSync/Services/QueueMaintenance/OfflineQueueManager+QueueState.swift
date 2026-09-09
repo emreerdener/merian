@@ -53,8 +53,8 @@ extension OfflineQueueManager {
         }
 
         guard let scan else {
-            context.deletePreferredGoalHint(scanId: scanId)
             do {
+                try context.deletePreferredGoalHint(scanId: scanId)
                 try context.save()
             } catch {
                 context.rollback()
@@ -67,9 +67,9 @@ extension OfflineQueueManager {
             return true
         }
 
-        context.deletePreferredGoalHint(scanId: scanId)
-        context.delete(scan)
         do {
+            try context.deletePreferredGoalHint(scanId: scanId)
+            context.delete(scan)
             try context.save()
             updateUnsyncedItemCount()
             AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
@@ -143,6 +143,17 @@ extension OfflineQueueManager {
             return false
         }
         guard let match else { return false }
+        let job: OfflineJobRecord?
+        do {
+            job = try context.fetchOfflineJob(
+                id: Self.scanIngestionJobId(scanId: scanId)
+            )
+        } catch {
+            MerianLog.data.error(
+                "softDeleteQueuedScan: job fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return false
+        }
         match.scanStateRaw = ScanQueueState.failed.rawValue
         match.queueLastAttemptAt = Date()
         match.queueNextRetryAt = nil
@@ -151,9 +162,7 @@ extension OfflineQueueManager {
         match.queueLastHTTPStatus = httpStatus
         match.queueNeedsAttention = needsAttention
         match.queueUpdatedAt = Date()
-        if let job = try? context.fetchOfflineJob(
-            id: Self.scanIngestionJobId(scanId: scanId)
-        ) {
+        if let job {
             job.status = needsAttention ? .needsAttention : .cancelled
             job.updatedAt = Date()
             job.nextRunAt = nil
@@ -198,7 +207,18 @@ extension OfflineQueueManager {
     /// the durable capture.
     @discardableResult
     func quarantineInvalidQueuedMedia(scanId: String) -> Bool {
-        if hasDurableCompletedServerResult(scanId: scanId) {
+        let hasCompletedServerResult: Bool
+        do {
+            hasCompletedServerResult = try hasDurableCompletedServerResult(
+                scanId: scanId
+            )
+        } catch {
+            MerianLog.data.error(
+                "quarantineInvalidQueuedMedia: authority fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return false
+        }
+        if hasCompletedServerResult {
             // A completed provider result outranks local media validity. Keep
             // that no-redispatch marker and its funding evidence intact so a
             // manual retry resumes result hydration instead of buying another

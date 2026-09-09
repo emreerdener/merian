@@ -327,7 +327,7 @@ If the BackgroundDatabaseActor's save commits after the MainActor's tombstone,
 the scan transitions `.failed → .staged` and is immediately eligible for
 inference replay — the tombstone is silently lost.
 
-### ✅ The Pattern: Source-State Guard on Every Write
+### ✅ The Pattern: Guard Source State and Fence Cross-Context Writers
 
 Any write that advances or retreats through the state machine must guard the
 source state it expects:
@@ -339,15 +339,21 @@ scan.scanStateRaw = ScanQueueState.staged.rawValue
 try modelContext.save()
 ```
 
-The guard is checked inside the actor's serial executor. If a concurrent
-MainActor tombstone wins the race and saves first, the background actor reads
-the updated state (`.failed`) on its next fetch and the guard rejects the
-transition, leaving the tombstone intact.
+The guard is necessary, but it does not by itself make independent
+`ModelContext`s serializable. A long-lived actor can return an already loaded
+fault whose value predates a concurrent MainActor save. Cross-context paths that
+can mutate the same scan must also participate in the shared per-scan
+`ScanInferencePersistenceCoordinator`, or the waiting path must reread durable
+eligibility through a fresh context before it mutates. The inference orphan
+reconciler uses both protections: it acquires candidate fences and revalidates
+after the wait, so terminal or retry state committed while recovery was blocked
+is not overwritten with `.staged`.
 
 This principle mirrors the existing guards on `markScanAsStaged`
 (`.uploading`-only) and `markScansAsUploading` (`.pending`-only): every state
 transition function is responsible for asserting the valid source state, not the
-caller.
+caller. The fence and fresh read solve a different problem: ordering and
+visibility across contexts.
 
 ---
 
@@ -379,14 +385,14 @@ The `tryClaimForInference` guard always returned `false` because the shared
 actor fetched its already-loaded in-memory fault object (which showed
 `.inferencing`) rather than re-querying the store.
 
-### ✅ The Pattern: Run Reset and Claim on the Same Actor
+### ✅ The Pattern: Revalidate Durably, Then Mutate and Claim on One Actor
 
 State machine transitions that must see each other's effects must run on the
 **same actor instance**, so all reads and writes share the same in-memory object
 graph:
 
 ```swift
-// ✅ Shared actor reconciles AND claims — both see the same in-memory state
+// ✅ Shared actor mutates after fresh durable revalidation, then claims.
 let sharedActor = resolvedQueueDbActor(container: container)
 await sharedActor.reconcileOrphanedInferencingScans(
     activeInferenceScanIds: activeIds,
@@ -397,13 +403,25 @@ guard await sharedActor.tryClaimForInference(scanId: scanId) else { return }
 ```
 
 The shared queue actor (`_queueDbActor`) is reserved for upload/inference
-state-machine operations that must be serialized. Upload claims, both orphan
-reconcilers, staging, inference claims, and retry transitions all use this
-instance. Every live-task reconciliation also captures an `observedThrough` date
-before its first suspension and ignores rows with a newer `queueUpdatedAt`; a
-queued stale reconcile therefore cannot overwrite a replacement claim. Final
-`LocalScanRecord` persistence remains a fresh-actor operation so a failed save
-cannot poison this long-lived context.
+state-machine operations whose consecutive mutations need one in-memory object
+graph. Upload claims, both orphan reconcilers, staging, inference claims, and
+retry transitions all use this instance. Every live-task reconciliation also
+captures an `observedThrough` date before its first suspension and ignores rows
+with a newer `queueUpdatedAt`.
+
+Inference orphan reconciliation has an additional cross-context contract. It
+first projects candidate scan IDs, acquires their
+`ScanInferencePersistenceCoordinator` locks in stable order, checks cancellation
+after each acquisition, and rereads durable eligibility using a fresh
+`ModelContext`. It carries only IDs across those suspension points; no
+`PersistentModel` crosses an `await`. After revalidation it fetches models on
+the shared actor, loads every matching job before the first mutation, and
+performs one save. Locks are released in reverse order on cancellation and
+normal completion. This preserves the shared actor's immediate
+reconcile-to-claim visibility while preventing terminal or retry work that
+committed during the wait from being overwritten. Final `LocalScanRecord`
+persistence remains a fresh-actor operation so a failed save cannot poison the
+long-lived queue context.
 
 Treat a successful actor retry save as committed even when the caller loses
 process-local ownership while awaiting it. Both inference retry paths restore
@@ -680,7 +698,7 @@ prevent a duplicate `LocalScanRecord`.
 
 **On dual-path finalization**: live inference and the background URLSession
 inference result can complete the same `scanId` in separate SwiftData contexts.
-All three local record finalizers (`processAndCleanupOfflineScan`,
+All three local record paths (the offline persistence handoff,
 `saveLiveScanRecord`, and `saveNonVisualRecord`) must acquire
 `ScanFinalizationCoordinator` before fetching/inserting/replacing the final
 `LocalScanRecord`. This per-scan async lock is intentionally above SwiftData: it
@@ -695,6 +713,12 @@ with `NSMergePolicy _cannotResolveConflictOnEntity:relationshipWithNoInverse:`.
 Do not "fix" that crash by changing merge policies or dropping the scalar JSON
 mirror. Serialize finalization per scan id, then re-check whether the local
 record already exists after waiting.
+
+Do not hold `ScanInferencePersistenceCoordinator` and then await
+`InferenceProcessingActor`: a foreground parse can already be waiting for the
+same scan fence. `BackgroundInferenceFinalizationService` instead calls the
+stateless `InferenceResponsePreparationService`, then invokes the fresh
+persistence actor. The architecture test freezes that dependency direction.
 
 **On live inference cancellation or network failure**: the exact foreground
 generation is synchronously retired and the background path resumes. A
@@ -718,17 +742,20 @@ same context accumulate on top of the corrupted pending state.
 
 ### The Vulnerability
 
-`processAndCleanupOfflineScan` inserts a `LocalScanRecord` into the background
-context and calls `save()`. If the save fails (e.g., unique-constraint violation
-on `LocalScanRecord.id`), the pending INSERT remains on the context. On the next
-retry a second `processAndCleanupOfflineScan` call stacks a second pending
-INSERT with the same `id` on top of the first → guaranteed unique-constraint
-failure on every subsequent attempt.
+The background inference finalizer inserts a `LocalScanRecord` into a fresh
+background context and calls `save()`. If the save fails (e.g., a
+unique-constraint violation on `LocalScanRecord.id`), the pending INSERT remains
+on the context. On the next retry a second `processAndCleanupOfflineScan` call
+stacks a second pending INSERT with the same `id` on top of the first → a
+guaranteed unique-constraint failure on every subsequent attempt.
 
 ```swift
 // ❌ Reusing the shared queue actor for cleanup: a failed save corrupts the shared context
 let sharedActor = resolvedQueueDbActor(container: container)
-await sharedActor.processAndCleanupOfflineScan(...)  // save() fails
+await BackgroundInferenceFinalizationService.live.processAndCleanupOfflineScan(
+    ...,
+    persistenceActor: sharedActor
+) // save() fails
 // Now sharedActor.modelContext has a stale pending INSERT stuck in it
 await sharedActor.tryClaimForInference(...)           // next attempt stacks a second INSERT →
                                                       // unique-constraint failure forever
@@ -736,20 +763,23 @@ await sharedActor.tryClaimForInference(...)           // next attempt stacks a s
 
 ### ✅ The Pattern: Fresh Actor for Each Cleanup Attempt
 
-Use a **fresh** `BackgroundDatabaseActor` for each
-`processAndCleanupOfflineScan` call. A failed save is contained to that fresh
-actor — it is simply discarded. The shared actor's context remains uncorrupted
-and can continue to serve state-machine transitions correctly:
+Use a **fresh** `BackgroundDatabaseActor` for each background finalization call.
+A failed save is contained to that fresh actor — it is simply discarded. The
+shared actor's context remains uncorrupted and can continue to serve
+state-machine transitions correctly:
 
 ```swift
 // ✅ Fresh actor per cleanup attempt: failure is contained and discarded
 let cleanupActor = BackgroundDatabaseActor(modelContainer: container)
-await cleanupActor.processAndCleanupOfflineScan(...)  // save() fails → cleanupActor discarded
+await BackgroundInferenceFinalizationService.live.processAndCleanupOfflineScan(
+    ...,
+    persistenceActor: cleanupActor
+) // save() fails → cleanupActor discarded
 // sharedActor.modelContext is unaffected; reconcileOrphanedInferencingScans works normally
 ```
 
-Additionally, `processAndCleanupOfflineScan` itself should be **idempotent**:
-check whether a `LocalScanRecord` with the target `id` already exists before
+Additionally, the focused offline persistence handoff is **idempotent**: it
+checks whether a `LocalScanRecord` with the target `id` already exists before
 inserting, to prevent unique-constraint failures when a previous attempt
 partially committed. This check must happen inside the
 `ScanFinalizationCoordinator` critical section so an offline finalizer that
@@ -827,6 +857,13 @@ from `.pending` to `.uploading` **before** dispatching the URLSession upload
 tasks (see §4 — state must be persisted before the task dispatch boundary). This
 is intentional and correct for the crash-recovery case. However it introduces a
 trap when the next step fails:
+
+The transition must use a throwing matching-job lookup. If SwiftData cannot
+determine whether a corresponding job exists, the actor rolls back the entire
+claim batch and returns no claimed IDs; treating that error as a missing job can
+commit split scan/job state. A successful lookup returning `nil` remains valid
+for legacy queue rows. Orphan recovery follows the same all-or-nothing rule for
+its scan, existing job, and diagnostic event mutations.
 
 If `generateUploadURLs` throws — e.g. because `syncTask` was cancelled when
 `NWPathMonitor` fires offline as the user backgrounds — the catch block
@@ -1575,14 +1612,15 @@ stored property with that Swift name. The declaration can compile and appear to
 accept an assignment, while `ModelContext.save()` resolves the member as
 framework state rather than a durable application attribute.
 
-The released V50 `ScanCollection` demonstrates the failure: collection deletion
-assigned its intended soft-delete marker to `true`, but an actual simulator save
-left the held value `false`, and a fresh fetch also returned `false`. The active
-V50 Swift type repairs the collision with `isPendingDeletion` mapped to the same
-`isDeleted` column; the historical Swift property remains only in the frozen V50
-fixture. Downstream code now serializes the durable value as `is_deleted`, so
-enqueue ordering, inbound tombstone shielding, and acknowledgement-only purge
-retain their intended guarantees.
+The original released V50 `ScanCollection` demonstrates the failure: collection
+deletion assigned its intended soft-delete marker to `true`, but an actual
+simulator save left the held value `false`, and a fresh fetch also returned
+`false`. A later processed V50 graph repairs the collision with
+`isPendingDeletion` mapped to the same `isDeleted` column. Both graphs shipped
+under `50.0.0`, so each remains frozen as a separate checksum-qualified fixture.
+V51 keeps the repaired property. Downstream code serializes the durable value as
+`is_deleted`, so enqueue ordering, inbound tombstone shielding, and
+acknowledgement-only purge retain their intended guarantees.
 
 ### ❌ The Anti-Pattern: Shadow Framework Lifecycle Names
 
@@ -1618,13 +1656,16 @@ let snapshot = CollectionSyncSnapshot(
 )
 ```
 
-For Merian, the released V50 graph is frozen in `SchemaV50Snapshots.swift`; the
-V51 active `ScanCollection` keeps `@Attribute(originalName: "isDeleted")`,
-preserving the persisted column and existing `is_deleted` JSON contract. A
-private DTO in `MerianNetworkClient+Collections.swift` maps `isPendingDeletion`
-to `is_deleted`; SwiftData code does not own wire naming. A disk-backed V50
-fixture passes through the production selector and
-`MerianRecentV50MigrationPlan`, then proves save, refetch, restart, offline
-retention, exact payload mapping, inbound reconciliation fencing, and
-acknowledgement-only purge. The custom stage changes only preferred-name
-ownership and does not invent or infer historical collection delete intent.
+For Merian, both checksum-distinct V50 graphs are frozen:
+`SchemaV50Snapshots.swift` retains the original `isDeleted` source property,
+while `SchemaV50ReleasedActiveSnapshots.swift` retains the processed release's
+`isPendingDeletion` property and `@Attribute(originalName: "isDeleted")`
+mapping. The V51 active `ScanCollection` keeps the same mapping, preserving the
+persisted column and existing `is_deleted` JSON contract. A private DTO in
+`MerianNetworkClient+Collections.swift` maps `isPendingDeletion` to
+`is_deleted`; SwiftData code does not own wire naming. Disk-backed fixtures pass
+through checksum-based production selection and their separate V50→V51 plans,
+then prove save, refetch, restart, offline retention, exact payload mapping,
+inbound reconciliation fencing, and acknowledgement-only purge. The custom
+stages change only preferred-name ownership and do not invent or infer
+historical collection delete intent.

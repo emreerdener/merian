@@ -26,6 +26,26 @@ enum ModelStoreRecoveryCoordinator {
         case v50 = 50
     }
 
+    /// V50 was shipped with two distinct model graphs under the same schema
+    /// version. The store checksum, not the shared major version, determines
+    /// which immutable source schema can open it safely.
+    enum V50StoreVariant: Equatable, CustomStringConvertible {
+        case frozenSnapshot
+        case releasedActive
+        case unknown
+
+        var description: String {
+            switch self {
+            case .frozenSnapshot:
+                return "frozen-snapshot"
+            case .releasedActive:
+                return "released-active"
+            case .unknown:
+                return "unknown-model"
+            }
+        }
+    }
+
     enum StoreMigrationHint: Equatable, CustomStringConvertible {
         case currentStore
         case recentSource(RecentSourceSchema)
@@ -47,6 +67,26 @@ enum ModelStoreRecoveryCoordinator {
         let hasStoreArtifacts: Bool
         let storedSchemaMajorVersion: Int?
         let hint: StoreMigrationHint
+        let v50StoreVariant: V50StoreVariant?
+
+        init(
+            hasStoreArtifacts: Bool,
+            storedSchemaMajorVersion: Int?,
+            hint: StoreMigrationHint,
+            v50StoreVariant: V50StoreVariant? = nil
+        ) {
+            self.hasStoreArtifacts = hasStoreArtifacts
+            self.storedSchemaMajorVersion = storedSchemaMajorVersion
+            self.hint = hint
+            self.v50StoreVariant = v50StoreVariant
+        }
+
+        var strategyDescription: String {
+            guard case .recentSource(.v50) = hint else {
+                return hint.description
+            }
+            return "\(hint.description)-\((v50StoreVariant ?? .unknown).description)"
+        }
     }
 
     private static let sqliteCorruptionCodes: Set<Int> = [11, 26] // SQLITE_CORRUPT, SQLITE_NOTADB
@@ -56,6 +96,12 @@ enum ModelStoreRecoveryCoordinator {
     private static let migrationRescueRootName = "store-rescue"
     private static let latestStartupDiagnosticKey = "app.merian.startup-store-diagnostic.latest"
     private static let storeModelVersionIdentifiersKey = "NSStoreModelVersionIdentifiers"
+    private static let storeModelVersionChecksumKey = "NSStoreModelVersionChecksumKey"
+    /// SHA-256 prefixes of Core Data's stable model-checksum strings. These are
+    /// privacy-safe signatures, verified against both reconstructed disk stores
+    /// and the processed-release diagnostic from build 327.
+    private static let frozenSnapshotV50ChecksumFingerprint = "b9fa43ac9095301ecdce20e5"
+    private static let releasedActiveV50ChecksumFingerprint = "9a0841f675241b21f5ad5c10"
     private static let corruptionPhrases = [
         "database disk image is malformed",
         "file is not a database",
@@ -117,7 +163,7 @@ enum ModelStoreRecoveryCoordinator {
             currentSchemaMajor: currentSchemaMajor,
             migrationSchemas: migrationSchemas,
             migrationStages: migrationStages,
-            selectedStrategy: decision.hint.description,
+            selectedStrategy: decision.strategyDescription,
             store: storeDiagnosticSnapshot(at: storeURL, fileManager: fileManager)
         )
     }
@@ -158,9 +204,21 @@ enum ModelStoreRecoveryCoordinator {
         currentSchemaMajor: Int
     ) -> StoreMigrationDecision {
         let hasArtifacts = hasStoreArtifacts(at: storeURL, fileManager: fileManager)
-        let storedSchemaMajor = hasArtifacts
-            ? storedSchemaMajorVersion(at: storeURL, fileManager: fileManager)
-            : nil
+        var metadata: [String: Any]?
+        if hasArtifacts {
+            do {
+                metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(
+                    ofType: NSSQLiteStoreType,
+                    at: storeURL,
+                    options: nil
+                )
+            } catch {
+                MerianLog.general.error(
+                    "Unable to read SwiftData store metadata before launch migration selection: \(error.localizedDescription, privacy: .private)"
+                )
+            }
+        }
+        let storedSchemaMajor = metadata.flatMap(storedSchemaMajorVersion(from:))
 
         return StoreMigrationDecision(
             hasStoreArtifacts: hasArtifacts,
@@ -169,7 +227,8 @@ enum ModelStoreRecoveryCoordinator {
                 storedSchemaMajorVersion: storedSchemaMajor,
                 hasStoreArtifacts: hasArtifacts,
                 currentSchemaMajor: currentSchemaMajor
-            )
+            ),
+            v50StoreVariant: metadata.flatMap(v50StoreVariant(from:))
         )
     }
 
@@ -215,6 +274,27 @@ enum ModelStoreRecoveryCoordinator {
 
     static func storedSchemaMajorVersion(from metadata: [String: Any]) -> Int? {
         schemaMajorVersions(from: metadata[storeModelVersionIdentifiersKey]).max()
+    }
+
+    static func v50StoreVariant(from metadata: [String: Any]) -> V50StoreVariant? {
+        guard storedSchemaMajorVersion(from: metadata) == 50 else { return nil }
+        guard let checksum = metadata[storeModelVersionChecksumKey] else {
+            return .unknown
+        }
+
+        guard let checksumFingerprint = fingerprint(
+            diagnosticStableDescription(from: checksum)
+        ) else {
+            return .unknown
+        }
+        switch checksumFingerprint {
+        case frozenSnapshotV50ChecksumFingerprint:
+            return .frozenSnapshot
+        case releasedActiveV50ChecksumFingerprint:
+            return .releasedActive
+        default:
+            return .unknown
+        }
     }
 
     private static func storeDiagnosticSnapshot(

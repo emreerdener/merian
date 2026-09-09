@@ -42,7 +42,7 @@ struct QueuedScanExtractionTests {
             visualMediaItemsJSON: visualMediaItemsJSON
         )
 
-        let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+        let extracted = try OfflineQueueManager.shared.buildExtractedScanData(
             from: scan,
             container: context.container
         )
@@ -63,7 +63,7 @@ struct QueuedScanExtractionTests {
             capturedMediaJSON: try encodedJSONString(items)
         )
 
-        let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+        let extracted = try OfflineQueueManager.shared.buildExtractedScanData(
             from: scan,
             container: context.container
         )
@@ -83,7 +83,7 @@ struct QueuedScanExtractionTests {
             capturedMediaJSON: try encodedJSONString(items)
         )
 
-        let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+        let extracted = try OfflineQueueManager.shared.buildExtractedScanData(
             from: scan,
             container: context.container
         )
@@ -102,7 +102,7 @@ struct QueuedScanExtractionTests {
             visualMediaItemsJSON: nil
         )
 
-        let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+        let extracted = try OfflineQueueManager.shared.buildExtractedScanData(
             from: scan,
             container: context.container
         )
@@ -165,7 +165,7 @@ struct QueuedScanExtractionTests {
                 inferenceImagePaths: ["video-frame.webp"],
                 visualMediaItemsJSON: visualMediaItemsJSON
             )
-            let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+            let extracted = try OfflineQueueManager.shared.buildExtractedScanData(
                 from: scan,
                 container: context.container
             )
@@ -233,7 +233,7 @@ struct QueuedScanExtractionTests {
             visualMediaItemsJSON: visualMediaItemsJSON
         )
 
-        let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+        let extracted = try OfflineQueueManager.shared.buildExtractedScanData(
             from: scan,
             container: context.container
         )

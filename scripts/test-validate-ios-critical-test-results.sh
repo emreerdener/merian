@@ -153,11 +153,15 @@ write_test_tree() {
             suite("BackgroundDatabaseActorTests"; [
               "generatedBackgroundResultRejectsMalformedSuccessBody",
               "generatedConfidenceZeroBackgroundResultIsTerminal",
-              "pausedScansCannotBeClaimedOrReconciled",
-              "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive",
-              "testMarkScanAsStagedPreservesScheduledServerFailureRetry",
+              "pausedScansCannotBeClaimedOrReconciled"
+            ]),
+            suite("Inference Retry Persistence"; [
               "testScheduleInferenceRetryUsesMonotonicMirroredAttempt",
               "testInferenceRetryCannotOverrideCompletedCloudOwnership"
+            ]),
+            suite("Upload Lifecycle Persistence"; [
+              "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive",
+              "testMarkScanAsStagedPreservesScheduledServerFailureRetry"
             ]),
             suite("Queue Selection Persistence"; [
               "pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork",

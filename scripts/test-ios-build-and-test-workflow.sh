@@ -45,8 +45,10 @@ queue_upload_dispatch_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/S
 queue_inference_dispatch_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceDispatch.swift"
 queue_inference_watchdog_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceWatchdog.swift"
 queue_inference_recovery_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift"
+queue_inference_reconciliation_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceReconciliation.swift"
 queue_inference_retry_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceRetry.swift"
-background_database_actor_source="$repo_root/apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift"
+background_database_upload_lifecycle_source="$repo_root/apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+UploadLifecycle.swift"
+background_database_inference_lifecycle_source="$repo_root/apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+InferenceLifecycle.swift"
 network_client_source="$repo_root/apps/ios/Merian/Core/Network/MerianNetworkClient.swift"
 pinned_network_transport_source="$repo_root/apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift"
 inference_endpoint_source="$repo_root/apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Inference.swift"
@@ -907,7 +909,11 @@ assert_file_count \
   "allowsAutomaticNetworkWorkOnCurrentPath"
 assert_file_count \
   "$queue_inference_recovery_source" \
-  9 \
+  8 \
+  "allowsAutomaticNetworkWorkOnCurrentPath"
+assert_file_count \
+  "$queue_inference_reconciliation_source" \
+  1 \
   "allowsAutomaticNetworkWorkOnCurrentPath"
 assert_file_count \
   "$queue_inference_retry_source" \
@@ -971,10 +977,10 @@ assert_file_contains \
   "$queue_upload_sync_source" \
   "candidateScanIds: undispatchedScanIDs"
 assert_file_contains \
-  "$background_database_actor_source" \
+  "$background_database_upload_lifecycle_source" \
   'message: "Recovered an upload claim without an active task."'
 assert_file_contains \
-  "$background_database_actor_source" \
+  "$background_database_inference_lifecycle_source" \
   'message: "Recovered an inference claim without an active task."'
 assert_file_contains \
   "$queue_state_source" \

@@ -102,17 +102,18 @@ closures, protecting background threads and streamlining SQL execution
 performance without widening the helper beyond its focused owner.
 
 The scan-creation paths follow the same bounded abstraction rule without merging
-modality behavior. Offline result processing, live visual persistence, and
-nonvisual persistence now share `resolveSpeciesIdAndDiscoveryStatus(...)`,
-`fetchLocalScanRecord(id:)`, and the small collision helpers around
-`buildScanRecord(...)`. Offline replay still uses
-`insertLocalScanRecordIfMissing(...)` so a completed queue result cannot
+modality behavior. Offline result persistence, live visual persistence, and
+nonvisual persistence share actor-isolated identity, record lookup, field note,
+and insert/replace support in `BackgroundDatabaseActor+ScanRecordSupport.swift`.
+Complete value mapping lives in the stateless `LocalScanRecordFactory`, while
+ordered media serialization and injected file adoption live in
+`CapturedMediaPersistenceService`. Offline replay still uses
+`insertOfflineScanRecordIfMissing(...)` so a completed queue result cannot
 overwrite an existing local record; live and nonvisual saves use
 `insertReplacingLocalScanRecord(...)` so a richer foreground inference can
 replace a queued skeleton while preserving the existing species UUID and staged
-field notes. Those scan-creation helpers stay private to the aggregate
-`BackgroundDatabaseActor.swift`, keeping SwiftData fetch/delete/insert work on
-the actor executor; they are separate from the species-metadata mutation helper.
+field notes. SwiftData fetch/delete/insert work remains on the actor executor;
+the nine-line aggregate contains only the `@ModelActor` declaration.
 
 Those scan-creation paths also share `ScanFinalizationCoordinator`, a tiny
 actor-level lock keyed by stable scan ID. The lock is required because live
@@ -123,6 +124,17 @@ merge resolution on `capturedMediaEntries`, a no-inverse to-many relationship
 that cannot be safely merged by `NSMergePolicy`. After waiting, the offline path
 re-checks for an existing `LocalScanRecord` inside the lock and skips insertion
 if the live path already committed.
+
+Background inference orchestration holds the scan persistence fence across
+durable generation validation, response preparation, and commit. It calls the
+stateless `InferenceResponsePreparationService` directly rather than awaiting
+`InferenceProcessingActor`; otherwise a foreground parse waiting for the same
+fence could form a lock/actor cycle. Foreground parsing uses the same stateless
+decoder and mapper, so removing that actor hop does not fork response semantics.
+`PreparedResponse`, its complete `SpeciesData` graph, and the foreground and
+background result carriers conform to `Sendable` through their stored values;
+the finalization architecture suite rejects an unchecked conformance at this
+boundary.
 
 ### SwiftData Memory Exhaustion (`InsightSheetView`, `ScansSheetView`, & `BackgroundDatabaseActor`)
 
@@ -1068,13 +1080,13 @@ per-iteration allocations compounded over bulk ingestion:
    from the exact same timestamp string through the exact same two formatters in
    two separate `flatMap` closures. `ISO8601DateFormatter.date(from:)` is a
    Calendar+Locale-sensitive parse, not a cheap O(1) op. On a 10,000-scan sync
-   this was ~20,000 redundant formatter calls. Both values are now derived from
-   a single parse: `let exifDate: Date? = ...`, then
-   `let parsedDate = exifDate ?? Date()`. Formatter order is also optimised: a
-   `.contains(".")` check on the timestamp string routes fractional timestamps
-   to the fractional formatter first, and standard timestamps (the majority) to
-   the plain formatter first, eliminating the consistent cold-path miss of
-   always trying the fractional formatter first.
+   this was ~20,000 redundant formatter calls. The capture timestamp now passes
+   through `parseHistoricalDate` once. An invalid value is logged and skipped
+   rather than replaced with `Date()`, so historical ordering is never
+   fabricated; `created_at` is parsed separately and falls back to the valid
+   capture timestamp. Formatter order is also optimised: a `.contains(".")`
+   check routes fractional timestamps to the fractional formatter first and
+   whole-second timestamps to the plain formatter first.
 
 ### `syncCollections` Fetch Limit Guard (`HistoricalDatabaseActor`)
 
@@ -2373,7 +2385,13 @@ long-lived `BackgroundDatabaseActor`. Before a reconciler enumerates URLSession
 tasks it captures an `observedThrough` cutoff. The actor resets only rows whose
 `queueUpdatedAt` is at or before that snapshot; a replacement claim queued while
 reconciliation is suspended is therefore ordered on the same actor and excluded
-as newer work.
+as newer work. Inference orphan recovery additionally carries only stable scan
+IDs across suspension, acquires every candidate's shared persistence fence in
+sorted order, rereads durable eligibility through a fresh context after the
+wait, and fetches shared-actor models only for the final atomic batch mutation.
+This closes the independent-context window in which deletion, completion, or
+retry work commits while recovery is waiting without weakening reset-to-claim
+coherence on the long-lived actor.
 
 The inference generation is also a persistence fence. The winning
 `.staged → .inferencing` save writes `{"inference_generation":"{uuid}"}` to the
@@ -2451,18 +2469,21 @@ while true {
     let page: [HistoricalScanResponse] = try await ...
         .range(from: scanOffset, to: scanOffset + pageSize - 1).execute().value
     if !page.isEmpty {
-        await dbActor.reconcileScanPage(responses: page)
+        try await dbActor.reconcileScanPage(responses: page)
     }
     if page.count < pageSize { break }
     scanOffset += pageSize
 }
-await dbActor.syncCollectionsDown(remoteCollections: allCollections)
+try await dbActor.syncCollectionsDown(remoteCollections: allCollections)
 ```
 
 Inside `reconcileScanPage`, the existence check uses a chunked `FetchDescriptor`
 with `propertiesToFetch = [\.id]` — a narrow ID-only column projection scoped to
 each page's incoming IDs. The set is computed fresh per call; no cross-call
-caching is used so there is no stale-ID risk across pages.
+caching is used so there is no stale-ID risk across pages. The actor propagates
+local read and save failures so the repository can retry instead of advancing
+after a false empty result. Collection reconciliation also checks cancellation
+before its absent-remote prune and commit boundaries.
 
 ### Chunk-Process-Save Pattern (`HistoricalDatabaseActor.updateExistingScans`)
 
@@ -2482,11 +2503,11 @@ The fix addresses both with a **chunk-process-save** loop: for each stride of
 500 IDs, a separate `FetchDescriptor` fetches only that chunk's records (full
 fetch, no column projection needed since all fields are read during mutation),
 mutations run immediately against the chunk's records, `modelContext.save()` is
-called if any field changed, and failed saves rollback the historical actor
-context before the next chunk. The chunk's object references then fall out of
-scope, allowing ARC to reclaim the heap before the next stride loads its 500
-objects. Peak faulted-object count is bounded to one chunk regardless of page
-size, page count, or user library depth.
+called if any field changed, and failed reads or saves rollback the historical
+actor context and abort the current reconciliation for retry. The chunk's object
+references then fall out of scope, allowing ARC to reclaim the heap before the
+next stride loads its 500 objects. Peak faulted-object count is bounded to one
+chunk regardless of page size, page count, or user library depth.
 
 `JSONEncoder` is hoisted above both the chunk loop and the per-record loop.
 Allocating one encoder per record across a sync page adds measurable GC pressure
@@ -2818,7 +2839,10 @@ a pre-await ownership check as sufficient.
 Orphan reconciliation also captures an `observedThrough` timestamp before
 enumerating URLSession tasks. Rows with a newer `queueUpdatedAt` are excluded,
 so a reconciliation pass built from snapshot A cannot reset a claim created
-after that snapshot while it waits for the shared queue database actor.
+after that snapshot while it waits for the shared queue database actor. The
+inference pass then acquires candidate persistence fences in stable ID order,
+passes only scan IDs across suspension, and rereads durable eligibility through
+a fresh context before loading shared-actor models for its atomic batch save.
 
 ### `reconcileScanPage` ID-Only Column Projection (`ScanRepository`)
 
@@ -2832,9 +2856,11 @@ The check was rewritten to use a `FetchDescriptor` with
 `propertiesToFetch = [\.id]`, which tells SQLite to return only the `id` column:
 
 ```swift
-var desc = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunk.contains($0.id) })
-desc.propertiesToFetch = [\.id]
-let records = (try? modelContext.fetch(desc)) ?? []
+var descriptor = FetchDescriptor<LocalScanRecord>(
+    predicate: #Predicate { chunk.contains($0.id) }
+)
+descriptor.propertiesToFetch = [\.id]
+let records = try modelContext.fetch(descriptor)
 for record in records { existingIds.insert(record.id) }
 ```
 
@@ -2983,9 +3009,10 @@ The `ingestCheckpointInterval` constant (used by `HistoricalDatabaseActor` to
 determine how often to call `modelContext.save()` during bulk historical
 ingestion) was raised from 50 to 100. Halving the save frequency reduces SQLite
 WAL flush operations by 50% during initial historical sync-down. The trade-off
-is that an interrupted background task can roll back at most 100 records instead
-of 50 — an acceptable loss given that historical sync is fully resumable from
-the last committed page.
+is that cancellation or a storage failure can roll back up to one unsaved
+100-record checkpoint batch instead of 50 records. Earlier committed checkpoints
+remain durable, and the throwing reconciliation boundary makes the next
+historical sync retry the incomplete page idempotently.
 
 ### Resilient UI Polling (Skeleton Auto-Retry)
 

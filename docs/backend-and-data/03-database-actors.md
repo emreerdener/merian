@@ -32,18 +32,21 @@ declarations in one aggregate file:
 | `CollectionSyncSnapshot`              | Immutable desired state projected from a non-Favorites collection and its direct scan relationships. Core Network maps it to the private wire DTO.                                                                                                                                                     |
 | `ScanUploadItem`                      | One local media file ready for a presigned R2 PUT — `scanId`, per-scan `uploadIndex`, `mediaKind`, `fileName`, `fileURL`, `contentType`, and expected `objectKey`.                                                                                                                                     |
 | `ExtractedScanData`                   | Full `OfflineQueuedScan` snapshot captured on the main actor for handoff to background inference. Carries the canonical ordered `capturedMediaItems: [SerializedMediaItem]` timeline, from which image paths, audio paths, prompt text, and serialized observation contexts are derived on demand.     |
-| `OfflineScanProcessingResult`         | Result of `processAndCleanupOfflineScan` — species name, discovery flag, `speciesData` for engine hydration, and `wasCleaned` flag controlling main-actor queue flush.                                                                                                                                 |
+| `OfflineQueueDurableAuthority`        | Immutable projection of mirrored scan/job error codes, attempt counts, and required-video count read through one fresh throwing context.                                                                                                                                                               |
+| `OfflineScanProcessingResult`         | Result of `BackgroundInferenceFinalizationService.processAndCleanupOfflineScan` — species name, discovery flag, `speciesData` for engine hydration, and `wasCleaned` commit proof controlling main-actor queue deletion.                                                                               |
+| `ScanStagingTransitionOutcome`        | Durable result of upload-manifest promotion: committed staging, matching serialized advance, retry required, or discarded non-runnable work. It lives beside the focused upload-lifecycle persistence methods.                                                                                         |
 | `ScanFinalizationCoordinator`         | Per-scan async lock used by live visual, live non-visual, and background URLSession finalizers before they write `LocalScanRecord.id`. Prevents Core Data unique-constraint merge policy from merging no-inverse media relationships when the two inference paths complete the same scan concurrently. |
 | `ScanInferencePersistenceCoordinator` | Per-scan async lock shared by every `BackgroundDatabaseActor` instance and the main-actor queue deletion path. It keeps the durable inference-generation check, URLSession cancellation, retry retreat/finalization, and SwiftData save inside one compare-before-mutate critical section.             |
 
-Both finalization coordinators live beside `BackgroundDatabaseActor`, while the
-process-local generation task registry lives under `OfflineSync/Coordinators`.
-They are executable coordination rather than transport DTOs. The in-memory lock
-is not the ownership authority: `OfflineJobRecord.metadataJSON` stores the UUID
-generation transactionally with `.staged → .inferencing`, and every late retry,
-completion, or delete must match that durable value. A `nil` value may be
-adopted only for work already in flight during the rollout; a non-`nil`
-generation is never overwritten by a different attempt.
+Both per-scan coordinators live in `ScanPersistenceCoordinators.swift` beside
+`BackgroundDatabaseActor`, while the process-local generation task registry
+lives under `OfflineSync/Coordinators`. They are executable coordination rather
+than transport DTOs. The in-memory lock is not the ownership authority:
+`OfflineJobRecord.metadataJSON` stores the UUID generation transactionally with
+`.staged → .inferencing`, and every late retry, completion, or delete must match
+that durable value. A `nil` value may be adopted only for work already in flight
+during the rollout; a non-`nil` generation is never overwritten by a different
+attempt.
 
 ---
 
@@ -52,6 +55,10 @@ generation is never overwritten by a different attempt.
 ### `BackgroundDatabaseActor` (`Core/Data/Database/BackgroundDatabaseActor*.swift`)
 
 **Declaration**: `@ModelActor actor BackgroundDatabaseActor`
+
+`BackgroundDatabaseActor.swift` contains only that declaration. Every operation
+is grouped in a focused sibling extension; cross-domain orchestration remains in
+the service that owns the workflow.
 
 **Responsibilities:**
 
@@ -63,6 +70,55 @@ extension owns SwiftData reads and mutations only; Media Upload's
 `Core/Data/OfflineSync/Services/MediaUpload/OfflineQueueManager+UploadSync.swift`
 is its sole production consumer and retains live-transfer exclusions,
 video-network policy, and orchestration.
+
+Upload claim, durable staging, and orphaned-upload release are implemented in
+`Core/Data/Database/BackgroundDatabaseActor+UploadLifecycle.swift`. That
+extension owns only the serialized SwiftData transitions; Media Upload and
+Inference Replay retain signing, URLSession inspection, network policy, and
+orchestration. A matching-job fetch failure rolls back the complete claim or
+orphan-recovery batch instead of committing split scan/job state; an absent
+legacy job remains a supported lookup result.
+`BackgroundDatabaseActor+RetryMirror.swift` supplies an actor-isolated helper
+shared only with upload lifecycle and focused inference persistence so both
+sides apply the same scan/job retry-authority repair without exposing unisolated
+model mutation.
+
+Durable background-account ownership is implemented in
+`Core/Data/Database/BackgroundDatabaseActor+BackgroundAccountWork.swift`. The
+extension owns only SwiftData activation, current-owner validation, transition
+candidate projection, and retirement. Background Transfer retains Auth leases,
+transition quiescence, terminal routing, and URLSession cancellation; Media
+Upload retains request dispatch. All scan/job reads are throwing and fail
+closed, so persistence failure cannot masquerade as an absent legacy record;
+failures retain private diagnostic context. Activation creates a genuinely
+absent legacy ingestion job in the same save as its owner marker.
+
+Inference lifecycle and retry persistence are implemented in
+`Core/Data/Database/BackgroundDatabaseActor+InferenceLifecycle.swift` and
+`BackgroundDatabaseActor+InferenceRetry.swift`. The lifecycle owner contains
+durable eligibility, claims, retreats, generation checks, telemetry hydration,
+and timestamp-fenced orphan recovery. The retry owner contains general and
+server-result recovery retry commits. Background Inference, Inference Replay,
+Media Upload, and Queue Maintenance retain process ownership, scheduling,
+URLSession/network effects, and orchestration. Every scan/job read is throwing;
+genuinely missing legacy jobs remain supported. Orphan recovery locks candidates
+in stable ID order, rereads eligibility from a fresh context after waiting, and
+loads every candidate job before mutating its batch.
+
+Scan creation and finalization are split by responsibility.
+`BackgroundDatabaseActor+LiveScanPersistence.swift` retains the existing visual
+and nonvisual save entry points.
+`BackgroundDatabaseActor+OfflineFinalization.swift` owns durable generation
+validation/adoption and commits already-prepared background results.
+`BackgroundDatabaseActor+ScanRecordSupport.swift` contains only their shared
+actor-isolated reads and inserts, while `LocalScanRecordFactory` owns complete
+value mapping without a `ModelContext`. `CapturedMediaPersistenceService`
+preserves ordered media serialization and delegates audio/video adoption to
+`FileIOActor` through injected closures. Cross-domain background orchestration
+lives in
+`OfflineSync/Services/BackgroundInference/BackgroundInferenceFinalizationService.swift`;
+shared foreground/background response preparation lives in the stateless
+`Core/AI/Inference/Services/InferenceResponsePreparationService.swift`.
 
 - `fetchPendingScans(limit:)` — pages the complete `.pending` (state 0),
   non-attention set in deterministic timestamp/ID order, moving past future
@@ -91,19 +147,21 @@ video-network policy, and orchestration.
   scan confirms HTTP 200. Persists the confirmed image/audio R2 object keys into
   `stagedR2Keys`, normally resets upload retry metadata, updates the queue job,
   and transitions `.uploading → .staged` in one save. Source-state guard: only
-  advances from `.uploading`; prevents a concurrent tombstone from being
-  resurrected. It returns `.staged` only after save, `.alreadyAdvanced` for a
-  serialized matching staged manifest or inferencing owner, `.retryRequired` for
-  retryable fetch/state/manifest/save failure, and `.discarded` for missing or
-  non-runnable rows. Save failure rolls back every part of the transaction, and
-  the upload callback cannot continue to an inference claim from uncommitted or
-  mismatched keys. An exact scheduled `server_retryable_failure` reclaim
-  preserves its marker, count, last attempt, and matching job metadata through a
-  required re-stage.
+  advances from `.uploading` and never intentionally advances a tombstone the
+  actor already observes. It returns `.staged` only after save,
+  `.alreadyAdvanced` for a serialized matching staged manifest or inferencing
+  owner, `.retryRequired` for retryable fetch/state/manifest/save failure, and
+  `.discarded` for missing or non-runnable rows. Save failure rolls back every
+  part of the transaction, and the upload callback cannot continue to an
+  inference claim from uncommitted or mismatched keys. An exact scheduled
+  `server_retryable_failure` reclaim preserves its marker, count, last attempt,
+  and matching job metadata through a required re-stage.
 - `tryClaimForInference(scanId:generation:)` — atomic local-persistence lock for
   inference. It transitions `.staged → .inferencing` and saves the generation in
   the same transaction; returns `false` if the scan is already `.inferencing`,
-  not found, cancelled while waiting, or if the save fails and rolls back.
+  not found, cancelled while waiting, or if a read/save fails and rolls back. A
+  genuinely absent legacy job is inserted only after both durable reads succeed;
+  storage failure cannot masquerade as that compatibility case.
   `ScanInferencePersistenceCoordinator` serializes independent SwiftData
   contexts for that scan, so only one pipeline can win the claim. The race
   between the focused media-upload completion owner
@@ -114,8 +172,9 @@ video-network policy, and orchestration.
 - `transitionScanToStaged(id:)` — retreats `.inferencing → .staged` on transient
   inference failure so `replayInferenceForUploadedScans` can reclaim the scan on
   the next connectivity restore. Source-state guard: only retreats from
-  `.inferencing` — will not overwrite a concurrent `softDeleteQueuedScan`
-  tombstone (`.failed`) written by the MainActor. Save failure rolls back the
+  `.inferencing` and does not intentionally retreat a `.failed` row already
+  visible to the actor. Cross-context ordering and visibility require the
+  separate persistence-fence/fresh-read rules below. Save failure rolls back the
   actor context.
 - Generation-aware claims persist the attempt UUID in the scan-ingestion job.
   Retry scheduling, retreat, final record persistence, and queue deletion
@@ -128,9 +187,13 @@ video-network policy, and orchestration.
   `queueUpdatedAt` and cannot be reset by the delayed reconciliation pass.
 - `reconcileOrphanedInferencingScans(activeInferenceScanIds:observedThrough:)` —
   cross-references current and legacy inference URLSession tasks before
-  resetting `.inferencing → .staged`. It uses the same snapshot cutoff, so a
-  replacement inference claim cannot be mistaken for an orphan while the actor
-  call is queued. Save failure rolls back the actor context.
+  selecting `.inferencing → .staged` candidates. It uses the same snapshot
+  cutoff, acquires candidate persistence fences in stable ID order, and rereads
+  eligibility through a fresh context after waiting. Only stable IDs cross that
+  suspension; SwiftData models are fetched afterward on the shared actor. All
+  candidate jobs are preloaded before the first mutation, so newer terminal or
+  retry state wins and any read or save failure aborts and rolls back the
+  complete batch.
 
 `QueueSelectionPersistenceTests` mirrors state filtering, complete-set paging,
 stable funding priority, actor-isolated payload extraction, and empty-media
@@ -138,6 +201,76 @@ quarantine with both an existing matching job and the supported missing-job
 case. `QueueSelectionArchitectureTests` freezes sole declaration/test ownership,
 the exact Upload Sync consumer allowlist, fail-closed funding/job reads, shared
 offline-job lookup, narrow dependencies, and 600-line focused-file ceilings.
+
+`UploadLifecyclePersistenceTests` mirrors the three extracted transitions,
+including every staging outcome, retry-marker preservation, durable-job orphan
+release, and task-snapshot/candidate fencing. `UploadLifecycleArchitectureTests`
+freezes the declarations and outcome owner, exact Offline Sync consumer
+allowlists, throwing matching-job reads, the actor-isolated retry-mirror support
+boundary, mirrored behavior-test ownership, 600-line focused-file ceilings, and
+a 1,900-line non-growth cap on the residual actor aggregate.
+
+`BackgroundAccountWorkPersistenceTests` owns the three extracted
+background-account regressions—exact upload-owner retirement, rejected
+inference-dispatch requeue, and retirement after an upload callback advances to
+staged—plus activation-time ingestion-job creation for a legacy scan without
+one. `BackgroundAccountWorkArchitectureTests` freezes sole declaration and test
+ownership, the exact Background Transfer and Media Upload consumer allowlists,
+throwing reads, balanced per-scan persistence fences, dependency exclusions,
+400-line focused-file ceilings, and a 1,600-line non-growth cap on the residual
+aggregate.
+
+`InferenceLifecyclePersistenceTests` mirrors claims, retreats, durable
+generation checks, timestamp-fenced orphan release, missing-job compatibility,
+post-wait terminal-state revalidation, and cancellation fence release.
+`InferenceRetryPersistenceTests` mirrors general and server-result retry
+commits, monotonic authority, cloud-complete veto, missing-job compatibility,
+and cancellation fence release. `InferencePersistenceArchitectureTests` freezes
+sole declaration/test ownership, exact Offline Sync consumers, throwing reads,
+orphan-batch preload, private helpers, balanced persistence fences, dependency
+exclusions, focused source/test ceilings, and a 1,000-line cap on the residual
+aggregate.
+
+`CapturedMediaPersistenceServiceTests` locks explicit/default timeline order,
+invalid-item filtering, standalone-audio source identity, and the
+generic-constrained compile check for the complete finalization response/result
+graph. `ScanFinalizationArchitectureTests` freezes the declaration-only actor
+file, sole declaration ownership, dependency direction, coordinator containment,
+shared foreground/background response preparation, explicit checked-sendability
+declarations, rejection of an unchecked prepared-response conformance, and the
+rule that background finalization must not await `InferenceProcessingActor`
+while holding the scan persistence fence. Existing finalization and dual-path
+race behaviors remain in `BackgroundDatabaseActorTests`.
+
+### Core Data-wide Read and Mutation Invariant
+
+An optional SwiftData result represents absence only after a successful fetch.
+Production files under `Core/Data` do not use `try?` with `fetch` or
+`fetchCount`. A storage failure retains private diagnostic context and aborts
+the related mutation, network dispatch, or reconciliation pass. This rule also
+applies to `HistoricalDatabaseActor`/`ScanRepository`, so failed library,
+collection, membership, or Favorites reads cannot be converted into an empty
+authoritative snapshot.
+
+`OfflineQueueDurableAuthorityReader` constructs one fresh `ModelContext` and
+reads both the scan row and matching ingestion job before returning their
+mirrored retry/completion authority. Missing manager persistence throws rather
+than returning an all-empty value. `extractedQueuedScanData(scanId:)` likewise
+throws on read or goal-hint failure and returns `nil` only for a proven missing
+queue row. Background completion persists retry state for an unreadable
+snapshot; upload completion restores the scheduler wake instead of dispatching
+from incomplete metadata.
+
+Durability gates the side effects surrounding these actors. Collection sync
+starts no service or endpoint work unless its `.running` job claim saves. Cloud
+deletion loads task/job pairs and commits their claims before dispatch, then
+removes a task only after its result can be applied to the corresponding job.
+Offline finalization checks cancellation after acquiring the scan persistence
+lock, and its support lookups remain throwing across any file-adoption
+suspension. `CoreDataIntegrationArchitectureTests` freezes the exact 13-file
+actor surface, imports and 600-line ceilings, declaration-only root, silent-read
+ban, durable-authority owner/consumer bounds, and cross-surface throwing
+contracts.
 
 _Unsupported queued audio:_
 
@@ -153,37 +286,32 @@ compatibility field until a future intentional schema migration removes it.
 
 _Offline scan processing:_
 
-- `processAndCleanupOfflineScan(...)` — the top-level orchestration boundary.
-  Accepts the queued scan's ordered mixed-media timeline, decodes an edge
-  inference result, orchestrates two inner helpers, then saves the
-  `LocalScanRecord` to the background context. **The `OfflineQueuedScan` is
-  intentionally NOT deleted here** — that is delegated to the main actor's
-  queue-deletion path so the main `ModelContext` always has a real pending
-  deletion when it saves (the only reliable `@Query` re-evaluation trigger in a
-  presented sheet — SwiftData platform limitation: background-context saves do
-  not reliably propagate to `@Query` in open sheets). Video-aware completion
-  uses `deleteQueuedScan` with adopted media paths and the exact background or
-  foreground generation expectation. This allows queued inference frames to be
-  purged while video/audio/display media adopted by the final `LocalScanRecord`
-  survives, without granting stale work deletion authority:
-  1. `resolveSpeciesIdAndDiscoveryStatus()`: Decouples local species ID
-     resolution and checks the global `LocalScanRecord` table to determine if
-     the scan qualifies as a brand-new discovery for gamification hooks.
-  2. `insertLocalScanRecordIfMissing(...)`: Builds and stages the final
-     `LocalScanRecord` (including `candidatesData`, `inferenceTier`,
-     `imageQualityScore`, `alternativeCommonNames`, `capturedMediaJSON`, and
-     `capturedMediaEntries`) into the context. `alternativeCommonNames` is
-     sourced from `SpeciesData.alternativeCommonNames` — populated from GBIF
-     vernacular names on the first scan of a species (via `_shared/external.ts`)
-     and served from `species_dictionary.alternative_common_names` on Cache Hit.
-     On save failure, `modelContext.rollback()` clears the pending insert and
-     `resolvedSpeciesName`, `finalScanId`, and `speciesData` are all cleared so
-     the caller avoids emitting ghost notifications or hydrating an engine that
-     lacks a committed database UUID. The existing-record check runs after
-     acquiring `ScanFinalizationCoordinator`, so if a live path committed the
-     same `scanId` while the background finalizer waited, offline finalization
-     skips the insert instead of relying on unique-constraint merge recovery.
-- `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`
+- `BackgroundInferenceFinalizationService.processAndCleanupOfflineScan(...)` —
+  the top-level background orchestration boundary. It acquires
+  `ScanInferencePersistenceCoordinator`, asks the injected persistence actor to
+  validate or adopt the exact durable generation, delegates decode, success
+  validation, domain mapping, and entitlement reconciliation to
+  `InferenceResponsePreparationService`, rejects a mismatched provider scan ID,
+  then hands prepared `SpeciesData` to the actor. It does not await
+  `InferenceProcessingActor`, preventing a lock/actor dependency cycle with
+  foreground parsing.
+- `persistOfflineScanResultAssumingPersistenceLock(...)` — the focused
+  actor-isolated commit. It resolves species identity, acquires
+  `ScanFinalizationCoordinator`, rechecks for an existing record after any wait,
+  maps through `LocalScanRecordFactory`, and saves. It includes candidates,
+  inference tier, image quality, alternative names, both captured-media
+  representations, and the original capture timestamp. Save failure rolls back
+  and clears the result identity so callers cannot publish ghost notifications
+  or hydrate an engine without a committed UUID.
+- The background actor intentionally does **not** delete `OfflineQueuedScan`.
+  After a successful commit, the main actor calls `deleteQueuedScan` with
+  adopted media paths and the exact generation expectation. That produces a real
+  pending deletion in the main `ModelContext` for reliable `@Query`
+  reevaluation, removes queue-only inference frames, preserves media adopted by
+  the final record, and denies stale work deletion authority. The legacy
+  `wasCleaned` result name is a commit proof; it does not claim the queue row
+  was already removed.
+- `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:videoFilePaths:mediaTimeline:persistenceFence:)`
   — persists a real-time scan result after live inference. Accepts the current
   media timeline and legacy-derived arrays. Queue-backed live callers also
   provide `LiveInferencePersistenceFence(scanId:generation:)`; a stale durable
@@ -196,22 +324,23 @@ _Offline scan processing:_
   `blurScore` (ephemeral, live-only, never written to disk), `imageQualityScore`
   is stored permanently for future community reference-photo curation. It
   acquires `ScanFinalizationCoordinator` for `mappedData.scanId`, then reuses
-  `resolveSpeciesIdAndDiscoveryStatus(...)` and
-  `insertReplacingLocalScanRecord(...)`; this preserves an existing species UUID
-  and staged field notes while replacing any queued/offline collision row with
-  the richer foreground result. The durable generation is revalidated while
-  holding the per-scan persistence coordinator before finalization and save.
-  Save failure rolls back and returns `.notSaved`, suppressing downstream
-  new-discovery side effects for an uncommitted record.
-- `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`
+  `scanRecordSpeciesIdentity(...)`, `CapturedMediaPersistenceService`,
+  `LocalScanRecordFactory`, and `insertReplacingLocalScanRecord(...)`; this
+  preserves an existing species UUID and staged field notes while replacing any
+  queued/offline collision row with the richer foreground result. The durable
+  generation is revalidated while holding the per-scan persistence coordinator
+  before finalization and save. Save failure rolls back and returns `.notSaved`,
+  suppressing downstream new-discovery side effects for an uncommitted record.
+- `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:videoFilePaths:mediaTimeline:persistenceFence:)`
   — persists description-only, audio-only, or mixed non-visual results after
   `/identify-multimodal` inference when there are no local image files. Uses the
-  same ordered media timeline, live persistence fence, and private replacement
-  helper as visual saves, but keeps its modality-specific
-  `coverImagePath == nil` / `isLiveCapture == false` behavior. It also acquires
-  `ScanFinalizationCoordinator` before species resolution and replacement so
-  audio/description live completion cannot race the background completion for
-  the same queued scan. Save failure rolls back and returns `.notSaved`.
+  same ordered media timeline, live persistence fence, media service, record
+  factory, and replacement helper as visual saves, but keeps its
+  modality-specific `coverImagePath == nil` / `isLiveCapture == false` behavior.
+  It also acquires `ScanFinalizationCoordinator` before species resolution and
+  replacement so audio/description live completion cannot race the background
+  completion for the same queued scan. Save failure rolls back and returns
+  `.notSaved`.
 
 _Non-biological retention and deletion:_
 
@@ -345,7 +474,8 @@ await dbActor.saveLiveScanRecord(
 )
 
 // Long-lived: for pending selection/quarantine, upload/inference claims,
-// retries, and orphan recovery.
+// retries, and orphan recovery. Focused extensions own queue selection and
+// upload-lifecycle persistence.
 // OfflineQueueManager maintains one instance via resolvedQueueDbActor(container:).
 // The shared executor plus observedThrough cutoffs keep a stale reconcile from
 // overwriting a replacement upload or inference claim.
@@ -367,26 +497,31 @@ guard await queueActor.tryClaimForInference(scanId: scanId) else { return }
   existing-ID set fresh each call via a chunked `FetchDescriptor` with
   `propertiesToFetch = [\.id]` (ID-only column projection), then delegates to
   `updateExistingScans` and `ingestScans` for the page. Returns the count of
-  newly inserted records.
+  validated, inserted records and throws when a local read or save fails.
 - `syncCollectionsDown(remoteCollections:)` — called once, after all scan pages
-  have been streamed. Delegates to `syncCollections`.
+  have been streamed. Delegates to the throwing `syncCollections` boundary.
+  Cancellation rolls back before any absent-remote deletion can commit.
 - `updateExistingScans` (private) — **chunk-process-save** loop: for each stride
   of 500 IDs, fetches that chunk's full `LocalScanRecord` objects, mutates
   changed fields, calls `modelContext.save()` if any field changed, then lets
   the chunk's references fall out of scope so ARC reclaims the heap before the
-  next stride. Save failures rollback the historical actor context before the
-  next chunk. A single `JSONEncoder` is hoisted above both loops to avoid
-  per-record allocation overhead. Prevents IN-clause planner degradation and
-  bounds peak faulted-object count to one chunk.
+  next stride. Save failures rollback the historical actor context and abort the
+  current reconciliation so callers can retry. A single `JSONEncoder` is hoisted
+  above both loops to avoid per-record allocation overhead. Prevents IN-clause
+  planner degradation and bounds peak faulted-object count to one chunk.
 - `ingestScans` (private) — inserts new `LocalScanRecord` rows; checkpoint-saves
   every `MerianConfig.ingestCheckpointInterval` (100) records. Checkpoint and
   final save failures rollback the pending insert batch so failed historical
-  ingestion cannot poison later sync attempts.
+  ingestion cannot poison later sync attempts; the failure is rethrown rather
+  than returned as an empty successful page.
 - `syncCollections` (private) — upserts `ScanCollection` records; fetches local
   scans referenced by incoming collections and builds current membership from
-  bounded inverse-side `LocalScanRecord.collections` batches. Save failures
-  rollback the main `ModelContext` so partial inbound names, deletes, or
-  membership rewrites do not remain pending after reconciliation fails.
+  bounded inverse-side `LocalScanRecord.collections` batches. Read failures
+  abort rather than substituting an empty collection or membership snapshot.
+  Save failures rollback the actor-isolated `ModelContext` so partial inbound
+  names, deletes, or membership rewrites do not remain pending after
+  reconciliation fails. Cancellation follows the same rollback rule without
+  being logged as a storage error.
 - `reconcileAllHistoricalData(responses:collections:)` — **legacy, kept for test
   compatibility only**. Delegates to `reconcileScanPage` once, then calls
   `syncCollectionsDown`. New call sites should use the `reconcileScanPage` /
@@ -406,14 +541,14 @@ while true {
         .range(from: scanOffset, to: scanOffset + pageSize - 1)
         .execute().value
     if !page.isEmpty {
-        await dbActor.reconcileScanPage(responses: page)
+        try await dbActor.reconcileScanPage(responses: page)
     }
     if page.count < pageSize { break }
     scanOffset += pageSize
 }
 
 // Collections are small in count — still fully accumulated, then synced once
-await dbActor.syncCollectionsDown(remoteCollections: allCollections)
+try await dbActor.syncCollectionsDown(remoteCollections: allCollections)
 ```
 
 The design principle is page-at-a-time streaming: each page is processed and
@@ -606,9 +741,9 @@ starving the other.
 ```swift
 @ModelActor
 actor BackgroundDatabaseActor {
-    func doWork() {
+    func doWork() throws {
         // `modelContext` here is isolated to this actor — safe to call fetch/save/insert
-        let records = try? modelContext.fetch(FetchDescriptor<LocalScanRecord>())
+        let records = try modelContext.fetch(FetchDescriptor<LocalScanRecord>())
     }
 }
 ```
@@ -678,14 +813,16 @@ upserts while the local marker is set. After remote acknowledgement, a fresh
 actor refetches by ID plus `isPendingDeletion == true`, so a collection
 reactivated during the request cannot be removed by a stale snapshot.
 
-The V50 source graph is frozen under `Models/Schema/SchemaV50Snapshots.swift`.
-The active V51 model retains the mapped source name; `MerianActiveSchemaV50`
-serves as the source bridge for the separate preferred-name ownership migration.
-The disk-backed released-V50 fixture proves true/false values and relationship
-retention while migrating to V51. Keep persistence projection and conditional
-purge in the actor, wire mapping in Core Network, and account-lifecycle
-orchestration in `CollectionSyncService`; do not synthesize snapshots from
-transient view state or hard-delete before server acknowledgement.
+The two checksum-distinct V50 source graphs are frozen under
+`Models/Schema/SchemaV50Snapshots.swift` and
+`Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`. The active V51 model
+retains the mapped source name; each exact V50 graph has a separate source
+bridge for the preferred-name ownership migration. Disk-backed fixtures prove
+checksum-based selection, true/false values, relationship retention, and V51
+relaunch. Keep persistence projection and conditional purge in the actor, wire
+mapping in Core Network, and account-lifecycle orchestration in
+`CollectionSyncService`; do not synthesize snapshots from transient view state
+or hard-delete before server acknowledgement.
 
 ## 2026-06 Smart Collection Boundary
 
@@ -703,33 +840,35 @@ payload unless a future explicit conversion feature creates normal collections.
 
 ## Decision Guide
 
-| Task                                                     | Actor to use                                                                                                                                                                  |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Save a live scan result                                  | `BackgroundDatabaseActor` (ad-hoc) via `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`                |
-| Save a text-only, audio-only, or mixed non-visual result | `BackgroundDatabaseActor` (ad-hoc) via `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:persistenceFence:)`                               |
-| Select pending uploads or quarantine empty candidates    | `BackgroundDatabaseActor` via `resolvedQueueDbActor`; focused persistence lives in `BackgroundDatabaseActor+QueueSelection.swift`, called only by Media Upload's `UploadSync` |
-| Transition scan state for upload pipeline                | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                                                             |
-| Claim a scan for inference (`tryClaimForInference`)      | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                                                             |
-| Reset scan to `.staged` on transient failure             | `BackgroundDatabaseActor` via `resolvedQueueDbActor` (long-lived)                                                                                                             |
-| Process an offline scan after upload                     | Fresh `BackgroundDatabaseActor` for final record persistence; shared `resolvedQueueDbActor` for queue transitions                                                             |
-| Startup/ongoing orphan reconciliation                    | `BackgroundDatabaseActor` via `resolvedQueueDbActor`, with a pre-enumeration `observedThrough` cutoff                                                                         |
-| Sync historical scans from cloud                         | `HistoricalDatabaseActor` (ad-hoc)                                                                                                                                            |
-| Calculate all profile data (stats + heatmap + awards)    | `ProfileDatabaseActor.calculateAll()` (ad-hoc)                                                                                                                                |
-| Calculate achievement awards only (post-inference)       | `ProfileDatabaseActor.calculateAwards()` via `resolvedProfileDbActor` (long-lived)                                                                                            |
-| Calculate profile stats (species count, streak)          | `ProfileDatabaseActor.calculateProfileStats()` (ad-hoc)                                                                                                                       |
-| Write scan image files to disk                           | `FileIOActor.shared`                                                                                                                                                          |
-| Delete scan media files from disk                        | `FileIOActor.shared`                                                                                                                                                          |
-| Validate scan media paths                                | `FileIOActor.shared`                                                                                                                                                          |
-| Commit non-biological bulk deletion or retention purge   | Fresh `BackgroundDatabaseActor`; focused persistence lives in `BackgroundDatabaseActor+NonBiologicalRetention.swift`                                                          |
-| Project/commit a collection sync                         | Fresh `BackgroundDatabaseActor` instances through `CollectionSyncService`; Core Network owns the Edge request                                                                 |
-| Persist enrichment data after enrich-scan returns        | `BackgroundDatabaseActor` (ad-hoc)                                                                                                                                            |
+| Task                                                               | Actor to use                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Save a live scan result                                            | `BackgroundDatabaseActor` (ad-hoc) via `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:videoFilePaths:mediaTimeline:persistenceFence:)`                                                                                                  |
+| Save a text-only, audio-only, or mixed non-visual result           | `BackgroundDatabaseActor` (ad-hoc) via `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:videoFilePaths:mediaTimeline:persistenceFence:)`                                                                                                                 |
+| Select pending uploads or quarantine empty candidates              | `BackgroundDatabaseActor` via `resolvedQueueDbActor`; focused persistence lives in `BackgroundDatabaseActor+QueueSelection.swift`, called only by Media Upload's `UploadSync`                                                                                                  |
+| Transition scan state for upload pipeline                          | `BackgroundDatabaseActor` via `resolvedQueueDbActor`; focused persistence lives in `BackgroundDatabaseActor+UploadLifecycle.swift`, with shared actor-isolated retry repair in `+RetryMirror.swift`                                                                            |
+| Activate, validate, enumerate, or retire background task ownership | `BackgroundDatabaseActor` via `resolvedQueueDbActor`; durable ownership lives in `BackgroundDatabaseActor+BackgroundAccountWork.swift`, while Background Transfer and Media Upload retain Auth/URLSession orchestration                                                        |
+| Claim a scan for inference (`tryClaimForInference`)                | `BackgroundDatabaseActor` via `resolvedQueueDbActor`; durable claim and generation state live in `BackgroundDatabaseActor+InferenceLifecycle.swift`                                                                                                                            |
+| Reset scan to `.staged` or schedule a durable inference retry      | `BackgroundDatabaseActor` via `resolvedQueueDbActor`; lifecycle retreat lives in `+InferenceLifecycle.swift`, and retry commits live in `+InferenceRetry.swift`                                                                                                                |
+| Process an offline scan after upload                               | `BackgroundInferenceFinalizationService` for response/fence orchestration, a fresh `BackgroundDatabaseActor` for final record persistence, and the main-actor queue path for guarded deletion                                                                                  |
+| Startup/ongoing orphan reconciliation                              | `BackgroundDatabaseActor` via `resolvedQueueDbActor`, with upload persistence in `+UploadLifecycle.swift`; inference persistence in `+InferenceLifecycle.swift` adds a pre-enumeration `observedThrough` cutoff plus ordered candidate fences and fresh post-wait revalidation |
+| Sync historical scans from cloud                                   | `HistoricalDatabaseActor` (ad-hoc)                                                                                                                                                                                                                                             |
+| Calculate all profile data (stats + heatmap + awards)              | `ProfileDatabaseActor.calculateAll()` (ad-hoc)                                                                                                                                                                                                                                 |
+| Calculate achievement awards only (post-inference)                 | `ProfileDatabaseActor.calculateAwards()` via `resolvedProfileDbActor` (long-lived)                                                                                                                                                                                             |
+| Calculate profile stats (species count, streak)                    | `ProfileDatabaseActor.calculateProfileStats()` (ad-hoc)                                                                                                                                                                                                                        |
+| Write scan image files to disk                                     | `FileIOActor.shared`                                                                                                                                                                                                                                                           |
+| Delete scan media files from disk                                  | `FileIOActor.shared`                                                                                                                                                                                                                                                           |
+| Validate scan media paths                                          | `FileIOActor.shared`                                                                                                                                                                                                                                                           |
+| Commit non-biological bulk deletion or retention purge             | Fresh `BackgroundDatabaseActor`; focused persistence lives in `BackgroundDatabaseActor+NonBiologicalRetention.swift`                                                                                                                                                           |
+| Project/commit a collection sync                                   | Fresh `BackgroundDatabaseActor` instances through `CollectionSyncService`; Core Network owns the Edge request                                                                                                                                                                  |
+| Persist enrichment data after enrich-scan returns                  | `BackgroundDatabaseActor` (ad-hoc)                                                                                                                                                                                                                                             |
 
 ## 2026-04 Hardening Updates
 
-- `BackgroundDatabaseActor.buildScanRecord` now preserves the original capture
-  timestamp for offline inserts. Offline replay no longer rewrites chronology to
-  "time of sync", so library ordering, streaks, heatmaps, and analytics stay
-  faithful to when the user actually captured the scan.
+- `LocalScanRecordFactory`, called by the focused offline persistence handoff,
+  preserves the original capture timestamp for offline inserts. Offline replay
+  no longer rewrites chronology to "time of sync", so library ordering, streaks,
+  heatmaps, and analytics stay faithful to when the user actually captured the
+  scan.
 - The non-biological bulk-delete actor path now inserts cloud-deletion
   tombstones and deletes SwiftData rows first, then saves transactionally. Local
   files are purged only after the save succeeds. Each payload ID is re-fetched

@@ -286,7 +286,10 @@ A structured schema built on native SwiftData migrations:
   accumulation of the entire scan library. Scan rows are decoded independently
   with the production PostgREST decoder; malformed Captured Media rows are
   quarantined while valid neighbors continue. Pagination advances by the raw
-  remote row count, so rejected rows cannot repeat or skip an offset.
+  remote row count, so rejected rows cannot repeat or skip an offset. Local
+  reads and saves throw instead of becoming empty success, targeted hydration
+  maps persistence failure to durable transient recovery, and cancellation rolls
+  back before collection pruning and commit.
 - **Centralized Policy (`MerianConfig`)**: All batch sizes, page sizes, and
   retention window constants are defined in `MerianConfig.swift`. Tuning any
   policy constant requires exactly one change.

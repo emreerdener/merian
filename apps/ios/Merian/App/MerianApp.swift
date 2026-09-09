@@ -1401,17 +1401,33 @@ struct MerianApp: App {
 
         do {
             let recovered = try makePersistentContainer(
-                migrationPlan: MerianRecentV50MigrationPlan.self,
-                named: "checksum-recent-v50",
+                migrationPlan: MerianReleasedActiveV50MigrationPlan.self,
+                named: "checksum-recent-v50-released-active",
                 diagnostic: &diagnostic
             )
             MerianLog.general.error(
-                "ModelContainer opened with the recent V50 checksum-safe migration plan."
+                "ModelContainer opened with the released-active V50 checksum-safe migration plan."
+            )
+            return recovered
+        } catch let releasedActiveV50Error {
+            MerianLog.general.error(
+                "ModelContainer released-active V50 checksum-safe retry failed: \(releasedActiveV50Error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        do {
+            let recovered = try makePersistentContainer(
+                migrationPlan: MerianRecentV50MigrationPlan.self,
+                named: "checksum-recent-v50-frozen-snapshot",
+                diagnostic: &diagnostic
+            )
+            MerianLog.general.error(
+                "ModelContainer opened with the frozen-snapshot V50 checksum-safe migration plan."
             )
             return recovered
         } catch let recentV50Error {
             MerianLog.general.error(
-                "ModelContainer recent V50 checksum-safe retry failed: \(recentV50Error.localizedDescription, privacy: .private)"
+                "ModelContainer frozen-snapshot V50 checksum-safe retry failed: \(recentV50Error.localizedDescription, privacy: .private)"
             )
         }
 
@@ -1565,15 +1581,34 @@ struct MerianApp: App {
 
     private static func makePersistentContainerForRecentSource(
         _ source: ModelStoreRecoveryCoordinator.RecentSourceSchema,
+        v50StoreVariant: ModelStoreRecoveryCoordinator.V50StoreVariant?,
         diagnostic: inout StartupStoreDiagnostic
     ) throws -> ModelContainer {
         switch source {
         case .v50:
-            return try makePersistentContainer(
-                migrationPlan: MerianRecentV50MigrationPlan.self,
-                named: "recent-v50",
-                diagnostic: &diagnostic
-            )
+            switch v50StoreVariant {
+            case .releasedActive:
+                return try makePersistentContainer(
+                    migrationPlan: MerianReleasedActiveV50MigrationPlan.self,
+                    named: "recent-v50-released-active",
+                    diagnostic: &diagnostic
+                )
+            case .frozenSnapshot, nil:
+                return try makePersistentContainer(
+                    migrationPlan: MerianRecentV50MigrationPlan.self,
+                    named: "recent-v50-frozen-snapshot",
+                    diagnostic: &diagnostic
+                )
+            case .unknown:
+                throw NSError(
+                    domain: "app.merian.model-container",
+                    code: 3,
+                    userInfo: [
+                        NSLocalizedDescriptionKey:
+                            "The V50 store model signature is not an allowlisted released graph."
+                    ]
+                )
+            }
         case .v49:
             return try makePersistentContainer(
                 migrationPlan: MerianRecentV49MigrationPlan.self,
@@ -1623,6 +1658,7 @@ struct MerianApp: App {
 
     private static func makePersistentContainer(
         forStoreMigrationHint hint: ModelStoreRecoveryCoordinator.StoreMigrationHint,
+        v50StoreVariant: ModelStoreRecoveryCoordinator.V50StoreVariant?,
         diagnostic: inout StartupStoreDiagnostic
     ) throws -> ModelContainer {
         switch hint {
@@ -1634,6 +1670,7 @@ struct MerianApp: App {
         case let .recentSource(source):
             return try makePersistentContainerForRecentSource(
                 source,
+                v50StoreVariant: v50StoreVariant,
                 diagnostic: &diagnostic
             )
         case .fullHistorical:
@@ -1652,11 +1689,15 @@ struct MerianApp: App {
         let detectedSchema = decision.storedSchemaMajorVersion.map { "V\($0)" } ?? "unavailable"
 
         MerianLog.general.notice(
-            "ModelContainer store-aware migration selection: hasStoreArtifacts=\(decision.hasStoreArtifacts, privacy: .public) storedSchema=\(detectedSchema, privacy: .public) strategy=\(decision.hint.description, privacy: .public)"
+            "ModelContainer store-aware migration selection: hasStoreArtifacts=\(decision.hasStoreArtifacts, privacy: .public) storedSchema=\(detectedSchema, privacy: .public) strategy=\(decision.strategyDescription, privacy: .public)"
         )
 
         do {
-            return try makePersistentContainer(forStoreMigrationHint: decision.hint, diagnostic: &diagnostic)
+            return try makePersistentContainer(
+                forStoreMigrationHint: decision.hint,
+                v50StoreVariant: decision.v50StoreVariant,
+                diagnostic: &diagnostic
+            )
         } catch {
             return try makePersistentContainerRetryingChecksumRepresentative(after: error, diagnostic: &diagnostic)
         }

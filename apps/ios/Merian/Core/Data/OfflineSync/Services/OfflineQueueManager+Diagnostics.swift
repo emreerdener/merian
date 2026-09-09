@@ -287,7 +287,16 @@ extension OfflineQueueManager {
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
         descriptor.fetchLimit = limit + 100
-        guard let events = try? context.fetch(descriptor), events.count > limit else { return }
+        let events: [OfflineQueueEvent]
+        do {
+            events = try context.fetch(descriptor)
+        } catch {
+            MerianLog.data.debug(
+                "pruneOfflineQueueEvents: fetch failed: \(error, privacy: .private)"
+            )
+            return
+        }
+        guard events.count > limit else { return }
         for event in events.dropFirst(limit) {
             context.delete(event)
         }

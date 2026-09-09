@@ -81,7 +81,16 @@ extension BackgroundDatabaseActor {
     ) {
         var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
-        guard let record = try? modelContext.fetch(descriptor).first,
+        let record: LocalScanRecord?
+        do {
+            record = try modelContext.fetch(descriptor).first
+        } catch {
+            MerianLog.data.error(
+                "mutateScan: fetch failed for \(id, privacy: .private): \(error, privacy: .private)"
+            )
+            return
+        }
+        guard let record,
               expectedScientificName.map({
                   record.scientificName.caseInsensitiveCompare($0)
                       == .orderedSame

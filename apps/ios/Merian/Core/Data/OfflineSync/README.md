@@ -22,10 +22,12 @@ The canonical behavioral contract is the
 - `Coordinators/GenerationTaskRegistry.swift` contains the main-actor,
   compare-before-clear owner for process-local task cancellation. Its mutable
   entries remain private.
-- `Persistence/` contains narrow SwiftData lookups for offline jobs, durable
-  Field Trip goal-hint reads/deletion, and mapping from queued records to
+- `Persistence/` contains narrow throwing SwiftData lookups for offline jobs,
+  durable Field Trip goal-hint reads/deletion, one fresh-context projection of
+  mirrored scan/job retry authority, and mapping from queued records to
   `ExtractedScanData`. Queue extensions consume these helpers instead of
-  duplicating persistence reads or widening file-local manager details.
+  duplicating persistence reads or widening file-local manager details. A
+  missing row and an unavailable persistence boundary remain distinct.
 - `Services/OfflineQueueManager+Diagnostics.swift` contains diagnostics export
   and event-retention behavior. Export DTOs, redaction policy, and pruning
   helpers remain private to that implementation file.
@@ -51,13 +53,16 @@ The canonical behavioral contract is the
   generation-fenced request preparation and background download dispatch,
   accepted task-result and transport-failure completion, delayed status probes,
   exact-generation background-task inspection/cancellation, server-result
-  hydration/recovery, and retry/server-poll lifetime. The recovery owner
-  resolves the existing network client and scan repository for server-owned
-  result hydration and persists the retryable server-status transition. Its
-  retry sibling owns general transport-retry preflight/persistence and
-  server-poll execution. Completion has no direct network-client or session
-  access, while dispatch and watchdog use only the root manager's retained
-  background session.
+  hydration/recovery, retry/server-poll lifetime, and the injected finalization
+  handoff from a validated response to a fresh persistence actor. The
+  finalization service owns cross-domain ordering but neither SwiftData nor
+  response-decoding implementation. The recovery owner resolves the existing
+  network client and scan repository for server-owned result hydration and
+  persists the retryable server-status transition. The reconciliation owner
+  projects server-owned inferencing IDs from durable authority, and the retry
+  sibling owns general transport-retry preflight/persistence and server-poll
+  execution. Completion has no direct network-client or session access, while
+  dispatch and watchdog use only the root manager's retained background session.
 - `Services/BackgroundTransfer/` owns the lock-protected terminal-work tracker,
   Auth-bound lease retention and transition quiescence, relaunched-task owner
   validation/adoption, terminal callback routing, and the nonisolated URLSession
@@ -70,6 +75,35 @@ The canonical behavioral contract is the
   quarantine. Media Upload's `UploadSync` is its only production consumer and
   retains live-transfer exclusions, video-network eligibility, and
   orchestration.
+- `Core/Data/Database/BackgroundDatabaseActor+UploadLifecycle.swift` owns only
+  pending upload claim, durable manifest staging, and timestamp-fenced orphan
+  release. Media Upload and Inference Replay retain network/task inspection and
+  orchestration. A focused `BackgroundDatabaseActor` extension keeps the retry
+  mirror shared with focused inference persistence actor-isolated without owning
+  process state.
+- `Core/Data/Database/BackgroundDatabaseActor+BackgroundAccountWork.swift` owns
+  only durable background-account activation, exact-owner validation, candidate
+  projection, and persistence-before-cancellation retirement. Background
+  Transfer retains Auth leases, transition quiescence, terminal routing, and
+  URLSession cancellation; Media Upload retains dispatch orchestration.
+- `Core/Data/Database/BackgroundDatabaseActor+InferenceLifecycle.swift` owns
+  only durable inference eligibility, claims, retreats, generation checks,
+  telemetry hydration, and timestamp-fenced orphan recovery. Recovery orders and
+  acquires every candidate's persistence fence, then rereads eligibility in a
+  fresh context before its atomic batch mutation.
+  `BackgroundDatabaseActor+InferenceRetry.swift` owns the general and
+  server-result recovery retry commits. Background Inference, Inference Replay,
+  Media Upload, and Queue Maintenance retain process state, task/network
+  inspection, dispatch, scheduling, cancellation, and finalization.
+- `Core/Data/Database/BackgroundDatabaseActor+LiveScanPersistence.swift` owns
+  the existing foreground visual/nonvisual save entry points.
+  `BackgroundDatabaseActor+OfflineFinalization.swift` owns durable generation
+  validation/adoption and prepared background-result commits, while
+  `BackgroundDatabaseActor+ScanRecordSupport.swift` contains their shared
+  actor-isolated fetch/insert support. `LocalScanRecordFactory` maps the
+  complete record without owning a context, and
+  `Core/Data/CapturedMediaPersistenceService` serializes ordered media through
+  injected file-adoption closures.
 - `OfflineQueueDurability.swift` contains live `OfflineQueueManager` durable
   state mutations and retry orchestration. It consumes the extracted policies;
   it does not own their definitions.
@@ -93,7 +127,8 @@ The canonical behavioral contract is the
 | `Coordinators/GenerationTaskRegistry.swift`                                       | Compare-before-clear process-local generation task cancellation.                                                                                                                                   |
 | `Persistence/ModelContext+FieldTripGoalHints.swift`                               | Durable Field Trip goal-hint reads and deletion shared by replay, recovery, progress acknowledgement, and queue cleanup.                                                                           |
 | `Persistence/ModelContext+OfflineJobs.swift`                                      | Shared `ModelContext` lookup and job-creation helpers.                                                                                                                                             |
-| `Persistence/OfflineQueueManager+QueuedScanExtraction.swift`                      | Main-actor mapping from a queued SwiftData row to the Sendable inference-replay snapshot.                                                                                                          |
+| `Persistence/OfflineQueueDurableAuthorityReader.swift`                            | One fresh throwing context for mirrored scan/job error codes, retry counts, and required-video authority.                                                                                          |
+| `Persistence/OfflineQueueManager+QueuedScanExtraction.swift`                      | Throwing main-actor lookup and mapping from a queued SwiftData row to the Sendable inference-replay snapshot.                                                                                      |
 | `Services/OfflineQueueManager+Diagnostics.swift`                                  | Bounded, redacted diagnostics export and event retention.                                                                                                                                          |
 | `OfflineJobScheduler.swift`                                                       | Persisted wake restoration and the ordered foreground drain.                                                                                                                                       |
 | `OfflineQueueManager.swift`                                                       | Observable queue facade, connectivity/lifecycle state, background-session setup, and retained transfer state.                                                                                      |
@@ -114,8 +149,10 @@ The canonical behavioral contract is the
 | `Services/BackgroundInference/OfflineQueueManager+InferenceLifecycle.swift`       | Exact process-local inference generation claim, validation, retirement, and observable sync completion.                                                                                            |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceDispatch.swift`        | Generation-fenced server preflight, hard-bounded request preparation, durable ownership activation, and background download dispatch.                                                              |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift`      | Generation-fenced task-result processing, compare-before-clear completion ownership and diagnostics, transport-failure handling, final persistence handoff, and private status-probe cancellation. |
+| `Services/BackgroundInference/BackgroundInferenceFinalizationService.swift`       | Cross-domain generation validation, response preparation, exact response-ID validation, and final persistence handoff through a fresh actor.                                                       |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceWatchdog.swift`        | Generation-fenced delayed status probing, exact background-task inspection/cancellation, and watchdog retirement/retry handoff.                                                                    |
-| `Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift`        | Server-status lookup, durable result evidence, retryable-status persistence, durable-wake-first post-save fencing, hydration, cleanup, and server-owned orphan detection.                          |
+| `Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift`        | Server-status lookup, durable result evidence, retryable-status persistence, durable-wake-first post-save fencing, hydration, and cleanup.                                                         |
+| `Services/BackgroundInference/OfflineQueueManager+InferenceReconciliation.swift`  | Durable-authority projection of server-owned inferencing scan IDs for orphan reconciliation.                                                                                                       |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceRetry.swift`           | Compare-before-clear poll-token validation, general transport-retry preflight/persistence, server polling, and retry wake restoration.                                                             |
 | `Services/CaptureAdmission/OfflineCaptureFileStore.swift`                         | Internal stateless size estimation, Documents persistence, rollback, and captured-media serialization, consumed only by `CaptureEnqueue`.                                                          |
 | `Services/CaptureAdmission/OfflineQueueManager+CaptureEnqueue.swift`              | Funding-gated visual and nonvisual admission plus durable record insertion.                                                                                                                        |
@@ -133,12 +170,37 @@ creation because Swift stored properties must remain on the primary type. Media
 upload callback finalization now has a focused owner, and its generation fences
 stay with upload lifecycle. Background inference similarly separates stateless
 policy, process-generation lifecycle, request dispatch, accepted task
-completion, delayed watchdog/task retirement, server-result recovery, and
-retry/server-poll lifetime. The completion and watchdog owners preserve actor
-isolation, generation fencing, persistence-before-cleanup ordering, queue-state
-transitions, and OS-owned background task recovery. The retired queue, sync, and
-URLSession aggregates have no replacement catch-all; each live path is owned by
-the focused service files above.
+completion, delayed watchdog/task retirement, server-result recovery,
+durable-authority orphan reconciliation, and retry/server-poll lifetime. The
+completion and watchdog owners preserve actor isolation, generation fencing,
+persistence-before-cleanup ordering, queue-state transitions, and OS-owned
+background task recovery. The retired queue, sync, and URLSession aggregates
+have no replacement catch-all; each live path is owned by the focused service
+files above.
+
+### Durable Read Invariant
+
+SwiftData absence is a valid domain result only after a successful read. No
+production Swift file under `Core/Data` may use `try?` with `fetch` or
+`fetchCount`; read failures log privately and abort the associated mutation or
+dispatch instead of manufacturing an empty queue, job, collection, or scan.
+`OfflineQueueDurableAuthorityReader` reads the mirrored scan/job error markers,
+attempt counts, and video count through one fresh throwing context. A missing
+manager context is an error, not an empty authority.
+
+Queued-scan extraction follows the same rule. Background inference turns an
+unreadable snapshot into its durable retry path. Upload completion restores the
+persisted scheduler wake and waits for a later reconciliation. Only a successful
+lookup that proves the row is absent may take the already-cleaned or
+missing-metadata path. Field Trip goal-hint reads/deletion and final scan-record
+support also throw, keeping optional data distinct from unavailable storage.
+
+Durable writes precede external work. Collection transport starts only after the
+`.running` job claim saves; a job-read failure remains conservatively pending
+but is not runnable. Cloud deletion preloads its task/job pairs before claiming
+work, and a result-side job read or mutation failure rolls back and retains the
+pending deletion task. These rules tighten failure handling without changing
+queue states, endpoint calls, payloads, schemas, or normal success behavior.
 
 Collection persistence and transport deliberately remain outside this folder's
 service owner. `Core/Data/Database/BackgroundDatabaseActor+CollectionSync.swift`
@@ -162,6 +224,68 @@ attention state atomically. Funding lookup fails selection closed, while a scan,
 job, or save failure rolls back quarantine rather than committing partial state.
 `Services/MediaUpload/OfflineQueueManager+UploadSync.swift` supplies transient
 policy and is the sole caller; neither owner duplicates the other's state.
+
+The next persistence boundary is similarly focused.
+`Core/Data/Database/BackgroundDatabaseActor+UploadLifecycle.swift` owns
+`.pending → .uploading`, exact-manifest `.uploading → .staged`, and
+task-snapshot-fenced orphan `.uploading → .pending` mutations. Media Upload
+retains signing, dispatch, callback accumulation, and network policy; Inference
+Replay retains the task enumeration that supplies orphan-recovery evidence.
+Matching-job read failures roll back the full claim or orphan-recovery batch,
+while genuinely absent legacy job rows remain supported.
+`BackgroundDatabaseActor+RetryMirror.swift` may be consumed only by this
+extension and the focused inference lifecycle/retry owners that repair the same
+durable scan/job retry mirror; its method remains database-actor isolated.
+
+Durable background-account state has its own persistence boundary.
+`Core/Data/Database/BackgroundDatabaseActor+BackgroundAccountWork.swift` commits
+the exact Auth UUID, generation, and upload/inference phase before a background
+task resumes; validates callbacks against both that marker and queue state;
+projects transition-retirement candidates; and returns owned runnable work to
+pending while clearing source-account staging keys before transport
+cancellation. All scan and job reads are throwing and fail closed. The extension
+retains private diagnostics when persistence fails and creates a genuinely
+absent legacy ingestion job in the same activation save. It neither resolves
+Auth nor enumerates or cancels URLSession tasks; those effects stay with
+Background Transfer and Media Upload.
+
+Durable inference state has two focused persistence boundaries.
+`Core/Data/Database/BackgroundDatabaseActor+InferenceLifecycle.swift` owns
+server-owned eligibility reads, the staged/inferencing transition pair,
+background and live durable-generation validation, telemetry writes, and
+timestamp-fenced orphan release.
+`Core/Data/Database/BackgroundDatabaseActor+InferenceRetry.swift` owns both
+generation-aware retry commits and shares the actor-isolated retry-mirror repair
+with upload lifecycle. Every scan/job lookup is throwing and fail closed. A
+genuinely absent legacy ingestion job remains supported, while a fetch failure
+cannot create a replacement row. Orphan recovery acquires candidate fences in
+stable order, rereads current durable eligibility after waiting, and preloads
+every matching job before its first mutation so newer terminal work wins and one
+failed read aborts the batch. Both async mutation owners release their per-scan
+persistence fence when already cancelled. The extensions do not own
+process-generation state, scheduling, task enumeration/cancellation, request
+dispatch, networking, file I/O, Auth, or UI.
+
+Scan finalization has a similarly narrow boundary.
+`Core/Data/Database/BackgroundDatabaseActor+LiveScanPersistence.swift` owns the
+existing foreground visual/nonvisual save entry points, while
+`BackgroundDatabaseActor+OfflineFinalization.swift` owns durable generation
+validation/adoption and prepared background-result commits.
+`BackgroundDatabaseActor+ScanRecordSupport.swift` contains their shared
+actor-isolated fetch/insert support, and `LocalScanRecordFactory` maps the
+complete record without owning a context. The stateless
+`Core/Data/CapturedMediaPersistenceService` preserves canonical media order and
+delegates audio/video adoption through injected `FileIOActor` closures.
+
+`BackgroundInferenceFinalizationService` holds the per-scan persistence fence
+across durable generation validation, shared response preparation, exact
+response-ID validation, and the final SwiftData commit. It intentionally does
+not await `InferenceProcessingActor` while holding that fence; the stateless
+`InferenceResponsePreparationService` supplies the same decode, success
+validation, mapping, and entitlement policy to foreground and background
+completion without an actor dependency cycle. Queue deletion remains on the main
+actor after finalization so open SwiftData queries receive a real pending
+deletion and stale work cannot delete a replacement generation.
 
 Queued inference audio is intentionally fail-closed. Supported iOS capture and
 video-companion producers persist local WAV files, and pending upload preflight
@@ -245,8 +369,9 @@ Focused tests mirror the extracted owners:
   foundation slice.
 - `OfflineQueueSyncArchitectureTests` freezes the eight live sync service files,
   their declaration and import ownership, completion-helper containment,
-  responsibility boundaries, mirrored collection-sync and upload-completion
-  tests, retired aggregates, and 600-line ceiling.
+  responsibility boundaries, collection/cloud durable-claim-before-dispatch
+  ordering, cloud job mutation before task removal, mirrored collection-sync and
+  upload-completion tests, retired aggregates, and 600-line ceiling.
 - `OfflineQueueMaintenanceArchitectureTests` freezes the two maintenance service
   owners, shared persistence lookup owners, private destructive helpers,
   persistence-lock ordering, database-before-file deletion, exact framework
@@ -265,18 +390,38 @@ Focused tests mirror the extracted owners:
   preservation, exact inference-completion consumers, mirrored test ownership,
   and the 600-line ceiling.
 - `BackgroundInferenceArchitectureTests` freezes the stateless policy,
-  generation lifecycle, dispatch, completion, watchdog, recovery, and retry
-  owners; exact declarations, imports, and cross-file consumers; lack of direct
-  network-client/session access in completion; exact task-session containment in
-  dispatch/watchdog; post-enumeration probe/generation revalidation;
-  generation/persistence/retirement ordering; durable-wake restoration without
-  an intervening suspension before post-persistence revalidation in both retry
-  paths and before process-local replacement; direct-generation-map containment;
-  the 600-line production-file ceiling; and mirrored test ownership.
+  generation lifecycle, dispatch, completion, finalization, watchdog, recovery,
+  reconciliation, and retry owners; exact declarations, imports, and cross-file
+  consumers; lack of direct network-client/session access in completion; exact
+  task-session containment in dispatch/watchdog; post-enumeration
+  probe/generation revalidation; generation/persistence/retirement ordering;
+  durable-wake restoration without an intervening suspension before
+  post-persistence revalidation in both retry paths and before process-local
+  replacement; direct-generation-map containment; the 600-line production-file
+  ceiling; and mirrored test ownership.
+- `CoreDataIntegrationArchitectureTests` freezes the exact bounded
+  `BackgroundDatabaseActor` source/import inventory, its declaration-only root,
+  the Core Data-wide ban on silently discarded SwiftData fetch failures, the
+  one-context durable-authority projection and its bounded consumers, and
+  throwing absence/failure boundaries across scan finalization, goal hints,
+  queue maintenance, cloud deletion, and historical reconciliation.
+- `CapturedMediaPersistenceServiceTests` covers explicit/default timeline order,
+  invalid-item filtering, and standalone-audio source identity without touching
+  Documents storage. Its generic-constrained compile guard also requires the
+  complete finalization response/result graph to remain `Sendable`.
+  `ScanFinalizationArchitectureTests` freezes the declaration-only actor
+  aggregate, exact declaration ownership, dependency direction, coordinator
+  containment, shared foreground/background response preparation, explicit
+  checked-sendability declarations, rejection of an unchecked prepared-response
+  conformance, the no-finalizer-to-processing-actor boundary, and focused
+  production-file ceilings. `BackgroundDatabaseActorTests` retains the
+  end-to-end persistence and dual-path race cases.
 - `scripts/test-ios-build-and-test-workflow.sh` follows those focused owners: it
   requires the two upload-task reconciliation scans in `UploadSync`, the third
   in `UploadDispatch`, and keeps request policy plus activation-before-resume
-  ordering checks with the dispatch owner.
+  ordering checks with the dispatch owner. It also preserves the complete
+  automatic-network admission coverage while assigning eight references to
+  inference Recovery and the moved ninth reference to Reconciliation.
 - `CloudDeletionSyncTests`, `CollectionSyncTests`, `MediaUploadSyncTests`, and
   `MediaUploadCompletionTests` mirror the corresponding live service owners. The
   completion suite preserves sibling fencing across a whole generation, exact
@@ -297,6 +442,29 @@ Focused tests mirror the extracted owners:
   freezes its focused production and test owners, fail-closed SwiftData reads,
   shared offline-job lookup, upload-sync consumer allowlist, dependency
   exclusions, and 600-line ceilings.
+- `UploadLifecyclePersistenceTests` covers pending-only upload claims, durable
+  staging outcomes, retry-marker preservation, orphaned scan/job release, and
+  task-snapshot fencing. `UploadLifecycleArchitectureTests` freezes its focused
+  actor extension and outcome type, exact Media Upload/Inference Replay
+  consumers, fail-closed matching-job reads, actor-isolated retry-mirror support
+  use, mirrored tests, dependency exclusions, and production/test size ceilings.
+- `BackgroundAccountWorkPersistenceTests` covers exact upload-owner retirement,
+  rejected inference-dispatch requeue, the staged upload-callback race, and
+  activation-time ingestion-job creation for legacy scans without one.
+  `BackgroundAccountWorkArchitectureTests` freezes its focused actor extension,
+  exact Background Transfer and Media Upload consumers, throwing SwiftData
+  reads, balanced per-scan persistence fences, mirrored tests, dependency
+  exclusions, and focused/residual size ceilings.
+- `InferenceLifecyclePersistenceTests` covers inference claims and retreats,
+  background/live generation checks, timestamp-fenced orphan recovery, post-wait
+  terminal-state revalidation, missing-job compatibility, and cancellation fence
+  release. `InferenceRetryPersistenceTests` covers monotonic retry authority,
+  cloud-complete veto, media restaging, server-result evidence, missing-job
+  compatibility for both retry modes, and cancellation fence release.
+  `InferencePersistenceArchitectureTests` freezes sole declaration/test
+  ownership, exact production consumers, throwing SwiftData reads, orphan batch
+  preload, private helpers, balanced fences, dependency exclusions, focused
+  source/test ceilings, and the residual actor's non-growth cap.
 - `QueuedInferenceMediaPolicyTests`, `MediaStagingContractTests`,
   `MediaStagingBudgetTests`, `MediaStagingIdentityTests`, and
   `MediaStagingCompletionStateTests` cover storage-aware local-WAV admission,
@@ -308,10 +476,9 @@ Focused tests mirror the extracted owners:
   delay caps, and jitter bounds.
 - `GenerationTaskRegistryTests` covers compare-before-clear cancellation.
 - `QueuedScanExtractionTests` owns deterministic gallery timestamp, legacy
-  visual/audio, sparse identity, and mixed-timeline mapping coverage without
-  installing process-wide manager state. The foundation architecture suite
-  freezes its test ownership plus the exact mapper and preferred-goal consumer
-  allowlists.
+  visual/audio, sparse identity, and mixed-timeline mapping without installing
+  process-wide manager state. The foundation architecture suite freezes its test
+  ownership plus the exact mapper and preferred-goal consumer allowlists.
 - `QueueMaintenanceTests` covers tombstoning, fresh-context automatic-work
   counts, invalid-media quarantine, completed-result/funding preservation,
   non-actionable failed-record purging, and queue/goal-hint flushes. Its cases

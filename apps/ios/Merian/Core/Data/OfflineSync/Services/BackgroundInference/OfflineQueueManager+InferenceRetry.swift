@@ -111,7 +111,15 @@ extension OfflineQueueManager {
             return
         }
 
-        let currentAttempt = queueAttemptCount(for: scanId)
+        let currentAttempt: Int
+        do {
+            currentAttempt = try queueAttemptCount(for: scanId)
+        } catch {
+            MerianLog.data.error(
+                "handleInferenceRetry: durable attempt fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return
+        }
         guard OfflineQueueRetryPolicy.canScheduleAutomaticRetry(currentAttempt: currentAttempt) else {
             markQueuedScanNeedsAttention(
                 scanId: scanId,

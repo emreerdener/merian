@@ -80,13 +80,15 @@ with `@Attribute(originalName:)`. This avoids SwiftData's reserved
 `PersistentModel.isDeleted` lifecycle state while preserving the existing
 `is_deleted` wire field.
 
-The released V50 shape is frozen in `Models/Schema/SchemaV50Snapshots.swift`;
-its historical `isDeleted` Swift property and goal-hint companion form the
-immutable disk fixture. `MerianActiveSchemaV50` is the source bridge for the
-custom V50→V51 preference migration; the collection shape itself remains
-unchanged in V51. Released V50 stores therefore use the source-isolated V50→V51
-plan. V49 stores advance through lightweight V49→V50 and custom V50→V51 hops;
-V43...V48 retain source-isolated repair plans ending at V51.
+V50 shipped two checksum-distinct shapes. The original `isDeleted` graph is
+frozen in `Models/Schema/SchemaV50Snapshots.swift`; the processed release's
+`isPendingDeletion` plus original-name mapping is frozen in
+`Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`. Both retain the
+goal-hint companion and have source-exact custom V50→V51 preference migrations;
+the collection shape itself remains unchanged in V51. Startup chooses between
+them using allowlisted model metadata. V49 stores advance through lightweight
+V49→V50 and custom V50→V51 hops; V43...V48 retain source-isolated repair plans
+ending at V51.
 
 The deletion marker is covered across save/refetch, disk migration, relationship
 retention, outbound `is_deleted` projection, inbound tombstone shielding, and

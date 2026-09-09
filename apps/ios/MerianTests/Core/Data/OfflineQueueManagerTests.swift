@@ -601,7 +601,7 @@ struct OfflineQueueManagerTests {
             fetched.queueLastErrorCode
                 == OfflineQueueManager.completedServerResultRecoveryCode
         )
-        #expect(manager.hasDurableCompletedServerResult(scanId: scanId))
+        #expect(try manager.hasDurableCompletedServerResult(scanId: scanId))
         #expect(!fetched.queueNeedsAttention)
     }
 

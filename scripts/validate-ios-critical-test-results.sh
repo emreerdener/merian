@@ -285,18 +285,18 @@ assert_suite_has_passed_test_case \
   "scheduledServerFailureMarkerIsReadFromDurableStore"
 assert_suite_has_passed_test_case \
   "Scheduled retry survival through media restaging" \
-  "BackgroundDatabaseActorTests" \
-  "Background Database Actor Tests" \
+  "UploadLifecyclePersistenceTests" \
+  "Upload Lifecycle Persistence" \
   "testMarkScanAsStagedPreservesScheduledServerFailureRetry"
 assert_suite_has_passed_test_case \
   "Monotonic mirrored retry accounting" \
-  "BackgroundDatabaseActorTests" \
-  "Background Database Actor Tests" \
+  "InferenceRetryPersistenceTests" \
+  "Inference Retry Persistence" \
   "testScheduleInferenceRetryUsesMonotonicMirroredAttempt"
 assert_suite_has_passed_test_case \
   "Cloud-complete retry veto" \
-  "BackgroundDatabaseActorTests" \
-  "Background Database Actor Tests" \
+  "InferenceRetryPersistenceTests" \
+  "Inference Retry Persistence" \
   "testInferenceRetryCannotOverrideCompletedCloudOwnership"
 assert_suite_has_passed_test_case \
   "Offline capture durability" \
@@ -355,8 +355,8 @@ assert_suite_has_passed_test_case \
   "pausedScansCannotBeClaimedOrReconciled"
 assert_suite_has_passed_test_case \
   "Orphaned upload scan and durable-job atomic release" \
-  "BackgroundDatabaseActorTests" \
-  "Background Database Actor Tests" \
+  "UploadLifecyclePersistenceTests" \
+  "Upload Lifecycle Persistence" \
   "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive"
 assert_suite_has_passed_test_case \
   "Pending queue retry-deadline starvation fence" \

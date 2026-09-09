@@ -230,7 +230,9 @@ struct ScanRepositoryTests {
         }
         let actor = HistoricalDatabaseActor(modelContainer: container)
 
-        let insertedCount = await actor.reconcileScanPage(responses: responses)
+        let insertedCount = try await actor.reconcileScanPage(
+            responses: responses
+        )
         #expect(insertedCount == 3)
 
         let verificationContext = ModelContext(container)
@@ -248,6 +250,69 @@ struct ScanRepositoryTests {
         #expect(human.isBiological)
         #expect(human.isHumanSubject)
         #expect(!human.isExploreShareEligible)
+    }
+
+    @Test func historicalReconciliationCountsOnlyPersistedRows() async throws {
+        let context = try createIsolatedContext()
+        let actor = HistoricalDatabaseActor(
+            modelContainer: context.container
+        )
+        let validId = "valid-historical-\(UUID().uuidString.lowercased())"
+        let invalidId = "invalid-historical-\(UUID().uuidString.lowercased())"
+        let payload = Data(
+            """
+            [
+              {
+                "id": "\(validId)",
+                "timestamp": "2026-09-09T12:00:00.000Z"
+              },
+              {
+                "id": "\(invalidId)",
+                "timestamp": "not-a-date"
+              }
+            ]
+            """.utf8
+        )
+        let responses = try JSONDecoder().decode(
+            [HistoricalScanResponse].self,
+            from: payload
+        )
+
+        let insertedCount = try await actor.reconcileScanPage(
+            responses: responses
+        )
+
+        #expect(insertedCount == 1)
+        let records = try ModelContext(context.container).fetch(
+            FetchDescriptor<LocalScanRecord>()
+        )
+        #expect(records.map(\.id) == [validId])
+    }
+
+    @Test func cancelledCollectionReconciliationPreservesLocalRows() async throws {
+        let context = try createIsolatedContext()
+        let retainedCollection = ScanCollection(name: "Retained Collection")
+        context.insert(retainedCollection)
+        try context.save()
+        let retainedId = retainedCollection.id
+
+        let actor = HistoricalDatabaseActor(
+            modelContainer: context.container
+        )
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await actor.syncCollectionsDown(remoteCollections: [])
+        }
+
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+
+        let verificationContext = ModelContext(context.container)
+        let collections = try verificationContext.fetch(
+            FetchDescriptor<ScanCollection>()
+        )
+        #expect(collections.map(\.id) == [retainedId])
     }
 
     @Test func testHistoricalReconciliationRepairsCachedMissingRemoteVideo() async throws {
@@ -286,7 +351,7 @@ struct ScanRepositoryTests {
         let response = try JSONDecoder().decode(HistoricalScanResponse.self, from: responseData)
         let actor = HistoricalDatabaseActor(modelContainer: container)
 
-        _ = await actor.reconcileScanPage(responses: [response])
+        _ = try await actor.reconcileScanPage(responses: [response])
 
         let verificationContext = ModelContext(container)
         var descriptor = FetchDescriptor<LocalScanRecord>(
@@ -334,7 +399,7 @@ struct ScanRepositoryTests {
         let response = try JSONDecoder().decode(HistoricalScanResponse.self, from: responseData)
         let actor = HistoricalDatabaseActor(modelContainer: container)
 
-        _ = await actor.reconcileScanPage(responses: [response])
+        _ = try await actor.reconcileScanPage(responses: [response])
 
         let verificationContext = ModelContext(container)
         var descriptor = FetchDescriptor<LocalScanRecord>(
@@ -385,7 +450,7 @@ struct ScanRepositoryTests {
         let response = try JSONDecoder().decode(HistoricalScanResponse.self, from: responseData)
         let actor = HistoricalDatabaseActor(modelContainer: container)
 
-        _ = await actor.reconcileScanPage(responses: [response])
+        _ = try await actor.reconcileScanPage(responses: [response])
 
         let verificationContext = ModelContext(container)
         var descriptor = FetchDescriptor<LocalScanRecord>(
@@ -440,7 +505,7 @@ struct ScanRepositoryTests {
         let response = try JSONDecoder().decode(HistoricalScanResponse.self, from: responseData)
         let actor = HistoricalDatabaseActor(modelContainer: container)
 
-        _ = await actor.reconcileScanPage(responses: [response])
+        _ = try await actor.reconcileScanPage(responses: [response])
 
         let verificationContext = ModelContext(container)
         var descriptor = FetchDescriptor<LocalScanRecord>(
@@ -491,7 +556,7 @@ struct ScanRepositoryTests {
         let response = try JSONDecoder().decode(HistoricalScanResponse.self, from: responseData)
         let actor = HistoricalDatabaseActor(modelContainer: container)
 
-        _ = await actor.reconcileScanPage(responses: [response])
+        _ = try await actor.reconcileScanPage(responses: [response])
 
         let verificationContext = ModelContext(container)
         var descriptor = FetchDescriptor<LocalScanRecord>(
@@ -551,7 +616,7 @@ struct ScanRepositoryTests {
         let response = try JSONDecoder().decode(HistoricalScanResponse.self, from: responseData)
         let actor = HistoricalDatabaseActor(modelContainer: container)
 
-        _ = await actor.reconcileScanPage(responses: [response])
+        _ = try await actor.reconcileScanPage(responses: [response])
 
         let verificationContext = ModelContext(container)
         var descriptor = FetchDescriptor<LocalScanRecord>(
@@ -625,7 +690,7 @@ struct ScanRepositoryTests {
         )
         let actor = HistoricalDatabaseActor(modelContainer: container)
 
-        _ = await actor.reconcileScanPage(responses: [response])
+        _ = try await actor.reconcileScanPage(responses: [response])
 
         let verificationContext = ModelContext(container)
         var descriptor = FetchDescriptor<LocalScanRecord>(
@@ -687,7 +752,7 @@ struct ScanRepositoryTests {
         )
         let actor = HistoricalDatabaseActor(modelContainer: container)
 
-        _ = await actor.reconcileScanPage(responses: [response])
+        _ = try await actor.reconcileScanPage(responses: [response])
 
         let verificationContext = ModelContext(container)
         var descriptor = FetchDescriptor<LocalScanRecord>(

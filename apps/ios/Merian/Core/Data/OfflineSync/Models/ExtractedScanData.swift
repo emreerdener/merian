@@ -147,8 +147,8 @@ struct ExtractedScanData: Sendable {
 
 // MARK: - Offline Scan Processing Result
 
-/// Result returned by `BackgroundDatabaseActor.processAndCleanupOfflineScan`.
-struct OfflineScanProcessingResult {
+/// Result returned by background inference finalization.
+struct OfflineScanProcessingResult: Sendable {
     let resolvedSpeciesName: String?
     let isNewDiscovery: Bool
     let finalScanId: String?
@@ -166,4 +166,12 @@ struct OfflineScanProcessingResult {
     /// in a presented sheet (SwiftData platform limitation: background context saves do not
     /// reliably propagate to `@Query` in open sheets via remote change notifications).
     let wasCleaned: Bool
+
+    static let notProcessed = OfflineScanProcessingResult(
+        resolvedSpeciesName: nil,
+        isNewDiscovery: false,
+        finalScanId: nil,
+        speciesData: nil,
+        wasCleaned: false
+    )
 }

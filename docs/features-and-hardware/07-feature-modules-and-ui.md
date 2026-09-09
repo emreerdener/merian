@@ -429,12 +429,14 @@ production Shell and Library file remains below the 600-line review guard.
   preserves the upstream `sync-collections` wire contract.
 - **Collection-Deletion Persistence**: The active V51 `ScanCollection` model
   names its application soft-delete field `isPendingDeletion` and maps it to the
-  released `isDeleted` column with `@Attribute(originalName:)`. The released V50
-  graph is frozen as an immutable fixture, while `MerianActiveSchemaV50` is the
-  source bridge into V51. The custom V50→V51 stage changes only preferred-name
+  released `isDeleted` column with `@Attribute(originalName:)`. Both
+  checksum-distinct V50 graphs are frozen as immutable fixtures and have
+  source-exact bridges into V51. Startup selects the graph from allowlisted
+  model metadata. The custom V50→V51 stages change only preferred-name
   ownership; the existing `is_deleted` Edge payload, inbound tombstone shield,
   and acknowledgement-only purge remain unchanged. Disk-backed migration tests
-  prove true/false values and relationship retention. See the
+  prove both graph signatures, true/false values, relationship retention, and
+  relaunch. See the
   [SwiftData schema contract](../backend-and-data/04-database-schema.md#scancollection-user-albums)
   and
   [SwiftData gotcha](../development-guides/11-swiftdata-and-api-gotchas.md#29-persistentmodelisdeleted-is-framework-state-not-app-storage).

@@ -612,24 +612,29 @@ triggering excessive SwiftUI view rebuilds.
   boundary used by Inference and scan-thumbnail recovery. It performs no engine,
   presentation, or SwiftData mutation.
 - `InferenceProcessingActor.swift` — a dedicated actor for base64 encoding and
-  response parsing/persistence. It receives all data as parameters and has no
-  access to `InferenceEngine`'s private state. It exposes two methods:
-  `encodeBase64(compressedDatas:)` and `parseAndSave(...)`. `parseAndSave`
-  returns a `ParseAndSaveResult` struct with `mappedData: SpeciesData?`,
-  `isNewDiscovery: Bool`, `savedPaths: [String]`, `planUsed: String?`, and
-  `didCompletePersistence: Bool`. The result service requires the actor's
-  completion proof and mapped value; confidence alone cannot prove a durable
-  terminal outcome. Confidence-zero completion is completed-without-record, not
-  a saved replacement record. The longer-term media source of truth is the
-  ordered timeline exposed through `CapturedMediaSnapshot`. Persistence writes
-  both the scalar `capturedMediaJSON` and the V41 `capturedMediaEntries`
-  relationship; snapshot reads prefer the JSON mirror first so insight-sheet
-  layout does not fault relationship rows on the main actor. Video entries are
-  serialized as `StoredVideoMediaReference(video:, thumbnail:)`, keeping the
-  playable `.mp4` and poster thumbnail together. The relationship mirror remains
-  a fallback for older data and may only preserve the video path; the scalar
-  JSON carries the richer poster metadata used by current UI and Explore
-  sharing.
+  foreground response-to-persistence orchestration. It receives all data as
+  parameters and has no access to `InferenceEngine`'s private state. It exposes
+  two methods: `encodeBase64(compressedDatas:)` and `parseAndSave(...)`.
+  `parseAndSave` returns a `ParseAndSaveResult` struct with
+  `mappedData: SpeciesData?`, `isNewDiscovery: Bool`, `savedPaths: [String]`,
+  `planUsed: String?`, and `didCompletePersistence: Bool`. The stateless
+  `Inference/Services/InferenceResponsePreparationService.swift` owns shared
+  foreground/background JSON decoding, success validation, domain mapping, and
+  entitlement/usage reconciliation. `PreparedResponse`, the complete
+  `SpeciesData` graph, `ParseAndSaveResult`, and `OfflineScanProcessingResult`
+  are compiler-checked `Sendable` values rather than unchecked actor-boundary
+  assertions. The result service requires the actor's completion proof and
+  mapped value; confidence alone cannot prove a durable terminal outcome.
+  Confidence-zero completion is completed-without-record, not a saved
+  replacement record. The longer-term media source of truth is the ordered
+  timeline exposed through `CapturedMediaSnapshot`. Persistence writes both the
+  scalar `capturedMediaJSON` and the V41 `capturedMediaEntries` relationship;
+  snapshot reads prefer the JSON mirror first so insight-sheet layout does not
+  fault relationship rows on the main actor. Video entries are serialized as
+  `StoredVideoMediaReference(video:, thumbnail:)`, keeping the playable `.mp4`
+  and poster thumbnail together. The relationship mirror remains a fallback for
+  older data and may only preserve the video path; the scalar JSON carries the
+  richer poster metadata used by current UI and Explore sharing.
 - `InferenceEdgeDTOs.swift` — contains hand-written `APIError` and enrichment
   DTOs plus the marked, generated `EdgeResponseWrapper`, `EdgeResponse`,
   taxonomy, insight, quality, candidate, and pet response graph. The Identify
@@ -673,17 +678,22 @@ triggering excessive SwiftUI view rebuilds.
   activation, and background download dispatch. The completion sibling owns
   accepted task-result processing, transport-failure handling, final persistence
   handoff, compare-before-clear completion-lock teardown, and private probe
-  cancellation. The watchdog sibling owns delayed status probes, parsed
-  background-task inspection, exact-generation cancellation, and the
-  recovery/retirement/retry handoff. It repeats both the compare-before-clear
-  probe-token check and exact-generation check after each background-task
-  enumeration, keeping a replacement probe and generation intact across that
-  suspension. Completion diagnostics distinguish an exact lock clear from a
-  replacement owner preserved across suspension. Timeout cancels and ignores a
-  late non-cooperative preparation without delaying the caller; explicit caller
-  cancellation remains `CancellationError`. Replay sends only telemetry already
-  persisted with the queue row and performs no WeatherKit or reverse-geocoding
-  lookup. `OfflineQueueManager+InferenceRecovery.swift` owns server-result
+  cancellation. `BackgroundInferenceFinalizationService.swift` owns the
+  generation/response/persistence ordering behind that handoff. It uses the
+  stateless shared response-preparation service instead of awaiting
+  `InferenceProcessingActor` while the per-scan fence is held, then invokes the
+  fresh `BackgroundDatabaseActor` supplied by completion. The watchdog sibling
+  owns delayed status probes, parsed background-task inspection,
+  exact-generation cancellation, and the recovery/retirement/retry handoff. It
+  repeats both the compare-before-clear probe-token check and exact-generation
+  check after each background-task enumeration, keeping a replacement probe and
+  generation intact across that suspension. Completion diagnostics distinguish
+  an exact lock clear from a replacement owner preserved across suspension.
+  Timeout cancels and ignores a late non-cooperative preparation without
+  delaying the caller; explicit caller cancellation remains `CancellationError`.
+  Replay sends only telemetry already persisted with the queue row and performs
+  no WeatherKit or reverse-geocoding lookup.
+  `OfflineQueueManager+InferenceRecovery.swift` owns server-result
   hydration/recovery and retryable server-status persistence. After that durable
   save it restores the central wake before revalidating cancellation, network,
   poll-token, and generation ownership for optional process-local replacement.
@@ -815,19 +825,25 @@ triggering excessive SwiftUI view rebuilds.
 - **Orphaned `.uploading` Reconciliation**: `markScansAsUploading` runs before
   `generateUploadURLs`, returns the scan IDs whose `.pending → .uploading`
   transition actually committed, and `syncPendingScans` signs/dispatches only
-  those claimed files. If the claim save fails, the actor rolls back and no
-  URLSession tasks are launched. If the URL-generation request fails after a
-  successful claim (e.g. task cancelled when the user backgrounds), any scans
-  already transitioned to `.uploading` are reset to `.pending`, then each
-  affected scan records durable retry metadata through
-  `OfflineQueueRetryPolicy`. When the shared automatic retry budget is
+  those claimed files. If the scan read, matching-job read, or claim save fails,
+  the actor rolls back the complete batch and no URLSession tasks are launched;
+  a successful lookup with no matching legacy job remains valid. If the
+  URL-generation request fails after a successful claim (e.g. task cancelled
+  when the user backgrounds), any scans already transitioned to `.uploading` are
+  reset to `.pending`, then each affected scan records durable retry metadata
+  through `OfflineQueueRetryPolicy`. When the shared automatic retry budget is
   exhausted, those rows move to `queueNeedsAttention` rather than scheduling
   another in-memory retry. Additionally, `replayInferenceForUploadedScans`
   cross-references live URLSession tasks on every call to catch orphans that
   bypass the catch block. Upload/inference claims, retries, and both reconcilers
   use one cached queue actor. Each reconciliation captures `observedThrough`
   before URLSession enumeration and excludes rows updated later, so a stale task
-  snapshot cannot reset a newer claim while waiting for that actor.
+  snapshot cannot reset a newer claim while waiting for that actor. The
+  inference orphan pass also acquires candidate persistence fences in stable ID
+  order and rereads durable eligibility through a fresh context after waiting.
+  It carries only scan IDs across suspension and preloads every matching job
+  before its one batch save, so terminal or retry work committed during the wait
+  remains authoritative.
 - **Server-Owned Inference Recovery**: Before replay resets an orphaned
   `.inferencing` scan, it polls `/check-scan-status` with the queued scan's
   required video count. A `found` result first persists the cloud-complete
@@ -966,9 +982,12 @@ triggering excessive SwiftUI view rebuilds.
   - `.finalizing` — writing `LocalScanRecord` and cleaning up queue entries
 - The `.finalizing` phase may represent a live/background dual-path race for the
   same stable scan ID. Local persistence is serialized by
-  `ScanFinalizationCoordinator`, which is acquired by
-  `processAndCleanupOfflineScan`, `saveLiveScanRecord`, and
-  `saveNonVisualRecord` before writing `LocalScanRecord.id`. Do not bypass this
+  `ScanFinalizationCoordinator`, which is acquired by the focused offline
+  persistence handoff, `saveLiveScanRecord`, and `saveNonVisualRecord` before
+  writing `LocalScanRecord.id`. Background response/fence orchestration belongs
+  to `BackgroundInferenceFinalizationService`; it must use the stateless
+  response-preparation service rather than await `InferenceProcessingActor`
+  while holding `ScanInferencePersistenceCoordinator`. Do not bypass either
   coordinator from new scan-finalization entry points.
 - Backward-compatible computed shims (`isSyncing`, `pendingUploadCount`) are
   preserved for existing consumers.
@@ -1023,9 +1042,12 @@ triggering excessive SwiftUI view rebuilds.
   projection includes the existing nullable `is_biological_subject` field:
   inserts use the cloud value when present and retain the legacy `true` default
   only for older null rows, while updates apply only a non-null remote value.
-  Classification is never inferred from stored reasoning. **Never reorder the
-  push and pull** — reversing them causes unsynced local collections to be
-  treated as obsolete and deleted on the next app launch.
+  Classification is never inferred from stored reasoning. Historical actor reads
+  and saves are throwing boundaries: storage failure aborts the pass for retry,
+  invalid-timestamp rows are excluded from the inserted count, and cancellation
+  rolls back pending collection pruning. **Never reorder the push and pull** —
+  reversing them causes unsynced local collections to be treated as obsolete and
+  deleted on the next app launch.
 - **`eradicateScan`**: Commits database changes (delete record, insert cloud
   deletion task) before touching disk. File deletion via
   `FileIOActor.shared.deleteImages(at:)` runs only after a successful

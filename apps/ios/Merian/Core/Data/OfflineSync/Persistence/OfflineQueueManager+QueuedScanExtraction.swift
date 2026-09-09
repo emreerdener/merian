@@ -2,11 +2,37 @@ import CoreGraphics
 import Foundation
 import SwiftData
 
+enum QueuedScanExtractionError: Error {
+    case missingModelContext
+}
+
 extension OfflineQueueManager {
+    /// Reads and maps one queued scan while preserving the distinction between
+    /// an absent row and an unavailable persistence boundary.
+    func extractedQueuedScanData(
+        scanId: String
+    ) throws -> ExtractedScanData? {
+        guard let context = modelContext else {
+            throw QueuedScanExtractionError.missingModelContext
+        }
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard let scan = try context.fetch(descriptor).first else { return nil }
+        return try buildExtractedScanData(
+            from: scan,
+            container: context.container
+        )
+    }
+
     /// Maps a queued scan record to a Sendable `ExtractedScanData` snapshot.
     /// Must be called while `scan` is accessible on the main actor.
-    func buildExtractedScanData(from scan: OfflineQueuedScan, container: ModelContainer) -> ExtractedScanData {
-        let preferredGoal = ModelContext(container)
+    func buildExtractedScanData(
+        from scan: OfflineQueuedScan,
+        container: ModelContainer
+    ) throws -> ExtractedScanData {
+        let preferredGoal = try ModelContext(container)
             .preferredGoalHint(scanId: scan.id)
         let visualMediaItems: [IdentifyVisualMediaItem]? = scan.visualMediaItemsJSON.flatMap { json in
             guard let data = json.data(using: .utf8) else { return nil }

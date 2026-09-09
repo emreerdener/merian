@@ -222,13 +222,14 @@ media-upload preparation/dispatch/completion, queued-scan extraction, queue
 maintenance, capture admission, funding, Field Trip progress, inference replay,
 background inference, and background transfer. Background Inference separates
 actor-independent response/status policy, exact process-generation lifecycle,
-generation-fenced request dispatch, accepted task completion, and delayed
-watchdog probing/task retirement with compare-before-clear replacement-owner
-preservation. Background Transfer separates lock-protected terminal tracking,
-exact-session lease quiescence, private terminal owner validation/adoption,
-main-actor terminal routing, and nonisolated URLSession delegate routing from
-the remaining result pipeline. `OfflineQueueDurability.swift` retains live
-durable mutations and retry orchestration.
+generation-fenced request dispatch, accepted task completion, injected
+response-to-persistence finalization, and delayed watchdog probing/task
+retirement with compare-before-clear replacement-owner preservation. Background
+Transfer separates lock-protected terminal tracking, exact-session lease
+quiescence, private terminal owner validation/adoption, main-actor terminal
+routing, and nonisolated URLSession delegate routing from the remaining result
+pipeline. `OfflineQueueDurability.swift` retains live durable mutations and
+retry orchestration.
 
 Collection sync keeps durable job/revision and single-flight state on
 `OfflineQueueManager`, while `CollectionSyncService` owns the injected
@@ -243,13 +244,15 @@ recovery from inside the exact task and account lease that recovery must drain.
 The root `OfflineQueueManager` retains stored state and background-session
 construction; the focused inference-completion extension owns accepted result
 and transport-failure processing plus generation-tagged completion-lock
-teardown, the watchdog extension owns exact-generation status probing and
-background-task inspection/cancellation, the recovery extension owns
-server-result hydration, durable recovery, and retryable server-status
-persistence, while the retry extension owns general transport-retry
-preflight/persistence and server-poll execution. The former sync aggregate is
-eight focused service files under `CloudDeletion`, `Collections`, and
-`MediaUpload`; media-upload completion and generation fencing have explicit
+teardown. `BackgroundInferenceFinalizationService` owns durable-generation,
+shared-response, and fresh-actor persistence ordering without awaiting
+`InferenceProcessingActor` under the per-scan lock. The watchdog extension owns
+exact-generation status probing and background-task inspection/cancellation, the
+recovery extension owns server-result hydration, durable recovery, and retryable
+server-status persistence, while the retry extension owns general
+transport-retry preflight/persistence and server-poll execution. The former sync
+aggregate is eight focused service files under `CloudDeletion`, `Collections`,
+and `MediaUpload`; media-upload completion and generation fencing have explicit
 owners, while queued SwiftData rows map to inference snapshots under
 `Persistence`. Queue count, tombstone, flush, deletion, and purge behavior is
 split under `QueueMaintenance`. The former queue aggregate is split under
@@ -269,41 +272,80 @@ consumers, synchronous terminal registration, durable-before-cancel Auth
 quiescence, preservation of the active inference generation when durable
 retirement fails, and exact process-generation completion when it later
 succeeds. The background-inference guard freezes
-policy/lifecycle/dispatch/completion/watchdog/recovery/retry ownership, imports
-and consumers, generation revalidation, completion persistence ordering, stale
-callback fencing, post-task-enumeration probe/generation revalidation, exact
-probe/task retirement ordering, durable dispatch ordering, the hard preparation
-deadline that cancels and ignores late non-cooperative work, caller-cancellation
-identity, durable-wake restoration without an intervening suspension in both
-retry paths before post-save poll/generation revalidation and optional
-process-local replacement, and the 600-line production-file ceiling.
+policy/lifecycle/dispatch/completion/finalization/watchdog/recovery/retry
+ownership, imports and consumers, generation revalidation, completion
+persistence ordering, stale callback fencing, post-task-enumeration
+probe/generation revalidation, exact probe/task retirement ordering, durable
+dispatch ordering, the hard preparation deadline that cancels and ignores late
+non-cooperative work, caller-cancellation identity, durable-wake restoration
+without an intervening suspension in both retry paths before post-save
+poll/generation revalidation and optional process-local replacement, shared
+response preparation without a finalization-to-processing-actor hop, and the
+600-line production-file ceiling.
 
 ## Core Data Database Actor Ownership
 
 The [Core Data guide](Merian/Core/Data/README.md) is the canonical ownership
-inventory for SwiftData actors. `BackgroundDatabaseActor.swift` retains the
-actor declaration and unextracted persistence domains; focused sibling
-extensions keep collection synchronization, pending queue selection and
-empty-media quarantine, species metadata, and non-biological retention
-persistence separate without changing actor method signatures. Queue selection
+inventory for SwiftData actors. `BackgroundDatabaseActor.swift` now contains
+only the `@ModelActor` declaration; focused sibling extensions keep collection
+synchronization, pending queue selection and empty-media quarantine, upload
+claim/staging/orphan recovery, durable background-account ownership, inference
+lifecycle/retry persistence, live and offline scan finalization, shared
+scan-record support, species metadata, and non-biological retention separate
+behind the existing call-site names and persistence contracts. Queue selection
 pages past delayed and locally blocked rows, preserves the existing funding-tier
 order, fails closed when funding state is unreadable, and atomically revalidates
 empty-media candidates before committing scan, job, and event attention state.
-Media Upload's `UploadSync` remains its sole production consumer and owns
-transient transfer/network policy. Unsupported queued inference audio is
-rejected by upload preflight, quarantined by staged replay and surviving upload
-callbacks, and refused again by the serialized inference claim. The internal
-non-biological payload label is `mediaPaths` because it carries image, audio,
-and video paths. That extension owns only erasure values, bounded retention
-selection, and the atomic record/cloud-tombstone commit. Its purge result
-distinguishes accepted erasures from rows actually deleted so `ScanRepository`
-can drain files/tombstones without publishing a false library mutation. Local
-file cleanup remains in `FileIOActor`. The focused extensions contain no
-endpoint, authentication, file, or UI dependency. Mirrored behavior suites
-preserve the persistence contracts, while architecture suites scan the complete
-production and test Swift trees for sole method and test ownership, cross-owner
-effect routing, exact selection consumer ownership, and the 600-line review
-ceiling.
+The upload-lifecycle owner contains only the durable
+`.pending → .uploading → .staged` mutations and timestamp-fenced orphan release;
+Media Upload and Inference Replay retain URLSession enumeration, network policy,
+and orchestration. Claim and orphan-recovery batches roll back when their
+matching durable-job lookup fails, while an absent legacy job remains supported.
+The background-account owner contains only activation, current-owner validation,
+candidate projection, and durable retirement. Its throwing scan/job reads
+distinguish storage failure from absence. Activation creates an absent legacy
+ingestion job in the same durable save, while persistence failures retain
+private diagnostic context and fail closed. Background Transfer and Media Upload
+retain Auth leases, URLSession task cancellation, and orchestration. The
+inference-lifecycle owner contains durable eligibility, claims, retreats,
+generation validation, telemetry, and timestamp-fenced orphan recovery; its
+retry sibling contains general and server-result recovery retry commits. Their
+throwing reads fail closed, genuine missing legacy jobs remain supported, and
+orphan recovery acquires candidate persistence fences in stable ID order,
+rereads durable eligibility through a fresh context after waiting, and loads all
+candidate jobs before mutating the batch. Only stable scan IDs cross the fence
+wait; no SwiftData model is carried across suspension. Background Inference and
+the other Offline Sync services retain process state, scheduling, task/network
+effects, and orchestration. The live-scan extension preserves the
+visual/nonvisual save signatures and shares their
+fence/media/replacement/rollback flow. The offline-finalization extension
+accepts prepared domain data and owns only durable generation
+validation/adoption plus the final commit. Shared actor-isolated helpers, the
+stateless complete-record factory, and the injected ordered-media serializer
+have separate owners. Foreground and background completion use one stateless
+response-preparation service, avoiding both semantic drift and an actor
+dependency cycle while the per-scan persistence lock is held. Unsupported queued
+inference audio is rejected by upload preflight, quarantined by staged replay
+and surviving upload callbacks, and refused again by the serialized inference
+claim. The internal non-biological payload label is `mediaPaths` because it
+carries image, audio, and video paths. That extension owns only erasure values,
+bounded retention selection, and the atomic record/cloud-tombstone commit. Its
+purge result distinguishes accepted erasures from rows actually deleted so
+`ScanRepository` can drain files/tombstones without publishing a false library
+mutation. Local file cleanup remains in `FileIOActor`. The focused extensions
+contain no endpoint, authentication, file, or UI dependency. Mirrored behavior
+suites preserve the persistence contracts, while architecture suites scan the
+complete production and test Swift trees for sole method and test ownership,
+cross-owner effect routing, exact selection/upload-lifecycle consumer ownership,
+bounded actor-isolated retry-mirror use, and the 600-line review ceiling.
+
+`HistoricalDatabaseActor` remains an ad-hoc, page-streaming owner behind
+`ScanRepository`. Its scan, collection, membership, and save boundaries throw:
+storage failure aborts the current reconciliation instead of becoming an empty
+successful result, targeted completed-result hydration maps local failure to
+durable transient recovery, and cancellation rolls back before collection
+pruning and commit. Historical insertion metrics include only rows with valid
+timestamps that reached the successful save path.
 
 ## Core Preferences Ownership
 
@@ -841,37 +883,43 @@ and retains queue callbacks, presentation, and recovery.
 `Inference/Result/InferenceLiveResultService.swift` normalizes visual/nonvisual
 inputs for the existing parse/save actor, forwards the exact persistence fence,
 and returns typed persisted, confidence-zero no-record, or rejected outcomes.
-The engine supplies attempt validation before and after persistence and keeps
-discovery feedback, queue completion, and follow-up ordering. It delegates
-reanalysis metadata safety to `Inference/Result/InferenceScanReplacement.swift`:
-a replacement must be visible in a fresh store context and its metadata save
-must succeed before repository-owned deletion of the original. No-record results
-and failed saves keep the original. `AppDIContainer` owns both production
-service values. Its immutable
-`Core/Network/Inference/InferenceIdentificationReviewService` separately owns
-the exact-name Species Dictionary projection and owned-scan review RPC. Every
-live operation is fenced by an account-work lease; `InferenceEngine` retains
-review task generations, local persistence, presentation, and post-success
-effects without issuing Supabase queries. `Inference/Recovery` contains
-stateless interruption/failure classification and recovery presentation,
-including the existing visual/nonvisual decoding and telemetry differences. One
-private synchronous engine handler retains exact ownership checks, queue
-retirement/handoff, paywall and terminal-disposition actions, feedback, and
-publication order. The current toolchain derives five image-specific
-observations covering dominant colors, color saturation, lighting, light
-contrast, and surface detail. They render as plain visible descriptions such as
-**Reviewing softly colored areas** and **Observing light and shadow areas**, not
-`Kind: detail` labels or internal statistical buckets such as “moderate” and
-“balanced.” Active visual live-to-queue handoff preserves the ephemeral
-contextual deck and in-memory carousel media only for an exact scan-and-attempt
-owner. Prepared visual work transfers generic copy without media; audio and
-Describe are typed nonvisual owners. That exact handoff also retains the
-canonical scan ID, selected carousel page, focus state, and time-derived
-analysis sweep through pending, uploading, staged, and inferencing queue states
-while none requires attention; ordinary queued scans animate only while
-inferencing. The trailing Insight toolbar slot stays mounted and fades in its
-queued delete action only after the durable ID is bound. The same visual cursor
-survives save and connectivity changes, while dismissal or Auth removes
+`Inference/Services/InferenceResponsePreparationService.swift` supplies both
+foreground and background completion with one stateless JSON decode, usable
+response validation, domain mapping, and entitlement/usage reconciliation
+boundary. Background finalization calls it directly instead of waiting on the
+parse/save actor while holding a scan persistence fence. Its prepared value, the
+complete `SpeciesData` graph, and both finalization result carriers are
+compiler-checked `Sendable` values. The engine supplies attempt validation
+before and after persistence and keeps discovery feedback, queue completion, and
+follow-up ordering. It delegates reanalysis metadata safety to
+`Inference/Result/InferenceScanReplacement.swift`: a replacement must be visible
+in a fresh store context and its metadata save must succeed before
+repository-owned deletion of the original. No-record results and failed saves
+keep the original. `AppDIContainer` owns both production service values. Its
+immutable `Core/Network/Inference/InferenceIdentificationReviewService`
+separately owns the exact-name Species Dictionary projection and owned-scan
+review RPC. Every live operation is fenced by an account-work lease;
+`InferenceEngine` retains review task generations, local persistence,
+presentation, and post-success effects without issuing Supabase queries.
+`Inference/Recovery` contains stateless interruption/failure classification and
+recovery presentation, including the existing visual/nonvisual decoding and
+telemetry differences. One private synchronous engine handler retains exact
+ownership checks, queue retirement/handoff, paywall and terminal-disposition
+actions, feedback, and publication order. The current toolchain derives five
+image-specific observations covering dominant colors, color saturation,
+lighting, light contrast, and surface detail. They render as plain visible
+descriptions such as **Reviewing softly colored areas** and **Observing light
+and shadow areas**, not `Kind: detail` labels or internal statistical buckets
+such as “moderate” and “balanced.” Active visual live-to-queue handoff preserves
+the ephemeral contextual deck and in-memory carousel media only for an exact
+scan-and-attempt owner. Prepared visual work transfers generic copy without
+media; audio and Describe are typed nonvisual owners. That exact handoff also
+retains the canonical scan ID, selected carousel page, focus state, and
+time-derived analysis sweep through pending, uploading, staged, and inferencing
+queue states while none requires attention; ordinary queued scans animate only
+while inferencing. The trailing Insight toolbar slot stays mounted and fades in
+its queued delete action only after the durable ID is bound. The same visual
+cursor survives save and connectivity changes, while dismissal or Auth removes
 contextual phrase/media exposure without blocking durable result recovery.
 Generative multimodal cues remain the stable-Xcode-27 milestone.
 

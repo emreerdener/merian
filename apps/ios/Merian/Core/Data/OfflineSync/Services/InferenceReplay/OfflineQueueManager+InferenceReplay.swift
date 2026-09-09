@@ -194,7 +194,16 @@ extension OfflineQueueManager {
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.scanStateRaw == stagedRaw }
         )
-        guard let fetched = try? context.fetch(descriptor), !fetched.isEmpty else {
+        let fetched: [OfflineQueuedScan]
+        do {
+            fetched = try context.fetch(descriptor)
+        } catch {
+            MerianLog.data.error(
+                "replayInferenceStagedScans: fetch failed: \(error, privacy: .private)"
+            )
+            return
+        }
+        guard !fetched.isEmpty else {
             MerianLog.data.debug("replayInferenceStagedScans: no staged scans")
             return
         }
@@ -241,7 +250,18 @@ extension OfflineQueueManager {
 
         for scan in staged {
             let scanId = scan.id
-            let extracted = buildExtractedScanData(from: scan, container: container)
+            let extracted: ExtractedScanData
+            do {
+                extracted = try buildExtractedScanData(
+                    from: scan,
+                    container: container
+                )
+            } catch {
+                MerianLog.data.error(
+                    "replayInferenceStagedScans: durable snapshot fetch failed scanId=\(scanId, privacy: .private) error=\(error, privacy: .private)"
+                )
+                continue
+            }
             Task {
                 let dbActor = resolvedQueueDbActor(container: container)
                 // Atomic claim: transitions .staged → .inferencing.

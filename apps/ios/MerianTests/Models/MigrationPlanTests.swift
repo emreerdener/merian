@@ -66,6 +66,15 @@ struct MigrationPlanTests {
         return try String(contentsOf: sourceURL, encoding: .utf8)
     }
 
+    private func schemaV50ReleasedActiveSnapshotsSource() throws -> String {
+        let sourceURL = repositoryRoot
+            .appendingPathComponent("Merian")
+            .appendingPathComponent("Models")
+            .appendingPathComponent("Schema")
+            .appendingPathComponent("SchemaV50ReleasedActiveSnapshots.swift")
+        return try String(contentsOf: sourceURL, encoding: .utf8)
+    }
+
     private func migrationPlanSource() throws -> String {
         let source = try schemaVersionsSource()
         guard let migrationStart = source.range(of: "enum MerianMigrationPlan")?.lowerBound else {
@@ -1054,13 +1063,34 @@ struct MigrationPlanTests {
         ).lowerBound
         let v50Remainder = source[v50SchemaStart...]
         let v50SchemaEnd = try #require(
-            v50Remainder.range(of: "\nenum MerianActiveSchemaV50")
+            v50Remainder.range(of: "\nenum MerianReleasedActiveSchemaV50")
         ).lowerBound
         let v50Schema = String(v50Remainder[..<v50SchemaEnd])
         for model in v49Models {
             #expect(v50Schema.contains("MerianSchemaV50.\(model).self"))
         }
         #expect(v50Schema.contains("MerianSchemaV50.OfflineQueuedScanGoalHint.self"))
+
+        let releasedActiveV50Start = try #require(
+            source.range(of: "enum MerianReleasedActiveSchemaV50: VersionedSchema")
+        ).lowerBound
+        let releasedActiveV50Remainder = source[releasedActiveV50Start...]
+        let releasedActiveV50End = try #require(
+            releasedActiveV50Remainder.range(
+                of: "\nenum MerianActiveSchemaV50"
+            )
+        ).lowerBound
+        let releasedActiveV50Schema = String(
+            releasedActiveV50Remainder[..<releasedActiveV50End]
+        )
+        for model in v49Models {
+            #expect(releasedActiveV50Schema.contains(
+                "MerianReleasedActiveSchemaV50.\(model).self"
+            ))
+        }
+        #expect(releasedActiveV50Schema.contains(
+            "MerianReleasedActiveSchemaV50.OfflineQueuedScanGoalHint.self"
+        ))
 
         let activeV50Start = try #require(
             source.range(of: "enum MerianActiveSchemaV50: VersionedSchema")
@@ -1094,6 +1124,25 @@ struct MigrationPlanTests {
         #expect(v50SnapshotSource.contains("var isDeleted: Bool = false"))
         #expect(v50SnapshotSource.contains("final class OfflineQueuedScanGoalHint"))
         #expect(!v50SnapshotSource.contains("isPendingDeletion"))
+
+        let releasedActiveSnapshotSource = try schemaV50ReleasedActiveSnapshotsSource()
+        #expect(!releasedActiveSnapshotSource.contains("typealias"))
+        #expect(releasedActiveSnapshotSource.contains(
+            "[MerianReleasedActiveSchemaV50.CapturedMediaEntry]?"
+        ))
+        #expect(releasedActiveSnapshotSource.contains(
+            "[MerianReleasedActiveSchemaV50.ScanCollection]?"
+        ))
+        #expect(releasedActiveSnapshotSource.contains(
+            "inverse: \\MerianReleasedActiveSchemaV50.LocalScanRecord.collections"
+        ))
+        #expect(releasedActiveSnapshotSource.contains(
+            "@Attribute(originalName: \"isDeleted\")"
+        ))
+        #expect(releasedActiveSnapshotSource.contains(
+            "var isPendingDeletion: Bool = false"
+        ))
+        #expect(!releasedActiveSnapshotSource.contains("var isDeleted: Bool"))
     }
 
     @Test func activeCollectionTombstoneUsesSourceOnlyV50RenameMapping() throws {
@@ -1603,6 +1652,24 @@ struct MigrationPlanTests {
         }
     }
 
+    @Test func releasedActiveV50MigrationPlanOnlyRunsAccountPartitionMigration() throws {
+        let schemaMajors = MerianReleasedActiveV50MigrationPlan.schemas.map {
+            $0.versionIdentifier.major
+        }
+        #expect(schemaMajors == [50, 51])
+        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 1)
+
+        switch try #require(MerianReleasedActiveV50MigrationPlan.stages.first) {
+        case let .custom(fromVersion, toVersion, _, _):
+            #expect(fromVersion.versionIdentifier.major == 50)
+            #expect(toVersion.versionIdentifier.major == 51)
+        case .lightweight:
+            Issue.record("Released-active V50→V51 must discard unowned preferences in a custom stage.")
+        @unknown default:
+            Issue.record("The released-active V50→V51 plan contains an unknown stage kind.")
+        }
+    }
+
     @Test func migrationFromV44ToCurrentSchemaDoesNotSafeMode() throws {
         let url = migrationStoreURL(named: "v44migration_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
@@ -1896,7 +1963,105 @@ struct MigrationPlanTests {
         #expect(persistedHint.itemId == "goal-after-v49-migration")
     }
 
-    @Test func releasedV50StoreMigratesAndDiscardsUnownedPreferences() throws {
+    @Test func releasedActiveV50StoreMatchesDeviceSignatureAndMigratesLosslessly() throws {
+        let url = migrationStoreURL(named: "v50_released_active_reopen_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
+
+        let deletedCollectionID = "v50-released-active-deleted-collection"
+        let activeCollectionID = "v50-released-active-collection"
+        let localScanID = "v50-released-active-member"
+        let hintScanID = "v50-released-active-goal-hint"
+
+        do {
+            let schema50 = Schema(versionedSchema: MerianReleasedActiveSchemaV50.self)
+            let config50 = ModelConfiguration(schema: schema50, url: url)
+            let container50 = try makeModelContainer(
+                for: schema50,
+                configurations: [config50]
+            )
+            let context50 = ModelContext(container50)
+            let localScan = MerianReleasedActiveSchemaV50.LocalScanRecord(
+                id: localScanID,
+                speciesId: "v50-released-species",
+                scientificName: "Migratus activus",
+                commonName: "Released Active Fixture"
+            )
+            let deletedCollection = MerianReleasedActiveSchemaV50.ScanCollection(
+                id: deletedCollectionID,
+                name: "Deleted in the processed V50 release",
+                isPendingDeletion: true,
+                scans: [localScan]
+            )
+            localScan.collections = [deletedCollection]
+            let activeCollection = MerianReleasedActiveSchemaV50.ScanCollection(
+                id: activeCollectionID,
+                name: "Active in the processed V50 release"
+            )
+
+            context50.insert(localScan)
+            context50.insert(deletedCollection)
+            context50.insert(activeCollection)
+            context50.insert(MerianReleasedActiveSchemaV50.OfflineQueuedScanGoalHint(
+                scanId: hintScanID,
+                userFieldTripId: "released-v50-field-trip",
+                itemId: "released-v50-goal"
+            ))
+            context50.insert(MerianReleasedActiveSchemaV50.UserSpeciesPreference(
+                scientificName: "Migratus preferenceus released",
+                preferredCommonName: "Must not cross accounts"
+            ))
+            try context50.save()
+        }
+
+        let decision = ModelStoreRecoveryCoordinator.migrationDecision(
+            at: url,
+            currentSchemaMajor: CurrentSchema.versionIdentifier.major
+        )
+        #expect(decision.storedSchemaMajorVersion == 50)
+        #expect(decision.hint == .recentSource(.v50))
+        #expect(decision.v50StoreVariant == .releasedActive)
+        #expect(decision.strategyDescription == "recent-source-v50-released-active")
+
+        func assertMigratedRows(in context: ModelContext) throws {
+            let deletedCollection = try #require(context.fetch(
+                FetchDescriptor<ScanCollection>(
+                    predicate: #Predicate { $0.id == deletedCollectionID }
+                )
+            ).first)
+            #expect(deletedCollection.name == "Deleted in the processed V50 release")
+            #expect(deletedCollection.isPendingDeletion)
+            #expect(deletedCollection.scans?.map(\.id) == [localScanID])
+
+            let activeCollection = try #require(context.fetch(
+                FetchDescriptor<ScanCollection>(
+                    predicate: #Predicate { $0.id == activeCollectionID }
+                )
+            ).first)
+            #expect(!activeCollection.isPendingDeletion)
+
+            let hint = try #require(context.fetch(
+                FetchDescriptor<ActiveOfflineQueuedScanGoalHint>(
+                    predicate: #Predicate { $0.scanId == hintScanID }
+                )
+            ).first)
+            #expect(hint.userFieldTripId == "released-v50-field-trip")
+            #expect(hint.itemId == "released-v50-goal")
+            #expect(try context.fetch(FetchDescriptor<UserSpeciesPreference>()).isEmpty)
+        }
+
+        do {
+            let migratedStore = try openCurrentMigrationStore(
+                at: url,
+                migrationPlan: MerianReleasedActiveV50MigrationPlan.self
+            )
+            try assertMigratedRows(in: migratedStore.context)
+        }
+
+        let relaunchedStore = try openCurrentStore(at: url)
+        try assertMigratedRows(in: relaunchedStore.context)
+    }
+
+    @Test func frozenV50StoreMigratesAndDiscardsUnownedPreferences() throws {
         let url = migrationStoreURL(named: "v50_collection_tombstone_reopen_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
@@ -1960,6 +2125,7 @@ struct MigrationPlanTests {
         )
         #expect(decision.storedSchemaMajorVersion == 50)
         #expect(decision.hint == .recentSource(.v50))
+        #expect(decision.v50StoreVariant == .frozenSnapshot)
 
         let store = try openCurrentMigrationStore(
             at: url,

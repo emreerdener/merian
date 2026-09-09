@@ -10,8 +10,8 @@ extension OfflineQueueManager {
     /// response). Until then the row is a small, process-independent outbox.
     func acknowledgeFieldTripProgress(scanId: String) {
         guard let context = modelContext else { return }
-        context.deletePreferredGoalHint(scanId: scanId)
         do {
+            try context.deletePreferredGoalHint(scanId: scanId)
             try context.save()
         } catch {
             context.rollback()

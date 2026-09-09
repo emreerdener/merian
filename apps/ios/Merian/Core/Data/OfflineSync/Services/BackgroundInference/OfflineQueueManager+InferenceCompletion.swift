@@ -1,5 +1,4 @@
 import Foundation
-import SwiftData
 
 extension OfflineQueueManager {
     // MARK: - Inference Result Processing
@@ -148,13 +147,19 @@ extension OfflineQueueManager {
 
         // Fetch the latest durable scan snapshot so finalization uses the telemetry
         // persisted before background task dispatch.
-        let extracted: ExtractedScanData? = await MainActor.run {
-            guard let context = OfflineQueueManager.shared.modelContext else { return nil }
-            let container = context.container
-            var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-            descriptor.fetchLimit = 1
-            guard let scan = (try? context.fetch(descriptor))?.first else { return nil }
-            return OfflineQueueManager.shared.buildExtractedScanData(from: scan, container: container)
+        let extracted: ExtractedScanData?
+        do {
+            extracted = try extractedQueuedScanData(scanId: scanId)
+        } catch {
+            MerianLog.data.error(
+                "Background inference: durable snapshot fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            await handleInferenceRetry(
+                scanId: scanId,
+                generation: generation,
+                reason: "Durable inference snapshot could not be read"
+            )
+            return
         }
 
         guard let extracted else {
@@ -169,19 +174,23 @@ extension OfflineQueueManager {
         }
 
         // Use a fresh actor so a failed atomic save doesn't corrupt the shared actor's context.
-        let cleanupActor = BackgroundDatabaseActor(modelContainer: extracted.container)
-        let processingResult = await cleanupActor.processAndCleanupOfflineScan(
-            resultData: resultData,
-            originalImagePaths: extracted.localImagePaths,
-            scanId: scanId,
-            originalTimestamp: extracted.originalTimestamp,
-            telemetry: extracted.telemetry,
-            observationContextsJSON: extracted.observationContextsJSON,
-            audioFilePaths: extracted.audioFilePaths,
-            videoFilePaths: extracted.videoFilePaths,
-            capturedMediaJSON: extracted.capturedMediaJSON,
-            expectedGeneration: generation
+        let cleanupActor = BackgroundDatabaseActor(
+            modelContainer: extracted.container
         )
+        let processingResult = await BackgroundInferenceFinalizationService.live
+            .processAndCleanupOfflineScan(
+                resultData: resultData,
+                originalImagePaths: extracted.localImagePaths,
+                scanId: scanId,
+                originalTimestamp: extracted.originalTimestamp,
+                telemetry: extracted.telemetry,
+                observationContextsJSON: extracted.observationContextsJSON,
+                audioFilePaths: extracted.audioFilePaths,
+                videoFilePaths: extracted.videoFilePaths,
+                capturedMediaJSON: extracted.capturedMediaJSON,
+                expectedGeneration: generation,
+                persistenceActor: cleanupActor
+            )
 
         guard isInferenceGenerationCurrent(
             scanId: scanId,

@@ -3,7 +3,7 @@ import SwiftData
 
 // MARK: - Inference Processing Actor
 
-/// Off-main-actor worker for CPU-bound inference tasks: base64 encoding and response parsing/persistence.
+/// Off-main-actor worker for base64 encoding and foreground result persistence.
 actor InferenceProcessingActor {
     static let shared = InferenceProcessingActor()
 
@@ -37,7 +37,7 @@ actor InferenceProcessingActor {
     ///     are written instead of `compressedDatas` so the insight sheet and scan library
     ///     render at full display quality. Falls back to `compressedDatas` when empty
     ///     (e.g. offline-queue reprocessing path where only inference-quality data is stored).
-    struct ParseAndSaveResult {
+    struct ParseAndSaveResult: Sendable {
         let mappedData: SpeciesData?
         let isNewDiscovery: Bool
         let savedPaths: [String]
@@ -62,61 +62,14 @@ actor InferenceProcessingActor {
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         persistenceFence: LiveInferencePersistenceFence? = nil
     ) async throws -> ParseAndSaveResult {
-        let parseStartedAt = CFAbsoluteTimeGetCurrent()
-        let parsedWrapper: EdgeResponseWrapper
-        do {
-            parsedWrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: resultData)
-        } catch let error as DecodingError {
-            MerianLog.general.debug("AI JSON decoding error: \(error.localizedDescription, privacy: .private)")
-            throw MerianError.decodingFailed
-        }
-        guard IdentifySuccessEnvelopeValidator.isUsable(parsedWrapper) else {
-            MerianLog.general.debug(
-                "AI response decoded but failed the client success boundary."
+        let decoded = try await InferenceResponsePreparationService.live
+            .prepare(
+                resultData: resultData,
+                telemetry: telemetry,
+                audioFilePaths: audioFilePaths,
+                videoFilePaths: videoFilePaths
             )
-            throw MerianError.decodingFailed
-        }
-        if let metadata = parsedWrapper.entitlement {
-            await MainActor.run {
-                _ = EntitlementManager.shared.apply(metadata)
-                if let scanId = parsedWrapper.data.scan_id {
-                    UsageManager.shared.reconcileServerPlanUsed(
-                        metadata.planUsed,
-                        scanId: scanId
-                    )
-                    EntitlementManager.shared.recordCompletedFunding(
-                        planUsed: metadata.planUsed,
-                        creditConsumed: metadata.creditConsumed,
-                        scanId: scanId
-                    )
-                    Task { @MainActor in
-                        await OfflineQueueManager.shared
-                            .reconcileDeferredFundingReservations()
-                        OfflineQueueManager.shared.syncPendingScans()
-                        OfflineQueueManager.shared
-                            .replayInferenceForUploadedScans()
-                    }
-                }
-            }
-        }
-
-        var mappedData = SpeciesData(
-            fromEdgeResponse: parsedWrapper.data,
-            locationName: telemetry.locationName,
-            weatherCondition: telemetry.weatherCondition,
-            weatherTemperatureF: telemetry.weatherTemperatureF,
-            gpsElevation: telemetry.gpsElevation,
-            gpsLatitude: telemetry.gpsLatitude,
-            gpsLongitude: telemetry.gpsLongitude
-        )
-        mappedData.zoomFactor = telemetry.zoomFactor.map { Double($0) }
-        mappedData.audioFilePaths = audioFilePaths
-        mappedData.videoFilePaths = videoFilePaths
-        MerianLog.general.debug(
-            "[⏱ BENCH] Response parsing: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - parseStartedAt), privacy: .public)s bytes=\(resultData.count, privacy: .public)"
-        )
-
-        try Task.checkCancellation()
+        let mappedData = decoded.mappedData
 
         var newDiscovery = false
         var savedPaths: [String] = []
@@ -177,7 +130,7 @@ actor InferenceProcessingActor {
             mappedData: mappedData,
             isNewDiscovery: newDiscovery,
             savedPaths: savedPaths,
-            planUsed: parsedWrapper.entitlement?.planUsed,
+            planUsed: decoded.planUsed,
             didCompletePersistence: didCompletePersistence
         )
     }

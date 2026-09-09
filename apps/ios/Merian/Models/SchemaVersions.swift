@@ -1204,7 +1204,29 @@ enum MerianSchemaV50: VersionedSchema {
     }
 }
 
-/// Frozen bridge for the released V50 persisted model.
+/// Exact immutable graph emitted by the V50 builds that renamed the collection
+/// tombstone in Swift while preserving its `isDeleted` storage name.
+///
+/// V50 was unfortunately shipped with two different model checksums. Keep this
+/// schema separate from `MerianSchemaV50`; startup selects between them using
+/// the store's allowlisted model checksum before opening a migration plan.
+enum MerianReleasedActiveSchemaV50: VersionedSchema {
+    static var versionIdentifier = Schema.Version(50, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [MerianReleasedActiveSchemaV50.LocalScanRecord.self,
+         MerianReleasedActiveSchemaV50.OfflineQueuedScan.self,
+         MerianReleasedActiveSchemaV50.CapturedMediaEntry.self,
+         MerianReleasedActiveSchemaV50.ScanCollection.self,
+         MerianReleasedActiveSchemaV50.PendingCloudDeletionTask.self,
+         MerianReleasedActiveSchemaV50.UserSpeciesPreference.self,
+         MerianReleasedActiveSchemaV50.OfflineJobRecord.self,
+         MerianReleasedActiveSchemaV50.OfflineQueueEvent.self,
+         MerianReleasedActiveSchemaV50.OfflineQueuedScanGoalHint.self]
+    }
+}
+
+/// Frozen bridge for the original V50 persisted model.
 ///
 /// The changed preference model uses the immutable V50 snapshot. The unchanged
 /// goal-hint model remains owned here because active code still aliases it.
@@ -3487,6 +3509,42 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         }
     )
 
+    /// The later released V50 graph differs only in the Swift-side collection
+    /// tombstone name, but that produced a distinct model checksum. Use its
+    /// exact frozen types so a processed V50 store can migrate without rescue.
+    static let migrateReleasedActiveV50toV51 = MigrationStage.custom(
+        fromVersion: MerianReleasedActiveSchemaV50.self,
+        toVersion: MerianSchemaV51.self,
+        willMigrate: { context in
+            let legacyPreferences = try context.fetch(
+                FetchDescriptor<MerianReleasedActiveSchemaV50.UserSpeciesPreference>()
+            )
+            for preference in legacyPreferences {
+                context.delete(preference)
+            }
+            if !legacyPreferences.isEmpty {
+                try saveMigrationContext(
+                    context,
+                    stage: "released-active V50->V51 willMigrate"
+                )
+            }
+        },
+        didMigrate: { context in
+            let unownedPreferences = try context.fetch(
+                FetchDescriptor<MerianSchemaV51UserSpeciesPreference>(
+                    predicate: #Predicate { $0.ownerUserId == "" }
+                )
+            )
+            for preference in unownedPreferences {
+                context.delete(preference)
+            }
+            try saveMigrationContext(
+                context,
+                stage: "released-active V50->V51 didMigrate"
+            )
+        }
+    )
+
     static let migrateV41toV42 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV41.self,
         toVersion: MerianSchemaV42.self
@@ -4213,6 +4271,23 @@ enum MerianRecentV50MigrationPlan: SchemaMigrationPlan {
     static var stages: [MigrationStage] {
         [
             MerianMigrationPlan.migrateV50toV51
+        ]
+    }
+}
+
+/// Source-isolated migration for the second V50 model graph emitted by the
+/// processed releases that used `ScanCollection.isPendingDeletion`.
+enum MerianReleasedActiveV50MigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [
+            MerianReleasedActiveSchemaV50.self,
+            MerianSchemaV51.self
+        ]
+    }
+
+    static var stages: [MigrationStage] {
+        [
+            MerianMigrationPlan.migrateReleasedActiveV50toV51
         ]
     }
 }

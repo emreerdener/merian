@@ -141,12 +141,35 @@ struct OfflineSyncFoundationArchitectureTests {
                 "Persistence/OfflineQueueManager+QueuedScanExtraction.swift"
             )
         )
+        let authorityReader = try contents(
+            of: root.appendingPathComponent(
+                "Persistence/OfflineQueueDurableAuthorityReader.swift"
+            )
+        )
+        let goalHints = try contents(
+            of: root.appendingPathComponent(
+                "Persistence/ModelContext+FieldTripGoalHints.swift"
+            )
+        )
         let sources = try swiftFiles(below: root)
 
         #expect(!extraction.contains("OfflineQueueManager.shared"))
         #expect(!extraction.contains("AppDIContainer.shared"))
         #expect(!extraction.contains("MerianNetworkClient"))
         #expect(!extraction.contains("URLSession"))
+        #expect(extraction.contains(
+            ") throws -> ExtractedScanData?"
+        ))
+        #expect(extraction.contains(") throws -> ExtractedScanData"))
+        #expect(authorityReader.contains("static func read("))
+        #expect(authorityReader.contains(") throws -> OfflineQueueDurableAuthority"))
+        #expect(authorityReader.contains(
+            "throw OfflineQueueDurableAuthorityReadError.missingModelContainer"
+        ))
+        #expect(!authorityReader.contains("try?"))
+        #expect(goalHints.contains(") throws -> FieldTripPreferredGoal?"))
+        #expect(goalHints.contains("func deletePreferredGoalHint(scanId: String) throws"))
+        #expect(!goalHints.contains("try? fetch"))
 
         let preferredGoalConsumers = try sources.compactMap { file -> String? in
             let source = try contents(of: file)
@@ -161,6 +184,13 @@ struct OfflineSyncFoundationArchitectureTests {
             return relativePath(of: file, below: root)
         }
         #expect(Set(extractionConsumers) == Self.queuedScanExtractionConsumers)
+
+        let snapshotConsumers = try sources.compactMap { file -> String? in
+            let source = try contents(of: file)
+            guard source.contains("extractedQueuedScanData") else { return nil }
+            return relativePath(of: file, below: root)
+        }
+        #expect(Set(snapshotConsumers) == Self.queuedScanSnapshotConsumers)
     }
 
     private static let declarationOwners: [String: String] = [
@@ -223,6 +253,16 @@ struct OfflineSyncFoundationArchitectureTests {
             "Persistence/ModelContext+OfflineJobs.swift",
         "func ensureOfflineJobRecord":
             "Persistence/ModelContext+OfflineJobs.swift",
+        "struct OfflineQueueDurableAuthority":
+            "Persistence/OfflineQueueDurableAuthorityReader.swift",
+        "enum OfflineQueueDurableAuthorityReadError":
+            "Persistence/OfflineQueueDurableAuthorityReader.swift",
+        "enum OfflineQueueDurableAuthorityReader":
+            "Persistence/OfflineQueueDurableAuthorityReader.swift",
+        "enum QueuedScanExtractionError":
+            "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
+        "func extractedQueuedScanData":
+            "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
         "func buildExtractedScanData":
             "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
         "enum OfflineQueueDiagnosticsExportError":
@@ -265,6 +305,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "OfflineQueueDurability.swift",
         "Persistence/ModelContext+FieldTripGoalHints.swift",
         "Persistence/ModelContext+OfflineJobs.swift",
+        "Persistence/OfflineQueueDurableAuthorityReader.swift",
         "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
         "Policies/InferenceURLSessionTaskContract.swift",
         "Policies/BackgroundInferencePolicy.swift",
@@ -312,6 +353,10 @@ struct OfflineSyncFoundationArchitectureTests {
             "import Foundation",
             "import SwiftData"
         ],
+        "Persistence/OfflineQueueDurableAuthorityReader.swift": [
+            "import Foundation",
+            "import SwiftData"
+        ],
         "Persistence/OfflineQueueManager+QueuedScanExtraction.swift": [
             "import CoreGraphics",
             "import Foundation",
@@ -347,8 +392,12 @@ struct OfflineSyncFoundationArchitectureTests {
 
     private static let queuedScanExtractionConsumers: Set<String> = [
         "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
+        "Services/InferenceReplay/OfflineQueueManager+InferenceReplay.swift"
+    ]
+
+    private static let queuedScanSnapshotConsumers: Set<String> = [
+        "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
         "Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift",
-        "Services/InferenceReplay/OfflineQueueManager+InferenceReplay.swift",
         "Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift"
     ]
 

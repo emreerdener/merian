@@ -7138,12 +7138,13 @@ tombstone purge remain in `BackgroundDatabaseActor+CollectionSync.swift`.
 
 The active iOS V51 model names the durable application value
 `ScanCollection.isPendingDeletion` and maps it to the released SwiftData
-`isDeleted` column with `@Attribute(originalName:)`. The collection-sync DTO
-explicitly projects that value to the canonical `is_deleted` JSON key. The
-optional `isDeleted` request alias remains a server-side compatibility read for
-historical encoder output; clients do not need to send both keys. The earlier
-source-only rename and the V50→V51 preferred-name migration change neither this
-collection shape, payload, nor deletion semantics.
+`isDeleted` column with `@Attribute(originalName:)`. The two released V50 model
+graphs differ only in their Swift-side property name and keep that same physical
+column. The collection-sync DTO explicitly projects the active value to the
+canonical `is_deleted` JSON key. The optional `isDeleted` request alias remains
+a server-side compatibility read for historical encoder output; clients do not
+need to send both keys. The checksum-qualified V50→V51 migrations change neither
+this collection shape, payload, nor deletion semantics.
 
 ### Safety and Transactional Integrity
 

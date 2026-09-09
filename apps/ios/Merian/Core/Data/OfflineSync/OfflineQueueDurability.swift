@@ -38,27 +38,10 @@ extension OfflineQueueManager {
         code?.hasPrefix("server_result_local_recovery") == true
     }
 
-    func hasDurableCompletedServerResult(scanId: String) -> Bool {
-        guard let context = modelContext else { return false }
-        // Queue state is mirrored onto the scan and its durable job. Read both
-        // through one fresh context: a migrated SwiftData store can keep a
-        // stale snapshot resident in either the main or background context.
-        let readContext = ModelContext(context.container)
-        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.id == scanId }
-        )
-        scanDescriptor.fetchLimit = 1
-        let scan = (try? readContext.fetch(scanDescriptor))?.first
-        let jobId = Self.scanIngestionJobId(scanId: scanId)
-        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
-            predicate: #Predicate { $0.id == jobId }
-        )
-        jobDescriptor.fetchLimit = 1
-        let job = (try? readContext.fetch(jobDescriptor))?.first
-        return Self.isCompletedServerResultRecoveryCode(
-            scan?.queueLastErrorCode
-        ) || Self.isCompletedServerResultRecoveryCode(
-            job?.lastErrorCode
+    func hasDurableCompletedServerResult(scanId: String) throws -> Bool {
+        let authority = try durableQueueAuthority(scanId: scanId)
+        return authority.containsErrorCode(
+            matching: Self.isCompletedServerResultRecoveryCode
         )
     }
 
@@ -71,27 +54,12 @@ extension OfflineQueueManager {
         )
     }
 
-    func hasDurableScheduledServerFailureRetry(scanId: String) -> Bool {
-        guard let context = modelContext else { return false }
-        // Retry state is mirrored onto the scan and its durable job. Read both
-        // through a fresh context so one stale SwiftData snapshot cannot erase
-        // the exact marker that is meant to survive media restaging.
-        let readContext = ModelContext(context.container)
-        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.id == scanId }
-        )
-        scanDescriptor.fetchLimit = 1
-        let scan = (try? readContext.fetch(scanDescriptor))?.first
-        let jobId = Self.scanIngestionJobId(scanId: scanId)
-        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
-            predicate: #Predicate { $0.id == jobId }
-        )
-        jobDescriptor.fetchLimit = 1
-        let job = (try? readContext.fetch(jobDescriptor))?.first
-        return Self.isServerRetryableFailureCode(
-            scan?.queueLastErrorCode
-        ) || Self.isServerRetryableFailureCode(
-            job?.lastErrorCode
+    func hasDurableScheduledServerFailureRetry(
+        scanId: String
+    ) throws -> Bool {
+        let authority = try durableQueueAuthority(scanId: scanId)
+        return authority.containsErrorCode(
+            matching: Self.isServerRetryableFailureCode
         )
     }
 
@@ -148,10 +116,20 @@ extension OfflineQueueManager {
         resetTo state: ScanQueueState?
     ) -> Int? {
         guard let context = modelContext else { return nil }
-        let durableAttempt = queueAttemptCount(for: scanId)
-        let preservesServerFailureRetry =
-            state == .pending &&
-            hasDurableScheduledServerFailureRetry(scanId: scanId)
+        let authority: OfflineQueueDurableAuthority
+        do {
+            authority = try durableQueueAuthority(scanId: scanId)
+        } catch {
+            MerianLog.data.error(
+                "updateQueuedScanForRetry: authority fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return nil
+        }
+        let durableAttempt = authority.maximumAttemptCount
+        let preservesServerFailureRetry = state == .pending &&
+            authority.containsErrorCode(
+                matching: Self.isServerRetryableFailureCode
+            )
         let persistedCode = preservesServerFailureRetry
             ? Self.serverRetryableFailureCode
             : code
@@ -189,19 +167,19 @@ extension OfflineQueueManager {
         if let state {
             scan.queueState = state
         }
-        updateJobForRetry(
-            scanId: scanId,
-            attempt: attempt,
-            nextRunAt: scan.queueNextRetryAt,
-            code: persistedCode,
-            message: message,
-            httpStatus: httpStatus,
-            serverStatus: serverStatus,
-            serverStage: serverStage,
-            serverRetryAfter: serverRetryAfter,
-            in: context
-        )
         do {
+            try updateJobForRetry(
+                scanId: scanId,
+                attempt: attempt,
+                nextRunAt: scan.queueNextRetryAt,
+                code: persistedCode,
+                message: message,
+                httpStatus: httpStatus,
+                serverStatus: serverStatus,
+                serverStage: serverStage,
+                serverRetryAfter: serverRetryAfter,
+                in: context
+            )
             try context.save()
         } catch {
             context.rollback()
@@ -220,26 +198,8 @@ extension OfflineQueueManager {
         return attempt
     }
 
-    func queueAttemptCount(for scanId: String) -> Int {
-        guard let context = modelContext else { return 0 }
-        // Retry writers mirror the counter onto the queue row and durable job.
-        // Always take the monotonic maximum through a fresh context so one
-        // stale model snapshot cannot reset a user's automatic retry budget.
-        let readContext = ModelContext(context.container)
-        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.id == scanId }
-        )
-        scanDescriptor.fetchLimit = 1
-        let scanAttempt = ((try? readContext.fetch(scanDescriptor).first)?
-            .queueAttemptCount) ?? 0
-        let jobId = Self.scanIngestionJobId(scanId: scanId)
-        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
-            predicate: #Predicate { $0.id == jobId }
-        )
-        jobDescriptor.fetchLimit = 1
-        let jobAttempt = ((try? readContext.fetch(jobDescriptor).first)?
-            .attemptCount) ?? 0
-        return max(0, max(scanAttempt, jobAttempt))
+    func queueAttemptCount(for scanId: String) throws -> Int {
+        try durableQueueAuthority(scanId: scanId).maximumAttemptCount
     }
 
     /// Resumes at most one policy-blocked scan after the user explicitly
@@ -262,11 +222,26 @@ extension OfflineQueueManager {
         )
         descriptor.includePendingChanges = true
 
-        guard let candidates = try? context.fetch(descriptor) else {
+        let candidates: [OfflineQueuedScan]
+        do {
+            candidates = try context.fetch(descriptor)
+        } catch {
+            MerianLog.data.error(
+                "resumeMostRecentConsentBlockedScan: fetch failed: \(error, privacy: .private)"
+            )
             return nil
         }
         for scan in candidates where scan.queueState == .failed {
-            guard let job = fetchScanJob(scanId: scan.id, in: context),
+            let job: OfflineJobRecord?
+            do {
+                job = try fetchScanJob(scanId: scan.id, in: context)
+            } catch {
+                MerianLog.data.error(
+                    "resumeMostRecentConsentBlockedScan: job fetch failed for \(scan.id, privacy: .private): \(error, privacy: .private)"
+                )
+                return nil
+            }
+            guard let job,
                   job.kind == .scanIngestion,
                   job.status == .needsAttention,
                   job.subjectId?.lowercased() == scan.id.lowercased(),
@@ -294,13 +269,24 @@ extension OfflineQueueManager {
             predicate: #Predicate { $0.id == scanId }
         )
         descriptor.fetchLimit = 1
-        guard let scan = (try? context.fetch(descriptor))?.first else { return false }
+        let scan: OfflineQueuedScan?
+        let shouldRecoverCompletedServerResult: Bool
+        let job: OfflineJobRecord?
+        do {
+            scan = try context.fetch(descriptor).first
+            shouldRecoverCompletedServerResult = try
+                hasDurableCompletedServerResult(scanId: scanId)
+            job = try fetchScanJob(scanId: scanId, in: context)
+        } catch {
+            MerianLog.data.error(
+                "retryQueuedScanNow: authority fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return false
+        }
+        guard let scan else { return false }
         guard scan.queueState != .externalImport else { return false }
 
         let snapshot = scan.capturedMediaSnapshot
-        let shouldRecoverCompletedServerResult =
-            hasDurableCompletedServerResult(scanId: scanId)
-        let job = fetchScanJob(scanId: scanId, in: context)
         var newlyClaimedFunding: ScanFundingReservation?
         if !shouldRecoverCompletedServerResult,
            let job,
@@ -430,7 +416,18 @@ extension OfflineQueueManager {
             predicate: #Predicate { $0.id == scanId }
         )
         descriptor.fetchLimit = 1
-        guard let scan = (try? context.fetch(descriptor))?.first else {
+        let scan: OfflineQueuedScan?
+        let job: OfflineJobRecord?
+        do {
+            scan = try context.fetch(descriptor).first
+            job = try fetchScanJob(scanId: scanId, in: context)
+        } catch {
+            MerianLog.data.error(
+                "markQueuedScanNeedsAttention: authority fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return false
+        }
+        guard let scan else {
             return false
         }
         let now = Date()
@@ -442,7 +439,7 @@ extension OfflineQueueManager {
         scan.queueNeedsAttention = true
         scan.queueUpdatedAt = now
         scan.queueState = .failed
-        if let job = fetchScanJob(scanId: scanId, in: context) {
+        if let job {
             job.status = .needsAttention
             job.updatedAt = now
             job.lastAttemptAt = now
@@ -477,7 +474,18 @@ extension OfflineQueueManager {
             predicate: #Predicate { $0.id == scanId }
         )
         descriptor.fetchLimit = 1
-        guard let scan = (try? context.fetch(descriptor))?.first else { return }
+        let scan: OfflineQueuedScan?
+        let job: OfflineJobRecord?
+        do {
+            scan = try context.fetch(descriptor).first
+            job = try fetchScanJob(scanId: scanId, in: context)
+        } catch {
+            MerianLog.data.error(
+                "persistServerStatus: authority fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return
+        }
+        guard let scan else { return }
         let retryAfterDate = response.retryAfter.flatMap(
             BackgroundInferencePolicy.parseRetryAfterDate
         )
@@ -498,7 +506,7 @@ extension OfflineQueueManager {
         if let retryAfterDate {
             scan.queueNextRetryAt = retryAfterDate
         }
-        if let job = fetchScanJob(scanId: scanId, in: context) {
+        if let job {
             job.serverStatus = response.jobStatus?.rawValue
             job.serverStage = response.jobStage
             job.serverRetryAfter = retryAfterDate
@@ -534,9 +542,9 @@ extension OfflineQueueManager {
         serverStage: String?,
         serverRetryAfter: Date?,
         in context: ModelContext
-    ) {
+    ) throws {
         let job: OfflineJobRecord
-        if let existing = fetchScanJob(scanId: scanId, in: context) {
+        if let existing = try fetchScanJob(scanId: scanId, in: context) {
             job = existing
         } else {
             job = OfflineJobRecord(
@@ -560,12 +568,15 @@ extension OfflineQueueManager {
         job.serverRetryAfter = serverRetryAfter
     }
 
-    private func fetchScanJob(scanId: String, in context: ModelContext) -> OfflineJobRecord? {
+    private func fetchScanJob(
+        scanId: String,
+        in context: ModelContext
+    ) throws -> OfflineJobRecord? {
         let jobId = Self.scanIngestionJobId(scanId: scanId)
         var descriptor = FetchDescriptor<OfflineJobRecord>(
             predicate: #Predicate { $0.id == jobId }
         )
         descriptor.fetchLimit = 1
-        return try? context.fetch(descriptor).first
+        return try context.fetch(descriptor).first
     }
 }

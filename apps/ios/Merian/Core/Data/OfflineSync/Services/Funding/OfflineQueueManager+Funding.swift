@@ -14,7 +14,15 @@ extension OfflineQueueManager {
             return
         }
         let descriptor = FetchDescriptor<OfflineJobRecord>()
-        guard let jobs = try? context.fetch(descriptor) else { return }
+        let jobs: [OfflineJobRecord]
+        do {
+            jobs = try context.fetch(descriptor)
+        } catch {
+            MerianLog.data.error(
+                "restoreFundingReservationsForCurrentAccount: fetch failed: \(error, privacy: .private)"
+            )
+            return
+        }
         let nonterminal: Set<String> = [
             OfflineJobStatus.pending.rawValue,
             OfflineJobStatus.running.rawValue,
@@ -127,7 +135,16 @@ extension OfflineQueueManager {
     private func localFundingBlockerIsTerminal(scanId: String) -> Bool {
         guard let context = modelContext else { return false }
         let jobId = Self.scanIngestionJobId(scanId: scanId)
-        guard let job = try? context.fetchOfflineJob(id: jobId) else {
+        let job: OfflineJobRecord?
+        do {
+            job = try context.fetchOfflineJob(id: jobId)
+        } catch {
+            MerianLog.data.error(
+                "Could not validate local funding terminal state for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return false
+        }
+        guard let job else {
             return true
         }
         return job.status == .complete || job.status == .cancelled

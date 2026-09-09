@@ -163,6 +163,9 @@ struct MediaUploadSyncTests {
         let inferenceRecoverySource = try OfflineSyncTestSupport.loadRepositorySource(
             at: "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift"
         )
+        let inferenceReconciliationSource = try OfflineSyncTestSupport.loadRepositorySource(
+            at: "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceReconciliation.swift"
+        )
         let inferenceRetrySource = try OfflineSyncTestSupport.loadRepositorySource(
             at: "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceRetry.swift"
         )
@@ -175,6 +178,7 @@ struct MediaUploadSyncTests {
         let inferencePipelineSource = [
             inferenceDispatchSource,
             inferenceRecoverySource,
+            inferenceReconciliationSource,
             inferenceRetrySource,
             inferenceWatchdogSource
         ].joined(separator: "\n")

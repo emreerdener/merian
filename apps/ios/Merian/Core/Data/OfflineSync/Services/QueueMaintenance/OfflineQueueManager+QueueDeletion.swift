@@ -244,8 +244,8 @@ extension OfflineQueueManager {
                 )
                 return true
             }
-            context.deletePreferredGoalHint(scanId: scanId)
             do {
+                try context.deletePreferredGoalHint(scanId: scanId)
                 try context.save()
                 clearForegroundInferenceOwnershipAfterDeletion(
                     scanId: scanId,
@@ -350,11 +350,11 @@ extension OfflineQueueManager {
                 ? "Queued scan inference completed."
                 : "Queued scan was removed locally."
         ))
-        if !preservePreferredGoalHint {
-            context.deletePreferredGoalHint(scanId: scanId)
-        }
-        context.delete(scan)
         do {
+            if !preservePreferredGoalHint {
+                try context.deletePreferredGoalHint(scanId: scanId)
+            }
+            context.delete(scan)
             try context.save()
             OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
             clearForegroundInferenceOwnershipAfterDeletion(
@@ -438,9 +438,9 @@ extension OfflineQueueManager {
                         break
                     }
                 }
-                context.deletePreferredGoalHint(scanId: scanId)
+                try context.deletePreferredGoalHint(scanId: scanId)
                 context.delete(scan)
-                if let job = try? context.fetchOfflineJob(
+                if let job = try context.fetchOfflineJob(
                     id: Self.scanIngestionJobId(scanId: scanId)
                 ) {
                     job.status = .cancelled

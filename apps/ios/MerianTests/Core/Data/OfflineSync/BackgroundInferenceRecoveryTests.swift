@@ -48,7 +48,7 @@ struct BackgroundInferenceRecoveryTests {
             )
         )
 
-        #expect(manager.hasDurableCompletedServerResult(scanId: scanId))
+        #expect(try manager.hasDurableCompletedServerResult(scanId: scanId))
         #expect(
             scan.queueLastErrorCode ==
                 OfflineQueueManager.completedServerResultRecoveryCode
@@ -120,6 +120,6 @@ struct BackgroundInferenceRecoveryTests {
         #expect(job.serverStatus == "complete")
         #expect(job.serverStage == "media_finalization_complete")
         #expect(job.serverRetryAfter == retryAfter)
-        #expect(manager.hasDurableCompletedServerResult(scanId: scanId))
+        #expect(try manager.hasDurableCompletedServerResult(scanId: scanId))
     }
 }

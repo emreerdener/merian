@@ -176,21 +176,21 @@ as their permanent engineering identity.
   both URL and client key to a matching local/staging project.
 - **Active SwiftData schema**: `MerianSchemaV51` via
   `typealias CurrentSchema = MerianSchemaV51` in
-  `apps/ios/Merian/Models/Aliases.swift`. The released V50 disk shape is frozen
-  in `Models/Schema/SchemaV50Snapshots.swift`; it preserves the released V49
-  queue entity and adds a scan-keyed `OfflineQueuedScanGoalHint` companion
-  through a lightweight migration. `MerianActiveSchemaV50` is now the frozen
-  source bridge for the custom V50→V51 migration. V51 keeps the collection
-  tombstone mapped from `isPendingDeletion` to the released `isDeleted` column
-  and makes `UserSpeciesPreference` account-scoped through a compound stable ID
-  and `ownerUserId`. Device-global V50 rows are deleted while the frozen source
-  schema is active, before SwiftData materializes the new unique identity;
-  legacy defaults are also discarded because no trustworthy account can be
-  inferred. V50 stores use the source-isolated V50→V51 plan; V49 and earlier
-  recent stores reach frozen V50 and then apply the same custom stage. Migration
-  creates no goal-hint rows for V49 stores because V49 stored no selected-goal
-  value to backfill. The durable collection shape, preference account partition,
-  and startup routing are documented in the
+  `apps/ios/Merian/Models/Aliases.swift`. V50 shipped two checksum-distinct disk
+  shapes, now frozen in `Models/Schema/SchemaV50Snapshots.swift` and
+  `Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`; both preserve the V49
+  queue entity and the scan-keyed `OfflineQueuedScanGoalHint` companion. Startup
+  fingerprints store metadata and selects the exact source-isolated V50→V51
+  plan. V51 keeps the collection tombstone mapped from `isPendingDeletion` to
+  the released `isDeleted` column and makes `UserSpeciesPreference`
+  account-scoped through a compound stable ID and `ownerUserId`. Device-global
+  V50 rows are deleted while the exact frozen source schema is active, before
+  SwiftData materializes the new unique identity; legacy defaults are also
+  discarded because no trustworthy account can be inferred. V49 and earlier
+  recent stores reach the original frozen V50 bridge and then apply the same
+  ownership rule. Migration creates no goal-hint rows for V49 stores because V49
+  stored no selected-goal value to backfill. The durable collection shape,
+  preference account partition, and startup routing are documented in the
   [schema contract](./backend-and-data/04-database-schema.md#user_species_preferences),
   [collection contract](./backend-and-data/04-database-schema.md#scancollection-user-albums),
   and
@@ -553,8 +553,11 @@ as their permanent engineering identity.
   boundaries, service-only Identify Activity projection/read boundaries, and
   cron/webhook boundaries.
 - **[`/backend-and-data/03-database-actors.md`](./backend-and-data/03-database-actors.md)**
-  — SwiftData actor model: `BackgroundDatabaseActor`, `HistoricalDatabaseActor`,
-  and `FileIOActor`, including collection projection and tombstone boundaries.
+  — SwiftData actor model: the declaration-only `BackgroundDatabaseActor` and
+  its focused persistence extensions, `HistoricalDatabaseActor`, and
+  `FileIOActor`, including scan finalization, collection projection, and
+  tombstone boundaries plus fail-closed historical reads, saves, and
+  cancellation-safe collection pruning.
 - **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)**
   — Physical table maps for PostgreSQL and the SwiftData persistent schemas,
   including the V41 `CapturedMediaEntry` mixed-media model, V47 offline video

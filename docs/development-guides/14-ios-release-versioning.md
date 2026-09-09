@@ -250,15 +250,18 @@ boundary:
    candidate source identity, and require
    `ModelContainer store-aware migration selection` to show
    `hasStoreArtifacts=true`, `storedSchema=V50`, and
-   `strategy=recent-source-v50`. Reaching the normal UI with no recovery notice
-   or safe mode is the required successful-open evidence. A current-store or
-   full-historical selection is a failure.
+   `strategy=recent-source-v50-released-active` for the processed V50 release
+   graph. An older original-graph fixture must instead select
+   `recent-source-v50-frozen-snapshot`. Reaching the normal UI with no recovery
+   notice or safe mode is the required successful-open evidence. A
+   current-store, unknown-model, or full-historical selection is a failure.
 6. If approved internal tooling can retrieve the persisted
    `StartupStoreDiagnostic`, cross-check `currentSchemaMajor: 51`,
-   `store.storedSchemaMajorVersion: 50`, `selectedStrategy: recent-source-v50`,
-   and an `attempts` entry with `name: recent-v50` and `outcome: success`. Do
-   not require snake-case recovery telemetry; the normal-success path does not
-   emit that event.
+   `store.storedSchemaMajorVersion: 50`,
+   `selectedStrategy: recent-source-v50-released-active`, and an `attempts`
+   entry with `name: recent-v50-released-active` and `outcome: success`. Do not
+   require snake-case recovery telemetry; the normal-success path does not emit
+   that event.
 7. Before cloud reconciliation, confirm the device-global V50 preferred-name row
    is absent. After reconciliation, only the signed-in account's server-owned
    preference may reappear. Switch between two non-production accounts and

@@ -29,28 +29,45 @@ extension OfflineQueueManager {
 
         let now = Date()
         var didPrepareJob = false
-        let runnableTasks = pendingTasks.filter { task in
-            let job = ensureCloudDeletionJob(scanId: task.scanId, context: context)
-            if job?.created == true {
-                didPrepareJob = true
+        var runnableTasks: [(
+            task: PendingCloudDeletionTask,
+            job: OfflineJobRecord
+        )] = []
+        do {
+            for task in pendingTasks {
+                let job = try ensureCloudDeletionJob(
+                    scanId: task.scanId,
+                    context: context
+                )
+                if job.created {
+                    didPrepareJob = true
+                }
+                let record = job.record
+                if Self.cloudDeletionStatusRequiresRecovery(record.status) {
+                    // PendingCloudDeletionTask is the durable source of truth.
+                    // Older builds could pause an erasure permanently after the
+                    // generic retry budget, while complete/cancelled here would
+                    // contradict the still-present task. Heal every such state
+                    // before applying its retry eligibility date.
+                    record.status = .pending
+                    record.updatedAt = now
+                    record.nextRunAt = nil
+                    didPrepareJob = true
+                }
+                guard isRunnableCloudDeletionStatus(record.statusRaw) else {
+                    continue
+                }
+                if let nextRunAt = record.nextRunAt, nextRunAt > now {
+                    continue
+                }
+                runnableTasks.append((task, record))
             }
-            guard let record = job?.record else { return true }
-            if Self.cloudDeletionStatusRequiresRecovery(record.status) {
-                // PendingCloudDeletionTask is the durable source of truth.
-                // Older builds could pause an erasure permanently after the
-                // generic retry budget, while complete/cancelled here would
-                // contradict the still-present task. Heal every such state
-                // before applying its retry eligibility date.
-                record.status = .pending
-                record.updatedAt = now
-                record.nextRunAt = nil
-                didPrepareJob = true
-            }
-            guard isRunnableCloudDeletionStatus(record.statusRaw) else { return false }
-            if let nextRunAt = record.nextRunAt, nextRunAt > now {
-                return false
-            }
-            return true
+        } catch {
+            context.rollback()
+            MerianLog.data.error(
+                "syncPendingDeletions: deletion-job fetch failed: \(error, privacy: .private)"
+            )
+            return
         }
 
         if didPrepareJob {
@@ -65,19 +82,19 @@ extension OfflineQueueManager {
 
         guard !runnableTasks.isEmpty else { return }
 
-        for task in runnableTasks {
-            if let job = ensureCloudDeletionJob(scanId: task.scanId, context: context)?.record {
-                job.status = .running
-                job.updatedAt = now
-                job.lastAttemptAt = now
-                job.nextRunAt = nil
-                context.insert(OfflineQueueEvent(
-                    jobId: job.id,
-                    scanId: task.scanId,
-                    kind: .claimed,
-                    message: "Cloud deletion started."
-                ))
-            }
+        for candidate in runnableTasks {
+            let task = candidate.task
+            let job = candidate.job
+            job.status = .running
+            job.updatedAt = now
+            job.lastAttemptAt = now
+            job.nextRunAt = nil
+            context.insert(OfflineQueueEvent(
+                jobId: job.id,
+                scanId: task.scanId,
+                kind: .claimed,
+                message: "Cloud deletion started."
+            ))
         }
 
         do {
@@ -90,24 +107,46 @@ extension OfflineQueueManager {
         }
 
         // Fetch O(n) results using the batch dispatcher
-        let scanIds = runnableTasks.map(\.scanId)
+        let scanIds = runnableTasks.map(\.task.scanId)
         let allResults = await dispatchDeleteBatches(scanIds: scanIds)
 
         // Build an O(1) lookup so the per-result loop below doesn't scan the full
         // pendingTasks array for each result (was O(n²) when the batch was large).
-        let taskById = Dictionary(uniqueKeysWithValues: runnableTasks.map { ($0.scanId, $0) })
+        let taskById = Dictionary(
+            uniqueKeysWithValues: runnableTasks.map {
+                ($0.task.scanId, $0.task)
+            }
+        )
         var didMutate = false
         for (scanId, error) in allResults {
             guard let task = taskById[scanId] else { continue }
-            if Self.cloudDeletionWasConfirmed(error: error) {
-                MerianLog.data.debug("✅ Deleted \(scanId, privacy: .private) from Edge")
-                context.delete(task)
-                markCloudDeletionJob(scanId: scanId, success: true, error: nil, context: context)
-                didMutate = true
-            } else if let error {
-                MerianLog.data.error("syncPendingDeletions: failed for \(scanId, privacy: .private): \(error, privacy: .private)")
-                markCloudDeletionJob(scanId: scanId, success: false, error: error, context: context)
-                didMutate = true
+            do {
+                if Self.cloudDeletionWasConfirmed(error: error) {
+                    MerianLog.data.debug("✅ Deleted \(scanId, privacy: .private) from Edge")
+                    try markCloudDeletionJob(
+                        scanId: scanId,
+                        success: true,
+                        error: nil,
+                        context: context
+                    )
+                    context.delete(task)
+                    didMutate = true
+                } else if let error {
+                    MerianLog.data.error("syncPendingDeletions: failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+                    try markCloudDeletionJob(
+                        scanId: scanId,
+                        success: false,
+                        error: error,
+                        context: context
+                    )
+                    didMutate = true
+                }
+            } catch {
+                context.rollback()
+                MerianLog.data.error(
+                    "syncPendingDeletions: result job fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+                )
+                return
             }
         }
 
@@ -187,13 +226,20 @@ extension OfflineQueueManager {
         return allResults
     }
 
-    private func markCloudDeletionJob(scanId: String, success: Bool, error: Error?, context: ModelContext) {
+    private func markCloudDeletionJob(
+        scanId: String,
+        success: Bool,
+        error: Error?,
+        context: ModelContext
+    ) throws {
         let jobId = "cloud-deletion:\(scanId)"
         var descriptor = FetchDescriptor<OfflineJobRecord>(
             predicate: #Predicate { $0.id == jobId }
         )
         descriptor.fetchLimit = 1
-        guard let job = (try? context.fetch(descriptor))?.first else { return }
+        guard let job = try context.fetch(descriptor).first else {
+            throw CocoaError(.fileNoSuchFile)
+        }
         job.updatedAt = Date()
         if success {
             job.status = .complete
@@ -240,13 +286,13 @@ extension OfflineQueueManager {
     private func ensureCloudDeletionJob(
         scanId: String,
         context: ModelContext
-    ) -> (record: OfflineJobRecord, created: Bool)? {
+    ) throws -> (record: OfflineJobRecord, created: Bool) {
         let jobId = "cloud-deletion:\(scanId)"
         var descriptor = FetchDescriptor<OfflineJobRecord>(
             predicate: #Predicate { $0.id == jobId }
         )
         descriptor.fetchLimit = 1
-        if let existing = (try? context.fetch(descriptor))?.first {
+        if let existing = try context.fetch(descriptor).first {
             return (existing, false)
         }
 

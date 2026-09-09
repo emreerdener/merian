@@ -127,14 +127,14 @@ push toggles in `Profile/Settings/Notifications/`, bundled release notes in
 
 Suggested first targets:
 
-| File                                                                         | Cleanup Direction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`                              | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`                     | Complete for this hygiene round. Eighteen endpoint owners cover the extracted feature, inference, publication, lifecycle, collection-sync, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport.                                                                                                                                              |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                      | Complete for this hygiene round. `Core/Preferences` owns `AppSettings`, keyed compatibility stores, the verified accepted-account-deletion cache inventory, and an injected post-persistence runtime reset; `Core/Data/SpeciesPreferences` owns SwiftData CRUD, normalization/conflict policy, exact PostgREST values, the narrow injected live client, focused local-mutation recovery, and contained single-flight cloud coordination. The residual aggregate is 450 lines and imports only Foundation. Mirrored suites cover settings/store behavior, schema-complete local erasure, explicit-null wire encoding, stable pagination, account fencing, clock skew, interruption recovery, mid-upsert edit fencing, trailing reconciliation, and process-state reset delegation. Account-deletion recovery state and Keychain keys intentionally remain for their separately reviewed security ownership. |
-| `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`      | Retired. Capture admission and live handoff, funding, Field Trip progress, and uploaded-scan inference replay now have focused Services owners; retry mutations remain in `OfflineQueueDurability.swift`. All production files in this slice are below 600 lines, and mirrored suites plus hosted-result validation follow the new ownership.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift` | Retired. Passes 5A through 5G moved terminal tracking, Auth quiescence, exact owner adoption, terminal routing, and delegate conformance into `Services/BackgroundTransfer`; generation-fenced upload completion into `Services/MediaUpload`; queued-row snapshot mapping into `Persistence`; actor-independent inference decisions into `Policies`; and inference generation lifecycle, request dispatch, accepted task-result/transport-failure completion, delayed status probing, exact-generation task retirement, server-result recovery, and retry/server-poll lifetime into six focused `Services/BackgroundInference` files. Both inference retry paths restore the durable wake immediately after persistence, before post-save ownership revalidation and optional process-local replacement. All seven Background Inference production owners, including policy, are below 600 lines.          |
-| `apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift`           | In progress. Collection sync lives across an immutable OfflineSync snapshot, an injected account-lease service, a persistence-only actor extension, and a Core Network endpoint owner. Queue selection, species metadata, and non-biological retention have separate persistence-only extensions with mirrored behavior and repository-wide architecture tests. A source audit removed the speculative queued-audio repair path; the aggregate retains only the final unsupported-audio inference-claim fence. The residual aggregate is 2,195 lines, no longer imports Supabase, and retains the persistence domains that require later focused slices.                                                                                                                                                                                                                                                   |
+| File                                                                         | Cleanup Direction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`                              | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`                     | Complete for this hygiene round. Eighteen endpoint owners cover the extracted feature, inference, publication, lifecycle, collection-sync, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport.                                                                                                                                                                                                                                                                                        |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                      | Complete for this hygiene round. `Core/Preferences` owns `AppSettings`, keyed compatibility stores, the verified accepted-account-deletion cache inventory, and an injected post-persistence runtime reset; `Core/Data/SpeciesPreferences` owns SwiftData CRUD, normalization/conflict policy, exact PostgREST values, the narrow injected live client, focused local-mutation recovery, and contained single-flight cloud coordination. The residual aggregate is 450 lines and imports only Foundation. Mirrored suites cover settings/store behavior, schema-complete local erasure, explicit-null wire encoding, stable pagination, account fencing, clock skew, interruption recovery, mid-upsert edit fencing, trailing reconciliation, and process-state reset delegation. Account-deletion recovery state and Keychain keys intentionally remain for their separately reviewed security ownership.                                                                                                                                           |
+| `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`      | Retired. Capture admission and live handoff, funding, Field Trip progress, and uploaded-scan inference replay now have focused Services owners; retry mutations remain in `OfflineQueueDurability.swift`. All production files in this slice are below 600 lines, and mirrored suites plus hosted-result validation follow the new ownership.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift` | Retired. Passes 5A through 5G moved terminal tracking, Auth quiescence, exact owner adoption, terminal routing, and delegate conformance into `Services/BackgroundTransfer`; generation-fenced upload completion into `Services/MediaUpload`; queued-row lookup/mapping and mirrored durable authority into `Persistence`; actor-independent inference decisions into `Policies`; and inference generation lifecycle, request dispatch, accepted task-result/transport-failure completion, delayed status probing, exact-generation task retirement, server-result recovery, durable-authority orphan reconciliation, and retry/server-poll lifetime plus response-to-persistence finalization into eight focused `Services/BackgroundInference` files. Both inference retry paths restore the durable wake immediately after persistence, before post-save ownership revalidation and optional process-local replacement. All nine Background Inference production owners, including policy, are below 600 lines.                                   |
+| `apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift`           | Complete for the actor aggregate. Collection sync lives across an immutable OfflineSync snapshot, an injected account-lease service, a persistence-only actor extension, and a Core Network endpoint owner. Queue selection, upload lifecycle, background-account work, inference lifecycle, inference retry, live/offline scan finalization, shared scan-record support, species metadata, and non-biological retention have separate persistence-only extensions with mirrored behavior and repository-wide architecture tests. An actor-isolated support extension reconciles the durable scan/job retry mirror for only upload and focused inference persistence. A source audit removed the speculative queued-audio repair path; the final unsupported-audio claim fence now lives with inference lifecycle. The declaration-only aggregate is 9 lines. Cross-domain background finalization, stateless record/media mapping, and shared foreground/background response preparation have focused owners with no schema, payload, or UI change. |
 
 Rules for this phase:
 
@@ -200,10 +200,12 @@ Implemented Core slices:
   observation-context helpers to file-private visibility and added an explicit
   stale-after-image-encoding fence test.
 - The fifth slice added the injected `InferenceLiveResultService` for shared
-  visual/nonvisual parse/save input normalization and typed result outcomes.
-  `InferenceProcessingActor` retains its existing decoding, entitlement,
-  storage, media cleanup, and durable-completion rules. The service forwards the
-  exact model context, canonical media, original observation-context JSON, and
+  visual/nonvisual parse/save input normalization and typed result outcomes. At
+  that stage, `InferenceProcessingActor` retained decoding, entitlement,
+  storage, media cleanup, and durable-completion rules; the later Core Data
+  finalization slice moved shared decoding/mapping/entitlement semantics into
+  `InferenceResponsePreparationService`. The result service forwards the exact
+  model context, canonical media, original observation-context JSON, and
   persistence fence; the engine supplies attempt validation before/after the
   actor call. Both persisted and confidence-zero no-record completion keep the
   original engine publication/queue path. Rejected or stale results cannot enter
@@ -1834,28 +1836,29 @@ Implemented Profile slice:
 ### Completed Scans Collections Persistence Repair
 
 The Collections organization pass now includes the reviewed V50 source-only
-SwiftData repair. V50's complete relationship-bearing graph is frozen in
-`Models/Schema/SchemaV50Snapshots.swift`, including its historical
-`ScanCollection.isDeleted` field and goal-hint companion. The source bridge
-`MerianActiveSchemaV50` maps `isPendingDeletion` with
-`@Attribute(originalName: "isDeleted")`, so the application tombstone survives
-save/refetch while the persisted V50 model and Supabase/JSON field `is_deleted`
-remain unchanged.
+SwiftData repair. V50's two checksum-distinct relationship-bearing graphs are
+frozen in `Models/Schema/SchemaV50Snapshots.swift` and
+`Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`, including the original
+`ScanCollection.isDeleted` source property, the processed release's mapped
+`isPendingDeletion` source property, and both goal-hint companions. Checksum
+selection routes each graph through its exact source bridge, so the application
+tombstone survives save/refetch while the SQLite column and Supabase/JSON field
+`is_deleted` remain unchanged.
 
 V51 subsequently made preferred species names account-scoped without changing
-the collection shape. Released V50 stores now use the source-isolated V50→V51
-plan; the V49 plan applies V49→V50→V51. The full historical plan is linear
-through V42→V49→V50→V51, while V43...V48 keep source-isolated repair plans. Disk
-fixtures prove metadata-based plan selection and multi-row preference deletion
-from the frozen V50 source before V51 materializes its new unique identity. The
-source guardrail also pins every V35...V48 preference alias to the immutable V34
-shape so the new active fields cannot alter retired checksums. The fixtures
-continue to prove tombstone true/false values, relationship and goal-hint
-retention, and second-context reads. Collection mutation and database-actor
-suites cover exact payload projection, inbound reconciliation fencing, rollback,
-and acknowledgement-only purge. Recovery dispatch treats V51 as current, and
-checksum fallback tries V50 before the exhaustive V49...V42 source-isolated
-ladder.
+the collection shape. V50 stores use their checksum-matched source-isolated
+V50→V51 plan; the V49 plan applies V49→V50→V51. The full historical plan is
+linear through V42→V49→V50→V51, while V43...V48 keep source-isolated repair
+plans. Disk fixtures prove metadata-based graph selection and multi-row
+preference deletion from both frozen V50 sources before V51 materializes its new
+unique identity. The source guardrail also pins every V35...V48 preference alias
+to the immutable V34 shape so the new active fields cannot alter retired
+checksums. The fixtures continue to prove tombstone true/false values,
+relationship and goal-hint retention, and second-context reads. Collection
+mutation and database-actor suites cover exact payload projection, inbound
+reconciliation fencing, rollback, and acknowledgement-only purge. Recovery
+dispatch treats V51 as current, and checksum fallback tries V50 before the
+exhaustive V49...V42 source-isolated ladder.
 
 Do not synthesize deletion from transient view state, hard-delete before cloud
 acknowledgement, or edit a frozen schema. Any future persisted-model change must
@@ -3624,13 +3627,13 @@ SwiftPM manifest sandboxing are unavailable in the current environment.
 ### Core Data Queue Selection Persistence Boundary
 
 Pending upload selection and empty-media quarantine now live in the 253-line
-`BackgroundDatabaseActor+QueueSelection.swift` extension. The public actor
-surface and Media Upload call sites are unchanged. The focused owner preserves
-complete pending-set paging, retry deadlines, live-transfer exclusions, current
-video eligibility and forced-video exceptions, deferred-Flash exclusion, stable
-funding-tier priority, and the independently bounded media-less candidate set.
-It reuses the existing `ModelContext.fetchOfflineJob` helper rather than adding
-another job lookup.
+`BackgroundDatabaseActor+QueueSelection.swift` extension. The actor method
+signatures and Media Upload call sites are unchanged. The focused owner
+preserves complete pending-set paging, retry deadlines, live-transfer
+exclusions, current video eligibility and forced-video exceptions,
+deferred-Flash exclusion, stable funding-tier priority, and the independently
+bounded media-less candidate set. It reuses the existing
+`ModelContext.fetchOfflineJob` helper rather than adding another job lookup.
 
 A follow-up correctness review closes two swallowed SwiftData error paths.
 Unreadable funding jobs now fail selection closed instead of collapsing every
@@ -3664,6 +3667,261 @@ candidate's serialized complete `merianTests` run passes 3,103 top-level tests
 and 5,087 expanded executions with zero failures, skips, or expected failures.
 An earlier Simulator host exited before XCTest connected and executed no
 assertions; the clean rebuilt and complete passes supersede that runner failure.
+
+### Core Data Upload Lifecycle Persistence Boundary
+
+Upload claim, staging commit, and orphaned-upload release now live in the
+356-line `BackgroundDatabaseActor+UploadLifecycle.swift` extension.
+`ScanStagingTransitionOutcome` moved with its sole persistence producer. Actor
+method signatures and every Media Upload or Inference Replay call site remain
+unchanged; signing, URLSession enumeration, live path policy, callback
+accumulation, and orchestration stay outside the database owner.
+
+The scan/job retry mirror is also no longer a private method stranded in the
+aggregate. The 59-line `BackgroundDatabaseActor+RetryMirror.swift` extension
+contains that shared mutation, and an architecture allowlist admits only the
+residual inference transitions and the upload-lifecycle extension. Compiler
+actor isolation prevents the helper from becoming an unisolated SwiftData
+mutation boundary. It creates no singleton or mutable process state. The
+aggregate falls from 2,195 to 1,836 lines without a SwiftData schema, stored
+value, queue transition, retry, task-description, endpoint, payload,
+authentication, file, or UI contract change.
+
+Ten existing actor cases moved unchanged to `UploadLifecyclePersistenceTests`.
+They cover pending-only claim, all four staging outcomes, scheduled server-retry
+preservation, scan/job orphan release, empty active-task recovery, and the
+existing task-snapshot plus candidate fences. `UploadLifecycleArchitectureTests`
+freezes declaration and outcome ownership, exact production consumers,
+actor-isolated retry-support consumers, narrow dependencies, mirrored test
+ownership, both focused 600-line ceilings, and a 1,900-line residual-aggregate
+non-growth cap. The critical-XCResult contract now maps scheduled retry survival
+and durable orphan release to the focused suite.
+
+The follow-up review also removes the two remaining swallowed matching-job
+lookups. Claim and orphan recovery now use the shared throwing lookup and roll
+back the complete batch when SwiftData cannot determine whether a matching job
+exists; a successful lookup returning no legacy job remains supported. The
+architecture suite prevents `try?` from reintroducing partial scan/job commits.
+
+Verification passes byte-stable XcodeGen regeneration, project and source
+membership validation, migration guardrails, the complete iOS CI-tooling
+contract, Swift parsing, strict affected-source SwiftLint with zero violations,
+the code-signing-disabled generic Simulator build, and the complete app-and-test
+build-for-testing. Markdown formatting and whitespace validation also pass.
+Runtime Simulator execution is not represented as passed because the local
+CoreSimulatorService is unavailable; the moved behavior remains covered by the
+same compiled test bodies and protected critical-XCResult selectors.
+
+### Core Data Background Account Work Persistence Boundary
+
+Durable background-account activation, exact-owner validation, candidate
+selection, and retirement now live in the 326-line
+`BackgroundDatabaseActor+BackgroundAccountWork.swift` extension. The actor and
+four public method signatures are unchanged. Background Transfer retains Auth
+leases, transition quiescence, terminal routing, and URLSession cancellation;
+Media Upload retains request dispatch and its signing-failure retirement call
+site. The extracted owner performs only SwiftData reads and mutations.
+
+Activation still commits the exact Auth UUID, generation, and upload/inference
+phase before a task resumes. Retirement still verifies that exact owner and
+commits pending queue state, clears source-account staging keys, and removes the
+marker before transport cancellation. All three scan/job decision paths now use
+throwing reads, log the private SwiftData error, and fail closed instead of
+silently treating SwiftData failure as a missing record. This is a diagnostic
+and safety tightening; it does not change the missing-row compatibility behavior
+or any schema, stored field, task description, endpoint, payload,
+authentication, navigation, file, or UI contract.
+
+The three existing actor regressions moved unchanged to the 337-line
+`BackgroundAccountWorkPersistenceTests`, which also proves activation creates
+the missing ingestion job for a legacy scan. The 249-line
+`BackgroundAccountWorkArchitectureTests` freezes sole declaration and test
+ownership, exact Background Transfer and Media Upload consumers, throwing reads,
+balanced per-scan persistence fences, narrow dependency exclusions, 400-line
+focused owner/test ceilings, and a 1,600-line residual-aggregate cap. The
+aggregate falls from 1,836 to 1,559 lines.
+
+Verification passes byte-stable XcodeGen regeneration, project/resource and
+source-membership validation, migration guardrails, Swift parsing, strict
+affected-source SwiftLint with zero violations, the complete iOS CI-tooling
+contract, event-routing validation and adversarial fixtures, Markdown
+formatting, and whitespace validation. The generic code-signing-disabled
+Simulator build and complete `build-for-testing` action pass. Runtime
+verification passes the exact Background Transfer/Inference Dispatch/Media
+Upload caller matrix, every focused and residual database-actor suite, and the
+complete `merianTests` target. The complete result records 5,103 successful
+expanded executions with zero failures, skips, or expected failures.
+
+### Core Data Inference Persistence Boundaries
+
+Durable inference lifecycle and retry mutations now live in the 564-line
+`BackgroundDatabaseActor+InferenceLifecycle.swift` and 290-line
+`BackgroundDatabaseActor+InferenceRetry.swift` extensions. The lifecycle owner
+contains server-owned eligibility reads, staged/inferencing claims and retreats,
+background/live generation validation, telemetry hydration, and timestamp-fenced
+orphan release. The retry owner contains general and server-result recovery
+retry commits. Offline Sync call-site spelling is unchanged; orphan
+reconciliation is now explicitly asynchronous so it can wait for the shared
+persistence fences. Process generations, scheduling, URLSession/network effects,
+task cancellation, Auth, file I/O, finalization, and UI remain with their
+established owners.
+
+The extraction closes the residual silent-read ambiguity. Every lifecycle and
+retry scan/job decision uses a throwing fetch and private diagnostic context, so
+storage failure cannot be interpreted as an absent legacy row. Genuine
+missing-job compatibility remains: an unfenced legacy claim or relaunch retry
+creates the ingestion job only after all required reads succeed. Orphan
+reconciliation acquires candidate fences in stable ID order, rereads durable
+eligibility in a fresh context after waiting, and preloads every candidate job
+before its first mutation. Newer terminal work wins and one failed lookup still
+aborts the full batch. Claim, retreat, and both retry entry points also release
+the per-scan persistence fence when cancellation is already observed after
+acquisition.
+
+The moved behavior lives in the 576-line `InferenceLifecyclePersistenceTests`
+and 435-line `InferenceRetryPersistenceTests`; focused cases add missing-job
+compatibility for claims and both retry modes, cancellation fence release, and
+post-wait terminal-state preservation during orphan recovery. The 456-line
+`InferencePersistenceArchitectureTests` freezes sole declaration/test ownership,
+exact production consumers, throwing read counts, orphan-batch preload, private
+helper containment, balanced fences, narrow dependencies, 600/400-line
+production ceilings, 600-line behavior-suite ceilings, and the 1,000-line
+residual aggregate cap. The aggregate falls from 1,559 to 942 lines. The
+critical-XCResult validator now maps monotonic retry authority and
+cloud-complete veto to the focused retry suite.
+
+Verification passes byte-stable XcodeGen regeneration, project/resource and
+source-membership validation, migration guardrails, Swift parsing, strict
+affected-source SwiftLint with zero violations, the complete iOS CI-tooling
+contract, Markdown formatting, and whitespace validation. The generic
+code-signing-disabled Simulator app build and complete `build-for-testing`
+action pass. Runtime verification passes the focused lifecycle/retry,
+architecture, aggregate, and neighboring upload-lifecycle matrix plus the
+complete `merianTests` target on iOS 26.5.
+
+### Core Data Scan Finalization Boundary
+
+The former 942-line `BackgroundDatabaseActor` aggregate is now a
+declaration-only 9-line `@ModelActor`. Live visual/nonvisual persistence,
+prepared offline-result persistence, shared actor-isolated scan-record support,
+complete record mapping, and ordered captured-media serialization have focused
+owners. Every production file in this slice is below 600 lines. The existing
+`saveLiveScanRecord` and `saveNonVisualRecord` signatures, media order, field
+note preservation, discovery rules, generation fences, rollback behavior, and
+main-context queue-deletion contract remain unchanged.
+
+Background URLSession completion now enters
+`BackgroundInferenceFinalizationService`, which injects response preparation and
+a fresh persistence actor. `InferenceResponsePreparationService` is the single
+stateless foreground/background owner for JSON decoding, usable-success
+validation, `SpeciesData` mapping, and entitlement/usage reconciliation. The
+finalizer never awaits `InferenceProcessingActor` while holding
+`ScanInferencePersistenceCoordinator`; that dependency direction avoids a cycle
+with a foreground parse already waiting for the same scan fence. SwiftData
+validation and commits remain on the database actor, file adoption remains on
+`FileIOActor` behind narrow closures, and queue deletion remains on the main
+actor after exact-generation revalidation.
+
+`CapturedMediaPersistenceServiceTests` deterministically cover explicit and
+default timeline order, invalid-item filtering, video companions, and
+standalone-audio source identity. `ScanFinalizationArchitectureTests` freezes
+declaration ownership, focused size/dependency limits, coordinator containment,
+shared response preparation, compiler-checked response/result sendability, and
+the no-finalizer-to-processing-actor rule.
+`BackgroundInferenceArchitectureTests` inventories the finalization service and
+its sole consumers; the later Core Data-wide audit adds reconciliation as the
+eighth focused service. Existing `BackgroundDatabaseActorTests` retain
+end-to-end persistence, collision, generation, malformed-success, and
+confidence-zero behavior.
+
+XcodeGen regeneration, Swift parsing, the generic code-signing-disabled
+Simulator app build, and the complete app-and-test `build-for-testing` action
+pass after the extraction. Runtime XCTest execution is not represented as passed
+for this candidate because the local CoreSimulatorService is unavailable. No
+SwiftData schema, migration, JSON DTO, endpoint, task description, queue state,
+feature flag, navigation, or UI contract changes in this slice.
+
+A follow-up review replaced the prepared response's unchecked sendability with
+compiler-checked conformances across `SpeciesData`, its nested values, and both
+foreground/background result carriers. A generic-constrained test now makes that
+value graph fail compilation if a non-`Sendable` stored value is introduced; the
+architecture suite also rejects restoring `@unchecked Sendable` to
+`PreparedResponse`. The same review replaced a strict-lint three-field tuple
+with a named declaration owner. XcodeGen remained byte-stable, and
+project/source membership, migration and event-routing guardrails, Swift
+parsing, strict affected-source/test lint, CI workflow validators, Markdown
+formatting, and whitespace validation passed. The post-review annotations could
+not be rebuilt or executed locally because CoreSimulatorService was unavailable
+and package resolution was blocked by the restricted network and nested SwiftPM
+sandbox; the preceding extraction build and `build-for-testing` evidence
+therefore remains distinct from this later static review.
+
+### Core Data-wide Integration Audit
+
+The cross-surface audit closes the remaining ambiguity between a genuinely
+missing SwiftData row and a failed read. Every production `fetch` and
+`fetchCount` under `Core/Data` now propagates or handles its error explicitly;
+no `try?` fetch may manufacture an empty scan, job, collection, membership,
+Favorites set, or repository reconciliation result. The safety rule is
+fail-closed: mutations and network dispatch stop, the context rolls back when it
+has pending changes, and private diagnostics retain the failure without logging
+persisted user content.
+
+`OfflineQueueDurableAuthorityReader` is the single fresh-context projection for
+the error markers, attempt counts, and required-video count mirrored across an
+`OfflineQueuedScan` and its ingestion job. Missing manager persistence throws
+rather than returning a synthetic empty authority. The background-inference
+server-owned scan projection moved to the 40-line
+`OfflineQueueManager+InferenceReconciliation.swift`, keeping Recovery at its
+600-line ceiling and all nine Background Inference production owners below the
+guard. Direct and logging authority consumers are explicitly bounded.
+
+Queued-scan extraction and Field Trip goal-hint access are throwing boundaries.
+An unavailable snapshot schedules the established durable background-inference
+retry or restores the persisted upload wake; only a successful fetch returning
+no row may follow missing-row cleanup. Scan finalization rechecks cancellation
+after acquiring the per-scan lock, performs throwing support reads, and rechecks
+record absence after awaited media preparation. `ScanRepository` now aborts
+library/collection reconciliation when local reads fail instead of treating the
+store as empty.
+
+The audit follow-up closes the caller-visible half of that contract as well:
+`HistoricalDatabaseActor` now rethrows scan, membership, and save failures;
+targeted completed-result hydration maps them to its durable transient-retry
+outcome instead of returning `.reconciled`. Checkpoint failures abort the page,
+the inserted count includes only validated rows, and explicit cancellation rolls
+back before collection pruning so an interrupted traversal cannot delete
+unprocessed local collections.
+
+Collection transport requires a committed `.running` job claim. A failed job
+read remains conservatively pending but cannot start the service or endpoint.
+Cloud deletion preloads task/job pairs, commits every claim before transport,
+and retains the pending task if its result cannot be applied to the durable job.
+Funding, queue deletion/state, diagnostics, inference replay, media upload, and
+Field Trip progress use the same explicit read-failure policy. These fixes
+change no SwiftData model or migration, JSON contract, endpoint, task identity,
+queue state, Auth/funding policy, navigation, or UI behavior on successful
+storage paths.
+
+`CoreDataIntegrationArchitectureTests` freezes the exact 13-file
+`BackgroundDatabaseActor` inventory, import sets, declaration-only aggregate,
+600-line ceilings, Core Data-wide silent-fetch ban, one-context authority read,
+consumer allowlists, and the throwing cross-surface boundaries.
+`ScanRepositoryTests` proves invalid-timestamp rows are excluded from insertion
+counts and pre-cancelled collection reconciliation preserves local rows.
+Existing persistence and Offline Sync suites retain the remaining behavior
+coverage, with a new finalization overlap case proving cancellation while
+waiting for the scan lock cannot commit afterward and a missing-context
+authority case proving the reader does not synthesize empty state.
+
+The completed audit passed byte-stable XcodeGen, project and source-membership
+validation, migration and event-routing guardrails, CI workflow contract tests,
+Swift parsing, strict affected-source lint, Markdown formatting, and whitespace
+validation. A generic iOS Simulator app build and complete `build-for-testing`
+succeeded with code signing disabled. The canonical Inference/Core Data/Offline
+Sync runtime matrix exposed and then verified corrections to five relocated
+architecture expectations; the final complete `merianTests` run passed all 3,148
+tests on an iPhone 17 Pro simulator running iOS 26.5 with no failures or skips.
 
 ## Phase 3: Ownership Cleanup
 

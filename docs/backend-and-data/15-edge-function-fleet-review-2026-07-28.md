@@ -138,9 +138,10 @@ reference a missing or unconfigured route.
 > above remains accurate. The active V51 iOS model persists
 > `ScanCollection.isPendingDeletion` and maps it to the released `isDeleted`
 > column, so the client emits the unchanged `is_deleted` field after
-> save/refetch. The earlier source-only rename preserves the released V50
-> collection shape, and the subsequent V50→V51 preferred-name migration does not
-> alter this Edge payload or its deletion semantics.
+> save/refetch. The original and processed V50 model graphs use different Swift
+> property names but preserve the same stored column. Their V50→V51
+> preferred-name migrations do not alter this Edge payload or its deletion
+> semantics.
 
 > [!NOTE]
 > **September 2026 client-ownership correction:** collection sync no longer
