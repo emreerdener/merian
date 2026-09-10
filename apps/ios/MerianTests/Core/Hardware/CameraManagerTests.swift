@@ -1,5 +1,6 @@
 import AVFoundation
 @testable import Merian
+import os
 import XCTest
 
 private actor CameraTargetFPSControlledSleeper {
@@ -66,6 +67,29 @@ final class CameraManagerTests: XCTestCase {
         XCTAssertTrue(
             CameraVideoAudioPermissionPolicy.shouldIncludeAudio(for: .granted)
         )
+    }
+
+    func testVideoRecordingServiceDefersCaptureObjectCreation() {
+        let creationCounts = OSAllocatedUnfairLock(
+            initialState: (sessions: 0, movieOutputs: 0)
+        )
+        let service = CameraVideoRecordingService(
+            sessionProvider: {
+                creationCounts.withLock { $0.sessions += 1 }
+                return AVCaptureSession()
+            },
+            queue: DispatchQueue(label: "CameraManagerTests.deferredVideo"),
+            makeMovieOutput: {
+                creationCounts.withLock { $0.movieOutputs += 1 }
+                return AVCaptureMovieFileOutput()
+            }
+        )
+
+        withExtendedLifetime(service) {
+            let counts = creationCounts.withLock { $0 }
+            XCTAssertEqual(counts.sessions, 0)
+            XCTAssertEqual(counts.movieOutputs, 0)
+        }
     }
 
     // MARK: - Target FPS Debounce

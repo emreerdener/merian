@@ -543,7 +543,7 @@ queries. Merian hoists all heavy `@Environment` injectables over the outer
 conditional `Group` shell, ensuring the database mounts from frame zero
 unconditionally.
 
-### Eager Hardware Instantiation (`CameraManager` & `PhotoLibraryManager`)
+### Eager Hardware Instantiation (Camera Owners & `PhotoLibraryManager`)
 
 Instantiating hardware layers (such as wiring `AVCaptureDeviceInput` inside
 `CameraManager.init()`) is prohibited. Because Merian uses
@@ -551,9 +551,16 @@ Instantiating hardware layers (such as wiring `AVCaptureDeviceInput` inside
 classes boot on cold launch. Executing hardware configuration inside an `init`
 defeats the Onboarding UI Permission Priming pipeline, triggering OS API modals
 before the welcome screen appears. The architecture defers hardware
-instantiation: locks like `.setupSession()` or
-`PHPhotoLibrary.requestAuthorization` are shifted to explicit `.startSession()`
-invocation blocks, orchestrating OS bindings behind UX gates.
+instantiation: `CameraSessionController` owns a lock-backed lazy capture stack,
+and `CameraManager` gives `CameraVideoRecordingService` a lazy controller-backed
+session provider while the service retains a lazy movie-output factory. None is
+evaluated during manager/controller/service construction. Session setup, output
+attachment, and `PHPhotoLibrary.requestAuthorization` remain behind explicit
+lifecycle invocations, orchestrating OS bindings behind UX gates. Controller
+stop and device-control paths inspect only the existing session; cleanup or UI
+controls invoked before preview/start therefore do not accidentally turn a no-op
+into hardware creation. Still capture likewise reads only an existing configured
+depth output instead of resolving one on non-LiDAR paths.
 
 ### Lifecycle Initialization Leaks (`AppDIContainer`)
 
@@ -696,7 +703,7 @@ staring at the scanning overlay or insight sheet. This guarantees reliable 100%
 delivery for insight completions and achievements without triggering main-thread
 blocking or spamming the active viewfinder context.
 
-### Hardware Rotation Defenses (`CameraManager`)
+### Hardware Rotation Defenses (`CameraSessionController`)
 
 Historically, attempting to manually map `UIDevice.orientation` against
 `videoOrientation` triggered a double-rotation sequence because Apple's camera
@@ -712,19 +719,22 @@ processor without corrupting Apple's resulting EXIF headers, guaranteeing
 perfectly oriented portrait and landscape shots even while the device software
 rotation is locked.
 
-### Recorded Video Stabilization Boundary (`CameraManager`)
+### Recorded Video Stabilization Boundary (`CameraVideoRecordingService`)
 
-`AVCaptureMovieFileOutput` is attached during visual camera setup so Pro video
-recording can start without reconfiguring the session after the hold threshold.
-Because AVFoundation stabilization can crop the field of view, add latency, and
-reduce still-photo dimensions when left enabled on a prepared output, Merian
-keeps the movie connection's preferred stabilization mode `.off` until
-`recordVideo(...)` starts a real clip. The start path requests `.auto`
+`CameraVideoRecordingService` attaches its `AVCaptureMovieFileOutput` during
+visual camera setup so Pro video recording can start without reconfiguring the
+session after the hold threshold. Service construction itself is inert: the
+controller-backed session closure and service-owned movie-output factory are
+first evaluated on the camera queue during explicit setup or recording
+preparation. Because AVFoundation stabilization can crop the field of view, add
+latency, and reduce still-photo dimensions when left enabled on a prepared
+output, Merian keeps the movie connection's preferred stabilization mode `.off`
+until `recordVideo(...)` starts a real clip. The start path requests `.auto`
 stabilization only when the video connection supports it, records the requested
 and active modes in hardware logs for physical-device QA, and resets the
 connection to `.off` on finish, cancellation, or failure.
 
-### Recording Generation and Delegate Correlation (Camera Policy and Manager)
+### Recording Generation and Delegate Correlation (Camera Policy and Coordinator)
 
 Every `recordVideo(...)` request creates one immutable generation containing a
 UUID and a UUID-derived, standardized output URL. The value types live in
@@ -732,11 +742,12 @@ UUID and a UUID-derived, standardized output URL. The value types live in
 generation/action correlation gate lives in
 `Core/Hardware/Camera/Policies/CameraVideoRecordingPolicy.swift`. The
 continuation, start time, duration cap, start callback, timeout, and
-automatic-stop task remain together in one `ActiveCameraVideoRecording` value
-inside `CameraManager.swift`, protected by `videoRecordingLock`. Recording state
-is taken and cleared atomically only when the caller presents the current
-generation. This prevents an old cancellation or queued stop from resolving a
-replacement recording.
+automatic-stop task remain together in one private request value inside
+`CameraVideoRecordingCoordinator`, protected by its state-owning
+`OSAllocatedUnfairLock`. Recording state is taken and cleared atomically only
+when the caller presents the current generation. Task cancellation and delegate
+completion therefore compete for one terminal claim, and an old cancellation or
+queued stop cannot resolve a replacement recording.
 
 Task cancellation alone is not a synchronization boundary: a task that was
 cancelled after waking can still reach its queued closure. Each timeout and
@@ -759,35 +770,42 @@ presentation-generation check prevents an already-enqueued UI update from A from
 changing B's `isRecordingVideo` state.
 
 All `AVCaptureMovieFileOutput` and movie `AVCaptureConnection` reads and writes
-are confined to the camera queue, including start, stop, cancellation, timeout,
-delegate completion, and failure cleanup. Queue preconditions defend this
-contract at runtime. Continuations are resumed only after the exact active
-generation has been removed under the lock, making completion exactly-once.
+are confined to `CameraVideoRecordingService` on the controller-owned camera
+queue, including start, stop, cancellation, timeout, delegate completion, and
+failure cleanup. Queue preconditions defend this contract at runtime.
+Continuations are resumed only after the exact active generation has been
+removed under the lock, making completion exactly-once. The coordinator cancels
+its scheduled tasks and exposes the claimed completion only after releasing the
+lock. The completion uses a shared atomic one-shot box, so copies cannot resume
+the checked continuation twice. The coordinator never owns an AVFoundation
+object or invokes a camera operation while locked.
 
-### Hanging Continuations (`CameraManager`)
+The service's `@unchecked Sendable` conformance is limited to the framework
+bridge. Its microphone-preparation task/cache is MainActor-only; its session and
+movie output are lazily resolved, and all connection mutations run on the
+injected serial queue; request state remains inside the independently
+synchronized coordinator.
+
+### Hanging Photo Continuations (`CameraPhotoCaptureCoordinator`)
 
 Apple's ISP (Image Signal Processor) can stall during extreme thermal
 saturation, failing to return an image frame via
-`AVCapturePhotoCaptureDelegate`. Rather than silently hanging the
-`isShutterActive` UI state, Merian wraps `withCheckedThrowingContinuation`
-patterns inside a `withTaskCancellationHandler`. To handle multiple overlapping
-captures on a single UI state, Merian associates an array tracking queue
-(`activeCaptureRequests`), isolating concurrent `timeoutTask?.cancel()` closures
-via unique UUID identifiers. This clears specific stalling entries from RAM and
-resolves dropped continuations via `CancellationError` without blocking
-subsequent captures.
+`AVCapturePhotoCaptureDelegate`. `CameraManager` still wraps the request in
+`withCheckedThrowingContinuation` and `withTaskCancellationHandler`, but
+`CameraPhotoCaptureCoordinator` now owns each settings `uniqueID`, continuation,
+and timeout task under one internal `OSAllocatedUnfairLock`.
 
-**Double-resume crash safety** (`CaptureRequest.isResumed`): Each
-`CaptureRequest` struct carries an `isResumed: Bool` flag (default `false`). All
-four resume sites — timeout expiry, queue connection failure, photo processing
-completion, and task cancellation — guard via
-`guard var r = activeCaptureRequests[requestId], !r.isResumed else { return nil }`
-inside `requestsLock.withLock`. The flag is set to `true` and the entry is
-removed from the dictionary atomically within the same lock, making
-double-resume structurally impossible. Without this guard, a late
-`photoOutput(_:didFinishProcessingPhoto:)` callback racing against a timeout
-expiry could resume the same `CheckedContinuation` twice, which is undefined
-behaviour and causes an immediate crash.
+The manager reserves the ID before the cancellation handler becomes active. A
+cancellation that arrives before continuation registration marks that
+reservation; registration consumes it as `CancellationError` and the manager
+does not ask `CameraSessionController` to enqueue `capturePhoto`. Once active,
+timeout expiry, controller-reported connection failure, photo processing
+completion, and task cancellation all use the same atomic take-and-remove
+transition. Timer cancellation, delegate data conversion, and continuation
+resumption happen only after the coordinator releases its lock. A losing or late
+path finds no active entry and cannot double-resume or perform unneeded
+file-data conversion. Terminal removal also permits safe ID reuse without
+retaining cancellation tombstones.
 
 ### Post-Inference Image Buffer Cleanup (`InferenceEngine`)
 
@@ -915,8 +933,11 @@ hardware/location state on the main actor, but the 12MP ImageIO downsample,
 composing-zone crop, and WebP/JPEG encode run through
 `DetachedWork.value(category: .imagePreparation)`. The detached worker returns
 only bounded inference/display `Data` plus a `SendableCGImage` preview wrapper.
-`AVCapturePhoto.fileDataRepresentation()` is wrapped in an `autoreleasepool` so
-AVFoundation intermediates are released promptly after the continuation resumes.
+`CameraPhotoCaptureCoordinator` rejects a late shutter callback before its
+result closure runs. For the accepted callback,
+`AVCapturePhoto.fileDataRepresentation()` is wrapped in an `autoreleasepool`, so
+AVFoundation intermediates are released before the coordinator resumes the
+continuation.
 
 ### Non-Crashing Startup Contract
 
@@ -1187,18 +1208,23 @@ applying any Wikipedia state, preserving its presentation behavior. The engine
 then checks scan, scientific-name, presentation-generation, and review-action
 identity before mutating observable state or scheduling persistence.
 
-### `AVCaptureSession.inputs` Thread Safety (`CameraManager`)
+### `AVCaptureSession.inputs` Thread Safety (`CameraSessionController`)
 
 `AVCaptureSession.inputs` must be accessed on the session queue.
-`applyTargetFPS`, `throttleToIdleState`, `toggleFlash()`, and
-`applyZoom(factor:ramp:)` resolve video device inputs inside `queue.async`, then
-publish observable UI state back through `Task { @MainActor in ... }`. The same
-ownership rule applies to `AVCaptureMovieFileOutput`, its recording state, and
-its video connection: start/stop, stabilization, timeout cleanup, and
-recording-delegate handling all execute on the camera queue. New hardware
-control paths must follow that split: AVFoundation session/device/output reads
-and `lockForConfiguration()` stay on the camera queue; `@Observable` state
-writes stay on `@MainActor`.
+`CameraSessionController` resolves video device inputs for target FPS, idle
+throttling, torch, zoom, focus, exposure, and still capture inside
+`queue.async`, then returns narrow results through MainActor handlers. The same
+paths use the already-resolved session for no-op controls, while session start
+and preview access remain the ordinary root-session creation boundaries;
+explicit recording preparation may also resolve the controller-backed session on
+that same queue. Stop completion is idempotently delivered even when that
+session is absent or already stopped, keeping observable façade state
+convergent. The same ownership rule applies to `CameraVideoRecordingService`'s
+`AVCaptureMovieFileOutput`, recording state, and video connection: start/stop,
+stabilization, timeout cleanup, and recording-delegate handling all execute on
+the shared camera queue. New hardware control paths must follow that split:
+AVFoundation session/device/output reads and `lockForConfiguration()` stay on
+the camera queue; `@Observable` state writes stay on `@MainActor`.
 
 ### Historical Scan Hydration Snapshot Boundary (`InferenceEngine`)
 
@@ -2022,10 +2048,16 @@ boundaries sharing identical payload dictionaries, wrapping standard
 dictionaries in generic arrays violates Swift 6 memory protections.
 
 **The Refactor**: Instead of using older Objective-C mechanisms like `NSLock()`,
-Merian adopts the low-overhead Swift `OSAllocatedUnfairLock` wrapper struct
-inside `CameraManager`. Wrapping tracking tuples
-(`let requestsLock = OSAllocatedUnfairLock()`) shields Apple hardware callbacks
-executing across thread boundaries, removing Thread-Sanitizer execution halts.
+Merian uses the low-overhead Swift `OSAllocatedUnfairLock` wrapper. Still-photo
+request state now lives inside `CameraPhotoCaptureCoordinator` as the lock's
+owned state, shielding Apple hardware callbacks, timeout tasks, and cancellation
+handlers across thread boundaries without exposing an independently mutable
+dictionary from `CameraManager`. The manager's frame-analysis state and the
+controller's lazy capture/configuration state are each contained by their own
+state-owning locks. Video request identity, continuation, start metadata, and
+scheduled tasks likewise live as the owned state of
+`CameraVideoRecordingCoordinator`; the coordinator, manager-analysis, and
+controller locks are never nested.
 
 ### Bridging RAM Leaks (`ImageCropProcessor` & `LocalImageLoader`)
 
@@ -2639,7 +2671,10 @@ Cancellation remains an optimization rather than the correctness boundary: the
 task compares its generation before reading or applying a value, and state is
 cleared only by the generation that still owns it. The FPS source is evaluated
 after the delay, so a thermal escalation or recovery that occurred while the
-task slept supersedes the trigger value.
+task slept supersedes the trigger value. `CameraManager.applyTargetFPS` retains
+the app-level idle guard and forwards the surviving value to
+`CameraSessionController`, which clamps and applies the frame duration under the
+active device lock on its serial queue.
 
 ```swift
 self.isFPSTrackingRegistered = false

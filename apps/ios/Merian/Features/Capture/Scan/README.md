@@ -3,8 +3,11 @@
 `Capture/Scan` owns the visual Capture modality: camera preview presentation,
 focus and zoom interaction, photo/video capture actions, bounded media
 preparation, and the staged-media commit boundary. It does not own the
-`AVCaptureSession` or device configuration; `CameraManager` remains the hardware
-authority.
+`AVCaptureSession` or device configuration; Core Hardware remains the hardware
+authority through `CameraSessionController`, the observable `CameraManager`
+facade, and `CameraVideoRecordingService`. Core Hardware's
+`CameraPhotoCaptureCoordinator` and `CameraVideoRecordingCoordinator` remain the
+still-photo and video-request lifetime owners, respectively.
 
 ## Ownership
 
@@ -21,8 +24,9 @@ authority.
 - `Views/`, `Components/`, and `Modifiers/` own viewfinder presentation,
   view-local focus/zoom timing, the system photo picker, and camera gestures.
   They contain no networking or global service resolution. The preview receives
-  the same environment-injected `CameraManager` that owns its session, zoom, and
-  lens-transition state.
+  the same environment-injected `CameraManager` facade that exposes the session
+  and owns observable zoom/lens-transition state; `CameraSessionController`
+  retains the underlying session and device-control ownership.
 
 `CaptureWorkspaceDependencies.scan` injects the live adapters from the existing
 workspace container. Do not add a Scan singleton, a broad service protocol, or

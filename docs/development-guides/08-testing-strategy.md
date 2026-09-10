@@ -2431,6 +2431,10 @@ xcodebuild test-without-building \
   -destination "$camera_test_destination" \
   -parallel-testing-enabled NO \
   -only-testing:merianTests/CameraManagerTests \
+  -only-testing:merianTests/CameraPhotoCaptureCoordinatorTests \
+  -only-testing:merianTests/CameraVideoRecordingCoordinatorTests \
+  -only-testing:merianTests/CameraSessionPolicyTests \
+  -only-testing:merianTests/CameraSessionControllerTests \
   -only-testing:merianTests/CameraArchitectureTests
 ```
 
@@ -2438,31 +2442,65 @@ Then execute the complete `merianTests` target against the same products. Record
 a package-resolution, build, simulator-service, or test-run failure as an
 unexecuted gate; source parsing, standalone policy tests, cached modules, and
 successful simulator discovery are not substitutes for that result. The focused
-suites prove deterministic recording/FPS policy and static ownership boundaries,
-not camera hardware behavior. Complete the physical-device matrix in the
+suites prove deterministic photo and video continuation ownership,
+session/zoom/frame-rate and recording policy, lazy capture-stack construction,
+inert pre-resolution controls, idempotent stop completion, and static ownership
+boundaries, not camera hardware behavior. Complete the physical-device matrix in
+the
 [Core Hardware README](../../apps/ios/Merian/Core/Hardware/README.md#camera-verification)
 before release.
 
 ### Hardware & Ecosystem Integrations
 
 - **`CameraManagerTests.swift`**: Validates camera state routing, target-FPS
-  debounce ownership, and the video-generation correlation policy. A controlled
-  async sleeper proves the FPS debouncer reads the current target after its
-  delay and rejects a replaced generation even when the sleeper intentionally
-  ignores cooperative cancellation. Focused recording tests prove callback URLs
-  bind to the intended temporary file, generation-A callbacks/actions are
-  rejected while generation B is active, and cooperatively cancelled
-  timeout/stop tasks are rejected after their action token is replaced. These
-  policy tests do not require simulator camera hardware.
+  debounce ownership, the video-generation correlation policy, and inert
+  construction of the video service. Injected session and movie-output creation
+  closures prove that creating the service resolves neither AVFoundation object.
+  A controlled async sleeper proves the FPS debouncer reads the current target
+  after its delay and rejects a replaced generation even when the sleeper
+  intentionally ignores cooperative cancellation. Focused recording tests prove
+  callback URLs bind to the intended temporary file, generation-A
+  callbacks/actions are rejected while generation B is active, and cooperatively
+  cancelled timeout/stop tasks are rejected after their action token is
+  replaced. These policy and construction tests do not require simulator camera
+  hardware.
+- **`Core/Hardware/Camera/CameraSessionPolicyTests.swift`**: Freezes the 15x
+  presentation cap, optical-stop filtering, independent UI/hardware zoom
+  clamping, supported frame-duration bounds, and the min/max assignment order
+  required by AVFoundation device constraints.
+- **`Core/Hardware/Camera/CameraSessionControllerTests.swift`**: Proves
+  construction creates no capture object; controls and both stop APIs remain
+  inert before first resolution; the callback-based stop still completes in that
+  state; and concurrent root-session access initializes exactly one
+  `AVCaptureSession`. These tests exercise the lock-backed lazy ownership and
+  idempotent lifecycle contract without starting camera hardware.
+- **`Core/Hardware/Camera/CameraPhotoCaptureCoordinatorTests.swift`**: Proves
+  cancellation before continuation registration is retained, every active
+  terminal path has one winner, simultaneous cancellation/completion has exactly
+  one winner, late completion and cancellation are ignored without evaluating
+  rejected photo data, the five-second timeout retains the existing
+  `CameraManager` error contract, and a terminal request leaves no identifier
+  tombstone. The injected sleeper makes timeout behavior deterministic without
+  AVFoundation hardware.
+- **`Core/Hardware/Camera/CameraVideoRecordingCoordinatorTests.swift`**: Proves
+  exact-generation installation and terminal claiming, callback-URL correlation,
+  one-shot start metadata, copied-completion double-resume rejection,
+  stop-before-start propagation, scheduled-action replacement, stale
+  timeout/stop rejection, cancellation-ignoring sleeper behavior, and exactly
+  one winner across 100 concurrent cancellation/delegate-completion races. The
+  suite runs without AVFoundation hardware.
 - **`Core/Hardware/Camera/CameraArchitectureTests.swift`**: Inventories the
-  exact owners of camera recording values, deterministic policies, FPS
-  coordination, and the live manager. It enforces focused imports, prevents the
-  extracted layers from acquiring capture/network/UI dependencies, confirms
-  AVFoundation and lock-owned request state remain co-located in
-  `CameraManager.swift`, retains the behavioral selector inventory, caps each
-  extracted owner at 100 lines, and applies an interim 1,650-line non-growth
-  ceiling to the live manager. The interim ceiling is not the feature-wide
-  600-line completion target.
+  exact owners of camera recording values, deterministic policies, photo/video
+  request coordination, FPS coordination, the session controller, the
+  movie-output service, and the live manager. It enforces focused imports,
+  prevents the extracted layers from acquiring network, persistence, or UI
+  dependencies, keeps frame/depth/photo delegate processing in
+  `CameraManager.swift`, confines session/device/output AVFoundation to
+  `CameraSessionController`, and confines movie-output AVFoundation and
+  file-output delegates to `CameraVideoRecordingService`. The value, policy, and
+  FPS owners remain capped at 100 lines, the lock-owning photo and video
+  coordinators are capped at 220 and 380 lines, and the session controller,
+  recording service, and live manager are capped at 600 lines.
 
 - **`apps/ios/MerianTests/Features/Capture/Shell/`**: Mirrors the Shell owner
   instead of placing workspace coverage in the former root `merianTests.swift`

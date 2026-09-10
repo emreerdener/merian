@@ -308,8 +308,10 @@ and full unit target for the combined regression gate.
 Triggered when `scenePhase == .inactive` (app switcher, incoming call overlay,
 system alerts, **iOS limited photo library access prompt**).
 
-1. `CameraManager.stopSession()` — halts AVFoundation immediately to preserve
-   thermal budget and release hardware resources.
+1. `CameraManager.stopSession()` — immediately queues AVFoundation shutdown on
+   the controller-owned serial camera queue to preserve thermal budget and
+   release hardware resources. Its MainActor completion converges observable
+   running/flash state even when no session exists or it is already stopped.
 
 > **Sheet dismissal is NOT performed on inactive.** System overlays — including
 > the iOS limited photo library access prompt — transition the scene to

@@ -709,12 +709,20 @@ teardown. Focused tests mirror these boundaries and enforce the 600-line
 production-file guard.
 
 [Core Hardware](Merian/Core/Hardware/README.md) keeps `CameraManager.swift` as
-the sole live AVFoundation, serial-queue, delegate, and lock-owned request-state
-boundary. Focused `Camera/Models`, `Camera/Policies`, and `Camera/Coordination`
-owners now contain recording identities, deterministic microphone/generation
-policy, and the latest-state FPS debouncer respectively. Architecture tests
-freeze those dependencies and an interim non-growth ceiling while later slices
-continue reducing the live manager without changing capture behavior.
+the observable facade and frame/depth/photo delegate bridge.
+`Camera/Services/CameraSessionController` owns the lock-backed lazy capture
+stack, serial queue, session lifecycle, output setup, active-device locking, and
+hardware photo execution. The manager shares that controller's queue and lazy
+session provider with `CameraVideoRecordingService`, which lazily owns the movie
+output, audio/stabilization preparation, recording operations, file/delegate
+handling, and no UI state. Constructing those owners resolves no AVFoundation
+capture object; pre-preview controls and stop requests do not resolve the lazy
+stack merely to perform a no-op. `Camera/Models`, `Camera/Policies`, and
+`Camera/Coordination` contain recording identities, deterministic
+session/zoom/frame-rate and microphone/generation policy, lock-owned photo and
+video request lifecycles, and the latest-state FPS debouncer. Architecture tests
+freeze those dependencies and keep every live camera owner at or below its
+focused line ceiling.
 
 ## Insights Integration Ownership
 

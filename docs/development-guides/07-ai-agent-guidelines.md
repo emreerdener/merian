@@ -225,8 +225,10 @@ dependency audit, tests, type-check, and production build; preserve the required
   observers guarded by `scenePhase == .active`.
 - **AVFoundation queue ownership**: Never read `AVCaptureSession.inputs` or
   configure an `AVCaptureDevice` synchronously on `@MainActor`. Resolve inputs
-  and run `lockForConfiguration()` inside the camera queue, then publish
-  observable state back through `Task { @MainActor in ... }`.
+  and run `lockForConfiguration()` inside the `CameraSessionController`-owned
+  camera queue, then publish observable state back through
+  `Task { @MainActor in ... }`. Device controls and stop paths must inspect the
+  existing lazy session rather than resolving it solely to perform a no-op.
 - **Image encoding — WebP first, JPEG fallback only through ImageIO**: Image
   payloads produced by the app (inference, display, offline queue, manual crop)
   attempt lossy WebP via `CGImageDestinationCreateWithData` with

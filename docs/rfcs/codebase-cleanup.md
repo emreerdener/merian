@@ -4159,21 +4159,21 @@ owners out of the 1,790-line `CameraManager.swift`. Recording result,
 generation, and scheduled-action values now live in `Camera/Models`; the
 already-granted microphone rule and pure generation/action gate live in
 `Camera/Policies`; and the latest-state FPS debouncer lives in
-`Camera/Coordination`. The live manager remains the sole owner of the capture
-stack, serial camera queue, session/device/output access, delegates,
-continuations, lock-protected recording state, and observable hardware state. No
-public initializer, capture behavior, layout, copy, route, endpoint, payload,
-persistence, feature-flag, or deployment contract changed.
+`Camera/Coordination`. At that checkpoint, the live manager remained the sole
+owner of the capture stack, serial camera queue, session/device/output access,
+delegates, continuations, lock-protected recording state, and observable
+hardware state. No public initializer, capture behavior, layout, copy, route,
+endpoint, payload, persistence, feature-flag, or deployment contract changed.
 
 `CameraArchitectureTests` inventories the exact declaration owners, locks their
 framework dependencies, prevents deterministic support code from acquiring
 capture/network/UI effects, confirms the live AVFoundation and request state
 remain co-located, and preserves the existing behavioral test selector. The
 three extracted production files are capped at 100 lines. The root manager is
-now 1,646 lines and has an interim 1,650-line non-growth ceiling; it has not yet
-reached the usual 600-line completion guard. Subsequent camera work must move a
-complete queue- or lock-owned subsystem rather than splitting mutable state
-across owners.
+1,646 lines at that checkpoint and has an interim 1,650-line non-growth ceiling;
+it has not yet reached the usual 600-line completion guard. Subsequent camera
+work must move a complete queue- or lock-owned subsystem rather than splitting
+mutable state across owners.
 
 Verification for this slice passed declaration-equivalence checks against the
 pre-extraction source, Swift parsing and focused Simulator-SDK typechecking,
@@ -4189,6 +4189,167 @@ access. The focused Xcode selectors, complete `merianTests` target, and
 on-device AVFoundation matrix remain required in the next runnable environment;
 the canonical commands live in the
 [testing strategy](../development-guides/08-testing-strategy.md#camera-verification).
+
+### Core Hardware Camera Photo Request Lifecycle
+
+The second Camera slice moved the complete still-photo continuation subsystem
+into `Camera/Coordination/CameraPhotoCaptureCoordinator.swift`. The coordinator
+owns request reservation, checked-continuation registration, the five-second
+timeout task, cancellation, and atomic terminal-result claiming under one
+`OSAllocatedUnfairLock`. `CameraManager` still owns `AVCapturePhotoSettings`,
+the serial camera queue, flash/rotation/resolution/depth configuration,
+`capturePhoto`, the delegate entry point, and accepted photo-to-`Data`
+conversion.
+
+Reservation now occurs before the task cancellation handler is installed. An
+already-cancelled or concurrently cancelled task therefore marks the reserved
+ID; registration consumes that state as `CancellationError` and never queues a
+hardware shutter. Timeout, setup failure, delegate completion, and active
+cancellation remove state before resuming outside the lock, preserving the
+existing error codes and making every terminal race exactly-once. At that
+checkpoint, the manager was 1,599 lines with an interim 1,610-line non-growth
+ceiling, while the focused coordinator was capped at 220 lines.
+
+Six deterministic coordinator tests cover cancellation before registration,
+active cancellation, completion/late-result exclusion, a simultaneous
+cancellation/completion race, the existing timeout error contract, and
+tombstone-free ID reuse. All six and the four Camera architecture tests execute
+in normal and Thread Sanitizer standalone Swift Testing harnesses; the new
+source and tests typecheck against the iOS Simulator SDK, and the entire
+device-only `CameraManager` branch typechecks for arm64 iOS with real Apple
+frameworks and narrow stubs for unrelated app globals. Project generation,
+project validation, source membership, parsing, strict affected-source
+SwiftLint, Markdown formatting, and whitespace checks pass. A complete Xcode
+build is not recorded as passing because SwiftPM could not write its host
+diagnostics cache before compilation, and CoreSimulatorService remains
+disconnected. Focused/full Xcode execution and the physical-device shutter
+matrix remain required in the next runnable environment.
+
+### Core Hardware Camera Video Request Lifecycle
+
+The third Camera slice moved the complete lock-owned video request subsystem
+into `Camera/Coordination/CameraVideoRecordingCoordinator.swift`. One private
+request now owns the generation gate, checked continuation, start metadata,
+timeout task, automatic-stop task, and stop state under a state-owning
+`OSAllocatedUnfairLock`. At that checkpoint, `CameraManager` retained the
+`AVCaptureMovieFileOutput`, serial camera queue, session/audio and stabilization
+configuration, file cleanup and logging, delegate entry points, and
+generation-fenced MainActor presentation.
+
+Scheduled actions preserve the existing install-before-launch and
+compare-before-attach fences. Replacing a task updates the action UUID under the
+coordinator lock, and a task that loses attachment is canceled. Stop, timeout,
+cancellation, and finish callbacks can take the active request only once; task
+cancellation and continuation resumption happen after the lock is released. A
+callback must still come from the configured movie output and match the exact
+generation-derived URL before the coordinator exposes its completion. The live
+manager was 1,408 lines at that checkpoint, with an interim 1,420-line
+non-growth ceiling; the focused coordinator was 367 lines with a 380-line
+ceiling.
+
+Six deterministic coordinator tests cover active-generation ownership, one-shot
+start claiming, copied-completion double-resume rejection, stop-before-start
+propagation, timeout/stop replacement, cancellation-ignoring sleep, callback URL
+correlation, terminal clearing, and 100 simultaneous
+cancellation/delegate-completion races. The combined 16-test Camera coordinator
+and architecture harness passes normally and under Thread Sanitizer. Production
+coordinators and their tests typecheck with strict concurrency and warnings as
+errors against the iOS Simulator SDK, and the complete device-only
+`CameraManager` branch typechecks for arm64 iOS with real Apple frameworks and
+narrow stubs for unrelated app globals. XcodeGen is byte-stable; project,
+source-membership, iOS CI-tooling, parsing, strict affected-source SwiftLint,
+Markdown-format, and whitespace gates pass. Full Xcode build/test execution is
+not recorded as passing: local attempts stop before compilation because
+CoreSimulatorService is unavailable and SwiftPM package manifests cannot enter
+their nested sandbox. The focused/full Xcode selectors and physical-device
+recording matrix remain required in the next runnable environment.
+
+### Core Hardware Camera Video AVFoundation Boundary
+
+The fourth Camera slice moved the complete movie-output AVFoundation boundary
+into `Camera/Services/CameraVideoRecordingService.swift`. `CameraManager`
+creates the root capture stack and serial camera queue, injects the queue plus a
+lazy session provider into the service, and retains its existing public record,
+stop, and cancel methods plus generation-fenced observable presentation. The
+service lazily creates and exclusively owns the movie output, output attachment,
+audio preparation, rotation and stabilization, camera-queue recording
+operations, timeouts, file cleanup, hardware logging, and recording delegate
+entry points. A review caught and repaired an intermediate eager-initialization
+regression: manager/service construction now evaluates neither the session
+provider nor the movie-output factory, and a focused regression test freezes
+that cold-launch contract. No route, payload, persistence, feature flag, layout,
+copy, or Capture initializer changed.
+
+The service composes `CameraVideoRecordingCoordinator`; it does not duplicate
+request state or expose observable state. Its narrow `@unchecked Sendable`
+conformance is documented and architecture-tested: preparation cache access is
+MainActor-only, and capture-object mutation is confined to the injected serial
+queue. The manager's session-state lock and the coordinator's request lock stay
+non-nesting. `CameraManager` is now 919 lines with a 925-line interim guard, and
+the 598-line recording service remains below its 600-line ceiling.
+
+Architecture coverage now separates manager-owned video, depth, and photo
+delegates from the service-owned movie output and file-output delegate. It also
+freezes the injected session-provider, queue, movie-output-factory, and
+coordinator seams and excludes network, persistence, and UI dependencies. The
+generic Simulator build, `build-for-testing`, and 31-test focused Camera matrix
+passed before the final lazy-construction repair. The repaired production source
+passes strict simulator/device typechecking, and its added 32nd test passes
+strict Simulator typechecking. XcodeGen, project/source-membership validation,
+parsing, Markdown formatting, and whitespace checks also pass. Execution of the
+current-source focused and complete targets could not start after
+CoreSimulatorService disconnected on the host; those selectors and the
+physical-device recording matrix therefore remain separate release evidence.
+
+### Core Hardware Camera Session and Device-Control Boundary
+
+The fifth Camera slice moved the complete root session/device/output mutation
+boundary into `Camera/Services/CameraSessionController.swift`. Its private,
+lock-backed capture stack lazily creates the session plus video, depth, and
+photo outputs; its serial queue owns configuration, lifecycle, device discovery
+and locking, rotation, frame-rate, zoom, focus, torch, and hardware still-photo
+execution. `CameraManager` is now the MainActor observable facade and retains
+frame/depth/photo delegate processing, photo request composition and accepted
+data conversion, HardwareOrchestrator/ViewfinderIntelligence integration, and
+generation-fenced recording presentation. `CameraVideoRecordingService`
+continues to own the movie output on the controller's injected queue.
+
+Pure zoom and frame-duration decisions moved to
+`Camera/Policies/CameraSessionPolicy.swift`. Manager, controller, and recording
+service construction remains inert: the session and outputs are created only by
+preview access or explicit capture work, and concurrent root-session access is
+lock-coalesced to one instance. The non-LiDAR gate still avoids creating or
+attaching the depth output during setup. The manager's remaining lock contains
+only frame/depth throttle timestamps and the inference-pause mirror; controller
+and coordinator locks remain private and non-nesting. No route, payload,
+persistence, feature flag, layout, copy, public Capture initializer, or
+deployment contract changed.
+
+`CameraManager.swift` is now 571 lines and `CameraSessionController.swift` is
+555 lines, so both use the normal 600-line architecture ceiling rather than an
+interim non-growth allowance. Four policy tests cover optical-stop and zoom
+bounds plus supported frame-duration clamping and update order. Three controller
+tests prove inert construction, no-op controls and idempotent stop completion
+before first resolution, and exactly-one session creation under concurrent
+access. `CameraArchitectureTests` freezes the new AVFoundation ownership split
+and dependency exclusions.
+
+Verification passed XcodeGen, project/source-membership validation, Swift
+parsing, strict affected-source SwiftLint, the generic iOS Simulator build, and
+a current-source `build-for-testing`. A follow-up review closed three
+lazy-lifecycle gaps in the extracted owner: device controls and both stop APIs
+now inspect an already-resolved session instead of creating capture hardware for
+a no-op; callback stop always delivers completion when the session is absent or
+already stopped; and photo capture reads only an already-configured depth output
+so the non-LiDAR path does not create an unused depth object. The 39-test
+focused Camera selector matrix passes on the selected iOS Simulator. The
+complete current-source `merianTests` target passes 3,205 tests with zero
+failures or skips (5,193 device/configuration-level passes when dynamic
+parameter runs are expanded). Pure tests do not exercise physical optics;
+session start/stop, torch, zoom/lens switching, focus, LiDAR and non-LiDAR depth
+behavior, photo rotation, interruption recovery, thermal FPS, and recording
+stabilization still require the documented physical-device matrix before
+release.
 
 ## Phase 3: Ownership Cleanup
 

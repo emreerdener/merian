@@ -20,12 +20,22 @@ singletons. A shared Photos image first passes through `MerianApp.onOpenURL` and
 `ExternalImageImportStore`, which owns a durable app-sandbox copy before Capture
 begins this pipeline:
 
-1. **Capture Context**: Live camera input uses `HardwareOrchestrator` and
-   `CameraManager` to lock white balance and read shutter-time coordinates,
-   elevation, and LiDAR distance while WeatherKit and reverse geocoding are
-   prefetched. PhotosPicker and shared-file imports use their embedded
-   historical context instead; shared files preserve only valid EXIF date/GPS
-   values and do not invent missing metadata.
+1. **Capture Context**: Live camera input uses `HardwareOrchestrator` and the
+   `CameraManager` facade while `CameraSessionController` owns session/device
+   configuration, rotation, zoom/focus/torch/frame-rate mutations, and hardware
+   still capture. The manager's delegates publish LiDAR distance; Capture reads
+   shutter-time coordinates and elevation while WeatherKit and reverse geocoding
+   are prefetched. `CameraPhotoCaptureCoordinator` separately fences still-photo
+   timeout, cancellation, and delegate completion so one terminal path resumes
+   the shutter request. `CameraVideoRecordingCoordinator` similarly fences each
+   bounded recording's start, stop, timeout, cancellation, and delegate
+   completion while `CameraVideoRecordingService` owns the movie-output
+   AVFoundation boundary on the controller's serial queue. The manager supplies
+   a lazy controller-backed session provider and the service lazily creates its
+   output, so constructors resolve no capture object. PhotosPicker and
+   shared-file imports use their embedded historical context instead; shared
+   files preserve only valid EXIF date/GPS values and do not invent missing
+   metadata.
 2. **Durable Acceptance**: `OfflineQueueManager` persists the ordered media
    timeline and one stable `scan_id` before live inference. Eligible online work
    also persists a single-use foreground inference UUID on its scan-ingestion

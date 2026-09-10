@@ -235,38 +235,54 @@ triggering excessive SwiftUI view rebuilds.
 
 ### `CameraManager`
 
-- The root `Core/Hardware/CameraManager.swift` is the live AVFoundation owner:
-  session/device/output access, serial-queue mutations, delegates,
-  lock-protected request lifetime, and observable hardware state stay there.
-  `Core/Hardware/Camera/Models` owns recording identities, `Camera/Policies`
-  owns deterministic microphone and generation/action decisions, and
-  `Camera/Coordination` owns the MainActor FPS debouncer. Do not move a
-  continuation, task handle, delegate correlation, or capture object into those
-  support layers independently of the lock or queue that owns it.
-- Abstracts AVFoundation via `AVCaptureDevice.DiscoverySession`, preferring
-  `.builtInTripleCamera` on Pro devices for optical zoom support, falling back
-  to `.builtInLiDARDepthCamera`, `.builtInDualCamera`, `.builtInDualWideCamera`,
-  and `.builtInWideAngleCamera` in that order. Depth data via
-  `AVCaptureDepthDataOutput` is attached conditionally and works with any device
-  in the list that supports it.
-- Activated via `.handleActivePhase()` calls in `MerianApp.swift`.
-- Governs `subjectDistanceInMeters`, auto-focus thresholds, thermal bounds, and
-  frame drops on the dedicated camera queue.
-- Avoids Accelerate `vImage` CPU starvation during paused states via an atomic
-  `nonisolated(unsafe) private var activeInferencePaused` boolean, synchronized
-  with the `@MainActor` preference boundary. When set, this triggers an early
-  return in `captureOutput`, halting the histogram allocation pipeline and
-  preserving battery and thermals whenever the Viewfinder AI is paused.
+- The root `Core/Hardware/CameraManager.swift` is the MainActor observable
+  facade and frame/depth/photo delegate bridge.
+  `Camera/Services/CameraSessionController.swift` owns the lock-backed lazy
+  capture stack, serial queue, session lifecycle, device/output configuration,
+  active-device locking, and hardware still-photo execution. The manager injects
+  the controller's queue plus a lazy controller-backed session provider into
+  `CameraVideoRecordingService`, which exclusively owns the lazily created movie
+  output and file-output delegate. Constructing these owners resolves no
+  AVFoundation capture object; explicit preview or capture work performs the
+  first provider/factory access. `Camera/Models` owns recording identities,
+  `Camera/Policies` owns deterministic session, zoom, frame-rate, microphone,
+  and generation/action decisions, and `Camera/Coordination` owns the
+  lock-contained photo and video request lifecycles plus the MainActor FPS
+  debouncer. Do not move a continuation, task handle, delegate correlation, or
+  capture object independently of the lock or queue that owns it.
+- `CameraSessionController` abstracts AVFoundation via
+  `AVCaptureDevice.DiscoverySession`, preferring `.builtInTripleCamera` on Pro
+  devices for optical zoom support, falling back to `.builtInLiDARDepthCamera`,
+  `.builtInDualCamera`, `.builtInDualWideCamera`, and `.builtInWideAngleCamera`
+  in that order. `AVCaptureDepthDataOutput` is created and attached only when a
+  dedicated LiDAR device is discoverable; non-LiDAR stereo devices must not
+  enable depth because it can lock zoom to the calibration factor.
+- The Capture workspace starts the session only while visual capture owns the
+  foreground presentation and `scenePhase == .active`.
+  `AppLifecycleManager.handleInactivePhase()` requests an idempotent stop; app
+  activation itself does not start camera hardware.
+- `CameraManager` governs `subjectDistanceInMeters`, observes
+  `HardwareOrchestrator.targetFPS`, and owns frame-analysis drops. The
+  controller applies focus, exposure, and frame-rate mutations on the dedicated
+  camera queue; thermal and battery policy remains in `HardwareOrchestrator`.
+- Avoids Accelerate `vImage` CPU starvation during paused states via a typed,
+  lock-contained `AnalysisState` mirror of the `@MainActor` preference. When
+  set, it triggers an early return in `captureOutput`, halting the histogram
+  allocation pipeline and preserving battery and thermals whenever Viewfinder
+  analysis is paused.
 - **Deferred Mutex Unlocks**: Mitigates AVFoundation buffer leaks and device
   thread lockouts by placing `defer { device.unlockForConfiguration() }` and
   `defer { CVPixelBufferUnlockBaseAddress }` guards across all hardware control
   paths.
 - **Session Queue Ownership**: `AVCaptureSession.inputs` and all video-device
-  lookups must run inside the camera queue. `toggleFlash()`, `applyZoom`,
-  focus/exposure, FPS changes, and idle throttling keep AVFoundation reads and
-  `lockForConfiguration()` off `@MainActor`, then publish `isFlashEnabled`,
-  `zoomFactor`, or other observable state back via `Task { @MainActor in ... }`.
-  Never read `session.inputs` synchronously from a SwiftUI action handler.
+  lookups must run inside the camera queue. `CameraSessionController` owns
+  `toggleTorch`, zoom, focus/exposure, FPS changes, idle throttling, and the
+  associated `lockForConfiguration()` scopes. MainActor handlers publish only
+  the resulting observable state. Never read `session.inputs` synchronously from
+  a SwiftUI action handler. Controls and both stop APIs inspect only an existing
+  session, so pre-preview cleanup or UI actions remain inert instead of creating
+  capture hardware. Callback-based stop still delivers its MainActor completion
+  when no session exists or it is already stopped.
 - **Latest-State FPS Debounce**: `withObservationTracking` registrations are
   one-shot. The target-FPS callback must re-arm `trackFPS()` before awaiting or
   scheduling delayed work. The focused
@@ -276,25 +292,39 @@ triggering excessive SwiftUI view rebuilds.
   compare-before-apply/clear semantics. Never capture an FPS value before the
   delay or rely on task cancellation alone; either pattern can let a stale
   thermal generation survive.
-- **Recorded Video Stabilization Boundary**: `AVCaptureMovieFileOutput` may be
-  pre-attached during visual camera setup so the hold-to-record path feels
-  immediate, but its video connection keeps stabilization off until
-  `recordVideo(...)` is actually starting a clip. The start path requests
-  AVFoundation `.auto` stabilization only when the connection reports support,
-  logs the requested and active mode through `MerianLog.hardware`, and resets
-  the connection to `.off` on finish, cancellation, or failure so still-photo
-  captures do not inherit stabilization crop, latency, or resolution changes.
-- **Video Recording Generation Boundary**: one active recording value owns the
-  continuation, UUID generation, UUID-derived output URL, start metadata, and
-  scheduled tasks under `videoRecordingLock`. Timeout and automatic-stop work
-  must match both the generation and its current action UUID; task cancellation
-  by itself is insufficient because it is cooperative. Recording delegate
-  callbacks first move to the camera queue, verify `movieOutput` identity, and
-  match the callback URL before taking state. Never clear or resume recording
-  state from a callback, timeout, stop, or cancellation path that does not carry
-  the expected generation. All `AVCaptureMovieFileOutput` and connection access
-  belongs to the camera queue; generation-checked UI state alone returns to
-  `@MainActor`.
+- **Photo Request Lifetime**: `CameraPhotoCaptureCoordinator` reserves each
+  `AVCapturePhotoSettings.uniqueID` before the cancellation handler is
+  installed, then owns registration, the five-second timeout, cancellation, and
+  terminal result claiming under one internal lock. This closes the race where
+  cancellation precedes registration. `CameraManager` creates the settings and
+  retains delegate data conversion; `CameraSessionController` owns queue-bound
+  flash/rotation/resolution/depth configuration and hardware capture. Still
+  capture consults only the already-configured depth output, so a non-LiDAR
+  request does not instantiate an unattached output. Every terminal path removes
+  state before resuming the continuation outside the lock.
+- **Recorded Video Stabilization Boundary**: `CameraVideoRecordingService` may
+  pre-attach its `AVCaptureMovieFileOutput` during visual camera setup so the
+  hold-to-record path feels immediate, but its video connection keeps
+  stabilization off until `recordVideo(...)` is actually starting a clip. The
+  service requests AVFoundation `.auto` stabilization only when the connection
+  reports support, logs the requested and active mode through
+  `MerianLog.hardware`, and resets the connection to `.off` on finish,
+  cancellation, or failure so still-photo captures do not inherit stabilization
+  crop, latency, or resolution changes.
+- **Video Recording Generation Boundary**: `CameraVideoRecordingCoordinator`
+  keeps the continuation, UUID generation, UUID-derived output URL, start
+  metadata, and scheduled tasks in one lock-owned request. Timeout and
+  automatic-stop work must match both the generation and its current action
+  UUID; task cancellation by itself is insufficient because it is cooperative.
+  The service's recording delegate callbacks first move to the camera queue,
+  verify `movieOutput` identity, and match the callback URL before taking state
+  from the coordinator. Never clear or resume recording state from a callback,
+  timeout, stop, or cancellation path that does not carry the expected
+  generation. A successful take returns a completion backed by one shared atomic
+  continuation box, so copied completion values cannot resume the request twice.
+  All `AVCaptureMovieFileOutput` and connection access belongs to the service on
+  the shared camera queue; generation-checked UI state alone returns to
+  `CameraManager` on `MainActor`.
 
 ### `EnvironmentContextManager`
 

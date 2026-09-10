@@ -8,20 +8,19 @@ mitigates it.
 
 ## Capture → Disk
 
-### 1. AVFoundation Buffer (`CameraManager`)
+### 1. AVFoundation Buffer (Camera Owners)
 
-`CameraManager` receives raw `CMSampleBuffer` frames from the AVFoundation
-`captureOutput` delegate on a dedicated
-`DispatchQueue(label: "camera.session")`.
+`CameraSessionController` owns the capture outputs and dedicated
+`DispatchQueue(label: "com.merian.camera")`. `CameraManager` remains the
+`captureOutput` delegate and receives raw `CMSampleBuffer` frames on that queue.
 
 - **OOM risk**: Decoding a full 12–48 MP `CMSampleBuffer` without throttling
   instantly spikes RAM and triggers JetSam.
-- **Mitigation**: An atomic
-  `nonisolated(unsafe) private var activeInferencePaused` boolean short-circuits
-  the entire `captureOutput` pipeline when the viewfinder AI is halted. No
-  histogram allocation occurs for a paused session. Additionally,
-  `defer { CVPixelBufferUnlockBaseAddress }` is unconditionally applied to
-  prevent AVFoundation buffer leaks.
+- **Mitigation**: A typed, lock-contained `AnalysisState.isInferencePaused`
+  mirror short-circuits the entire `captureOutput` pipeline when the viewfinder
+  AI is halted. No histogram allocation occurs for a paused session.
+  Additionally, `defer { CVPixelBufferUnlockBaseAddress }` is unconditionally
+  applied to prevent AVFoundation buffer leaks.
 
 ### 2. Dual-Path Preparation (`MediaPreparationActor` + `ImageDownsampler`)
 
@@ -280,9 +279,14 @@ one render later. `shouldPresentActiveScanToolbar` suppresses the manual
 if admission fails, the attempt releases ownership but retains the staged media
 so the toolbar becomes the explicit retry path.
 
-`CameraManager.photoOutput(_:didFinishProcessingPhoto:)` wraps
+`CameraPhotoCaptureCoordinator` atomically claims the exact still-photo request
+before `CameraManager.photoOutput(_:didFinishProcessingPhoto:)` evaluates its
+result closure. `CameraSessionController` performs connection validation,
+flash/rotation/resolution/depth configuration, and the shutter request on its
+serial queue. A late callback therefore skips photo-data conversion. For the
+accepted callback, `CameraManager` wraps
 `AVCapturePhoto.fileDataRepresentation()` in an `autoreleasepool`, releasing
-AVFoundation intermediates immediately after the continuation resumes.
+AVFoundation intermediates before the coordinator resumes the continuation.
 
 After caller-scoped admission returns and the staged-input snapshot is
 revalidated, `CaptureWorkspaceViewModel.submitStagedCapture(...)` calls

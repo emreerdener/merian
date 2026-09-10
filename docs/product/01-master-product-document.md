@@ -1556,6 +1556,7 @@ repository-relative.
 - `apps/ios/Merian/Features/Capture/Record/`
 - `apps/ios/Merian/Features/Capture/Describe/`
 - `apps/ios/Merian/Core/Hardware/CameraManager.swift`
+- `apps/ios/Merian/Core/Hardware/Camera/`
 - `apps/ios/Merian/Core/Hardware/HardwareOrchestrator.swift`
 - `apps/ios/Merian/Core/Data/Images/MediaPreparationActor.swift`
 - `apps/ios/Merian/Core/Data/Images/PhotoLibraryManager.swift`

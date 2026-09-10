@@ -5,14 +5,22 @@ The optical and physical layer of the Merian application wraps Apple's
 
 ## Ownership Boundary
 
-The root `CameraManager.swift` owns `AVCaptureSession`, device
-discovery/configuration, hardware callbacks, depth, stabilization, torch, focus,
-zoom mutations, the serial camera queue, and lock-protected live request state.
-`Core/Hardware/Camera/Models` owns value-only recording identities,
-`Camera/Policies` owns microphone reuse and generation-correlation decisions,
-and `Camera/Coordination` owns target-FPS debounce lifetime. These extracted
-owners do not access the capture session or independently mutate live recording
-state.
+The root `CameraManager.swift` is the MainActor observable facade and the
+frame/depth/photo delegate bridge. `CameraSessionController` owns the
+lock-backed lazy `AVCaptureSession`, video/depth/photo outputs, device discovery
+and configuration, torch/focus/zoom/frame-rate mutations, shared serial camera
+queue, rotation state, and hardware still-photo execution. The manager injects
+that controller's queue and a lazy controller-backed session provider into
+`CameraVideoRecordingService`, which creates the movie output lazily and owns
+audio preparation, rotation/stabilization configuration, recording operations,
+cleanup/logging, and file-output delegate correlation. Constructing these owners
+resolves no AVFoundation capture object; preview mounting or explicit camera
+lifecycle work performs the first lazy access. `Camera/Models` owns value-only
+recording identities, `Camera/Policies` owns session/zoom/frame-rate,
+microphone, and generation-correlation decisions, and `Camera/Coordination` owns
+the lock-contained still-photo and video request lifetimes plus target-FPS
+debounce lifetime. Models, Policies, and Coordination do not access the capture
+session or mutate AVFoundation state.
 
 `Features/Capture/Scan` owns the visual-modality UI and actions around that
 hardware. Its Models define platform-neutral preparation values; Services adapt
@@ -20,8 +28,8 @@ the injected camera, context, Photo Library, media, entitlement, and feedback
 owners; ViewModels coordinate photo/video lifecycle with generation-fenced task
 state; and Views/Components/Modifiers retain viewfinder interaction timing. Scan
 views do not perform networking or resolve global services. The preview receives
-the environment-injected `CameraManager` as its single session, zoom, and lens-
-transition owner.
+the environment-injected `CameraManager` as its single camera facade for session
+exposure, observable zoom, and lens-transition state.
 
 Still, sampled-frame, playback-video, and companion-WAV work have separate
 bounded service owners. Generic crop encoding is shared from `Core/Media`, while
@@ -32,83 +40,91 @@ local ownership index.
 
 ## The Core Pipeline
 
-### `CameraManager`
+### `CameraManager` and `CameraSessionController`
 
-The lowest-level integration, interfacing directly with the iPhone optics.
+`CameraManager` exposes app-facing state and delegates. The controller is the
+lowest-level integration with the iPhone optics.
 
-- Instantiates the `AVCaptureSession` via `AVCaptureDevice.DiscoverySession`
-  with the device priority: `.builtInTripleCamera` → `.builtInLiDARDepthCamera`
-  → `.builtInDualCamera` → `.builtInDualWideCamera` → `.builtInWideAngleCamera`.
-  Triple camera is preferred on Pro models because it exposes the full optical
-  zoom range across lenses (0.5×–15×) and still delivers LiDAR depth data via
+- `CameraSessionController` lazily owns the `AVCaptureSession` and uses
+  `AVCaptureDevice.DiscoverySession` to select a device with the priority:
+  `.builtInTripleCamera` → `.builtInLiDARDepthCamera` → `.builtInDualCamera` →
+  `.builtInDualWideCamera` → `.builtInWideAngleCamera`. Triple camera is
+  preferred on Pro models because it exposes the full optical zoom range across
+  lenses (0.5×–15×) and still delivers LiDAR depth data via
   `AVCaptureDepthDataOutput` on LiDAR-equipped devices.
   `.builtInLiDARDepthCamera` is intentionally kept lower in the priority list —
   Apple locks its `videoZoomFactor` at 1.0 to prevent RGB/depth misalignment, so
   selecting it as the primary device would permanently disable zoom even on Pro
   hardware.
-- Configures parallel buffers routing to `AVCaptureVideoDataOutput`,
-  `AVCaptureDepthDataOutput`, and `AVCapturePhotoOutput`. Sets
+- The controller configures parallel buffers routing to
+  `AVCaptureVideoDataOutput`, `AVCaptureDepthDataOutput`, and
+  `AVCapturePhotoOutput`. Sets
   `videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange]`
   so that `ViewfinderIntelligence` can extract raw Luma brightness bounds from
   memory plane 0 without expensive CPU color-space conversions.
-- Conditionally attaches the `AVCaptureDepthDataOutput` **only** if the device
-  possesses a LiDAR sensor (detected by querying for `.builtInLiDARDepthCamera`
-  availability). This hardware gate prevents a critical AVFoundation limitation
-  on purely stereo-optic devices (e.g., iPhone 12 mini's dual-wide camera),
-  where requesting live depth data forces both lenses to remain at base
-  calibration, permanently locking the `videoZoomFactor` to 1.0 and breaking the
-  viewfinder zoom UI.
-- Evaluates `photoOutput.isDepthDataDeliverySupported` exclusively alongside
-  `hasLiDAR` during configuration, gating `.isDepthDataDeliveryEnabled`
-  downstream into `AVCapturePhotoSettings`. This strict dual-validation is
-  crucial: enabling stereoscopic photo depth delivery on non-LiDAR dual-camera
-  devices actively locks the entire session's active format `videoMaxZoomFactor`
-  to 1.0, permanently destroying optical and digital zoom capabilities in the
-  UI. Gating by LiDAR ensures only hardware with dedicated infrared depth
-  engines requests depth maps, preserving RGB zoom.
-- Sets `photoOutput.isHighResolutionCaptureEnabled = true`, letting Apple's
-  Image Signal Processor manage dynamic resolution, avoiding 48MP RAW byte
-  crashes.
-- Tracks `@Observable var isFlashEnabled`, driving hardware flash through
-  `device.torchMode` under `.lockForConfiguration()` to handle dark
-  environments. `toggleFlash()` resolves the video `AVCaptureDeviceInput` inside
-  the background camera queue, toggles the torch under the device lock, and only
-  then publishes `isFlashEnabled` back to `@MainActor`. This keeps
-  `AVCaptureSession.inputs` off the UI actor and prevents rapid hardware-locking
-  commands from stalling SwiftUI. `isFlashEnabled` is reset to `false` in both
-  `stopSession()` and the `didEnterBackgroundNotification` sink — AVFoundation
-  kills the torch whenever the session stops, so `isFlashEnabled` must be
-  synchronised at the same time as `isSessionRunning` to prevent the flash
-  button from appearing active after the session restarts.
-- **Hardware Rotation Coordinator**: `CameraManager` natively observes physical
-  device orientation via `AVCaptureDevice.RotationCoordinator` (available in iOS
-  17+). This abstracts away software orientation locks (e.g., Control Center
-  Portrait Lock) by directly monitoring accelerometer data. **Crucially, for
-  photo captures (`AVCapturePhotoOutput`), this physical horizon angle is
-  manually injected into `AVCaptureConnection.videoRotationAngle` just before
-  shutter release.** By delegating the geometric rotation squarely to the
-  hardware connection buffer prior to capturing rather than relying on standard
-  EXIF logic, the final delivered image is always upright (EXIF Up) and
-  correctly oriented even if the iOS device has a Portrait orientation lock
-  enabled.
+- The controller conditionally attaches the `AVCaptureDepthDataOutput` **only**
+  if the device possesses a LiDAR sensor (detected by querying for
+  `.builtInLiDARDepthCamera` availability). This hardware gate prevents a
+  critical AVFoundation limitation on purely stereo-optic devices (e.g., iPhone
+  12 mini's dual-wide camera), where requesting live depth data forces both
+  lenses to remain at base calibration, permanently locking the
+  `videoZoomFactor` to 1.0 and breaking the viewfinder zoom UI.
+- The controller evaluates `photoOutput.isDepthDataDeliverySupported`
+  exclusively alongside `hasLiDAR` during configuration, gating
+  `.isDepthDataDeliveryEnabled` downstream into `AVCapturePhotoSettings`. This
+  strict dual-validation is crucial: enabling stereoscopic photo depth delivery
+  on non-LiDAR dual-camera devices actively locks the entire session's active
+  format `videoMaxZoomFactor` to 1.0, permanently destroying optical and digital
+  zoom capabilities in the UI. Gating by LiDAR ensures only hardware with
+  dedicated infrared depth engines requests depth maps, preserving RGB zoom.
+- The controller sets `photoOutput.isHighResolutionCaptureEnabled = true`,
+  letting Apple's Image Signal Processor manage dynamic resolution, avoiding
+  48MP RAW byte crashes.
+- `CameraManager` tracks `@Observable var isFlashEnabled`; `toggleFlash()`
+  delegates to the controller, which resolves the video `AVCaptureDeviceInput`
+  inside the background camera queue and drives `device.torchMode` under
+  `.lockForConfiguration()`. A MainActor callback then publishes
+  `isFlashEnabled`. This keeps `AVCaptureSession.inputs` off the UI actor and
+  prevents rapid hardware-locking commands from stalling SwiftUI.
+  `isFlashEnabled` is reset to `false` by both stop APIs alongside
+  `isSessionRunning`. `AppLifecycleManager.handleInactivePhase()` and the
+  Capture workspace lifecycle request those stops when ownership is lost;
+  AVFoundation kills the torch whenever the session stops, so both observable
+  values must be synchronized to prevent the flash button from appearing active
+  after restart. The controller always delivers the asynchronous stop
+  completion, including when no session exists or it is already stopped.
+- **Hardware Rotation Coordinator**: `CameraSessionController` owns
+  `AVCaptureDevice.RotationCoordinator` and reads physical device orientation
+  via `AVCaptureDevice.RotationCoordinator` (available in iOS 17+). This
+  abstracts away software orientation locks (e.g., Control Center Portrait Lock)
+  by directly monitoring accelerometer data. **Crucially, for photo captures
+  (`AVCapturePhotoOutput`), this physical horizon angle is manually injected
+  into `AVCaptureConnection.videoRotationAngle` just before shutter release.**
+  By delegating the geometric rotation squarely to the hardware connection
+  buffer prior to capturing rather than relying on standard EXIF logic, the
+  final delivered image is always upright (EXIF Up) and correctly oriented even
+  if the iOS device has a Portrait orientation lock enabled.
 - **Strict Background Concurrency**: `AVCaptureSession.isRunning` is highly
   synchronous and can cause main-thread deadlocks if queried while the session
-  transitions on a background thread. `startSession()` and `stopSession()`
-  evaluate their guards entirely within `queue.async`. Furthermore, hardware
-  configuration locks (`lockForConfiguration()`) are strictly forbidden during
-  the `UIApplication.didEnterBackgroundNotification` or `.inactive` phase, as
-  requesting a lens or hardware state change while the OS reclaims the camera
-  triggers a permanent queue deadlock that cannot be recovered on app resume.
-- Routes `setupSession()` initialization onto a background `queue.async` inside
-  `init()`. All Image Signal Processor negotiations — `applyTargetFPS(_:)`,
-  `throttleToIdleState()`, and `resetFocusAndExposure()` — wrap
-  `device.lockForConfiguration()` inside this background queue. Dynamic
-  framerate `CMTime` calculations clamping
-  `device.activeFormat.videoSupportedFrameRateRanges` are factored into a shared
-  `applyFrameRate(_:to:)` helper marked `nonisolated` so it can run off the
-  `@MainActor` without concurrency warnings. This isolates
-  `activeVideoMaxFrameDuration` logic in one place, keeps the `@MainActor` free
-  during lens shifting, and publishes results back to SwiftUI safely.
+  transitions on a background thread. `CameraSessionController.startSession()`
+  and `stopSession()` evaluate their guards entirely within `queue.async`.
+  Furthermore, hardware configuration locks (`lockForConfiguration()`) are
+  strictly forbidden during the `UIApplication.didEnterBackgroundNotification`
+  or `.inactive` phase, as requesting a lens or hardware state change while the
+  OS reclaims the camera triggers a permanent queue deadlock that cannot be
+  recovered on app resume.
+- Defers session configuration until `startSession()` dispatches onto the
+  controller's background queue, avoiding permission work during manager
+  initialization. All Image Signal Processor negotiations — target FPS, idle
+  throttling, zoom, focus, and exposure — wrap `device.lockForConfiguration()`
+  inside this queue. `CameraSessionPolicy` owns pure frame-duration clamping and
+  safe min/max update ordering against
+  `device.activeFormat.videoSupportedFrameRateRanges`. The controller applies
+  those decisions while the MainActor remains free during lens shifting.
+- Cleanup and device-control requests inspect only an already-resolved capture
+  session. Calling stop, target-FPS, idle-throttle, torch, zoom, focus, or
+  exposure reset before preview/session startup is a true no-op and does not
+  instantiate AVFoundation capture objects.
 - Throttles the 60fps LiDAR depth data loop (`depthDataOutput`) to 3fps using an
   `OSAllocatedUnfairLock` throttler, reducing thermal pressure before any
   `@MainActor` context switch. In iOS, adding an `AVCaptureDepthDataOutput`
@@ -133,33 +149,37 @@ The lowest-level integration, interfacing directly with the iPhone optics.
   only after its sleep rather than retaining the value that originally triggered
   it. The debouncer implementation lives in
   `Core/Hardware/Camera/Coordination/CameraTargetFPSDebouncer.swift`. Rapid
-  changes therefore collapse into one camera-queue reconfiguration using the
-  newest target; a transition to 15/30 fps or a recovery to 60 fps cannot be
-  permanently lost while an earlier debounce is sleeping.
-- **`stateLock` / `requestsLock` ordering invariant**: `CameraManager` uses two
-  `OSAllocatedUnfairLock` instances — `stateLock` guards
-  session/rotation/inference-pause state, and `requestsLock` guards in-flight
-  capture continuations (`activeCaptureRequests`). These two locks must **never
-  be nested**: do not acquire `requestsLock` while holding `stateLock`, and do
-  not acquire `stateLock` while holding `requestsLock`. Violation produces a
-  guaranteed deadlock between the camera session queue (which calls photo
-  delegate callbacks while holding ISP state) and the `@MainActor` timeout path
-  (which acquires `requestsLock` to cancel continuations). All call sites in
-  `CameraManager` are verified to hold at most one of these locks at any time.
-- Guards `AVFoundation` shutter callbacks against race conditions using
-  `withCheckedThrowingContinuation`, synchronizing on the `@MainActor` before
-  delegating `capturePhoto` to the background queue.
-  `CaptureWorkspaceViewModel.executeCapture` uses its observable `isCapturing`
-  gate to prevent rapid double taps and a separately owned still-capture
-  generation to reject non-cooperative completion after lifecycle cancellation.
-  Scene inactivity, a mode or presentation handoff, and workspace teardown also
-  cancel video work that has not reached recording; an active video retains
-  graceful stop-and-stage behavior. Explicit workspace/reset clearing cancels
-  both pending and active visual work so cleared state cannot be repopulated. To
-  prevent `.paywall` overrides from `AVCaptureEventInteraction` false positives
-  during inference, `handleInferenceProcessingChange` defers `.insight`
-  assignment into `DispatchQueue.main.async`, allowing the `UIWindow` to
-  stabilize the hardware shutter button state.
+  changes therefore collapse into one controller-owned camera-queue
+  reconfiguration using the newest target; a transition to 15/30 fps or a
+  recovery to 60 fps cannot be permanently lost while an earlier debounce is
+  sleeping.
+- **Camera lock-ordering invariant**: `CameraManager`'s analysis lock guards
+  frame/depth throttle timestamps and the inference-pause mirror.
+  `CameraSessionController` separately locks lazy capture-object creation plus
+  session-configuration/rotation state. `CameraPhotoCaptureCoordinator` and
+  `CameraVideoRecordingCoordinator` each own their request state under private
+  locks. These locks must **never be nested in any order**. Each owner releases
+  its lock before accessing AVFoundation or observable state, converting
+  delegate data, or resuming a continuation. Architecture tests reject a return
+  of request dictionaries, active request values, or their locks to
+  `CameraManager`.
+- Guards `AVFoundation` shutter callbacks with a checked continuation whose
+  lifecycle is registered in `CameraPhotoCaptureCoordinator` before
+  `CameraManager` delegates hardware configuration and `capturePhoto` to
+  `CameraSessionController`. The coordinator arbitrates timeout, cancellation,
+  setup failure, and delegate completion without requiring callback delivery on
+  `@MainActor`. `CaptureWorkspaceViewModel.executeCapture` uses its observable
+  `isCapturing` gate to prevent rapid double taps and a separately owned
+  still-capture generation to reject non-cooperative completion after lifecycle
+  cancellation. Scene inactivity, a mode or presentation handoff, and workspace
+  teardown also cancel video work that has not reached recording; an active
+  video retains graceful stop-and-stage behavior. Explicit workspace/reset
+  clearing cancels both pending and active visual work so cleared state cannot
+  be repopulated. To prevent `.paywall` overrides from
+  `AVCaptureEventInteraction` false positives during inference,
+  `handleInferenceProcessingChange` defers `.insight` assignment into
+  `DispatchQueue.main.async`, allowing the `UIWindow` to stabilize the hardware
+  shutter button state.
 - Reads the LiDAR depth vector `subjectDistanceInMeters` at the exact moment of
   shutter capture. Deferring this read to `handleCropCompletion` would return
   floor data or `nil` after the user pans away, so `capturedDistance` is
@@ -216,15 +236,16 @@ The lowest-level integration, interfacing directly with the iPhone optics.
   prevent zoom state desynchronisation: (1) in the `startSession()` Task block
   after `maxZoomFactor` is populated — this covers both
   foreground-from-background restarts and post-analysis session restarts (the
-  `activeSheet` lifecycle stops and restarts the session after every scan); (2)
-  in the `didEnterBackgroundNotification` sink alongside the flash reset — this
-  covers the edge case where the user backgrounds mid-staging in multi-capture
-  mode before a session restart would naturally fire. `session.inputs` persists
-  through `stopSession()` (which only calls `stopRunning()`, never removes
-  inputs), so the background-queue hardware write reaches the device regardless
-  of session state. Device selection diagnostics (device name, `available`,
-  `cap`, `formatMax`, `isVirtual`) are emitted at `debug` level to
-  `MerianLog.hardware` on every session start.
+  `activeSheet` lifecycle stops and restarts the session after every scan). The
+  Capture workspace also calls `resetZoom()` at capture/presentation ownership
+  boundaries. That method records a reset for the next start and applies it
+  immediately when a session already exists; before first session resolution,
+  the queued hardware operation remains inert and the recorded reset is applied
+  by the start callback. `session.inputs` persists through `stopSession()`
+  (which only calls `stopRunning()`, never removes inputs), so a reset requested
+  after configuration can still reach the device while the session is stopped.
+  Device selection diagnostics (device name, `available`, `cap`, `formatMax`,
+  `isVirtual`) are emitted at `debug` level on every session start.
 - **Simulator no-preview camera**: In simulator builds,
   `CameraManager.startSession()` does not start `AVCaptureSession`. Recent iOS
   Simulator runtimes can surface `FigCaptureSourceSimulator` /
@@ -236,12 +257,12 @@ The lowest-level integration, interfacing directly with the iPhone optics.
   photo-library picker for simulator scan testing. Physical devices still use
   the full AVFoundation pipeline.
 - **Thread-Safe Capture Operations**: Resolves data races and array bounds
-  exceptions (`SIGABRT`) from overlapping hardware capture timeouts. Replaces
-  the linear `activeCaptureRequests` array with a thread-safe
-  `Dictionary<Int64, CaptureRequest>` keyed by
-  `AVCapturePhotoSettings.uniqueID`, providing atomic O(1) removals via an
-  `NSLock` that synchronizes `@MainActor` continuation callbacks with the
-  asynchronous hardware delegates.
+  exceptions (`SIGABRT`) from overlapping hardware capture timeouts.
+  `CameraPhotoCaptureCoordinator` owns a thread-safe request dictionary keyed by
+  `AVCapturePhotoSettings.uniqueID`, providing atomic O(1) reservation,
+  registration, cancellation, and terminal removal through its state-owning
+  `OSAllocatedUnfairLock`. Continuations and timeout tasks no longer live in the
+  AVFoundation manager.
 
 ### `ZoomSliderView` (`Features/Capture/Scan/Components/ZoomSliderView.swift`)
 
@@ -254,13 +275,15 @@ feedback boundary; the slider never resolves a haptic service.
 - Renders only when
   `camera.isZoomSupported && camera.isSessionRunning && zoomSliderVisible`.
   `isZoomSupported` is `maxZoomFactor >= 2.0` (false on single-lens hardware).
-  `isSessionRunning` is set to `true` only after the `AVCaptureSession.Running`
-  notification fires — this is the critical gate: `maxZoomFactor` is not reset
-  to `1.0` when the session stops, so without the `isSessionRunning` guard the
-  slider would appear prematurely on session restart (e.g. returning from audio
-  mode) while the camera is still spinning up. The 0.5s `easeIn` fade applies
-  when the combined condition first becomes `true`, after the live viewfinder is
-  already active.
+  On devices, `isSessionRunning` becomes `true` only after the controller's
+  queued `AVCaptureSession.startRunning()` returns and its `onStarted` handler
+  reaches `MainActor`. This is the critical gate: `maxZoomFactor` is not reset
+  to `1.0` when the session stops, so without `isSessionRunning` the slider
+  would appear prematurely on session restart (e.g., returning from audio mode)
+  while the camera is still spinning up. The Simulator's explicit no-preview
+  path publishes its simulated running state directly. The 0.5s `easeIn` fade
+  applies when the combined condition first becomes `true`, after the live
+  viewfinder is already active.
 - Hidden when `activeScanImages.count >= 2` (multi-capture staging mode) via the
   guard in `MainOverlayView`'s `.overlay`.
 - **Side placement**: Sits flush against the trailing screen edge by default (no
@@ -748,33 +771,42 @@ Video uses `CaptureWorkspaceViewModel.videoMaxDuration` to count down from the
 5-second cap while the shutter progress ring and stop icon continue to come from
 `CaptureButton`.
 
-**Video capture preparation**: `CameraManager.setupSession()` attaches
-`AVCaptureMovieFileOutput` during normal visual-camera session setup, before the
-user starts holding the shutter. `CaptureButton` uses a single short hold
-threshold, then calls `startVideoCapture()` directly;
-`CameraManager.recordVideo(...)` performs the microphone/audio-input preparation
-on that start path. This keeps entering the camera from showing an early audio
-prompt while making the hold-to-record interaction feel nearly immediate. The
-pre-attached movie output keeps recorded-video stabilization off until a video
-is actually starting. The start path asks AVFoundation for `.auto` stabilization
-when the movie connection supports it, logs the requested and active
-stabilization modes for device QA, and resets the connection to `.off` when
-recording completes, fails, or is canceled so prepared video support does not
-reduce still-photo dimensions or add capture latency.
+**Video capture preparation**: During `CameraSessionController`'s first session
+configuration, it invokes the injected `CameraVideoRecordingService` preparation
+hook inside the existing `beginConfiguration()` / `commitConfiguration()` scope.
+The service attaches its `AVCaptureMovieFileOutput` to the controller-owned
+session before the user starts holding the shutter. Before that explicit setup
+path, the service's session provider and movie-output factory remain
+unevaluated, preserving cold-launch and Onboarding permission priming behavior.
+`CaptureButton` uses a single short hold threshold, then calls
+`startVideoCapture()` directly; `CameraManager.recordVideo(...)` delegates
+microphone/audio-input preparation to the service on that start path. This keeps
+entering the camera from showing an early audio prompt while making the
+hold-to-record interaction feel nearly immediate. The pre-attached movie output
+keeps recorded-video stabilization off until a video is actually starting. The
+service asks AVFoundation for `.auto` stabilization when the movie connection
+supports it, logs the requested and active stabilization modes for device QA,
+and resets the connection to `.off` when recording completes, fails, or is
+canceled so prepared video support does not reduce still-photo dimensions or add
+capture latency.
 
 Each recording owns a UUID generation and a UUID-derived temporary URL. The
 value identities live in `Core/Hardware/Camera/Models`, and the pure matching
-and scheduled-action policy lives in `Core/Hardware/Camera/Policies`. The
-continuation and all live recording lifecycle data remain stored together in
-`CameraManager.swift` as one lock-protected request. Timeouts and automatic
-stops capture that generation plus a separate action UUID, because cancelling a
-Swift task is cooperative and does not prove its already-enqueued work has
-stopped. AVFoundation start/finish callbacks are accepted only from the
-configured movie output and only when their standardized URL matches the current
-request. This keeps a late callback or delayed task from recording A from
-stopping, failing, or completing recording B. All movie-output and connection
-access stays on the serial camera queue; only generation-checked presentation
-state is published back to `@MainActor`.
+and scheduled-action policy lives in `Core/Hardware/Camera/Policies`.
+`CameraVideoRecordingCoordinator` stores the continuation and all live recording
+lifecycle data together as one lock-owned request. Timeouts and automatic stops
+capture that generation plus a separate action UUID, because cancelling a Swift
+task is cooperative and does not prove its already-enqueued work has stopped.
+Terminal claiming removes the request before any scheduled task is canceled or
+continuation is resumed. The returned completion shares an atomic one-shot box,
+so copying that value cannot resume the checked continuation twice. AVFoundation
+start/finish callbacks are accepted by `CameraVideoRecordingService` only from
+its configured movie output and only when its standardized URL matches the
+current request. This keeps a late callback or delayed task from recording A
+from stopping, failing, or completing recording B. All movie-output and
+connection access stays in the service on the controller-owned serial camera
+queue; only generation-checked presentation state returns to `CameraManager` on
+`MainActor`.
 
 **Session lifecycle**: The camera session is tightly coupled to the UI state to
 conserve thermal budget and prevent hardware deadlocks.
@@ -1093,9 +1125,11 @@ A dedicated `PHPhotoLibrary` handler.
   lightweight state on `@MainActor` (cached location, composing-zone center,
   tier), then routes the 12MP ImageIO downsample/crop/encode sequence through
   `DetachedWork.value(category: .imagePreparation)`. The detached worker returns
-  bounded inference/display `Data` and a `SendableCGImage` preview.
-  `CameraManager` also wraps `AVCapturePhoto.fileDataRepresentation()` in an
-  `autoreleasepool` so transient AVFoundation buffers are released promptly.
+  bounded inference/display `Data` and a `SendableCGImage` preview. A late photo
+  delegate loses its coordinator claim before conversion. For the accepted
+  delegate, `CameraManager` wraps `AVCapturePhoto.fileDataRepresentation()` in
+  an `autoreleasepool` so transient AVFoundation buffers are released before the
+  continuation resumes.
 - **Analyzing Mode Phase Rotation**: `InferenceEngine.analyze()` fires
   `classifySubjectLocally(from:)` at the start of the inference pipeline to
   drive the foreground status pill through `AnalyzingContentView` and shared

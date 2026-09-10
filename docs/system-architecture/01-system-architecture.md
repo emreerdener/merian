@@ -52,9 +52,10 @@ orphaned object does not reconstruct its relational context.
   This keeps dependency access explicit without turning the entire container
   into one observed environment value that would redraw unrelated views.
 - Stable service references are created with the container. Expensive resource
-  activation remains lifecycle-owned: in particular, `CameraManager` defers
-  `AVCaptureSession` configuration until Capture starts the foreground session.
-  Do not describe container construction itself as lazy initialization.
+  activation remains lifecycle-owned: in particular, `CameraManager` delegates
+  to `CameraSessionController`, which defers `AVCaptureSession` configuration
+  until Capture starts the foreground session. Do not describe container
+  construction itself as lazy initialization.
 
 ### 2. Typed Events, Routes, and Presentation Coordination
 
@@ -94,23 +95,39 @@ orphaned object does not reconstruct its relational context.
   presentation state machine, framework-boundary inventory, visual-feedback
   contract, tests, and maintenance rules.
 
-### 3. Hardened Hardware Interfacing (`HardwareOrchestrator`, `CameraManager`, `EnvironmentContextManager`)
+### 3. Hardened Hardware Interfacing (`HardwareOrchestrator`, Camera Owners, `EnvironmentContextManager`)
 
-- Direct bindings into `AVCaptureSession`, negotiating
-  `isHighResolutionPhotoEnabled` buffers using the ISP (Image Signal Processor)
-  and Deep Fusion. The `DiscoverySession` prioritizes `.builtInTripleCamera` on
-  Pro devices — exposing the full optical zoom range (0.5×–15×) while retaining
-  LiDAR depth delivery via `AVCaptureDepthDataOutput` — before falling back to
-  `.builtInLiDARDepthCamera` and single-lens devices. Zoom is surfaced via a
-  `ZoomSliderView` on the right edge of the viewfinder and via vertical swipe
-  and pinch gestures on the preview; the control hides itself
+- `CameraSessionController` owns direct bindings into `AVCaptureSession`, serial
+  session/device/output mutation, and supported photo-dimension/depth
+  negotiation through the ISP (Image Signal Processor). The `DiscoverySession`
+  prioritizes `.builtInTripleCamera` on Pro devices — exposing the full optical
+  zoom range (0.5×–15×) while retaining LiDAR depth delivery via
+  `AVCaptureDepthDataOutput` — before falling back to `.builtInLiDARDepthCamera`
+  and single-lens devices. Controls and stop requests inspect only an existing
+  lazy session, so pre-preview no-ops do not initialize capture hardware. Zoom
+  is surfaced via a `ZoomSliderView` on the right edge of the viewfinder and via
+  vertical swipe and pinch gestures on the preview; the control hides itself
   (`isZoomSupported = maxZoomFactor >= 2.0`) on hardware without a meaningful
   zoom range.
+- Still-photo request lifetime is isolated in `CameraPhotoCaptureCoordinator`.
+  `CameraManager` reserves each settings identifier before installing the task
+  cancellation handler, while the coordinator atomically arbitrates timeout,
+  cancellation, setup failure, and delegate completion. Only the winning
+  delegate path converts photo data. `CameraSessionController` applies
+  connection, flash, rotation, resolution, and depth settings and starts the
+  shutter on its serial queue; continuation resumption happens after the
+  coordinator releases its lock.
 - Short Pro video capture uses `AVCaptureMovieFileOutput` for bounded clips. The
   movie output may be prepared with the visual camera session for a fast
   hold-to-record path, but AVFoundation video stabilization is enabled only for
   the active recording and reset afterward so still-photo capture does not
-  inherit crop, latency, or resolution changes.
+  inherit crop, latency, or resolution changes. `CameraVideoRecordingService`
+  owns the lazily created movie output and delegate entry points on the
+  `CameraSessionController`-owned serial queue. The manager supplies a lazy
+  controller-backed session provider, so constructing these owners resolves no
+  capture object. `CameraVideoRecordingCoordinator` atomically owns request
+  identity, continuation lifetime, start metadata, and scheduled timeout/stop
+  tasks.
 - Active thermal monitoring manipulates OS frame rate (`targetFPS`) and renders
   Glassmorphism `.ultraThinMaterial` overlays dynamically to prevent critical
   heat loads in outdoor environments.
@@ -525,7 +542,7 @@ single-responsibility functions under `/services/supabase/functions/`.
   first-party facade in `MerianApp.init()` without starting PostHog. After auth
   resolution, only a current-disclosure grant that is itself the all-version
   provider head may let `ConsentManager` configure and identify the SDK. Heavy
-  `CameraManager` hardware initialization
+  `CameraSessionController` hardware initialization
   (`AVCaptureSession.beginConfiguration`) stays off the critical render path.
 - **Root Presentation While Restoring Consent:** A completed user with missing
   local required evidence remains on a black surface matching the launch screen

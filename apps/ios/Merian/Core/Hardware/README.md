@@ -132,11 +132,22 @@ for changes across this boundary.
 
 ## Camera ownership
 
-The root `CameraManager.swift` remains the live AVFoundation owner. It contains
-the capture stack, session/device/output access, serial camera queue, delegate
-callbacks, lock-protected photo and video request state, and observable hardware
-presentation state. Those declarations stay co-located until a later slice can
-move a complete queue- or lock-owned subsystem without widening mutable state.
+The root `CameraManager.swift` is the MainActor observable facade and the
+frame/depth/photo delegate bridge. `CameraSessionController` owns the lazily
+resolved capture session, video/depth/photo outputs, shared serial camera queue,
+session lifecycle, device selection and locking, frame-rate/zoom/focus/torch
+mutations, and hardware still-photo setup. It injects that queue plus a lazy
+session provider into `CameraVideoRecordingService`, the separate live
+AVFoundation owner for the movie output. Constructing the manager, controller,
+or service resolves neither the session nor the movie output. The camera preview
+may resolve the root session when its view mounts; output factories and the
+recording session provider are evaluated only on the serial queue during
+explicit camera work. Stop requests and device controls inspect only an existing
+session, so cleanup and pre-preview UI actions do not create capture hardware.
+Every asynchronous stop request still publishes its completion when no session
+exists or the session is already stopped. Capture objects remain behind one
+serial-queue mutation contract even though their responsibilities no longer
+share one oversized file.
 
 Focused camera support lives below `Camera/`:
 
@@ -144,14 +155,32 @@ Focused camera support lives below `Camera/`:
   result, generation, and scheduled-action identities.
 - `Policies/CameraVideoRecordingPolicy.swift` owns the already-granted
   microphone reuse decision and the pure generation/action correlation gate.
+- `Policies/CameraSessionPolicy.swift` owns pure zoom clamping, optical-stop
+  filtering, supported frame-duration clamping, and safe frame-duration update
+  ordering.
+- `Coordination/CameraPhotoCaptureCoordinator.swift` owns still-photo request
+  reservation, checked continuations, timeout tasks, cancellation, and atomic
+  terminal-result claiming under one internal lock.
+- `Coordination/CameraVideoRecordingCoordinator.swift` owns the single live
+  recording request, checked continuation, start metadata, generation/action
+  gates, timeout and automatic-stop tasks, and atomic terminal-result claiming
+  under one internal lock.
 - `Coordination/CameraTargetFPSDebouncer.swift` owns the MainActor debounce task
   and its UUID replacement fence.
+- `Services/CameraSessionController.swift` owns the lock-backed lazy root
+  capture stack and all session, output, and active-video-device operations on
+  the serial camera queue. It exposes no observable state and does not resolve
+  app-level orchestration or viewfinder services.
+- `Services/CameraVideoRecordingService.swift` owns lazy movie-output creation
+  and attachment, audio-input preparation, rotation and stabilization
+  configuration, start/stop/cancel/timeout camera-queue operations, file
+  cleanup, hardware logging, and recording delegate correlation. It exposes no
+  observable state.
 
 `CameraArchitectureTests` freezes those owners and framework boundaries. It also
-caps the extracted files at 100 lines and applies an interim 1,650-line
-non-growth guard to `CameraManager.swift`. The latter is a first-pass guard, not
-a claim that the live manager has reached the repository's usual 600-line review
-target.
+caps the value, policy, and FPS files at 100 lines, caps the photo coordinator
+at 220 lines, caps the video coordinator at 380 lines, and caps the session
+controller, recording service, and `CameraManager.swift` at 600 lines.
 
 ## Camera frame-rate observation
 
@@ -164,35 +193,76 @@ escalation and recovery aligned with the latest hardware target even when
 cancellation finishes cooperatively.
 
 Only the debounce policy and observable target live on `@MainActor`.
-`AVCaptureSession.inputs`, device locking, and frame-duration changes continue
-on the serial camera queue.
+`CameraSessionController` keeps `AVCaptureSession.inputs`, device locking, and
+frame-duration changes on the serial camera queue.
+
+## Camera photo concurrency
+
+`CameraManager` creates `AVCapturePhotoSettings`, snapshots observable flash
+state, and converts the accepted delegate result to `Data`.
+`CameraSessionController` validates the video connection, applies supported
+flash, rotation, resolution, and depth settings, and invokes `capturePhoto` on
+the serial camera queue. Photo capture reads only an already-configured depth
+output; a non-LiDAR capture does not instantiate an unattached depth output.
+`CameraPhotoCaptureCoordinator` owns request lifetime. The manager reserves the
+settings `uniqueID` before installing the task cancellation handler. If
+cancellation wins before checked-continuation registration, the coordinator
+marks the reservation and registration consumes it as `CancellationError`
+without enqueueing a hardware capture.
+
+Timeout, camera-not-ready failure, task cancellation, and delegate completion
+all atomically remove the active request before canceling its timer and resuming
+its continuation outside the lock. A late terminal path is therefore ignored,
+and a late delegate callback does not perform file-data conversion. The
+coordinator imports no AVFoundation, UI, network, or persistence framework. Do
+not call it while holding the manager's frame-analysis lock or from another
+coordinator's locked transition.
 
 ## Camera recording concurrency
 
-`CameraManager` owns AVFoundation session mutations and all movie-output and
-connection state on its serial camera queue. `Camera/Models` supplies the
-recording and generation identities; `Camera/Policies` supplies the pure
-generation/action gate and already-granted microphone decision. A video request
-is identified by both a UUID generation and its UUID-derived output URL. Delayed
-timeouts and automatic stops also carry an action UUID so a cooperatively
-cancelled task cannot act after replacement. Recording delegate callbacks must
-match the configured output and the current URL before they may clear state or
-resume a continuation. Keep observable UI updates on `@MainActor` and guard them
-with the same recording generation.
+`CameraSessionController` owns the root session and shared serial queue, then
+`CameraManager` injects the queue and a non-eager controller-backed session
+provider into `CameraVideoRecordingService`. The service lazily creates its
+movie output and owns every movie-output and movie-connection mutation on that
+queue. `Camera/Models` supplies the recording and generation identities;
+`Camera/Policies` supplies the pure generation/action gate and already-granted
+microphone decision. A video request is identified by both a UUID generation and
+its UUID-derived output URL. Delayed timeouts and automatic stops also carry an
+action UUID so a cooperatively cancelled task cannot act after replacement.
+Recording delegate callbacks must match the service's configured output and the
+current URL before they may clear state or resume a continuation.
+`CameraManager` alone publishes generation-checked observable recording state on
+`@MainActor`.
 
-The recording state lives as one value under `videoRecordingLock`. Do not split
-the continuation, URL, timer tasks, or start metadata into independently mutable
-properties, and never nest `videoRecordingLock` with the camera manager's other
-locks.
+`CameraVideoRecordingCoordinator` keeps the continuation, URL, timer tasks, and
+start metadata in one lock-owned request. Installing or replacing a scheduled
+action first publishes its action token under the lock, then creates and
+attaches the task; a task that loses that race is canceled. Terminal paths
+remove the request atomically, then cancel tasks and expose a one-shot
+completion outside the lock. That completion atomically consumes its checked
+continuation, so even a copied handle cannot resume the request twice. The
+coordinator imports no AVFoundation, UI, network, or persistence framework. The
+service's narrow `@unchecked Sendable` conformance is justified only by its
+documented split: preparation cache access is MainActor-only, while capture
+objects are lazily resolved and mutated only on the injected queue. Never call a
+coordinator, controller, or service while holding `CameraManager`'s
+frame-analysis lock.
 
 ## Camera verification
 
 Changes to `CameraManager.swift` or `Camera/` must run the generated-project and
-source-membership gates, the focused `CameraManagerTests` and
+source-membership gates, the focused `CameraManagerTests`,
+`CameraPhotoCaptureCoordinatorTests`, `CameraVideoRecordingCoordinatorTests`,
+`CameraSessionPolicyTests`, `CameraSessionControllerTests`, and
 `CameraArchitectureTests` selectors, and then the complete `merianTests` target.
 Use the canonical commands and evidence rules in the
 [testing strategy](../../../../../docs/development-guides/08-testing-strategy.md#camera-verification).
-Pure policy and architecture tests do not exercise AVFoundation hardware.
+`CameraManagerTests` freezes the non-eager recording-service construction
+contract, while `CameraSessionControllerTests` freezes non-eager capture-stack
+construction, no-op control/stop behavior before first resolution, stop
+completion delivery without a session, and single root-session creation under
+concurrent access. Pure policy, construction, and architecture tests do not
+exercise AVFoundation hardware.
 
 Before release, verify on a physical device that capture starts after camera and
 microphone authorization, photo capture completes, a five-second recording and
