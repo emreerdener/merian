@@ -12,29 +12,31 @@ Supabase Edge Function.
 
 The audio pipeline is split across explicit ownership and isolation boundaries:
 
-| Layer                  | Owner                                                                                   | Isolation                           |
-| ---------------------- | --------------------------------------------------------------------------------------- | ----------------------------------- |
-| DSP / FFT              | `Core/Hardware/SpectrogramActor`                                                        | Swift actor                         |
-| Recording and playback | `Core/Hardware/AudioCaptureManager`                                                     | `@MainActor` observable state       |
-| Audio-session leases   | `Core/Hardware/AudioSessionCoordinator`                                                 | Swift actor                         |
-| Raster policy          | `Core/Media/AudioSpectrogramRenderer`                                                   | Deterministic value operations      |
-| Shared rendering       | `Core/UI/Components/AudioSpectrogramView`                                               | `@MainActor` SwiftUI                |
-| Record presentation    | `Capture/Record/{Models,Services,ViewModels,Views,Components}`                          | Value Models; `@MainActor` UI/state |
-| Controls and submit    | `Capture/Shell`, `Core/UI/Components/CaptureControlBar.swift`, and `Capture/Submission` | `@MainActor` orchestration          |
-| Queue format fencing   | `Core/Data/OfflineSync` and `Core/Data/Database`                                        | Main-actor quarantine; actor claim  |
+| Layer                | Owner                                                                                   | Isolation                           |
+| -------------------- | --------------------------------------------------------------------------------------- | ----------------------------------- |
+| DSP / FFT            | `Core/Hardware/SpectrogramActor`                                                        | Swift actor                         |
+| Recording facade     | `Core/Hardware/AudioCaptureManager`                                                     | `@MainActor` observable state       |
+| Recording engine     | `Core/Hardware/AudioCapture/Services/AudioRecordingEngineController`                    | `@MainActor` exact-resource owner   |
+| Review playback      | `Core/Hardware/AudioCapture/Services/AudioReviewPlaybackController`                     | `@MainActor` player/task owner      |
+| Audio-session leases | `Core/Hardware/AudioSessionCoordinator`                                                 | Swift actor                         |
+| Raster policy        | `Core/Media/AudioSpectrogramRenderer`                                                   | Deterministic value operations      |
+| Shared rendering     | `Core/UI/Components/AudioSpectrogramView`                                               | `@MainActor` SwiftUI                |
+| Record presentation  | `Capture/Record/{Models,Services,ViewModels,Views,Components}`                          | Value Models; `@MainActor` UI/state |
+| Controls and submit  | `Capture/Shell`, `Core/UI/Components/CaptureControlBar.swift`, and `Capture/Submission` | `@MainActor` orchestration          |
+| Queue format fencing | `Core/Data/OfflineSync` and `Core/Data/Database`                                        | Main-actor quarantine; actor claim  |
 
 This matches the camera pipeline's `CameraManager` → `ViewfinderIntelligence` →
 `CameraPreviewView` separation and avoids the IPC deadlock pattern that would
 occur if `AVAudioSession` were configured on `@MainActor`.
 
 Short visual video scans can also contribute companion audio. That extraction is
-owned by `CaptureWorkspaceViewModel.extractVideoAudioTrack(...)`, not
-`AudioCaptureManager`: it uses `AVAssetReader` and `AVAssetWriter` to copy the
-video track's audio into an Int16 WAV sidecar for the multimodal request. The
-reader loop wraps each `copyNextSampleBuffer()` result in a per-sample
-`autoreleasepool` and invalidates the `CMSampleBuffer` after append, so native
-CoreMedia buffers are released continuously rather than accumulating until the
-clip finishes.
+owned by `Capture/Scan/Services/CaptureScanVideoAudioExtractor`, not the audio
+capture manager or controller: it uses `AVAssetReader` and `AVAssetWriter` to
+copy the video track's audio into an Int16 WAV sidecar for the multimodal
+request. The reader loop wraps each `copyNextSampleBuffer()` result in a
+per-sample `autoreleasepool` and invalidates the `CMSampleBuffer` after append,
+so native CoreMedia buffers are released continuously rather than accumulating
+until the clip finishes.
 
 ---
 
@@ -100,27 +102,77 @@ from contaminating the next recording.
 
 ---
 
-## 3. `AudioCaptureManager` — Recording Pipeline
+## 3. Audio Capture Ownership
 
 **File**: `apps/ios/Merian/Core/Hardware/AudioCaptureManager.swift`
 
-`@MainActor @Observable` class. `AppDIContainer` constructs the long-lived
-instance with an injected maximum-duration feedback closure and distributes it
-through `DIContainerModifier`. The manager does not resolve the haptic singleton
-itself.
+`AudioCaptureManager` is an `@MainActor @Observable` facade. `AppDIContainer`
+constructs the long-lived instance with an injected maximum-duration feedback
+closure and distributes it through `DIContainerModifier`. The manager does not
+resolve the haptic singleton itself. It owns observable state, the 15-second
+countdown, bounded display history, noise-guidance hold policy, and
+review/submission handoff. Its existing record, pause, resume, stop, play, seek,
+and review signatures remain the feature-facing API.
+
+### `AudioRecordingEngineController` — Recording Resources
+
+**File**:
+`apps/ios/Merian/Core/Hardware/AudioCapture/Services/AudioRecordingEngineController.swift`
+
+The focused `@MainActor` owner retains one exact recording identity, lazy
+`AVAudioEngine`, input tap, canonical WAV URL, bounded PCM stream continuation,
+detached DSP task, setup task, operation token, and recording-specific
+`AudioSessionCoordinator` lease. Its small dependency value injects engine
+construction, session activation/deactivation, route-recovery waits, temporary
+file naming, and deletion. `AudioRecordingEngineModels` carries the sendable
+input-format and evaluated-column values, while `AudioRecordingWAVFormatPolicy`
+is the sole canonical recording-format policy.
+
+Startup and resume must match both recording identity and operation token before
+accepting a lease or starting hardware. A second resume is rejected while an
+operation is pending, before process-wide session activation. Cancellation
+clears the operation first; a non-cooperative activation that returns afterward
+releases its lease without touching the engine. Failure and cancellation finish
+the stream, remove the tap before stopping the engine, cancel DSP, release the
+exact lease, and delete the partial WAV. The stored deactivation dependency
+accepts a concrete lease, so teardown without ownership schedules no synthetic
+release. Normal finish performs the same teardown but returns the filename to
+the manager without deleting it.
+
+### `AudioReviewPlaybackController` — Review Playback
+
+**File**:
+`apps/ios/Merian/Core/Hardware/AudioCapture/Services/AudioReviewPlaybackController.swift`
+
+The focused `@MainActor` owner creates `AVAudioPlayer`, retains progress and
+completion tasks, and holds the playback-specific `AudioSessionCoordinator`
+lease. The manager injects live playback dependencies through its existing
+dependency value and forwards only presentation updates to its observable state.
+
+Every playback instance has a generation and exact player-identity fence.
+Stopping before activation clears ownership immediately; if a
+cancellation-ignoring activation later returns a lease, the stale task
+deactivates it without starting audio. A cancelled completion from a prior
+player likewise cannot finish or reset a replacement. Natural completion stops
+the current player, releases its exact lease, resets manager playback state, and
+leaves the pending review file available for confirmation or replay. Session
+activation failure, a false `AVAudioPlayer.play()` result, and an unexpected
+completion-wait failure use the same exact-player finalizer. Manager reset
+always stops this playback owner even while recording startup is resolving
+because the recording and playback leases are independent.
 
 ### Published State
 
 | Property              | Type                  | Description                                                                                                                                                                                                                                                                                                                                                   |
 | --------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `isRecording`         | `Bool`                | Whether a recording session is active (set `true` only after `audioEngine.start()` succeeds)                                                                                                                                                                                                                                                                  |
+| `isRecording`         | `Bool`                | Whether a recording session is active (set `true` only after the recording controller starts its exact engine)                                                                                                                                                                                                                                                |
 | `isPaused`            | `Bool`                | Whether the engine is paused mid-recording (tap preserved, countdown halted)                                                                                                                                                                                                                                                                                  |
 | `recordingProgress`   | `Double`              | 0.0 → 1.0 over `maxDuration` (15 s)                                                                                                                                                                                                                                                                                                                           |
 | `spectrogramColumns`  | `[SpectrogramColumn]` | Rolling display buffer (360 columns ≈ 15 s)                                                                                                                                                                                                                                                                                                                   |
 | `snrLevel`            | `SNRLevel`            | Most recent noise level classification                                                                                                                                                                                                                                                                                                                        |
 | `pendingPlaybackPath` | `String?`             | Non-nil after recording finishes, before user confirms or discards. Drives the review UI state in `AudioRecordingView`.                                                                                                                                                                                                                                       |
 | `isPlaying`           | `Bool`                | Whether `AVAudioPlayer` is currently playing back a pending recording                                                                                                                                                                                                                                                                                         |
-| `playbackProgress`    | `Double`              | 0.0 → 1.0 playhead position during review playback; preserved across play/stop cycles for scrub-resume                                                                                                                                                                                                                                                        |
+| `playbackProgress`    | `Double`              | 0.0 → 1.0 playhead position during review playback; a position scrubbed before playback becomes the next start position, while explicit stop resets it to zero                                                                                                                                                                                                |
 | `audioFilePath`       | `String?`             | Non-nil after the user explicitly confirms in review, or after a maximum-duration recording auto-confirms when confirmation is disabled. Setting this triggers `onChange(of: audioFilePath)`, which either stages the clip into `stagedCapture.audios` (mixed-media / confirmation flows) or calls `submitAudio` directly for the standalone audio-only flow. |
 
 ### `startRecording() async throws`
@@ -137,22 +189,22 @@ guard !isRecording, !isStartingRecording   ← re-entry guard (set before any aw
 discardPending()            ← clears leftover review state
 verify permission already granted  ← never opens a prompt
     ↓ cancellation check
-teardownEngine()            ← clears any prior engine session
+recordingController.cancelRecording()      ← clears a prior exact owner
     ↓
-transition = transitionState.begin()  ← generation fence for all async commits
-Task.detached {
-    AudioSessionCoordinator.activate(.recordMeasurement(...))
-    accept lease only if transition + engine identity still match
-    inputNode.outputFormat(forBus: 0)     ← IPC: never call on @MainActor
-    if zero-rate/zero-channel:
-        retry 4 × 75 ms with engine.reset()  ← bounded route-settle recovery
-    AVAudioFormat(.pcmFormatInt16, ...)   ← canonical Int16 PCM — wav.ts compatible
-    AVAudioFile(forWriting: fileURL, settings: int16Fmt.settings)
-    inputNode.removeTap(onBus: 0)         ← defensive: prevents nullptr == Tap() crash
-    inputNode.installTap(...)             ← file write + DSP dispatch per buffer
-    audioEngine.start()
-}.value
-    ↓ verify task, transition, and engine are still current
+transition = transitionState.begin()      ← manager presentation generation
+recordingController.start(...) {
+    create exact recording identity + bounded PCM stream + DSP task
+    Task.detached {
+        AudioSessionCoordinator.activate(.recordMeasurement(...))
+        accept lease only if recording identity + operation token match
+        read input format                  ← IPC: never run on MainActor
+        retry 4 × 75 ms with engine.reset() if the route is temporarily invalid
+        AudioRecordingWAVFormatPolicy      ← signed Int16 interleaved PCM
+        AVAudioFile(forWriting: ...)
+        remove any old tap, install the exact tap, prepare, and start
+    }.value
+}
+    ↓ verify manager transition and controller completion are still current
 isRecording = true
 recordingTask = Task { 100 generation-checked ticks × 0.15 s → finishRecording() }
 ```
@@ -172,9 +224,10 @@ the hardware simultaneously. Leaving Audio or removing the control bar cancels
 the pending task; cancellation is treated as an expected lifecycle event and
 does not show an error toast. The task is not cleared until its `defer` runs, so
 a rapid Audio → Camera → Audio sequence cannot overlap two startup tasks.
-Cancellation is forwarded into the detached AVFoundation setup task; that task
-checks cancellation after session activation and again before engine start, and
-the manager also invalidates the operation's generation. A late or
+Cancellation is forwarded into the recording controller's detached AVFoundation
+setup task; that task checks cancellation after session activation and again
+before engine start. The manager invalidates its presentation generation while
+the controller invalidates its exact operation token. A late or
 cancellation-ignoring activation releases its newly acquired lease without
 starting the engine or publishing DSP/countdown state. Normal failure cleanup
 then removes the tap, stops the engine, deletes the partial file, and releases
@@ -187,7 +240,7 @@ intervals, resetting the engine between reads. The 300 ms bound prevents a
 transient handoff from becoming a false “Audio hardware unavailable” error
 without hiding a persistent device or route failure.
 
-**WAV file format**: The recording uses an explicit
+**WAV file format**: `AudioRecordingWAVFormatPolicy` creates an explicit
 `AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate:, channels:, interleaved: true)`
 to write canonical Int16 PCM WAV (`audioFormat = 1`). Writing with the
 hardware's native `fmt.settings` may produce WAVEFORMATEXTENSIBLE
@@ -199,45 +252,48 @@ automatically on each write.
 
 1. `file.write(from: buffer)` — synchronous PCM write to `AVAudioFile` on the
    audio thread.
-2. `copyPCMBuffer(buffer)` copies the tap-owned PCM data synchronously, then
-   yields it into a bounded `AsyncStream(bufferingNewest: 2)` so reused engine
-   buffers never cross the async boundary.
+2. The recording controller's `copyPCMBuffer(buffer)` copies the tap-owned PCM
+   data synchronously, then yields it into a bounded
+   `AsyncStream(bufferingNewest: 2)` so reused engine buffers never cross the
+   async boundary.
 3. A detached DSP consumer drains that bounded stream, calls
    `SpectrogramActor.processColumns(buffer:)`, derives the legacy-named
    `SNRLevel` ambient-noise/clipping classification for each emitted 2048-frame
    column, and hops back to `@MainActor` only for the small UI update.
 
-The `[weak manager]` capture in the inner `@MainActor` task breaks the retain
-cycle: `AudioCaptureManager → audioEngine → inputNode → tap closure → manager`.
+The tap closure retains only its file and stream continuation. DSP publication
+captures the recording controller weakly and must still match the exact active
+recording before forwarding evaluated columns to the manager, so neither the tap
+nor the detached consumer forms a manager/engine retain cycle.
 
 ### Teardown
 
-`teardownEngine()` calls `inputNode.removeTap(onBus: 0)` **first**, then
-`audioEngine.stop()` — both are no-ops if already stopped/untapped. Removing the
-tap before stopping prevents the audio thread from writing into a stopped engine
-and avoids AVAudioEngine assertion failures. Lease release is scheduled in a
-short inherited task that awaits `AudioSessionCoordinator`; the actor performs
-the `AVAudioSession` work outside the main actor and ignores stale or already
-consumed leases.
+`AudioRecordingEngineController.tearDown(...)` clears exact ownership, finishes
+the bounded stream, calls `inputNode.removeTap(onBus: 0)` **first**, and then
+stops the engine. Removing the tap before stopping prevents the audio thread
+from writing into a stopped engine and avoids AVAudioEngine assertion failures.
+The controller then cancels DSP and schedules exact-lease release through
+`AudioSessionCoordinator` only when the recording owns a concrete lease; the
+actor ignores stale or already consumed leases.
 
 ### Recording Lifecycle
 
-| Method                                      | Effect                                                                                                                                                                                                                                                                                                |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `requestMicrophonePermissionForRecording()` | Requests permission only from the explicit red-button action; throws on denial before camera handoff                                                                                                                                                                                                  |
-| `startRecording()`                          | Guards with `!isRecording && !isStartingRecording`, fails closed unless permission is already granted, calls `discardPending()`, spins up the engine, and starts the 15-second countdown. The caller selects whether reaching the cap enters review or auto-confirms when confirmation is disabled.   |
-| `stopRecordingEarly()`                      | Cancels the countdown and always routes the partial clip to review; only a maximum-duration capture may auto-confirm when confirmation is disabled                                                                                                                                                    |
-| `pauseRecording()`                          | Invalidates transition work, cancels countdown, calls `audioEngine.pause()`, sets `isPaused = true`, resets `snrLevel`                                                                                                                                                                                |
-| `resumeRecording()`                         | Retains one manager-owned task, coalesces duplicate taps, awaits a new coordinator lease, generation-checks the late result, then starts the engine and rebuilds the countdown from `recordingProgress`                                                                                               |
-| `cancelPendingRecordingTransition()`        | Invalidates and cancels pending startup/resume work without concurrently mutating an engine that its startup owner is still configuring                                                                                                                                                               |
-| `cancelRecording()`                         | Cancels countdown task, tears down engine, deletes partial file from `tmp/`, calls `discardPending()` to also clear review state                                                                                                                                                                      |
-| `finishRecording()` (private)               | Tears down the engine. Early completion or confirmation-enabled capture sets `pendingPlaybackPath`; a maximum-duration capture with confirmation disabled sets `audioFilePath` for the established Shell handoff.                                                                                     |
-| `playPendingRecording()`                    | Saves `resumeProgress = playbackProgress` (preserves scrubbed position), creates `AVAudioPlayer`, and uses one stored task to await a `.playback` coordinator lease, seek, play, and clear `isPlaying` after the remaining duration; cancellation and player-reference checks guard stop→replay races |
-| `stopPlayback()`                            | Stops `AVAudioPlayer`, clears `isPlaying` and `playbackProgress`                                                                                                                                                                                                                                      |
-| `seekPlayback(to:)`                         | Sets `audioPlayer.currentTime = duration * clamped` and updates `playbackProgress` — works while playing or stopped                                                                                                                                                                                   |
-| `confirmAndSubmit()`                        | Stops playback, sets `audioFilePath = pendingPlaybackPath`, clears `pendingPlaybackPath` — triggers `onChange` in `CaptureWorkspaceView`                                                                                                                                                              |
-| `discardPending()`                          | Stops playback, deletes file from `tmp/` if `pendingPlaybackPath` is set, clears `pendingPlaybackPath`, **always** clears `spectrogramColumns`, `snrLevel`, `snrHoldTicks`                                                                                                                            |
-| `reset()`                                   | Calls `stopPlayback()`, cancels tasks, tears down the engine/tap/session lease, deletes any unsubmitted pending temp file, clears all published state including `pendingPlaybackPath`, calls `spectrogram.reset()`                                                                                    |
+| Method                                      | Effect                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `requestMicrophonePermissionForRecording()` | Requests permission only from the explicit red-button action; throws on denial before camera handoff                                                                                                                                                                                                              |
+| `startRecording()`                          | Guards with `!isRecording && !isStartingRecording`, fails closed unless permission is already granted, calls `discardPending()`, delegates exact recording startup, and starts the 15-second countdown. The caller selects whether reaching the cap enters review or auto-confirms when confirmation is disabled. |
+| `stopRecordingEarly()`                      | Cancels the countdown and always routes the partial clip to review; only a maximum-duration capture may auto-confirm when confirmation is disabled                                                                                                                                                                |
+| `pauseRecording()`                          | Invalidates transition work, cancels the countdown, delegates exact-engine pause to the recording controller, sets `isPaused = true`, and resets `snrLevel`                                                                                                                                                       |
+| `resumeRecording()`                         | Retains one manager-owned task and coalesces duplicate taps. The recording controller independently rejects a second pending resume before activation, then reacquires and identity-checks a fresh lease before starting the exact engine and rebuilding the countdown from `recordingProgress`.                  |
+| `cancelPendingRecordingTransition()`        | Invalidates and cancels pending startup/resume work without concurrently mutating an engine that its startup owner is still configuring                                                                                                                                                                           |
+| `cancelRecording()`                         | Cancels countdown state; the recording controller finishes the stream, removes the tap before engine stop, cancels DSP, releases its exact lease, and deletes the partial `tmp/` file; then the manager clears review state                                                                                       |
+| `finishRecording()` (private)               | Asks the recording controller to retain the completed WAV while tearing down its other resources. Early completion or confirmation-enabled capture enters review; a maximum-duration capture with confirmation disabled enters the established Shell submission handoff.                                          |
+| `playPendingRecording()`                    | Passes the pending file and scrubbed resume position to `AudioReviewPlaybackController`; sets `isPlaying` only when a player is accepted and receives progress/completion through main-actor callbacks                                                                                                            |
+| `stopPlayback()`                            | Atomically clears controller ownership, cancels both playback tasks, stops the exact player, releases its lease, and clears `isPlaying` plus `playbackProgress`                                                                                                                                                   |
+| `seekPlayback(to:)`                         | Clamps and publishes the requested position; while a player is active, the controller also updates its `currentTime`, while a not-yet-playing review retains the parked manager progress for its next start                                                                                                       |
+| `confirmAndSubmit()`                        | Stops playback, sets `audioFilePath = pendingPlaybackPath`, clears `pendingPlaybackPath` — triggers `onChange` in `CaptureWorkspaceView`                                                                                                                                                                          |
+| `discardPending()`                          | Stops playback, deletes file from `tmp/` if `pendingPlaybackPath` is set, clears `pendingPlaybackPath`, **always** clears `spectrogramColumns`, `snrLevel`, `snrHoldTicks`                                                                                                                                        |
+| `reset()`                                   | Stops both focused controllers, cancels manager tasks, deletes any unsubmitted pending temp file, clears all published state including `pendingPlaybackPath`, and resets spectrogram analysis                                                                                                                     |
 
 **`discardPending()` clears display state unconditionally**: The spectrogram
 column and noise-guidance reset run outside the `if let pendingPlaybackPath`
@@ -499,9 +555,9 @@ would otherwise receive zero width from `maxWidth: .infinity`).
 during review. It is visible only when
 `isPlaying || isScrubbing || playbackProgress > 0`. This means it appears only
 once the user has started playback or manually scrubbed — not by default when
-the recording first enters review. If the user scrubs the playhead away from the
-start position and stops, the playhead remains visible at the parked position.
-On full-clip playback completion, `playbackProgress` resets to 0 and the
+the recording first enters review. If the user scrubs before playback and ends
+the gesture, the playhead remains visible at the parked position. Tapping stop
+or reaching full-clip playback completion resets `playbackProgress` to 0 and the
 playhead disappears. A `DragGesture` on the spectrogram image drives
 `seekPlayback(to:)`, enabling scrub-to-any-position with live playhead tracking.
 
@@ -697,9 +753,11 @@ change still requests an eager stop, and the Record path independently awaits
 | Event                                      | Action                                                                                                                  |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
 | Camera → Audio record handoff              | Await camera-queue `stopRunning()` completion before activating the recording session                                   |
-| `startRecording` called                    | `AudioSessionCoordinator.activate(.recordMeasurement(...))` from detached setup                                         |
-| `cancelRecording()` or `finishRecording()` | Coordinator deactivates only the matching current lease with `notifyOthersOnDeactivation`                               |
-| Task cancelled mid-setup                   | Startup cleanup stops the engine, removes the tap/file, and schedules lease deactivation                                |
+| `startRecording` called                    | The recording controller activates `.recordMeasurement(...)` from its detached setup                                    |
+| `cancelRecording()` or `finishRecording()` | The recording controller deactivates only the matching current lease with `notifyOthersOnDeactivation`                  |
+| Task cancelled mid-setup                   | Controller cleanup finishes the stream, removes the tap, stops the engine, deletes the partial file, and releases lease |
+| Review playback starts                     | The playback controller acquires and retains its own `.playback` lease before seeking and starting the accepted player  |
+| Review stops or completes                  | The controller stops the exact player and deactivates only its current lease; stale tasks cannot clear a replacement    |
 | First activation fails                     | Coordinator deactivates any partial session and publishes no lease                                                      |
 | Replacement activation fails               | Coordinator restores the prior configuration and lease; failed rollback deactivates and invalidates the partial session |
 
@@ -1063,15 +1121,16 @@ decision valid for that request.
 - The token-aware `AudioSessionCoordinator` moved out of the recording manager
   aggregate into its own Core Hardware file. Maximum-duration feedback is
   initializer-injected from `AppDIContainer`.
-- Manager-owned startup/resume handles and `AudioCaptureTransitionState` now
-  generation-fence lease acceptance, engine start, DSP publication, and
-  countdown completion. Mode/background/reset invalidation rejects late
-  non-cooperative completion; duplicate resume taps coalesce. Coordinator leases
-  advance only after successful activation and are consumed on deactivation, so
-  failed replacement restores the prior configuration and preserves its owner.
-  Failed rollback deactivates the partial session and invalidates that
-  ownership; failed first activation likewise deactivates partial state without
-  publishing a lease.
+- This pass introduced retained startup/resume handles and
+  `AudioCaptureTransitionState` to generation-fence lease acceptance, engine
+  start, DSP publication, and countdown completion. The later recording-engine
+  pass split resource identity from manager presentation identity without
+  weakening mode/background/reset invalidation or duplicate-resume coalescing.
+  Coordinator leases advance only after successful activation and are consumed
+  on deactivation, so failed replacement restores the prior configuration and
+  preserves its owner. Failed rollback deactivates the partial session and
+  invalidates that ownership; failed first activation likewise deactivates
+  partial state without publishing a lease.
 - Palette, raster, and display-layout policy moved to
   `Core/Media/AudioSpectrogramRenderer.swift`; the shared SwiftUI surface moved
   to `Core/UI/Components/AudioSpectrogramView.swift`. Record retains its mounted
@@ -1086,3 +1145,59 @@ decision valid for that request.
   successful session-lease replacement, failed-activation restoration,
   rollback-failure invalidation, first-activation cleanup, raster construction,
   shared-owner placement, and the 600-line production-file review guard.
+
+## 2026-09 Core Hardware Audio Review Playback Pass
+
+- `AudioReviewPlaybackController` now owns the complete review-player,
+  progress-task, completion-task, and playback-lease lifetime behind
+  `AudioCaptureManager`'s unchanged feature-facing API.
+- Player creation, audio-session effects, and wait operations are narrow
+  initializer-injected dependencies. Production uses `AVAudioPlayer` and the
+  shared token-aware coordinator; tests use deterministic players and gates.
+- Generation plus exact-player fences reject late activation and completion
+  work, including cancellation-ignoring dependencies. Recording resources are
+  independent from playback cleanup and cannot be released through it.
+- `AudioCaptureManager.swift` moved from 750 to 692 lines at this stage and
+  carried a temporary 700-line non-growth ceiling. The following recording-
+  engine pass completed the planned extraction and replaced that interim guard.
+- Core Hardware playback and architecture tests cover stop-before-activation,
+  failed player start, completion-wait failure, stale completion versus
+  replacement, scrubbed resume, unconditional manager-reset cleanup, natural
+  manager-state finalization, declaration ownership, dependency exclusions, and
+  interim line ceilings.
+
+## 2026-09 Core Hardware Audio Recording Engine Pass
+
+- `AudioRecordingEngineController` now owns the complete engine, input-tap, WAV,
+  bounded PCM-stream, DSP-task, startup/resume token, recording identity,
+  partial-file cleanup, and recording-lease lifetime behind
+  `AudioCaptureManager`'s unchanged feature-facing API.
+- `AudioRecordingWAVFormatPolicy` freezes the canonical signed Int16,
+  interleaved PCM contract, and `AudioRecordingEngineModels` carries only the
+  sendable hardware-format and evaluated-column values crossing the owner
+  boundary.
+- Engine construction, session effects, route-recovery waiting, temporary-file
+  naming, and deletion are narrow initializer-injected dependencies. A stale or
+  cancellation-ignoring activation cannot configure hardware; failure cleanup
+  finishes the stream, removes the tap before engine stop, cancels DSP,
+  deactivates only a concrete exact lease, and deletes the partial WAV. The
+  controller rejects a duplicate resume before process-wide session activation;
+  a failed accepted activation clears its operation token so a later retry
+  remains valid.
+- `AudioCaptureManager.swift` is now 516 lines and uses the normal 600-line
+  guard. The 533-line recording controller is guarded at 550 lines, and the
+  unchanged 236-line playback controller remains guarded at 250 lines.
+- Focused recording tests cover completed-file retention, cancellation and
+  failure deletion, exact teardown order, four-attempt route recovery,
+  cancellation-ignoring late activation, controller-level duplicate-resume
+  coalescing, resume retry, canonical WAV settings, and invalid hardware
+  formats. Architecture tests freeze declaration ownership, dependency
+  exclusions, delegation, and all three focused line ceilings.
+- The exact current source passes the generic Simulator build-for-testing and
+  all 48 focused Audio/Record tests. The complete `merianTests` target passes
+  3,225 logical tests with zero failures or skips (5,213 device/configuration-
+  level passes after dynamic parameter expansion). Strict affected-source
+  SwiftLint reports zero violations; XcodeGen is byte-stable, and project,
+  source-membership, event-routing, Markdown-format, Swift-parse, and whitespace
+  gates pass. A physical-device microphone, speaker, route-handoff, and
+  interruption pass remains required before release.

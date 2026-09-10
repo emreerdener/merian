@@ -27,13 +27,18 @@ actions. `Capture/Submission` retains live/offline analysis orchestration.
 
 ## Shared owners
 
-- `Core/Hardware/AudioCaptureManager.swift` owns the 15-second Int16 WAV
-  recording, review playback, bounded DSP stream, published lifecycle state, and
-  manager-owned asynchronous transition handles.
-- `Core/Hardware/AudioCaptureDependencies.swift` provides the narrow live/test
-  audio-session and engine-start closures. `AudioCaptureTransitionState.swift`
-  provides the generation fence shared by startup, resume, DSP, and countdown
-  publication.
+- `Core/Hardware/AudioCaptureManager.swift` is the stable observable facade. It
+  owns the 15-second countdown, bounded display history, noise-guidance hold
+  policy, published lifecycle state, and review/submission file handoff.
+- `Core/Hardware/AudioCapture/Services/AudioRecordingEngineController.swift`
+  owns the exact recording identity, lazy engine, input tap, canonical Int16
+  WAV, bounded PCM stream, DSP task, recording lease, and partial-file cleanup.
+  `AudioReviewPlaybackController.swift` independently owns the exact review
+  player, progress/completion tasks, playback generation, and playback lease.
+- `Core/Hardware/AudioCaptureDependencies.swift` composes the narrow live/test
+  dependencies for both controllers. `AudioCaptureTransitionState.swift` fences
+  manager presentation and countdown state; the recording controller's
+  recording/operation identities separately fence hardware and DSP lifetime.
 - `Core/Hardware/SpectrogramActor.swift` owns FFT, mel-scale, and rolling
   ambient-noise classification. `Core/Hardware/AudioSessionCoordinator.swift`
   owns one-shot, token-aware recording/playback session leases shared with
@@ -56,13 +61,22 @@ control semantics, and queue-before-inference behavior are unchanged.
 
 Feature tests live under `apps/ios/MerianTests/Features/Capture/Record/`.
 Hardware and reusable renderer tests live under
-`apps/ios/MerianTests/Core/Hardware/` and `apps/ios/MerianTests/Core/Media/`.
-The architecture suite enforces the layered folders, Services-only live adapter,
-platform-neutral Models, shared-owner locations, and the 600-line
-production-file review guard. Hardware tests also hold resume activation open to
-lock duplicate-request coalescing and late-completion fencing, and exercise
-transition invalidation, successful replacement, configuration restoration, and
-rollback-failure and first-activation cleanup.
+`apps/ios/MerianTests/Core/Hardware/`, its `AudioCapture/` subtree, and
+`apps/ios/MerianTests/Core/Media/`. The architecture suite enforces the layered
+folders, Services-only live adapter, platform-neutral Models, shared-owner
+locations, and the 600-line production-file review guard. Hardware tests also
+hold resume activation open to lock duplicate-request coalescing and
+late-completion fencing, and exercise transition invalidation, successful
+replacement, configuration restoration, and rollback-failure and
+first-activation cleanup.
+
+`AudioRecordingEngineControllerTests` additionally lock WAV retention versus
+failure deletion, tap-before-engine teardown, exact-lease release, bounded input
+route recovery, cancellation-ignoring activation, controller-level duplicate-
+resume coalescing, and resume retry. `AudioRecordingWAVFormatPolicyTests`
+freezes signed Int16 interleaved PCM. The Core Hardware architecture suite caps
+the manager at 600 lines, the recording controller at 550, and the review
+controller at 250.
 
 Simulator suites cover presentation, state transitions, cancellation, and
 dependency behavior, but they do not validate a real microphone route or

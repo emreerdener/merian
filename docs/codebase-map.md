@@ -451,16 +451,22 @@ retired, and every production Field Notes Swift file stays below 600 lines.
 
 Within Capture Record, feature files own only immutable presentation, narrow
 manager/haptic projection, UI-only artwork and scrubbing state, and mounted
-rendering. Core Hardware owns `AudioCaptureManager`, its initializer-injected
-engine/session dependencies, the shared startup/resume/DSP/countdown generation
-fence, `SpectrogramActor`, and `AudioSessionCoordinator`. The coordinator
-publishes one-shot lease ownership only after activation succeeds; mode,
-background, reset, pause, and replacement invalidate pending manager work before
-it can start an engine or publish into a newer Capture state. Mirrored Core
-Hardware tests lock duplicate-resume coalescing, late-completion rejection,
-transition invalidation, successful lease replacement, failed-activation
-configuration restoration, rollback-failure invalidation, and first-activation
-cleanup.
+rendering. Core Hardware owns the stable `AudioCaptureManager` facade,
+`SpectrogramActor`, and `AudioSessionCoordinator`.
+`AudioRecordingEngineController` exclusively owns the engine, input tap,
+canonical WAV, bounded PCM stream, DSP task, operation identity, recording
+lease, and partial-file cleanup. `AudioReviewPlaybackController` exclusively
+owns the review player, progress/completion tasks, playback generation, and
+playback lease behind the manager API. The coordinator publishes one-shot lease
+ownership only after activation succeeds; mode, background, reset, pause, stop,
+and replacement invalidate pending work before it can start hardware or publish
+into newer Capture state. Mirrored Core Hardware tests lock engine teardown
+order, WAV retention/deletion, route recovery, manager- and controller-level
+duplicate-resume coalescing, transition invalidation,
+stop-before-playback-activation cleanup, failed player-start and completion-wait
+cleanup, stale playback completion rejection, unconditional manager-reset
+cleanup, successful lease replacement, failed-activation configuration
+restoration, rollback-failure invalidation, and first-activation cleanup.
 
 Within Capture Submission, `Models/` owns deterministic admission, media,
 goal-preference, and latency policy plus normalized payload and sendable
@@ -544,6 +550,34 @@ request lifecycles plus the MainActor target-FPS debounce task.
 `CameraArchitectureTests` prevents the focused owners from acquiring network,
 persistence, or UI effects, separates session/device and movie-output
 AVFoundation from manager delegates, and enforces focused line ceilings.
+
+Within Core Hardware's audio boundary, `AudioCaptureManager` remains the
+observable recording/review facade and presentation-lifecycle owner.
+`AudioCapture/Services/AudioRecordingEngineController` owns the lazy engine,
+input tap, canonical Int16 WAV, bounded PCM stream, DSP task, exact operation
+identity, partial-file cleanup, and recording-specific session lease.
+`AudioCapture/Services/AudioReviewPlaybackController` owns the concrete review
+player, progress/completion tasks, generation/player correlation, and
+playback-specific lease. Their live dependencies are the only audio-capture
+edges that create AVFoundation recording/playback objects or resolve the shared
+session coordinator; deterministic Core Hardware tests inject those effects and
+fence late activation, route-recovery failure, resume retry, and stale
+completion. `AudioCaptureArchitectureTests` enforces the split, dependency
+exclusions, and focused ceilings: 600 lines for the 516-line manager, 550 for
+the recording controller, and 250 for the playback controller.
+
+Within Core Hardware's haptic boundary, `HapticManager` remains the stable
+observable facade and owns settings/expedition admission, semantic trigger
+timing, diagnostics, and the latest-attempt projection. `Haptics/Models` and
+`Haptics/Policies` own platform-neutral values and pure decisions.
+`Haptics/Services/HapticFeedbackController` owns seven reusable UIKit generator
+wrappers and the lazy Core Haptics engine; impact and selection preserve UIKit
+delivery while optionally adding the Core Haptics transient, and exact engine
+identity prevents a stale stopped/reset callback from clearing its replacement.
+`Haptics/Services/HapticAudioSessionAdapter` is the only haptic source that
+imports AVFoundation or inspects the shared audio session. Architecture tests
+freeze these dependencies and enforce ceilings of 300 lines for the facade, 125
+for models, 100 for policy, 400 for the controller, and 100 for the adapter.
 
 Within `Data/Images`, recovery evidence priority is a registry invariant rather
 than an assumption about caller order. Strong scan-ID/media-order evidence may

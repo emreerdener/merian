@@ -121,7 +121,8 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
     `OfflineJobScheduler` for ordered drains and persisted retry-wake
     restoration
   - `Hardware/`: `CameraManager`, `HardwareOrchestrator`,
-    `EnvironmentContextManager`, `AudioCaptureManager`, `SpectrogramActor`
+    `EnvironmentContextManager`, the `AudioCaptureManager` facade plus focused
+    recording/review controllers under `AudioCapture/`, and `SpectrogramActor`
   - `Network/`: `MerianNetworkClient`, the live `SupabaseManager` orchestrator,
     and `Auth/` value models, policies, and coordinators
   - `Security/`: `CircuitBreakerManager`, `DeviceIdentityManager`,

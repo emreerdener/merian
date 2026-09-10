@@ -410,6 +410,19 @@ variables) compiled cleanly in older Swift versions. Merian targets iOS 18/Swift
 uniformly. Classes like `HapticManager` adopt `@Observable` despite having no
 view bindings, satisfying the `AppDIContainer` expansion boundaries.
 
+The observable facade does not own UIKit or Core Haptics resources directly.
+`HapticFeedbackController` contains the seven reusable generator wrappers and a
+lazy Core Haptics engine, while `HapticAudioSessionAdapter` contains the direct
+audio-session edge. A Core Haptics stopped/reset callback must match the UUID of
+the currently retained engine before it may clear state, preventing a late
+framework callback from invalidating a replacement. Impact and selection keep
+their UIKit delivery whether the optional Core Haptics transient succeeds or
+falls back. Facade initialization defers generator preparation by 300
+milliseconds, and weakly captured delayed semantic sequences cannot keep the
+manager alive by themselves. Every injected generator, engine, audio-session,
+and clock closure retains an explicit `@MainActor` function type, so the
+dependency values cannot silently escape the hardware isolation contract.
+
 ### SwiftUI Presentation Collisions (`CaptureWorkspaceView`)
 
 Concurrent root `.sheet` modifiers can collide when background, push, and user
@@ -3154,18 +3167,29 @@ This ensures:
   forward reset events that clear pending closures and invalidate stale write
   tasks so cancelled work cannot mutate the next scan session.
 
-- `AudioCaptureManager` and `SpeechManager` now guarantee full teardown on
-  startup cancellation and early failures: tap removal, engine stop, task
+- `AudioRecordingEngineController` and `SpeechManager` guarantee full teardown
+  on startup cancellation and early failures: tap removal, engine stop, task
   cancellation, stream finishing, and session deactivation all happen on every
   exit path. `AudioSessionCoordinator` serializes activation/deactivation with
   lease tokens so stale teardown work cannot deactivate a newer session.
-- Audio recording startup, resume, DSP, and countdown work share a manager-owned
-  generation fence. Mode/background/reset invalidation cancels retained task
-  handles and rejects cancellation-ignoring activation before engine start or UI
-  publication. The coordinator commits a one-shot lease only after activation
+- Audio recording startup, resume, and DSP work are fenced by the controller's
+  exact recording identity and operation token; the manager separately fences
+  presentation publication and countdown state. Mode/background/reset
+  invalidation cancels retained work at both layers and rejects
+  cancellation-ignoring activation before engine start or UI publication. The
+  recording owner also rejects a second pending resume before process-wide
+  activation and calls its stored deactivation dependency only with a concrete
+  lease. The coordinator commits a one-shot lease only after activation
   succeeds. Failed replacement restores the prior configuration; failed rollback
   deactivates the partial session and invalidates prior ownership, while failed
   first activation deactivates partial state without publishing a lease.
+- Review playback has a separate `AudioReviewPlaybackController` owner for the
+  exact player, progress/completion tasks, generation, and playback lease. It
+  clears ownership before cancellation, deactivates a lease returned by stale
+  activation, finalizes failed player starts or completion waits, and rejects
+  completion from a stopped player after replacement. Manager reset always stops
+  this owner even while recording startup is resolving. Recording and playback
+  therefore cannot clear one another's local lease state.
 - The spectrogram and ambient-noise guidance hot paths no longer use repeated
   `removeFirst()` array shifts. They now keep bounded circular buffers for
   visible spectrogram history and trailing noise-floor history.

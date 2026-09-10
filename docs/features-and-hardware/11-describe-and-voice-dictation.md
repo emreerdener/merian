@@ -455,11 +455,11 @@ returns to its idle state.
 | `SFSpeechRecognitionTask` auto-terminates          | `stopDictation()` → `teardownAudioEngine()` → token-aware deactivation                            |
 
 The lease prevents delayed teardown from one mode from deactivating a newer
-audio owner. This lets `AudioCaptureManager` acquire its own recording lease
-cleanly after the user leaves Describe, even when stop/start work overlaps. The
-coordinator publishes no lease for a failed first activation, restores the prior
-configuration after a failed replacement, and deactivates the partial session if
-that restoration also fails.
+audio owner. This lets `AudioRecordingEngineController` acquire its recording
+lease cleanly after the user leaves Describe, even when stop/start work
+overlaps. The coordinator publishes no lease for a failed first activation,
+restores the prior configuration after a failed replacement, and deactivates the
+partial session if that restoration also fails.
 
 ---
 

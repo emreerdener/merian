@@ -49,8 +49,8 @@ triggering excessive SwiftUI view rebuilds.
   - Configures `AVAudioSession` as `.record` / `.measurement` through
     `AudioSessionCoordinator.shared.activate(.recordMeasurement(...))`, not by
     calling `AVAudioSession.sharedInstance()` directly on the main actor. This
-    serializes dictation with `AudioCaptureManager` and makes teardown
-    token-aware.
+    serializes dictation with `AudioRecordingEngineController` and makes
+    teardown token-aware.
   - `isRecording = true` is assigned as the **absolute final line** — only after
     `try audioEngine.start()` confirms the engine is live.
 - **Capture Describe adapter boundary**: The Services-owned
@@ -113,10 +113,18 @@ triggering excessive SwiftUI view rebuilds.
   constructs it with an injected maximum-duration heavy-feedback closure and
   distributes it via `DIContainerModifier`; the manager does not resolve the
   haptic singleton.
-- Owns the full `AVAudioEngine` bioacoustic recording pipeline for the `.audio`
-  capture page.
+- Preserves the feature-facing recording/review API and owns observable state,
+  countdown, bounded display history, noise-guidance hold policy, and
+  review/submission file handoff.
+- Delegates AVFoundation lifetimes to two focused `@MainActor` owners under
+  `AudioCapture/Services`. `AudioRecordingEngineController` retains the lazy
+  recording engine, input tap, canonical WAV, bounded PCM stream, detached DSP
+  task, exact operation identity, and recording lease.
+  `AudioReviewPlaybackController` retains `AVAudioPlayer`, progress/completion
+  tasks, exact player generation, and the playback lease. Both receive narrow
+  initializer-injected dependencies.
 - **`isRecording: Bool`** — single source of truth for recording state. Set to
-  `true` only after `audioEngine.start()` succeeds.
+  `true` only after the recording controller starts its exact engine.
 - **`isPaused: Bool`** — engine is paused mid-recording (tap preserved,
   countdown halted). Can only be `true` when `isRecording` is also `true`.
 - **`recordingProgress: Double`** — 0.0 → 1.0 over 15 seconds, driven by a
@@ -127,9 +135,9 @@ triggering excessive SwiftUI view rebuilds.
   classification from `SpectrogramActor.snrLevel(from:)`.
 - **`pendingPlaybackPath: String?`** — non-nil after recording finishes, before
   the user confirms or discards. Drives the review state UI.
-- **`playbackProgress: Double`** — 0.0 → 1.0 playhead position; preserved across
-  play/stop cycles so `playPendingRecording()` resumes from the scrubbed
-  position.
+- **`playbackProgress: Double`** — 0.0 → 1.0 playhead position. A scrubbed
+  position set before playback becomes the next start position; explicit stop
+  resets progress to zero.
 - **`audioFilePath: String?`** — set to the WAV filename when the user confirms
   via review UI, or when a maximum-duration recording auto-confirms because
   confirmation is disabled; consumed and cleared by
@@ -145,22 +153,26 @@ triggering excessive SwiftUI view rebuilds.
   the guard during the asynchronous setup window — this was the source of the
   `nullptr == Tap()` AVAudioEngine crash). It never prompts and fails closed
   unless microphone permission is already granted. Session activation flows
-  through the shared `AudioSessionCoordinator`, which returns a lease token
-  stored on `AudioCaptureManager`; teardown deactivates only if that lease is
-  still current, eliminating stale stop-work from interrupting a newer
-  record/playback cycle. Writes **Int16 PCM WAV** via an explicit
-  `AVAudioFormat(commonFormat: .pcmFormatInt16, ...)` to avoid the
-  WAVEFORMATEXTENSIBLE (`audioFormat = 0xFFFE`) variant that the edge audio
-  parsers do not support. The tap now copies each `AVAudioPCMBuffer`
-  synchronously into a bounded `AsyncStream(bufferingNewest: 2)` before handing
-  it to `SpectrogramActor`, preventing tap-owned buffers from crossing the async
-  boundary and capping DSP backlog.
+  through `AudioRecordingEngineController`. That owner acquires the shared
+  coordinator's recording lease, validates an exact operation token, retries a
+  transient input route, installs the tap, and starts the engine off the main
+  actor. `AudioRecordingWAVFormatPolicy` supplies explicit signed Int16,
+  interleaved PCM to avoid the WAVEFORMATEXTENSIBLE (`audioFormat = 0xFFFE`)
+  variant that the edge parsers do not support. The controller copies each
+  `AVAudioPCMBuffer` synchronously into a bounded
+  `AsyncStream(bufferingNewest: 2)` before handing it to `SpectrogramActor`, so
+  tap-owned buffers never cross the async boundary and DSP backlog stays
+  bounded.
 - **Recording-transition fence** — startup, resume, DSP publication, and the
-  countdown carry an `AudioCaptureTransitionToken`. The manager retains startup
-  and resume task handles, invalidates their generation on lifecycle exit,
-  pause, stop, cancel, reset, or replacement, and releases a late lease without
-  starting its engine. `cancelPendingRecordingTransition()` is the narrow Shell
-  hook used before pausing on mode/background changes.
+  countdown carry exact ownership. The manager retains its resume task and
+  presentation generation; the recording controller retains its setup task,
+  recording identity, and operation token. Lifecycle exit, pause, stop, cancel,
+  reset, or replacement invalidates both layers. A late lease is released
+  without starting an engine; the controller rejects a second pending resume
+  before session activation and invokes its stored deactivation dependency only
+  with a concrete lease. DSP publication must still match the active recording
+  before reaching manager state. `cancelPendingRecordingTransition()` is the
+  narrow Shell hook used before pausing on mode/background changes.
 - **Camera handoff contract** — `CaptureControlBar` owns one cancellable audio
   startup task and awaits `CameraManager.stopSessionAndWait()` before calling
   `startRecording()`. Leaving Audio, backgrounding, or removing the control bar
@@ -172,36 +184,46 @@ triggering excessive SwiftUI view rebuilds.
   rejects a dependency that returns despite cancellation.
 - **Transient input-route recovery** — after the recording audio session is
   active, a zero-rate or zero-channel input format is retried four times at 75
-  ms intervals with `audioEngine.reset()`. A route that remains invalid after
-  the bounded 300 ms window still throws
+  ms intervals with the focused engine controller's reset operation. A route
+  that remains invalid after the bounded 300 ms window still throws
   `AudioCaptureError.hardwareSampleRateZero`.
 - **`pauseRecording()`** — invalidates pending transition work, cancels the
-  countdown, calls `audioEngine.pause()`, and sets `isPaused = true`.
+  countdown, delegates engine pause, and sets `isPaused = true`.
 - **`resumeRecording()`** — retains one manager-owned task, coalesces duplicate
-  taps while activation is pending, reacquires a fresh
-  `AudioSessionCoordinator.Lease`, and verifies its transition and engine
-  identity before calling `audioEngine.start()` and rebuilding the countdown
-  from current `recordingProgress`.
+  taps while activation is pending, while the recording controller independently
+  rejects a second resume operation before it can reacquire the process-wide
+  session. The accepted request receives a fresh `AudioSessionCoordinator.Lease`
+  and must pass both controller operation identity and manager transition
+  identity before rebuilding the countdown from current `recordingProgress`. A
+  failed activation clears its operation token so an explicit retry is not
+  poisoned.
 - **`stopRecordingEarly()`** — cancels the countdown and always routes the
   partial clip to review. Only reaching the 15-second maximum may bypass review
   when confirmation is disabled.
-- **`seekPlayback(to:)`** — seeks `AVAudioPlayer.currentTime` and updates
-  `playbackProgress`; works while playing or stopped.
-- **`cancelRecording()`** — cancels countdown task, tears down engine, deletes
-  partial file from `tmp/`, calls `discardPending()`.
+- **`seekPlayback(to:)`** — clamps and publishes `playbackProgress`; the
+  playback controller also seeks the active player, while a not-yet-playing
+  review can park that progress for its next start.
+- **`cancelRecording()`** — cancels countdown state and asks the recording
+  controller to finish its stream, remove the tap before engine stop, cancel
+  DSP, release the exact lease, and delete the partial file from `tmp/`; then
+  calls `discardPending()`.
 - **`discardPending()`** — deletes pending file if present, **always** clears
   `spectrogramColumns`, `snrLevel`, `snrHoldTicks` — display state is cleared
   unconditionally (not gated on `pendingPlaybackPath`) so calling it before
   `startRecording()` also wipes the previous session's columns.
-- **`reset()`** — tears down the engine/tap/session lease, deletes any
-  unsubmitted pending temp file, clears playback/review/spectrogram state, and
-  prepares the next session. Call after `audioFilePath` has been consumed by the
+- **`reset()`** — stops both focused controllers, deletes any unsubmitted
+  pending temp file, clears playback/review/spectrogram state, and prepares the
+  next session. Call after `audioFilePath` has been consumed by the
   `CaptureWorkspaceOrchestrationModifier.onChange` handoff (stage-or-submit), or
   from that modifier when `CaptureWorkspaceView` disappears.
-- **Playback finalization**: `playbackCompletionTask` is now a stored handle,
-  cancelled by `stopPlayback()` and `reset()`. This prevents an orphaned sleep
-  task from retaining `AVAudioPlayer` and from clearing a newer playback session
-  after the user has already stopped or restarted audio.
+- **Playback finalization**: `AudioReviewPlaybackController` atomically owns the
+  exact player, progress/completion tasks, generation, and playback lease.
+  `stopPlayback()` and `reset()` clear that ownership before cancellation. A
+  late activation deactivates its returned lease without starting audio, a
+  failed `AVAudioPlayer.play()` or completion wait finalizes and releases its
+  lease immediately, and a stale completion cannot clear a replacement playback
+  session. Reset always stops playback because its lease is independent of
+  recording startup.
 - **Record presentation adapter**: Capture Shell resolves the environment-owned
   manager, while `Capture/Record/Services/AudioRecordingDependencies.swift` is
   the only Record file that projects its state and actions. The Record view
@@ -374,19 +396,40 @@ triggering excessive SwiftUI view rebuilds.
 
 ### `HapticManager`
 
-- Governs `UIImpactFeedbackGenerator` tactile feedback.
-- Generates `NotificationFeedback` for success/failure workflows without
-  requiring `AudioToolbox` imports.
-- **Strict Requirement**: Never use `UIImpactFeedbackGenerator` or
-  `.sensoryFeedback` modifiers directly in views. Always route haptic feedback
-  through `HapticManager.shared` API methods (e.g., `triggerSheetSpring()`,
-  `triggerLightImpact()`) to ensure the user's `isHapticsEnabled` preference is
-  respected globally.
-- `HapticManager`, `HardwareOrchestrator`, and `PhotoLibraryManager` keep
-  `.shared` production singletons but accept injected `AppSettings` for isolated
-  tests and previews. Do not reach around those injected boundaries with direct
-  `UserDefaults.standard` writes in tests; mutate the injected `AppSettings`
-  instance instead.
+- Stable `@MainActor @Observable` facade at `Core/Hardware/HapticManager.swift`.
+  It preserves the production `.shared` singleton and every semantic trigger
+  signature while accepting injected `AppSettings`, `HardwareOrchestrator`,
+  hardware controller, and clock for deterministic tests.
+- Owns only global preference/expedition admission, suppression diagnostics,
+  delayed semantic sequences, and the latest attempt projection. Generator and
+  engine lifecycle are delegated to `Haptics/Services/HapticFeedbackController`.
+- `HapticFeedbackController` constructs seven reusable UIKit generators and
+  lazily constructs Core Haptics. A stopped/reset handler must match the exact
+  active engine UUID before clearing it. Impact and selection always deliver
+  their UIKit feedback, optionally accompanied by the Core Haptics transient;
+  engine unavailability or failure therefore retains UIKit-only delivery.
+- `Haptics/Models` contains platform-neutral attempt, diagnostic, event, and
+  feedback-profile values. `Haptics/Policies` owns pure global admission,
+  profile mapping, suppression keys, and bounded intensity decisions.
+- `HapticAudioSessionAdapter` is the sole haptic source that imports
+  AVFoundation or calls `AVAudioSession.sharedInstance()`. Its best-effort
+  preparation preserves feedback for recording categories while
+  `AudioSessionCoordinator` remains the process-wide owner of recording/playback
+  leases.
+- Generator preparation is delayed by 300 milliseconds after facade
+  initialization, keeping hardware work off the app's critical initialization
+  path.
+- Generator, engine, audio-session, and clock dependency closures use explicit
+  `@MainActor` function types; do not erase that isolation when extending the
+  boundary.
+- **Strict Requirement**: Never use `UIImpactFeedbackGenerator`,
+  `UISelectionFeedbackGenerator`, `UINotificationFeedbackGenerator`,
+  `CHHapticEngine`, or `.sensoryFeedback` directly in feature views. Route
+  feedback through the injected manager or a narrow semantic feature closure so
+  the global gates remain authoritative.
+- Tests should mutate injected `AppSettings` and `HardwareOrchestrator` values;
+  do not reach around those boundaries with direct `UserDefaults.standard`
+  writes.
 - **Analysis-phase haptic map**: Four strategic touchpoints span the analyzing
   experience in `InferenceEngine` and `InsightHeader`:
   - `triggerLightImpact(intensity: 0.3)` — fires when `isVisionStreaming` flips
@@ -2756,12 +2799,13 @@ projection, SDK effects, and the timing of requested repository transitions.
 - Active and pending best-effort metadata writes each have a hard depth-eight
   ceiling. Rapid queue replay therefore retains at most sixteen write closures;
   overflow is dropped instead of creating an unbounded OOM backlog.
-- `AudioCaptureManager` owns full startup failure cleanup. Cancellation after
-  `AVAudioSession` activation now still removes the input tap, stops the engine,
-  cancels DSP work, finishes the spectrogram stream, and clears pending temp
-  files. Startup/resume handles and one shared generation fence prevent a late
-  activation, DSP update, or countdown tick from publishing after mode change,
-  backgrounding, reset, or replacement.
+- `AudioRecordingEngineController` owns full recording startup failure cleanup.
+  Cancellation after `AVAudioSession` activation still removes the input tap,
+  stops the engine, cancels DSP work, finishes the spectrogram stream, and
+  clears the partial temp file. Its recording/operation identities compose with
+  the manager's presentation generation and resume/countdown tasks, preventing a
+  late activation, DSP update, or countdown tick from publishing after mode
+  change, backgrounding, reset, or replacement.
 - `AudioSessionCoordinator` publishes a new one-shot lease only after complete
   configuration and activation succeeds. Failed replacement restores the prior
   configuration; failed rollback deactivates and invalidates the partial
@@ -2771,7 +2815,7 @@ projection, SDK effects, and the timing of requested repository transitions.
 - `SpeechManager` now routes every startup failure and cancellation path through
   `teardownAudioEngine()`, leaving no live tap, task, or stale `audioLevel`
   state behind, and uses the same leased `AudioSessionCoordinator` teardown
-  model as `AudioCaptureManager`.
+  model as the Audio Capture recording controller.
 - `SupabaseManager` now deduplicates external telemetry linking per user session
   via `ensureTelemetryLinkedIfNeeded(for:)`, preventing cold-start and
   session-restore churn from re-triggering RevenueCat/PostHog link work

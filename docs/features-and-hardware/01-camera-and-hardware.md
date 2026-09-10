@@ -444,26 +444,38 @@ deallocation via `[weak self]`. The crossfade fires only when
 
 ### `HapticManager`
 
-Centralizes UI vibration feedback, keeping haptic engine initialization off the
-critical path.
+Centralizes semantic feedback without making feature views hardware owners.
 
-- Pre-warms `.heavy`, `.light`, `.rigid`, `.medium` `UIImpactFeedbackGenerator`
-  instances and a `success` `UINotificationFeedbackGenerator` sequentially
-  inside `init()` using `.prepare()`.
-- The app container's `HapticManager` is routed through narrow feature
-  dependencies or environment injection. Scan shutter/zoom callbacks and shared
-  crop/flash controls receive semantic actions, eliminating the 15+ ms stutter
-  caused by cold-starting taptic engines at input time without making those
-  controls service owners.
-- **System Haptics Toggle (`isHapticsEnabled`)**: All motor triggers are guarded
-  by the injected `AppSettings.isHapticsEnabled` boundary. If the user disables
-  haptics in Settings, `HapticManager` skips all `.impactOccurred()` calls.
-  Haptics are also suppressed while expedition mode is active through the
-  injected `HardwareOrchestrator`.
-- **Strict Requirement**: Never use `UIImpactFeedbackGenerator` or
-  `.sensoryFeedback` modifiers directly in views. Route haptic feedback through
-  the injected `HapticManager` or a semantic feature dependency so the user's
-  `isHapticsEnabled` preference remains authoritative.
+- `HapticManager.swift` is the stable observable facade. It owns the
+  `AppSettings.isHapticsEnabled` and expedition-mode gates, semantic sequence
+  timing, deduplicated suppression diagnostics, and the latest attempt record.
+  Its existing public trigger and initializer signatures remain stable.
+- `Haptics/Services/HapticFeedbackController.swift` owns four impact, one
+  selection, and two notification generator wrappers plus the lazy Core Haptics
+  engine. Generator preparation begins after a 300-millisecond deferred warmup,
+  not synchronously in facade initialization.
+- Core Haptics stopped/reset callbacks carry an exact engine identity. A stale
+  callback cannot clear a replacement. Impact and selection always emit their
+  matching UIKit feedback and add the Core Haptics transient when it succeeds;
+  unsupported or failed Core Haptics therefore preserves UIKit-only delivery.
+- `Haptics/Services/HapticAudioSessionAdapter.swift` is the sole haptic owner
+  that inspects the shared audio session. It enables best-effort feedback for
+  recording categories; it does not replace the token-aware recording/playback
+  ownership in `AudioSessionCoordinator`.
+- `Haptics/Models` and `Haptics/Policies` hold platform-neutral diagnostics,
+  events, profiles, gate decisions, and intensity clamping, allowing their
+  behavior to be tested without UIKit or AVFoundation.
+- Injected generator, engine, audio-session, and clock closures retain explicit
+  `@MainActor` function types, so copying a dependency value cannot erase the
+  hardware-thread contract.
+- The app container routes `HapticManager` through narrow feature dependencies
+  or environment injection. Scan shutter/zoom callbacks and shared crop/flash
+  controls receive semantic actions rather than constructing generators.
+- **Strict Requirement**: Never use `UIImpactFeedbackGenerator`,
+  `UISelectionFeedbackGenerator`, `UINotificationFeedbackGenerator`,
+  `CHHapticEngine`, or `.sensoryFeedback` directly in feature views. Route
+  feedback through the injected manager or a semantic feature dependency so
+  global settings remain authoritative.
 
 ### `ViewfinderHints` (`Features/Capture/Scan/Components/ViewfinderHints.swift`)
 
@@ -613,10 +625,13 @@ Full-screen content view for the audio capture mode. All persistent controls
 fixed overlay.
 
 The Shell projects `AudioCaptureManager` into an immutable Record presentation;
-only Record Services reference the concrete manager. Core Hardware retains and
-generation-fences asynchronous startup/resume work so mode/background changes
-cannot let a late audio activation publish into the next Capture state. The view
-shows three states:
+only Record Services reference the concrete manager. Core Hardware's focused
+recording controller retains the engine, input tap, WAV, DSP work, and recording
+lease behind exact recording/operation fences, while the manager fences
+countdown and presentation publication. Mode/background changes therefore cannot
+let late activation publish into the next Capture state. The focused review
+controller independently fences player progress, completion, and the playback
+lease so stopped work cannot clear a replacement. The view shows three states:
 
 - **Idle**: centered rotating animal artwork plus the persistent **Record nearby
   sounds** material badge.
@@ -627,7 +642,8 @@ shows three states:
   lower guidance slot is hidden.
 
 See [Audio Listen Mode](./12-audio-listen-mode.md) for the full Record/Core
-ownership, `SpectrogramActor`, `AudioCaptureManager`, and
+ownership, `SpectrogramActor`, `AudioCaptureManager`,
+`AudioRecordingEngineController`, `AudioReviewPlaybackController`, and
 `OfflineQueueManager+AudioQueue` pipeline documentation.
 
 ---

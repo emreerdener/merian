@@ -678,7 +678,7 @@ private struct AudioDoneButton: View {
 
 // MARK: - Audio Review Play Button
 
-/// Plays or pauses the pending recording during the review state.
+/// Plays or stops the pending recording during the review state.
 private struct AudioReviewPlayButton: View {
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
 

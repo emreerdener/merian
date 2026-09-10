@@ -684,14 +684,14 @@ audio presentation and layout policy, narrow manager/haptic adapters, idle and
 scrub state, a thin full-screen view, and focused components. Only Record
 Services reference the concrete `AudioCaptureManager` or shared haptic manager;
 the Shell resolves those live dependencies and supplies the view with an
-immutable snapshot plus closure actions. Audio-engine, WAV, playback, FFT, and
-generation-fenced audio-session lifecycle remain in `Core/Hardware`; shared
-raster construction and the SwiftUI spectrogram surface live in `Core/Media` and
-`Core/UI`; and the audio/video countdown badge lives in `Capture/Shared`.
-Capture controls retain permission, record/pause/resume/stop/review actions,
-while Submission retains queue-before-inference orchestration. Record views
-issue no endpoint calls, and focused tests enforce the ownership boundary and
-600-line production-file guard.
+immutable snapshot plus closure actions. Core Hardware's focused recording and
+review controllers own the engine/input-tap/WAV/DSP and player/task lifecycles
+behind the stable `AudioCaptureManager` facade; shared raster construction and
+the SwiftUI spectrogram surface live in `Core/Media` and `Core/UI`; and the
+audio/video countdown badge lives in `Capture/Shared`. Capture controls retain
+permission, record/pause/resume/stop/review actions, while Submission retains
+queue-before-inference orchestration. Record views issue no endpoint calls, and
+focused tests enforce the ownership boundary and 600-line production-file guard.
 
 [Capture Describe](Merian/Features/Capture/Describe/README.md) separates pure
 prompt, subject, tag-ranking, and text-composition Models; narrow live
@@ -723,6 +723,30 @@ session/zoom/frame-rate and microphone/generation policy, lock-owned photo and
 video request lifecycles, and the latest-state FPS debouncer. Architecture tests
 freeze those dependencies and keep every live camera owner at or below its
 focused line ceiling.
+
+The same Core Hardware boundary keeps `AudioCaptureManager` as Capture Record's
+stable observable recording/review facade. The focused
+`AudioRecordingEngineController` owns the lazy engine, input tap, canonical WAV,
+bounded PCM stream, DSP task, operation identity, temporary-file cleanup, and
+recording lease. `AudioReviewPlaybackController` exclusively owns the review
+player, playback tasks, generation/player fences, and playback lease.
+`AudioSessionCoordinator` remains the process-wide token-aware session owner.
+Construction, session effects, waits, and recording file effects are
+initializer-injected for deterministic overlap and failure tests; feature views
+continue to receive only Record's immutable presentation and narrow actions.
+Both controllers reject stale activation, the recording controller rejects a
+second pending resume before session activation, and teardown releases only a
+concrete exact lease. Manager reset stops each active owner without crossing
+their lease or file responsibilities.
+
+Core Hardware also keeps `HapticManager` as the stable observable feedback
+facade. It owns global admission, semantic trigger timing, diagnostics, and the
+latest attempt projection. `Haptics/Models` and `Haptics/Policies` contain
+platform-neutral values and deterministic decisions; `HapticFeedbackController`
+owns UIKit generators and the identity-fenced lazy Core Haptics engine; and
+`HapticAudioSessionAdapter` is the sole haptic owner of direct audio-session
+inspection. Features should receive the manager or narrow semantic closures
+rather than constructing feedback hardware.
 
 ## Insights Integration Ownership
 

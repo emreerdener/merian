@@ -1,8 +1,8 @@
 # Naturebook AI Provider Flexibility — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-001\
-Version: 0.3\
-Date: 2 September 2026\
+Version: 0.4\
+Date: 10 September 2026\
 Status: Active infrastructure plan; Gemini remains the only enabled provider\
 Suggested owners: Backend and Product, with iOS contract review\
 Product authority:
@@ -22,10 +22,10 @@ confidence recalibration, or live multi-provider evaluation. BioCLIP, training,
 model cascades, and family plans remain deferred.
 
 This revision supersedes the earlier plan to add OpenAI during the initial
-milestone. Repository contracts were reviewed on 2 September 2026, including the
-current working tree. New module/metadata names below are proposed; this
-document is not production-state, benchmark, implementation, or deployment
-evidence.
+milestone. Repository contracts were reviewed on 2 September 2026, with timeout,
+service-job admission, and retry semantics rechecked on 10 September 2026. New
+module/metadata names below are proposed; this document is not production-state,
+benchmark, implementation, or deployment evidence.
 
 | Current boundary                                                                                                                                                                         | Planning consequence                                                                                            |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -86,7 +86,7 @@ flowchart TD
 | Interface         | Required content                                                                                                                                                           |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Request           | Task-tagged canonical input; actual image/audio/text evidence; source lineage and order; output-contract and instruction references.                                       |
-| Execution context | Admitted Gemini model, policy/binding version, existing reservation/attempt identity, permission reference, absolute deadline, cancellation, and budget.                   |
+| Execution context | Typed user-request or service-job authority; admitted Gemini model and attempt configuration snapshot; applicable timing, cancellation, and budget limits. See section 6.  |
 | Outcome           | A task-specific draft and normalized usage/model/timing facts, or a bounded refusal, invalid output, operational failure, unsupported-input, or unknown-execution outcome. |
 
 Use `identify`, `species_overview`, `lookalikes`, and `group_tags` as conceptual
@@ -133,23 +133,37 @@ accepts images alone cannot handle included companion audio by silently dropping
 it. This distinction is part of the interface now and future qualification
 later.
 
-**SRD-PF-04 — Preserve admission authority.** The database continues to admit
-the operation and exact allowed Gemini model. Resolve the task binding against
-that admitted decision; the registry must not override it. Verify model,
-operation, evidence, and policy agreement before sending data. Unknown
-providers, unsupported inputs, or configuration mismatches produce the existing
-compatible error path before provider dispatch and commitment to unavailable
-work.
+**SRD-PF-04 — Preserve admission authority.** For user-quota operations, the
+database continues to admit the operation and exact allowed Gemini model. Public
+service jobs use their authenticated service purpose, claimed task, and fixed
+server-approved Gemini model. Resolve each task binding against its existing
+admission authority; the registry must not override it. Verify model, operation,
+evidence, and policy agreement before sending data. Unknown providers,
+unsupported inputs, or configuration mismatches produce the existing compatible
+error path before provider dispatch and commitment to unavailable work.
 
 Do not widen the database model allowlist for a hypothetical second provider. A
 future integration must extend database admission and Edge validation together.
 Current client model/tier hints remain non-authoritative.
 
-Pin binding identity to admitted work using the existing
-reservation/model/policy identity and scoped internal metadata where needed. A
-configuration refresh must not silently rewrite a retry or resumed attempt.
-Recheck current permission and stop controls before disclosure. Keep
-configuration versioning consistent across primary and dependent task bindings.
+Resolve the exact model and prompt/schema/binding references once for each
+admitted attempt. Keep that snapshot fixed while the attempt runs; a
+configuration refresh does not change an active call. Continue to enforce
+current permission and stop controls before disclosure. Each separately admitted
+dependent task resolves its own binding.
+
+A logical observation or job ID does not permanently pin later attempts. After
+existing failure/expiry and ownership checks authorize a new attempt, admit it
+under the current approved policy and take a new snapshot. This preserves the
+quota retry path's current model/policy selection. An unknown outcome or changed
+configuration alone cannot authorize another provider call; first reconcile
+durable status under the existing recovery rules. Replay completed work from its
+saved result without inference.
+
+Use the current reservation/attempt or claimed-job identity to distinguish
+attempts. This phase does not add provider-call resumption across process
+restarts or require a database migration solely to pin configuration across
+retries. Recovery retains the existing completion lookup and re-admission rules.
 
 This is an explicit, Gemini-only dispatch policy. It adds no automatic failover,
 confidence-based escalation, parallel identification, or authority for a test
@@ -157,10 +171,11 @@ adapter to process a production request.
 
 ## 4. Permissions and evidence transport
 
-**SRD-PF-05 — Preserve current permission.** Keep the `google_gemini` receipt
-meaning, deny-wins revocation, adult/Terms prerequisites, account
-synchronization, and generation fences. Check the active account's permission
-before provider upload/invocation, including queued work and resumed attempts.
+**SRD-PF-05 — Preserve current permission.** For owner-scoped work, keep the
+`google_gemini` receipt meaning, deny-wins revocation, adult/Terms
+prerequisites, account synchronization, and generation fences. Check the active
+account's permission before provider upload/invocation, including queued work
+and resumed attempts.
 
 Represent the required processor/purpose as an explicit execution dependency,
 currently bound only to the existing Gemini policy. Do not rename old receipts,
@@ -226,7 +241,25 @@ activation, not a current implementation package.
 
 ## 6. Execution, accounting, and dependent content
 
-**SRD-PF-09 — Existing attempt lifecycle.** Preserve the established order:
+**SRD-PF-09 — Existing attempt lifecycle.** Use two explicit execution-context
+variants. The owning orchestrator validates authority and retains admission,
+claim, and settlement responsibilities; both variants use the same adapter.
+
+| Context        | Admission and authority                                                                                                                                                   | Limits and settlement                                                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `user_request` | Validated owner, current Gemini permission, and operation-specific entitlement/model decision; existing reservation and attempt ownership where that operation uses them. | Preserve that operation's allowance, commitment, failure/refund, and usage rules.                                                                                 |
+| `service_job`  | Authenticated service caller, valid durable job claim and attempt ownership, approved public species-content task, and fixed server-approved Gemini binding.              | Preserve existing batch, concurrency, timeout, retry, and processing limits; settle the claimed job and record service usage without consuming user scan credits. |
+
+The variants describe admission authority, not whether work runs in the
+foreground or background. The service variant requires no user quota reservation
+or user consent receipt and is restricted to eligible public species-fact
+inputs. A worker processing private observation data uses the owner-scoped
+context, retaining the owner's permission and lifecycle checks plus applicable
+job-claim controls. Service authentication does not grant permission to disclose
+that data. Reuse existing worker controls and accounting rather than adding a
+separate service quota system.
+
+For quota-backed user requests, preserve the established order:
 
 1. Resolve existing completed/replayable work under its owner and logical key.
 2. Validate input, current consent, entitlement, and the admitted Gemini
@@ -237,20 +270,38 @@ activation, not a current implementation package.
 5. Invoke once, validate the draft, and execute existing durable finalization.
 6. Settle the allowance under current operation-specific failure/refund rules.
 
-Only one attempt may own the logical reservation lease. The adapter must not
+Only one attempt may own the logical reservation lease. Service jobs retain
+their current claim ownership and completion/failure rules. The adapter must not
 introduce SDK retries or another primary call. Lost responses may still have
 executed and incurred cost; preserve unknown-outcome recovery rather than
 redispatching blindly. Replay saved results without inference and preserve
 account/deletion and complimentary-credit fences.
 
-Retain the 90-second live request envelope and bounded 70-second duplicate
-completion wait under the existing contract. Preparation, invocation, and
-finalization share the applicable deadline; an adapter does not restart it.
-Client foreground handoff and durable queue behavior remain unchanged.
+Preserve the separate timing boundaries and the point where each timer starts:
+
+| Boundary                               | Existing limit                               | Required behavior                                                                                                |
+| -------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Queue-backed client foreground request | 15 seconds, on the foreground request        | Preserve handoff to durable queue recovery and suppression of competing identification.                          |
+| Direct, queue-less client request      | 90 seconds, on the direct request            | Preserve its current transport and recovery behavior.                                                            |
+| Gemini HTTP call                       | 90 seconds, at provider invocation           | Keep the existing provider-call timeout and retry policy.                                                        |
+| Duplicate-result polling               | 70-second polling window, from polling start | Read existing completion; retain bounded database reads and polling intervals without issuing another inference. |
+
+These are independent limits, not a shared 90-second server deadline. Preserve
+the existing bounded preparation, database, and finalization operations. A
+client timeout alone must not cancel required backend finalization or authorize
+a new provider attempt; durable recovery and existing ownership, cancellation,
+and deletion fences continue to apply.
+
+Sources:
+[client request limits](../../apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Inference.swift),
+[Gemini HTTP timeout](../../services/supabase/functions/_shared/gemini.ts), and
+[completion polling](../../services/supabase/functions/_shared/identify/completedResponse.ts).
 
 **SRD-PF-10 — Common execution facts.** Normalize Gemini's returned model,
 usage, timing, and bounded outcome into the shared result. Associate them with
-the admitted task, model, binding/policy version, and existing attempt identity.
+the admitted task, model, binding/policy version captured for that attempt, and
+execution-context kind. Keep existing reservation/attempt linkage for user-quota
+work and claimed-job linkage for service work within their private boundaries.
 Retain `public.ai_usage_events` and its known historical/best-effort coverage.
 Missing usage or prices remain unknown, not zero.
 
@@ -260,6 +311,12 @@ change must be additive, scoped, and tested with the prior Gemini-backed code. A
 new multi-provider billing database or execution engine is not required for this
 milestone. Document accounting gaps for failed/uncertain attempts instead of
 claiming complete cost coverage.
+
+Expose prompt/schema/binding references from the active snapshot through the
+existing bounded execution/accounting interfaces. Do not require durable
+cross-retry configuration pinning or infer missing versions for historical
+events. Service usage retains existing ledger operation names and owner-null
+semantics; it must not create a user allowance charge.
 
 Preserve Gemini's unit/pricing interpretation and avoid double counting cached
 input, reasoning components, or linked logical events. Account for sampled-image
@@ -299,6 +356,23 @@ durable completion, and dependent content dispatch. Show that caller logic can
 use a deterministic test adapter with no network access, while production
 admission rejects it. This proves interface substitution only; a real second
 provider's API compatibility and quality remain unproven.
+
+Include focused acceptance cases for the clarified execution boundaries:
+
+- The foreground window expires while admitted backend work finalizes; queue
+  recovery and duplicate polling return the saved result without a competing
+  primary call. Direct-request, Gemini-call, and polling timers retain their
+  independent start points and limits.
+- Public content jobs require service authorization and valid claim ownership,
+  record service usage, and leave user scan allowances unchanged. Invalid claims
+  fail before dispatch. The service-only context rejects private observation
+  inputs; owner-scoped jobs must pass the owner's permission and lifecycle
+  checks.
+- A configuration change leaves an active attempt's snapshot unchanged. A new
+  attempt authorized by existing recovery/admission rules uses the current
+  approved policy, including a changed allowed Gemini model where applicable.
+  Neither an active/unknown result nor a configuration change alone allows
+  redispatch; completed-result replay performs no inference.
 
 Baseline existing timing/call-count/cost coverage and measure introduced
 overhead. Retain the documented non-provider p50 ≤300 ms and p95 ≤1 second and
@@ -349,8 +423,8 @@ OpenAI work package:
    incomplete evidence does not count as a pass.
 6. Activate selected qualified bindings gradually for eligible traffic and
    verify a return to an eligible Gemini route. Other tasks may remain on
-   Gemini. Pin admitted work and saved-result interpretation; no automatic
-   cross-provider retry follows an unknown attempt or refusal.
+   Gemini. Pin each admitted attempt and saved-result interpretation; no
+   automatic cross-provider retry follows an unknown attempt or refusal.
 
 Compatible switches between providers that have completed these steps can be
 reviewed server configuration changes. This phase delivers the boundary and the
@@ -362,7 +436,7 @@ procedure; it does not claim that a second provider can already be activated.
 | ----- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | P0    | Current callers, media, admission, results, and measurement    | Scoped inventory and Gemini behavior/input baseline, including playback versus sampled inference media.                                      |
 | P1    | Shared task types, Gemini adapter, scoped call sites           | Provider-neutral caller interfaces and preserved Gemini requests/results.                                                                    |
-| P2    | Gemini registry, admission checks, internal execution metadata | Gemini-only bindings that honor current quotas/models, explicit capability checks, and additive metadata only where required.                |
+| P2    | Gemini registry, admission checks, internal execution metadata | Gemini-only bindings with explicit user/service admission, fixed attempt snapshots, preserved retry policy, and scoped execution facts.      |
 | P3    | Tests and future-provider procedure                            | Gemini parity, production rejection of test/unknown providers, deterministic interface substitution, and documented later integration gates. |
 | P4    | Existing infrastructure release process                        | Controlled Gemini-backed rollout and verified return to the previous implementation/configuration.                                           |
 
@@ -370,16 +444,16 @@ The acceptance groups below cover current requirements. Numbers refer to the
 `PRD-PF-` and `SRD-PF-` prefixes. Future-provider qualification is a documented
 condition, not a live integration that must run to close this milestone.
 
-| Group        | PRD        | SRD            | Current acceptance evidence                                                                                                                                            |
-| ------------ | ---------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| T-ADAPTER    | 01, 02, 03 | 01, 02, 07, 11 | Gemini parity; scoped endpoint/helper coverage; common task contracts; no new bypasses; deferred callers preserved.                                                    |
-| T-ROUTING    | 01, 04, 10 | 03, 04, 13     | Every production binding remains Gemini; exact admission agreement; disabled/mismatched/unknown-provider rejection; compatible configuration return.                   |
-| T-MEDIA      | 02, 04, 05 | 03, 05, 06     | Ordered five-snapshot and accepted partial inputs; included/absent companion audio; origin versus capability; no raw-video model input; playback durability preserved. |
-| T-CONSENT    | 05         | 05, 11         | Current Gemini consent, revocation, account switch, queue/replay, private/service-purpose boundaries, and no new processor authority.                                  |
-| T-CONFIDENCE | 02, 06     | 07, 08         | Existing Gemini scores/bands/candidates, payloads, history, and server/SQL interpretations remain compatible.                                                          |
-| T-RECOVERY   | 02, 07     | 09, 13         | One primary invocation, no added retries, quota lifecycle, unknown outcomes, durable completion/replay, deletion fences, and compatible return.                        |
-| T-USAGE      | 08         | 09, 10         | Correct Gemini usage mapping and linkage, explicit incomplete coverage, bounded timing facts, and content-free telemetry.                                              |
-| T-EXTENSION  | 09, 10     | 02, 12, 13     | Network-free test adapter exercises callers but cannot reach production; the future integration, permission, qualification, and switching procedure is complete.       |
+| Group        | PRD        | SRD            | Current acceptance evidence                                                                                                                                                               |
+| ------------ | ---------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-ADAPTER    | 01, 02, 03 | 01, 02, 07, 11 | Gemini parity; scoped endpoint/helper coverage; common task contracts; no new bypasses; deferred callers preserved.                                                                       |
+| T-ROUTING    | 01, 04, 10 | 03, 04, 13     | Every production binding remains Gemini; exact user/service admission agreement; active snapshot stability; current policy on authorized new attempts; invalid-provider rejection.        |
+| T-MEDIA      | 02, 04, 05 | 03, 05, 06     | Ordered five-snapshot and accepted partial inputs; included/absent companion audio; origin versus capability; no raw-video model input; playback durability preserved.                    |
+| T-CONSENT    | 05         | 05, 09, 11     | Current Gemini consent, revocation, account switch, queue/replay, authenticated service claims, and rejection of private-data permission bypasses.                                        |
+| T-CONFIDENCE | 02, 06     | 07, 08         | Existing Gemini scores/bands/candidates, payloads, history, and server/SQL interpretations remain compatible.                                                                             |
+| T-RECOVERY   | 02, 07     | 04, 09, 13     | Independent timeout boundaries; foreground handoff with backend completion; no competing primary call; current quota/retry rules; durable replay, deletion fences, and compatible return. |
+| T-USAGE      | 08         | 09, 10         | Correct user/service usage mapping and linkage; no user scan charge for public service work; explicit coverage gaps, bounded timing facts, and content-free telemetry.                    |
+| T-EXTENSION  | 09, 10     | 02, 12, 13     | Network-free test adapter exercises callers but cannot reach production; the future integration, permission, qualification, and switching procedure is complete.                          |
 
 Follow the [testing strategy](../development-guides/08-testing-strategy.md) and
 repository skills for implementation gates:

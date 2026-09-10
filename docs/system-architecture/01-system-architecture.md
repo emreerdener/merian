@@ -144,13 +144,14 @@ orphaned object does not reconstruct its relational context.
   is an app-owned document import, not an extension or App Group handoff, and
   the pending copy survives cold launch and onboarding until Capture stages it
   or rejects it as terminally unreadable.
-- **Pre-warmed Tactile Shutter (`HapticManager`):** The app `.prepare()`s Taptic
-  Engine instances (e.g. `UIImpactFeedbackGenerator(style: .medium)`) on app
-  boot inside a global `HapticManager`. Centralizing haptics removes the ~20ms
-  "cold" instantiation lag on physical button triggers. To protect the
-  "Instant-On" launch requirement, these `.prepare()` calls are deferred inside
-  a `Task { @MainActor }` sleeping 300ms, allowing the Main Thread to complete
-  the heavy hardware layers (`AVCaptureSession`) unimpeded.
+- **Pre-warmed Tactile Shutter (`HapticManager`):** The app prepares reusable
+  feedback generators behind the global `HapticManager` facade. The focused
+  `HapticFeedbackController` owns those UIKit objects and the lazy Core Haptics
+  engine. Centralizing haptics removes the ~20ms cold instantiation lag on
+  physical button triggers. To protect the Instant-On launch requirement,
+  generator preparation is deferred in a main-actor task for 300 milliseconds,
+  allowing the main thread to complete the heavy hardware layers
+  (`AVCaptureSession`) unimpeded.
 - **Battery-bounded Context Tracking (`EnvironmentContextManager`):** Manages
   `CoreLocation` and `WeatherKit` with coarse, pausable location updates while
   the camera is active, then fires a one-shot high-accuracy `requestLocation()`

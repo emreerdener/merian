@@ -2705,6 +2705,10 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/AudioRecordingPresentationTests \
   -only-testing:merianTests/AudioRecordingViewModelTests \
   -only-testing:merianTests/CaptureRecordArchitectureTests \
+  -only-testing:merianTests/AudioCaptureArchitectureTests \
+  -only-testing:merianTests/AudioRecordingEngineControllerTests \
+  -only-testing:merianTests/AudioRecordingWAVFormatPolicyTests \
+  -only-testing:merianTests/AudioReviewPlaybackControllerTests \
   -only-testing:merianTests/AudioCaptureManagerTests \
   -only-testing:merianTests/AudioCaptureTransitionStateTests \
   -only-testing:merianTests/AudioSessionCoordinatorTests \
@@ -2778,10 +2782,31 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   feature-owned view-model suite.
 - **`EnvironmentContextManagerTests.swift`**: Asserts safe async handling over
   simulated `CLLocationManager` outputs for offline contexts.
-- **`HapticManagerTests.swift`**: Confirms safe initialization of
-  `UIImpactFeedbackGenerator` buffers without stalling threads. Asserts that
-  setting `UserDefaults.standard.set(false, forKey: "isHapticsEnabled")`
-  prevents sequence triggers without causing hardware memory faults.
+- **Haptic feedback suites**: `HapticManagerTests` exercises the injected facade
+  admission gates, all four impact routes, selection, success, delayed error,
+  audio-session preparation, and attempt projection without constructing
+  platform generators. `HapticFeedbackPolicyTests` covers pure
+  feedback/profile/intensity decisions; `HapticFeedbackControllerTests` covers
+  exact generator routing, Core Haptics plus UIKit dual delivery, UIKit-only
+  fallback, both stopped/reset Core Haptics replacement fences, and the
+  audio-session adapter boundary. `HapticArchitectureTests` freezes declaration
+  ownership, main-actor hardware closures, framework separation, test rehoming,
+  and focused line ceilings. Capture's pure release policy lives in
+  `CaptureButtonHapticFeedbackTests` under `Core/UI`.
+
+Run the focused haptic matrix after changing a semantic trigger, global gate,
+hardware adapter, fallback, engine lifecycle, or Capture control mapping:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/HapticManagerTests \
+  -only-testing:merianTests/HapticFeedbackPolicyTests \
+  -only-testing:merianTests/HapticFeedbackControllerTests \
+  -only-testing:merianTests/HapticArchitectureTests \
+  -only-testing:merianTests/CaptureButtonHapticFeedbackTests test
+```
+
 - **`PhotoLibraryManagerTests.swift`**: Validates that the injected default-off
   `saveToCameraRoll` preference drops automatic photo and video payloads before
   Photos authorization, photos map to `.photo`, videos map to `.video`, video
@@ -5755,18 +5780,29 @@ The Capture Record organization matrix is split by owner. Run
 `CaptureRecordArchitectureTests` for deterministic display/layout policy,
 artwork and scrub interaction, Services-only concrete-manager resolution, shared
 component placement, and the 600-line production-file guard. Run
-`AudioCaptureManagerTests` and `SpectrogramActorTests` for hardware lifecycle,
-injected maximum-duration feedback, bounded FFT/noise-floor behavior, and reset
-semantics. The manager suite also holds activation open to prove duplicate
-resume requests coalesce and lifecycle cancellation fences the late result. Run
+`AudioCaptureArchitectureTests` for the recording and playback ownership
+boundaries, dependency exclusions, teardown ordering, and focused 600/550/250
+line ceilings. Run `AudioRecordingEngineControllerTests` for completed-WAV
+retention, failure deletion, engine-start cleanup, bounded route recovery,
+late-activation rejection, controller-level duplicate-resume coalescing, and
+resume retry after activation failure. The same file's
+`AudioRecordingWAVFormatPolicyTests` freezes signed Int16 interleaved PCM and
+invalid-format rejection. Run `AudioReviewPlaybackControllerTests` for
+stop-before-activation lease rejection, failed-player-start and completion-wait
+cleanup, stale-completion fencing, scrubbed resume, unconditional manager-reset
+cleanup, and natural manager-state finalization. Run `AudioCaptureManagerTests`
+for facade state, startup cleanup, injected maximum-duration feedback, review
+routing, and duplicate-resume coalescing; its activation gate also proves
+lifecycle cancellation fences a late result. Run `SpectrogramActorTests` for
+bounded FFT/noise-floor behavior and reset semantics. Run
 `AudioCaptureTransitionStateTests` for generation replacement/invalidation,
 `AudioSessionCoordinatorTests` for successful replacement, failed-activation
 configuration restoration, first-activation cleanup, and rollback-failure
 invalidation, and `AudioSpectrogramRendererTests` for reusable palette, raster
 orientation, live-horizon, and fit-to-data behavior. These suites live under
 mirrored `Features/Capture/Record`, `Core/Hardware`, and `Core/Media` test
-paths; do not move hardware or reusable renderer assertions back into an
-aggregate manager suite. Keep
+paths; do not move playback, hardware, or reusable renderer assertions back into
+an aggregate manager suite. Keep
 `merianUITests.testAudioFirstLaunchSelectsRecordMode` in the focused matrix for
 the real pager selection and mounted Audio presentation.
 

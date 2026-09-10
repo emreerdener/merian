@@ -1768,19 +1768,22 @@ Implemented Profile slice:
   controls; Submission retains queue-before-inference orchestration. The shared
   audio-session coordinator has its own `Core/Hardware` owner, and
   `AudioCaptureManager` receives maximum-duration feedback from AppDI instead of
-  resolving haptics. Manager-owned start/resume handles plus a generation fence
-  reject late activation, DSP, and countdown commits across lifecycle changes;
-  duplicate resume requests coalesce. The coordinator commits one-shot lease
-  ownership only after successful activation. Failed replacement restores the
-  prior configuration; failed rollback or first activation deactivates partial
-  state instead of publishing unknown ownership. Reusable palette/raster/layout
-  policy moved to `Core/Media`, the SwiftUI spectrogram moved to `Core/UI`, and
-  the audio/video countdown badge moved to `Capture/Shared`. Mirrored feature,
-  hardware, and media suites lock presentation, scrubbing, feedback injection,
-  DSP/noise-floor and raster behavior, transition/lease concurrency, ownership
-  boundaries, platform-neutral Models, and the 600-line production-file ceiling
-  without changing the 15-second WAV, confirmation, staging, submission, copy,
-  accessibility, or audio-session contracts.
+  resolving haptics. The focused recording controller owns the engine, input
+  tap, WAV, DSP, and recording lease behind exact recording/operation identity;
+  the manager owns countdown and presentation state. Together their retained
+  work and fences reject late activation, DSP, and countdown commits across
+  lifecycle changes; duplicate resume requests coalesce. The coordinator commits
+  one-shot lease ownership only after successful activation. Failed replacement
+  restores the prior configuration; failed rollback or first activation
+  deactivates partial state instead of publishing unknown ownership. Reusable
+  palette/raster/layout policy moved to `Core/Media`, the SwiftUI spectrogram
+  moved to `Core/UI`, and the audio/video countdown badge moved to
+  `Capture/Shared`. Mirrored feature, hardware, and media suites lock
+  presentation, scrubbing, feedback injection, DSP/noise-floor and raster
+  behavior, transition/lease concurrency, ownership boundaries, platform-neutral
+  Models, and the 600-line production-file ceiling without changing the
+  15-second WAV, confirmation, staging, submission, copy, accessibility, or
+  audio-session contracts.
 - The Capture-wide integration audit verified Shell → Scan/Record/Describe →
   Staging → Submission ownership, chronological media projection, live/replay
   request-key parity, queue-before-inference ordering, and the absence of DTO or
@@ -4350,6 +4353,143 @@ session start/stop, torch, zoom/lens switching, focus, LiDAR and non-LiDAR depth
 behavior, photo rotation, interruption recovery, thermal FPS, and recording
 stabilization still require the documented physical-device matrix before
 release.
+
+### Core Hardware Audio Review Playback Boundary
+
+The first Audio Capture slice moved the complete review-player lifetime,
+progress-task, completion-task, and playback-session lifetime from
+`AudioCaptureManager.swift` into
+`AudioCapture/Services/AudioReviewPlaybackController.swift`.
+`AudioCaptureManager` remains Capture Record's stable `@MainActor @Observable`
+facade and preserves every play, stop, seek, review-state, file-handoff, and
+initializer signature. The focused controller owns one exact player plus its
+generation, tasks, and playback lease. Its small dependencies inject player
+construction, session effects, and waits; the live edge alone resolves
+`AVAudioPlayer` and `AudioSessionCoordinator.shared`.
+
+Stop clears controller ownership before cancellation. A non-cooperative session
+activation that returns afterward deactivates its lease and never starts audio;
+a stale progress or completion task must match both generation and player
+identity before it may publish or finish. Playback cleanup therefore cannot
+clear the recording controller's resources or lease, and stopped playback cannot
+reset its replacement. Failed player starts and completion-wait errors finalize
+the exact playback immediately, and manager reset always stops its independent
+playback owner. The manager fell from 750 to 692 lines at this stage and carried
+a temporary 700-line non-growth ceiling. The 236-line controller is capped at
+250 lines. The following recording-engine pass completed the planned extraction
+and replaced the interim manager ceiling.
+
+Six deterministic playback tests cover stop-before-activation with late-lease
+cleanup, failed player start, completion-wait failure, cancelled completion
+versus replacement, scrubbed manager resume plus natural finalization, and
+manager-reset lease cleanup. `AudioCaptureArchitectureTests` freezes declaration
+ownership, dependency exclusions, delegation, regression-suite presence, and
+both interim line ceilings. The current-source generic Simulator build and the
+37-test focused Audio/Record matrix pass with zero failures or skips; strict
+affected-source SwiftLint reports zero violations. The complete current-source
+`merianTests` target passes 3,214 tests with zero failures or skips (5,202
+device/configuration-level passes when dynamic parameter runs are expanded).
+XcodeGen is byte-stable; project/resource membership, event-routing, Swift
+parsing, Markdown-format, and whitespace gates also pass. No route, endpoint,
+payload, persistence, feature flag, UI copy/layout, or deployment contract
+changed.
+
+### Core Hardware Audio Recording Engine Boundary
+
+The second Audio Capture slice moved the complete recording-engine lifetime,
+input tap, canonical WAV writer, bounded PCM stream, detached DSP consumer,
+startup/resume operation identity, partial-file cleanup, and recording-session
+lease into `AudioCapture/Services/AudioRecordingEngineController.swift`.
+`AudioCaptureManager` remains the stable `@MainActor @Observable` facade and
+retains its public initializer and record, pause, resume, stop, review, and
+submission signatures. It now owns presentation state, countdown, bounded
+spectrogram display history, noise-guidance hold policy, and file handoff—not
+AVFoundation recording resources.
+
+`AudioRecordingEngineModels` carries the sendable input-format and evaluated-
+column values, while `AudioRecordingWAVFormatPolicy` owns the explicit signed
+Int16 interleaved PCM contract. The controller's narrow dependencies inject
+engine construction, session activation/deactivation, route-recovery wait,
+temporary-file naming, and deletion. Exact recording and operation identities
+fence lease acceptance, start/resume, and DSP publication. Failure or
+cancellation clears ownership before finishing the stream, removing the tap,
+stopping the engine, cancelling DSP, releasing the matching lease, and deleting
+the partial WAV; successful finish retains the WAV for review or submission.
+
+Seven deterministic controller tests cover completed-file retention and teardown
+order, engine-start cleanup, bounded route recovery and exhaustion,
+cancellation-ignoring late activation, controller-level duplicate-resume
+coalescing, and resume retry after activation failure. The controller's
+deactivation dependency accepts only a concrete lease, so owner teardown cannot
+emit a synthetic nil release. Two WAV-policy tests freeze the format contract
+and invalid-input rejection. `AudioCaptureArchitectureTests` freezes relocation,
+dependency exclusions, delegation, teardown order, regression-suite presence,
+and the focused ceilings: 600 lines for the 516-line manager, 550 for the
+533-line recording controller, and 250 for the 236-line playback controller. The
+exact current source passes the generic Simulator build-for-testing and all 48
+focused Audio/Record tests. The complete `merianTests` target passes 3,225
+logical tests with zero failures or skips (5,213 device/configuration-level
+passes after dynamic parameter expansion). Strict affected-source SwiftLint
+reports zero violations; XcodeGen is byte-stable, and project,
+source-membership, event-routing, Markdown-format, Swift-parse, and whitespace
+gates pass. No route, endpoint, payload, persistence, feature flag, UI
+copy/layout, or deployment contract changed. Physical microphone, speaker,
+route-handoff, and interruption QA remains required before release.
+
+### Core Hardware Haptic Feedback Boundary
+
+The next Core Hardware slice retained `HapticManager` as the source-compatible
+`@MainActor @Observable` facade while moving platform resources and pure policy
+into focused `Haptics/{Models,Policies,Services}` owners. The facade fell from
+470 to 257 lines and now owns only the two global gates, semantic trigger and
+sequence timing, suppression diagnostics, and latest-attempt presentation.
+Public trigger names, initializer defaults, settings behavior, expedition-mode
+suppression, diagnostic copy, and UIKit delivery behavior remain stable.
+
+`HapticFeedbackController` owns four impact, one selection, and two notification
+generator wrappers plus a lazy Core Haptics engine. Engine stopped/reset
+callbacks are fenced by exact UUID so a callback from an obsolete engine cannot
+clear its replacement. Hardware construction, triggering, capability, and audio
+session effects are initializer-injected. Impact and selection retain the
+established UIKit delivery on every admitted request and add the Core Haptics
+transient when available; unsupported or failed Core Haptics therefore produces
+the UIKit-only outcome. The 300-millisecond deferred warmup remains off the
+initialization path and uses a weak facade capture.
+
+`HapticAudioSessionAdapter` is the only haptic file that imports AVFoundation or
+inspects `AVAudioSession.sharedInstance()`. Its best-effort recording-category
+configuration is separate from `AudioSessionCoordinator`, which remains the
+token-aware recording/playback lease owner. `HapticFeedbackModels` and
+`HapticFeedbackPolicy` contain platform-neutral values, admission, suppression
+key, profile, and intensity logic.
+
+The follow-up audit removed three unreachable branches that the first extraction
+had carried over from exhaustive UIKit switches: the internal `.soft` impact,
+`.warning` notification, and unobservable intermediate `.coreHaptics` attempt
+outcome. The remaining domain cases now match the facade's actual routes. It
+also made every injected generator, engine, audio-session, and clock closure
+explicitly `@MainActor`, preserving isolation even when a dependency value is
+copied. Deterministic facade and controller probes now assert the exact
+generator owner that fires, including success versus error, plus the delayed
+error and both stale stopped/reset callbacks.
+
+Four policy tests, five controller tests, and four architecture tests cover
+global eligibility, profiles and clamping, generator construction/routing, UIKit
+fallback, engine replacement fencing, audio-session injection, declaration
+ownership, dependency exclusions, and focused ceilings. Five pure Capture-button
+feedback-policy tests moved from the manager suite to Core UI; the five manager
+tests retain facade/global-gate coverage. The ceilings are 300 lines for the
+257-line facade, 125 for the 91-line models, 100 for the 48-line policy, 400 for
+the 361-line controller, and 100 for the 37-line adapter.
+
+The exact current source passes XcodeGen, project/source-membership validation,
+Swift parsing, strict affected-source SwiftLint, and the generic iOS Simulator
+build-for-testing. The five focused haptic/Capture suites pass 23 tests with
+zero failures or skips. The complete `merianTests` target passes 3,238 logical
+tests with zero failures or skips (5,226 device/configuration-level passes after
+dynamic parameter expansion). Physical-device haptic/audio-recording interaction
+remains required before release. No route, endpoint, payload, persistence,
+feature flag, UI copy/layout, or deployment contract changed.
 
 ## Phase 3: Ownership Cleanup
 

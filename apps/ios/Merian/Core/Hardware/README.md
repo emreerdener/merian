@@ -44,29 +44,52 @@ coverage remains in the Describe and Field Notes feature view-model suites.
 
 ## Audio capture and session ownership
 
-`AudioCaptureManager` owns the long-lived bioacoustic engine, bounded PCM-to-DSP
-stream, 15-second Int16 WAV lifecycle, review playback, and observable capture
-state. Its maximum-duration feedback is initializer-injected; `AppDIContainer`
-supplies the live heavy-impact closure so the manager does not resolve haptics.
-Record views receive an immutable presentation projection and never access the
-manager directly. Manager-owned startup and resume task handles share a
-generation fence with DSP and countdown publication. Leaving Audio,
-backgrounding, reset, pause, stop, and replacement invalidate that fence; a late
-or cancellation-ignoring activation releases its lease without starting the
-engine or mutating a newer session.
+`AudioCaptureManager` is the stable observable Capture Record facade. It owns
+the 15-second countdown, bounded display history, noise-guidance hold policy,
+review/submission paths, and lifecycle presentation state. Its maximum-duration
+feedback is initializer-injected; `AppDIContainer` supplies the live
+heavy-impact closure so the manager does not resolve haptics. Record views
+receive an immutable presentation projection and never access the manager
+directly.
+
+`AudioCapture/Services/AudioRecordingEngineController` is the focused recording
+owner behind that facade. It owns the lazy `AVAudioEngine`, input tap, canonical
+Int16 PCM WAV, bounded PCM stream, detached DSP task, exact recording identity,
+startup/resume operation token, and recording-specific audio-session lease.
+Engine construction, session effects, route-recovery wait, file naming, and
+deletion are initializer-injected. The controller rejects a second pending
+resume before process-wide session activation. A late activation is rejected by
+exact operation identity, and all failure and cancellation paths finish the
+stream, remove the tap before stopping the engine, cancel DSP, release the exact
+lease, and delete the partial WAV. Its stored deactivation dependency accepts a
+concrete lease, so teardown with no owned lease emits no synthetic release.
+`AudioRecordingWAVFormatPolicy` and `AudioRecordingEngineModels` keep the file
+contract and sendable presentation values outside the lifecycle owner.
+
+`AudioCapture/Services/AudioReviewPlaybackController` is the focused review
+playback owner behind that stable manager API. It owns `AVAudioPlayer`, progress
+and completion tasks, and the playback-specific audio-session lease. Every
+asynchronous callback is fenced by both a playback generation and exact player
+identity. Stop-before-activation rejects and deactivates a late lease, and a
+cancelled completion cannot clear replacement playback. A player that refuses to
+start or a completion wait that fails is finalized immediately, including
+exact-lease release. Manager reset always stops this independent playback owner,
+even while recording startup is still resolving. The manager receives the
+controller's live dependencies through its existing small dependency value;
+tests inject deterministic players, session effects, and wait gates.
 
 `AudioSessionCoordinator` is the cross-feature, token-aware lease owner for
-recording and playback audio sessions. `AudioCaptureManager` and `SpeechManager`
-release only their current lease, so delayed teardown from an older operation
-cannot deactivate a replacement session. Keep this owner separate from either
-feature and do not call `AVAudioSession.sharedInstance()` from a paged view. A
-lease becomes current only after configuration and activation both succeed, and
-successful deactivation consumes it. A failed replacement restores the prior
-configuration before leaving that lease current. If restoration also fails, the
-coordinator deactivates the partial session and invalidates prior ownership
-rather than publishing a lease for an unknown configuration. A failed first
-activation likewise deactivates any partially activated session before returning
-the error.
+recording and playback audio sessions. `AudioRecordingEngineController`,
+`AudioReviewPlaybackController`, and `SpeechManager` release only their current
+lease, so delayed teardown from an older operation cannot deactivate a
+replacement session. Keep this owner separate from either feature and do not
+call `AVAudioSession.sharedInstance()` from a paged view. A lease becomes
+current only after configuration and activation both succeed, and successful
+deactivation consumes it. A failed replacement restores the prior configuration
+before leaving that lease current. If restoration also fails, the coordinator
+deactivates the partial session and invalidates prior ownership rather than
+publishing a lease for an unknown configuration. A failed first activation
+likewise deactivates any partially activated session before returning the error.
 
 `SpectrogramActor` owns the off-main FFT, mel-scale projection, and bounded
 rolling ambient-noise floor. Its guidance policy classifies clipping by peak and
@@ -76,12 +99,63 @@ signal-to-noise ratio in decibels. Rendering belongs to `Core/Media` and
 
 Manager and DSP tests live in
 `apps/ios/MerianTests/Core/Hardware/AudioCaptureManagerTests.swift` and
-`SpectrogramActorTests.swift`. Transition-token and audio-session lease tests
-live beside them in `AudioCaptureTransitionStateTests.swift` and
+`SpectrogramActorTests.swift`. Recording, WAV-format, playback, and structural
+coverage live under `Core/Hardware/AudioCapture/` in
+`AudioRecordingEngineControllerTests.swift`,
+`AudioReviewPlaybackControllerTests.swift`, and
+`AudioCaptureArchitectureTests.swift`. Transition-token and audio-session lease
+tests live beside the original manager suite in
+`AudioCaptureTransitionStateTests.swift` and
 `AudioSessionCoordinatorTests.swift`. Record presentation tests remain with the
 feature, and reusable raster tests live in `Core/Media` test ownership. The
-coordinator suite covers successful replacement, failed-replacement restoration,
-failed-rollback invalidation, and failed-first-activation cleanup.
+recording suite covers teardown order, retained versus deleted WAV ownership,
+engine-start failure, bounded route recovery, cancellation-ignoring activation,
+controller-level duplicate-resume coalescing, resume retry, and the canonical
+PCM format. The playback suite covers late activation, failed player start,
+completion-wait failure, stale completion, resume position, manager reset, and
+manager-state finalization; the coordinator suite covers successful replacement,
+failed-replacement restoration, failed-rollback invalidation, and
+failed-first-activation cleanup.
+
+## Haptic feedback ownership
+
+`HapticManager` is the stable `@MainActor @Observable` application facade. It
+owns global preference and expedition-mode admission, suppression diagnostics,
+the latest attempt projection, semantic public trigger names, and the timing of
+multi-pulse sequences. Existing callers may continue to receive it through
+`AppDIContainer`, environment injection, or narrow feature closures.
+
+Focused implementation lives under `Haptics/`:
+
+- `Models/HapticFeedbackModels.swift` owns platform-neutral attempt, diagnostic,
+  event, feedback-kind, and Core Haptics profile values.
+- `Policies/HapticFeedbackPolicy.swift` owns pure admission, profile mapping,
+  intensity clamping, and suppression-log-key decisions.
+- `Services/HapticFeedbackController.swift` owns the reusable UIKit generators
+  and lazy Core Haptics engine. Exact engine identity fences stopped/reset
+  callbacks so an obsolete engine cannot clear its replacement. Impact and
+  selection routes always deliver their UIKit feedback; supported Core Haptics
+  adds the matching transient, while an unavailable or failed engine leaves the
+  UIKit delivery intact.
+- `Services/HapticAudioSessionAdapter.swift` is the sole haptic owner that
+  inspects `AVAudioSession`. It preserves best-effort feedback during recording
+  without making the facade or a feature view an audio-session owner.
+
+Generator, Core Haptics engine, audio-session, and injected clock closures carry
+explicit `@MainActor` function types. This keeps the hardware contract enforced
+even if a dependency value is copied outside its current owner. The focused
+domain enums contain only routes exposed by the facade; UIKit-only `.soft` and
+`.warning` branches and the unobservable intermediate Core Haptics outcome are
+not part of the extracted domain.
+
+The facade delays generator preparation by 300 milliseconds to keep hardware
+work off app initialization. Do not instantiate UIKit or Core Haptics
+generators—including impact, selection, and notification generators—in feature
+views. Route user-facing actions through the manager or inject a semantic
+closure into the feature owner. Tests live under
+`MerianTests/Core/Hardware/Haptics/`; coverage for Capture's pure
+control-feedback policy lives separately in
+`MerianTests/Core/UI/CaptureButtonHapticFeedbackTests.swift`.
 
 ## Location authorization and deterministic UI tests
 

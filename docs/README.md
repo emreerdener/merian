@@ -652,7 +652,8 @@ as their permanent engineering identity.
 
 - **[`/features-and-hardware/01-camera-and-hardware.md`](./features-and-hardware/01-camera-and-hardware.md)**
   — AVFoundation bindings, LiDAR depth logic, Pro video stabilization
-  boundaries, and ViewfinderIntelligence constraints.
+  boundaries, identity-fenced haptic feedback ownership, and
+  ViewfinderIntelligence constraints.
 - **[`/features-and-hardware/02-revenue-and-identity.md`](./features-and-hardware/02-revenue-and-identity.md)**
   — RevenueCat products/offerings, Test Store/StoreKit/TestFlight purchase
   matrix, stable purchase principals, protocol-3 server-authorized sign-out
@@ -687,10 +688,12 @@ as their permanent engineering identity.
   and SFSpeechRecognizer pipeline, and Swift 6 concurrency guarantees.
 - **[`/features-and-hardware/12-audio-listen-mode.md`](./features-and-hardware/12-audio-listen-mode.md)**
   — Audio Listen Mode: `SpectrogramActor` FFT/mel-scale DSP,
-  `AudioCaptureManager` 15-second recording pipeline, shared raster-backed
-  spectrogram, ambient-noise guidance, generation-fenced start/resume lifecycle,
-  token-aware audio-session leases, coordinated camera-to-microphone hardware
-  handoff, and the shared non-visual durability path.
+  `AudioCaptureManager` 15-second recording facade,
+  `AudioRecordingEngineController` engine/tap/WAV lifetime,
+  `AudioReviewPlaybackController` player/task lifetime, shared raster-backed
+  spectrogram, ambient-noise guidance, generation-fenced record and review
+  lifecycle, token-aware audio-session leases, coordinated camera-to-microphone
+  hardware handoff, and the shared non-visual durability path.
 - **[`/features-and-hardware/13-explore-home-screen-widget.md`](./features-and-hardware/13-explore-home-screen-widget.md)**
   — Explore Home Screen widget: image-only WidgetKit extension, App Group cache
   contract, timeline carousel behavior, and deep-link routing.

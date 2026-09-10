@@ -1,8 +1,8 @@
 # Naturebook AI Provider Flexibility — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-001\
-Version: 0.3\
-Date: 2 September 2026\
+Version: 0.4\
+Date: 10 September 2026\
 Status: Active infrastructure plan; Gemini remains the only enabled provider\
 Suggested owners: Backend and Product, with iOS contract review\
 Companion: [Provider Flexibility SRD](../rfcs/identification-foundation-srd.md)
@@ -56,6 +56,12 @@ explanation and required observed details. Five snapshots do not mean five
 separate identifications. Existing separately admitted enrichment and moderation
 operations retain their own lifecycle.
 
+User requests retain their account permissions and operation-specific allowance
+rules. Public species-content jobs use service authorization and claimed jobs,
+with their existing processing limits and service usage accounting. Those jobs
+do not consume user scan credits. Any job using private observation data must
+still honor the owner's permissions and lifecycle checks.
+
 Field/Insight, Explore, and Dictionary chat migrations, replacement of
 public-audio moderation, family plans, BioCLIP, model training, automatic
 provider failover, model cascades, and changes to video sampling are outside
@@ -80,30 +86,38 @@ confidence labels, and consent screens. Necessary internal metadata additions
 must remain scoped; a future provider migration is not a prerequisite for this
 infrastructure work.
 
+Keep the existing foreground handoff, direct-request, provider-call, and
+duplicate-polling time limits separate. A client timeout alone must not cancel
+required backend finalization. Configuration stays fixed during each admitted
+attempt; a new attempt authorized by existing recovery rules uses the current
+approved policy. Completed requests return their saved result without another
+model call. This phase does not require configuration to remain pinned across
+every retry.
+
 ## 4. Product requirements
 
-| ID        | Requirement for the current phase                                                                                                                                             |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PRD-PF-01 | Put scoped identification and content tasks behind common interfaces and explicit server bindings; every enabled binding remains Gemini.                                      |
-| PRD-PF-02 | Preserve actual accepted evidence, complete results, uncertainty, safety, and durable saved observations. Video capture uses sampled images and any included companion audio. |
-| PRD-PF-03 | Inventory endpoint, helper, enrichment, and background content-refresh dispatches; replace hidden Gemini construction in scoped callers with explicit task execution.         |
-| PRD-PF-04 | Keep database-authorized Gemini models, entitlement, and budget limits authoritative. Reject unknown providers and unsupported inputs before dispatch.                        |
-| PRD-PF-05 | Preserve current account/processor permission and revocation checks, including queued work; do not add or infer permission for another recipient.                             |
-| PRD-PF-06 | Keep Gemini confidence thresholds, candidate behavior, current client payloads, and historical interpretation unchanged. Document what a later model change must revisit.     |
-| PRD-PF-07 | Preserve one observation allowance lifecycle, one primary call, deadlines, and retry/replay behavior.                                                                         |
-| PRD-PF-08 | Expose task, admitted model, route version, timing, errors, and normalized usage through bounded internal execution/accounting interfaces. Preserve explicit coverage gaps.   |
-| PRD-PF-09 | Verify current behavior and interface substitution with Gemini fixtures and a test-only adapter; do not require another live provider to complete the milestone.              |
-| PRD-PF-10 | Deliver a controlled infrastructure release and a concrete future-provider onboarding, qualification, switching, and return procedure.                                        |
+| ID        | Requirement for the current phase                                                                                                                                                                              |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PRD-PF-01 | Put scoped identification and content tasks behind common interfaces and explicit server bindings; every enabled binding remains Gemini.                                                                       |
+| PRD-PF-02 | Preserve actual accepted evidence, complete results, uncertainty, safety, and durable saved observations. Video capture uses sampled images and any included companion audio.                                  |
+| PRD-PF-03 | Inventory endpoint, helper, enrichment, and background content-refresh dispatches; replace hidden Gemini construction in scoped callers with explicit task execution.                                          |
+| PRD-PF-04 | Preserve database-authorized Gemini models and quotas for user operations, plus approved service-job models, claims, and processing limits. Reject unknown providers and unsupported inputs before dispatch.   |
+| PRD-PF-05 | Preserve current account/processor permission and revocation checks, including queued work; do not add or infer permission for another recipient.                                                              |
+| PRD-PF-06 | Keep Gemini confidence thresholds, candidate behavior, current client payloads, and historical interpretation unchanged. Document what a later model change must revisit.                                      |
+| PRD-PF-07 | Preserve one observation allowance lifecycle, one primary call, separate timeout boundaries, and retry/replay behavior. Freeze configuration per admitted attempt; authorized new attempts use current policy. |
+| PRD-PF-08 | Expose task, admitted model, route version, timing, errors, and normalized usage through bounded internal execution/accounting interfaces. Preserve explicit coverage gaps.                                    |
+| PRD-PF-09 | Verify current behavior and interface substitution with Gemini fixtures and a test-only adapter; do not require another live provider to complete the milestone.                                               |
+| PRD-PF-10 | Deliver a controlled infrastructure release and a concrete future-provider onboarding, qualification, switching, and return procedure.                                                                         |
 
 ## 5. Delivery plan
 
-| Phase                          | Deliverable                                                                                                                                                    | Completion condition                                                                                                                                    |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P0. Map the current flow       | Caller/task inventory including enrichment and content-refresh workers; actual inference-input map; current Gemini request/settings and measurement baseline.  | Capture, provider, admission, result, and accounting boundaries are identified, including sampled frames and optional companion audio.                  |
-| P1. Isolate Gemini             | Shared task contracts and a Gemini adapter; scoped callers use the common interface.                                                                           | Requests, prompts, media, output handling, primary-call count, and dependent operations retain current behavior.                                        |
-| P2. Make bindings explicit     | A Gemini-only registry tied to current server admission; distinct model, media, permission, and confidence references; normalized internal execution metadata. | Every enabled task resolves to the same admitted Gemini model as before. Unknown providers and capability mismatches fail before disclosure.            |
-| P3. Prove the foundation       | Parity, routing, media, permission, quota, result, recovery, and test-adapter coverage; a documented later-provider procedure.                                 | The current Gemini flow passes and a test-only substitution exercises the common interface without changing caller logic or allowing production access. |
-| P4. Release the infrastructure | Controlled rollout of the Gemini-backed implementation under existing release procedures.                                                                      | Gemini continues to serve all scoped requests, operating limits hold, and the approved return to the prior Gemini-backed implementation is verified.    |
+| Phase                          | Deliverable                                                                                                                                                              | Completion condition                                                                                                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0. Map the current flow       | Caller/task inventory including enrichment and content-refresh workers; actual inference-input map; current Gemini request/settings and measurement baseline.            | Capture, provider, admission, result, and accounting boundaries are identified, including sampled frames and optional companion audio.                                                    |
+| P1. Isolate Gemini             | Shared task contracts and a Gemini adapter; scoped callers use the common interface.                                                                                     | Requests, prompts, media, output handling, primary-call count, and dependent operations retain current behavior.                                                                          |
+| P2. Make bindings explicit     | A Gemini-only registry tied to user or service admission; fixed attempt configuration; distinct media, permission, and confidence references; scoped execution metadata. | Every task preserves its authorized Gemini model and admission rules. Active attempts stay consistent; authorized retries follow current policy. Invalid bindings fail before disclosure. |
+| P3. Prove the foundation       | Parity, routing, media, permission, quota, result, recovery, and test-adapter coverage; a documented later-provider procedure.                                           | The current Gemini flow passes and a test-only substitution exercises the common interface without changing caller logic or allowing production access.                                   |
+| P4. Release the infrastructure | Controlled rollout of the Gemini-backed implementation under existing release procedures.                                                                                | Gemini continues to serve all scoped requests, operating limits hold, and the approved return to the prior Gemini-backed implementation is verified.                                      |
 
 Backend owns the implementation and measurement. Product reviews the preserved
 experience and future change procedure. iOS and other consumer owners review

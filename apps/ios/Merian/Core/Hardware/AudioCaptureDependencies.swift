@@ -2,29 +2,40 @@ import AVFoundation
 
 extension AudioCaptureManager {
     struct Dependencies: Sendable {
-        let activateRecordingSession:
-            @Sendable (_ preferredSampleRate: Double?) async throws
-                -> AudioSessionCoordinator.Lease
-        let deactivateAudioSession:
-            @Sendable (_ lease: AudioSessionCoordinator.Lease?) async -> Void
-        let startEngine: @Sendable (_ engine: AVAudioEngine) throws -> Void
+        let recording: AudioRecordingEngineController.Dependencies
+        let playback: AudioReviewPlaybackController.Dependencies
+
+        init(
+            activateRecordingSession: @escaping @Sendable (
+                _ preferredSampleRate: Double?
+            ) async throws -> AudioSessionCoordinator.Lease,
+            deactivateAudioSession: @escaping @Sendable (
+                _ lease: AudioSessionCoordinator.Lease?
+            ) async -> Void,
+            startEngine: @escaping @Sendable (
+                _ engine: AVAudioEngine
+            ) throws -> Void,
+            playback: AudioReviewPlaybackController.Dependencies = .live
+        ) {
+            self.recording = AudioRecordingEngineController.Dependencies(
+                activateSession: activateRecordingSession,
+                deactivateSession: deactivateAudioSession,
+                startEngine: startEngine
+            )
+            self.playback = playback
+        }
+
+        init(
+            recording: AudioRecordingEngineController.Dependencies,
+            playback: AudioReviewPlaybackController.Dependencies = .live
+        ) {
+            self.recording = recording
+            self.playback = playback
+        }
 
         static let live = Self(
-            activateRecordingSession: { preferredSampleRate in
-                try await AudioSessionCoordinator.shared.activate(
-                    .recordMeasurement(
-                        preferredSampleRate: preferredSampleRate
-                    )
-                )
-            },
-            deactivateAudioSession: { lease in
-                await AudioSessionCoordinator.shared.deactivate(
-                    ifCurrent: lease
-                )
-            },
-            startEngine: { engine in
-                try engine.start()
-            }
+            recording: .live,
+            playback: .live
         )
     }
 }
