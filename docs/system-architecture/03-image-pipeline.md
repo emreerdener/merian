@@ -898,10 +898,25 @@ the next candidate, and one-to-one file use across the complete matching pass. A
 direct filename or rescue-store match always wins. Nearest-time matching without
 these constraints is not permitted.
 
-The registry is process-local and is rebuilt at startup, during historical sync,
-and before Scan Library thumbnail prefetch. It does not rewrite cloud metadata
-by itself. Its first responsibility is to render a strongly matched surviving
-local file instead of a missing remote object.
+The registry is process-local. `ScanRepository` schedules its full-library
+rebuild after startup rather than making `MerianApp` open the rescue index and
+fault every scan on the main actor. The Core Data Images registration actor
+performs fresh, throwing reads in batches of at most 200. Its first complete
+pass registers scan-ID and media-order evidence; a second timestamp-and-ID-
+ordered pass applies the constrained fallback, so a page boundary cannot let a
+timestamp guess claim a file needed by stronger evidence later in the library.
+Because Historical Sync and Scan Library thumbnail prefetch can add mappings for
+their already-bounded values concurrently, the registry enforces the same
+priority independently of call order: timestamp evidence cannot claim an
+already-owned file, and later strong evidence removes a conflicting timestamp
+group for either its URL or local file. Multi-image timestamp groups are
+admitted and evicted atomically, so a conflict cannot leave a partial group.
+Equal-strength claims for the same canonical URL remain first-writer-wins;
+multiple strong URL aliases may share one verified file. Cancellation is checked
+between batches, container replacement cancels the owned task, and read failure
+is logged privately rather than treated as an empty library. Registration never
+rewrites cloud metadata; its first responsibility is to render a strongly
+matched surviving local file instead of a missing remote object.
 
 ### Cloud repair from a recovered local file
 
@@ -1064,7 +1079,8 @@ destination is retained as a user-attention failure rather than submitted.
 | `LocalImageLoader`          | `Core/Data/Images/`             | Load orchestration, RAM cache hits, request coalescing, local/remote routing, and the isolated media session                           |
 | `AsyncPermitPool`           | `Core/Data/Images/Concurrency/` | Cancellation-safe four-slot decode admission                                                                                           |
 | Image loading policies      | `Core/Data/Images/Policies/`    | HTTPS/content admission plus retryable HTTP/transport classification and bounded backoff                                               |
-| Local scan-media recovery   | `Core/Data/Images/Recovery/`    | Exact filename, read-only rescue-store, and constrained timestamp evidence for surviving local files                                   |
+| Local scan-media recovery   | `Core/Data/Images/Recovery/`    | Immutable scan snapshots plus exact filename, read-only rescue-store, and constrained timestamp evidence for surviving local files     |
+| Recovery registration       | `Core/Data/Images/Services/`    | Post-startup, cancellation-aware two-pass SwiftData paging that registers strong evidence before timestamp fallback                    |
 | `MediaPlaybackObservation`  | `Core/Media/`                   | Exact AVPlayer KVO/notification/time-token ownership and generation-fenced replacement callbacks                                       |
 | `CloudScanImageRepairActor` | `Core/Data/Images/Services/`    | Serial owner-authenticated inspection, staging upload, and cloud-reference repair for strongly matched surviving local images          |
 | `ImageCache`                | `Core/Data/Images/`             | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap                                                             |

@@ -53,6 +53,9 @@ struct ImageLoadingArchitectureTests {
         let recovery = try source(
             "Recovery/LocalScanMediaRecoveryResolver.swift"
         )
+        let recoveryRegistry = try source(
+            "Recovery/LocalScanMediaRecoveryRegistry.swift"
+        )
         let loader = try source("LocalImageLoader.swift")
 
         for contents in [
@@ -69,6 +72,31 @@ struct ImageLoadingArchitectureTests {
         #expect(!loader.contains("MerianNetworkClient.shared"))
         #expect(!loader.contains("AppDIContainer.shared"))
         #expect(!loader.contains("import SQLite3"))
+        #expect(recoveryRegistry.contains("private enum Evidence"))
+        #expect(recoveryRegistry.contains(
+            "func registerStrongMapping("
+        ))
+        #expect(recoveryRegistry.contains(
+            "let timestampGroupIDs = Set(existingRemoteURLs.compactMap"
+        ))
+        #expect(recoveryRegistry.contains(
+            "removeTimestampGroup(timestampGroupID)"
+        ))
+        #expect(recoveryRegistry.contains("func registerTimestampMappings("))
+        #expect(recovery.contains("registry.registerTimestampMappings("))
+
+        let registration = try source(
+            "Services/ScanMediaRecoveryRegistrationService.swift"
+        )
+        #expect(registration.contains("return try context.fetch(descriptor)"))
+        #expect(registration.contains("descriptor.fetchLimit = limit"))
+        #expect(registration.contains("descriptor.fetchOffset = offset"))
+        #expect(registration.contains("private static let maximumBatchSize = 200"))
+        #expect(registration.contains("ordering: .scanID"))
+        #expect(registration.contains("ordering: .timestampThenScanID"))
+        #expect(!registration.contains("try?"))
+        #expect(!registration.contains("AppDIContainer.shared"))
+        #expect(!registration.contains("SupabaseManager.shared"))
     }
 
     @Test func cloudRepairContainsLiveEffectsBehindDependencies() throws {
@@ -116,10 +144,14 @@ struct ImageLoadingArchitectureTests {
         let repairPath = repository.appendingPathComponent(
             "apps/ios/MerianTests/Core/Data/Images/CloudScanImageRepairActorTests.swift"
         )
+        let registrationPath = repository.appendingPathComponent(
+            "apps/ios/MerianTests/Core/Data/Images/ScanMediaRecoveryRegistrationTests.swift"
+        )
 
         #expect(!FileManager.default.fileExists(atPath: oldPath.path))
         #expect(FileManager.default.fileExists(atPath: newPath.path))
         #expect(FileManager.default.fileExists(atPath: repairPath.path))
+        #expect(FileManager.default.fileExists(atPath: registrationPath.path))
 
         let loaderTests = try String(
             contentsOf: newPath,
@@ -127,12 +159,27 @@ struct ImageLoadingArchitectureTests {
         )
         #expect(loaderTests.contains("struct LocalImageLoaderTests"))
         #expect(loaderTests.contains(
+            "@Suite(\"Local Image Loader\", .serialized)"
+        ))
+        #expect(loaderTests.contains(
             "testLocalImageLoader_ConcurrentDeduplication"
         ))
         #expect(loaderTests.contains(
             "#expect(await probe.requestCount == 1)"
         ))
         #expect(!loaderTests.contains("example.com/dummy"))
+        #expect(!loaderTests.contains("ImageCache.shared.clearCache()"))
+
+        let registrationTests = try String(
+            contentsOf: registrationPath,
+            encoding: .utf8
+        )
+        #expect(registrationTests.contains(
+            "struct ScanMediaRecoveryRegistrationTests"
+        ))
+        #expect(registrationTests.contains(
+            ".strongEvidence, .strongEvidence, .strongEvidence"
+        ))
     }
 
     private static let imageDirectory =
@@ -147,6 +194,8 @@ struct ImageLoadingArchitectureTests {
             "Policies/RemoteImageRetryPolicy.swift",
         "enum LocalScanMediaRecoveryResolver":
             "Recovery/LocalScanMediaRecoveryResolver.swift",
+        "struct LocalScanMediaRecoverySnapshot:":
+            "Recovery/LocalScanMediaRecoverySnapshot.swift",
         "final class LocalScanMediaRecoveryRegistry":
             "Recovery/LocalScanMediaRecoveryRegistry.swift",
         "enum LegacyScanMediaRecoveryStoreLocator":
@@ -155,6 +204,8 @@ struct ImageLoadingArchitectureTests {
             "Recovery/LegacyScanMediaRecoveryIndex.swift",
         "actor CloudScanImageRepairActor":
             "Services/CloudScanImageRepairActor.swift",
+        "actor ScanMediaRecoveryRegistrationService":
+            "Services/ScanMediaRecoveryRegistrationService.swift",
         "actor LocalImageLoader":
             "LocalImageLoader.swift"
     ]
@@ -164,6 +215,7 @@ struct ImageLoadingArchitectureTests {
         "actor AsyncPermitPool",
         "enum RemoteImageRetryPolicy",
         "enum LocalScanMediaRecoveryResolver",
+        "struct LocalScanMediaRecoverySnapshot:",
         "final class LocalScanMediaRecoveryRegistry",
         "enum LegacyScanMediaRecoveryStoreLocator",
         "final class LegacyScanMediaRecoveryIndex",
@@ -187,6 +239,9 @@ struct ImageLoadingArchitectureTests {
         "Recovery/LocalScanMediaRecoveryResolver.swift": [
             "import Foundation"
         ],
+        "Recovery/LocalScanMediaRecoverySnapshot.swift": [
+            "import Foundation"
+        ],
         "Recovery/LocalScanMediaRecoveryRegistry.swift": [
             "import Foundation"
         ],
@@ -196,6 +251,10 @@ struct ImageLoadingArchitectureTests {
         ],
         "Services/CloudScanImageRepairActor.swift": [
             "import Foundation"
+        ],
+        "Services/ScanMediaRecoveryRegistrationService.swift": [
+            "import Foundation",
+            "import SwiftData"
         ]
     ]
 

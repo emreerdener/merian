@@ -4025,6 +4025,105 @@ result is inferred from that environment failure. No API payload, SwiftData
 schema, persistence, feature flag, navigation, Supabase, deployment, or
 external-publication change is included.
 
+### Core Data Store Recovery Ownership
+
+The former 965-line `ModelStoreRecoveryCoordinator.swift` mixed production store
+configuration, migration selection, error classification, metadata inspection,
+diagnostic persistence, archive creation, privacy filtering, and all supporting
+values. Store Recovery now has focused `Models`, `Policies`, and `Services`
+owners behind the source-compatible coordinator façade. Production files remain
+below the 600-line review guard, and tests moved from the App test bucket into
+the mirrored `Core/Data/StoreRecovery` tree without changing the existing XCTest
+suite name or recovery entry points.
+
+The extraction preserves the configured SwiftData store URL, V42–V50 source
+selection, checksum-distinct V50 routing, corruption quarantine, legacy rescue,
+safe-mode copy, diagnostic schema, archive layout, and startup call signatures.
+The review also corrected pre-existing privacy and archival-integrity defects.
+`recovery-manifest.json` retains the error code and allowlisted stable domains,
+fingerprints custom domains plus localized description/failure prose, and must
+be atomically written before archive success. Startup diagnostics fingerprint
+captured Core Data metadata strings and keys. Partial moves and manifest-write
+failures restore completed artifact moves in reverse order; an incomplete
+rollback leaves its archive as evidence and still fails. No SwiftData schema,
+migration stage, JSON API contract, Auth/session state, feature flag, navigation
+route, deployment, or external publication changed.
+
+The focused suites cover configuration and migration policy, diagnostic
+projection, exact SQLite/WAL/SHM archiving, metadata/domain/private-text
+exclusion, partial-move and manifest-write rollback, declaration ownership,
+pure-layer imports, auth/session isolation, test ownership, and the line
+ceiling. Startup Safety and the source guardrails follow the new files and
+select all four Store Recovery suites. Verification includes byte-stable
+XcodeGen, project/source membership, migration and CI workflow guardrails, Swift
+parsing, strict SwiftLint, Markdown formatting, and whitespace checks. A clean
+generic Simulator `build-for-testing`, the 44-test focused Store Recovery
+matrix, and the complete 5,151-test `merianTests` target all passed with the
+same serial execution policy used by CI.
+
+### Core Data Post-Refactor Integration Audit
+
+The closure audit joined the three slices completed after the earlier Core
+Data-wide review: Historical Sync, Core Data Images, and Store Recovery. It
+confirmed their payload, schema, migration, queue, route, and visible behavior
+contracts remain unchanged, then found one cross-slice startup defect. App
+initialization synchronously opened the legacy rescue index and fetched the
+complete `LocalScanRecord` table on the main actor; the read also used `try?`,
+so an unavailable store was indistinguishable from an empty library.
+
+Full-library rescue registration now belongs to the actor-isolated
+`ScanMediaRecoveryRegistrationService`. `ScanRepository` schedules and owns that
+work after configuration, cancels it on reconfiguration, and accepts completion
+only while the exact configured `ModelContainer` remains current. The service
+creates a fresh context per page, uses throwing reads capped at 200 records, and
+checks cancellation between every batch. Its first complete pass registers
+strong scan-ID and media-order evidence; its second pass is globally ordered by
+timestamp and scan ID before applying the constrained fallback. This two-pass
+boundary prevents a timestamp guess in an early page from consuming a file that
+stronger evidence on a later page should own. A follow-up concurrency review
+also made evidence priority a registry invariant, so Historical Sync or Scan
+Library work interleaved with the background rebuild cannot preserve a timestamp
+group after stronger URL or local-file evidence arrives. Timestamp groups are
+admitted and evicted atomically, preventing partial recovery state.
+
+`LocalScanMediaRecoverySnapshot` is the immutable current/historical scan bridge
+to the resolver. Historical Sync and Scan Library retain their bounded mapping
+call sites; timestamp mappings remain add-only, while strong mappings can evict
+only lower-confidence conflicts. `QueueActorCacheTests` now mirrors the existing
+Profile cache regression, proving both long-lived database actors are reused
+only for their exact container. Architecture tests freeze the post-startup
+ownership, bounded throwing reads, two-pass evidence order, registry-level
+priority, cancellation, and container fence. No endpoint, JSON, Auth, SwiftData
+schema or migration, persistence format, feature flag, navigation, copy, or
+deployment contract changed.
+
+Initial verification passed byte-stable XcodeGen; project/resource and
+source-membership validation; migration, event-routing, Startup Safety scope,
+and iOS workflow contract gates; Swift parsing; strict affected-source SwiftLint
+with zero violations; Markdown formatting; and whitespace checks. A
+code-signing-disabled generic iOS Simulator `build-for-testing` compiled the
+complete app, unit-test, and UI-test graph. On an iPhone 17 Pro / iOS 26.5
+simulator, the joined Historical Sync, Images, Store Recovery, V51 migration,
+Core Data integration, and exact-container cache matrix passed 166 tests with
+zero failures or skips. The complete `merianTests` target then passed from the
+same products; its result bundle reports 5,157 expanded test cases (3,173 named
+tests), zero failures, and zero skips.
+
+The follow-up registry correction passed exact registry/resolver typechecking
+against local contract stubs and an executable precedence/atomicity harness,
+Swift parsing, strict SwiftLint, byte-stable XcodeGen, all
+project/source/migration/event/CI-tooling guardrails, Markdown formatting, and
+whitespace checks. A fresh Xcode build and simulator run could not start because
+the local CoreSimulator and nested SwiftPM sandbox services were unavailable;
+Startup Safety owns the added regression for the next runnable CI environment.
+
+Documentation closure synchronizes the iOS and Core Data ownership summaries,
+Store Recovery and Core Data Images READMEs, startup/lifecycle/concurrency
+contracts, image pipeline, testing strategy, codebase map, and this cleanup
+ledger. Detailed recovery evidence remains canonical in the image pipeline;
+higher-level pages summarize and link that contract without creating a second
+source of truth.
+
 ## Phase 3: Ownership Cleanup
 
 After the large files are split, move code to clearer long-term homes:

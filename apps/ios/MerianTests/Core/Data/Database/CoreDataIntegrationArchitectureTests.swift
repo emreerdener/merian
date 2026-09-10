@@ -281,6 +281,49 @@ struct CoreDataIntegrationArchitectureTests {
         ))
     }
 
+    @Test func rescuedMediaRegistrationIsPostStartupBoundedAndThrowing() throws {
+        let app = try DatabaseActorTestSupport.loadRepositorySource(
+            at: "apps/ios/Merian/App/MerianApp.swift"
+        )
+        let repository = try source("Database/ScanRepository.swift")
+        let registration = try source(
+            "Images/Services/ScanMediaRecoveryRegistrationService.swift"
+        )
+
+        #expect(!app.contains(
+            "LocalScanMediaRecoveryResolver.hasLegacyRecoveryIndex"
+        ))
+        #expect(!app.contains("(try? mainContext.fetch(descriptor)) ?? []"))
+        #expect(repository.contains(
+            "scheduleLocalMediaRecoveryRegistration(for: modelContext)"
+        ))
+        #expect(repository.contains(
+            "previousRegistrationTask?.cancel()"
+        ))
+        #expect(repository.contains(
+            "await previousRegistrationTask?.value"
+        ))
+        #expect(repository.contains(
+            ".resetRegisteredRecoveryMappings()"
+        ))
+        #expect(repository.contains(
+            "currentContainer === expectedContainer"
+        ))
+        #expect(registration.contains(
+            "return try context.fetch(descriptor)"
+        ))
+        #expect(registration.contains(
+            "descriptor.fetchLimit = limit"
+        ))
+        #expect(registration.contains(
+            "private static let maximumBatchSize = 200"
+        ))
+        #expect(registration.contains("ordering: .scanID"))
+        #expect(registration.contains("ordering: .timestampThenScanID"))
+        #expect(registration.contains("try Task.checkCancellation()"))
+        #expect(!registration.contains("try?"))
+    }
+
     private func source(_ relativePath: String) throws -> String {
         try DatabaseActorTestSupport.loadRepositorySource(
             at: "\(Self.coreDataDirectory)/\(relativePath)"

@@ -44,8 +44,13 @@ invariants and canonical contract links.
 
 `Images/` separates loader orchestration from decode admission, URL/retry
 policy, local recovery evidence, and the owner-authenticated cloud-repair
-service. Only live dependency adapters resolve network or app-event effects; the
-recovery layer remains read-only with respect to cloud metadata. See the
+service. A focused actor rebuilds legacy mappings after startup in bounded,
+throwing, cancellation-aware pages, with strong evidence completed before
+timestamp fallback. The mapping registry also enforces that priority when
+bounded Historical Sync, Scan Library, and post-startup callers interleave, and
+it admits or evicts each multi-image timestamp group atomically. Only live
+dependency adapters resolve network or app-event effects; the recovery layer
+remains read-only with respect to cloud metadata. See the
 [Core Data Images README](Images/README.md) for ownership and verification
 details.
 
@@ -663,19 +668,33 @@ cancellation again after acquiring the per-scan persistence fence, and its
 record/species/Field Trip hint helpers propagate read failures instead of
 substituting absence.
 
+Store Recovery's later image-reconnection handoff follows the same rules.
+`MerianApp` does not inspect the legacy rescue index or fetch the scan library
+while constructing the app. `ScanRepository` schedules a cancellable utility
+task after queue configuration, and the Images registration actor uses two
+fresh-context, 200-row passes: complete-library strong evidence first, then
+globally timestamp-ordered fallback. Fetch failures throw and log privately
+instead of masquerading as an empty library. Reconfiguration cancels the old
+task and fences completion to the exact current `ModelContainer`. The
+process-local registry separately prevents an interleaved timestamp guess from
+retaining either a URL or local file once strong evidence claims it. If one
+member conflicts, the complete timestamp group is rejected or evicted rather
+than leaving a partial mapping.
+
 `CoreDataIntegrationArchitectureTests` freezes the exact bounded
 `BackgroundDatabaseActor` file/import inventory, declaration-only aggregate,
 directory-wide no-silent-fetch rule, single-context durable-authority read,
 bounded authority consumers, cross-surface throwing contracts, and the exact
 four-file Historical Sync production inventory. It also freezes the mirrored
-Historical Sync test inventory and 600-line ceilings. `ScanRepositoryTests`
-remains the selector-compatible suite root; its focused decoding, ingestion,
-reconciliation, model-persistence, and deletion extensions preserve the existing
-tests, while `HistoricalSyncCloudClientTests` verifies injected lease and
-request forwarding. Focused queue, collection, inference, and finalization
-suites retain the remaining behavioral evidence. This audit changes no SwiftData
-schema or migration, API payload, endpoint, queue state, feature flag,
-navigation route, or visible UI contract.
+Historical Sync test inventory, post-startup media-recovery handoff, and
+600-line ceilings. `ScanRepositoryTests` remains the selector-compatible suite
+root; its focused decoding, ingestion, reconciliation, model-persistence, and
+deletion extensions preserve the existing tests, while
+`HistoricalSyncCloudClientTests` verifies injected lease and request forwarding.
+Focused queue, collection, inference, and finalization suites retain the
+remaining behavioral evidence. This audit changes no SwiftData schema or
+migration, API payload, endpoint, queue state, feature flag, navigation route,
+or visible UI contract.
 
 ## Identification Review Replacement
 
@@ -728,6 +747,10 @@ projection before every post-inference evaluation because inference can mutate
 an existing scan without changing the projection fingerprint's count, latest ID,
 or timestamp. Feature rendering continues to create an ad-hoc actor through
 `ProfileTabDependencies`.
+
+`QueueActorCacheTests` and `ProfileActorCacheTests` independently prove reuse
+for the same container and replacement for a distinct container. Both suites are
+serialized under the shared Offline Queue process-state lease.
 
 ## Non-Biological Bulk Deletion
 
@@ -811,8 +834,13 @@ and QA contract.
 part of Core Data, not app shell code, because recovery policy belongs to local
 persistence.
 
-- `ModelStoreRecoveryCoordinator` decides whether a `ModelContainer` startup
-  failure is a verified SQLite/Core Data corruption case.
+- `ModelStoreRecoveryCoordinator` remains the source-compatible façade for the
+  production store configuration. `Models/`, `Policies/`, and `Services/`
+  separately own migration values and diagnostics, error/privacy decisions, Core
+  Data metadata inspection, and artifact archiving. See the
+  [Store Recovery README](StoreRecovery/README.md) for the focused boundaries.
+- `ModelStoreRecoveryPolicy` decides whether a `ModelContainer` startup failure
+  is a verified SQLite/Core Data corruption case.
 - It resolves the store URL from the same automatic SwiftData configuration used
   by the production container, then reads actual metadata before container
   creation. This keeps App Group-backed stores aligned with migration,
@@ -839,12 +867,16 @@ persistence.
   and `default.store-wal`.
 - Non-corrupt failures on legacy migration strategies may archive those same
   artifacts under `store-rescue/` before Merian rebuilds a fresh persistent
-  store.
+  store. Archive success requires every artifact move and the atomic manifest
+  write; a failure rolls completed moves back before startup continues.
 - Successful persistent opens and lossless migrations are silent. Recovery and
   safe-mode notices remain visible only after an actual fallback boundary.
 - Each quarantine or rescue directory includes `recovery-manifest.json` with
-  app/build/OS metadata, archive reason, moved artifact names, and a sanitized
-  error reason for support.
+  app/build/OS metadata, archive reason, moved artifact names, error code, an
+  allowlisted stable error domain or its fingerprint, and deterministic
+  fingerprints instead of raw error description or failure text. Captured Core
+  Data metadata keys and string identifiers are likewise fingerprinted before
+  persistence or telemetry.
 - Store recovery must never reference `KeychainManager`, `SupabaseManager`,
   sign-out flows, device identity resets, or profile state.
 

@@ -113,6 +113,7 @@ struct InferenceArchitectureTests {
             "Core/Data/BackgroundDatabaseActorTests.swift",
             "Core/Data/ScanRepositoryTests.swift",
             "Core/Data/OfflineSync/ProfileActorCacheTests.swift",
+            "Core/Data/OfflineSync/QueueActorCacheTests.swift",
             "Core/Hardware/HardwareOrchestratorTests.swift",
             "Core/Utilities/AppLifecycleManagerTests.swift",
             "Features/Capture/Shell/CaptureWorkspaceStagingTests.swift"

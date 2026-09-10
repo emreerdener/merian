@@ -475,6 +475,10 @@ Focused tests mirror the extracted owners:
 - `OfflineQueueRetryPolicyTests` covers retry eligibility, deterministic base
   delay caps, and jitter bounds.
 - `GenerationTaskRegistryTests` covers compare-before-clear cancellation.
+- `QueueActorCacheTests` locks replacement of the manager's long-lived queue
+  database actor when the exact `ModelContainer` changes. It complements the
+  Profile actor cache regression and shares the serialized Offline Queue
+  process-state lease.
 - `QueuedScanExtractionTests` owns deterministic gallery timestamp, legacy
   visual/audio, sparse identity, and mixed-timeline mapping without installing
   process-wide manager state. The foundation architecture suite freezes its test

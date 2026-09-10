@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 workflow="$repo_root/.github/workflows/ios-build-and-test.yml"
 project_guardrails_workflow="$repo_root/.github/workflows/ios-project-guardrails.yml"
 startup_workflow="$repo_root/.github/workflows/ios-startup-safety.yml"
+startup_scope_detector="$repo_root/scripts/ci-detect-startup-safety-source-changes.sh"
 source_membership_check="$repo_root/scripts/check-ios-project-source-membership.sh"
 source_membership_test="$repo_root/scripts/test-ios-project-source-membership.sh"
 event_routing_check="$repo_root/scripts/check-ios-event-routing.sh"
@@ -1147,11 +1148,28 @@ for startup_requirement in \
   grep -Fq -- "$startup_requirement" "$startup_workflow" \
     || fail "Startup Safety is missing its shared toolchain invariant: $startup_requirement"
 done
+for startup_scope_path in \
+  "apps/ios/Merian/Core/Data/Database/ScanRepository.swift" \
+  "apps/ios/Merian/Core/Data/Images/Services/ScanMediaRecoveryRegistrationService.swift" \
+  "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift" \
+  "apps/ios/MerianTests/Core/Data/Database/CoreDataIntegrationArchitectureTests.swift" \
+  "apps/ios/MerianTests/Core/Data/Images/ScanMediaRecoveryRegistrationTests.swift" \
+  "apps/ios/MerianTests/Core/Data/OfflineSync/QueueActorCacheTests.swift" \
+  "apps/ios/MerianTests/Core/Data/OfflineSync/ProfileActorCacheTests.swift"; do
+  assert_file_contains "$startup_scope_detector" "$startup_scope_path"
+done
 for startup_suite in \
   "ModelStoreRecoveryCoordinatorTests" \
+  "StartupStoreDiagnosticTests" \
+  "StoreRecoveryArtifactArchiverTests" \
+  "StoreRecoveryArchitectureTests" \
   "LocalImageLoaderTests" \
   "CloudScanImageRepairActorTests" \
+  "ScanMediaRecoveryRegistrationTests" \
   "ImageLoadingArchitectureTests" \
+  "CoreDataIntegrationArchitectureTests" \
+  "QueueActorCacheTests" \
+  "ProfileActorCacheTests" \
   "MigrationPlanTests"; do
   assert_file_contains \
     "$startup_workflow" \

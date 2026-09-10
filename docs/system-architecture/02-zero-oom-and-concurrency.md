@@ -2179,6 +2179,18 @@ R2 archive class. Recovery matching, one-to-one timestamp constraints, and
 atomic Scan/Explore repair are defined in
 [`03-image-pipeline.md`](./03-image-pipeline.md).
 
+The rescue mapping registry is rebuilt after startup by
+`ScanMediaRecoveryRegistrationService`, not from `MerianApp.init`. The actor
+performs two cancellation-aware passes with fresh `ModelContext` values and a
+200-record fetch limit, projecting each page into immutable snapshots so a large
+library is not retained on the main actor or accumulated in one SwiftData
+identity map. The first pass exhausts strong scan-ID/media-order evidence; the
+second is globally ordered by timestamp and scan ID before applying constrained
+fallback. A throwing fetch prevents storage failure from masquerading as an
+empty library. The process-local registry independently makes strong evidence
+authoritative across interleaved bounded callers; a conflicting multi-image
+timestamp group is rejected or evicted as a unit.
+
 The loader protects against "thundering herd" memory leaks. If the UI queries a
 missing image URL before cache limits evaluate, it tracks in-flight executions
 inside an `[String: Task<UIImage?, Never>]` dictionary, reducing duplicate loads
@@ -3078,12 +3090,15 @@ This ensures:
 ## 2026-04 Hardening Updates
 
 - `MerianApp` no longer wipes the SwiftData store on every `ModelContainer` init
-  failure. Recovery is now store-aware and corruption-specific, owned by
-  `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`: it parses store
-  metadata for current/recent/full migration selection, quarantines
-  `default.store` + WAL/SHM siblings only after verified corruption signatures,
-  writes a sanitized manifest, and fails closed on non-corruption startup
-  errors.
+  failure. Recovery is now store-aware and corruption-specific. The
+  `Core/Data/StoreRecovery/` façade retains the production configuration;
+  focused Models, Policies, and Services own metadata-based migration selection,
+  error/privacy decisions, exact artifact archiving, and deterministic
+  diagnostic fingerprints. Metadata strings, captured metadata keys, custom
+  error domains, and error prose cannot enter local diagnostics or telemetry in
+  plaintext. Archive moves are rollback-protected and success requires the
+  atomic manifest write. Quarantine still requires verified corruption and
+  non-corruption startup errors still fail closed.
 - `InferenceWriteCoordinator` guards background-write replay with a generation
   token. `InferenceEngine.prepareForNewScan()` and `cancelActiveRequest()` both
   forward reset events that clear pending closures and invalidate stale write

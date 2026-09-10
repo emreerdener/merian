@@ -32,6 +32,11 @@ collection result before pruning, and publishes library/share-state effects.
 - Reconcile collections only after every scan page has completed.
 - Preserve throwing local-read/save boundaries and rollback before
   cancellation-driven collection pruning.
+- Map each accepted cloud page through the shared immutable scan-media recovery
+  snapshot. Historical hydration may add recovery mappings for that page, but
+  the registry prevents its timestamp fallback from outranking strong evidence
+  supplied by another caller. Post-startup full-library registration remains
+  owned by Core Data Images and `ScanRepository`.
 - Keep each production file in this directory and `ScanRepository.swift` at or
   below the 600-line review ceiling.
 

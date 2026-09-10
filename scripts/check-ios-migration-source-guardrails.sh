@@ -20,8 +20,22 @@ collection_sync_database_file="apps/ios/Merian/Core/Data/Database/BackgroundData
 collection_sync_snapshot_file="apps/ios/Merian/Core/Data/OfflineSync/Models/CollectionSyncSnapshot.swift"
 collection_sync_endpoint_file="apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Collections.swift"
 test_file="apps/ios/MerianTests/Models/MigrationPlanTests.swift"
-recovery_file="apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift"
-recovery_test_file="apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift"
+recovery_root="apps/ios/Merian/Core/Data/StoreRecovery"
+recovery_file="$recovery_root/ModelStoreRecoveryCoordinator.swift"
+recovery_models_file="$recovery_root/Models/StoreMigrationModels.swift"
+recovery_diagnostic_file="$recovery_root/Models/StartupStoreDiagnostic.swift"
+recovery_coding_file="$recovery_root/Models/StoreRecoveryJSONCoding.swift"
+recovery_policy_file="$recovery_root/Policies/ModelStoreRecoveryPolicy.swift"
+recovery_privacy_file="$recovery_root/Policies/StoreRecoveryPrivacyPolicy.swift"
+recovery_manifest_file="$recovery_root/Models/StoreRecoveryManifest.swift"
+recovery_archive_file="$recovery_root/Services/StoreRecoveryArtifactArchiver.swift"
+recovery_metadata_file="$recovery_root/Services/StoreRecoveryMetadataService.swift"
+recovery_test_root="apps/ios/MerianTests/Core/Data/StoreRecovery"
+recovery_test_file="$recovery_test_root/ModelStoreRecoveryCoordinatorTests.swift"
+recovery_diagnostic_test_file="$recovery_test_root/StartupStoreDiagnosticTests.swift"
+recovery_archive_test_file="$recovery_test_root/StoreRecoveryArtifactArchiverTests.swift"
+recovery_architecture_test_file="$recovery_test_root/StoreRecoveryArchitectureTests.swift"
+recovery_test_support_file="$recovery_test_root/StoreRecoveryTestSupport.swift"
 image_recovery_file="apps/ios/Merian/Core/Data/Images/Recovery/LegacyScanMediaRecoveryIndex.swift"
 image_test_file="apps/ios/MerianTests/Core/Data/Images/LocalImageLoaderTests.swift"
 app_file="apps/ios/Merian/App/MerianApp.swift"
@@ -93,15 +107,33 @@ if [ ! -f "$test_file" ]; then
   exit 1
 fi
 
-if [ ! -f "$recovery_file" ]; then
-  echo "Missing $recovery_file" >&2
-  exit 1
-fi
+for recovery_source_file in \
+  "$recovery_file" \
+  "$recovery_models_file" \
+  "$recovery_diagnostic_file" \
+  "$recovery_coding_file" \
+  "$recovery_policy_file" \
+  "$recovery_privacy_file" \
+  "$recovery_manifest_file" \
+  "$recovery_archive_file" \
+  "$recovery_metadata_file"; do
+  if [ ! -f "$recovery_source_file" ]; then
+    echo "Missing $recovery_source_file" >&2
+    exit 1
+  fi
+done
 
-if [ ! -f "$recovery_test_file" ]; then
-  echo "Missing $recovery_test_file" >&2
-  exit 1
-fi
+for recovery_test_source_file in \
+  "$recovery_test_file" \
+  "$recovery_diagnostic_test_file" \
+  "$recovery_archive_test_file" \
+  "$recovery_architecture_test_file" \
+  "$recovery_test_support_file"; do
+  if [ ! -f "$recovery_test_source_file" ]; then
+    echo "Missing $recovery_test_source_file" >&2
+    exit 1
+  fi
+done
 
 if [ ! -f "$app_file" ]; then
   echo "Missing $app_file" >&2
@@ -620,17 +652,19 @@ contains "$test_file" "migrationPlan: MerianReleasedActiveV50MigrationPlan.self"
   || fail "The processed-release V50 fixture must use its source-isolated migration plan."
 contains "$test_file" "#expect(deletedCollection.isPendingDeletion)" \
   || fail "The V50 disk fixture must verify that true tombstones survive the Swift property rename."
-contains "$recovery_file" "enum RecentSourceSchema: Int, CaseIterable, Equatable" \
+contains "$recovery_models_file" "enum RecentSourceSchema: Int, CaseIterable, Equatable" \
   || fail "Store recovery must model recent source schemas as an exhaustive enum."
 for recent_major in $(seq 42 50); do
-  contains "$recovery_file" "case v${recent_major} = ${recent_major}" \
+  contains "$recovery_models_file" "case v${recent_major} = ${recent_major}" \
     || fail "RecentSourceSchema must include V${recent_major}."
 done
-contains "$recovery_file" "RecentSourceSchema(rawValue: storedSchemaMajorVersion)" \
+contains "$recovery_policy_file" "RecentSourceSchema(rawValue: storedSchemaMajorVersion)" \
   || fail "Store recovery must classify metadata through the exhaustive recent-source enum."
-contains "$recovery_file" "releasedActiveV50ChecksumFingerprint = \"9a0841f675241b21f5ad5c10\"" \
+contains "$recovery_metadata_file" "releasedActiveV50ChecksumFingerprint =" \
+  && contains "$recovery_metadata_file" "\"9a0841f675241b21f5ad5c10\"" \
   || fail "Store recovery must recognize the processed-release V50 checksum from device diagnostics."
-contains "$recovery_file" "frozenSnapshotV50ChecksumFingerprint = \"b9fa43ac9095301ecdce20e5\"" \
+contains "$recovery_metadata_file" "frozenSnapshotV50ChecksumFingerprint =" \
+  && contains "$recovery_metadata_file" "\"b9fa43ac9095301ecdce20e5\"" \
   || fail "Store recovery must recognize the original frozen V50 checksum."
 contains "$recovery_test_file" "testRecognizesReleasedActiveV50ModelChecksum" \
   || fail "Store recovery tests must lock processed-release V50 checksum classification."
@@ -699,33 +733,59 @@ for marker in "${checksum_retry_markers[@]}"; do
   fi
   previous_retry_line="$retry_line"
 done
-contains "$recovery_file" "shouldRescueStoreAfterMigrationFailure" \
+contains "$recovery_policy_file" "shouldRescueStoreAfterMigrationFailure" \
   || fail "Store recovery must keep the legacy migration rescue decision."
 contains "$recovery_file" "groupContainer: .automatic" \
   || fail "Store recovery must resolve the persistent URL through SwiftData's automatic App Group configuration."
-not_contains "$recovery_file" 'URL.applicationSupportDirectory.appending(path: "default.store")'
+if rg -Fq -- 'URL.applicationSupportDirectory.appending(path: "default.store")' "$recovery_root"; then
+  fail "Store recovery must not reconstruct the SwiftData store under Application Support."
+fi
 contains "$app_file" "ModelStoreRecoveryCoordinator.productionStoreConfiguration(for: schema)" \
   || fail "MerianApp and recovery must share one production SwiftData configuration factory."
 contains "$app_file" "let storeURL = ModelStoreRecoveryCoordinator.defaultStoreURL()" \
   || fail "MerianApp must inspect the exact SwiftData-configured store URL before migration selection."
-contains "$recovery_file" "store-rescue" \
+contains "$recovery_archive_file" "store-rescue" \
   || fail "Store recovery must archive unrecoverable legacy stores under store-rescue."
-contains "$recovery_file" "legacy_migration_rescue" \
+contains "$recovery_archive_file" "legacy_migration_rescue" \
   || fail "Store recovery manifests must distinguish legacy migration rescue from corruption quarantine."
-contains "$recovery_file" "schemaVersion: Int = 2" \
-  || fail "Store recovery manifests/diagnostics must use the current schema version."
+contains "$recovery_archive_file" "StoreRecoveryPrivacyPolicy.sanitizedErrorText" \
+  || fail "Store recovery manifests must sanitize error descriptions before writing them."
+contains "$recovery_archive_file" "StoreRecoveryPrivacyPolicy.sanitizedErrorDomain" \
+  || fail "Store recovery manifests must sanitize non-allowlisted error domains before writing them."
+contains "$recovery_archive_file" "try writeManifest(" \
+  || fail "Store recovery must not report archive success before the manifest is durably written."
+contains "$recovery_archive_file" "rollback(" \
+  || fail "Store recovery must roll moved artifacts back after an incomplete archive."
+contains "$recovery_privacy_file" "static func sanitizedErrorText" \
+  || fail "Store recovery privacy policy must retain the manifest-error sanitizer."
+contains "$recovery_metadata_file" "StoreRecoveryPrivacyPolicy.sanitizedMetadataString" \
+  || fail "Startup diagnostics must fingerprint arbitrary Core Data metadata strings."
+contains "$recovery_manifest_file" "schemaVersion: Int = 2" \
+  || fail "Store recovery manifests must use the current schema version."
+contains "$recovery_diagnostic_file" "schemaVersion: Int = 2" \
+  || fail "Startup store diagnostics must use the current schema version."
 contains "$app_file" "legacy_store_rescued" \
   || fail "MerianApp must recover legacy migration failures with legacy_store_rescued telemetry."
 contains "$app_file" "post-migration-rescue-current-store" \
   || fail "MerianApp must reopen a fresh persistent store after legacy migration rescue."
 contains "$recovery_test_file" "testRescuesLegacyMigrationFailuresEvenWhenSwiftDataErrorIsGeneric" \
   || fail "ModelStoreRecoveryCoordinatorTests must cover generic SwiftDataError legacy rescue."
-contains "$recovery_test_file" "testRescueArchivesStoreArtifacts" \
-  || fail "ModelStoreRecoveryCoordinatorTests must cover store-rescue archive manifests."
+contains "$recovery_archive_test_file" "testRescueArchivesStoreArtifacts" \
+  || fail "StoreRecoveryArtifactArchiverTests must cover store-rescue archive manifests."
+contains "$recovery_archive_test_file" "testQuarantineWritesPIISafeRecoveryManifest" \
+  || fail "Store recovery tests must prove manifest error text is privacy-safe."
+contains "$recovery_archive_test_file" "testArchiveRollsBackAllArtifactsWhenMoveFailsAfterMutation" \
+  || fail "Store recovery tests must cover rollback after a partially completed move."
+contains "$recovery_archive_test_file" "testArchiveRollsBackAllArtifactsWhenManifestWriteFails" \
+  || fail "Store recovery tests must cover rollback after a failed manifest write."
+contains "$recovery_architecture_test_file" "testStoreRecoveryTestsUseMirroredOwnership" \
+  || fail "Store recovery architecture tests must freeze mirrored test ownership."
 contains "$recovery_test_file" "testRecoveryStoreURLMatchesSwiftDataAutomaticConfiguration" \
   || fail "ModelStoreRecoveryCoordinatorTests must keep recovery aligned with SwiftData's configured store URL."
-contains "$recovery_test_file" "testFreshStoreDiagnosticDoesNotReportMetadataReadFailure" \
+contains "$recovery_diagnostic_test_file" "testFreshStoreDiagnosticDoesNotReportMetadataReadFailure" \
   || fail "Fresh-store diagnostics must not report the expected absence of metadata as an error."
+contains "$recovery_diagnostic_test_file" "testStoreMetadataStringsAreFingerprintedBeforeDiagnosticsPersist" \
+  || fail "Startup diagnostics must prove arbitrary metadata strings cannot reach persistence or telemetry."
 contains "$test_file" "currentSchemaFreshDiskStoreOpensWithoutMigrationPlan" \
   || fail "MigrationPlanTests must prove a fresh current-schema disk store can reopen without a migration plan."
 contains "$image_recovery_file" "LegacyScanMediaRecoveryStoreLocator.storeURLs" \

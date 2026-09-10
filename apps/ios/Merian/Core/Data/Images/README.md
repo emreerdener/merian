@@ -19,8 +19,17 @@ thumbnail backfill. The canonical runtime contract is the
 - `Recovery/LocalScanMediaRecoveryResolver.swift` owns evidence-based matching
   of durable scan URLs to surviving local files.
   `LocalScanMediaRecoveryRegistry.swift` owns its lock-protected, process-local
-  canonical URL mapping. `LegacyScanMediaRecoveryIndex.swift` is the read-only
-  SQLite index used for legacy rescue-store alignment.
+  canonical URL mapping and evidence priority. A timestamp guess cannot claim a
+  file already owned by a mapping, while later strong evidence evicts a
+  conflicting timestamp group regardless of which bounded caller ran first.
+  Multi-image timestamp groups are admitted and removed atomically.
+  `LegacyScanMediaRecoveryIndex.swift` is the read-only SQLite index used for
+  legacy rescue-store alignment, and `LocalScanMediaRecoverySnapshot.swift` is
+  the immutable bridge from current or historical scan values into that policy.
+- `Services/ScanMediaRecoveryRegistrationService.swift` rebuilds recovery
+  mappings after startup through bounded, cancellation-aware SwiftData reads. It
+  performs strong scan-ID/media-order registration across the complete library
+  before the timestamp fallback pass.
 - `Services/CloudScanImageRepairActor.swift` owns the serial inspect, sign,
   file-backed upload, repair, and library-invalidation workflow. Only its live
   dependency adapter resolves the network client and app event publisher.
@@ -52,6 +61,12 @@ thumbnail backfill. The canonical runtime contract is the
   recovered file but does not mutate cloud metadata. Recovery source identity
   accepts credential-free HTTPS only, lowercases the scheme and host, removes an
   explicit default port, and ignores query/fragment variants.
+- Recovery-index registration never fetches the complete scan table on the main
+  actor. The service uses fresh contexts and at most 200 immutable snapshots per
+  page, throws an unreadable-store failure, checks cancellation between pages,
+  and completes every strong-evidence page before timestamp-ordered fallback.
+  The registry independently enforces that priority across interleaved
+  Historical Sync, Scan Library, and post-startup registration calls.
 - Cloud repair keeps each canonical source URL single-flight across every
   suspension. Failures pause the process-local queue for 15 minutes. The live
   adapter is the only owner of endpoint and app-event effects.
@@ -62,11 +77,16 @@ thumbnail backfill. The canonical runtime contract is the
 
 - `LocalImageLoaderTests` covers deterministic request coalescing, decode
   admission, URL policy, canonical recovery-source identity, and local recovery
-  evidence.
+  evidence, including atomic timestamp groups and strong-evidence replacement of
+  an earlier timestamp guess.
 - `CloudScanImageRepairActorTests` covers the injected missing-image workflow
   order and equivalent-URL duplicate enqueue while inspection is suspended.
+- `ScanMediaRecoveryRegistrationTests` covers the no-index fast path,
+  cancellation, the hard 200-record cap, stable paging, and
+  strong-evidence-before-timestamp ordering.
 - `ImageLoadingArchitectureTests` freezes declaration ownership, imports,
-  dependency boundaries, test ownership, and the production line ceiling.
+  dependency boundaries, post-startup bounded registration, test ownership, and
+  the production line ceiling.
 - `ImageCacheTests` and `MediaPreparationActorTests` retain their focused cache
   and preparation contracts.
 

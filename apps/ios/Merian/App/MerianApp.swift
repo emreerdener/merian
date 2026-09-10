@@ -1226,18 +1226,8 @@ struct MerianApp: App {
                 modelContainer: container,
                 eventStream: dependencies.appEventPublisher
             )
-
-            if LocalScanMediaRecoveryResolver.hasLegacyRecoveryIndex {
-                let descriptor = FetchDescriptor<LocalScanRecord>()
-                let records = (try? mainContext.fetch(descriptor)) ?? []
-                let recoveryCount = LocalScanMediaRecoveryResolver
-                    .registerRecoveryMappings(for: records)
-                MerianLog.data.info(
-                    "Startup media recovery registered \(recoveryCount, privacy: .public) legacy scan image mapping(s)."
-                )
-            }
         }
-        
+
         // Keep app-hosted test sessions hermetic: no analytics startup, no disk-backed
         // production store, and no background sync noise racing the test containers.
         if !TestExecutionCoordinator.isRunningTests {

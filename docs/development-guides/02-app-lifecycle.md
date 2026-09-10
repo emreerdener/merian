@@ -538,22 +538,40 @@ The full operating contract lives in
   recent-plan ladder before legacy rescue or safe mode. Recent source stamps are
   represented by a finite enum ending at `CurrentSchema - 1`, and the app
   dispatches every case without a generic full-history fallback.
-- Store quarantine remains corruption-only and is owned by
-  `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`. Non-corrupt
-  failures on legacy migration strategies archive `default.store`,
-  `default.store-shm`, and `default.store-wal` under `store-rescue/`, then
+- Store quarantine remains corruption-only. The Store Recovery façade preserves
+  the production SwiftData configuration, `Policies/` owns eligibility, and
+  `Services/StoreRecoveryArtifactArchiver.swift` moves `default.store`,
+  `default.store-shm`, and `default.store-wal`. Non-corrupt failures on legacy
+  migration strategies archive those artifacts under `store-rescue/`, then
   recreate a fresh persistent current-schema store. Generic current-store
-  failures still boot safe mode without moving user data.
+  failures still boot safe mode without moving user data. An archive is complete
+  only after all moves and the atomic manifest write succeed; otherwise the
+  archiver restores completed moves in reverse order and reports failure.
 - Quarantine and rescue directories include `recovery-manifest.json` with
-  app/build/OS metadata, archive reason, moved artifact names, and a sanitized
-  error reason. This manifest is for support and debugging only; it must not
-  include user IDs, paths outside the archive, access tokens, or profile data.
+  app/build/OS metadata, archive reason, moved artifact names, error code, an
+  allowlisted stable error domain or domain fingerprint, and deterministic
+  error-text fingerprints. Captured Core Data metadata strings and keys are
+  fingerprinted before diagnostic persistence or telemetry. These artifacts must
+  not include raw error prose, arbitrary identifiers, user IDs, paths outside
+  the archive, access tokens, or profile data.
 - Store recovery must never clear Keychain auth, Supabase sessions, device
   identity, profile state, or cloud ownership. Local SwiftData recovery is
   isolated from account identity so a damaged local library cannot sign a user
   out or orphan Explore posts.
-- Recovery emits the coarse `StartupStoreRecovery` telemetry event after
-  analytics initialization with only `outcome` and `reason`.
+- Rescue-store media registration is post-startup work. `MerianApp` must not
+  synchronously inspect the legacy index or fetch the scan table. The repository
+  owns a cancellable task, Core Data Images pages fresh contexts in two bounded
+  passes, and a replacement `ModelContainer` invalidates the prior task before
+  its completion can be accepted. The process-local registry makes strong
+  evidence authoritative even when another bounded caller interleaves, and
+  admits or evicts every multi-image timestamp group atomically.
+- Recovery emits `StartupStoreRecovery` only after analytics initialization. It
+  includes coarse `outcome` and `reason` values plus the bounded, redacted
+  diagnostic projection documented in
+  [Gamification and Telemetry](../features-and-hardware/03-gamification-and-telemetry.md#apptelemetry-posthog-facade).
+  String model identifiers, captured metadata keys/values, arbitrary error
+  domains, and error prose must cross that boundary only as deterministic
+  fingerprints.
 - Folder-level `README.md` files are documentation only. `project.yml` excludes
   markdown from the Merian target, and `make validate-ios-project` fails if
   generated Xcode resources start bundling markdown docs again.

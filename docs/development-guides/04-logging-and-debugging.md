@@ -73,7 +73,10 @@ Startup store recovery is a production support path:
   safe mode after a recovery attempt.
 - Never log full local store paths, tokens, user IDs, scan IDs, or profile data.
   The quarantine/rescue `recovery-manifest.json` is the support artifact for
-  sanitized context.
+  sanitized context; its error description and failure reason are deterministic
+  fingerprints rather than raw prose, and any non-allowlisted error domain is
+  fingerprinted too. A failed move, rollback, or manifest write is an error and
+  must never be logged as archive success.
 
 ---
 

@@ -574,7 +574,9 @@ These are operational failures, not programmer assertions.
   construction should throw `MerianError.invalidURL` until config is valid.
 - `ModelContainer` creation should attempt corruption-specific quarantine once,
   archive non-corrupt legacy migration failures under `store-rescue/`, and then
-  fall back to an in-memory safe mode if recovery still fails.
+  fall back to an in-memory safe mode if recovery still fails. Archive success
+  requires every SQLite/WAL/SHM move and the atomic support manifest; a move or
+  manifest failure must restore completed moves before safe-mode fallback.
 - If in-memory safe mode also fails, render a startup-blocked recovery surface
   without attaching `.modelContainer`; do not use `try!`.
 - User-facing startup banners are acceptable; crash loops are not.
@@ -1351,7 +1353,9 @@ LazyVStack {
   Corruption-class failures may quarantine `default.store`, `default.store-wal`,
   and `default.store-shm`; non-corrupt failures on legacy migration strategies
   may archive those artifacts under `store-rescue/` before attempting
-  recreation.
+  recreation. Both paths are manifest-gated archive transactions: partial moves
+  roll back in reverse order, and a rollback failure preserves the incomplete
+  archive as evidence without reporting recovery success.
 - Never delete local media before the corresponding SwiftData delete/save
   succeeds. Broken ordering leaves detached records pointing at missing files
   and is now explicitly forbidden.

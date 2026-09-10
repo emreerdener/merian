@@ -49,14 +49,7 @@ enum LocalScanMediaRecoveryResolver {
         fileManager: FileManager = .default
     ) -> Int {
         registerRecoveryMappings(
-            records.map {
-                CurrentScanRecoveryMedia(
-                    scanID: $0.id,
-                    timestamp: $0.timestamp,
-                    coverImagePath: $0.coverImagePath,
-                    items: $0.serializedCapturedMediaItems
-                )
-            },
+            for: records.map(LocalScanMediaRecoverySnapshot.init(record:)),
             documentsDirectory: documentsDirectory,
             fileManager: fileManager
         )
@@ -69,25 +62,48 @@ enum LocalScanMediaRecoveryResolver {
         fileManager: FileManager = .default
     ) -> Int {
         registerRecoveryMappings(
-            responses.map { response in
-                let items = CapturedMediaSnapshot.cloudHydratedItems(
-                    capturedMediaItems: response.capturedMediaItems,
-                    imageStorageURLs: response.image_storage_urls,
-                    videoStorageURLs: response.video_storage_urls,
-                    audioStorageURLs: response.audio_storage_urls,
-                    observationContext:
-                        response.user_observation_context?.observationContext
-                )
-                return CurrentScanRecoveryMedia(
-                    scanID: response.id,
-                    timestamp: historicalDate(response.created_at),
-                    coverImagePath: CapturedMediaSnapshot(
-                        items: items
-                    ).primaryImagePath ??
-                        response.image_storage_urls?.first,
-                    items: items
-                )
-            },
+            for: responses.map(
+                LocalScanMediaRecoverySnapshot.init(response:)
+            ),
+            documentsDirectory: documentsDirectory,
+            fileManager: fileManager
+        )
+    }
+
+    @discardableResult
+    static func registerRecoveryMappings(
+        for snapshots: [LocalScanMediaRecoverySnapshot],
+        documentsDirectory: URL = .documentsDirectory,
+        fileManager: FileManager = .default
+    ) -> Int {
+        registerRecoveryMappings(
+            snapshots,
+            documentsDirectory: documentsDirectory,
+            fileManager: fileManager
+        )
+    }
+
+    @discardableResult
+    static func registerStrongEvidenceRecoveryMappings(
+        for snapshots: [LocalScanMediaRecoverySnapshot],
+        documentsDirectory: URL = .documentsDirectory,
+        fileManager: FileManager = .default
+    ) -> Int {
+        registerStrongEvidenceRecoveryMappings(
+            snapshots,
+            documentsDirectory: documentsDirectory,
+            fileManager: fileManager
+        )
+    }
+
+    @discardableResult
+    static func registerTimestampRecoveryMappings(
+        for snapshots: [LocalScanMediaRecoverySnapshot],
+        documentsDirectory: URL = .documentsDirectory,
+        fileManager: FileManager = .default
+    ) -> Int {
+        registerTimestampRecoveryMappings(
+            timestampRecoveryCandidates(for: snapshots),
             documentsDirectory: documentsDirectory,
             fileManager: fileManager
         )
@@ -102,10 +118,17 @@ enum LocalScanMediaRecoveryResolver {
               isSafeImageFileName(localFileName) else {
             return false
         }
-        return registry.register(remoteURL: remoteURL, fileName: localFileName)
+        return registry.registerStrongMapping(
+            remoteURL: remoteURL,
+            fileName: localFileName
+        )
     }
 
     static func resetRegisteredRecoveryMappingsForTesting() {
+        resetRegisteredRecoveryMappings()
+    }
+
+    static func resetRegisteredRecoveryMappings() {
         registry.reset()
     }
 
@@ -203,7 +226,25 @@ enum LocalScanMediaRecoveryResolver {
     }
 
     private static func registerRecoveryMappings(
-        _ currentScans: [CurrentScanRecoveryMedia],
+        _ currentScans: [LocalScanMediaRecoverySnapshot],
+        documentsDirectory: URL,
+        fileManager: FileManager
+    ) -> Int {
+        guard legacyIndex.hasRecords else { return 0 }
+
+        return registerStrongEvidenceRecoveryMappings(
+            currentScans,
+            documentsDirectory: documentsDirectory,
+            fileManager: fileManager
+        ) + registerTimestampRecoveryMappings(
+            for: currentScans,
+            documentsDirectory: documentsDirectory,
+            fileManager: fileManager
+        )
+    }
+
+    private static func registerStrongEvidenceRecoveryMappings(
+        _ currentScans: [LocalScanMediaRecoverySnapshot],
         documentsDirectory: URL,
         fileManager: FileManager
     ) -> Int {
@@ -230,7 +271,7 @@ enum LocalScanMediaRecoveryResolver {
                 from: legacyRecord.coverImagePath,
                 documentsDirectory: documentsDirectory,
                 fileManager: fileManager
-            ), registry.register(
+            ), registry.registerStrongMapping(
                 remoteURL: remoteURL,
                 fileName: localFileName
             ) {
@@ -251,7 +292,13 @@ enum LocalScanMediaRecoveryResolver {
             )
         }
 
-        let timestampCandidates = currentScans.compactMap { currentScan
+        return registeredCount
+    }
+
+    private static func timestampRecoveryCandidates(
+        for currentScans: [LocalScanMediaRecoverySnapshot]
+    ) -> [TimestampScanRecoveryCandidate] {
+        currentScans.compactMap { currentScan
             -> TimestampScanRecoveryCandidate? in
             guard legacyIndex.record(for: currentScan.scanID) == nil,
                   let timestamp = currentScan.timestamp else {
@@ -276,12 +323,6 @@ enum LocalScanMediaRecoveryResolver {
                 remoteImageURLs: remoteImageURLs
             )
         }
-        registeredCount += registerTimestampRecoveryMappings(
-            timestampCandidates,
-            documentsDirectory: documentsDirectory,
-            fileManager: fileManager
-        )
-        return registeredCount
     }
 
     private static func registerTimestampRecoveryMappings(
@@ -311,7 +352,12 @@ enum LocalScanMediaRecoveryResolver {
         )
         var registeredCount = 0
 
-        for scan in scans.sorted(by: { $0.timestamp < $1.timestamp }) {
+        for scan in scans.sorted(by: {
+            if $0.timestamp == $1.timestamp {
+                return $0.scanID < $1.scanID
+            }
+            return $0.timestamp < $1.timestamp
+        }) {
             // A direct filename or rescue-store match is stronger than time.
             guard !scan.remoteImageURLs.contains(where: {
                 existingLocalImageURL(
@@ -350,23 +396,14 @@ enum LocalScanMediaRecoveryResolver {
             }
 
             let group = availableGroups[selectedIndex]
-            let groupRegistrationCount = zip(
-                scan.remoteImageURLs,
-                group.fileNames
-            ).reduce(into: 0) { count, pair in
-                let (remoteURL, fileName) = pair
-                if registry.register(
-                    remoteURL: remoteURL,
-                    fileName: fileName
-                ) {
-                    count += 1
-                }
-            }
-            guard groupRegistrationCount == group.fileNames.count else {
+            guard registry.registerTimestampMappings(
+                remoteURLs: scan.remoteImageURLs,
+                fileNames: group.fileNames
+            ) else {
                 continue
             }
 
-            registeredCount += groupRegistrationCount
+            registeredCount += group.fileNames.count
             usedFileNames.formUnion(group.fileNames)
             availableGroups.remove(at: selectedIndex)
         }
@@ -461,12 +498,6 @@ enum LocalScanMediaRecoveryResolver {
         return .additional(index)
     }
 
-    private static func historicalDate(_ timestamp: String?) -> Date? {
-        guard let timestamp else { return nil }
-        return DateUtilities.iso8601FractionalFormatter.date(from: timestamp)
-            ?? DateUtilities.iso8601Formatter.date(from: timestamp)
-    }
-
     private static func registerAlignedReferences(
         _ legacyReferences: [StoredMediaReference],
         _ currentReferences: [StoredMediaReference],
@@ -488,7 +519,7 @@ enum LocalScanMediaRecoveryResolver {
                 from: legacyReference.serializedPath,
                 documentsDirectory: documentsDirectory,
                 fileManager: fileManager
-            ), registry.register(
+            ), registry.registerStrongMapping(
                 remoteURL: remoteURL,
                 fileName: localFileName
             ) else {
@@ -534,13 +565,6 @@ enum LocalScanMediaRecoveryResolver {
         }
         return fileName
     }
-}
-
-private struct CurrentScanRecoveryMedia {
-    let scanID: String
-    let timestamp: Date?
-    let coverImagePath: String?
-    let items: [SerializedMediaItem]
 }
 
 private struct TimestampScanRecoveryCandidate {

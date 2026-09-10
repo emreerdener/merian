@@ -1124,18 +1124,28 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     background completion, inbound shielding, acknowledgement purge, and
     deletion/orphan cleanup. The real-device install-over gate remains separate
     release evidence; simulator-created stores cannot satisfy it.
-- **`ModelStoreRecoveryCoordinatorTests.swift`**: Launch-recovery guard for
-  damaged and legacy-unmigratable local stores. It verifies corruption-only
-  quarantine, legacy migration rescue for generic SwiftData migration failures,
-  no rescue for current-store or corruption failures, duplicate-checksum
-  detection, store-metadata version parsing, store-aware migration selection,
-  sanitized `recovery-manifest.json` output, startup diagnostic rescue flags,
-  and a source-scan boundary that prevents store recovery from referencing
-  `KeychainManager`, `SupabaseManager`, sign-out flows, or current-user state.
-  The focused drift lane is `.github/workflows/ios-startup-safety.yml`; it runs
-  `ModelStoreRecoveryCoordinatorTests` and `MigrationPlanTests` alongside the
-  loader, cloud-repair, and image-ownership suites so startup recovery and
-  image-loading boundary failures are caught together. The cheap
+- **`Core/Data/StoreRecovery/ModelStoreRecoveryCoordinatorTests.swift`**:
+  Launch-recovery guard for configuration, store metadata parsing, V50 checksum
+  routing, migration hints, corruption-only quarantine eligibility, legacy
+  rescue eligibility, and safe-mode policy.
+- **`Core/Data/StoreRecovery/StartupStoreDiagnosticTests.swift`**: Verifies
+  fresh-store metadata behavior, opaque metadata-identifier and custom-domain
+  fingerprints, telemetry projection, and rescue outcome flags.
+- **`Core/Data/StoreRecovery/StoreRecoveryArtifactArchiverTests.swift`**:
+  Verifies exact SQLite/WAL/SHM moves, rescue manifests, and rejection of raw
+  paths, emails, custom domains, and failure prose from support artifacts. Its
+  injected failure cases prove a move that mutates before throwing and a failed
+  manifest write both restore every source artifact at its original path with
+  its original bytes and never report archive success.
+- **`Core/Data/StoreRecovery/StoreRecoveryArchitectureTests.swift`**: Freezes
+  declaration ownership, pure-layer imports, mirrored test ownership, the
+  600-line boundary, and the Store Recovery-wide exclusion of Auth, Keychain,
+  Supabase, sign-out, and current-user state. The focused drift lane is
+  `.github/workflows/ios-startup-safety.yml`; it runs all four Store Recovery
+  suites and `MigrationPlanTests` alongside the loader, cloud-repair, and
+  image-ownership suites. It also selects recovery registration, Core Data
+  integration, and queue-container cache regressions so startup recovery and
+  post-startup image-loading boundary failures are caught together. The cheap
   `.github/workflows/ios-project-guardrails.yml` lane runs
   `make validate-ios-project`, `make validate-ios-migration-guardrails`, and
   `make validate-ios-event-routing` first, so known-bad source shapes fail on
@@ -1503,11 +1513,21 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   Trip goal hints, queue maintenance, cloud deletion, and historical
   reconciliation. It additionally freezes the exact four-file Historical Sync
   production inventory, imports, dependency exclusions, mirrored test files, and
-  600-line ceilings. `ScanRepositoryTests` complements that static contract by
-  proving historical inserted counts exclude invalid-timestamp rows and a
-  pre-cancelled collection reconciliation preserves every local collection.
-  `HistoricalSyncCloudClientTests` verifies that injected account leases and
-  scan/collection request values cross the service seam unchanged.
+  600-line ceilings. The post-refactor integration assertions also require
+  rescue registration to leave `MerianApp` startup, use throwing bounded reads,
+  run its complete strong-evidence phase before timestamp fallback, and accept
+  completion only for the repository's exact current container.
+  `ScanMediaRecoveryRegistrationTests` verifies the corresponding two-pass page
+  order and no-index fast path. `LocalImageLoaderTests` additionally proves the
+  registry atomically admits timestamp groups and removes the complete group
+  when stronger evidence later owns the same URL or local file.
+  `QueueActorCacheTests` complements `ProfileActorCacheTests` by proving both
+  manager-retained persistence actors replace their context when the
+  `ModelContainer` changes. `ScanRepositoryTests` complements that static
+  contract by proving historical inserted counts exclude invalid-timestamp rows
+  and a pre-cancelled collection reconciliation preserves every local
+  collection. `HistoricalSyncCloudClientTests` verifies that injected account
+  leases and scan/collection request values cross the service seam unchanged.
   `SyncStateManagerTests` also locks the generation-fencing contract: a stale
   upload completion cannot clear a replacement batch; a completion delivered
   after `forceIdle()` cannot remove a newer inference token; a stale finalizing
@@ -1879,14 +1899,23 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   mapping after cloud renaming, configured-root-before-legacy rescue archive
   ordering, high-confidence timestamp groups, Explore fallback rendering from
   Documents, canonical registry identity across equivalent secure URLs, and
-  rejection of credentialed, unrelated, non-image, or otherwise unsafe URLs.
+  strong-evidence precedence over interleaved timestamp guesses, plus rejection
+  of credentialed, unrelated, non-image, or otherwise unsafe URLs. The suite is
+  serialized because its resolver cases intentionally mutate one process-local
+  recovery registry. Its request-coalescing case uses a unique cache key instead
+  of clearing the process-global image cache.
 - **`Core/Data/Images/CloudScanImageRepairActorTests.swift`**: Uses injected
   endpoint/file/event effects to verify canonical source normalization, exact
   inspect → sign → file upload → repair → invalidation order, and single-flight
   de-duplication when another enqueue arrives during suspended inspection.
+- **`Core/Data/Images/ScanMediaRecoveryRegistrationTests.swift`**: Uses an
+  in-memory V51 container and injected registration probes to verify
+  cancellation, the hard 200-record cap, stable pages, the complete
+  strong-evidence pass before timestamp fallback, and the no-index fast path.
 - **`Core/Data/Images/ImageLoadingArchitectureTests.swift`**: Freezes focused
   declaration ownership, pure policy/recovery imports, live-effect containment,
-  test rehoming, and the 600-line production guard.
+  post-startup bounded and throwing registration, test rehoming, and the
+  600-line production guard.
 - **`BackgroundTransferOwnershipTests.swift`**: Covers lock-protected terminal
   completion, synchronous URLSession delegate registration, durable-before-
   cancel Auth-transition quiescence, relaunched task lease adoption, and bounded
@@ -2269,6 +2298,8 @@ xcodebuild test-without-building \
   -only-testing:merianTests/BackgroundDatabaseActorTests \
   -only-testing:merianTests/CapturedMediaPersistenceServiceTests \
   -only-testing:merianTests/ScanFinalizationArchitectureTests \
+  -only-testing:merianTests/ScanMediaRecoveryRegistrationTests \
+  -only-testing:merianTests/ImageLoadingArchitectureTests \
   -only-testing:merianTests/CoreDataIntegrationArchitectureTests \
   -only-testing:merianTests/QueueSelectionPersistenceTests \
   -only-testing:merianTests/QueueSelectionArchitectureTests \
@@ -2320,6 +2351,7 @@ xcodebuild test-without-building \
   -only-testing:merianTests/OfflineJobSchedulerTests \
   -only-testing:merianTests/ScanRepositoryTests \
   -only-testing:merianTests/HistoricalSyncCloudClientTests \
+  -only-testing:merianTests/QueueActorCacheTests \
   -only-testing:merianTests/ProfileActorCacheTests \
   -only-testing:merianTests/HardwareOrchestratorTests \
   -only-testing:merianTests/AppLifecycleManagerTests \
@@ -5464,11 +5496,12 @@ erases the queue-row marker/count while the job survives and proves a transient
 re-stage failure advances to attempt two.
 `UploadLifecyclePersistenceTests/testMarkScanAsStagedPreservesScheduledServerFailureRetry`
 passes the same topology through upload claim and staging.
-`InferenceRetryPersistenceTests/testScheduleInferenceRetryUsesMonotonicMirroredAttempt`
-proves the writer uses the maximum copy, while
-`InferenceRetryPersistenceTests/testInferenceRetryCannotOverrideCompletedCloudOwnership`
-proves a job-only cloud-complete marker vetoes a late retry. All four are
-required named Release results, not merely compiled tests.
+`InferenceRetryPersistenceTests` method
+`testScheduleInferenceRetryUsesMonotonicMirroredAttempt` proves the writer uses
+the maximum copy, while
+`testInferenceRetryCannotOverrideCompletedCloudOwnership` proves a job-only
+cloud-complete marker vetoes a late retry. All four are required named Release
+results, not merely compiled tests.
 
 Fixtures that persist a future queue or job retry deadline must not immediately
 expect upload or inference claim success: that would contradict the production

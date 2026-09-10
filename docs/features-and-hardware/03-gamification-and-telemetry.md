@@ -269,10 +269,25 @@ Startup recovery telemetry follows the same privacy boundary. `outcome` and
 to distinguish corruption quarantine, legacy-store rescue, safe mode, and
 startup-blocked outcomes. Do not attach exception text, local file paths, user
 IDs, scan IDs, account state, recovery manifest contents, or raw store metadata.
-Allowed diagnostic keys are `diagnostic_schema`, `selected_strategy`,
-`current_schema_major`, `stored_schema_major`, `attempt_count`, `attempts`,
-`final_outcome`, `final_reason`, `quarantine_attempted`, `quarantine_performed`,
-`rescue_attempted`, and `rescue_performed`.
+Allowed event fields are `outcome`, `reason`, and this bounded diagnostic
+projection:
+
+- build/schema context: `diagnostic_schema`, `app_version`, `build_number`,
+  `current_schema_major`, `migration_schemas`, `migration_stages`, and
+  `selected_strategy`;
+- store shape: `store_has_artifacts`, `store_artifact_count`, optional
+  `store_artifacts`, `stored_schema_major`, `model_version_identifiers`, and
+  optional `metadata_fingerprints`;
+- recovery state: `attempt_count`, `attempts`, `final_outcome`, `final_reason`,
+  `quarantine_attempted`, `quarantine_performed`, `rescue_attempted`, and
+  `rescue_performed`; and
+- optional error evidence: `metadata_error` and `first_error`.
+
+String model identifiers and captured Core Data metadata keys/values are
+deterministic SHA-256 fingerprints. Error evidence retains only an integer code,
+an allowlisted stable domain or domain fingerprint, and fingerprints of
+description, failure-reason, and debug text. Numeric model identifiers and the
+fixed `default.store` artifact names/sizes may remain readable.
 
 External image-import telemetry is intentionally receipt-level and coarse.
 Allowed outcomes describe received, staged, quota-blocked,

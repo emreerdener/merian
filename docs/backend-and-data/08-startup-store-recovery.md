@@ -7,14 +7,19 @@ telemetry, and verification.
 
 ## Ownership
 
-| Area                         | File                                                                                                                                                                                                                                                                                                                                                        | Responsibility                                                                                                                                                                                                                                                                                      |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App bootstrap                | `apps/ios/Merian/App/MerianApp.swift`                                                                                                                                                                                                                                                                                                                       | Orchestrates startup, builds the model container, shows safe-mode/recovery notices, and emits recovery telemetry after analytics starts.                                                                                                                                                            |
-| Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`                                                                                                                                                                                                                                                                                                           | Converts Objective-C `NSException`s raised by SwiftData/Core Data into Swift errors.                                                                                                                                                                                                                |
-| Store recovery policy        | `apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`                                                                                                                                                                                                                                                                               | Reads store metadata for migration strategy selection, detects corruption signatures, archives unrecoverable legacy stores, quarantines corrupt local store artifacts, and writes support manifests.                                                                                                |
-| Tests                        | `apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift`, `apps/ios/MerianTests/Core/Data/Images/LocalImageLoaderTests.swift`, `apps/ios/MerianTests/Core/Data/Images/CloudScanImageRepairActorTests.swift`, `apps/ios/MerianTests/Core/Data/Images/ImageLoadingArchitectureTests.swift`, `apps/ios/MerianTests/Models/MigrationPlanTests.swift` | Verifies configured store location, store-aware migration hints, duplicate-checksum detection, corruption gating, legacy rescue ordering, focused image loading/repair ownership, manifest writing, recent source-isolated migration plans, and isolation from auth/session managers.               |
-| Startup CI guardrails        | `.github/workflows/ios-project-guardrails.yml`, `.github/workflows/ios-startup-safety.yml`, `scripts/check-ios-migration-source-guardrails.sh`                                                                                                                                                                                                              | Runs fast source/project/release-tooling checks on Ubuntu, then focused startup store-recovery and migration tests on macOS when startup inputs change.                                                                                                                                             |
-| Broad compiled CI            | `.github/workflows/ios-build-and-test.yml`, `scripts/check-ios-project-source-membership.sh`, `scripts/validate-ios-critical-test-results.sh`                                                                                                                                                                                                               | Compiles both shared test bundles, executes the complete unit-test target including the startup suites, runs all four deterministic progressive-analyzing, live-to-queue, queued-retry, and queued-completion UI smokes, and independently verifies an exact-SHA unsigned Release archive and dSYM. |
+| Area                         | File                                                                                                                                           | Responsibility                                                                                                                                                                                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App bootstrap                | `apps/ios/Merian/App/MerianApp.swift`                                                                                                          | Orchestrates startup, builds the model container, shows safe-mode/recovery notices, and emits recovery telemetry after analytics starts.                                                                                                                          |
+| Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`                                                                                              | Converts Objective-C `NSException`s raised by SwiftData/Core Data into Swift errors.                                                                                                                                                                              |
+| Store configuration façade   | `apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`                                                                  | Preserves the source-compatible production configuration and exact SwiftData-configured store URL.                                                                                                                                                                |
+| Models                       | `apps/ios/Merian/Core/Data/StoreRecovery/Models/`                                                                                              | Owns recent-source and V50 graph values, migration decisions, startup diagnostics/telemetry projection, the recovery-manifest format, and recovery-local deterministic JSON coding.                                                                               |
+| Policies                     | `apps/ios/Merian/Core/Data/StoreRecovery/Policies/`                                                                                            | Owns migration-hint selection, corruption/migration/checksum classification, quarantine/rescue eligibility, safe-mode feedback, and privacy-safe fingerprints.                                                                                                    |
+| Services                     | `apps/ios/Merian/Core/Data/StoreRecovery/Services/`                                                                                            | Reads Core Data metadata, interprets schema/checksum evidence, persists local diagnostics, discovers exact SQLite artifacts, and transactionally writes or rolls back quarantine/rescue archives.                                                                 |
+| Focused tests                | `apps/ios/MerianTests/Core/Data/StoreRecovery/`                                                                                                | Verifies configuration, policy, metadata redaction, diagnostics, privacy-safe manifests, archive failure rollback, focused ownership, and isolation from auth/session managers.                                                                                   |
+| Migration tests              | `apps/ios/MerianTests/Models/MigrationPlanTests.swift`                                                                                         | Verifies recent source-isolated migration plans and disk-backed production plan selection.                                                                                                                                                                        |
+| Image recovery tests         | `apps/ios/MerianTests/Core/Data/Images/`                                                                                                       | Verifies read-only legacy rescue-store consumption independently from launch-time Store Recovery.                                                                                                                                                                 |
+| Startup CI guardrails        | `.github/workflows/ios-project-guardrails.yml`, `.github/workflows/ios-startup-safety.yml`, `scripts/check-ios-migration-source-guardrails.sh` | Runs fast source/project/release-tooling checks on Ubuntu, then focused startup store-recovery and migration tests on macOS when startup inputs change.                                                                                                           |
+| Broad compiled CI            | `.github/workflows/ios-build-and-test.yml`, `scripts/check-ios-project-source-membership.sh`, `scripts/validate-ios-critical-test-results.sh`  | Compiles both shared test bundles, executes the complete unit-test target including the startup suites, runs all four deterministic progressive-analyzing, live-to-queue, queued-retry, and queued-completion UI smokes, and verifies an exact-SHA Release build. |
 
 Startup Safety is a focused drift and migration-diagnostic lane, not the only
 compile gate. Every build-relevant startup or schema change must also pass
@@ -75,6 +80,14 @@ compile gate. Every build-relevant startup or schema change must also pass
 
 Generic current-store startup failures must not move local store files. They
 skip quarantine/rescue and go directly to safe mode.
+
+Quarantine and rescue are rollback-protected archive transactions. The operation
+reports success only after every discovered SQLite/WAL/SHM artifact has moved
+and `recovery-manifest.json` has been atomically written. A move or manifest
+failure restores completed moves in reverse order. If restoration itself cannot
+complete, the partial archive remains in place as recovery evidence and the
+operation still fails; startup must never treat that state as a successful
+quarantine or rescue.
 
 Recovery code must not reconstruct the store location as
 `Application Support/default.store`. Migration selection, diagnostics,
@@ -238,7 +251,9 @@ intentionally small and support-oriented:
 - app version and build number
 - OS version
 - archive reason (`corruption_quarantine` or `legacy_migration_rescue`)
-- sanitized error domain/code/description/failure reason
+- error code, an allowlisted stable framework/app error domain or a
+  deterministic SHA-256 fingerprint of any other domain, plus deterministic
+  fingerprints of description and failure reason
 - moved artifact filenames
 
 The manifest must not include:
@@ -248,6 +263,7 @@ The manifest must not include:
 - user IDs, usernames, or emails
 - scan IDs or species names
 - full local filesystem paths outside the archive directory
+- arbitrary custom error domains or Core Data metadata identifiers in plaintext
 
 ## Identity Boundary
 
@@ -286,7 +302,15 @@ returns 404.
 `LocalScanMediaRecoveryResolver` may read preserved `store-rescue` databases
 with read-only SQLite access to align the old local filename/media order with
 the same current scan ID. That is a separate post-startup media-recovery lane;
-it never mutates the rescued database. See
+it never mutates the rescued database. `MerianApp` does not load that index or
+fetch the scan library during container bootstrap. After `ScanRepository`
+configuration, Core Data Images owns a cancellation-aware two-pass registration
+task: fresh SwiftData contexts page at most 200 immutable snapshots at a time,
+strong scan-ID/media-order evidence completes across the library before ordered
+timestamp fallback, and read failures remain visible as private diagnostics
+rather than an empty-library result. The process-local registry independently
+enforces that evidence priority across interleaved bounded callers and treats a
+multi-image timestamp group as one atomic claim. See
 [`system-architecture/03-image-pipeline.md`](../system-architecture/03-image-pipeline.md)
 and the
 [July 2026 incident report](../incidents/2026-07-account-scoped-r2-image-loss.md).
@@ -296,20 +320,38 @@ and the
 `MerianApp` emits `StartupStoreRecovery` after `AppTelemetry.initialize()` with
 only redacted string properties:
 
-| Property                | Examples                                                                                                                                                      |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `outcome`               | `recovered`, `safe_mode`, `blocked`                                                                                                                           |
-| `reason`                | `corruption_quarantined`, `legacy_store_rescued`, `persistent_store_rescue_failed`, `persistent_store_unavailable`, `persistent_and_memory_store_unavailable` |
-| `selected_strategy`     | `current-store`, `recent-source-v50-released-active`, `recent-source-v50-frozen-snapshot`, `recent-source-v49`, `full-historical`                             |
-| `current_schema_major`  | `51`                                                                                                                                                          |
-| `stored_schema_major`   | `51`, `50`, `49`, `48`, `none`                                                                                                                                |
-| `attempts`              | `current-store:success`, `recent-v50-released-active:success`, `recent-v49:failure,...`, or `recent-v48-known-good:failure,recent-v48-optional-queue:success` |
-| `metadata_fingerprints` | Core Data model/version metadata keys with SHA-256 value fingerprints                                                                                         |
-| `first_error`           | error domain, code, and fingerprints of description/failure/debug text                                                                                        |
-| `quarantine_attempted`  | `true`, `false`                                                                                                                                               |
-| `quarantine_performed`  | `true`, `false`                                                                                                                                               |
-| `rescue_attempted`      | `true`, `false`                                                                                                                                               |
-| `rescue_performed`      | `true`, `false`                                                                                                                                               |
+| Property                    | Examples                                                                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `outcome`                   | `recovered`, `safe_mode`, `blocked`                                                                                                                           |
+| `reason`                    | `corruption_quarantined`, `legacy_store_rescued`, `persistent_store_rescue_failed`, `persistent_store_unavailable`, `persistent_and_memory_store_unavailable` |
+| `diagnostic_schema`         | `2`                                                                                                                                                           |
+| `app_version`               | The app's public short version                                                                                                                                |
+| `build_number`              | The app's public build number                                                                                                                                 |
+| `current_schema_major`      | `51`                                                                                                                                                          |
+| `migration_schemas`         | The app-controlled schema-major sequence                                                                                                                      |
+| `migration_stages`          | The app-controlled compact stage description                                                                                                                  |
+| `selected_strategy`         | `current-store`, `recent-source-v50-released-active`, `recent-source-v50-frozen-snapshot`, `recent-source-v49`, `full-historical`                             |
+| `store_has_artifacts`       | `true`, `false`                                                                                                                                               |
+| `store_artifact_count`      | Count of discovered SQLite/WAL/SHM artifacts                                                                                                                  |
+| `store_artifacts`           | Optional fixed artifact names and byte sizes; never full paths                                                                                                |
+| `stored_schema_major`       | `51`, `50`, `49`, `48`, `none`                                                                                                                                |
+| `model_version_identifiers` | SHA-256 fingerprints for Core Data string identifiers; numeric identifiers remain numeric                                                                     |
+| `attempt_count`             | Number of recorded startup open attempts                                                                                                                      |
+| `attempts`                  | `current-store:success`, `recent-v50-released-active:success`, `recent-v49:failure,...`, or `recent-v48-known-good:failure,recent-v48-optional-queue:success` |
+| `final_outcome`             | `recovered`, `safe_mode`, `blocked`, or `unknown`                                                                                                             |
+| `final_reason`              | A fixed recovery reason or `none`                                                                                                                             |
+| `metadata_fingerprints`     | SHA-256 fingerprints of captured Core Data model/version metadata keys and values                                                                             |
+| `metadata_error`            | Optional allowlisted domain or domain fingerprint, code, and error-text fingerprints                                                                          |
+| `first_error`               | allowlisted stable domain or domain fingerprint, code, and fingerprints of description/failure/debug text                                                     |
+| `quarantine_attempted`      | `true`, `false`                                                                                                                                               |
+| `quarantine_performed`      | `true`, `false`                                                                                                                                               |
+| `rescue_attempted`          | `true`, `false`                                                                                                                                               |
+| `rescue_performed`          | `true`, `false`                                                                                                                                               |
+
+The four evidence fields `store_artifacts`, `metadata_fingerprints`,
+`metadata_error`, and `first_error` are omitted when no matching evidence
+exists. The same allowlist and redaction rules are mirrored in
+[Gamification and Privacy-Bounded Telemetry](../features-and-hardware/03-gamification-and-telemetry.md#apptelemetry-posthog-facade).
 
 The latest startup diagnostic is also persisted locally and shown as a
 TestFlight/debug share action on the dismissible safe-mode/recovery card. Do not
@@ -357,6 +399,12 @@ source-isolated migration path. Both V50 fixtures additionally prove their
 checksum variant is recognized and that unowned preferred-name rows are
 discarded without disturbing the rest of either graph.
 
+The same source guardrail requires metadata and error-domain sanitizers,
+throwing manifest writes, rollback ownership, and deterministic tests for both
+partial-move and manifest-write failures. Those tests require every moved
+artifact to return to its original path with its original bytes before the
+failed archive directory can be removed.
+
 Run both after XcodeGen changes.
 
 ## Verification
@@ -369,17 +417,24 @@ make validate-ios-migration-guardrails
 jq empty apps/ios/Merian/Resources/Changelog/changelog.json
 swiftlint lint \
   apps/ios/Merian/App/MerianApp.swift \
-  apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift \
+  apps/ios/Merian/Core/Data/StoreRecovery \
   apps/ios/Merian/Core/Data/Images/LocalImageLoader.swift \
   apps/ios/Merian/Core/Data/Images/Concurrency/AsyncPermitPool.swift \
   apps/ios/Merian/Core/Data/Images/Policies \
   apps/ios/Merian/Core/Data/Images/Recovery \
   apps/ios/Merian/Core/Data/Images/Services/CloudScanImageRepairActor.swift \
+  apps/ios/Merian/Core/Data/Images/Services/ScanMediaRecoveryRegistrationService.swift \
+  apps/ios/Merian/Core/Data/Database/ScanRepository.swift \
+  apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift \
   apps/ios/Merian/Core/Analytics/AppTelemetry.swift \
-  apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift \
+  apps/ios/MerianTests/Core/Data/StoreRecovery \
   apps/ios/MerianTests/Core/Data/Images/LocalImageLoaderTests.swift \
   apps/ios/MerianTests/Core/Data/Images/CloudScanImageRepairActorTests.swift \
+  apps/ios/MerianTests/Core/Data/Images/ScanMediaRecoveryRegistrationTests.swift \
   apps/ios/MerianTests/Core/Data/Images/ImageLoadingArchitectureTests.swift \
+  apps/ios/MerianTests/Core/Data/Database/CoreDataIntegrationArchitectureTests.swift \
+  apps/ios/MerianTests/Core/Data/OfflineSync/QueueActorCacheTests.swift \
+  apps/ios/MerianTests/Core/Data/OfflineSync/ProfileActorCacheTests.swift \
   apps/ios/MerianTests/Models/MigrationPlanTests.swift \
   apps/ios/MerianTests/Core/Analytics/AppTelemetryTests.swift
 git diff --check
@@ -394,9 +449,16 @@ xcodebuild test \
   -project Merian.xcodeproj \
   -destination "$destination" \
   -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
+  -only-testing:merianTests/StartupStoreDiagnosticTests \
+  -only-testing:merianTests/StoreRecoveryArtifactArchiverTests \
+  -only-testing:merianTests/StoreRecoveryArchitectureTests \
   -only-testing:merianTests/LocalImageLoaderTests \
   -only-testing:merianTests/CloudScanImageRepairActorTests \
+  -only-testing:merianTests/ScanMediaRecoveryRegistrationTests \
   -only-testing:merianTests/ImageLoadingArchitectureTests \
+  -only-testing:merianTests/CoreDataIntegrationArchitectureTests \
+  -only-testing:merianTests/QueueActorCacheTests \
+  -only-testing:merianTests/ProfileActorCacheTests \
   -only-testing:merianTests/MigrationPlanTests
 ```
 

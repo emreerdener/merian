@@ -3,7 +3,7 @@ import Foundation
 import Testing
 import UIKit
 
-@Suite("Local Image Loader")
+@Suite("Local Image Loader", .serialized)
 struct LocalImageLoaderTests {
     private actor ConcurrencyProbe {
         private(set) var active = 0
@@ -416,15 +416,78 @@ struct LocalImageLoaderTests {
                 "https://media.merian.app/public_uploads/free/user/image.webp#preview"
         ))
 
-        #expect(registry.register(
+        #expect(registry.registerStrongMapping(
             remoteURL: registeredURL,
             fileName: "local_scan.webp"
         ))
         #expect(registry.fileName(for: lookupURL) == "local_scan.webp")
-        #expect(!registry.register(
+        #expect(!registry.registerStrongMapping(
             remoteURL: lookupURL,
             fileName: "duplicate_scan.webp"
         ))
+    }
+
+    @Test func localRecoveryRegistryAlwaysPrefersStrongEvidence() throws {
+        let registry = LocalScanMediaRecoveryRegistry()
+        let timestampURL = try #require(URL(
+            string:
+                "https://media.merian.app/public_uploads/free/user/timestamp.webp"
+        ))
+        let strongURL = try #require(URL(
+            string:
+                "https://media.merian.app/public_uploads/free/user/strong.webp"
+        ))
+        let laterTimestampURL = try #require(URL(
+            string:
+                "https://media.merian.app/public_uploads/free/user/later.webp"
+        ))
+        let sameSourceURL = try #require(URL(
+            string:
+                "https://media.merian.app/public_uploads/free/user/same.webp"
+        ))
+        let partialGroupURL = try #require(URL(
+            string:
+                "https://media.merian.app/public_uploads/free/user/partial.webp"
+        ))
+        let localFileName = "recovered_scan.webp"
+
+        #expect(registry.registerTimestampMappings(
+            remoteURLs: [timestampURL, laterTimestampURL],
+            fileNames: [localFileName, "paired_timestamp.webp"]
+        ))
+        #expect(registry.registerStrongMapping(
+            remoteURL: strongURL,
+            fileName: localFileName
+        ))
+
+        #expect(registry.fileName(for: timestampURL) == nil)
+        #expect(registry.fileName(for: laterTimestampURL) == nil)
+        #expect(registry.fileName(for: strongURL) == localFileName)
+        #expect(!registry.registerTimestampMappings(
+            remoteURLs: [laterTimestampURL],
+            fileNames: [localFileName]
+        ))
+        #expect(!registry.registerTimestampMappings(
+            remoteURLs: [strongURL],
+            fileNames: ["timestamp_replacement.webp"]
+        ))
+        #expect(registry.registerTimestampMappings(
+            remoteURLs: [sameSourceURL],
+            fileNames: ["timestamp_only.webp"]
+        ))
+        #expect(registry.registerStrongMapping(
+            remoteURL: sameSourceURL,
+            fileName: "strong_replacement.webp"
+        ))
+        #expect(
+            registry.fileName(for: sameSourceURL) ==
+                "strong_replacement.webp"
+        )
+        #expect(!registry.registerTimestampMappings(
+            remoteURLs: [partialGroupURL, laterTimestampURL],
+            fileNames: ["unclaimed.webp", localFileName]
+        ))
+        #expect(registry.fileName(for: partialGroupURL) == nil)
     }
 
     @Test func testLocalImageLoader_ConcurrentDeduplication() async throws {
@@ -440,9 +503,8 @@ struct LocalImageLoaderTests {
             recordLocalRecovery: { _ in },
             enqueueCloudRepair: { _, _ in }
         ))
-        let testUrlString = "https://media.merian.app/test/deduplicated.jpg"
-
-        ImageCache.shared.clearCache()
+        let testUrlString =
+            "https://media.merian.app/test/\(UUID().uuidString).jpg"
 
         var results: [UIImage?] = []
         await withTaskGroup(of: UIImage?.self) { group in

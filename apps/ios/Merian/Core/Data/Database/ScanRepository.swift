@@ -19,6 +19,9 @@ final class ScanRepository {
 
     private let offlineQueue = OfflineQueueManager.shared
     private let historicalCloudClient = HistoricalSyncCloudClient.live
+    private let mediaRecoveryRegistrationService =
+        ScanMediaRecoveryRegistrationService()
+    private var mediaRecoveryRegistrationTask: Task<Void, Never>?
 
     // MARK: - Lifecycle
 
@@ -35,6 +38,52 @@ final class ScanRepository {
         offlineQueue.restoreFundingReservationsForCurrentAccount()
         Task { @MainActor in
             self.seedFavoritesIfNeeded(modelContext: modelContext)
+        }
+        scheduleLocalMediaRecoveryRegistration(for: modelContext)
+    }
+
+    private func scheduleLocalMediaRecoveryRegistration(
+        for modelContext: ModelContext
+    ) {
+        let previousRegistrationTask = mediaRecoveryRegistrationTask
+        previousRegistrationTask?.cancel()
+        mediaRecoveryRegistrationTask = nil
+
+        guard !TestExecutionCoordinator.isRunningTests else { return }
+
+        let expectedContainer = modelContext.container
+        let service = mediaRecoveryRegistrationService
+        mediaRecoveryRegistrationTask = Task(priority: .utility) {
+            do {
+                await previousRegistrationTask?.value
+                try Task.checkCancellation()
+                guard let currentContainer = self.offlineQueue
+                    .modelContext?.container,
+                    currentContainer === expectedContainer else {
+                    return
+                }
+                LocalScanMediaRecoveryResolver
+                    .resetRegisteredRecoveryMappings()
+                let recoveryCount = try await service.registerMappings(
+                    in: expectedContainer
+                )
+                try Task.checkCancellation()
+                guard let currentContainer = self.offlineQueue
+                    .modelContext?.container,
+                    currentContainer === expectedContainer,
+                    let recoveryCount else {
+                    return
+                }
+                MerianLog.data.info(
+                    "Post-startup media recovery registered \(recoveryCount, privacy: .public) legacy scan image mapping(s)."
+                )
+            } catch is CancellationError {
+                return
+            } catch {
+                MerianLog.data.error(
+                    "Post-startup media recovery could not read the local scan library: \(error, privacy: .private)"
+                )
+            }
         }
     }
 

@@ -596,8 +596,9 @@ as their permanent engineering identity.
 - **[`/backend-and-data/08-startup-store-recovery.md`](./backend-and-data/08-startup-store-recovery.md)**
   — Launch-time SwiftData store recovery contract: exception bridge, store-aware
   migration selection, duplicate-checksum fallbacks, corruption-gated
-  quarantine, legacy-store rescue, safe mode, auth isolation, manifest,
-  telemetry, verification, and genuine-store physical-device release acceptance.
+  quarantine, rollback-protected legacy-store rescue, privacy-safe diagnostics,
+  manifest-gated success, safe mode, auth isolation, telemetry, verification,
+  and genuine-store physical-device release acceptance.
 - **[`/backend-and-data/10-internal-admin.md`](./backend-and-data/10-internal-admin.md)**
   — Private admin architecture: Google/TOTP session boundary, RBAC, admin RPCs,
   grouped review and feedback workflows, audit trail, metrics, AI ledger,
