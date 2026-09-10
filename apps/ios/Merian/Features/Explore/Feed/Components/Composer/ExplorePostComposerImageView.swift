@@ -25,6 +25,7 @@ struct ExplorePostComposerImageView: View {
     private let dependencies: ExplorePostComposerImageDependencies
 
     @State private var image: UIImage?
+    @State private var recoveryRevision: UInt64 = 0
 
     init(
         path: String?,
@@ -51,11 +52,14 @@ struct ExplorePostComposerImageView: View {
                     }
             }
         }
-        .task(id: path) {
+        .task(id: "\(path ?? "")|\(maxDimension)|\(recoveryRevision)") {
             image = nil
             guard let path, !path.isEmpty else { return }
-            image = await dependencies.loadImage(path, maxDimension)
+            let loaded = await dependencies.loadImage(path, maxDimension)
+            guard !Task.isCancelled else { return }
+            image = loaded
         }
+        .reloadOnImageRecovery(imagePath: path, revision: $recoveryRevision)
     }
 
     @ViewBuilder

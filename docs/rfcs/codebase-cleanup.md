@@ -3976,9 +3976,9 @@ complete `merianTests` action then passed; Swift Testing reported 2,253 tests in
 The former 1,427-line `LocalImageLoader.swift` mixed load orchestration,
 concurrency admission, URL and retry policy, local recovery evidence, legacy
 SQLite indexing, and authenticated cloud repair. Those responsibilities now have
-eight focused owners: the loader root plus `Concurrency`, `Policies`,
-`Recovery`, and `Services` files under `Core/Data/Images`. Every production
-Swift file in that area remains at or below the 600-line review guard.
+focused owners: the loader root plus `Concurrency`, `Policies`, `Recovery`, and
+`Services` files under `Core/Data/Images`. Every production Swift file in that
+area remains at or below the 600-line review guard.
 
 `LocalImageLoader` keeps its shared entry point, signatures, isolated session,
 cache/coalescing behavior, and detached cancellation semantics. Its small
@@ -3998,7 +3998,7 @@ repair work. The lock-protected registry was extracted into its own focused file
 to preserve the line ceiling. The decode permit pool also returns a just-granted
 slot to the pool when cancellation races waiter resumption, and Startup Safety
 now explicitly selects the relocated cloud-repair and architecture suites that
-its path filters watch.
+its source-scope detector watches.
 
 `LocalImageLoaderTests` moved into the mirrored Core Data Images test tree
 without changing its selector type and now uses an injected probe for
@@ -4117,12 +4117,78 @@ whitespace checks. A fresh Xcode build and simulator run could not start because
 the local CoreSimulator and nested SwiftPM sandbox services were unavailable;
 Startup Safety owns the added regression for the next runnable CI environment.
 
+The September 9, 2026 working-tree follow-up closed three additional gaps.
+Direct filenames are now reserved during the strong-evidence pass even when no
+rescued row exists. Cloud repair admits only direct filename or registered
+strong evidence for the exact local URL, rechecks evidence across suspension,
+and allows a verified retry after evidence loss. Timestamp guesses remain local
+display fallbacks. Source revisions also invalidate cache/coalescing identities;
+a shared Core UI modifier refreshes retained Scan, gallery, Profile, Explore,
+and composer images, with cancellation checks preventing stale publication.
+
+Startup Safety now uses unfiltered events, complete Git history, and exact push
+or PR merge-base comparisons. Unresolved ranges require simulator verification;
+manual, scheduled, and merge-queue runs always select it. Regression fixtures
+cover shallow history, empty diffs, PR divergence, renames, malformed events,
+and comparison failures. Workflow contracts preserve the new image UI trigger
+inventory and suite selectors; the migration guardrail verifies V50 coverage in
+the canonical detector.
+
+Follow-up validation passed generated-project, migration, event-routing, and
+complete iOS CI-tooling gates, affected-source SwiftLint, and formatting checks.
+A standalone macOS harness executed 16 focused recovery/architecture tests using
+synthetic app adapters and a UIKit substitute. Changed source and focused tests
+also passed an iOS 17.2 SDK typecheck with real UIKit/SwiftUI and synthetic app
+adapters. These checks do not establish an integrated application build or
+simulator result: sandbox restrictions blocked full Xcode/SwiftPM and
+CoreSimulator execution. Production sign-off still requires the real build,
+simulator/device checks, and exact-candidate release evidence. No production
+hold was cleared and no deployment was performed.
+
 Documentation closure synchronizes the iOS and Core Data ownership summaries,
 Store Recovery and Core Data Images READMEs, startup/lifecycle/concurrency
 contracts, image pipeline, testing strategy, codebase map, and this cleanup
 ledger. Detailed recovery evidence remains canonical in the image pipeline;
 higher-level pages summarize and link that contract without creating a second
 source of truth.
+
+### Core Hardware Camera Foundation
+
+The first Core Hardware slice moved only value and deterministic task-policy
+owners out of the 1,790-line `CameraManager.swift`. Recording result,
+generation, and scheduled-action values now live in `Camera/Models`; the
+already-granted microphone rule and pure generation/action gate live in
+`Camera/Policies`; and the latest-state FPS debouncer lives in
+`Camera/Coordination`. The live manager remains the sole owner of the capture
+stack, serial camera queue, session/device/output access, delegates,
+continuations, lock-protected recording state, and observable hardware state. No
+public initializer, capture behavior, layout, copy, route, endpoint, payload,
+persistence, feature-flag, or deployment contract changed.
+
+`CameraArchitectureTests` inventories the exact declaration owners, locks their
+framework dependencies, prevents deterministic support code from acquiring
+capture/network/UI effects, confirms the live AVFoundation and request state
+remain co-located, and preserves the existing behavioral test selector. The
+three extracted production files are capped at 100 lines. The root manager is
+now 1,646 lines and has an interim 1,650-line non-growth ceiling; it has not yet
+reached the usual 600-line completion guard. Subsequent camera work must move a
+complete queue- or lock-owned subsystem rather than splitting mutable state
+across owners.
+
+Verification for this slice passed declaration-equivalence checks against the
+pre-extraction source, Swift parsing and focused Simulator-SDK typechecking,
+strict SwiftLint with zero violations, all four standalone camera architecture
+tests, and a native policy harness covering microphone reuse, generation/action
+replacement, callback URL correlation, and cancellation-ignoring FPS debounce.
+XcodeGen was byte-stable, and project validation, source membership, event-
+routing guards, the complete iOS CI-tooling contract suite, Markdown formatting,
+and whitespace validation passed. A fresh Xcode Simulator build and test run is
+not recorded as passing: CoreSimulatorService disconnected in this environment,
+and earlier attempts stopped before compilation at nested SwiftPM sandbox/cache
+access. The focused Xcode selectors, complete `merianTests` target, and
+on-device AVFoundation matrix remain required in the next runnable environment;
+the canonical commands live in the
+[testing strategy](../development-guides/08-testing-strategy.md#camera-verification).
 
 ## Phase 3: Ownership Cleanup
 

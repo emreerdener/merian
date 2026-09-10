@@ -130,15 +130,38 @@ replay, cancellation, and body-ignoring registration success. Run the
 [Core Network notification/public-profile matrix](../Network/README.md#notification-and-public-profile-verification)
 for changes across this boundary.
 
+## Camera ownership
+
+The root `CameraManager.swift` remains the live AVFoundation owner. It contains
+the capture stack, session/device/output access, serial camera queue, delegate
+callbacks, lock-protected photo and video request state, and observable hardware
+presentation state. Those declarations stay co-located until a later slice can
+move a complete queue- or lock-owned subsystem without widening mutable state.
+
+Focused camera support lives below `Camera/`:
+
+- `Models/CameraVideoRecordingModels.swift` owns the value-only recording
+  result, generation, and scheduled-action identities.
+- `Policies/CameraVideoRecordingPolicy.swift` owns the already-granted
+  microphone reuse decision and the pure generation/action correlation gate.
+- `Coordination/CameraTargetFPSDebouncer.swift` owns the MainActor debounce task
+  and its UUID replacement fence.
+
+`CameraArchitectureTests` freezes those owners and framework boundaries. It also
+caps the extracted files at 100 lines and applies an interim 1,650-line
+non-growth guard to `CameraManager.swift`. The latter is a first-pass guard, not
+a claim that the live manager has reached the repository's usual 600-line review
+target.
+
 ## Camera frame-rate observation
 
 `CameraManager` observes `HardwareOrchestrator.targetFPS` with one-shot
 observation tracking. The change callback must re-arm observation before it
-suspends. `CameraTargetFPSDebouncer` then cancels and replaces pending
-applications, correlates each task with a UUID generation, and reads the current
-target after the 100 ms debounce. This keeps rapid thermal escalation and
-recovery aligned with the latest hardware target even when cancellation finishes
-cooperatively.
+suspends. `Camera/Coordination/CameraTargetFPSDebouncer.swift` then cancels and
+replaces pending applications, correlates each task with a UUID generation, and
+reads the current target after the 100 ms debounce. This keeps rapid thermal
+escalation and recovery aligned with the latest hardware target even when
+cancellation finishes cooperatively.
 
 Only the debounce policy and observable target live on `@MainActor`.
 `AVCaptureSession.inputs`, device locking, and frame-duration changes continue
@@ -147,15 +170,34 @@ on the serial camera queue.
 ## Camera recording concurrency
 
 `CameraManager` owns AVFoundation session mutations and all movie-output and
-connection state on its serial camera queue. A video request is identified by
-both a UUID generation and its UUID-derived output URL. Delayed timeouts and
-automatic stops also carry an action UUID so a cooperatively cancelled task
-cannot act after replacement. Recording delegate callbacks must match the
-configured output and the current URL before they may clear state or resume a
-continuation. Keep observable UI updates on `@MainActor` and guard them with the
-same recording generation.
+connection state on its serial camera queue. `Camera/Models` supplies the
+recording and generation identities; `Camera/Policies` supplies the pure
+generation/action gate and already-granted microphone decision. A video request
+is identified by both a UUID generation and its UUID-derived output URL. Delayed
+timeouts and automatic stops also carry an action UUID so a cooperatively
+cancelled task cannot act after replacement. Recording delegate callbacks must
+match the configured output and the current URL before they may clear state or
+resume a continuation. Keep observable UI updates on `@MainActor` and guard them
+with the same recording generation.
 
 The recording state lives as one value under `videoRecordingLock`. Do not split
 the continuation, URL, timer tasks, or start metadata into independently mutable
 properties, and never nest `videoRecordingLock` with the camera manager's other
 locks.
+
+## Camera verification
+
+Changes to `CameraManager.swift` or `Camera/` must run the generated-project and
+source-membership gates, the focused `CameraManagerTests` and
+`CameraArchitectureTests` selectors, and then the complete `merianTests` target.
+Use the canonical commands and evidence rules in the
+[testing strategy](../../../../../docs/development-guides/08-testing-strategy.md#camera-verification).
+Pure policy and architecture tests do not exercise AVFoundation hardware.
+
+Before release, verify on a physical device that capture starts after camera and
+microphone authorization, photo capture completes, a five-second recording and
+an early manual stop each finish exactly once, rotation and stabilization remain
+correct, foreground/session interruption recovery succeeds, and rapid
+thermal/FPS target changes settle on the latest target. Exercise the same flows
+with depth capture enabled on supported hardware. Record evidence obtained on
+simulators and physical devices separately; neither substitutes for the other.

@@ -679,7 +679,14 @@ task and fences completion to the exact current `ModelContainer`. The
 process-local registry separately prevents an interleaved timestamp guess from
 retaining either a URL or local file once strong evidence claims it. If one
 member conflicts, the complete timestamp group is rejected or evicted rather
-than leaving a partial mapping.
+than leaving a partial mapping. The strong pass also reserves direct filename
+matches for scans with no rescued row. Recovery revisions invalidate cache and
+coalescing identities for affected URLs, and the shared Core UI modifier reloads
+retained images. Timestamp evidence permits local display only; cloud repair
+requires an exact local URL backed by direct filename or registered strong
+evidence. The
+[image pipeline](../../../../../docs/system-architecture/03-image-pipeline.md)
+is canonical for these evidence and refresh rules.
 
 `CoreDataIntegrationArchitectureTests` freezes the exact bounded
 `BackgroundDatabaseActor` file/import inventory, declaration-only aggregate,

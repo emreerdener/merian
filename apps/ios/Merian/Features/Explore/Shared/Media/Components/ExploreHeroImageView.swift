@@ -10,6 +10,7 @@ struct ExploreHeroImageView: View {
 
     @State private var loadedImage: UIImage?
     @State private var hasFailedToLoad = false
+    @State private var recoveryRevision: UInt64 = 0
 
     init(
         imageUrl: String,
@@ -58,8 +59,10 @@ struct ExploreHeroImageView: View {
             .clipped()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task(id: "\(imageUrl)|\(reloadGeneration)") {
-            guard preloadedImage == nil else {
+        .task(id: "\(imageUrl)|\(reloadGeneration)|\(recoveryRevision)") {
+            // Preloaded images carry no evidence version; reacquire a recovered
+            // source through the versioned cache once its evidence changes.
+            guard preloadedImage == nil || recoveryRevision != 0 else {
                 hasFailedToLoad = false
                 return
             }
@@ -76,6 +79,7 @@ struct ExploreHeroImageView: View {
                 hasFailedToLoad = true
             }
         }
+        .reloadOnImageRecovery(imagePath: imageUrl, revision: $recoveryRevision)
     }
 
     private var loadingPlaceholder: some View {

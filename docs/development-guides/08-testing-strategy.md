@@ -1143,19 +1143,27 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   Supabase, sign-out, and current-user state. The focused drift lane is
   `.github/workflows/ios-startup-safety.yml`; it runs all four Store Recovery
   suites and `MigrationPlanTests` alongside the loader, cloud-repair, and
-  image-ownership suites. It also selects recovery registration, Core Data
+  image-ownership suites, `LocalScanMediaRecoveryRevisionTests`, and
+  `ScanThumbnailLoaderTests`. It also selects recovery registration, Core Data
   integration, and queue-container cache regressions so startup recovery and
   post-startup image-loading boundary failures are caught together. The cheap
   `.github/workflows/ios-project-guardrails.yml` lane runs
   `make validate-ios-project`, `make validate-ios-migration-guardrails`, and
   `make validate-ios-event-routing` first, so known-bad source shapes fail on
   Ubuntu before the slower macOS simulator job spends time resolving packages,
-  building, or booting a simulator. Startup Safety remains path-filtered to
-  startup/schema/recovery and image-loading surfaces, manual dispatch, and the
-  daily drift check; broad iOS changes instead enter the full compiled gate
-  described above. Workflow/tooling-only changes can start the Startup Safety
-  workflow to validate cheap guardrails, but its simulator steps are skipped
-  unless startup runtime files changed.
+  building, or booting a simulator. Startup Safety has no outer event path
+  filters: every pull request and main push reaches its full-history scope
+  detector. The simulator steps may skip only after a complete push or PR
+  merge-base diff resolves without startup/schema/recovery, image-loading, or
+  scope-control changes. Missing commits, malformed events, or comparison
+  failures require simulator verification. Manual, scheduled, and merge-queue
+  runs always execute the focused lane. The temporary-repository regressions in
+  `scripts/test-ci-detect-startup-safety-source-changes.sh` cover shallow
+  history, empty valid diffs, PR divergence, renames, and fail-closed
+  resolution. `scripts/test-ios-build-and-test-workflow.sh` also preserves the
+  retained-image UI/modifier trigger paths and focused suite selectors; the
+  migration guardrail verifies the canonical detector retains the released V50
+  snapshot. Broad iOS changes also enter the full compiled gate described above.
   - Source-level migration guardrails fail if `SchemaVersions.swift`
     reintroduces `try? context.save()` / `try? modelContext.save()` in custom
     stages, active/global `FetchDescriptor` types inside `MerianMigrationPlan`,
@@ -1904,10 +1912,24 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   serialized because its resolver cases intentionally mutate one process-local
   recovery registry. Its request-coalescing case uses a unique cache key instead
   of clearing the process-global image cache.
+- **`Core/Data/Images/LocalImageLoaderTests+RecoveryEvidence.swift`**: Extends
+  the same serialized loader suite. A one-record registration page reproduces a
+  later direct-filename claim that must be reserved before timestamp fallback,
+  even without a rescued row. Other cases prove timestamp-only evidence cannot
+  authorize repair, stronger evidence evicts the guess, and both cached and
+  suspended decodes use obsolete identities after invalidation rather than
+  replacing the corrected image.
+- **`Core/Data/Images/LocalScanMediaRecoveryRevisionTests.swift`**: Verifies
+  source-specific revisions, canonical aliases, complete timestamp-group
+  eviction, unchanged identities for unrelated sources and duplicate claims,
+  monotonic reset, and the terminating stream for non-recovery sources.
 - **`Core/Data/Images/CloudScanImageRepairActorTests.swift`**: Uses injected
   endpoint/file/event effects to verify canonical source normalization, exact
   inspect → sign → file upload → repair → invalidation order, and single-flight
   de-duplication when another enqueue arrives during suspended inspection.
+  Parameterized cases invalidate evidence at admission, inspection, signing, and
+  upload; no following side effect may run, and later verified evidence must be
+  able to retry successfully.
 - **`Core/Data/Images/ScanMediaRecoveryRegistrationTests.swift`**: Uses an
   in-memory V51 container and injected registration probes to verify
   cancellation, the hard 200-record cap, stable pages, the complete
@@ -2384,6 +2406,43 @@ Run strict SwiftLint on affected production sources when SourceKitten is
 functional, format changed Markdown with `deno fmt`, and finish with
 `make validate-markdown-format` and `git diff --check`.
 
+### Camera verification
+
+After changes to `CameraManager.swift` or `Core/Hardware/Camera/`, regenerate
+the project and validate ownership before compiling:
+
+```bash
+make xcodegen
+make validate-ios-project
+bash scripts/test-ios-project-source-membership.sh
+```
+
+Run the generic Simulator build and `build-for-testing`, with code signing
+disabled, from the [compiled iOS gate](#compiled-ios-ci-gate). After a
+successful current-source `build-for-testing`, run the focused matrix from the
+repository root using that build's DerivedData:
+
+```bash
+camera_test_destination="$(bash scripts/select-ios-simulator-destination.sh)"
+xcodebuild test-without-building \
+  -scheme Merian \
+  -project merian.xcodeproj \
+  -derivedDataPath '<build-for-testing-derived-data>' \
+  -destination "$camera_test_destination" \
+  -parallel-testing-enabled NO \
+  -only-testing:merianTests/CameraManagerTests \
+  -only-testing:merianTests/CameraArchitectureTests
+```
+
+Then execute the complete `merianTests` target against the same products. Record
+a package-resolution, build, simulator-service, or test-run failure as an
+unexecuted gate; source parsing, standalone policy tests, cached modules, and
+successful simulator discovery are not substitutes for that result. The focused
+suites prove deterministic recording/FPS policy and static ownership boundaries,
+not camera hardware behavior. Complete the physical-device matrix in the
+[Core Hardware README](../../apps/ios/Merian/Core/Hardware/README.md#camera-verification)
+before release.
+
 ### Hardware & Ecosystem Integrations
 
 - **`CameraManagerTests.swift`**: Validates camera state routing, target-FPS
@@ -2395,6 +2454,16 @@ functional, format changed Markdown with `deno fmt`, and finish with
   rejected while generation B is active, and cooperatively cancelled
   timeout/stop tasks are rejected after their action token is replaced. These
   policy tests do not require simulator camera hardware.
+- **`Core/Hardware/Camera/CameraArchitectureTests.swift`**: Inventories the
+  exact owners of camera recording values, deterministic policies, FPS
+  coordination, and the live manager. It enforces focused imports, prevents the
+  extracted layers from acquiring capture/network/UI dependencies, confirms
+  AVFoundation and lock-owned request state remain co-located in
+  `CameraManager.swift`, retains the behavioral selector inventory, caps each
+  extracted owner at 100 lines, and applies an interim 1,650-line non-growth
+  ceiling to the live manager. The interim ceiling is not the feature-wide
+  600-line completion target.
+
 - **`apps/ios/MerianTests/Features/Capture/Shell/`**: Mirrors the Shell owner
   instead of placing workspace coverage in the former root `merianTests.swift`
   aggregate. The stable `CaptureWorkspaceViewModelRefinementTests` selector is
@@ -4946,13 +5015,16 @@ Owned scan-image recovery has five complementary boundaries:
   atomic Explore snapshot repair plus health-state reset.
 - iOS `Core/Data/Images/LocalImageLoaderTests` covers safe local filename
   compatibility, configured-root-first rescue-store lookup and scan-ID mapping,
-  constrained timestamp grouping, and unsafe/unrelated URL rejection.
-  `CloudScanImageRepairActorTests` owns the exact injected client workflow and
-  canonical in-flight duplicate fence. `ImageLoadingArchitectureTests` owns
-  declaration relocation, live-effect containment, and the production line
-  ceiling. `ScanImageCloudEndpointTests` owns authenticated inspection/repair
-  payloads and response projection; `MediaStorageAPIModelsTests` owns wire
-  decoding. The
+  constrained timestamp grouping, and unsafe/unrelated URL rejection. Its
+  recovery-evidence extension adds cross-page direct-filename reservation and
+  cached/in-flight invalidation. `LocalScanMediaRecoveryRevisionTests` covers
+  targeted change streams, aliases, group eviction, and monotonic reset.
+  `CloudScanImageRepairActorTests` owns the exact injected client workflow,
+  canonical in-flight duplicate fence, and evidence-loss/verified-retry cases.
+  `ImageLoadingArchitectureTests` owns declaration relocation, live-effect
+  containment, and the production line ceiling. `ScanImageCloudEndpointTests`
+  owns authenticated inspection/repair payloads and response projection;
+  `MediaStorageAPIModelsTests` owns wire decoding. The
   [media storage matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification)
   adds signing, signed PUT, transport, and workflow integration coverage.
 

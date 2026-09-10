@@ -724,15 +724,19 @@ stabilization only when the video connection supports it, records the requested
 and active modes in hardware logs for physical-device QA, and resets the
 connection to `.off` on finish, cancellation, or failure.
 
-### Recording Generation and Delegate Correlation (`CameraManager`)
+### Recording Generation and Delegate Correlation (Camera Policy and Manager)
 
 Every `recordVideo(...)` request creates one immutable generation containing a
-UUID and a UUID-derived, standardized output URL. The continuation, start time,
-duration cap, start callback, timeout, and automatic-stop task live together in
-one `ActiveCameraVideoRecording` value protected by `videoRecordingLock`.
-Recording state is taken and cleared atomically only when the caller presents
-the current generation. This prevents an old cancellation or queued stop from
-resolving a replacement recording.
+UUID and a UUID-derived, standardized output URL. The value types live in
+`Core/Hardware/Camera/Models/CameraVideoRecordingModels.swift`; the pure
+generation/action correlation gate lives in
+`Core/Hardware/Camera/Policies/CameraVideoRecordingPolicy.swift`. The
+continuation, start time, duration cap, start callback, timeout, and
+automatic-stop task remain together in one `ActiveCameraVideoRecording` value
+inside `CameraManager.swift`, protected by `videoRecordingLock`. Recording state
+is taken and cleared atomically only when the caller presents the current
+generation. This prevents an old cancellation or queued stop from resolving a
+replacement recording.
 
 Task cancellation alone is not a synchronization boundary: a task that was
 cancelled after waking can still reach its queued closure. Each timeout and
@@ -2165,10 +2169,14 @@ protecting device RAM.
 The loader coordinates local recovery plus a recursive network fallback pipeline
 through its injected dependencies. For an eligible durable R2 URL,
 `Core/Data/Images/Recovery/LocalScanMediaRecoveryResolver.swift` first seeks a
-strongly matched surviving Documents file. A local hit renders immediately and
-queues `Core/Data/Images/Services/CloudScanImageRepairActor.swift` for
-owner-authenticated cloud inspection/repair. That actor keeps the canonical
-source URL single-flight across every suspension; scheme/host casing, explicit
+surviving Documents file using the ordered recovery evidence. A local hit may
+render immediately, but
+`Core/Data/Images/Services/CloudScanImageRepairActor.swift` admits
+owner-authenticated cloud inspection/repair only when the exact local URL has
+direct filename or registered strong evidence. Timestamp-only guesses never
+authorize cloud effects, and evidence is rechecked before subsequent network
+operations after suspension. That actor keeps the canonical source URL
+single-flight across every suspension; scheme/host casing, explicit
 default-port, query, and fragment variants cannot create parallel repair work.
 Without a local hit, the loader splits aggregated `fallbackUrl` values and
 cascades through permitted R2, Wikipedia, and GBIF URLs sequentially.
@@ -2189,7 +2197,13 @@ second is globally ordered by timestamp and scan ID before applying constrained
 fallback. A throwing fetch prevents storage failure from masquerading as an
 empty library. The process-local registry independently makes strong evidence
 authoritative across interleaved bounded callers; a conflicting multi-image
-timestamp group is rejected or evicted as a unit.
+timestamp group is rejected or evicted as a unit. Direct filenames are reserved
+even when the scan has no rescued row. `LocalScanMediaRecoveryRevisions`
+advances affected source identities under a short lock, and bounded change
+streams wake only their observing consumers. Cache and in-flight task keys
+include that revision; late decodes may populate an obsolete key but cannot
+replace the current image. The shared `ImageRecoveryReloadModifier` restarts
+retained image views, whose cancelled tasks cannot publish stale results.
 
 The loader protects against "thundering herd" memory leaks. If the UI queries a
 missing image URL before cache limits evaluate, it tracks in-flight executions
@@ -2618,7 +2632,8 @@ subsequent mutations. The callback therefore clears its
 `isFPSTrackingRegistered` guard and calls `trackFPS()` again as its first
 operation on `@MainActor`, before starting or awaiting debounce work.
 
-The 100 ms coalescing delay is owned by `CameraTargetFPSDebouncer`. Scheduling a
+The 100 ms coalescing delay is owned by
+`Core/Hardware/Camera/Coordination/CameraTargetFPSDebouncer.swift`. Scheduling a
 new application cancels the prior task and installs a fresh UUID generation.
 Cancellation remains an optimization rather than the correctness boundary: the
 task compares its generation before reading or applying a value, and state is

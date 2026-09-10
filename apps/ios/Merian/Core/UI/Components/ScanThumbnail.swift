@@ -24,6 +24,7 @@ struct ScanThumbnail: View {
 
     @State private var thumbnail: UIImage?
     @State private var hasFailedToLoad = false
+    @State private var recoveryRevision: UInt64 = 0
 
     init(
         isOnline: Bool,
@@ -123,12 +124,17 @@ struct ScanThumbnail: View {
             .task(id: loadTaskID) {
                 await reloadThumbnail()
             }
+            .reloadOnImageRecovery(
+                imagePath: imagePath, fallbackURL: fallbackImageUrl,
+                revision: $recoveryRevision
+            )
     }
 
     private var loadTaskID: ScanThumbnailLoadTaskID {
         ScanThumbnailLoadTaskID(
             request: loadRequest,
             placeholderKey: placeholderStyle.taskKey,
+            recoveryRevision: recoveryRevision,
             remoteAvailability: (
                 hasRemoteVisualSource || supportsReferenceImageRecovery
             ) ? isOnline : nil
@@ -262,6 +268,7 @@ struct ScanThumbnail: View {
 private struct ScanThumbnailLoadTaskID: Hashable, Sendable {
     let request: ScanThumbnailLoadRequest
     let placeholderKey: String
+    let recoveryRevision: UInt64
     let remoteAvailability: Bool?
 }
 

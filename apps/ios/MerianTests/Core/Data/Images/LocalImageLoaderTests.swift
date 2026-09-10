@@ -494,6 +494,7 @@ struct LocalImageLoaderTests {
         let probe = RemoteFetchProbe()
         let loader = LocalImageLoader(dependencies: .init(
             existingLocalImageURL: { _ in nil },
+            recoveryRevision: { _, _ in 0 },
             decodeImage: { _, _, _ in nil },
             loadLocalImage: { _, _, _ in nil },
             fetchRemoteImage: { _, _, _ in

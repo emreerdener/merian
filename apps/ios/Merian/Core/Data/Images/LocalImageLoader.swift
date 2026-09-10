@@ -66,6 +66,7 @@ private actor RemoteImageLoadDiagnostics {
 actor LocalImageLoader {
     struct Dependencies: Sendable {
         let existingLocalImageURL: @Sendable (URL) -> URL?
+        let recoveryRevision: @Sendable (String?, String?) -> UInt64
         let decodeImage:
             @Sendable (URL, String, CGFloat) async -> UIImage?
         let loadLocalImage:
@@ -79,6 +80,11 @@ actor LocalImageLoader {
             existingLocalImageURL: { remoteURL in
                 LocalScanMediaRecoveryResolver.existingLocalImageURL(
                     for: remoteURL
+                )
+            },
+            recoveryRevision: { imagePath, fallbackURL in
+                LocalScanMediaRecoveryResolver.cacheRevision(
+                    imagePath: imagePath, fallbackURL: fallbackURL
                 )
             },
             decodeImage: { url, cacheKey, maxSize in
@@ -180,7 +186,8 @@ actor LocalImageLoader {
             return nil
         }
         
-        let cacheKey = "\(baseKey)_\(maxDimension)"
+        let recoveryRevision = dependencies.recoveryRevision(safeImagePath, safeFallbackUrl)
+        let cacheKey = "\(baseKey)_\(maxDimension)_recovery_\(recoveryRevision)"
         
         // 1. RAM Cache Hit
         if let cached = ImageCache.shared.get(forKey: cacheKey) {

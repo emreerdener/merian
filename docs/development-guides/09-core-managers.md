@@ -235,6 +235,14 @@ triggering excessive SwiftUI view rebuilds.
 
 ### `CameraManager`
 
+- The root `Core/Hardware/CameraManager.swift` is the live AVFoundation owner:
+  session/device/output access, serial-queue mutations, delegates,
+  lock-protected request lifetime, and observable hardware state stay there.
+  `Core/Hardware/Camera/Models` owns recording identities, `Camera/Policies`
+  owns deterministic microphone and generation/action decisions, and
+  `Camera/Coordination` owns the MainActor FPS debouncer. Do not move a
+  continuation, task handle, delegate correlation, or capture object into those
+  support layers independently of the lock or queue that owns it.
 - Abstracts AVFoundation via `AVCaptureDevice.DiscoverySession`, preferring
   `.builtInTripleCamera` on Pro devices for optical zoom support, falling back
   to `.builtInLiDARDepthCamera`, `.builtInDualCamera`, `.builtInDualWideCamera`,
@@ -261,11 +269,13 @@ triggering excessive SwiftUI view rebuilds.
   Never read `session.inputs` synchronously from a SwiftUI action handler.
 - **Latest-State FPS Debounce**: `withObservationTracking` registrations are
   one-shot. The target-FPS callback must re-arm `trackFPS()` before awaiting or
-  scheduling delayed work. `CameraTargetFPSDebouncer` owns a cancel-and-replace
-  task plus UUID generation, reads `HardwareOrchestrator.targetFPS` after the
-  100 ms delay, and uses compare-before-apply/clear semantics. Never capture an
-  FPS value before the delay or rely on task cancellation alone; either pattern
-  can let a stale thermal generation survive.
+  scheduling delayed work. The focused
+  `Camera/Coordination/CameraTargetFPSDebouncer.swift` owner holds a
+  cancel-and-replace task plus UUID generation, reads
+  `HardwareOrchestrator.targetFPS` after the 100 ms delay, and uses
+  compare-before-apply/clear semantics. Never capture an FPS value before the
+  delay or rely on task cancellation alone; either pattern can let a stale
+  thermal generation survive.
 - **Recorded Video Stabilization Boundary**: `AVCaptureMovieFileOutput` may be
   pre-attached during visual camera setup so the hold-to-record path feels
   immediate, but its video connection keeps stabilization off until
@@ -1492,11 +1502,19 @@ consults that Keychain entry.
   retry classification. `Core/Data/Images/Recovery/` owns canonical source
   identity, its lock-protected process-local registry, exact filename, read-only
   rescue-store, and constrained timestamp evidence.
+- `Recovery/LocalScanMediaRecoveryRevisions.swift` versions affected canonical
+  sources. Both cache and coalescing identities include that revision;
+  `Core/UI/Modifiers/ImageRecoveryReloadModifier.swift` restarts retained image
+  consumers when their evidence changes. Superseded UI tasks discard cancelled
+  results, including late detached decodes.
 - `Core/Data/Images/Services/CloudScanImageRepairActor.swift` owns the injected
-  inspect, sign, file-backed upload, repair, and app-event workflow. A canonical
-  source URL stays fenced through every suspension; equivalent casing,
-  default-port, query, and fragment variants share that fence. Failures pause
-  the process-local queue for 15 minutes.
+  inspect, sign, file-backed upload, repair, and app-event workflow. Admission
+  requires direct filename or registered strong evidence for the exact local
+  URL, and evidence is rechecked before subsequent network effects. Timestamp
+  guesses cannot authorize cloud effects; evidence loss allows a verified retry.
+  A canonical source URL stays fenced through every suspension; equivalent
+  casing, default-port, query, and fragment variants share that fence. Failures
+  pause the process-local queue for 15 minutes.
 - I/O helpers (`loadLocal`, `fetchRemote`) are `static nonisolated` — prevents
   `Task.detached` from re-entering the actor executor mid-operation and keeps
   network orchestration off the actor executor; synchronous decode work is

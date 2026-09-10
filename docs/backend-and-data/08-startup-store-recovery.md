@@ -25,6 +25,23 @@ Startup Safety is a focused drift and migration-diagnostic lane, not the only
 compile gate. Every build-relevant startup or schema change must also pass
 `iOS Build and Test / Production readiness`.
 
+Startup Safety runs without outer event path filters so GitHub cannot truncate
+the path list before the detector runs. It checks out complete history and
+compares the exact push before/after range, or a pull request's
+merge-base-to-head range. A resolved empty or unrelated diff may skip the
+focused simulator lane. Missing or malformed event metadata, unavailable
+commits, and diff/merge-base failures require the lane to run; GitHub events
+never fall back to the tip commit alone. Manual, scheduled, and merge-queue runs
+always execute the lane. Only an explicit local invocation uses working-tree and
+untracked files, falling back to the current commit when clean. Paths remain
+NUL-delimited, including deletions and renames out of the startup tree.
+`bash scripts/test-ci-detect-startup-safety-source-changes.sh` exercises these
+behaviors with temporary repositories and a real shallow clone. It runs in
+Startup Safety and `make test-ios-ci-tooling`. Migration guardrails require the
+workflow to invoke that canonical detector and require its inventory to retain
+the processed-release V50 snapshot; event-level path filters are not the source
+of that coverage.
+
 ## Startup Open And Recovery Ladder
 
 1. Resolve the on-disk store URL from the same production SwiftData
@@ -305,12 +322,16 @@ the same current scan ID. That is a separate post-startup media-recovery lane;
 it never mutates the rescued database. `MerianApp` does not load that index or
 fetch the scan library during container bootstrap. After `ScanRepository`
 configuration, Core Data Images owns a cancellation-aware two-pass registration
-task: fresh SwiftData contexts page at most 200 immutable snapshots at a time,
-strong scan-ID/media-order evidence completes across the library before ordered
-timestamp fallback, and read failures remain visible as private diagnostics
+task. Fresh SwiftData contexts page at most 200 immutable snapshots at a time.
+The first pass reserves direct filename matches even for scans without a rescued
+row and completes strong scan-ID/media-order evidence across the library before
+ordered timestamp fallback. Read failures remain visible as private diagnostics
 rather than an empty-library result. The process-local registry independently
 enforces that evidence priority across interleaved bounded callers and treats a
-multi-image timestamp group as one atomic claim. See
+multi-image timestamp group as one atomic claim. Revisions invalidate affected
+cached/in-flight images and refresh retained views. A timestamp-only match can
+render locally but cannot authorize cloud repair; the actor requires direct
+filename or registered strong evidence for the exact local URL. See
 [`system-architecture/03-image-pipeline.md`](../system-architecture/03-image-pipeline.md)
 and the
 [July 2026 incident report](../incidents/2026-07-account-scoped-r2-image-loss.md).
@@ -429,6 +450,15 @@ swiftlint lint \
   apps/ios/Merian/Core/Analytics/AppTelemetry.swift \
   apps/ios/MerianTests/Core/Data/StoreRecovery \
   apps/ios/MerianTests/Core/Data/Images/LocalImageLoaderTests.swift \
+  apps/ios/MerianTests/Core/Data/Images/LocalImageLoaderTests+RecoveryEvidence.swift \
+  apps/ios/MerianTests/Core/Data/Images/LocalScanMediaRecoveryRevisionTests.swift \
+  apps/ios/MerianTests/Core/UI/ScanThumbnailLoaderTests.swift \
+  apps/ios/Merian/Core/UI/Modifiers/ImageRecoveryReloadModifier.swift \
+  apps/ios/Merian/Core/UI/Components/ScanThumbnail.swift \
+  apps/ios/Merian/Core/UI/Components/AsyncLocalImageView.swift \
+  apps/ios/Merian/Features/Explore/Shared/Media/Components/ExploreHeroImageView.swift \
+  apps/ios/Merian/Features/Explore/Feed/Components/Composer/ExplorePostComposerImageView.swift \
+  apps/ios/Merian/Features/Profile/UserProfile/Components/Publications/ProfilePublicScanImageView.swift \
   apps/ios/MerianTests/Core/Data/Images/CloudScanImageRepairActorTests.swift \
   apps/ios/MerianTests/Core/Data/Images/ScanMediaRecoveryRegistrationTests.swift \
   apps/ios/MerianTests/Core/Data/Images/ImageLoadingArchitectureTests.swift \
@@ -453,6 +483,8 @@ xcodebuild test \
   -only-testing:merianTests/StoreRecoveryArtifactArchiverTests \
   -only-testing:merianTests/StoreRecoveryArchitectureTests \
   -only-testing:merianTests/LocalImageLoaderTests \
+  -only-testing:merianTests/LocalScanMediaRecoveryRevisionTests \
+  -only-testing:merianTests/ScanThumbnailLoaderTests \
   -only-testing:merianTests/CloudScanImageRepairActorTests \
   -only-testing:merianTests/ScanMediaRecoveryRegistrationTests \
   -only-testing:merianTests/ImageLoadingArchitectureTests \
@@ -473,21 +505,25 @@ Data can retain SQLite/WAL descriptors after the last visible `ModelContainer`
 falls out of scope, and unlinking those files in-process can compromise later
 fixtures with sqlite `vnode unlinked while in use` traps.
 
-The GitHub Startup Safety workflow is scoped to startup/schema/recovery/project
-path changes plus a daily scheduled drift check. Workflow, Makefile, and helper
-script edits still start the workflow so the cheap guardrails validate, but the
-simulator lane is skipped unless the changed files touch the startup-recovery
-runtime contract, the workflow is started manually, or the daily schedule runs.
-Ordinary iOS UI changes keep running the cheap project guardrails, but they do
-not automatically boot a macOS simulator. Startup Safety cancels stale runs on
-the same ref, restores Swift package checkouts only when the simulator lane is
-needed, saves newly fetched checkouts even after a simulator failure, and runs
-the source migration guardrail before selecting a simulator. It then splits
-Xcode into two bounded phases: `build-for-testing` compiles the app/test bundle,
-then `test-without-building` runs only the startup and migration tests from the
-same derived-data folder. Build failures should therefore appear as build
-diagnostics, while runtime migration failures should appear as selected test
-failures. On failure it prints the `.xcresult` test-failure summary when one
-exists, appends build diagnostics when Xcode fails before the test phase, and
-uploads the `.xcresult` bundle plus extracted JSON summary so simulator hangs or
-compiler diagnostics remain inspectable without rerunning the log loop.
+Every pull request and push to `main` reaches the GitHub Startup Safety
+workflow's guardrails and full-history scope detector. Only a successfully
+resolved empty or unrelated change range can skip its simulator steps;
+unavailable commits, malformed events, and comparison failures require them to
+run. Manual, daily scheduled, and merge-queue runs always select the focused
+lane. Startup/recovery inputs include the retained-image UI consumers and shared
+recovery modifier as well as schema, loader, project, workflow, and
+scope-control files. The exact inventory lives in
+`scripts/ci-detect-startup-safety-source-changes.sh`; its UI paths and selected
+suites are protected by `scripts/test-ios-build-and-test-workflow.sh`. Startup
+Safety cancels stale runs on the same ref, restores Swift package checkouts only
+when the simulator lane is needed, saves newly fetched checkouts even after a
+simulator failure, and runs the source migration guardrail before selecting a
+simulator. It then splits Xcode into two bounded phases: `build-for-testing`
+compiles the app/test bundle, then `test-without-building` runs only the startup
+and migration tests from the same derived-data folder. Build failures should
+therefore appear as build diagnostics, while runtime migration failures should
+appear as selected test failures. On failure it prints the `.xcresult`
+test-failure summary when one exists, appends build diagnostics when Xcode fails
+before the test phase, and uploads the `.xcresult` bundle plus extracted JSON
+summary so simulator hangs or compiler diagnostics remain inspectable without
+rerunning the log loop.

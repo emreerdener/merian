@@ -1,6 +1,8 @@
 import Foundation
 
 final class LocalScanMediaRecoveryRegistry: @unchecked Sendable {
+    static let shared = LocalScanMediaRecoveryRegistry()
+
     private enum Evidence {
         case timestamp
         case strong
@@ -13,16 +15,29 @@ final class LocalScanMediaRecoveryRegistry: @unchecked Sendable {
     }
 
     private let lock = NSLock()
+    private let revisions = LocalScanMediaRecoveryRevisions()
     private var registrationsByRemoteURL: [String: Registration] = [:]
     private var remoteURLsByFileName: [String: Set<String>] = [:]
     private var remoteURLsByTimestampGroup: [UInt64: Set<String>] = [:]
     private var nextTimestampGroupID: UInt64 = 0
 
-    func fileName(for remoteURL: URL) -> String? {
+    func fileName(for remoteURL: URL, allowTimestampFallback: Bool = true) -> String? {
         guard let key = canonicalKey(for: remoteURL) else { return nil }
         return lock.withLock {
-            registrationsByRemoteURL[key]?.fileName
+            guard let registration = registrationsByRemoteURL[key],
+                  allowTimestampFallback || registration.evidence == .strong else {
+                return nil
+            }
+            return registration.fileName
         }
+    }
+
+    func cacheRevision(for remoteURLs: [URL]) -> UInt64 {
+        revisions.revision(for: remoteURLs.compactMap(canonicalKey(for:)))
+    }
+
+    func changes(for remoteURLs: [URL]) -> AsyncStream<Void> {
+        revisions.changes(for: remoteURLs.compactMap(canonicalKey(for:)))
     }
 
     @discardableResult
@@ -110,6 +125,7 @@ final class LocalScanMediaRecoveryRegistry: @unchecked Sendable {
             remoteURLsByFileName.removeAll()
             remoteURLsByTimestampGroup.removeAll()
             nextTimestampGroupID = 0
+            revisions.reset()
         }
     }
 
@@ -139,6 +155,7 @@ final class LocalScanMediaRecoveryRegistry: @unchecked Sendable {
         registration: Registration
     ) {
         registrationsByRemoteURL.removeValue(forKey: key)
+        revisions.invalidate(key)
         remoteURLsByFileName[registration.fileName]?.remove(key)
         if remoteURLsByFileName[registration.fileName]?.isEmpty == true {
             remoteURLsByFileName.removeValue(forKey: registration.fileName)
@@ -164,6 +181,7 @@ final class LocalScanMediaRecoveryRegistry: @unchecked Sendable {
             evidence: evidence,
             timestampGroupID: timestampGroupID
         )
+        revisions.invalidate(key)
         remoteURLsByFileName[fileName, default: []].insert(key)
         if let timestampGroupID {
             remoteURLsByTimestampGroup[timestampGroupID, default: []]

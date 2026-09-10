@@ -196,6 +196,8 @@ struct ImageLoadingArchitectureTests {
             "Recovery/LocalScanMediaRecoveryResolver.swift",
         "struct LocalScanMediaRecoverySnapshot:":
             "Recovery/LocalScanMediaRecoverySnapshot.swift",
+        "final class LocalScanMediaRecoveryRevisions":
+            "Recovery/LocalScanMediaRecoveryRevisions.swift",
         "final class LocalScanMediaRecoveryRegistry":
             "Recovery/LocalScanMediaRecoveryRegistry.swift",
         "enum LegacyScanMediaRecoveryStoreLocator":
@@ -241,6 +243,10 @@ struct ImageLoadingArchitectureTests {
         ],
         "Recovery/LocalScanMediaRecoverySnapshot.swift": [
             "import Foundation"
+        ],
+        "Recovery/LocalScanMediaRecoveryRevisions.swift": [
+            "import Foundation",
+            "import os"
         ],
         "Recovery/LocalScanMediaRecoveryRegistry.swift": [
             "import Foundation"

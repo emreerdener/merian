@@ -6,6 +6,12 @@ struct LocalScanMediaRecoverySnapshot: Equatable, Sendable {
     let coverImagePath: String?
     let items: [SerializedMediaItem]
 
+    var imagePaths: [String?] {
+        let snapshot = CapturedMediaSnapshot(items: items)
+        return [coverImagePath] + snapshot.imageReferences.map(\.serializedPath) +
+            snapshot.videoThumbnailReferences.map(\.serializedPath)
+    }
+
     init(record: LocalScanRecord) {
         scanID = record.id
         timestamp = record.timestamp

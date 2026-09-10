@@ -5,8 +5,15 @@ The optical and physical layer of the Merian application wraps Apple's
 
 ## Ownership Boundary
 
-`CameraManager` owns `AVCaptureSession`, device discovery/configuration,
-hardware callbacks, depth, stabilization, torch, focus, and zoom mutations.
+The root `CameraManager.swift` owns `AVCaptureSession`, device
+discovery/configuration, hardware callbacks, depth, stabilization, torch, focus,
+zoom mutations, the serial camera queue, and lock-protected live request state.
+`Core/Hardware/Camera/Models` owns value-only recording identities,
+`Camera/Policies` owns microphone reuse and generation-correlation decisions,
+and `Camera/Coordination` owns target-FPS debounce lifetime. These extracted
+owners do not access the capture session or independently mutate live recording
+state.
+
 `Features/Capture/Scan` owns the visual-modality UI and actions around that
 hardware. Its Models define platform-neutral preparation values; Services adapt
 the injected camera, context, Photo Library, media, entitlement, and feedback
@@ -124,9 +131,11 @@ The lowest-level integration, interfacing directly with the iPhone optics.
   generation, and checks that generation before applying or clearing state
   because task cancellation is cooperative. The surviving task reads `targetFPS`
   only after its sleep rather than retaining the value that originally triggered
-  it. Rapid changes therefore collapse into one camera-queue reconfiguration
-  using the newest target; a transition to 15/30 fps or a recovery to 60 fps
-  cannot be permanently lost while an earlier debounce is sleeping.
+  it. The debouncer implementation lives in
+  `Core/Hardware/Camera/Coordination/CameraTargetFPSDebouncer.swift`. Rapid
+  changes therefore collapse into one camera-queue reconfiguration using the
+  newest target; a transition to 15/30 fps or a recovery to 60 fps cannot be
+  permanently lost while an earlier debounce is sleeping.
 - **`stateLock` / `requestsLock` ordering invariant**: `CameraManager` uses two
   `OSAllocatedUnfairLock` instances — `stateLock` guards
   session/rotation/inference-pause state, and `requestsLock` guards in-flight
@@ -754,15 +763,18 @@ recording completes, fails, or is canceled so prepared video support does not
 reduce still-photo dimensions or add capture latency.
 
 Each recording owns a UUID generation and a UUID-derived temporary URL. The
-continuation and all recording lifecycle data are stored as one lock-protected
-request. Timeouts and automatic stops capture that generation plus a separate
-action UUID, because cancelling a Swift task is cooperative and does not prove
-its already-enqueued work has stopped. AVFoundation start/finish callbacks are
-accepted only from the configured movie output and only when their standardized
-URL matches the current request. This keeps a late callback or delayed task from
-recording A from stopping, failing, or completing recording B. All movie-output
-and connection access stays on the serial camera queue; only generation-checked
-presentation state is published back to `@MainActor`.
+value identities live in `Core/Hardware/Camera/Models`, and the pure matching
+and scheduled-action policy lives in `Core/Hardware/Camera/Policies`. The
+continuation and all live recording lifecycle data remain stored together in
+`CameraManager.swift` as one lock-protected request. Timeouts and automatic
+stops capture that generation plus a separate action UUID, because cancelling a
+Swift task is cooperative and does not prove its already-enqueued work has
+stopped. AVFoundation start/finish callbacks are accepted only from the
+configured movie output and only when their standardized URL matches the current
+request. This keeps a late callback or delayed task from recording A from
+stopping, failing, or completing recording B. All movie-output and connection
+access stays on the serial camera queue; only generation-checked presentation
+state is published back to `@MainActor`.
 
 **Session lifecycle**: The camera session is tightly coupled to the UI state to
 conserve thermal budget and prevent hardware deadlocks.

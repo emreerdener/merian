@@ -26,6 +26,14 @@ owns the cross-area media boundary:
 - `Services/` owns narrow live image and spectrogram loading closures. Shared
   components receive those dependencies and never resolve loaders directly.
 
+`ExploreHeroImageView` uses Core UI's `ImageRecoveryReloadModifier` and includes
+the source revision in its loading task identity. A corrected recovery mapping
+therefore refreshes an already displayed hero image. Unversioned preloads are
+reacquired through the loader once recovery has a nonzero revision; cancelled
+loads cannot publish an obsolete bitmap. The shared evidence and cache contract
+lives in the
+[image pipeline](../../../../../../docs/system-architecture/03-image-pipeline.md).
+
 Feed retains Feed-only square hosts, detail zoom, card composition, hashtags,
 and card-author presentation. The domain-neutral Pro badge lives in
 `Core/UI/Components/MerianProBadge.swift`; reusable spectrogram loading lives in

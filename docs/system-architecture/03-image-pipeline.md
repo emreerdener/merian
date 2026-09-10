@@ -848,11 +848,11 @@ first rather than treating a 4K thumbnail the same as a 64×64 icon.
 - **No strong references**: Images in `NSCache` do not prevent deallocation, so
   they are released when iOS signals a memory warning.
 - **Dimension-aware Cache Keys**: `LocalImageLoader` appends the requested
-  `maxDimension` to the underlying file path or URL to form the cache key (e.g.,
-  `filename.webp_600`). This isolates payloads by size, preventing memory
-  collisions where a low-resolution grid thumbnail (600px) could erroneously
-  fulfill a subsequent high-resolution display request (2048px) for the same
-  underlying file.
+  `maxDimension` and the recovery-evidence revision to the underlying file path
+  or URL to form the cache key (e.g., `filename.webp_600_recovery_0`). This
+  isolates payloads by size, preventing memory collisions where a low-resolution
+  grid thumbnail (600px) could erroneously fulfill a subsequent high-resolution
+  display request (2048px) for the same underlying file.
 
 ---
 
@@ -902,26 +902,59 @@ The registry is process-local. `ScanRepository` schedules its full-library
 rebuild after startup rather than making `MerianApp` open the rescue index and
 fault every scan on the main actor. The Core Data Images registration actor
 performs fresh, throwing reads in batches of at most 200. Its first complete
-pass registers scan-ID and media-order evidence; a second timestamp-and-ID-
-ordered pass applies the constrained fallback, so a page boundary cannot let a
-timestamp guess claim a file needed by stronger evidence later in the library.
-Because Historical Sync and Scan Library thumbnail prefetch can add mappings for
-their already-bounded values concurrently, the registry enforces the same
-priority independently of call order: timestamp evidence cannot claim an
-already-owned file, and later strong evidence removes a conflicting timestamp
-group for either its URL or local file. Multi-image timestamp groups are
-admitted and evicted atomically, so a conflict cannot leave a partial group.
-Equal-strength claims for the same canonical URL remain first-writer-wins;
-multiple strong URL aliases may share one verified file. Cancellation is checked
-between batches, container replacement cancels the owned task, and read failure
-is logged privately rather than treated as an empty library. Registration never
-rewrites cloud metadata; its first responsibility is to render a strongly
-matched surviving local file instead of a missing remote object.
+pass reserves direct filename matches for every scan, including scans absent
+from the rescue index, and registers scan-ID and media-order evidence. A second
+timestamp-and-ID-ordered pass applies the constrained fallback, so a page
+boundary cannot let a timestamp guess claim a file needed by stronger evidence
+later in the library. Because Historical Sync and Scan Library thumbnail
+prefetch can add mappings for their already-bounded values concurrently, the
+registry enforces the same priority independently of call order: timestamp
+evidence cannot claim an already-owned file, and later strong evidence removes a
+conflicting timestamp group for either its URL or local file. Multi-image
+timestamp groups are admitted and evicted atomically, so a conflict cannot leave
+a partial group. Equal-strength claims for the same canonical URL remain
+first-writer-wins; multiple strong URL aliases may share one verified file.
+
+`LocalScanMediaRecoveryRevisions` advances a monotonic revision for each
+affected canonical source when mappings are inserted, evicted, or reset. The
+loader uses that revision in both RAM-cache and in-flight task identities, so an
+obsolete decode cannot overwrite the image used after evidence changes.
+`Core/UI/Modifiers/ImageRecoveryReloadModifier.swift` supplies the shared
+observation boundary for `ScanThumbnail`, `AsyncLocalImageView`,
+`ProfilePublicScanImageView`, `ExploreHeroImageView`, and
+`ExplorePostComposerImageView`. Each view includes the revision in its loading
+task identity and discards cancelled results before changing visible state or
+calling completion callbacks. Explore preloaded images have no evidence version;
+once recovery has a nonzero revision, the hero view reacquires its image through
+the versioned loader.
+
+Streams buffer only the newest signal, emit an initial signal, and remove their
+subscription when the observing task ends. Signals carry no revision value:
+consumers read the current revision, so concurrent publication cannot move a
+view back to an older version. Mapping changes leave unrelated source identities
+unchanged; non-recovery sources complete after the initial signal. Reset
+advances the recovery epoch rather than reusing old cache identities. Detached
+loads may finish and populate an obsolete cache key for their remaining callers,
+but cannot replace the image selected by a newer revision.
+
+Cancellation is checked between batches, container replacement cancels the owned
+task, and read failure is logged privately rather than treated as an empty
+library. Registration never rewrites cloud metadata; its first responsibility is
+to render a strongly matched surviving local file instead of a missing remote
+object.
 
 ### Cloud repair from a recovered local file
 
 When the device is online, Scan Library collects only remote URLs that resolve
 to surviving local files and sends them to `CloudScanImageRepairActor`. The
+actor accepts only a direct filename or registered strong-evidence match to the
+exact local URL. Timestamp-only matches may render locally but never authorize
+automatic cloud inspection, upload, or reference replacement. Verification is
+repeated when a queued candidate starts and after inspection, signing, and
+upload before the next side effect. If verification is lost, processing stops
+without marking the source completed or starting a network-error cooldown; later
+strong evidence can retry. A staging object uploaded before evidence was lost
+remains subject to normal staging cleanup, without publishing its reference. The
 actor:
 
 1. asks authenticated `/repair-scan-image` to inspect the owned source;
@@ -954,8 +987,14 @@ share that identity. Network's
 inspect/sign/repair requests, `MediaStorageAPIModels.swift` owns their wire
 DTOs, and `Media/` owns signed-request policy and file-backed PUTs. The
 [media storage verification matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification)
-joins endpoint/upload tests with `LocalImageLoaderTests` and the deterministic
-`CloudScanImageRepairActorTests` workflow and in-flight de-duplication cases.
+joins endpoint/upload tests with `LocalImageLoaderTests`, including its
+`LocalImageLoaderTests+RecoveryEvidence.swift` extension, and
+`LocalScanMediaRecoveryRevisionTests`. They cover collisions across registration
+pages, timestamp-only repair denial, cached and late-decoding image
+invalidation, canonical revision identity, group eviction, and reset. The
+deterministic `CloudScanImageRepairActorTests` cover workflow order, in-flight
+de-duplication, evidence loss before each subsequent side effect, and successful
+verified retry.
 
 See the
 [July 2026 account-scoped R2 image-loss incident report](../incidents/2026-07-account-scoped-r2-image-loss.md)

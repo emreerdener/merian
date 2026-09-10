@@ -15,6 +15,7 @@ struct AsyncLocalImageView: View {
 
     @State private var loadedImage: UIImage?
     @State private var hasFailedToLoad = false
+    @State private var recoveryRevision: UInt64 = 0
 
     var body: some View {
         GeometryReader { proxy in
@@ -59,10 +60,14 @@ struct AsyncLocalImageView: View {
                 onImageLoadFailed?()
             }
         }
+        .reloadOnImageRecovery(
+            imagePath: path, fallbackURL: fallbackImageUrl,
+            revision: $recoveryRevision
+        )
     }
 
     private var loadTaskID: String {
-        "\(path ?? "")|\(fallbackImageUrl ?? "")|\(remoteRetryTaskKey)"
+        "\(path ?? "")|\(fallbackImageUrl ?? "")|\(remoteRetryTaskKey)|\(recoveryRevision)"
     }
 
     private var remoteRetryTaskKey: String {

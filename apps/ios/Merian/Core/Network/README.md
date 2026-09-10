@@ -741,12 +741,16 @@ task/account binding, and durable retry authority. Inference's live request
 service retains attempt fencing. Core Data Images'
 [`CloudScanImageRepairActor`](../Data/Images/Services/CloudScanImageRepairActor.swift)
 retains inspect → validate local image → sign → upload → repair and
-library-event handling; `LocalImageLoader` retains only cache/load
-orchestration, local-file discovery, and repair enqueueing. Shared Profile state
-retains avatar preparation and promotion. Scan publication's dedicated Recovery
-owner coordinates the Media restorer through these same signing and PUT
-primitives. The signing primitive decodes the response; it does not replace the
-queue's stronger whole-manifest checks or add server-side input policy.
+library-event handling. Admission requires direct filename or registered strong
+evidence for the exact local URL; a timestamp guess cannot authorize inspection
+or upload. The actor rechecks evidence before subsequent network effects and
+allows a later verified retry if evidence disappears. `LocalImageLoader` retains
+only cache/load orchestration, local-file discovery, and repair enqueueing.
+Shared Profile state retains avatar preparation and promotion. Scan
+publication's dedicated Recovery owner coordinates the Media restorer through
+these same signing and PUT primitives. The signing primitive decodes the
+response; it does not replace the queue's stronger whole-manifest checks or add
+server-side input policy.
 
 See the canonical
 [signing contract](../../../../../docs/backend-and-data/05-api-contracts.md#deno-generate-upload-urls-edge-node),
@@ -2048,9 +2052,11 @@ wrong-response-count, post-signing file-change, and failed-PUT coverage.
 file-backed transfer, retained workflow owners, DTOs, and test rehomes.
 `CloudScanImageRepairActorTests` verifies the injected inspect → sign → upload →
 repair → library-invalidation workflow and canonical single-flight identity
-while inspection is suspended. `ImageLoadingArchitectureTests` freezes the
-relocated repair owner, live-effect containment, and Core Data Images 600-line
-production boundary.
+while inspection is suspended. It also invalidates evidence at admission,
+inspection, signing, and upload, verifies that the next side effect is
+suppressed, and permits a successful later verified retry.
+`ImageLoadingArchitectureTests` freezes the relocated repair owner, live-effect
+containment, and Core Data Images 600-line production boundary.
 
 The raw-upload mock asserts body bytes only for the Data overload. Its file
 cases exercise request headers, validation, response/error handling, and

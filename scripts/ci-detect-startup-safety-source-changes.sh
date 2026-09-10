@@ -9,37 +9,49 @@ summary_file="${GITHUB_STEP_SUMMARY:-}"
 should_run="false"
 reason="No startup, schema, recovery, project, or focused startup-test source changes were detected."
 
-event_before=""
-event_after=""
-if command -v jq >/dev/null 2>&1 && [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "$GITHUB_EVENT_PATH" ]; then
-  event_before="$(jq -r '.before // .pull_request.base.sha // empty' "$GITHUB_EVENT_PATH")"
-  event_after="$(jq -r '.after // .pull_request.head.sha // empty' "$GITHUB_EVENT_PATH")"
-fi
+resolution_failed="false"
+changed_files_path="$(mktemp "${TMPDIR:-/tmp}/merian-startup-files.XXXXXX")"
+trap 'rm -f "$changed_files_path"' EXIT
 
-head_ref="${event_after:-${GITHUB_SHA:-HEAD}}"
-base_ref="${event_before:-}"
-changed_files=""
+resolve_event_changes() {
+  local base_ref head_ref
+  command -v jq >/dev/null 2>&1 || return 1
+  [[ -f "${GITHUB_EVENT_PATH:-}" ]] || return 1
+  case "$event_name" in
+    push)
+      base_ref="$(jq -er '.before | select(type == "string")' "$GITHUB_EVENT_PATH" 2>/dev/null)" || return 1
+      head_ref="$(jq -er '.after | select(type == "string")' "$GITHUB_EVENT_PATH" 2>/dev/null)" || return 1
+      ;;
+    pull_request)
+      base_ref="$(jq -er '.pull_request.base.sha | select(type == "string")' "$GITHUB_EVENT_PATH" 2>/dev/null)" || return 1
+      head_ref="$(jq -er '.pull_request.head.sha | select(type == "string")' "$GITHUB_EVENT_PATH" 2>/dev/null)" || return 1
+      ;;
+    *) return 1 ;;
+  esac
+  [[ "$base_ref" =~ ^[0-9a-fA-F]{40}$ && ! "$base_ref" =~ ^0+$ ]] || return 1
+  [[ "$head_ref" =~ ^[0-9a-fA-F]{40}$ && ! "$head_ref" =~ ^0+$ ]] || return 1
+  git cat-file -e "${base_ref}^{commit}" 2>/dev/null || return 1
+  git cat-file -e "${head_ref}^{commit}" 2>/dev/null || return 1
+  if [[ "$event_name" == "pull_request" ]]; then
+    base_ref="$(git merge-base "$base_ref" "$head_ref")" || return 1
+  fi
+  git diff --name-only --no-renames -z "$base_ref" "$head_ref" > "$changed_files_path"
+}
 
-if [ -n "$base_ref" ] && git cat-file -e "${base_ref}^{commit}" 2>/dev/null && git cat-file -e "${head_ref}^{commit}" 2>/dev/null; then
-  changed_files="$(git diff --name-only "$base_ref" "$head_ref" || true)"
-fi
-
-if [ -z "$changed_files" ] && [ -z "${GITHUB_EVENT_PATH:-}" ] && git cat-file -e HEAD^{commit} 2>/dev/null; then
-  changed_files="$(
-    {
-      git diff --name-only HEAD || true
-      git ls-files --others --exclude-standard || true
-    } | sort -u
-  )"
-fi
-
-if [ -z "$changed_files" ] && git cat-file -e HEAD^{commit} 2>/dev/null; then
-  changed_files="$(git diff-tree -m --no-commit-id --name-only -r HEAD | sort -u || true)"
-fi
+resolve_local_changes() {
+  git diff --name-only --no-renames -z HEAD > "$changed_files_path" || return 1
+  git ls-files --others --exclude-standard -z >> "$changed_files_path" || return 1
+  if [[ ! -s "$changed_files_path" ]]; then
+    git diff-tree --root -m --no-commit-id --name-only --no-renames -r -z HEAD > "$changed_files_path" || return 1
+  fi
+}
 
 is_startup_runtime_file() {
   case "$1" in
     .github/workflows/ios-startup-safety.yml | \
+    Makefile | \
+    scripts/ci-detect-startup-safety-source-changes.sh | \
+    scripts/test-ci-detect-startup-safety-source-changes.sh | \
     project.yml | \
     Merian.xcodeproj/* | \
     merian.xcodeproj/* | \
@@ -48,6 +60,15 @@ is_startup_runtime_file() {
     apps/ios/Merian/Configuration/Merian-Bridging-Header.h | \
     apps/ios/Merian/Core/Data/Database/ScanRepository.swift | \
     apps/ios/Merian/Core/Data/Images/LocalImageLoader.swift | \
+    apps/ios/Merian/Core/UI/Components/AsyncLocalImageView.swift | \
+    apps/ios/Merian/Core/UI/Modifiers/ImageRecoveryReloadModifier.swift | \
+    apps/ios/Merian/Features/Explore/Shared/Media/Components/ExploreHeroImageView.swift | \
+    apps/ios/Merian/Features/Explore/Feed/Components/Composer/ExplorePostComposerImageView.swift | \
+    apps/ios/Merian/Features/Profile/UserProfile/Components/Publications/ProfilePublicScanImageView.swift | \
+    apps/ios/Merian/Core/UI/Components/ScanThumbnail.swift | \
+    apps/ios/Merian/Core/UI/Services/ScanThumbnailLoader.swift | \
+    apps/ios/MerianTests/Core/UI/ScanThumbnailLoaderTests.swift | \
+    apps/ios/MerianTests/Core/Data/Images/LocalScanMediaRecoveryRevisionTests.swift | \
     apps/ios/Merian/Core/Data/Images/Concurrency/* | \
     apps/ios/Merian/Core/Data/Images/Policies/* | \
     apps/ios/Merian/Core/Data/Images/Recovery/* | \
@@ -65,6 +86,7 @@ is_startup_runtime_file() {
     apps/ios/MerianTests/Core/Data/Images/CloudScanImageRepairActorTests.swift | \
     apps/ios/MerianTests/Core/Data/Images/ImageLoadingArchitectureTests.swift | \
     apps/ios/MerianTests/Core/Data/Images/LocalImageLoaderTests.swift | \
+    apps/ios/MerianTests/Core/Data/Images/LocalImageLoaderTests+RecoveryEvidence.swift | \
     apps/ios/MerianTests/Core/Data/Images/ScanMediaRecoveryRegistrationTests.swift | \
     apps/ios/MerianTests/Core/Data/OfflineSync/QueueActorCacheTests.swift | \
     apps/ios/MerianTests/Core/Data/OfflineSync/ProfileActorCacheTests.swift | \
@@ -77,23 +99,35 @@ is_startup_runtime_file() {
   esac
 }
 
-if [ "$event_name" = "workflow_dispatch" ]; then
+case "$event_name" in
+  workflow_dispatch|schedule|merge_group)
+    should_run="true"
+    reason="Manual, scheduled, or merge-queue verification requires the focused startup simulator lane."
+    ;;
+  local)
+    if [[ -n "${GITHUB_ACTIONS:-}" || -n "${GITHUB_EVENT_PATH:-}" ]]; then
+      resolution_failed="true"
+    else
+      resolve_local_changes || resolution_failed="true"
+    fi
+    ;;
+  *)
+    resolve_event_changes || resolution_failed="true"
+    ;;
+esac
+
+if [[ "$resolution_failed" == "true" ]]; then
   should_run="true"
-  reason="Manual dispatch requested the focused startup simulator lane."
-elif [ "$event_name" = "schedule" ]; then
-  should_run="true"
-  reason="Scheduled drift check requested the focused startup simulator lane."
-else
-  while IFS= read -r changed_file; do
-    [ -n "$changed_file" ] || continue
+  reason="The complete change range could not be resolved; startup verification is required fail-closed."
+elif [[ "$should_run" != "true" ]]; then
+  while IFS= read -r -d '' changed_file; do
     if is_startup_runtime_file "$changed_file"; then
       should_run="true"
-      reason="Startup simulator lane is required because ${changed_file} changed."
+      reason="A startup simulator input changed."
+      printf 'Matched startup input: %q\n' "$changed_file"
       break
     fi
-  done <<EOF
-$changed_files
-EOF
+  done < "$changed_files_path"
 fi
 
 echo "startup simulator should_run=${should_run}"

@@ -267,3 +267,19 @@ payloads use the completed goal artwork, goal-complete title, and outing name in
 the same compact layout as other milestones, and publish their typed
 capture-goal destination when tapped. Other views must not show a second plain
 progress message in response to the same refresh event.
+
+## Recovered image refresh
+
+`Modifiers/ImageRecoveryReloadModifier.swift` observes canonical scan-media
+recovery changes for retained image views. Include its bound revision in the
+loading task identity and check cancellation before publishing an image. Scan
+thumbnails, full-size local images, Profile scans, Explore hero images, and the
+post composer share this behavior so stronger evidence cannot leave an obsolete
+timestamp guess visible. The observer follows view-task lifetime and buffers
+only the latest change signal. New retained-image consumers of recovered scan
+URLs must use the same modifier and cancellation check; changing the loader's
+cache key alone cannot replace an image already held in view state. Explore hero
+preloads carry no revision, so a nonzero recovery revision requires reacquiring
+the image through the loader. The image loader separately versions cache and
+coalescing keys; details are in the
+[image pipeline](../../../../../docs/system-architecture/03-image-pipeline.md).

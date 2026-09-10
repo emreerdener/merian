@@ -32,6 +32,14 @@ already server-visible post. They receive environment-owned cross-feature state
 where appropriate and call the narrow feature state owners. Live singleton and
 endpoint resolution stays inside `Services/`.
 
+`ProfilePublicScanImageView` includes the recovery revision alongside its source
+and reload generation in the loading task identity. Core UI's
+`ImageRecoveryReloadModifier` observes both the primary and fallback URLs;
+stronger evidence refreshes an already visible public scan, and cancellation
+prevents an obsolete load from publishing. Image effects remain behind the
+injected dependencies. See the
+[image recovery contract](../../../../../../docs/system-architecture/03-image-pipeline.md).
+
 `ProfilePublicationsDependencies` adapts `getExploreAuthorPosts` and
 `getExplorePost`. Their request construction and response projection live in
 [Core Network's Explore browsing extension](../../../Core/Network/README.md#explore-browsing-endpoints),

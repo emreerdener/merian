@@ -195,11 +195,20 @@ is the current device's visual recovery projection after local
 deduplication/exclusions. Neither count should be substituted for the other in
 recovery reporting.
 
-For mapped URLs, the iOS client can render the surviving local file immediately
-and, while online, enqueue the authenticated cloud repair flow. These counts are
-candidate/reference coverage, not proof that production re-upload completed. The
-currently installed recovery build has not yet been visually/runtime verified
-because the device was locked during remote launch.
+For mapped URLs, the iOS client can render a surviving local file. The current
+repository admits automatic cloud repair only with direct filename or registered
+strong evidence for the exact local URL, rechecking that evidence before
+subsequent network effects. Timestamp-only matches remain local display
+fallbacks. Stronger evidence also invalidates cached images and refreshes
+retained views through source revisions. The
+[image pipeline](../system-architecture/03-image-pipeline.md) defines the
+current contract.
+
+The counts above are candidate/reference coverage, not verified automatic-repair
+eligibility or proof that production re-upload completed. At the recorded device
+checkpoint, the installed recovery build had not been visually/runtime verified
+because the device was locked during remote launch. Repository follow-up work
+does not change that historical evidence or establish a new device result.
 
 The app-group media cache was absent, no Finder/iTunes backup was found, and
 Save to Camera Roll defaults to off. A Photos-library search requires explicit
@@ -396,6 +405,7 @@ Do not mark this incident resolved until all of the following are complete:
 - `apps/ios/Merian/Core/Data/Images/LocalImageLoader.swift`
 - `apps/ios/Merian/Core/Data/Images/Recovery/`
 - `apps/ios/Merian/Core/Data/Images/Services/CloudScanImageRepairActor.swift`
+- `apps/ios/Merian/Core/UI/Modifiers/ImageRecoveryReloadModifier.swift`
 - `docs/r2-lifecycle.json`
 - `docs/backend-and-data/08-startup-store-recovery.md`
 - `docs/backend-and-data/12-explore-media-health-and-quarantine.md`

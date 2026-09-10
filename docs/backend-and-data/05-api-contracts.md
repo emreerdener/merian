@@ -8620,7 +8620,13 @@ absent/null counts. It retains the 30-second deadline, plain decoding errors,
 classified refresh, and no ambiguous-failure replay. Core Data Images'
 `Services/CloudScanImageRepairActor.swift` owns inspection, local-byte
 admission, signing, file PUT, repair, and library-change notification behind
-injected dependencies. Before inspection, the recovery boundary canonicalizes
+injected dependencies. Native repair admission requires the exact local URL to
+be supported by direct filename or registered strong evidence. Timestamp-only
+matches remain local display fallbacks and cannot authorize cloud inspection,
+upload, or repair. Evidence is rechecked before subsequent network effects after
+suspension; its loss permits a later verified retry. This client-side
+requirement changes no request or response field and does not replace the
+endpoint's owner checks. Before inspection, the recovery boundary canonicalizes
 credential-free HTTPS source identity across scheme/host casing, the default
 port, query parameters, and fragments. `LocalImageLoader` owns only the
 cache/load orchestration that discovers a recovered local file and enqueues the

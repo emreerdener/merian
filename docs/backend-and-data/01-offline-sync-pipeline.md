@@ -2078,10 +2078,16 @@ rescue-store alignment, or constrained timestamp grouping. Recovery identity is
 credential-free HTTPS normalized across scheme/host casing, the default port,
 query parameters, and fragments. Without a match, the loader routes the bounded
 async network fetch transparently so the user downloads only what is on screen.
-A local recovery hit can enqueue `Services/CloudScanImageRepairActor.swift`. Its
-live adapter performs the authenticated inspect, staging upload, and atomic
-Scan/Explore reference repair; this does not change offline-queue inference
-ownership.
+A local recovery hit can request `Services/CloudScanImageRepairActor.swift`, but
+the actor admits only an exact local URL backed by direct filename or registered
+strong evidence. Timestamp-only matches can render locally and never authorize
+cloud effects. The actor rechecks evidence across suspension before continuing
+authenticated inspection, staging upload, and atomic Scan/Explore reference
+repair. An evicted timestamp mapping also advances the affected URL's recovery
+revision: the loader bypasses obsolete cached/in-flight results, and retained
+image views reload through the shared Core UI modifier. These rules do not
+change offline-queue inference ownership; see the canonical
+[image recovery contract](../system-architecture/03-image-pipeline.md#historical--remote-images-rehydration).
 
 ### SwiftData Typealias UI Quirks
 

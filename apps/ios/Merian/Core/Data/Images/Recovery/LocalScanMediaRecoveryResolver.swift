@@ -9,15 +9,18 @@ enum LocalScanMediaRecoveryResolver {
     private static let supportedImageExtensions: Set<String> = [
         "heic", "heif", "jpeg", "jpg", "png", "tif", "tiff", "webp"
     ]
-    private static let registry = LocalScanMediaRecoveryRegistry()
+    private static let registry = LocalScanMediaRecoveryRegistry.shared
     private static let legacyIndex = LegacyScanMediaRecoveryIndex()
 
     static func existingLocalImageURL(
         for remoteURL: URL,
+        allowTimestampFallback: Bool = true,
         documentsDirectory: URL = .documentsDirectory,
         fileManager: FileManager = .default
     ) -> URL? {
-        let registeredFileName = registry.fileName(for: remoteURL)
+        let registeredFileName = registry.fileName(
+            for: remoteURL, allowTimestampFallback: allowTimestampFallback
+        )
         let fileNames = [registeredFileName].compactMap { $0 } +
             candidateFileNames(for: remoteURL)
 
@@ -248,10 +251,20 @@ enum LocalScanMediaRecoveryResolver {
         documentsDirectory: URL,
         fileManager: FileManager
     ) -> Int {
-        guard legacyIndex.hasRecords else { return 0 }
-
         var registeredCount = 0
         for currentScan in currentScans {
+            // Reserve direct matches even without a rescue row, before any page
+            // can claim these files through timestamp fallback.
+            for remoteURL in currentScan.imagePaths.compactMap(durableRemoteImageURL(from:)) {
+                if let localURL = existingLocalImageURL(
+                    for: remoteURL, allowTimestampFallback: false,
+                    documentsDirectory: documentsDirectory, fileManager: fileManager
+                ), registry.registerStrongMapping(
+                    remoteURL: remoteURL, fileName: localURL.lastPathComponent
+                ) {
+                    registeredCount += 1
+                }
+            }
             guard let legacyRecord = legacyIndex.record(
                 for: currentScan.scanID
             ) else {
@@ -305,12 +318,8 @@ enum LocalScanMediaRecoveryResolver {
                 return nil
             }
 
-            let snapshot = CapturedMediaSnapshot(items: currentScan.items)
-            let rawReferences = [currentScan.coverImagePath] +
-                snapshot.imageReferences.map(\.serializedPath) +
-                snapshot.videoThumbnailReferences.map(\.serializedPath)
             var seenURLs = Set<String>()
-            let remoteImageURLs = rawReferences.compactMap {
+            let remoteImageURLs = currentScan.imagePaths.compactMap {
                 durableRemoteImageURL(from: $0)
             }.filter {
                 seenURLs.insert($0.absoluteString).inserted

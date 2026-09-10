@@ -90,6 +90,14 @@ audio-session behavior, observer lifetime, and coordinator semantics when moving
 declarations between these folders. Production Feed files stay at or below the
 pass's 600-line review guard.
 
+Composer images can reference recovered local scans.
+`ExplorePostComposerImageView` uses Core UI's `ImageRecoveryReloadModifier`,
+includes path, requested size, and recovery revision in the load identity, and
+checks cancellation before assigning the result. Stronger evidence can therefore
+refresh an open composer without a late load restoring the rejected image.
+Shared Explore hero refresh follows the same
+[image recovery contract](../../../../../../docs/system-architecture/03-image-pipeline.md).
+
 ### Cross-area media ownership
 
 `Explore/Shared/Media` is the final Explore-wide owner for declarations consumed

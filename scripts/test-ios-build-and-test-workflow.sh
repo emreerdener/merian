@@ -1141,6 +1141,9 @@ for exact_scan_regression in \
 done
 
 for startup_requirement in \
+  "fetch-depth: 0" \
+  "merge_group:" \
+  "bash scripts/test-ci-detect-startup-safety-source-changes.sh" \
   "runs-on: macos-26" \
   "/Applications/Xcode_26.6.app/Contents/Developer" \
   "-onlyUsePackageVersionsFromResolvedFile" \
@@ -1149,6 +1152,16 @@ for startup_requirement in \
     || fail "Startup Safety is missing its shared toolchain invariant: $startup_requirement"
 done
 for startup_scope_path in \
+  "apps/ios/Merian/Core/UI/Components/AsyncLocalImageView.swift" \
+  "apps/ios/Merian/Core/UI/Modifiers/ImageRecoveryReloadModifier.swift" \
+  "apps/ios/Merian/Core/UI/Components/ScanThumbnail.swift" \
+  "apps/ios/Merian/Core/UI/Services/ScanThumbnailLoader.swift" \
+  "apps/ios/Merian/Features/Explore/Shared/Media/Components/ExploreHeroImageView.swift" \
+  "apps/ios/Merian/Features/Explore/Feed/Components/Composer/ExplorePostComposerImageView.swift" \
+  "apps/ios/Merian/Features/Profile/UserProfile/Components/Publications/ProfilePublicScanImageView.swift" \
+  "apps/ios/MerianTests/Core/UI/ScanThumbnailLoaderTests.swift" \
+  "apps/ios/MerianTests/Core/Data/Images/LocalScanMediaRecoveryRevisionTests.swift" \
+  "apps/ios/MerianTests/Core/Data/Images/LocalImageLoaderTests+RecoveryEvidence.swift" \
   "apps/ios/Merian/Core/Data/Database/ScanRepository.swift" \
   "apps/ios/Merian/Core/Data/Images/Services/ScanMediaRecoveryRegistrationService.swift" \
   "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift" \
@@ -1159,6 +1172,8 @@ for startup_scope_path in \
   assert_file_contains "$startup_scope_detector" "$startup_scope_path"
 done
 for startup_suite in \
+  "LocalScanMediaRecoveryRevisionTests" \
+  "ScanThumbnailLoaderTests" \
   "ModelStoreRecoveryCoordinatorTests" \
   "StartupStoreDiagnosticTests" \
   "StoreRecoveryArtifactArchiverTests" \
@@ -1177,6 +1192,9 @@ for startup_suite in \
 done
 if grep -Fq "macos-latest" "$startup_workflow"; then
   fail "Startup Safety must use the same reviewed macOS/Xcode baseline."
+fi
+if grep -Eq '^[[:space:]]+paths(-ignore)?:' "$startup_workflow"; then
+  fail "Startup Safety must resolve its complete scope in-workflow, without event path filters."
 fi
 assert_no_runner_context_in_job_env "$startup_workflow"
 

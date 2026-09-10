@@ -10,6 +10,7 @@ actor CloudScanImageRepairActor {
         let shouldRun: @Sendable () -> Bool
         let now: @Sendable () -> Date
         let fileExists: @Sendable (URL) -> Bool
+        let isVerifiedRecovery: @Sendable (URL, URL) -> Bool
         let fileSizeBytes: @Sendable (URL) -> Int?
         let makeUUID: @Sendable () -> UUID
         let inspect:
@@ -30,6 +31,12 @@ actor CloudScanImageRepairActor {
             now: { Date() },
             fileExists: { url in
                 FileManager.default.fileExists(atPath: url.path)
+            },
+            isVerifiedRecovery: { sourceURL, localURL in
+                LocalScanMediaRecoveryResolver.existingLocalImageURL(
+                    for: sourceURL,
+                    allowTimestampFallback: false
+                )?.standardizedFileURL == localURL.standardizedFileURL
             },
             fileSizeBytes: { url in
                 guard let attributes = try? FileManager.default
@@ -129,8 +136,9 @@ actor CloudScanImageRepairActor {
             let candidate = pending.removeFirst()
 
             do {
-                try await repairIfMissing(candidate)
-                completedSourceURLs.insert(candidate.sourceURL)
+                if try await repairIfMissing(candidate) {
+                    completedSourceURLs.insert(candidate.sourceURL)
+                }
                 queuedOrInFlightSourceURLs.remove(candidate.sourceURL)
             } catch {
                 serviceUnavailableUntil = dependencies.now()
@@ -148,15 +156,17 @@ actor CloudScanImageRepairActor {
 
     private func repairIfMissing(
         _ candidate: CloudScanImageRepairCandidate
-    ) async throws {
+    ) async throws -> Bool {
+        guard isVerifiedRecovery(candidate) else { return false }
         let inspection = try await dependencies.inspect(candidate.sourceURL)
-        guard inspection.status == .missing else { return }
+        guard inspection.status == .missing else { return true }
+        guard isVerifiedRecovery(candidate) else { return false }
 
         let sizeBytes = dependencies.fileSizeBytes(candidate.localURL) ?? 0
         guard sizeBytes > 0,
               sizeBytes <= MerianConfig.stagedImagePayloadMaxBytes,
               let contentType = Self.contentType(for: candidate.localURL) else {
-            return
+            return false
         }
 
         let fileExtension = candidate.localURL.pathExtension.lowercased()
@@ -174,11 +184,13 @@ actor CloudScanImageRepairActor {
             throw MerianError.invalidResponse
         }
 
+        guard isVerifiedRecovery(candidate) else { return false }
         try await dependencies.upload(
             uploadURL,
             candidate.localURL,
             contentType
         )
+        guard isVerifiedRecovery(candidate) else { return false }
         let result = try await dependencies.repair(
             candidate.sourceURL,
             uploadURL.objectKey
@@ -187,12 +199,18 @@ actor CloudScanImageRepairActor {
             throw MerianError.invalidResponse
         }
 
-        guard result.status == .repaired else { return }
+        guard result.status == .repaired else { return true }
 
         MerianLog.network.info(
             "Cloud scan image repair restored \(result.updatedScanCount, privacy: .public) scan record(s) and \(result.updatedPostMediaCount, privacy: .public) Explore media record(s)."
         )
         await dependencies.publishLibraryChanged()
+        return true
+    }
+
+    private func isVerifiedRecovery(_ candidate: CloudScanImageRepairCandidate) -> Bool {
+        guard let sourceURL = URL(string: candidate.sourceURL) else { return false }
+        return dependencies.isVerifiedRecovery(sourceURL, candidate.localURL)
     }
 
     private func candidate(
@@ -203,6 +221,7 @@ actor CloudScanImageRepairActor {
             .canonicalRecoverySourceURL(for: sourceURL),
               localURL.isFileURL,
               dependencies.fileExists(localURL),
+              dependencies.isVerifiedRecovery(canonicalSourceURL, localURL),
               Self.contentType(for: localURL) != nil else {
             return nil
         }

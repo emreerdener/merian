@@ -10,6 +10,7 @@ struct ProfilePublicScanImageView: View {
     private let dependencies: ProfilePublicScanImageDependencies
     @State private var loadedImage: UIImage?
     @State private var hasFailedToLoad = false
+    @State private var recoveryRevision: UInt64 = 0
 
     init(
         imagePath: String?,
@@ -53,6 +54,10 @@ struct ProfilePublicScanImageView: View {
             loadedImage = image
             hasFailedToLoad = image == nil
         }
+        .reloadOnImageRecovery(
+            imagePath: imagePath, fallbackURL: fallbackURL,
+            revision: $recoveryRevision
+        )
     }
 
     private var loadTaskID: ProfilePublicScanImageLoadTaskID {
@@ -60,6 +65,7 @@ struct ProfilePublicScanImageView: View {
             imagePath: imagePath,
             fallbackURL: fallbackURL,
             reloadGeneration: reloadGeneration,
+            recoveryRevision: recoveryRevision,
             maxDimension: 360
         )
     }
@@ -93,5 +99,6 @@ private struct ProfilePublicScanImageLoadTaskID: Hashable {
     let imagePath: String?
     let fallbackURL: String?
     let reloadGeneration: UInt64
+    let recoveryRevision: UInt64
     let maxDimension: Int
 }

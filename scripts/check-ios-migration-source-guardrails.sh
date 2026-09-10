@@ -40,6 +40,7 @@ image_recovery_file="apps/ios/Merian/Core/Data/Images/Recovery/LegacyScanMediaRe
 image_test_file="apps/ios/MerianTests/Core/Data/Images/LocalImageLoaderTests.swift"
 app_file="apps/ios/Merian/App/MerianApp.swift"
 startup_workflow_file=".github/workflows/ios-startup-safety.yml"
+startup_scope_file="scripts/ci-detect-startup-safety-source-changes.sh"
 
 if [ ! -f "$schema_file" ]; then
   echo "Missing $schema_file" >&2
@@ -794,7 +795,9 @@ contains "$image_test_file" "legacyRecoveryStoreLocatorPrefersConfiguredRootAndN
   || fail "LocalImageLoaderTests must keep configured-root rescue archives ahead of legacy archives."
 contains "$startup_workflow_file" "-only-testing:merianTests/LocalImageLoaderTests" \
   || fail "Startup Safety must execute the rescue-store locator regression suite."
-contains "$startup_workflow_file" "apps/ios/Merian/Models/Schema/SchemaV50ReleasedActiveSnapshots.swift" \
-  || fail "Startup Safety path filters must include the processed-release V50 snapshot."
+contains "$startup_workflow_file" "bash $startup_scope_file" \
+  || fail "Startup Safety must run the canonical source-scope detector."
+contains "$startup_scope_file" "$v50_released_active_snapshot_file" \
+  || fail "Startup Safety source scope must include the processed-release V50 snapshot."
 
 echo "iOS migration source guardrails passed."

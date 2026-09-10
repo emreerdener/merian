@@ -362,11 +362,16 @@ registration uses a cancellation-aware actor, fresh bounded SwiftData contexts,
 and two ordered passes so scan-ID/media-order evidence across the whole library
 precedes timestamp fallback. The process-local registry independently preserves
 that priority when bounded callers interleave and admits or evicts a multi-image
-timestamp group atomically. The injected live adapters retain the existing
-network and app-event effects, while pure policy and recovery owners contain
-neither UI nor endpoint calls. Focused behavior and architecture suites freeze
-coalescing, recovery evidence, canonical single-flight repair, bounded
-registration, imports, test ownership, and the 600-line production guard.
+timestamp group atomically. Direct filenames are reserved even without a rescued
+row. Recovery revisions version cache/coalescing identities, and a shared Core
+UI modifier reloads retained Scan, Explore, Profile, gallery, and composer
+images. Cloud repair accepts only an exact local URL backed by direct filename
+or registered strong evidence; timestamp guesses remain local display fallbacks.
+The injected live adapters retain the existing network and app-event effects,
+while pure policy and recovery owners contain neither UI nor endpoint calls.
+Focused behavior and architecture suites freeze coalescing, recovery evidence,
+canonical single-flight repair, bounded registration, imports, test ownership,
+and the 600-line production guard.
 
 ## Core Preferences Ownership
 
@@ -702,6 +707,14 @@ inference closures. Pending speech startup is canceled and awaited before a
 replacement may enter the shared manager, avoiding concurrent configuration and
 teardown. Focused tests mirror these boundaries and enforce the 600-line
 production-file guard.
+
+[Core Hardware](Merian/Core/Hardware/README.md) keeps `CameraManager.swift` as
+the sole live AVFoundation, serial-queue, delegate, and lock-owned request-state
+boundary. Focused `Camera/Models`, `Camera/Policies`, and `Camera/Coordination`
+owners now contain recording identities, deterministic microphone/generation
+policy, and the latest-state FPS debouncer respectively. Architecture tests
+freeze those dependencies and an interim non-growth ceiling while later slices
+continue reducing the live manager without changing capture behavior.
 
 ## Insights Integration Ownership
 

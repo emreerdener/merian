@@ -1,70 +1,12 @@
 name: iOS Startup Safety
 
 on:
+  merge_group:
+    types: [checks_requested]
   pull_request:
-    paths:
-      - ".github/workflows/ios-startup-safety.yml"
-      - "Makefile"
-      - "Merian.xcodeproj/**"
-      - "merian.xcodeproj/**"
-      - "apps/ios/Merian/App/MerianApp.swift"
-      - "apps/ios/Merian/App/MerianObjCExceptionBridge.*"
-      - "apps/ios/Merian/Configuration/Merian-Bridging-Header.h"
-      - "apps/ios/Merian/Core/Data/Database/ScanRepository.swift"
-      - "apps/ios/Merian/Core/Data/Images/**"
-      - "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift"
-      - "apps/ios/Merian/Core/Data/StoreRecovery/**"
-      - "apps/ios/Merian/Models/Aliases.swift"
-      - "apps/ios/Merian/Models/Schema/SchemaV49Snapshots.swift"
-      - "apps/ios/Merian/Models/Schema/SchemaV50Snapshots.swift"
-      - "apps/ios/Merian/Models/Schema/SchemaV50ReleasedActiveSnapshots.swift"
-      - "apps/ios/Merian/Models/SchemaVersions.swift"
-      - "apps/ios/MerianTests/Core/Data/StoreRecovery/**"
-      - "apps/ios/MerianTests/Core/Data/Database/CoreDataIntegrationArchitectureTests.swift"
-      - "apps/ios/MerianTests/Core/Data/Images/**"
-      - "apps/ios/MerianTests/Core/Data/OfflineSync/QueueActorCacheTests.swift"
-      - "apps/ios/MerianTests/Core/Data/OfflineSync/ProfileActorCacheTests.swift"
-      - "apps/ios/MerianTests/Models/MigrationPlanTests.swift"
-      - "project.yml"
-      - "scripts/check-ios-project-resources.sh"
-      - "scripts/check-ios-release-prep.sh"
-      - "scripts/check-ios-migration-source-guardrails.sh"
-      - "scripts/ci-detect-startup-safety-source-changes.sh"
-      - "scripts/select-ios-simulator-destination.sh"
-      - "scripts/validate-ios-versioning.sh"
   push:
     branches:
       - main
-    paths:
-      - ".github/workflows/ios-startup-safety.yml"
-      - "Makefile"
-      - "Merian.xcodeproj/**"
-      - "merian.xcodeproj/**"
-      - "apps/ios/Merian/App/MerianApp.swift"
-      - "apps/ios/Merian/App/MerianObjCExceptionBridge.*"
-      - "apps/ios/Merian/Configuration/Merian-Bridging-Header.h"
-      - "apps/ios/Merian/Core/Data/Database/ScanRepository.swift"
-      - "apps/ios/Merian/Core/Data/Images/**"
-      - "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift"
-      - "apps/ios/Merian/Core/Data/StoreRecovery/**"
-      - "apps/ios/Merian/Models/Aliases.swift"
-      - "apps/ios/Merian/Models/Schema/SchemaV49Snapshots.swift"
-      - "apps/ios/Merian/Models/Schema/SchemaV50Snapshots.swift"
-      - "apps/ios/Merian/Models/Schema/SchemaV50ReleasedActiveSnapshots.swift"
-      - "apps/ios/Merian/Models/SchemaVersions.swift"
-      - "apps/ios/MerianTests/Core/Data/StoreRecovery/**"
-      - "apps/ios/MerianTests/Core/Data/Database/CoreDataIntegrationArchitectureTests.swift"
-      - "apps/ios/MerianTests/Core/Data/Images/**"
-      - "apps/ios/MerianTests/Core/Data/OfflineSync/QueueActorCacheTests.swift"
-      - "apps/ios/MerianTests/Core/Data/OfflineSync/ProfileActorCacheTests.swift"
-      - "apps/ios/MerianTests/Models/MigrationPlanTests.swift"
-      - "project.yml"
-      - "scripts/check-ios-project-resources.sh"
-      - "scripts/check-ios-release-prep.sh"
-      - "scripts/check-ios-migration-source-guardrails.sh"
-      - "scripts/ci-detect-startup-safety-source-changes.sh"
-      - "scripts/select-ios-simulator-destination.sh"
-      - "scripts/validate-ios-versioning.sh"
   schedule:
     - cron: "17 10 * * *"
   workflow_dispatch:
@@ -87,7 +29,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Initialize runner-local startup paths
@@ -102,7 +44,7 @@ jobs:
       - name: Summarize workflow context
         env:
           WORKFLOW_PURPOSE: "Focused iOS startup and SwiftData migration safety on macOS."
-          WORKFLOW_REASON: "Runs for startup/schema/recovery/project changes, manual dispatch, and a daily scheduled drift check. It is not part of the Supabase backend deployment gate."
+          WORKFLOW_REASON: "Every pull request and main push reaches exact-range scope evaluation; unresolved comparisons require simulator checks. Manual, scheduled, and merge-queue runs always select the focused lane. Supabase deployment evidence remains separate."
         run: bash scripts/ci-run-summary.sh
 
       - name: Verify pinned Xcode toolchain
@@ -124,6 +66,9 @@ jobs:
 
       - name: Validate SwiftData migration source guardrails
         run: make validate-ios-migration-guardrails
+
+      - name: Test startup scope detection
+        run: bash scripts/test-ci-detect-startup-safety-source-changes.sh
 
       - name: Determine startup simulator scope
         id: startup-scope
@@ -232,6 +177,8 @@ jobs:
             -only-testing:merianTests/StoreRecoveryArtifactArchiverTests \
             -only-testing:merianTests/StoreRecoveryArchitectureTests \
             -only-testing:merianTests/LocalImageLoaderTests \
+            -only-testing:merianTests/LocalScanMediaRecoveryRevisionTests \
+            -only-testing:merianTests/ScanThumbnailLoaderTests \
             -only-testing:merianTests/CloudScanImageRepairActorTests \
             -only-testing:merianTests/ScanMediaRecoveryRegistrationTests \
             -only-testing:merianTests/ImageLoadingArchitectureTests \

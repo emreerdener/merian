@@ -1,6 +1,8 @@
 import Foundation
-@testable import Merian
+import os
 import Testing
+
+@testable import Merian
 
 private actor CloudScanImageRepairProbe {
     struct Snapshot: Sendable {
@@ -137,6 +139,7 @@ struct CloudScanImageRepairActorTests {
                 shouldRun: { true },
                 now: { Date(timeIntervalSince1970: 1_000) },
                 fileExists: { $0 == localURL },
+                isVerifiedRecovery: { _, _ in true },
                 fileSizeBytes: { _ in 42 },
                 makeUUID: { fixedUUID },
                 inspect: { sourceURL in
@@ -215,6 +218,7 @@ struct CloudScanImageRepairActorTests {
                 shouldRun: { true },
                 now: { Date(timeIntervalSince1970: 1_000) },
                 fileExists: { _ in true },
+                isVerifiedRecovery: { _, _ in true },
                 fileSizeBytes: { _ in 1 },
                 makeUUID: { UUID() },
                 inspect: { sourceURL in
@@ -249,6 +253,77 @@ struct CloudScanImageRepairActorTests {
         #expect(snapshot.inspectedSourceURLs == [
             "https://media.merian.app/public_uploads/pro/user/recovered.png"
         ])
+    }
+
+    @Test(arguments: ["admission", "inspect", "sign", "upload"])
+    func invalidatedEvidenceStopsSideEffectsAndAllowsVerifiedRetry(stage: String) async throws {
+        let verified = OSAllocatedUnfairLock(initialState: stage != "admission")
+        let invalidationEnabled = OSAllocatedUnfairLock(initialState: true)
+        let probe = CloudScanImageRepairProbe()
+        let missing = try inspection(status: "missing")
+        let repaired = try inspection(status: "repaired", updatedScanCount: 1)
+        let sourceURL = try #require(URL(
+            string: "https://media.merian.app/public_uploads/free/synthetic/recovery.webp"
+        ))
+        let localURL = URL(fileURLWithPath: "/tmp/synthetic-recovery.webp")
+        let uploadURL = PreSignedURL(
+            fileName: "repair.webp", signedUrl: "https://uploads.example.com/repair",
+            objectKey: "staging/synthetic/repair.webp", requiredHeaders: [:],
+            mediaAssetId: nil, mediaSessionId: nil
+        )
+        let invalidate: @Sendable (String) -> Void = { completedStage in
+            if stage == completedStage && invalidationEnabled.withLock({ $0 }) {
+                verified.withLock { $0 = false }
+            }
+        }
+        let repairActor = CloudScanImageRepairActor(dependencies: .init(
+            shouldRun: { true }, now: { Date(timeIntervalSince1970: 1_000) },
+            fileExists: { _ in true },
+            isVerifiedRecovery: { _, _ in verified.withLock { $0 } },
+            fileSizeBytes: { _ in 42 }, makeUUID: { UUID() },
+            inspect: { source in
+                await probe.recordInspection(source)
+                invalidate("inspect")
+                return missing
+            },
+            generateUploadURLs: { files in
+                await probe.recordGeneration(files)
+                invalidate("sign")
+                return [uploadURL]
+            },
+            upload: { upload, file, contentType in
+                await probe.recordUpload(upload, localURL: file, contentType: contentType)
+                invalidate("upload")
+            },
+            repair: { source, key in
+                await probe.recordRepair(sourceURL: source, objectKey: key)
+                return repaired
+            },
+            publishLibraryChanged: { await probe.recordPublication() }
+        ))
+        await repairActor.enqueue(sourceUrl: sourceURL, localUrl: localURL)
+        await repairActor.waitUntilIdle()
+        let denied = await probe.snapshot()
+        let expectedEvents: [String]
+        switch stage {
+        case "admission": expectedEvents = []
+        case "inspect": expectedEvents = ["inspect"]
+        case "sign": expectedEvents = ["inspect", "sign"]
+        default: expectedEvents = ["inspect", "sign", "upload"]
+        }
+        #expect(denied.events == expectedEvents)
+        #expect(denied.repairedSourceURLs.isEmpty)
+        #expect(denied.publicationCount == 0)
+
+        // Losing evidence must not poison completion deduplication or start a
+        // network-error cooldown when a later verified mapping becomes available.
+        invalidationEnabled.withLock { $0 = false }
+        verified.withLock { $0 = true }
+        await repairActor.enqueue(sourceUrl: sourceURL, localUrl: localURL)
+        await repairActor.waitUntilIdle()
+        let retried = await probe.snapshot()
+        #expect(retried.events == expectedEvents + ["inspect", "sign", "upload", "repair", "publish"])
+        #expect(retried.publicationCount == 1)
     }
 
     private func inspection(
