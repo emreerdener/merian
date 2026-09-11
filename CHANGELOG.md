@@ -184,6 +184,10 @@ TestFlight, App Store, support, and QA.
   one light selection cue when haptics are enabled. VoiceOver still announces
   every mode by name, configured mode ordering is unchanged, and Expedition mode
   continues to suppress haptics.
+- The native selector now accepts both UIKit selection signals through one
+  guarded update path and avoids reinstalling its segment artwork during
+  unrelated interface refreshes. This improves direct, assistive, and automated
+  selection reliability without changing the configured order or haptic count.
 
 ### Live Scan Queue Handoff — Release-Gated
 
@@ -1940,8 +1944,8 @@ TestFlight, App Store, support, and QA.
 - Added video scans to the Pro paywall comparison table.
 - Fixed the Pro paywall purchase button so it stays anchored to the bottom of
   the sheet.
-- Kept non-Pro long-presses photo-first so holding the shutter does not
-  interrupt capture or open the paywall.
+- Updated non-Pro visual long-presses to open the video Pro paywall without also
+  taking a photo when the press is released.
 - Fixed non-biological scan saving so captures that omit ecology metadata are
   saved with an unknown ecology fallback instead of failing in the backend.
 - Fixed network timeout results so they keep the "Network timeout" title,

@@ -156,6 +156,19 @@ struct NotificationArchitectureTests {
                 )
             )
         }
+
+        #expect(!FileManager.default.fileExists(
+            atPath: root.appendingPathComponent(
+                "apps/ios/Merian/Core/UI/Components/" +
+                    "PostIdentificationNotificationSheetView.swift"
+            ).path
+        ))
+        #expect(FileManager.default.fileExists(
+            atPath: root.appendingPathComponent(
+                Self.sourceRoot +
+                    "/Views/PostIdentificationNotificationSheetView.swift"
+            ).path
+        ))
     }
 
     private func source(_ path: String) throws -> String {

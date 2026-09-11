@@ -37,10 +37,12 @@ final class EnvironmentContextManager: NSObject {
     private(set) var cachedLocation: CLLocation?
     private(set) var fallbackInaccurateLocation: CLLocation?
 
-    /// Best available location at this instant: accurate lock preferred, then
-    /// the latest coarse fallback, and nil only when the device has no fix.
+    /// Best currently authorized location: accurate lock preferred, then the
+    /// latest coarse fallback. Cached coordinates remain private while access
+    /// is not authorized.
     var lastKnownLocation: CLLocation? {
-        cachedLocation ?? fallbackInaccurateLocation
+        guard isAuthorized else { return nil }
+        return cachedLocation ?? fallbackInaccurateLocation
     }
 
     init(dependencies: Dependencies) {
@@ -142,13 +144,19 @@ final class EnvironmentContextManager: NSObject {
         let location: CLLocation
         if let preLockedLocation {
             location = preLockedLocation
-        } else if let currentLocation = await dependencies.locationController
-            .requestSingleLocation() {
-            location = currentLocation
-        } else if let cachedLocation {
-            location = cachedLocation
         } else {
-            return EnvironmentContext(location: nil)
+            let currentLocation = await dependencies.locationController
+                .requestSingleLocation()
+            guard isAuthorized else {
+                return EnvironmentContext(location: nil)
+            }
+            if let currentLocation {
+                location = currentLocation
+            } else if let lastKnownLocation {
+                location = lastKnownLocation
+            } else {
+                return EnvironmentContext(location: nil)
+            }
         }
 
         async let locationName = dependencies.geocodingService.locationName(

@@ -24,7 +24,7 @@ final class CaptureStagingArchitectureTests: XCTestCase {
 
     func testStagingOwnershipDirectoriesRemainPresent() throws {
         let root = try stagingSourceRoot()
-        for directory in ["Models", "Views"] {
+        for directory in ["Models", "Services", "Views", "Components"] {
             var isDirectory: ObjCBool = false
             let path = root.appendingPathComponent(directory).path
             XCTAssertTrue(
@@ -113,15 +113,72 @@ final class CaptureStagingArchitectureTests: XCTestCase {
     }
 
     func testToolbarConsumesCanonicalStagingOrderWithoutResorting() throws {
-        let toolbar = try String(
-            contentsOf: repositoryRoot().appendingPathComponent(
-                "apps/ios/Merian/Core/UI/Components/ActiveScanToolbar.swift"
+        let presentation = try String(
+            contentsOf: stagingSourceRoot().appendingPathComponent(
+                "Models/CaptureStagingToolbarPresentation.swift"
             ),
             encoding: .utf8
         )
 
-        XCTAssertTrue(toolbar.contains("stagedCapture.orderedNodes.filter"))
-        XCTAssertFalse(toolbar.contains("nodes.sorted"))
+        XCTAssertTrue(
+            presentation.contains("stagedCapture.orderedNodes.filter")
+        )
+        XCTAssertFalse(presentation.contains("nodes.sorted"))
+    }
+
+    func testActiveToolbarIsStagingOwned() throws {
+        let repository = try repositoryRoot()
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: repository.appendingPathComponent(
+                    "apps/ios/Merian/Core/UI/Components/" +
+                        "ActiveScanToolbar.swift"
+                ).path
+            )
+        )
+
+        let stagingRoot = try stagingSourceRoot()
+        for path in [
+            "Models/CaptureStagingToolbarPresentation.swift",
+            "Services/CaptureStagingToolbarDependencies.swift",
+            "Components/Toolbar/ActiveScanToolbar.swift",
+            "Components/Toolbar/CaptureStagingToolbarButtons.swift",
+            "Components/Toolbar/CaptureStagingToolbarMediaRow.swift"
+        ] {
+            XCTAssertTrue(
+                FileManager.default.fileExists(
+                    atPath: stagingRoot.appendingPathComponent(path).path
+                ),
+                "Capture Staging is missing \(path)"
+            )
+        }
+    }
+
+    func testStagingPresentationDoesNotResolvePlatformEffects() throws {
+        let stagingRoot = try stagingSourceRoot()
+        let presentationRoots = ["Models", "Views", "Components"]
+        let forbiddenTokens = [
+            "AppDIContainer.shared",
+            "HapticManager.shared",
+            "UIApplication.shared",
+            "PHPhotoLibrary.shared",
+            "MerianNetworkClient.shared",
+            "NotificationCenter.default"
+        ]
+
+        for directory in presentationRoots {
+            for file in try swiftFiles(
+                in: stagingRoot.appendingPathComponent(directory)
+            ) {
+                let contents = try String(contentsOf: file, encoding: .utf8)
+                for token in forbiddenTokens {
+                    XCTAssertFalse(
+                        contents.contains(token),
+                        "\(file.lastPathComponent) directly owns \(token)"
+                    )
+                }
+            }
+        }
     }
 
     private func stagingSourceRoot() throws -> URL {

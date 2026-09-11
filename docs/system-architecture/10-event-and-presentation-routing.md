@@ -579,19 +579,23 @@ sink owner set above is enforced by the same fail-closed scan.
   notification payload parser.
 - `EventDeliveryTests` covers synchronous/reentrant event delivery, cancellable
   main-actor framework delivery, and detached-player callback suppression.
-- `AchievementToastPresenterTests` proves a milestone coordinator publishes
-  progress and scan-contribution invalidations only through its injected bus.
+- `ScanMilestoneCoordinatorTests` proves the coordinator publishes progress and
+  scan-contribution invalidations only through its injected bus and routes every
+  account, cache, acknowledgement, and achievement effect through isolated
+  dependency adapters. `MilestoneFeedbackArchitectureTests` keeps the `.live`
+  singleton and endpoint implementations inside the Feedback Services boundary.
   Explore, Profile, and Species Dictionary policy tests reject cancelled,
   stale-identity, or occupied-slot async presentation commits.
 - `ToastPayloadTests` locks typed title/body/severity/action parsing, unique
   replacement identity, same-alignment-only milestone suppression, and
   pass-through behavior for passive or incompletely wired action feedback.
-  `AchievementToastPresenterTests` is serialized because its legacy gamification
-  assertions touch process-global user defaults; it additionally locks queue
-  bounds, duplicate coalescing, account/session stale rejection, single
-  presentation-effect claims, remaining lifetime across host remounts,
-  nested-host restoration, and the one-payload stack projection that forwards
-  queued depth into the two-backplate visual clamp.
+  `MilestoneToastPresenterTests` and `MilestoneAchievementPolicyTests` are
+  serialized because the compatibility gamification assertions touch
+  process-global user defaults. They lock queue bounds, duplicate coalescing,
+  account/session stale rejection, single presentation-effect claims, remaining
+  lifetime across host remounts, nested-host restoration, achievement
+  eligibility, and the one-payload stack projection that forwards queued depth
+  into the two-backplate visual clamp.
 - `make validate-ios-event-routing` runs the production source guard.
 - `make test-ios-event-routing` runs adversarial fixtures. The same fixtures are
   included in `make test-ios-ci-tooling`. Both `ios-project-guardrails.yml` and

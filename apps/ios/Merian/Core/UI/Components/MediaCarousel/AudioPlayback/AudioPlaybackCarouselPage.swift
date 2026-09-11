@@ -31,8 +31,7 @@ struct AudioPlaybackCarouselPage: View {
     @State private var audioSeekStartProgress = 0.0
     @State private var playbackControlVisibility =
         AudioPlaybackControlVisibility()
-    @State private var sessionController =
-        AudioPlaybackSessionController()
+    @State private var sessionController = AudioPlaybackSessionController()
     @State private var isPlaying = false
 
     @Environment(SpeechManager.self) private var speechManager
@@ -109,29 +108,28 @@ struct AudioPlaybackCarouselPage: View {
             onTogglePlayback: togglePlayback,
             onToggleBoost: { onAudioBoostToggleRequested?() }
         )
-        .onAppear {
-            sessionController.captureAndSwitchSession()
-        }
         .onDisappear {
             audioBoostRequestState.invalidate()
             playbackControlVisibility.cancelPendingFade()
             player?.stop()
+            playerGeneration &+= 1
             clearPendingPlayer()
             isPlaying = false
             originalAudioLease?.release()
             originalAudioLease = nil
-            sessionController.restoreSession()
+            sessionController.deactivate()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
                 showPlaybackControlPersistently()
                 player?.stop()
+                playerGeneration &+= 1
                 isPlaying = false
                 if !commitPendingPlayer(resumeTime: 0) {
                     player?.currentTime = 0
                 }
                 playbackProgress = 0
-                sessionController.restoreSession()
+                sessionController.deactivate()
             }
         }
         .task {
@@ -157,7 +155,6 @@ struct AudioPlaybackCarouselPage: View {
 
     private func togglePlayback() {
         guard !presentation.isControlDisabled, let player else { return }
-
         if player.isPlaying {
             player.pause()
             let pausedTime = player.currentTime
@@ -171,24 +168,32 @@ struct AudioPlaybackCarouselPage: View {
             showPlaybackControlPersistently()
             dependencies.lightImpactFeedback(0.55, feedback(.audioPause))
         } else {
-            do {
-                try dependencies.activateAudioPlayerSession()
-                guard player.play() else {
+            startPlayback(player, sendsFeedback: true)
+        }
+    }
+
+    private func startPlayback(_ expectedPlayer: AVAudioPlayer, sendsFeedback: Bool) {
+        let expectedPlayerGeneration = playerGeneration
+        Task { @MainActor in
+            let activated = await sessionController.activate()
+            guard expectedPlayerGeneration == playerGeneration,
+                  self.player === expectedPlayer,
+                  !presentation.isControlDisabled,
+                  !expectedPlayer.isPlaying else { return }
+            guard activated, expectedPlayer.play() else {
+                isPlaying = false
+                showPlaybackControlPersistently()
+                if sendsFeedback {
                     dependencies.errorFeedback(feedback(.audioPlayFailed))
-                    MerianLog.general.debug(
-                        "AudioPlaybackCarouselPage: player failed to start"
-                    )
-                    return
                 }
-                isPlaying = true
-                showPlaybackControlTemporarily()
-                trackBoostedPlaybackStartedIfNeeded()
+                MerianLog.general.debug("AudioPlaybackCarouselPage: audible start failed")
+                return
+            }
+            isPlaying = true
+            showPlaybackControlTemporarily()
+            trackBoostedPlaybackStartedIfNeeded()
+            if sendsFeedback {
                 dependencies.mediumPulseFeedback(feedback(.audioPlay))
-            } catch {
-                dependencies.errorFeedback(feedback(.audioPlayFailed))
-                MerianLog.general.debug(
-                    "AudioPlaybackCarouselPage: session activation failed: \(error, privacy: .private)"
-                )
             }
         }
     }
@@ -251,14 +256,7 @@ struct AudioPlaybackCarouselPage: View {
             dependencies.feedbackIdentifier(.audioSeekCommit)
         )
         if shouldResume {
-            if player.play() {
-                isPlaying = true
-                showPlaybackControlTemporarily()
-                trackBoostedPlaybackStartedIfNeeded()
-            } else {
-                isPlaying = false
-                showPlaybackControlPersistently()
-            }
+            startPlayback(player, sendsFeedback: false)
         }
     }
 
@@ -580,12 +578,12 @@ struct AudioPlaybackCarouselPage: View {
         player = preparedPlayer
         activePlayerSource = source
         playerGeneration &+= 1
-        isPlaying = shouldPlay && preparedPlayer.play()
+        isPlaying = false
         playbackProgress = preparedPlayer.duration > 0
             ? preparedPlayer.currentTime / preparedPlayer.duration
             : 0
-        if shouldPlay, !isPlaying {
-            showPlaybackControlPersistently()
+        if shouldPlay {
+            startPlayback(preparedPlayer, sendsFeedback: false)
         }
     }
 

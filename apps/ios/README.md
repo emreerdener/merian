@@ -373,6 +373,32 @@ Focused behavior and architecture suites freeze coalescing, recovery evidence,
 canonical single-flight repair, bounded registration, imports, test ownership,
 and the 600-line production guard.
 
+## Core UI Ownership
+
+The [Core UI guide](Merian/Core/UI/README.md) is the canonical inventory for
+cross-feature presentation primitives. Milestone feedback under
+`Core/UI/Feedback` separates immutable models, pure identity/mapping policies,
+the bounded FIFO presenter and host registry, scan-completion coordination, and
+live adapters. The Core UI-wide integration audit moved Capture navigation,
+Explore wrapping layout, Profile stats/plan presentation, Insight card entrance
+and candidate confirmation, and the shared notification-permission sheet to
+their narrowest feature or domain owners. Core UI views and modifiers now
+receive milestone haptics through `MilestoneToastFeedbackDependencies`, while
+Capture and Insight live adapters project haptics and hardware eligibility from
+their injected dependency graphs. Only
+`Services/ScanMilestoneDependencies.swift` may resolve Field trip networking,
+authenticated account identity, Offline Sync, SwiftData-backed achievement
+calculation, feature availability, or `GamificationManager`;
+`ScanMilestoneCoordinator` consumes those effects through its small injected
+dependency value and injected `AppEventSending` capability. `AppDIContainer`
+explicitly selects live adapters, while previews and tests can build isolated
+graphs. `CoreUIArchitectureTests` prevents feature-owned declarations or direct
+live-service resolution from returning, pins current live lookups to their
+explicit image-loading or milestone adapter, and keeps every production Core UI
+file at or below 600 lines. The legacy production and test aggregates are
+retired without changing payloads, persistence, routes, retry semantics,
+layouts, or visible feedback.
+
 ## Core Preferences Ownership
 
 [Core Preferences](Merian/Core/Preferences/README.md) owns the observable
@@ -646,25 +672,42 @@ handoffs, external-import recovery, and the root capture state owner. Its
 
 Only Shell Services construct the live network-client, URL-session,
 connection-prewarm, remote-media, share/account lookup, keyboard platform, and
-haptic adapters. The keyboard service owns raw UIKit notification publishers and
-actions; the mounted modifier only binds those publishers to SwiftUI state.
-Models remain deterministic. The view model receives small closure-based
-dependencies and keeps mutable operation tasks and one-shot handoff state inside
-an encapsulated owner with private mutable storage. Views and components retain
-UI-only selection, scrolling, focus, expansion, and dismissal timing and issue
-no endpoint calls. Feature tests mirror this structure and enforce the
-live-service and deterministic Models boundaries, raw-notification confinement,
-and a 600-line ceiling for production Shell files.
+haptic adapters. `CaptureControlDependencies` specifically owns live entitlement
+reads, capture-row keyboard dismissal, paywall telemetry, and semantic haptic
+delivery. `CaptureNavigationDependencies` owns Explore badge loading, app badge
+coordination, settings mutation, and navigation feedback; its focused view model
+generation-fences overlapping refreshes and disappearance. The keyboard service
+owns raw UIKit notification publishers and actions; the mounted modifier only
+binds those publishers to SwiftUI state. Models remain deterministic. The view
+model receives small closure-based dependencies and keeps mutable operation
+tasks and one-shot handoff state inside an encapsulated owner with private
+mutable storage. Views and components retain UI-only selection, scrolling,
+focus, expansion, gesture/task cancellation, and dismissal timing and issue no
+endpoint calls. The primary Capture action invalidates a pending press across
+mode, inactive-scene, suppression, disablement, and disappearance transitions
+before a stale release can dispatch; the matured visual hold reads Pro
+eligibility at action time. Feature tests mirror this structure and enforce the
+live-service and deterministic Models boundaries, feature ownership of the
+control surface, press-lifecycle and badge-refresh fences, raw-notification
+confinement, and a 600-line ceiling for production Shell files.
 
-Capture-wide layout context lives in `Capture/Shared`, including the
-composing-center environment value supplied by Shell and consumed by Record. The
-cross-feature immutable `CGImage` concurrency wrapper lives in `Core/Media`
-because Insights also consumes it.
+Capture-wide layout and interaction vocabulary lives in `Capture/Shared`,
+including the fixed control-row geometry consumed by Shell, Scan, Record, and
+Describe; the pure `CaptureMode` value; the haptic policy shared by Shell and
+Scan; and the composing-center environment value supplied by Shell and consumed
+by Record. The rendered control row, flash control, native mode selector,
+workspace navigation, and their deterministic presentation projections live in
+Shell. The selector converges UIKit value-change and primary-action events
+through one binding guard, while its installed-image snapshot prevents unrelated
+SwiftUI updates from rewriting segment artwork during interaction. The cross-
+feature immutable `CGImage` concurrency wrapper lives in `Core/Media` because
+Insights also consumes it.
 
 The modality folders remain independent: `Scan` owns camera and video input,
 `Record` owns audio presentation and interaction, `Describe` owns typed and
 dictated observations, `Staging` owns the ephemeral mixed-media draft,
-chronological nodes, image bundles, and crop presentation, and `Submission` owns
+chronological nodes, image bundles, toolbar projection and components, injected
+toolbar platform effects, and crop presentation, and `Submission` owns
 conversion into the shared live/offline timeline, descriptors, projection, and
 analysis pipeline. Shell owns staging mutation and disposable-file cleanup; the
 toolbar consumes Staging order without deriving another sort.
@@ -697,11 +740,12 @@ UI. Shell lifecycle and presentation transitions invalidate pending still and
 pre-recording work while gracefully stopping an active video. Scan views perform
 no networking or global service resolution; the preview uses its injected camera
 owner for session and zoom state. Every production Scan file remains within the
-600-line review guard. The reusable crop processor, crop UI, and presentation-
-only flash control live in `Core/Media` and `Core/UI` because Profile or the
-shared Capture bar also consume them. Capture-specific editable image context
-remains in `Capture/Shared`; Profile owns its own avatar-crop presentation
-value.
+600-line review guard. The reusable crop processor and crop UI live in
+`Core/Media` and `Core/UI` because Profile also consumes them. The
+presentation-only `CaptureFlashButton` and its complete control row live in
+Capture Shell, which supplies camera mutation and feedback through injected
+actions. Capture-specific editable image context remains in `Capture/Shared`;
+Profile owns its own avatar-crop presentation value.
 
 [Capture Record](Merian/Features/Capture/Record/README.md) separates immutable
 audio presentation and layout policy, narrow manager/haptic adapters, idle and
@@ -741,12 +785,16 @@ session provider with `CameraVideoRecordingService`, which lazily owns the movie
 output, audio/stabilization preparation, recording operations, file/delegate
 handling, and no UI state. Constructing those owners resolves no AVFoundation
 capture object; pre-preview controls and stop requests do not resolve the lazy
-stack merely to perform a no-op. `Camera/Models`, `Camera/Policies`, and
-`Camera/Coordination` contain recording identities, deterministic
-session/zoom/frame-rate and microphone/generation policy, lock-owned photo and
-video request lifecycles, and the latest-state FPS debouncer. Architecture tests
-freeze those dependencies and keep every live camera owner at or below its
-focused line ceiling.
+stack merely to perform a no-op. Required topology is preflighted before
+mutation. The controller's hardware-lifecycle generation suppresses a queued
+start callback after stop, while the facade's `CameraSessionPresentationState`
+prevents either older start or stop publication after a newer intent; duplicate
+starts or stops share the current presentation generation. `Camera/Models`,
+`Camera/Policies`, and `Camera/Coordination` contain recording identities,
+deterministic session/zoom/frame-rate and microphone/generation policy,
+lock-owned photo and video request lifecycles, and the latest-state FPS
+debouncer. Architecture tests freeze those dependencies and keep every live
+camera owner at or below its focused line ceiling.
 
 The same Core Hardware boundary keeps `AudioCaptureManager` as Capture Record's
 stable observable recording/review facade. The focused
@@ -755,13 +803,15 @@ bounded PCM stream, DSP task, operation identity, temporary-file cleanup, and
 recording lease. `AudioReviewPlaybackController` exclusively owns the review
 player, playback tasks, generation/player fences, and playback lease.
 `AudioSessionCoordinator` remains the process-wide token-aware session owner.
-Construction, session effects, waits, and recording file effects are
-initializer-injected for deterministic overlap and failure tests; feature views
-continue to receive only Record's immutable presentation and narrow actions.
-Both controllers reject stale activation, the recording controller rejects a
-second pending resume before session activation, and teardown releases only a
-concrete exact lease. Manager reset stops each active owner without crossing
-their lease or file responsibilities.
+Core Media's reusable playback owner acquires no lease merely by mounting and
+validates its exact lease before every audible start. Construction, session
+effects, waits, and recording file effects are initializer-injected for
+deterministic overlap and failure tests; feature views continue to receive only
+Record's immutable presentation and narrow actions. Both controllers reject
+stale activation, the recording controller rejects a second pending resume
+before session activation, and teardown releases only a concrete exact lease.
+Manager reset stops each active owner without crossing their lease or file
+responsibilities.
 
 Core Hardware also keeps `HapticManager` as the stable observable feedback
 facade. It owns global admission, semantic trigger timing, diagnostics, and the
@@ -777,8 +827,12 @@ Capture, Explore, Scans, Insights, and Profile. Its `EnvironmentContext/Models`
 and `Policies` contain context values and deterministic location rules;
 `EnvironmentLocationController` is the sole Core Location delegate and owns
 authorization, live tracking, one-shot continuations, and exact-generation
-timeouts. It rejects invalid fixes, separates accurate and coarse caches, and
-fences cancellation and authorization revocation before returning a location.
+timeouts. It rejects invalid fixes, separates accurate and coarse caches,
+restores both hundred-meter accuracy and the 100 m distance filter after a
+one-shot request, and fences cancellation and authorization revocation before
+returning a location. The facade exposes retained cached coordinates only while
+current authorization permits access and rechecks that authority after a
+suspended one-shot request before starting geocoding or weather work.
 `EnvironmentGeocodingService` is the sole `CLGeocoder` owner and shares bounded
 placemark work between name and region projections; and
 `EnvironmentWeatherService` is the sole WeatherKit owner. Platform effects and

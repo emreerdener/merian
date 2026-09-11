@@ -102,4 +102,50 @@ final class CameraSessionControllerTests: XCTestCase {
         XCTAssertEqual(counts.depths, 0)
         XCTAssertEqual(counts.photos, 0)
     }
+
+    func testFailedInitialConfigurationDoesNotBlockRetry()
+        async {
+        let inputRequests = OSAllocatedUnfairLock(initialState: 0)
+        let delegate = CameraSessionDelegateProbe()
+        let controller = CameraSessionController(
+            queue: DispatchQueue(
+                label: "CameraSessionControllerTests.configurationRetry"
+            ),
+            makeVideoInput: {
+                inputRequests.withLock { $0 += 1 }
+                return nil
+            }
+        )
+        let starts = OSAllocatedUnfairLock(initialState: 0)
+
+        for _ in 0..<2 {
+            controller.startSession(
+                videoDelegate: delegate,
+                depthDelegate: delegate,
+                prepareVideoOutput: { _ in },
+                onStarted: { _ in starts.withLock { $0 += 1 } }
+            )
+            await controller.stopSessionAndWait()
+        }
+
+        XCTAssertEqual(inputRequests.withLock { $0 }, 2)
+        XCTAssertEqual(starts.withLock { $0 }, 0)
+    }
+}
+
+private final class CameraSessionDelegateProbe: NSObject,
+    AVCaptureVideoDataOutputSampleBufferDelegate,
+    AVCaptureDepthDataOutputDelegate {
+    func captureOutput(
+        _: AVCaptureOutput,
+        didOutput _: CMSampleBuffer,
+        from _: AVCaptureConnection
+    ) {}
+
+    func depthDataOutput(
+        _: AVCaptureDepthDataOutput,
+        didOutput _: AVDepthData,
+        timestamp _: CMTime,
+        connection _: AVCaptureConnection
+    ) {}
 }

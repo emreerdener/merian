@@ -58,8 +58,54 @@ private final class AudioSessionOperationsProbe: @unchecked Sendable {
     }
 }
 
+private actor AudioSessionActivationGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    var isWaiting: Bool { continuation != nil }
+
+    func release() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
 @Suite("Audio session coordinator")
 struct AudioSessionCoordinatorTests {
+    @Test("A cancelled queued activation performs no session mutation")
+    func cancelledActivationDoesNotMutateSession() async throws {
+        let probe = AudioSessionOperationsProbe()
+        let coordinator = AudioSessionCoordinator(
+            operations: .init(
+                configureAndActivate: { configuration in
+                    try probe.configureAndActivate(configuration)
+                },
+                deactivate: { probe.deactivate() }
+            )
+        )
+        let gate = AudioSessionActivationGate()
+        let activation = Task {
+            await gate.wait()
+            return try await coordinator.activate(.playbackDucking)
+        }
+        while !(await gate.isWaiting) {
+            await Task.yield()
+        }
+        activation.cancel()
+        await gate.release()
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await activation.value
+        }
+        #expect(probe.snapshot.activationCount == 0)
+        #expect(probe.snapshot.deactivationCount == 0)
+    }
+
     @Test("Failed replacement restores the prior configuration and lease")
     func failedReplacementRestoresPriorConfiguration() async throws {
         let probe = AudioSessionOperationsProbe()

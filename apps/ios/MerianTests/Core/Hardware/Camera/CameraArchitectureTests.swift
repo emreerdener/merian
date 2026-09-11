@@ -210,6 +210,8 @@ struct CameraArchitectureTests {
     }
 
     @Test func focusedSuitesRetainCameraCoverage() throws {
+        let manager = try source(Self.managerPath)
+        let sessionController = try source(Self.sessionControllerPath)
         let tests = try source(Self.behaviorTestsPath)
         let photoTests = try source(Self.photoCoordinatorTestsPath)
         let videoTests = try source(Self.videoCoordinatorTestsPath)
@@ -266,6 +268,27 @@ struct CameraArchitectureTests {
         #expect(
             sessionControllerTests.contains(
                 "func testNoOpControlsAndStopsDoNotResolveCaptureStack("
+            )
+        )
+        #expect(
+            sessionControllerTests.contains(
+                "func testFailedInitialConfigurationDoesNotBlockRetry("
+            )
+        )
+        #expect(
+            sessionController.contains(
+                "guard self?.ownsSessionLifecycle("
+            )
+        )
+        #expect(
+            sessionController.components(
+                separatedBy: "invalidateSessionLifecycle()"
+            ).count == 4
+        )
+        #expect(manager.contains("sessionPresentationState.register("))
+        #expect(
+            sessionTests.contains(
+                "func testPresentationGenerationCoalescesDuplicateLifecycleIntents("
             )
         )
     }

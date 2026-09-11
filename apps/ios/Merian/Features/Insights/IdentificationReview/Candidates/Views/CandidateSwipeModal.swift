@@ -307,19 +307,29 @@ extension CandidateSwipeModal {
                                 showPaywall = true
                             }
                         },
+                        feedback: viewModel.feedback,
                         color: .orange
                     )
                 }
 
                 if allowsAskCommunity {
-                    SlideToConfirm(label: "Ask the community", onConfirm: {
-                        requestDismissal(action: .askCommunity)
-                    }, color: .blue)
+                    SlideToConfirm(
+                        label: "Ask the community",
+                        onConfirm: {
+                            requestDismissal(action: .askCommunity)
+                        },
+                        feedback: viewModel.feedback,
+                        color: .blue
+                    )
                 }
 
-                SlideToConfirm(label: confirmButtonTitle, onConfirm: {
-                    requestDismissal(action: .confirmOriginal)
-                })
+                SlideToConfirm(
+                    label: confirmButtonTitle,
+                    onConfirm: {
+                        requestDismissal(action: .confirmOriginal)
+                    },
+                    feedback: viewModel.feedback
+                )
             }
             .padding(.horizontal, 24)
         }

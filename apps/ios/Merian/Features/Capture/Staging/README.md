@@ -16,6 +16,17 @@ deletion work.
   wrappers plus their insertion times. `Models/StagedImage.swift` keeps the
   inference, display, thumbnail, original/crop, focus, and insertion-time values
   for one photo together.
+- `Models/CaptureStagingToolbarPresentation.swift` projects the canonical staged
+  order into renderable toolbar nodes, photo capacity, submit copy, and enabled
+  state. It preserves the established behavior that a coverless video is hidden
+  without consuming a visible tray slot.
+- `Services/CaptureStagingToolbarDependencies.swift` is the sole Staging owner
+  of the live Photo Library, keyboard dismissal, cancel feedback, and
+  process-session tooltip effects. The toolbar receives that small dependency
+  value from Capture Shell.
+- `Components/Toolbar/` owns the staged-media row, cancel and submit controls,
+  private modality badges, tooltip, and complete `ActiveScanToolbar`
+  composition. These components resolve no singleton or platform effect.
 - `Views/CropSheetModifier.swift` owns the timing-sensitive crop presentation.
   It replaces the immediate thumbnail synchronously, fences its cancellable
   display-crop/focus task, and reports required-crop completion in the existing
@@ -26,8 +37,10 @@ Capture Shell remains the mutable owner of `StagedCapture`. Shell admits and
 commits imports, appends completed modality values, owns required-crop and
 automatic-submission presentation fences, removes items, and routes disposable
 paths through `FileIOActor`. `ActiveScanToolbar` consumes canonical
-`orderedNodes` without sorting them again; its picker, tooltip, shimmer, and
-admission-task state remain view-local.
+`orderedNodes` through its deterministic presentation without sorting them
+again. Its picker selection, presentation binding, admission task, tooltip
+visibility, and shimmer timing remain component-local so extraction does not
+change focus, animation, or cancellation behavior.
 
 Capture Submission owns conversion out of staging:
 
@@ -70,8 +83,11 @@ handoff clears references only because the durable owner has adopted them.
 
 Mirrored tests live under `MerianTests/Features/Capture/Staging/`.
 `StagedCaptureTests` covers aggregate state, capacity, cleanup, ordering, stable
-node IDs, and image replacement. `CaptureStagingArchitectureTests` enforces the
-Models/Views boundary, Submission ownership of wire/replay declarations, the
-single toolbar ordering source, absence of network/persistence resolution, and
-the 600-line production-file guard. Paired Shell and Submission suites cover
-admission/presentation fences and timeline/projection contracts.
+node IDs, and image replacement. `CaptureStagingToolbarPresentationTests` locks
+mixed-media ordering, coverless-video filtering, the established filtered-tray
+capacity behavior, and Identify/Analyze state. `CaptureStagingArchitectureTests`
+enforces the Models/Services/Views/Components boundary, Submission ownership of
+wire/replay declarations, the single toolbar ordering source, effect isolation,
+retired Core path, and 600-line production-file guard. Paired Shell and
+Submission suites cover admission/presentation fences and timeline/projection
+contracts.

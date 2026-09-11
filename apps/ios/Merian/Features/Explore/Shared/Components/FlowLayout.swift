@@ -1,20 +1,24 @@
 import SwiftUI
 
-public struct FlowLayout: Layout {
-    public enum LineAlignment {
+struct FlowLayout: Layout {
+    enum LineAlignment {
         case leading
         case center
     }
 
-    public var spacing: CGFloat
-    public var lineAlignment: LineAlignment
-    
-    public init(spacing: CGFloat = 8, lineAlignment: LineAlignment = .leading) {
+    var spacing: CGFloat
+    var lineAlignment: LineAlignment
+
+    init(spacing: CGFloat = 8, lineAlignment: LineAlignment = .leading) {
         self.spacing = spacing
         self.lineAlignment = lineAlignment
     }
-    
-    public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
         let result = FlowResult(
             in: proposal.width,
             subviews: subviews,
@@ -23,8 +27,13 @@ public struct FlowLayout: Layout {
         )
         return result.size
     }
-    
-    public func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
         let result = FlowResult(
             in: bounds.width,
             subviews: subviews,
@@ -39,12 +48,17 @@ public struct FlowLayout: Layout {
             )
         }
     }
-    
+
     struct FlowResult {
-        var size: CGSize = .zero
+        var size = CGSize.zero
         var frames: [CGRect] = []
-        
-        init(in maxWidth: CGFloat?, subviews: Subviews, spacing: CGFloat, lineAlignment: LineAlignment) {
+
+        init(
+            in maxWidth: CGFloat?,
+            subviews: Subviews,
+            spacing: CGFloat,
+            lineAlignment: LineAlignment
+        ) {
             let limit = maxWidth ?? .infinity
             var currentPosition = CGPoint.zero
             var lineHeight: CGFloat = 0
@@ -53,11 +67,12 @@ public struct FlowLayout: Layout {
             var lineStartIndex = 0
             var lineRanges: [Range<Int>] = []
             var lineWidths: [CGFloat] = []
-            
+
             for subview in subviews {
                 let size = subview.sizeThatFits(.unspecified)
-                
-                if currentPosition.x + size.width > limit, currentPosition.x > 0 {
+
+                if currentPosition.x + size.width > limit,
+                   currentPosition.x > 0 {
                     lineRanges.append(lineStartIndex..<frames.count)
                     lineWidths.append(max(0, currentPosition.x - spacing))
                     lineStartIndex = frames.count
@@ -65,7 +80,7 @@ public struct FlowLayout: Layout {
                     currentPosition.y += lineHeight + spacing
                     lineHeight = 0
                 }
-                
+
                 frames.append(CGRect(origin: currentPosition, size: size))
                 lineHeight = max(lineHeight, size.height)
                 currentPosition.x += size.width + spacing
@@ -77,7 +92,9 @@ public struct FlowLayout: Layout {
                 lineWidths.append(max(0, currentPosition.x - spacing))
             }
 
-            let width = maxWidth == nil ? maxX : (limit == .infinity ? maxX : limit)
+            let width = maxWidth == nil
+                ? maxX
+                : (limit == .infinity ? maxX : limit)
             if lineAlignment == .center {
                 for (lineRange, lineWidth) in zip(lineRanges, lineWidths) {
                     let lineOffset = max(0, (width - lineWidth) / 2)
@@ -86,7 +103,7 @@ public struct FlowLayout: Layout {
                     }
                 }
             }
-            
+
             self.frames = frames
             self.size = CGSize(
                 width: width,

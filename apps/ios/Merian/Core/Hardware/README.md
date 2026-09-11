@@ -17,9 +17,9 @@ camera and AI usage.
 authorization, microphone permission, `AVAudioEngine`, recognition requests,
 live audio level, and the token-aware `AudioSessionCoordinator` lease used by
 Capture Describe, Insight Field Notes, Insight audio playback coordination, and
-the shared capture bar. `AppDIContainer` creates the long-lived observable
-instance; feature views receive it through the established environment and pass
-narrow actions into feature state owners.
+the Shell-owned Capture controls. `AppDIContainer` creates the long-lived
+observable instance; feature views receive it through the established
+environment and pass narrow actions into feature state owners.
 
 Do not move dictation tasks or audio-session teardown into a paged feature view.
 `SpeechManager` remains responsible for activating late, tearing down every
@@ -80,16 +80,21 @@ tests inject deterministic players, session effects, and wait gates.
 
 `AudioSessionCoordinator` is the cross-feature, token-aware lease owner for
 recording and playback audio sessions. `AudioRecordingEngineController`,
-`AudioReviewPlaybackController`, and `SpeechManager` release only their current
-lease, so delayed teardown from an older operation cannot deactivate a
-replacement session. Keep this owner separate from either feature and do not
-call `AVAudioSession.sharedInstance()` from a paged view. A lease becomes
-current only after configuration and activation both succeed, and successful
+`AudioReviewPlaybackController`, `AudioPlaybackSessionController`, and
+`SpeechManager` release only their current lease, so delayed teardown from an
+older operation cannot deactivate a replacement session. The reusable playback
+owner adds the established ducking configuration, coalesces activation, rejects
+late acquisition after teardown, and reacquires a lease made stale by a newer
+owner. Keep this owner separate from either feature and do not call
+`AVAudioSession.sharedInstance()` from a paged view. A lease becomes current
+only after configuration and activation both succeed, and successful
 deactivation consumes it. A failed replacement restores the prior configuration
 before leaving that lease current. If restoration also fails, the coordinator
 deactivates the partial session and invalidates prior ownership rather than
 publishing a lease for an unknown configuration. A failed first activation
 likewise deactivates any partially activated session before returning the error.
+A task cancelled before its queued activation reaches the coordinator performs
+no audio-session mutation.
 
 `SpectrogramActor` owns the off-main FFT, mel-scale projection, and bounded
 rolling ambient-noise floor. Its guidance policy classifies clipping by peak and
@@ -106,16 +111,21 @@ coverage live under `Core/Hardware/AudioCapture/` in
 `AudioCaptureArchitectureTests.swift`. Transition-token and audio-session lease
 tests live beside the original manager suite in
 `AudioCaptureTransitionStateTests.swift` and
-`AudioSessionCoordinatorTests.swift`. Record presentation tests remain with the
-feature, and reusable raster tests live in `Core/Media` test ownership. The
-recording suite covers teardown order, retained versus deleted WAV ownership,
-engine-start failure, bounded route recovery, cancellation-ignoring activation,
-controller-level duplicate-resume coalescing, resume retry, and the canonical
-PCM format. The playback suite covers late activation, failed player start,
-completion-wait failure, stale completion, resume position, manager reset, and
-manager-state finalization; the coordinator suite covers successful replacement,
-failed-replacement restoration, failed-rollback invalidation, and
-failed-first-activation cleanup.
+`AudioSessionCoordinatorTests.swift`. Mounted reusable playback lease coverage
+lives with its Core Media owner in `AudioPlaybackSessionControllerTests.swift`.
+Record presentation tests remain with the feature, and reusable raster tests
+live in `Core/Media` test ownership. The recording suite covers teardown order,
+retained versus deleted WAV ownership, engine-start failure, bounded route
+recovery, cancellation-ignoring activation, controller-level duplicate-resume
+coalescing, resume retry, and the canonical PCM format. The playback suite
+covers late activation, failed player start, completion-wait failure, stale
+completion, resume position, manager reset, and manager-state finalization; the
+coordinator suite covers successful replacement, failed-replacement restoration,
+failed-rollback invalidation, and failed-first-activation cleanup. The Core
+Media playback-session suite covers idle-mount isolation, lazy activation
+coalescing and retry, stale lease reacquisition, cancellation-before-activation,
+late-acquisition release, teardown during current-lease validation, and cleanup
+after replacement.
 
 ## Haptic feedback ownership
 
@@ -155,7 +165,7 @@ views. Route user-facing actions through the manager or inject a semantic
 closure into the feature owner. Tests live under
 `MerianTests/Core/Hardware/Haptics/`; coverage for Capture's pure
 control-feedback policy lives separately in
-`MerianTests/Core/UI/CaptureButtonHapticFeedbackTests.swift`.
+`MerianTests/Features/Capture/Shared/CaptureControlHapticPolicyTests.swift`.
 
 ## Environment context and location authorization
 
@@ -177,8 +187,9 @@ implementation lives under `EnvironmentContext/`:
   request, rejects negative-accuracy updates, and keeps coarse fallbacks out of
   the accurate cache. Revocation retires active one-shot requests, and a
   cancelled request cannot escape through the cached-location fallback. The
-  controller restores the coarse composing profile after all shutter waiters
-  resolve. One shared two-second timeout carries an exact UUID generation, so a
+  controller restores both the coarse composing accuracy and its 100 m distance
+  filter after all shutter waiters resolve, whether or not live tracking is
+  active. One shared two-second timeout carries an exact UUID generation, so a
   cancelled non-cooperative timeout cannot resolve a replacement request.
 - `Services/EnvironmentGeocodingService.swift` is the sole `CLGeocoder` owner.
   Location-name and ISO-region projections share one same-coordinate placemark
@@ -197,8 +208,13 @@ absent. The facade, controller, geocoder, and weather adapter use small
 initializer-injected dependency values rather than a broad protocol or a new
 singleton.
 
-Both the eager `validatePermissions()` path and the async
-`requestLocationAuthorizationIfNeeded()` path pass through the same policy
+`EnvironmentContextManager.lastKnownLocation` returns cached coordinates only
+while the current authorization state permits location access; revocation hides
+both accurate and coarse retained fixes from Capture, Explore, and Map callers.
+The facade rechecks that projection after its one-shot location suspension, so
+revocation during a deferred capture cannot fall back to a retained fix or begin
+geocoding/weather work. Both the eager `validatePermissions()` path and the
+async `requestLocationAuthorizationIfNeeded()` path pass through the same policy
 before the controller asks Core Location to present a system prompt. Passive
 region and display-name resolution only proceeds from already-authorized state
 and never prompts.
@@ -219,8 +235,17 @@ revocation, overlap/cancellation/timeout generations, invalid-fix rejection,
 accurate-versus-coarse cache ownership, live-tracking transitions, cache
 coalescing, empty-result retry, and eviction, service concurrency and failure
 fallback, UI-test prompt suppression, declaration ownership, and focused line
-ceilings. The focused matrix currently contains 31 deterministic tests. The
+ceilings. The focused matrix currently contains 34 deterministic tests. The
 retired root model and aggregate test files must not be recreated.
+
+Before release, verify Environment Context on a signed physical device. Grant,
+deny, and revoke Location access while the camera is active and while a shutter
+one-shot is pending; a revoked facade must stop exposing its retained fix and
+must not start geocoding or weather work. Regrant access and verify live coarse
+tracking resumes, shutter capture can obtain an accurate fix or bounded coarse
+fallback, and returning from the one-shot restores hundred-meter accuracy plus
+the 100 m distance filter. Record simulator and physical-device evidence
+separately.
 
 ## System notification boundary
 
@@ -256,15 +281,28 @@ exists or the session is already stopped. Capture objects remain behind one
 serial-queue mutation contract even though their responsibilities no longer
 share one oversized file.
 
+Initial session configuration reserves ownership only while it can create the
+required video input and attach the required video and photo outputs. A
+transient discovery/input failure releases that reservation so a later start can
+retry, and the start callback is published only after AVFoundation reports the
+session running. A session-lifecycle generation also suppresses a queued start
+callback after stop has already invalidated that start. The MainActor facade
+independently generation-fences observable start and stop publication, so an
+older completion cannot overwrite a newer session intent. The pure presentation
+state coalesces duplicate starts and duplicate stops instead of invalidating the
+one callback that can converge facade state. Optional depth attachment cannot
+displace the required photo output.
+
 Focused camera support lives below `Camera/`:
 
 - `Models/CameraVideoRecordingModels.swift` owns the value-only recording
   result, generation, and scheduled-action identities.
 - `Policies/CameraVideoRecordingPolicy.swift` owns the already-granted
   microphone reuse decision and the pure generation/action correlation gate.
-- `Policies/CameraSessionPolicy.swift` owns pure zoom clamping, optical-stop
-  filtering, supported frame-duration clamping, and safe frame-duration update
-  ordering.
+- `Policies/CameraSessionPolicy.swift` owns `CameraSessionPresentationState` and
+  its same-intent coalescing/generation fence, plus pure zoom clamping,
+  optical-stop filtering, supported frame-duration clamping, and safe
+  frame-duration update ordering.
 - `Coordination/CameraPhotoCaptureCoordinator.swift` owns still-photo request
   reservation, checked continuations, timeout tasks, cancellation, and atomic
   terminal-result claiming under one internal lock.
@@ -367,9 +405,10 @@ Use the canonical commands and evidence rules in the
 `CameraManagerTests` freezes the non-eager recording-service construction
 contract, while `CameraSessionControllerTests` freezes non-eager capture-stack
 construction, no-op control/stop behavior before first resolution, stop
-completion delivery without a session, and single root-session creation under
-concurrent access. Pure policy, construction, and architecture tests do not
-exercise AVFoundation hardware.
+completion delivery without a session, single root-session creation under
+concurrent access, and retry after a transient required-input configuration
+failure. Pure policy, construction, and architecture tests do not exercise
+AVFoundation hardware.
 
 Before release, verify on a physical device that capture starts after camera and
 microphone authorization, photo capture completes, a five-second recording and

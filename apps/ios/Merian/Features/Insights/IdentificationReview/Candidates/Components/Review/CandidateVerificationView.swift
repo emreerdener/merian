@@ -35,7 +35,11 @@ struct CandidateVerificationView: View {
                 
                 // Action Buttons
                 VStack(spacing: 12) {
-                    SlideToConfirm(label: confirmButtonTitle, onConfirm: onConfirm)
+                    SlideToConfirm(
+                        label: confirmButtonTitle,
+                        onConfirm: onConfirm,
+                        feedback: feedback
+                    )
                     
                     if let onAskCommunity {
                         Button {

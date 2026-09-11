@@ -105,13 +105,13 @@ struct HapticArchitectureTests {
         #expect(lineCount(try source(Self.audioSessionPath)) <= 100)
     }
 
-    @Test("Capture-button policy tests remain with their UI owner")
+    @Test("Capture-button policy tests remain with their feature owner")
     func captureButtonTestsAreRehomed() throws {
         let managerTests = try source(Self.managerTestsPath)
         let captureTests = try source(Self.captureButtonTestsPath)
 
         #expect(!managerTests.contains("CaptureButtonHapticFeedback"))
-        #expect(captureTests.contains("final class CaptureButtonHapticFeedbackTests"))
+        #expect(captureTests.contains("final class CaptureControlHapticPolicyTests"))
         #expect(captureTests.contains("func testAudioStatesRouteToMediumPulse()"))
         #expect(captureTests.contains("func testDescribeRequiresActiveInput()"))
     }
@@ -161,5 +161,6 @@ struct HapticArchitectureTests {
     private static let managerTestsPath =
         "apps/ios/MerianTests/Core/Hardware/HapticManagerTests.swift"
     private static let captureButtonTestsPath =
-        "apps/ios/MerianTests/Core/UI/CaptureButtonHapticFeedbackTests.swift"
+        "apps/ios/MerianTests/Features/Capture/Shared/" +
+        "CaptureControlHapticPolicyTests.swift"
 }

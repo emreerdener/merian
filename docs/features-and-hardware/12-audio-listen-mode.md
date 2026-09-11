@@ -12,18 +12,18 @@ Supabase Edge Function.
 
 The audio pipeline is split across explicit ownership and isolation boundaries:
 
-| Layer                | Owner                                                                                   | Isolation                           |
-| -------------------- | --------------------------------------------------------------------------------------- | ----------------------------------- |
-| DSP / FFT            | `Core/Hardware/SpectrogramActor`                                                        | Swift actor                         |
-| Recording facade     | `Core/Hardware/AudioCaptureManager`                                                     | `@MainActor` observable state       |
-| Recording engine     | `Core/Hardware/AudioCapture/Services/AudioRecordingEngineController`                    | `@MainActor` exact-resource owner   |
-| Review playback      | `Core/Hardware/AudioCapture/Services/AudioReviewPlaybackController`                     | `@MainActor` player/task owner      |
-| Audio-session leases | `Core/Hardware/AudioSessionCoordinator`                                                 | Swift actor                         |
-| Raster policy        | `Core/Media/AudioSpectrogramRenderer`                                                   | Deterministic value operations      |
-| Shared rendering     | `Core/UI/Components/AudioSpectrogramView`                                               | `@MainActor` SwiftUI                |
-| Record presentation  | `Capture/Record/{Models,Services,ViewModels,Views,Components}`                          | Value Models; `@MainActor` UI/state |
-| Controls and submit  | `Capture/Shell`, `Core/UI/Components/CaptureControlBar.swift`, and `Capture/Submission` | `@MainActor` orchestration          |
-| Queue format fencing | `Core/Data/OfflineSync` and `Core/Data/Database`                                        | Main-actor quarantine; actor claim  |
+| Layer                | Owner                                                                                                                  | Isolation                                |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| DSP / FFT            | `Core/Hardware/SpectrogramActor`                                                                                       | Swift actor                              |
+| Recording facade     | `Core/Hardware/AudioCaptureManager`                                                                                    | `@MainActor` observable state            |
+| Recording engine     | `Core/Hardware/AudioCapture/Services/AudioRecordingEngineController`                                                   | `@MainActor` exact-resource owner        |
+| Review playback      | `Core/Hardware/AudioCapture/Services/AudioReviewPlaybackController`                                                    | `@MainActor` player/task owner           |
+| Audio-session leases | `Core/Hardware/AudioSessionCoordinator`                                                                                | Swift actor                              |
+| Raster policy        | `Core/Media/AudioSpectrogramRenderer`                                                                                  | Deterministic value operations           |
+| Shared rendering     | `Core/UI/Components/AudioSpectrogramView`                                                                              | `@MainActor` SwiftUI                     |
+| Record presentation  | `Capture/Record/{Models,Services,ViewModels,Views,Components}`                                                         | Value Models; `@MainActor` UI/state      |
+| Controls and submit  | `Capture/Shell/Components/CaptureControls`, `Capture/Shell/Models`, `Capture/Shell/Services`, and `Capture/Submission` | `@MainActor` orchestration; value policy |
+| Queue format fencing | `Core/Data/OfflineSync` and `Core/Data/Database`                                                                       | Main-actor quarantine; actor claim       |
 
 This matches the camera pipeline's `CameraManager` → `ViewfinderIntelligence` →
 `CameraPreviewView` separation and avoids the IPC deadlock pattern that would
@@ -644,47 +644,57 @@ for deterministic presentation tests but is hidden after the initial prompt.
 
 ---
 
-## 8. `CaptureControlBar` — Audio Button Wiring
+## 8. Shell-owned `CaptureControlBar` — Audio Button Wiring
 
-### Center capture button (`CaptureButton`)
+`Capture/Shell/Components/CaptureControls` owns the rendered row and its audio
+dispatch. `Capture/Shared/Models` owns only the fixed layout and pure haptic
+vocabulary; Core UI does not own the audio control lifecycle.
 
-The `.audio` case of `CaptureButton.onAction` in `CaptureControlBar` implements
-a multi-state dispatch:
+### Center capture button (`CapturePrimaryActionButton`)
+
+`CapturePrimaryActionButton` keeps gesture and long-press task timing local and
+delivers its tap through `CaptureControlBar.handleAudioAction()`. The bar owns
+the multi-state dispatch:
 
 ```swift
-case .audio:
+private func handleAudioAction() {
     if audioCaptureManager.pendingPlaybackPath != nil {
-        audioCaptureManager.confirmAndSubmit()         // review → submit
+        confirmPendingAudio() // review -> submit after admission
     } else if audioCaptureManager.isRecording {
         if audioCaptureManager.isPaused {
-            audioCaptureManager.resumeRecording()      // paused → recording
+            audioCaptureManager.resumeRecording()
         } else {
-            audioCaptureManager.pauseRecording()       // recording → paused
+            audioCaptureManager.pauseRecording()
         }
-                            } else {
-                                guard audioRecordingStartTask == nil else { return }
-                                audioRecordingStartTask = Task {
-                                    defer { audioRecordingStartTask = nil }
-                                    do {
-                                        guard await viewModel.requestScanAdmission(...) != nil else {
-                                            return
-                                        }
-                                        guard scenePhase == .active else { return }
-                                        try await audioCaptureManager
-                                            .requestMicrophonePermissionForRecording()
-                                        try Task.checkCancellation()
-                                        await cameraManager.stopSessionAndWait()
-                                        try Task.checkCancellation()
-                                        guard scenePhase == .active else { return }
-                                        try await audioCaptureManager.startRecording(
-                                            autoSubmitOnMaxDuration:
-                                                !appSettings.requiresScanConfirmation
-                                        )
-                                    }
-            catch is CancellationError { /* expected mode transition */ }
-            catch { viewModel.offlineToastMessage = error.localizedDescription }
+    } else {
+        startAudioRecording()
+    }
+}
+
+private func startAudioRecording() {
+    guard audioRecordingStartTask == nil else { return }
+    audioRecordingStartTask = Task {
+        defer { audioRecordingStartTask = nil }
+        do {
+            guard await requestAudioScanAdmission() else { return }
+            guard scenePhase == .active else { return }
+            try await audioCaptureManager.requestMicrophonePermissionForRecording()
+            try Task.checkCancellation()
+            await cameraManager.stopSessionAndWait()
+            try Task.checkCancellation()
+            guard scenePhase == .active else { return }
+            try await audioCaptureManager.startRecording(
+                autoSubmitOnMaxDuration: !appSettings.requiresScanConfirmation
+            )
+        } catch is CancellationError {
+            // Expected when the user leaves Audio during startup.
+        } catch {
+            await MainActor.run {
+                viewModel.offlineToastMessage = .error(error.localizedDescription)
+            }
         }
     }
+}
 ```
 
 Errors (permission denied, hardware unavailable) surface via
@@ -692,8 +702,8 @@ Errors (permission denied, hardware unavailable) surface via
 
 ### Center button visual state machine
 
-The `CaptureButton` inner fill and icon encode the **available action**, not the
-current state:
+The `CapturePrimaryActionButton` inner fill and icon encode the **available
+action**, not the current state:
 
 | Condition          | Fill                 | Icon         | Meaning         |
 | ------------------ | -------------------- | ------------ | --------------- |
@@ -708,17 +718,17 @@ hidden during review so the ring resets to a clean submit-button appearance.
 
 ### Flanking buttons (left / right slots)
 
-| State                        | Left button                                    | Right button                                        |
-| ---------------------------- | ---------------------------------------------- | --------------------------------------------------- |
-| Idle                         | —                                              | —                                                   |
-| Recording (active or paused) | `AudioDeleteButton` (trash — cancel + discard) | `AudioDoneButton` (checkmark — stop early → review) |
-| Review                       | `AudioDeleteButton` (trash — discard pending)  | `AudioReviewPlayButton` (play/stop toggle)          |
+| State                        | Left button                                           | Right button                                               |
+| ---------------------------- | ----------------------------------------------------- | ---------------------------------------------------------- |
+| Idle                         | —                                                     | —                                                          |
+| Recording (active or paused) | `CaptureAudioDeleteButton` (trash — cancel + discard) | `CaptureAudioDoneButton` (checkmark — stop early → review) |
+| Review                       | `CaptureAudioDeleteButton` (trash — discard pending)  | `CaptureAudioReviewPlayButton` (play/stop toggle)          |
 
-`AudioDeleteButton` calls `cancelRecording()` while recording and
-`discardPending()` during review. `AudioDoneButton` calls
-`stopRecordingEarly()`. `AudioReviewPlayButton` toggles `playPendingRecording()`
-/ `stopPlayback()`, showing `play.fill` or `stop.fill` with a
-`.symbolEffect(.replace)` transition.
+`CaptureAudioDeleteButton` routes to `cancelRecording()` while recording and
+`discardPending()` during review. `CaptureAudioDoneButton` routes to
+`stopRecordingEarly()`. `CaptureAudioReviewPlayButton` routes to
+`playPendingRecording()` / `stopPlayback()`, showing `play.fill` or `stop.fill`
+with a `.symbolEffect(.replace)` transition.
 
 All flanking buttons animate in/out with `.easeInOut(duration: 0.2)` keyed on
 `captureMode`, `isRecording`, and `pendingPlaybackPath`.
@@ -727,20 +737,20 @@ All flanking buttons animate in/out with `.easeInOut(duration: 0.2)` keyed on
 
 ## 9. Session Lifecycle
 
-| Trigger                                                   | Action                                                                                                                                       |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| User taps Record immediately after entering `.audio`      | Await `cameraManager.stopSessionAndWait()`, then start audio; retry a transient zero input format for at most 300 ms                         |
-| User leaves `.audio` while recording startup is pending   | Cancel the outer task and manager transition; reject late activation and do not show a cancellation toast                                    |
-| Swipe from `.audio` to another mode                       | Invalidate pending startup/resume; pause an active unpaused recording so its clip and progress remain recoverable                            |
-| App becomes inactive or backgrounds while `.audio` active | Apply the same transition invalidation and non-destructive pause contract                                                                    |
-| 15 s countdown completes                                  | Heavy feedback, then review when confirmation is enabled or the established `audioFilePath` Shell handoff when confirmation is disabled      |
-| User taps `AudioDoneButton` (checkmark) while recording   | `stopRecordingEarly()` → always enters review, including when a maximum-duration clip would auto-submit                                      |
-| User taps center button while recording                   | `pauseRecording()` → engine paused, countdown halted                                                                                         |
-| User taps center button while paused                      | `resumeRecording()` → engine and countdown resumed from current progress                                                                     |
-| User taps `AudioDeleteButton` while recording/paused      | `cancelRecording()` → returns to idle                                                                                                        |
-| User taps center button in review                         | `confirmAndSubmit()` → sets `audioFilePath` → `CaptureWorkspaceOrchestrationModifier.onChange` either stages the clip or calls `submitAudio` |
-| User taps `AudioDeleteButton` in review                   | `discardPending()` → returns to idle                                                                                                         |
-| User taps `AudioReviewPlayButton` in review               | Toggles `playPendingRecording()` / `stopPlayback()`                                                                                          |
+| Trigger                                                     | Action                                                                                                                                       |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| User taps Record immediately after entering `.audio`        | Await `cameraManager.stopSessionAndWait()`, then start audio; retry a transient zero input format for at most 300 ms                         |
+| User leaves `.audio` while recording startup is pending     | Cancel the outer task and manager transition; reject late activation and do not show a cancellation toast                                    |
+| Swipe from `.audio` to another mode                         | Invalidate pending startup/resume; pause an active unpaused recording so its clip and progress remain recoverable                            |
+| App becomes inactive or backgrounds while `.audio` active   | Apply the same transition invalidation and non-destructive pause contract                                                                    |
+| 15 s countdown completes                                    | Heavy feedback, then review when confirmation is enabled or the established `audioFilePath` Shell handoff when confirmation is disabled      |
+| User taps `CaptureAudioDoneButton` while recording          | `stopRecordingEarly()` → always enters review, including when a maximum-duration clip would auto-submit                                      |
+| User taps center button while recording                     | `pauseRecording()` → engine paused, countdown halted                                                                                         |
+| User taps center button while paused                        | `resumeRecording()` → engine and countdown resumed from current progress                                                                     |
+| User taps `CaptureAudioDeleteButton` while recording/paused | `cancelRecording()` → returns to idle                                                                                                        |
+| User taps center button in review                           | `confirmAndSubmit()` → sets `audioFilePath` → `CaptureWorkspaceOrchestrationModifier.onChange` either stages the clip or calls `submitAudio` |
+| User taps `CaptureAudioDeleteButton` in review              | `discardPending()` → returns to idle                                                                                                         |
+| User taps `CaptureAudioReviewPlayButton` in review          | Toggles `playPendingRecording()` / `stopPlayback()`                                                                                          |
 
 The camera session is **not** started when the user is on `.audio`. The mode
 change still requests an eager stop, and the Record path independently awaits
@@ -750,16 +760,21 @@ change still requests an eager stop, and the Record path independently awaits
 
 ## 10. AVAudioSession Lifecycle
 
-| Event                                      | Action                                                                                                                  |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| Camera → Audio record handoff              | Await camera-queue `stopRunning()` completion before activating the recording session                                   |
-| `startRecording` called                    | The recording controller activates `.recordMeasurement(...)` from its detached setup                                    |
-| `cancelRecording()` or `finishRecording()` | The recording controller deactivates only the matching current lease with `notifyOthersOnDeactivation`                  |
-| Task cancelled mid-setup                   | Controller cleanup finishes the stream, removes the tap, stops the engine, deletes the partial file, and releases lease |
-| Review playback starts                     | The playback controller acquires and retains its own `.playback` lease before seeking and starting the accepted player  |
-| Review stops or completes                  | The controller stops the exact player and deactivates only its current lease; stale tasks cannot clear a replacement    |
-| First activation fails                     | Coordinator deactivates any partial session and publishes no lease                                                      |
-| Replacement activation fails               | Coordinator restores the prior configuration and lease; failed rollback deactivates and invalidates the partial session |
+| Event                                       | Action                                                                                                                  |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Camera → Audio record handoff               | Await camera-queue `stopRunning()` completion before activating the recording session                                   |
+| `startRecording` called                     | The recording controller activates `.recordMeasurement(...)` from its detached setup                                    |
+| `cancelRecording()` or `finishRecording()`  | The recording controller deactivates only the matching current lease with `notifyOthersOnDeactivation`                  |
+| Task cancelled mid-setup                    | Controller cleanup finishes the stream, removes the tap, stops the engine, deletes the partial file, and releases lease |
+| Review playback starts                      | The playback controller acquires and retains its own `.playback` lease before seeking and starting the accepted player  |
+| Review stops or completes                   | The controller stops the exact player and deactivates only its current lease; stale tasks cannot clear a replacement    |
+| First activation fails                      | Coordinator deactivates any partial session and publishes no lease                                                      |
+| Replacement activation fails                | Coordinator restores the prior configuration and lease; failed rollback deactivates and invalidates the partial session |
+| Shared audio page appears                   | Perform no process-wide audio-session mutation; activation remains lazy until an audible start                          |
+| Another owner replaces that lease           | The mounted controller detects the stale token and reacquires before its next audible start                             |
+| Shared audio starts or resumes              | Await exact-lease validation before play, seek-resume, loop, or fallback; abort if lifecycle or player identity changed |
+| Shared audio disappears during activation   | Teardown invalidates pending work and releases a late lease without touching a newer owner                              |
+| Teardown overlaps retained-lease validation | A lifecycle generation rejects the suspended resume; it cannot reactivate playback after teardown                       |
 
 `notifyOthersOnDeactivation` signals the OS to restore ducked audio and ensures
 `SpeechManager` can cleanly acquire its own session when the user swipes to
@@ -787,7 +802,10 @@ process-wide `AVAudioSession` handoff. Before release, use a signed
 physical-device build to verify first-use permission, Camera-to-Audio startup,
 record/pause/resume, early-stop review, mode/background preservation, the review
 and auto-handoff maximum-duration branches, feedback, review playback/scrubbing,
-and the Audio-to-Describe transition.
+and the Audio-to-Describe transition. Also verify that mounting an Insight or
+Explore audio page does not interrupt recording or dictation, then exercise
+first play, seek-resume, owner replacement followed by resume,
+background/disappearance during activation, and headphone or route changes.
 
 ---
 
@@ -992,6 +1010,29 @@ recording and presents a concise fallback message; restoration failure falls
 back without transient UI. Spectrogram, playhead, elapsed/total timestamp,
 audio-session handling, interruption recovery, and one-active-player
 coordination remain shared with original playback.
+
+The iOS Explore audio surface delegates process-wide session ownership to Core
+Media's `AudioPlaybackSessionController`. The controller retains an exact
+`AudioSessionCoordinator` token, coalesces overlapping play attempts, retries a
+failed activation, verifies a retained token before reuse, and fences teardown
+that overlaps that validation. User pause, external-player handoff, recoverable
+interruption, overlay cleanup, deselection, and reset cancel both the
+surface-owned task and pending controller activation; reset and deselection also
+release only that token. Feature code does not configure or deactivate
+`AVAudioSession` directly. This keeps late Explore cleanup from deactivating
+Capture recording, speech, or a replacement media player.
+
+Reusable Core UI and Explore audio perform no process-wide session mutation
+merely by mounting. They use the same owner immediately before every audible
+start, including play-button, seek-resume, loop, and fallback-player paths. That
+validation closes the window where recording, speech, or another player could
+replace a retained lease while a page remained visible. Lifecycle and
+player-identity fences prevent a suspended play from starting after teardown or
+replacement. The former synchronous `AVAudioPlayer` session-mutation effect and
+AVFoundation import were removed from generic `MediaPlaybackDependencies`. Its
+async `activatePlaybackAudio` closure remains the narrow unmuted-`AVPlayer`
+admission seam and delegates to the coordinator; feature adapters do not
+configure or deactivate the session themselves.
 
 ### Published and Insight Spectrogram Seeking
 

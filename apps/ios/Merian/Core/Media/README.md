@@ -6,18 +6,54 @@ feedback, or durable scan state.
 
 ## Playback dependency boundary
 
-`MediaPlaybackDependencies` is the initializer-injected adapter for shared
-audio/video session activation, source acquisition, boost preparation,
+`MediaPlaybackDependencies` is the initializer-injected adapter for unmuted
+`AVPlayer` audio-session admission, source acquisition, boost preparation,
 telemetry, and haptic feedback. Core components use typed
 `MediaPlaybackFeedbackEvent` values and a neutral `media` namespace. Insight's
 feature-owned adapter supplies the legacy `media.insight` namespace and Insight
 boost telemetry without teaching Core views about their host feature.
 
-`AudioPlaybackSessionController` owns category restoration and
-`AudioPlayerDelegate` is a main-actor owner whose nonisolated AVFoundation
-callbacks transfer only player identity, completion state, and error text back
-to UI state. Do not add unchecked sendability to AVFoundation delegate or player
-state.
+`AudioPlaybackSessionController` owns one token-aware playback-ducking lease for
+a mounted media surface. It coalesces concurrent activation, detects and
+reacquires a lease replaced by another audio owner, fences teardown during lease
+validation, drains a cancelled activation before replacement, and releases only
+the exact lease it acquired. It remains inactive while a surface is merely
+mounted. A late activation or cleanup therefore cannot deactivate a newer
+recording or playback owner. Callers explicitly invalidate pending controller
+activation when their UI-owned play task is cancelled; cancellation that reaches
+the coordinator before execution performs no process-wide mutation, while a
+non-cooperative late lease is released. `AudioPlayerDelegate` is a main-actor
+owner whose nonisolated AVFoundation callbacks transfer only player identity,
+completion state, and error text back to UI state. Do not add unchecked
+sendability to AVFoundation delegate or player state.
+
+`AudioPlaybackCarouselPage` acquires no process-wide lease merely by appearing.
+It awaits the controller immediately before every audible start, including
+play-button, seek-resume, and fallback-player paths. This validation reacquires
+a lease replaced by recording, speech, or another player while the page remained
+mounted. Background and disappearance advance the player generation before
+teardown, so a suspended activation cannot start a stale player afterward.
+`MediaPlaybackDependencies` deliberately does not import AVFoundation or expose
+the former synchronous `AVAudioPlayer` session-mutation effect. Its existing
+async `activatePlaybackAudio` closure remains the narrow admission seam for
+unmuted `AVPlayer` video; the live closure delegates to the token-aware
+coordinator rather than configuring `AVAudioSession` itself. Feature adapters
+otherwise remain limited to source, boost, telemetry, and feedback policy.
+
+Deterministic lease-lifecycle coverage lives in
+`MerianTests/Core/Media/AudioPlaybackSessionControllerTests.swift`; keep those
+tests with the reusable owner rather than folding them into the Core Hardware
+coordinator suite. The same suite prevents Explore Shared media from regaining a
+direct `AVAudioSession.sharedInstance()` mutation, requires shared audio paths
+to validate the exact lease before every audible start, and keeps generic
+playback dependencies free of direct audio-session mutation.
+
+Before release, use a signed physical device to verify that merely mounting an
+Insight or Explore audio page does not interrupt active recording or dictation.
+Exercise first play, seek-resume, owner replacement followed by resume,
+background/disappearance during activation, headphone and route changes, and
+return to recording or speech. Simulator lease tests are deterministic evidence
+for ownership but do not validate the process-wide `AVAudioSession` handoff.
 
 ## Playback observation lifetime
 

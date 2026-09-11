@@ -45,6 +45,179 @@ final class CaptureShellArchitectureTests: XCTestCase {
         }
     }
 
+    func testCaptureControlSurfaceIsFeatureOwned() throws {
+        let repository = try repositoryRoot()
+        for path in [
+            "apps/ios/Merian/Core/UI/Components/CaptureControlBar.swift",
+            "apps/ios/Merian/Core/UI/Components/CaptureFlashButton.swift"
+        ] {
+            XCTAssertFalse(
+                FileManager.default.fileExists(
+                    atPath: repository.appendingPathComponent(path).path
+                ),
+                "Retired Core UI Capture control returned at \(path)"
+            )
+        }
+
+        let controlsRoot = try shellSourceRoot().appendingPathComponent(
+            "Components/CaptureControls"
+        )
+        for filename in [
+            "CaptureControlBar.swift",
+            "CaptureFlashButton.swift",
+            "CapturePrimaryActionButton.swift",
+            "CaptureSecondaryControlButtons.swift"
+        ] {
+            XCTAssertTrue(
+                FileManager.default.fileExists(
+                    atPath: controlsRoot.appendingPathComponent(filename).path
+                ),
+                "Capture Shell is missing \(filename)"
+            )
+        }
+
+        let leafControlTypes = [
+            "CapturePrimaryActionButton",
+            "CaptureDescribeDictationButton",
+            "CaptureVideoCancelButton",
+            "CapturePromptListButton",
+            "CaptureAudioDeleteButton",
+            "CaptureAudioDoneButton",
+            "CaptureAudioReviewPlayButton",
+            "CaptureFlashButton"
+        ]
+        let productionRoot = repository.appendingPathComponent(
+            "apps/ios/Merian"
+        )
+        let controlsPrefix = controlsRoot.path + "/"
+        for file in try swiftFiles(in: productionRoot)
+            where !file.path.hasPrefix(controlsPrefix) {
+            let contents = try String(contentsOf: file, encoding: .utf8)
+            for leafControlType in leafControlTypes {
+                XCTAssertFalse(
+                    contents.contains(leafControlType),
+                    "\(file.lastPathComponent) bypasses CaptureControlBar " +
+                        "with \(leafControlType)"
+                )
+            }
+        }
+
+        let sharedModelsRoot = repository.appendingPathComponent(
+            "apps/ios/Merian/Features/Capture/Shared/Models"
+        )
+        for filename in [
+            "CaptureControlBarLayout.swift",
+            "CaptureControlHapticPolicy.swift",
+            "CaptureMode.swift"
+        ] {
+            let file = sharedModelsRoot.appendingPathComponent(filename)
+            let contents = try String(contentsOf: file, encoding: .utf8)
+            XCTAssertLessThanOrEqual(
+                contents.split(
+                    separator: "\n",
+                    omittingEmptySubsequences: false
+                ).count,
+                150,
+                "\(filename) exceeds the focused shared-model ceiling"
+            )
+            for token in [
+                "import SwiftUI",
+                "import UIKit",
+                "HapticManager",
+                "UIApplication.shared",
+                "AppTelemetry"
+            ] {
+                XCTAssertFalse(
+                    contents.contains(token),
+                    "\(filename) directly owns \(token)"
+                )
+            }
+        }
+    }
+
+    func testNavigationAndModeChromeAreCaptureOwned() throws {
+        let repository = try repositoryRoot()
+        for path in [
+            "apps/ios/Merian/Core/UI/Components/FloatingNavigationMenu.swift",
+            "apps/ios/Merian/Core/UI/Components/MainTabBar.swift",
+            "apps/ios/Merian/Core/UI/Components/MediaModeToggle.swift",
+            "apps/ios/MerianTests/Core/UI/MediaModeToggleTests.swift"
+        ] {
+            XCTAssertFalse(
+                FileManager.default.fileExists(
+                    atPath: repository.appendingPathComponent(path).path
+                ),
+                "Retired Core UI ownership returned at \(path)"
+            )
+        }
+
+        let shellRoot = try shellSourceRoot()
+        for path in [
+            "Components/Navigation/FloatingNavigationMenu.swift",
+            "Components/Navigation/MainTabBar.swift",
+            "Components/ModeSelector/CaptureModeSelectorStyle.swift",
+            "Components/ModeSelector/MediaModeToggle.swift",
+            "Models/CaptureNavigationBadgeSnapshot.swift",
+            "Services/CaptureNavigationDependencies.swift",
+            "ViewModels/CaptureNavigationViewModel.swift"
+        ] {
+            XCTAssertTrue(
+                FileManager.default.fileExists(
+                    atPath: shellRoot.appendingPathComponent(path).path
+                ),
+                "Capture Shell is missing \(path)"
+            )
+        }
+
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: repository.appendingPathComponent(
+                    "apps/ios/MerianTests/Features/Capture/Shell/" +
+                        "MediaModeToggleTests.swift"
+                ).path
+            )
+        )
+    }
+
+    func testPrimaryControlFencesPendingPressAcrossLifecycleChanges() throws {
+        let controlsRoot = try shellSourceRoot().appendingPathComponent(
+            "Components/CaptureControls"
+        )
+        let primaryAction = try String(
+            contentsOf: controlsRoot.appendingPathComponent(
+                "CapturePrimaryActionButton.swift"
+            ),
+            encoding: .utf8
+        )
+        for lifecycleFence in [
+            ".onChange(of: presentation.captureMode)",
+            ".onChange(of: scenePhase)",
+            ".onChange(of: isInteractionEnabled)",
+            "invalidatePendingPress(awaitingRelease: true)",
+            "guard pressState != .idle else { return }",
+            "guard completedPressState != .cancelled else { return }"
+        ] {
+            XCTAssertTrue(
+                primaryAction.contains(lifecycleFence),
+                "Primary Capture action is missing \(lifecycleFence)"
+            )
+        }
+        XCTAssertFalse(primaryAction.contains("isProVideoAvailable"))
+
+        let controlBar = try String(
+            contentsOf: controlsRoot.appendingPathComponent(
+                "CaptureControlBar.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(
+            controlBar.contains(
+                "if viewModel.isCaptureControlProVideoAvailable"
+            ),
+            "Capture bar must read Pro eligibility when the hold matures"
+        )
+    }
+
     func testViewsComponentsAndModifiersDoNotResolveLiveServices() throws {
         let root = try shellSourceRoot()
         let presentationDirectories = ["Views", "Components", "Modifiers"]
@@ -55,6 +228,8 @@ final class CaptureShellArchitectureTests: XCTestCase {
             "RevenueCatManager.shared",
             "HapticManager.shared",
             "NotificationCenter.default",
+            "UIApplication.shared",
+            "PHPhotoLibrary.shared",
             "URLSession(",
             ".client.from("
         ]

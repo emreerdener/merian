@@ -330,7 +330,8 @@ struct CaptureWorkspaceView: View {
                         MainTabBar(
                             isExploreOpen: $viewModel.activeSheet.mapped(to: .explore),
                             isScansOpen: $viewModel.activeSheet.mapped(to: .scans),
-                            isUserProfileOpen: $viewModel.activeSheet.mapped(to: .profile)
+                            isUserProfileOpen: $viewModel.activeSheet.mapped(to: .profile),
+                            dependencies: viewModel.dependencies.navigation
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     } else {
@@ -359,7 +360,8 @@ struct CaptureWorkspaceView: View {
                             },
                             onDescriptionTap: { index in stagedDescriptionEditIndex = index },
                             onAudioTap: { index in stagedAudioReviewIndex = index },
-                            onVideoTap: { index in stagedVideoReviewIndex = index }
+                            onVideoTap: { index in stagedVideoReviewIndex = index },
+                            dependencies: viewModel.dependencies.stagingToolbar
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }

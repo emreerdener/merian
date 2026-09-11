@@ -46,7 +46,9 @@ orphaned object does not reconstruct its relational context.
   `AppEventPublisher`, `AppRouteCoordinator`, `MilestoneToastPresenter`,
   `MilestoneToastHostRegistry`, clock, and scan-milestone coordinator instances
   and do not bind the process-global authentication manager to their route or
-  milestone state.
+  milestone state. The production container explicitly composes
+  `ScanMilestoneCoordinator.Dependencies.live`; the coordinator and visual
+  presenter contain no direct singleton or endpoint resolution.
 - The container injects observable managers through SwiftUI `@Environment` for
   render state and is initializer-injected into business-owning view models.
   This keeps dependency access explicit without turning the entire container
@@ -111,9 +113,14 @@ orphaned object does not reconstruct its relational context.
   zoom range (0.5×–15×) while retaining LiDAR depth delivery via
   `AVCaptureDepthDataOutput` — before falling back to `.builtInLiDARDepthCamera`
   and single-lens devices. Controls and stop requests inspect only an existing
-  lazy session, so pre-preview no-ops do not initialize capture hardware. Zoom
-  is surfaced via a `ZoomSliderView` on the right edge of the viewfinder and via
-  vertical swipe and pinch gestures on the preview; the control hides itself
+  lazy session, so pre-preview no-ops do not initialize capture hardware.
+  Session-start publication also requires the current lifecycle generation, so a
+  stop that completes before a queued MainActor callback prevents stale
+  running-state publication. The facade separately generation-fences observable
+  start and stop completions against newer lifecycle transitions while pure
+  presentation state coalesces duplicate same-intent requests. Zoom is surfaced
+  via a `ZoomSliderView` on the right edge of the viewfinder and via vertical
+  swipe and pinch gestures on the preview; the control hides itself
   (`isZoomSupported = maxZoomFactor >= 2.0`) on hardware without a meaningful
   zoom range.
 - Still-photo request lifetime is isolated in `CameraPhotoCaptureCoordinator`.
@@ -170,7 +177,10 @@ orphaned object does not reconstruct its relational context.
   coarse fallback if GPS cannot settle. Invalid negative-accuracy fixes are
   ignored; a coarse timeout result is not promoted into the accurate cache; and
   task cancellation or authorization revocation cannot escape through a cached
-  return. `EnvironmentGeocodingService` alone owns coalesced bounded
+  return. The facade also hides retained cached coordinates whenever current
+  authorization is not allowed, rechecks it after suspended one-shot
+  acquisition, and restores both coarse accuracy and the 100 m distance filter
+  on completion. `EnvironmentGeocodingService` alone owns coalesced bounded
   `CLGeocoder` work, and `EnvironmentWeatherService` alone owns current and
   historical WeatherKit lookup. Gallery and shared-file imports preserve only
   the historical date/location fields actually present.

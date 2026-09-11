@@ -119,7 +119,8 @@ import SwiftUI
         self.milestoneToastHostRegistry = MilestoneToastHostRegistry()
         self.scanMilestoneCoordinator = ScanMilestoneCoordinator(
             eventSender: appEventPublisher,
-            presenter: milestoneToastPresenter
+            presenter: milestoneToastPresenter,
+            dependencies: .live
         )
 
         if bindGlobalManagers {
@@ -177,6 +178,10 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.milestoneToastPresenter)
             .environment(container.milestoneToastHostRegistry)
             .environment(\.milestoneToastClock, container.milestoneToastClock)
+            .environment(
+                \.milestoneToastFeedback,
+                .live(hapticManager: container.hapticManager)
+            )
     }
 }
 

@@ -99,7 +99,11 @@ struct CandidateAlternativesView: View {
     private var actionButtons: some View {
         VStack(spacing: 16) {
             reviewAlternativesButton
-            SlideToConfirm(label: confirmButtonTitle, onConfirm: onConfirm)
+            SlideToConfirm(
+                label: confirmButtonTitle,
+                onConfirm: onConfirm,
+                feedback: feedback
+            )
         }
     }
 

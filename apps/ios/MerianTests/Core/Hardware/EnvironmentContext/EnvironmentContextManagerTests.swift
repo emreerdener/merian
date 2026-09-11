@@ -67,6 +67,22 @@ struct EnvironmentContextManagerTests {
         #expect(fixture.manager.lastKnownLocation === fallback)
     }
 
+    @Test("Revoked authorization hides retained coordinates from consumers")
+    func revokedAuthorizationHidesLastKnownLocation() {
+        let fixture = makeFixture(
+            authorizationStatus: .authorizedWhenInUse
+        )
+        let location = syntheticEnvironmentLocation()
+        fixture.locationController.receiveLocations([location])
+        #expect(fixture.manager.lastKnownLocation === location)
+
+        fixture.locationProbe.authorizationStatus = .denied
+        fixture.locationController.receiveAuthorizationStatus(.denied)
+
+        #expect(fixture.manager.cachedLocation === location)
+        #expect(fixture.manager.lastKnownLocation == nil)
+    }
+
     @Test("Unauthorized context performs no geocode or weather work")
     func unauthorizedContextHasNoServiceEffects() async {
         let fixture = makeFixture(authorizationStatus: .denied)
@@ -80,6 +96,33 @@ struct EnvironmentContextManagerTests {
         #expect(fixture.placemarkProbe.locations.isEmpty)
         #expect(fixture.weatherProbe.currentLocations.isEmpty)
         #expect(fixture.locationProbe.locationRequestCount == 0)
+    }
+
+    @Test("Revocation while awaiting location suppresses cached fallback")
+    func revocationDuringDeferredLocationSuppressesFallback() async throws {
+        let fixture = makeFixture(
+            authorizationStatus: .authorizedWhenInUse
+        )
+        fixture.locationController.receiveLocations([
+            syntheticEnvironmentLocation()
+        ])
+        let request = Task {
+            await fixture.manager.fetchDeferredContext()
+        }
+        try await waitForEnvironmentCondition {
+            fixture.locationProbe.locationRequestCount == 1
+        }
+
+        fixture.locationProbe.authorizationStatus = .denied
+        fixture.locationController.receiveAuthorizationStatus(.denied)
+        let context = await request.value
+
+        #expect(context.location == nil)
+        #expect(context.locationName == nil)
+        #expect(context.weatherCondition == nil)
+        #expect(context.weatherTemperature == nil)
+        #expect(fixture.placemarkProbe.locations.isEmpty)
+        #expect(fixture.weatherProbe.currentLocations.isEmpty)
     }
 
     @Test("Deferred geocoding and current weather start concurrently")

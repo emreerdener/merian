@@ -98,21 +98,12 @@ extension ExplorePublicMediaView {
             reducePlaybackOverlay(.autoplayStarted, animation: .easeInOut(duration: 0.18))
         }
         if mediaItem.kind == .audio {
-            guard activateAudioPlaybackSession() else {
-                reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
-                AppTelemetry.trackExploreAudioPlaybackFailed(surface: surface.rawValue)
-                return
-            }
-            player.isMuted = false
-            if playbackState.markAudioPlaybackStartedIfNeeded() {
-                AppTelemetry.trackExploreAudioPlaybackStarted(surface: surface.rawValue)
-                if audioBoostEnabled, boostedAudioURL != nil {
-                    AppTelemetry.trackExploreAudioBoost(
-                        event: "boosted_playback_started",
-                        surface: surface.rawValue
-                    )
-                }
-            }
+            startAudioPlayback(
+                player,
+                verifiesRecovery: shouldVerifyRecovery,
+                clearsResumeIntent: true
+            )
+            return
         }
         if mediaItem.kind == .video, !isMuted {
             Task { @MainActor in
@@ -137,6 +128,49 @@ extension ExplorePublicMediaView {
             startPlaybackRecoveryWatchdog(for: player)
         }
         playbackState.clearResumeIntent()
+    }
+
+    func startAudioPlayback(
+        _ expectedPlayer: AVPlayer,
+        verifiesRecovery: Bool = false,
+        clearsResumeIntent: Bool = false
+    ) {
+        let activationTask = Task { @MainActor in
+            let activated = await activateAudioPlaybackSession()
+            guard !Task.isCancelled,
+                  isPlaybackActive,
+                  self.player === expectedPlayer else { return }
+            guard activated else {
+                reducePlaybackOverlay(
+                    .playbackUnavailable,
+                    animation: .easeInOut(duration: 0.18)
+                )
+                AppTelemetry.trackExploreAudioPlaybackFailed(
+                    surface: surface.rawValue
+                )
+                return
+            }
+            expectedPlayer.isMuted = false
+            if playbackState.markAudioPlaybackStartedIfNeeded() {
+                AppTelemetry.trackExploreAudioPlaybackStarted(
+                    surface: surface.rawValue
+                )
+                if audioBoostEnabled, boostedAudioURL != nil {
+                    AppTelemetry.trackExploreAudioBoost(
+                        event: "boosted_playback_started",
+                        surface: surface.rawValue
+                    )
+                }
+            }
+            expectedPlayer.play()
+            if verifiesRecovery {
+                startPlaybackRecoveryWatchdog(for: expectedPlayer)
+            }
+            if clearsResumeIntent {
+                playbackState.clearResumeIntent()
+            }
+        }
+        playbackState.replaceAudioSessionActivationTask(activationTask)
     }
 
     private func startPlaybackRecoveryWatchdog(for watchedPlayer: AVPlayer) {

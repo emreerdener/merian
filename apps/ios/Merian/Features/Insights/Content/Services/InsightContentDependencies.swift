@@ -16,6 +16,7 @@ struct InsightContentDependencies {
         _ modelContext: ModelContext
     ) -> Bool
     let factManager: @MainActor () -> FactManager
+    let isCardEntranceAnimationEnabled: @MainActor () -> Bool
     let headerRevealFeedback: @MainActor () -> Void
     let fieldTripOpenFeedback: @MainActor () -> Void
 
@@ -36,6 +37,9 @@ struct InsightContentDependencies {
         factManager: @escaping @MainActor () -> FactManager = {
             FactManager.shared
         },
+        isCardEntranceAnimationEnabled: @escaping @MainActor () -> Bool = {
+            true
+        },
         headerRevealFeedback: @escaping @MainActor () -> Void = {},
         fieldTripOpenFeedback: @escaping @MainActor () -> Void = {}
     ) {
@@ -43,12 +47,15 @@ struct InsightContentDependencies {
         self.setPreferredCommonName = setPreferredCommonName
         self.clearPreferredCommonName = clearPreferredCommonName
         self.factManager = factManager
+        self.isCardEntranceAnimationEnabled =
+            isCardEntranceAnimationEnabled
         self.headerRevealFeedback = headerRevealFeedback
         self.fieldTripOpenFeedback = fieldTripOpenFeedback
     }
 
     static var live: Self {
         let hapticManager = AppDIContainer.shared.hapticManager
+        let hardwareOrchestrator = AppDIContainer.shared.hardwareOrchestrator
         let supabaseManager = SupabaseManager.shared
         return Self(
             loadPreferredCommonName: { scientificName, modelContext in
@@ -83,6 +90,9 @@ struct InsightContentDependencies {
                 )
             },
             factManager: { FactManager.shared },
+            isCardEntranceAnimationEnabled: {
+                hardwareOrchestrator.isAnimationEnabled
+            },
             headerRevealFeedback: {
                 hapticManager.triggerLightImpact(intensity: 0.5)
             },

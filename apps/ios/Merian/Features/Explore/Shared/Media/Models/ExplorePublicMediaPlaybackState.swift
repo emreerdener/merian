@@ -12,6 +12,8 @@ final class ExplorePublicMediaPlaybackState {
     private(set) var pendingRecoverySeekTime: CMTime?
 
     private let observation = MediaPlaybackObservation()
+    @ObservationIgnored
+    private let audioSessionController = AudioPlaybackSessionController()
 
     private(set) var audioPlaybackProgress = 0.0
     private(set) var audioElapsedSeconds = 0.0
@@ -20,7 +22,6 @@ final class ExplorePublicMediaPlaybackState {
     private(set) var overlayState = ExploreVideoPlaybackOverlayState()
     private var resumeIntentState = ExploreVideoPlaybackResumeIntentState()
     private(set) var hasTrackedAudioPlaybackStart = false
-    private(set) var hasActivatedAudioPlaybackSession = false
     private(set) var boostedAudioURL: URL?
     private(set) var isPreparingAudioBoost = false
     private(set) var isRevertingAudioBoost = false
@@ -35,6 +36,8 @@ final class ExplorePublicMediaPlaybackState {
     private var playbackRecoveryWatchdogTask: Task<Void, Never>?
     @ObservationIgnored
     private var unexpectedPauseRecoveryTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var audioSessionActivationTask: Task<Void, Never>?
 
     var observedTimeControlStatus: AVPlayer.TimeControlStatus {
         observation.timeControlStatus
@@ -78,6 +81,8 @@ final class ExplorePublicMediaPlaybackState {
         cancelPlaybackRecoveryWatchdog()
         cancelUnexpectedPauseRecovery()
         cancelPlaybackControlFade()
+        cancelAudioSessionActivation()
+        audioSessionController.deactivate()
         cancelAudioSeek()
         observation.detach()
         isPlayerItemReady = false
@@ -125,12 +130,8 @@ final class ExplorePublicMediaPlaybackState {
         return true
     }
 
-    func markAudioPlaybackSessionActive() {
-        hasActivatedAudioPlaybackSession = true
-    }
-
-    func markAudioPlaybackSessionInactive() {
-        hasActivatedAudioPlaybackSession = false
+    func activateAudioSession() async -> Bool {
+        await audioSessionController.activate()
     }
 
     func beginAudioSeek(wasPlaying: Bool) {
@@ -207,6 +208,17 @@ final class ExplorePublicMediaPlaybackState {
 
     func clearPlaybackControlFadeTask() {
         playbackControlFadeTask = nil
+    }
+
+    func replaceAudioSessionActivationTask(_ task: Task<Void, Never>) {
+        audioSessionActivationTask?.cancel()
+        audioSessionActivationTask = task
+    }
+
+    func cancelAudioSessionActivation() {
+        audioSessionActivationTask?.cancel()
+        audioSessionActivationTask = nil
+        audioSessionController.cancelPendingActivation()
     }
 
     func replacePlaybackRecoveryWatchdogTask(_ task: Task<Void, Never>?) {

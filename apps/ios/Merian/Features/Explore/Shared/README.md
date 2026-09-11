@@ -16,13 +16,26 @@ the Explore onboarding prompt. `Models/ExploreCommentAuthorPresentation.swift`
 owns secure comment-avatar fallback shared by Feed and Notifications. `Media/`
 owns the cross-area media boundary:
 
+`Components/FlowLayout.swift` owns the Explore-only wrapping layout shared by
+Feed comments/details and Field Trips catalog cards. It remains a pure SwiftUI
+layout value with no product state or live effects; promote it back to Core only
+if a non-Explore product area adopts the same contract.
+
 - `Components/` owns `ExplorePublicMediaView`, the thin player-layer bridge,
   hero-image rendering, and media indicators.
 - `Playback/` owns audio seeking/boost, player configuration and recovery,
   lifecycle observation, and exact teardown extensions.
 - `Models/` owns the playback coordinator, deterministic interaction/overlay/
   resume policies, and `ExplorePublicMediaPlaybackState`, the sole mutable
-  player/task/observer state owner.
+  player/task/observer state owner. That state also retains the shared
+  token-aware audio-session controller and its activation task; Explore views
+  never configure or deactivate `AVAudioSession` directly. User pause,
+  external-player handoff, recoverable interruption, overlay cleanup,
+  deselection, and reset cancel both the UI task and pending controller
+  activation. Reset and deselection also release only the exact current lease,
+  so another playback or recording owner cannot be torn down by stale cleanup.
+  The shared controller fences teardown while an existing lease is being
+  validated.
 - `Services/` owns narrow live image and spectrogram loading closures. Shared
   components receive those dependencies and never resolve loaders directly.
 

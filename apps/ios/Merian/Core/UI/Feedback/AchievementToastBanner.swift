@@ -69,6 +69,7 @@ struct MilestoneToastBanner: View {
     let onClaimPresentationEffects: (UUID, Date) -> Bool
     let automaticDismissInterval: (UUID, Date) -> TimeInterval?
     let onDismiss: () -> Void
+    var feedback = MilestoneToastFeedbackDependencies()
     var onOpenAchievement: ((AwardPayload) -> Void)?
     var onOpenFieldTrip: ((CaptureGoalDestination) -> Void)?
 
@@ -279,7 +280,7 @@ struct MilestoneToastBanner: View {
 
         hasFiredPresentationEffects = true
         guard onClaimPresentationEffects(item.id, clock.now()) else { return }
-        HapticManager.shared.triggerSuccessPulse()
+        feedback.successPulse()
 
         if UIAccessibility.isVoiceOverRunning {
             let queueAnnouncement = pendingItemCount > 0
@@ -301,9 +302,9 @@ struct MilestoneToastBanner: View {
     private func dismissManually() {
         guard isActive, !isDismissing else { return }
 
-        HapticManager.shared.triggerLightImpact(
-            intensity: 0.45,
-            source: "milestoneToast.dismiss.button"
+        feedback.lightImpact(
+            0.45,
+            "milestoneToast.dismiss.button"
         )
         dismissAutomatically()
     }
@@ -327,7 +328,7 @@ struct MilestoneToastBanner: View {
         )
 
         if hasReachedThreshold && !hasReachedDismissThreshold {
-            HapticManager.shared.triggerSelectionPulse(source: "milestoneToast.dismiss.threshold")
+            feedback.selectionPulse("milestoneToast.dismiss.threshold")
         }
         hasReachedDismissThreshold = hasReachedThreshold
     }
@@ -363,9 +364,9 @@ struct MilestoneToastBanner: View {
         predictedEndTranslation: CGSize
     ) {
         isDismissing = true
-        HapticManager.shared.triggerLightImpact(
-            intensity: 0.72,
-            source: "milestoneToast.dismiss.drag"
+        feedback.lightImpact(
+            0.72,
+            "milestoneToast.dismiss.drag"
         )
 
         let offscreenOffset = MilestoneToastDismissalGesture.offscreenOffset(
@@ -402,7 +403,7 @@ struct MilestoneToastBanner: View {
     private func open() {
         guard isActive, !isDismissing else { return }
 
-        HapticManager.shared.triggerSelectionPulse()
+        feedback.selectionPulse(nil)
 
         switch item.payload {
         case .fieldTrip(let progress):
@@ -448,6 +449,7 @@ struct MilestoneToastStack: View {
     let onClaimPresentationEffects: (UUID, Date) -> Bool
     let automaticDismissInterval: (UUID, Date) -> TimeInterval?
     let onDismiss: (UUID) -> Void
+    let feedback: MilestoneToastFeedbackDependencies
     var onOpenAchievement: ((AwardPayload) -> Void)?
     var onOpenFieldTrip: ((CaptureGoalDestination) -> Void)?
 
@@ -468,6 +470,7 @@ struct MilestoneToastStack: View {
                     onDismiss: {
                         onDismiss(presentation.activeItem.id)
                     },
+                    feedback: feedback,
                     onOpenAchievement: onOpenAchievement,
                     onOpenFieldTrip: onOpenFieldTrip
                 )

@@ -397,7 +397,10 @@ automatic-retry tasks across all scans (in addition to the three-attempt
 per-scan budget); oldest overflow is cancelled and its process-local captures
 are released because the SwiftData goal hint remains the durable recovery
 outbox. Account/session transitions cancel every retained retry task and clear
-its preferred-goal/model-container captures.
+its preferred-goal/model-container captures. The coordinator consumes account,
+network, Offline Sync, SwiftData-backed achievement, feature-availability, and
+gamification effects through one small injected dependency value; only the
+Feedback Services layer resolves their live owners.
 
 ### SwiftUI 17 Environment Macros (`HapticManager`)
 
@@ -506,10 +509,10 @@ uses `LazyHStack`, and `CaptureWorkspaceView` initializes both its selected mode
 and scroll position from the first sanitized preference value. Describe keeps
 its vertical scroller behind a UIKit hosting boundary; its dictation/prompt
 lifecycle observer and prompt sheet are mounted outside the pager. Fixed capture
-chrome and full-screen overlay clearance come from `CaptureControlBarLayout`
-instead of measuring a child and writing that value back into parent layout. The
-full-screen clearance remains 250 pt because the safe-area-ignoring pager
-reports a zero bottom inset.
+chrome and full-screen overlay clearance come from `CaptureControlBarLayout` in
+`Capture/Shared/Models` instead of measuring a child and writing that value back
+into parent layout. The full-screen clearance remains 250 pt because the
+safe-area-ignoring pager reports a zero bottom inset.
 
 These boundaries eliminate the startup cycle previously formed by eager
 off-screen pages, nested SwiftUI scroll graphs, presentation state, and a layout
@@ -1259,12 +1262,17 @@ and preview access remain the ordinary root-session creation boundaries;
 explicit recording preparation may also resolve the controller-backed session on
 that same queue. Stop completion is idempotently delivered even when that
 session is absent or already stopped, keeping observable façade state
-convergent. The same ownership rule applies to `CameraVideoRecordingService`'s
-`AVCaptureMovieFileOutput`, recording state, and video connection: start/stop,
-stabilization, timeout cleanup, and recording-delegate handling all execute on
-the shared camera queue. New hardware control paths must follow that split:
-AVFoundation session/device/output reads and `lockForConfiguration()` stay on
-the camera queue; `@Observable` state writes stay on `@MainActor`.
+convergent. Initial configuration reserves its one-time state only while a
+required video input plus video and photo outputs can be attached. A transient
+input/discovery failure releases the reservation for retry, optional depth is
+added after required outputs, and the MainActor start callback is emitted only
+after the session reports running. The same ownership rule applies to
+`CameraVideoRecordingService`'s `AVCaptureMovieFileOutput`, recording state, and
+video connection: start/stop, stabilization, timeout cleanup, and
+recording-delegate handling all execute on the shared camera queue. New hardware
+control paths must follow that split: AVFoundation session/device/output reads
+and `lockForConfiguration()` stay on the camera queue; `@Observable` state
+writes stay on `@MainActor`.
 
 ### Historical Scan Hydration Snapshot Boundary (`InferenceEngine`)
 
@@ -1590,20 +1598,21 @@ from redrawing a newly mounted page.
 
 System and milestone feedback overlays keep their layout footprint to the
 visible banner. `AppDIContainer` owns the sole production milestone presenter,
-clock, host registry, and scan coordinator. Its process-local queue is capped at
-32 lightweight items, duplicate payloads coalesce to stable identities, and the
-stack materializes one payload subtree plus at most two decorative backplates.
-The outer overlay animates only visibility, active-item replacement is owned by
-the stack, and backing-depth changes are owned by the surface; FIFO mutations
-therefore neither allocate a full queued-ID animation key nor drive overlapping
-card transitions. A nested feedback host becomes the sole renderer while
-mounted; removing it restores the previous host without restarting the active
-lifetime or repeating haptic/VoiceOver effects. Account or foreground-timeout
-generation changes clear the queue and reject stale async callbacks. The Scans
-export state uses a compact pass-through progress capsule instead of a dim
-full-screen overlay, while conflicting mutation controls remain disabled. These
-boundaries avoid retaining or invalidating a full heavy view tree for ephemeral
-feedback.
+clock, host registry, and scan coordinator and explicitly composes the live
+service adapter. Models, policies, and presentation contain no live service or
+SwiftData resolution. The process-local queue is capped at 32 lightweight items,
+duplicate payloads coalesce to stable identities, and the stack materializes one
+payload subtree plus at most two decorative backplates. The outer overlay
+animates only visibility, active-item replacement is owned by the stack, and
+backing-depth changes are owned by the surface; FIFO mutations therefore neither
+allocate a full queued-ID animation key nor drive overlapping card transitions.
+A nested feedback host becomes the sole renderer while mounted; removing it
+restores the previous host without restarting the active lifetime or repeating
+haptic/VoiceOver effects. Account or foreground-timeout generation changes clear
+the queue and reject stale async callbacks. The Scans export state uses a
+compact pass-through progress capsule instead of a dim full-screen overlay,
+while conflicting mutation controls remain disabled. These boundaries avoid
+retaining or invalidating a full heavy view tree for ephemeral feedback.
 
 ### Incomplete Gamification UI Animation Thrashing (`AwardCard`)
 
@@ -1868,6 +1877,10 @@ resolution is silently dropped during the initial structural anchoring sweep,
 permanently freezing geometric tracking variables at `0`. In the `ScansHeatmap`
 contribution graph, Merian abandons all `PreferenceKey` protocol loops.
 
+This helper is Profile Stats presentation, not a cross-feature Core UI
+primitive, and is co-located with `ScansHeatmap` under
+`Features/Profile/UserProfile/Components/Stats`.
+
 - `FadingScrollView` bypasses this by adopting
   `.onChange(of: geo.frame(in: .named("FadingScrollSpace")).minX, initial: true)`,
   observing geometric measurements directly inside the view-closure block rather
@@ -1912,7 +1925,11 @@ can flush current continuations. Accurate delegate updates and location failures
 invalidate the generation before resolving the active request set. The
 high-level current-location path checks task cancellation and current
 authorization again after that suspension; revocation flushes active one-shot
-waiters, so neither path can return through an older cached coordinate.
+waiters, so neither path can return through an older cached coordinate. The
+facade independently gates `lastKnownLocation` on its current authorization
+projection and rechecks that projection after suspended one-shot acquisition,
+preventing passive or deferred consumers from reading retained accurate or
+coarse fixes after revocation.
 
 ### Battery-Bounded Location Accuracy (`EnvironmentLocationController`)
 
@@ -1927,12 +1944,14 @@ When the shutter fires, `CaptureWorkspaceViewModel.executeCapture` starts the
 facade's `requestCurrentLocation()` concurrently with
 `CameraManager.captureImage()`. The controller temporarily raises
 `desiredAccuracy` to `kCLLocationAccuracyBest`, calls `requestLocation()`, and
-restores the coarse composing profile after every pending continuation resolves.
-The resolved shutter fix is used for the Photos asset location and deferred
-weather/geocode context; if it times out, `lastKnownLocation` still prefers the
-latest accurate cache before the coarse fallback. Negative-accuracy updates are
-discarded, and a usable coarse timeout fallback remains in its distinct fallback
-slot instead of being promoted into the accurate cache.
+restores the complete coarse composing profile after every pending continuation
+resolves: hundred-meter accuracy plus the 100 m distance filter, even when the
+camera is not currently running live updates. The resolved shutter fix is used
+for the Photos asset location and deferred weather/geocode context; if it times
+out, `lastKnownLocation` still prefers the latest accurate cache before the
+coarse fallback. Negative-accuracy updates are discarded, and a usable coarse
+timeout fallback remains in its distinct fallback slot instead of being promoted
+into the accurate cache.
 
 ### Synchronous SQLite on the Launch Path (`ScanRepository`)
 
@@ -3222,6 +3241,20 @@ This ensures:
   completion from a stopped player after replacement. Manager reset always stops
   this owner even while recording startup is resolving. Recording and playback
   therefore cannot clear one another's local lease state.
+- Mounted reusable/Explore audio uses `AudioPlaybackSessionController` for the
+  same exact-token rule. Concurrent activation coalesces, immediate teardown
+  cancels work before it can begin, cancellation-ignoring late acquisition is
+  released, and explicit UI-task cancellation invalidates pending controller
+  work. A retained token is checked with the coordinator before reuse. Lifecycle
+  generation fences teardown during that suspended validation, and a retired
+  activation drains before a replacement begins. A stale surface can therefore
+  reacquire without its later cleanup deactivating the recording or player that
+  replaced it. Reusable Core UI and Explore audio await this validation before
+  every audible start—including play-button, seek-resume, loop, and
+  fallback-player paths—while a merely mounted page acquires no lease. Lifecycle
+  and player-identity fences prevent a suspended validation from starting
+  playback after teardown or replacement; generic media dependencies expose no
+  direct audio-player AVAudioSession mutation.
 - The spectrogram and ambient-noise guidance hot paths no longer use repeated
   `removeFirst()` array shifts. They now keep bounded circular buffers for
   visible spectrogram history and trailing noise-floor history.

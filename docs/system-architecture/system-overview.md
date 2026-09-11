@@ -23,12 +23,20 @@ begins this pipeline:
 1. **Capture Context**: Live camera input uses `HardwareOrchestrator` and the
    `CameraManager` facade while `CameraSessionController` owns session/device
    configuration, rotation, zoom/focus/torch/frame-rate mutations, and hardware
-   still capture. The manager's delegates publish LiDAR distance; Capture reads
-   shutter-time coordinates and elevation while the focused environment
-   geocoding and WeatherKit services are prefetched through the stable
-   `EnvironmentContextManager` facade. `EnvironmentLocationController` owns the
-   Core Location delegate, valid-fix/cache policy enforcement, cancellation and
-   revocation fences, and exact-generation request timeout.
+   still capture. Required session topology remains retryable after transient
+   input discovery failure, and start publication requires both a running
+   session and the current lifecycle generation so a completed stop suppresses a
+   queued stale start. A separate facade presentation generation keeps older
+   start/stop completions from overwriting newer observable intent while
+   duplicate same-intent requests share one generation. The manager's delegates
+   publish LiDAR distance; Capture reads shutter-time coordinates and elevation
+   while the focused environment geocoding and WeatherKit services are
+   prefetched through the stable `EnvironmentContextManager` facade.
+   `EnvironmentLocationController` owns the Core Location delegate,
+   valid-fix/cache policy enforcement, cancellation and revocation fences,
+   exact-generation request timeout, and complete coarse profile restoration.
+   The facade hides retained fixes whenever current authorization is not allowed
+   and rechecks after suspended one-shot location acquisition.
    `CameraPhotoCaptureCoordinator` separately fences still-photo timeout,
    cancellation, and delegate completion so one terminal path resumes the
    shutter request. `CameraVideoRecordingCoordinator` similarly fences each
@@ -266,7 +274,12 @@ A structured schema built on native SwiftData migrations:
   background URLSession completion from presenting duplicate notifications. The
   container-owned visual queue is capped and payload-deduplicated; auth and
   foreground-timeout generations reject stale callbacks, while the active host
-  registry preserves timeout/effect ownership across nested screens.
+  registry preserves timeout/effect ownership across nested screens. Immutable
+  feedback models, pure mapping/identity policies, visual presentation, scan
+  coordination, and live services have separate `Core/UI/Feedback` owners. Only
+  the live service resolves network, authenticated identity, Offline Sync,
+  SwiftData-backed achievement calculation, feature availability, or
+  gamification dependencies; `AppDIContainer` injects that boundary.
 - _Starter Field Trip Enrollment_: inserting any signed-in or ghost
   `public.users` profile invokes a database-only, deny-by-default trigger that
   creates Backyard Safari Level 1 and one open activity period. The rollout

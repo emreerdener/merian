@@ -22,11 +22,13 @@ policy.
 
 ## 2. Navigational Orchestration: `MainTabBar`
 
-**Location**: `Core/UI/Components/MainTabBar.swift`
+**Location**: `Features/Capture/Shell/Components/Navigation/MainTabBar.swift`
 
-The central navigational routing anchor for the application, designed as a
-custom floating "Liquid Glass" capsule rather than relying on standard iOS
-`TabView` mechanics.
+Capture workspace's fixed navigation chrome, designed as a custom floating
+"Liquid Glass" capsule rather than relying on standard iOS `TabView` mechanics.
+It is not a Core route owner: the feature supplies Explore, Scans, and Profile
+bindings and composes the Capture-only `FloatingNavigationMenu` layout beside it
+in the same Navigation component group.
 
 - **Glassmorphism**: Uses `.ultraThinMaterial` backgrounds bounded by a specular
   `.strokeBorder`.
@@ -36,9 +38,39 @@ custom floating "Liquid Glass" capsule rather than relying on standard iOS
 - **Explore parity**: `FloatingNavigationMenu` owns the MainTabBar icon, label,
   item-slot, and capsule spacing constants. Treat the Explore bottom navigation
   as the visual reference before changing those metrics.
-- **Notification Badging**: Subscribes to `@AppStorage("hasUnseenScan")` to
-  overlay an 8pt red continuous notification dot on the Scans icon, tracking
-  silent inference completions without manual `@State` plumbing.
+- **Notification Badging**: Reads the environment-injected `AppSettings` for
+  Scans and external Explore-post state. A focused, generation-fenced view model
+  loads unread Explore notification state and rejects overlapping or post-
+  disappearance completions.
+- **Effect boundary**: `CaptureNavigationDependencies` in Shell Services owns
+  the network client, app-badge coordinator, settings mutation, and route
+  haptic. The component contains no direct networking or singleton effect
+  resolution.
+
+### Capture Mode Selector: `MediaModeToggle`
+
+**Location**:
+`Features/Capture/Shell/Components/ModeSelector/MediaModeToggle.swift`
+
+Capture Shell owns this native `UISegmentedControl` bridge because it selects
+the Shell-owned Scan, Record, and Describe pager; it is not a reusable Core UI
+primitive. The bridge preserves the configured `CaptureMode` order, compact
+geometry, selected artwork, accessibility names, pager synchronization, and one
+semantic selection cue per accepted change.
+
+- **Native activation**: The coordinator observes both `.valueChanged` and
+  `.primaryActionTriggered` so touch, assistive, and automated activation enter
+  the same binding path. The binding equality guard collapses UIKit's normal
+  dual delivery into one callback and one haptic.
+- **Stable artwork**: `CaptureModeInstalledImageState` snapshots the ordered
+  mode identifiers, selected segment, and color scheme. Segment images are
+  rewritten only when that state changes, avoiding UIKit mutation during
+  unrelated SwiftUI refreshes or active touch tracking.
+- **Verification boundary**: The feature-owned `MediaModeToggleTests` mounts the
+  real SwiftUI/UIKit hierarchy and locks hit testing, both native event routes,
+  duplicate-event suppression, geometry, symbols, accessibility, and configured
+  order healing. The hosted cases remain part of the focused simulator runtime
+  gate.
 
 ## 3. Archival Aesthetics: `ArchivedVisualsView`
 
@@ -64,7 +96,8 @@ that can change the requested source or rendering policy.
 
 ## 4. Scroll Physics: `FadingScrollView`
 
-**Location**: `Core/UI/Components/FadingScrollView.swift`
+**Location**:
+`Features/Profile/UserProfile/Components/Stats/FadingScrollView.swift`
 
 A custom geometry wrapper used heavily within the `ProfileView` Contribution
 Heatmap (52-week grid).
@@ -196,18 +229,21 @@ extracts (`wikipediaOverview`), alongside a suite of dynamic biological
   should reuse these owners instead of copying header typography or Wikipedia
   button styling.
 
-## 9. Staggered Entrance: `CardEntranceModifier`
+## 9. Staggered Entrance: `InsightCardEntranceModifier`
 
-**Location**: `Core/UI/Modifiers/CardEntranceModifier.swift`
+**Location**:
+`Features/Insights/Content/Modifiers/InsightCardEntranceModifier.swift`
 
 A `ViewModifier` that animates cards into view with a fade + 20pt upward slide
-on first appearance. Applied via the `.cardEntrance(index:)` view extension.
+on first appearance. Applied via the
+`.insightCardEntrance(index:isAnimationEnabled:)` view extension.
 
-- **Two-gate system**: Motion is suppressed when either
-  `HardwareOrchestrator.shared.isAnimationEnabled` is `false` (expedition mode
-  or thermal state ≥ `.serious`) **or** the system `accessibilityReduceMotion`
-  environment value is `true`. When either gate is closed, the card renders at
-  full opacity instantly with no transform.
+- **Two-gate system**: Motion is suppressed when either the `isAnimationEnabled`
+  value supplied through `InsightContentDependencies` is `false` (expedition
+  mode or thermal state ≥ `.serious`) **or** the system
+  `accessibilityReduceMotion` environment value is `true`. The modifier resolves
+  no hardware singleton. When either gate is closed, the card renders at full
+  opacity instantly with no transform.
 - **Stagger via `index`**: Each card receives a sequential integer index. Delay
   is computed as `Double(index) × 0.07s`, producing a natural cascading entrance
   without firing simultaneous layout passes.
@@ -234,13 +270,17 @@ owns only the shared frame, `Circle` material background, optional border, and
 optional enforced `ColorScheme`; callers still own icon choice, color, haptics,
 disabled state, accessibility labels, and action semantics.
 
-- **Current usage**: `CaptureControlBar` audio/describe utility buttons,
-  `CaptureFlashButton`, `PhotoLibraryButton`, `ToastBanner` dismiss affordances,
-  `FieldNotesCard` dismiss, and the candidate-verification dismiss chips.
+- **Current usage**: Shell-owned `CaptureControlBar` audio/describe utility
+  buttons, Shell-owned presentation-only `CaptureFlashButton`,
+  `PhotoLibraryButton`, `ToastBanner` dismiss affordances, `FieldNotesCard`
+  dismiss, and the candidate-verification dismiss chips.
 - **Abstraction boundary**: Do not use this modifier for controls with
   additional animated backgrounds, semantic fills, or domain-specific geometry.
-  `DictationButton`, `CaptureButton`, avatars, feed action pills, and map menus
-  remain isolated because their visual contracts are not identical.
+  `CaptureDescribeDictationButton`, `CapturePrimaryActionButton`, avatars, feed
+  action pills, and map menus remain isolated because their visual contracts are
+  not identical. Capture row composition and behavior remain in
+  `Capture/Shell/Components/CaptureControls`; sharing this modifier does not
+  move semantic control ownership into Core UI.
 
 ## 11. Habitat Map: `HabitatAndDistributionCard`
 
@@ -720,7 +760,8 @@ shared component intentionally omits a trailing `Spacer`;
 
 ## 19. Drag-to-Confirm Pill: `SlideToConfirm`
 
-**Location**: `Core/UI/Components/SlideToConfirm.swift`
+**Location**:
+`Features/Insights/IdentificationReview/Candidates/Components/Review/SlideToConfirm.swift`
 
 A pill-shaped drag-to-confirm control that replicates the iPhone unlock gesture,
 used in `CandidateVerificationView` and `CandidateAlternativesView` to gate
@@ -740,8 +781,9 @@ identification confirmations behind intentional gesture input.
   so the user sees the completed state before the view transitions. Unmounting
   the control cancels the callback instead of retaining its view state past
   teardown.
-- **Haptics**: `triggerSuccessPulse()` on threshold reached;
-  `triggerLightImpact()` on snap-back.
+- **Haptics**: The control requests success and light-impact feedback through
+  the existing `IdentificationReviewFeedbackDependencies` value; it does not
+  resolve the haptic singleton.
 - **Label**: Accepts dynamically injected strings (e.g.
   `"Confirm \(viewModel.resolvedHeaderTitle)"`). To handle long scientific names
   without breaking the UI pill geometry on single lines, the `<Text>` label

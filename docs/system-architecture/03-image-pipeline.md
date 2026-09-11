@@ -48,8 +48,8 @@ button row plus a 16 pt framing margin at the bottom) using the existing
 full-screen `GeometryReader` and stores it as
 `CaptureWorkspaceViewModel.composingZoneVerticalCenter` (a fraction of screen
 height, e.g. ~0.42 on iPhone 15 Pro). This calculation is fixed geometry rather
-than a child-height preference; if `CaptureControlBarLayout` changes, review the
-crop margin at the same time.
+than a child-height preference; if `CaptureControlBarLayout` in
+`Capture/Shared/Models` changes, review the crop margin at the same time.
 `ImageCropProcessor.squareCrop(_:verticalCenterFraction:)` then crops each
 downsampled `CGImage` to the largest centered square, biasing the crop center to
 that fraction rather than 0.5 (geometric center). This aligns what Gemini

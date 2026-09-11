@@ -92,6 +92,7 @@ extension ExplorePublicMediaView {
         playbackState.cancelPlaybackRecoveryWatchdog()
         playbackState.cancelUnexpectedPauseRecovery()
         playbackState.cancelPlaybackControlFade()
+        playbackState.cancelAudioSessionActivation()
         playbackState.incrementVideoSurfaceGeneration()
         reducePlaybackOverlay(.playbackInterrupted, animation: .easeInOut(duration: 0.18))
     }
@@ -102,7 +103,6 @@ extension ExplorePublicMediaView {
             playbackCoordinator?.clearActivePlayer(playerId)
         }
         playbackState.resetPlayerState()
-        deactivateAudioPlaybackSessionIfNeeded()
     }
 
     func currentRecoverySeekTime() -> CMTime? {
@@ -128,6 +128,7 @@ extension ExplorePublicMediaView {
         logPlayback("pause-user")
         synchronizeAudioPlaybackProgress()
         player?.pause()
+        playbackState.cancelAudioSessionActivation()
         playbackState.cancelPlaybackRecoveryWatchdog()
         playbackState.cancelUnexpectedPauseRecovery()
         playbackState.clearResumeIntent()
@@ -140,6 +141,7 @@ extension ExplorePublicMediaView {
         logPlayback("pause-external-active-player")
         synchronizeAudioPlaybackProgress()
         player?.pause()
+        playbackState.cancelAudioSessionActivation()
         reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
     }
 
@@ -165,6 +167,7 @@ extension ExplorePublicMediaView {
         )
         synchronizeAudioPlaybackProgress()
         player?.pause()
+        playbackState.cancelAudioSessionActivation()
         playbackState.cancelPlaybackRecoveryWatchdog()
         playbackState.cancelUnexpectedPauseRecovery()
         playbackState.cancelPlaybackControlFade()
@@ -180,6 +183,7 @@ extension ExplorePublicMediaView {
         playbackState.cancelPlaybackControlFade()
         playbackState.cancelPlaybackRecoveryWatchdog()
         playbackState.cancelUnexpectedPauseRecovery()
+        playbackState.cancelAudioSessionActivation()
         player?.pause()
 
         if player == nil || playbackOverlayState.needsPlayerRebuildForRecovery {

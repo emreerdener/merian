@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct PostIdentificationNotificationSheetView: View {
+    let requestAuthorization: @MainActor (
+        _ completion: @escaping (Bool) -> Void
+    ) -> Void
     let onComplete: (Bool) -> Void
 
     var body: some View {
@@ -9,24 +12,25 @@ struct PostIdentificationNotificationSheetView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.purple)
                 .padding(.top, 32)
-            
+
             VStack(spacing: 8) {
                 Text("Turn on notifications?")
                     .font(.title2)
                     .fontWeight(.bold)
-                
-                Text("Enable notifications so you receive an alert the exact moment the AI finishes identifying a species.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+
+                Text(
+                    "Enable notifications so you receive an alert the exact "
+                        + "moment the AI finishes identifying a species."
+                )
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
             }
-            
+
             VStack(spacing: 16) {
                 Button {
-                    AppDIContainer.shared.pushNotificationManager.requestAuthorization { granted in
-                        onComplete(granted)
-                    }
+                    requestAuthorization(onComplete)
                 } label: {
                     Text("Enable notifications")
                         .font(.headline)
@@ -36,7 +40,7 @@ struct PostIdentificationNotificationSheetView: View {
                         .background(Color.purple)
                         .clipShape(Capsule())
                 }
-                
+
                 Button {
                     onComplete(false)
                 } label: {

@@ -21,7 +21,9 @@ user's published-scan surfaces. The canonical product and behavior contract is
   and Publications. UI-only navigation, picker, scroll, focus, and modal state
   remains with the owning view.
 - `Components/` contains presentation-only pieces grouped by Achievements,
-  Identity, Publications, Shared, and Stats.
+  Identity, Publications, Shared, and Stats. Stats owns `FadingScrollView`
+  because its geometry and trailing-anchor fade contract is used only by the
+  contribution heatmap.
 - `Utilities/` contains pure achievement calculation and avatar encoding.
 
 Views and components do not resolve `MerianNetworkClient`, `AppDIContainer`,

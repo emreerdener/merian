@@ -1670,13 +1670,15 @@ Implemented Profile slice:
   classification and phase sequencing live in `Core/Network/Auth/`, with local
   purge behind a small adapter. Feedback, notification, export,
   sign-out/deletion, and plan state have deterministic suites; an architecture
-  test locks the live-service boundary and 600-line ceiling. Cross-feature
-  complimentary-scan display state moved to `Core/UI/Models`. The Profile Shell
-  composes the environment-owned geoprivacy and hardware adapters. Geoprivacy
-  writes are account-fenced, serialized, and latest-selection-coalesced;
-  expedition mode persists before constraint reevaluation; notification
-  refreshes discard stale generations; and sign-out, deletion, export, survey,
-  purchase, restore, and redemption actions reject conflicting overlap.
+  test locks the live-service boundary and 600-line ceiling. The initial pass
+  moved complimentary-scan display state out of an aggregate; the later Core UI
+  integration audit confirmed that it is Plan-only and co-located it under
+  `Profile/Settings/Plan/Models`. The Profile Shell composes the
+  environment-owned geoprivacy and hardware adapters. Geoprivacy writes are
+  account-fenced, serialized, and latest-selection-coalesced; expedition mode
+  persists before constraint reevaluation; notification refreshes discard stale
+  generations; and sign-out, deletion, export, survey, purchase, restore, and
+  redemption actions reject conflicting overlap.
 - `Capture/Shell` now separates deterministic media and presentation models,
   closure-based live Services, responsibility-specific view-model extensions,
   grouped goal/media/shared Components, root Views, and routing/lifecycle/
@@ -1702,19 +1704,19 @@ Implemented Profile slice:
   views/components perform no networking or global service resolution, and every
   production file stays below the 600-line guard. The unused shutter control was
   removed. Cross-feature crop encoding moved to `Core/Media`, while the crop
-  view and presentation-only flash control moved to `Core/UI`. Capture-specific
-  source/ crop metadata remains in `Capture/Shared`, and Profile owns its own
-  bounded avatar-crop presentation value. Callers inject haptic/camera effects
-  so the shared controls remain passive. Detached media work now propagates
-  parent cancellation, and newly created WAV/compressed-playback files remain
-  leased until staging accepts them so timeout-losing or otherwise unconsumed
-  results cannot leak artifacts. A staged video finalizes its recording
-  generation and cancel UI before the optional PhotoKit save completes, while
-  the capture task still retains the original recording through that save.
-  Mirrored tests lock sampling, playback presentation, task replacement,
-  lifecycle overlap rejection, temporary-file transfer and cleanup, detached
-  cancellation, dependency routing, ownership, platform-neutral Models, and the
-  line ceiling.
+  view moved to `Core/UI`; the presentation-only flash control later moved
+  beside its complete row under Capture Shell. Capture-specific source/crop
+  metadata remains in `Capture/Shared`, and Profile owns its own bounded
+  avatar-crop presentation value. Callers inject haptic/camera effects so shared
+  primitives remain passive. Detached media work now propagates parent
+  cancellation, and newly created WAV/compressed-playback files remain leased
+  until staging accepts them so timeout-losing or otherwise unconsumed results
+  cannot leak artifacts. A staged video finalizes its recording generation and
+  cancel UI before the optional PhotoKit save completes, while the capture task
+  still retains the original recording through that save. Mirrored tests lock
+  sampling, playback presentation, task replacement, lifecycle overlap
+  rejection, temporary-file transfer and cleanup, detached cancellation,
+  dependency routing, ownership, platform-neutral Models, and the line ceiling.
 - `Capture/Submission` now separates deterministic admission/media/goal/latency
   Models, normalized staged payload and sendable context values, narrow live
   admission/context/deferred-update/telemetry Services, and visual, nonvisual,
@@ -1737,10 +1739,12 @@ Implemented Profile slice:
   bundle. Submission owns the live/replay timeline, aligned media projection,
   and exact hand-written `Identify*` request descriptors; their Swift names,
   Codable fields, JSON keys, legacy fallback ordering, and sparse replay indexes
-  are unchanged. `ActiveScanToolbar` consumes the canonical staged order without
-  a duplicate sort. Mixed tests were rehomed to Staging, Shell, Submission, and
-  Core Utilities owners, with deterministic projection/descriptor tests and a
-  new Staging architecture/600-line guard.
+  are unchanged. A later Core UI ownership slice added a deterministic toolbar
+  projection plus Staging-owned Services and Components; `ActiveScanToolbar`
+  consumes the canonical staged order without a duplicate sort and resolves no
+  live effects. Mixed tests were rehomed to Staging, Shell, Submission, and Core
+  Utilities owners, with deterministic projection/descriptor tests and a new
+  Staging architecture/600-line guard.
 - `Capture/Describe` now separates deterministic prompt, subject, tag-ranking,
   and text-composition Models; narrow preference, feedback, keyboard, subject
   delay, and speech-manager Services; observable prompt and lifecycle
@@ -4476,11 +4480,13 @@ error and both stale stopped/reset callbacks.
 Four policy tests, five controller tests, and four architecture tests cover
 global eligibility, profiles and clamping, generator construction/routing, UIKit
 fallback, engine replacement fencing, audio-session injection, declaration
-ownership, dependency exclusions, and focused ceilings. Five pure Capture-button
-feedback-policy tests moved from the manager suite to Core UI; the five manager
-tests retain facade/global-gate coverage. The ceilings are 300 lines for the
-257-line facade, 125 for the 91-line models, 100 for the 48-line policy, 400 for
-the 361-line controller, and 100 for the 37-line adapter.
+ownership, dependency exclusions, and focused ceilings. Capture's pure control
+feedback policy subsequently moved from Core UI to
+`Features/Capture/Shared/Models`, with its mirrored
+`CaptureControlHapticPolicyTests` suite under `Features/Capture/Shared`; the
+five manager tests retain facade/global-gate coverage. The ceilings are 300
+lines for the 257-line facade, 125 for the 91-line models, 100 for the 48-line
+policy, 400 for the 361-line controller, and 100 for the 37-line adapter.
 
 The exact current source passes XcodeGen, project/source-membership validation,
 Swift parsing, strict affected-source SwiftLint, and the generic iOS Simulator
@@ -4599,6 +4605,283 @@ event-routing, adversarial routing, Markdown-format, and whitespace gates pass.
 Physical-device notification permission, APNs delivery/actions,
 Focus/time-sensitive behavior, attachments, and Home Screen badges remain in the
 release acceptance matrix.
+
+### Core Hardware-wide Integration Audit
+
+The integration audit following the Camera, Audio, Haptics, Environment Context,
+and Notifications slices checked their shared lifecycle edges across Capture,
+Explore, Insights, Scans, Profile, app lifecycle, and reusable media. It found
+cross-owner correctness gaps rather than ownership drift or an API contract
+change.
+
+`CameraSessionController` had committed its one-time configuration reservation
+before proving that a required video input existed. A transient discovery or
+input failure could therefore make every later start skip configuration and
+publish a start callback for a session that was not running. Configuration now
+preflights the required input plus video/photo outputs, releases the reservation
+on failure, attaches optional depth only after required outputs, and publishes
+`onStarted` only after `AVCaptureSession.isRunning` succeeds and the start still
+owns the current lifecycle generation. A stop therefore suppresses its queued
+stale start callback. The observable facade independently generation-fences
+start and stop presentation, preventing an older MainActor completion from
+overwriting a newer lifecycle transition. Its extracted pure state coalesces
+duplicate same-intent starts or stops so they cannot invalidate the one callback
+that converges observable state. Deterministic policy and retry tests exercise
+both paths without camera hardware, while the architecture suite locks both
+callback fences.
+
+Environment Context now restores the complete composing profile after an idle
+one-shot request: hundred-meter accuracy and the 100 m distance filter. The
+facade also gates `lastKnownLocation` on current authorization, so permission
+revocation cannot expose retained accurate or coarse fixes through Capture,
+Explore, or Map. It rechecks authorization after a suspended one-shot request so
+mid-request revocation cannot use the retained fallback or start downstream
+geocode/weather effects. Three deterministic regressions raise the focused
+Environment matrix from 31 to 34 tests.
+
+Explore's published-audio surface no longer configures or deactivates the
+process-wide audio session directly. Core Media's
+`AudioPlaybackSessionController` owns its `.playbackDucking` lease, coalesces
+activation, verifies a retained token before reuse, retries failure, releases
+cancellation-ignoring late acquisition, fences teardown during lease validation,
+drains cancelled activation before replacement, and deactivates only its exact
+current lease. UI-task cancellation now explicitly invalidates pending
+controller activation. The process-wide coordinator rejects a task already
+cancelled before activation mutates `AVAudioSession`, while a deliberately
+non-cooperative late acquisition is released. The Explore playback state retains
+that controller and its UI-timed activation task, preserving selection, focus,
+pause, recovery, and reset timing while preventing stale cleanup from
+deactivating Capture recording, speech, or a replacement player. Focused Core
+Media controller tests cover each overlap and teardown boundary; the Core
+Hardware coordinator suite remains scoped to process-wide token and
+configuration semantics.
+
+Reusable Core UI and Explore audio now await the same controller immediately
+before every audible start—including play-button, seek-resume, loop, and
+fallback-player paths. A merely mounted page acquires no process-wide lease, so
+opening disabled playback UI cannot replace active recording or speech. The
+pre-start check closes the stale-session window when another owner replaces a
+retained lease while a page remains visible. Lifecycle and player-identity
+fences prevent a suspended validation from starting the old player after
+teardown or replacement. The former synchronous `AVAudioPlayer` session-mutation
+closure and AVFoundation import were removed from `MediaPlaybackDependencies`.
+Its existing async `activatePlaybackAudio` closure remains the narrow
+unmuted-`AVPlayer` admission seam and delegates to the coordinator; feature
+adapters do not configure or deactivate the session themselves.
+
+No route, endpoint, payload, persistence, feature flag, visible copy/layout,
+backend, or deployment contract changed. Physical-device camera startup and
+permission recovery, GPS authorization/accuracy, haptic delivery, recording,
+speech, audio-route interruption, and APNs behavior remain in the release
+acceptance matrix.
+
+The exact final candidate passes the generic iOS Simulator build and the 67-test
+coordinator, reusable/Explore playback, and carousel architecture matrix. The
+complete `merianTests` target passes 3,303 logical tests (5,291 expanded runs)
+with zero failures or skips. All 22 changed Swift files parse and pass strict
+SwiftLint with zero violations. XcodeGen is byte-stable, and project/resource,
+generated-project source-membership, build/test workflow, event-routing,
+adversarial routing, Markdown-format, and whitespace gates pass.
+
+### Core UI milestone feedback
+
+The 924-line `AchievementToastPresenter.swift` aggregate is retired. Immutable
+toast payloads and session values now live in `Feedback/Models`; account/scan
+identity, deduplication, Field trip receipt mapping, and dictionary eligibility
+live in `Policies`; the bounded FIFO presenter and host registry live in
+`Presentation`; session control and scan completion/retry sequencing live in
+`Coordination`; and the clock plus live adapters live in `Services`. Every
+production Feedback file remains below 600 lines. Compatibility aliases retain
+the established `AchievementToastPresenter` and `AchievementToastItem` names, so
+call sites, previews, layout, copy, accessibility, ordering, timeout, retry,
+route, Field trip, achievement, dictionary, and Offline Sync semantics remain
+unchanged.
+
+`ScanMilestoneCoordinator` no longer resolves authenticated identity,
+`MerianNetworkClient`, `OfflineQueueManager`, `GamificationManager`, or feature
+flags directly. Its small initializer-injected dependency value owns account,
+acknowledgement, first-Field-trip cache, and notification-eligibility effects;
+the existing resolver seams own progress and SwiftData-backed award loading.
+`Services/ScanMilestoneDependencies.swift` is the sole live owner, while
+`AppDIContainer` explicitly composes `.live` alongside its injected
+`AppEventSending` capability. Presentation and policy layers therefore remain
+effect-free without adding a singleton or broad protocol.
+
+The 1,178-line test aggregate is replaced by focused presenter, achievement
+policy, scan coordinator, and scan policy suites plus shared fixtures. All 40
+existing test identities were retained, and injected-effect routing plus scan
+identity normalization gained explicit regressions. A source-architecture suite
+locks declaration ownership, live-effect isolation, retired aggregate paths,
+focused test ownership, and the 600-line ceilings. Coordinator tests construct
+their subjects through an isolated dependency factory instead of falling back to
+live Auth, Offline Sync, cache, or gamification owners. The generic Simulator
+build compiled the extracted production source and strict SwiftLint reported
+zero production violations. Direct current-source semantic typechecking also
+passed for every extracted production file and all focused milestone suites. A
+subsequent complete build-for-testing attempt was blocked before compilation
+when CoreSimulatorService and SwiftPM diagnostics cache access became
+unavailable; focused and complete runtime execution still require this
+candidate's CI or a recovered local simulator. No backend, SwiftData schema,
+deployment, or external publication change is part of this slice.
+
+### Core UI capture control ownership
+
+The 707-line `Core/UI/Components/CaptureControlBar.swift` aggregate is retired.
+Rendered control-row ownership now lives in
+`Features/Capture/Shell/Components/CaptureControls`: the 391-line bar composes
+the row and retains its cancellable audio-start task, the 243-line primary
+action owns press and 180-millisecond visual-hold timing, and the 125-line
+secondary-control group owns the mode-specific buttons. The existing bar
+initializer, visible copy, accessibility identifiers, geometry, animations,
+button actions, audio/video lifecycle timing, and staging behavior remain stable
+for an uninterrupted interaction. A review correction now invalidates a pending
+press on mode, inactive-scene, suppression, disablement, or disappearance
+transitions and fences its eventual release. This closes a stale visual-hold
+race that could otherwise begin video or dispatch the newly selected mode after
+the interaction context changed. Pro availability is also read when the hold
+matures instead of being frozen at touch-down.
+
+Deterministic visibility, capacity, staged-action, recording-chrome, and haptic
+projection lives in the 111-line Shell presentation model. The fixed 17-line
+layout contract and 76-line platform-neutral haptic vocabulary moved to
+`Capture/Shared/Models` because Scan, Record, Describe, and Shell consume them.
+The 52-line `CaptureControlDependencies` service is the only live capture-row
+owner for entitlement reads, keyboard dismissal, paywall telemetry, and haptic
+delivery. Components no longer resolve `HapticManager`, RevenueCat-derived
+entitlement state, `UIApplication.shared`, or telemetry directly. A final parity
+review also fenced latent audio state to Audio mode so a pending or paused audio
+session cannot alter Visual or Describe chrome.
+
+The pure haptic suite moved from Core UI to
+`MerianTests/Features/Capture/Shared/CaptureControlHapticPolicyTests.swift`.
+`CaptureControlBarPresentationTests` adds deterministic capacity, visibility,
+staging, progress, and cross-mode isolation coverage, while the Shell
+dependencies and architecture suites lock injected effects, retired paths,
+feature ownership, complete leaf-control reference confinement, primary-press
+lifecycle fences, platform-neutral models, and the 600-line ceiling. Before the
+review correction, the focused Capture/Record/Scan/Haptics matrix passed 36
+tests with zero failures or skips on the iOS 26.5 Simulator and the complete
+`merianTests` target passed 3,321 logical tests (5,309 expanded
+device/configuration runs) with zero failures or skips. After the correction,
+production parsing, the generic iOS Simulator build, and complete test-target
+compilation passed again; local runtime execution was unavailable because
+CoreSimulatorService could not initialize. Strict SwiftLint reported zero
+violations. XcodeGen remained byte-stable, while project/resource,
+source-membership and adversarial source-membership, event-routing and
+adversarial routing, Markdown-format, and whitespace gates passed.
+
+No endpoint, payload, persistence, schema, feature flag, navigation, copy,
+layout, or deployment contract changed. The only behavior correction is the
+stale primary-press invalidation above. Physical camera, microphone, speaker,
+VoiceOver, Dynamic Type, and long-press interaction remain release-device QA.
+
+### Core UI capture chrome ownership
+
+The remaining one-off Capture chrome is no longer housed in Core UI.
+`MainTabBar.swift`, `ActiveScanToolbar.swift`, `MediaModeToggle.swift`, and
+`CaptureFlashButton.swift` moved to their narrow feature owners, and the retired
+Core paths were removed. The pure `CaptureMode` value now lives in
+`Capture/Shared/Models`; Shell owns the native mode selector, workspace
+navigation, and flash control; and Staging owns the active mixed-media toolbar.
+The later Core UI integration audit confirmed that `FloatingNavigationMenu` is
+also Capture-only and moved it beside `MainTabBar`. Core UI retains the shared
+cropper and circular-material primitives that have consumers outside this
+Capture surface.
+
+`CaptureNavigationDependencies` is the live boundary for Explore feed badge
+loading, app-badge coordination, settings mutation, and route feedback.
+`CaptureNavigationViewModel` owns the local notification badge and uses a UUID
+generation fence so only the newest overlapping refresh may publish and a
+completion after disappearance is ignored. An unavailable notification count
+preserves its last known value; the established failed-feed behavior continues
+to clear the external-post badge. The navigation view retains its original
+bindings, copy, identifiers, layout, and mount/foreground/Explore-dismissal
+refresh triggers without resolving networking or haptics directly.
+
+`CaptureStagingToolbarPresentation` deterministically projects the canonical
+chronological node sequence, existing coverless-video filter, established
+visible tray capacity rule, Identify/Analyze copy, and submit availability.
+Staging's small live dependency value supplies the Photo Library, keyboard
+dismissal, cancel feedback, and process-session tooltip state. Picker
+presentation, admission-task cancellation, tooltip visibility, and shimmer
+animation remain component-local. Private modality badges and tooltip rendering
+remain co-located with the media row, avoiding unnecessary module-internal API.
+
+The selector tests moved from Core UI to Capture Shell without changing their
+test identity. Focused navigation tests cover badge projection, unavailable
+data, overlap, disappearance invalidation, and feedback injection; focused
+Staging tests cover ordering, coverless video, tray capacity, and submit state.
+Architecture suites lock the new owners, retired paths, platform-neutral shared
+model, live-effect boundaries, and 600-line feature ceilings. No endpoint,
+payload, persistence, schema, feature flag, route, visible copy, layout,
+backend, deployment, or publication contract changed. The intentional behavior
+corrections reject stale overlapping navigation badge results and propagate the
+native selector's primary-action event described below.
+
+A second-pass interaction review reproduced a focused iOS 26.5 UI failure in
+which an XCUI tap reached the accessible **Record** segment but the selector
+remained on **Scan**. The bridge now converges UIKit's documented `valueChanged`
+and `primaryActionTriggered` signals; its existing binding guard collapses the
+normal dual emission to one action callback. The coordinator also snapshots the
+installed-image inputs and skips redundant segment rewrites during unrelated
+SwiftUI updates, avoiding control mutation while UIKit may be tracking a touch.
+The hosted selector suite mounts the real SwiftUI/UIKit hierarchy in a window
+and locks hit testing, both native event routes, and duplicate-event
+suppression. This is an accessibility and UI automation correction only: copy,
+geometry, ordering, pager ownership, and navigation contracts are unchanged.
+
+Before the selector follow-up, the ownership candidate passed the generic iOS
+Simulator build with code signing disabled and a 40-test focused Shell/Staging
+matrix on the iOS 26.5 Simulator. The complete `merianTests` target passed 5,323
+expanded test executions with zero failures. XcodeGen was byte-stable;
+project/resource, generated-project source-membership, Markdown-format, Swift
+parsing, strict SwiftLint, and whitespace checks passed. Physical-device camera,
+Photo Library, VoiceOver, large Dynamic Type, foreground badge refresh, and
+staged-toolbar interaction remain release QA.
+
+The corrective source and tests pass focused typechecking, Swift parsing, strict
+affected-file SwiftLint, and project/source-membership validation. The mounted
+value-change regression passed immediately before CoreSimulatorService became
+unavailable; the new primary-action cases and corrected focused UI test still
+require a fresh simulator execution, and no interrupted run is recorded as a
+pass.
+
+### Core UI-wide integration audit
+
+The Core UI integration audit reconciles declared ownership against every
+production reference. `FloatingNavigationMenu` moved to Capture Shell;
+`FlowLayout` moved to Explore Shared because only Feed and Field Trips use it;
+`FadingScrollView` moved beside the Profile contribution heatmap;
+`ComplimentaryScanDisplayState` moved to Profile Settings Plan; and the
+drag-to-confirm pill plus staggered card entrance moved to their respective
+Insights subareas. The post-identification permission sheet is reused by Capture
+and Profile Settings, so it moved to Core Notifications rather than a feature or
+generic Core UI package. The retired Core UI paths are removed.
+
+Presentation owners no longer resolve the live haptic, hardware, notification,
+or app-container singletons introduced by those declarations. `SlideToConfirm`
+consumes Identification Review feedback, `InsightCardEntranceModifier` receives
+hardware eligibility through Insight Content dependencies, notification-sheet
+callers inject authorization, and the milestone stack receives app-root-composed
+haptic closures through its SwiftUI environment. Existing copy, accessibility,
+geometry, animation, dismissal, permission, and route behavior remain unchanged.
+
+`CoreUIArchitectureTests` locks the relocated owner inventory, rejects live
+process resolution outside Core UI Services, and applies a 600-line ceiling to
+every production Core UI file. `AudioPlaybackCarouselPage` remains just below
+that ceiling as one mounted lifecycle boundary: splitting its player, observer,
+replacement, boost, seek, and teardown state would require widening private
+mutable state across files. The test instead freezes private `@State` and
+private lifecycle helpers so a future organizational split must first introduce
+a genuinely contained state owner.
+
+The regenerated project, project/resource and source-membership guards, generic
+iOS Simulator build, complete build-for-testing, Swift parsing, and strict
+SwiftLint pass after the audit. Focused Core UI, notification, Capture Shell,
+Profile Settings, Insight Content, and Identification Review suites cover the
+new boundaries. No endpoint, payload, persistence, schema, feature flag,
+navigation, visible copy/layout, backend, deployment, or publication contract
+changes.
 
 ## Phase 3: Ownership Cleanup
 

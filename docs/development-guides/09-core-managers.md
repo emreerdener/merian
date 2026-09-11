@@ -14,7 +14,7 @@ triggering excessive SwiftUI view rebuilds.
   `DIContainerModifier`.
 - Owns the cross-feature `AVAudioEngine` + `SFSpeechRecognizer` pipeline used by
   Capture Describe, Insight Field Notes, Insight media coordination, and the
-  shared capture bar.
+  Shell-owned Capture controls.
 - **`isRecording: Bool`** — the single source of truth for dictation state.
   `DescribeInputLifecycleObserver` forwards changes to the generation-fenced
   `DescribeInputViewModel`, which clears
@@ -105,6 +105,17 @@ triggering excessive SwiftUI view rebuilds.
 - `MediaPlaybackAudioSession` remains beside the coordinator because Explore and
   Insight playback use the same process-wide activation contract. Feature views
   do not call `AVAudioSession.sharedInstance()` directly.
+- Core Media's `AudioPlaybackSessionController` owns the exact
+  `.playbackDucking` lease used by reusable and Explore audio surfaces. It
+  remains inactive while mounted, coalesces activation, validates a retained
+  token before each audible start, reacquires after another owner replaces it,
+  and releases only its exact lease. UI lifecycle cancellation explicitly
+  invalidates pending activation; a task cancelled before coordinator execution
+  causes no session mutation, while a non-cooperative late lease is released.
+  The separate async `MediaPlaybackDependencies.activatePlaybackAudio` seam is
+  retained only for unmuted `AVPlayer` admission and delegates to the
+  coordinator; the removed synchronous `AVAudioPlayer` mutation seam must not be
+  restored.
 
 ### `AudioCaptureManager`
 
@@ -173,7 +184,8 @@ triggering excessive SwiftUI view rebuilds.
   with a concrete lease. DSP publication must still match the active recording
   before reaching manager state. `cancelPendingRecordingTransition()` is the
   narrow Shell hook used before pausing on mode/background changes.
-- **Camera handoff contract** — `CaptureControlBar` owns one cancellable audio
+- **Camera handoff contract** — Shell's
+  `Components/CaptureControls/CaptureControlBar` owns one cancellable audio
   startup task and awaits `CameraManager.stopSessionAndWait()` before calling
   `startRecording()`. Leaving Audio, backgrounding, or removing the control bar
   cancels that outer task and invalidates the manager-owned transition without a
@@ -267,11 +279,12 @@ triggering excessive SwiftUI view rebuilds.
   output and file-output delegate. Constructing these owners resolves no
   AVFoundation capture object; explicit preview or capture work performs the
   first provider/factory access. `Camera/Models` owns recording identities,
-  `Camera/Policies` owns deterministic session, zoom, frame-rate, microphone,
-  and generation/action decisions, and `Camera/Coordination` owns the
-  lock-contained photo and video request lifecycles plus the MainActor FPS
-  debouncer. Do not move a continuation, task handle, delegate correlation, or
-  capture object independently of the lock or queue that owns it.
+  `Camera/Policies` owns `CameraSessionPresentationState` plus deterministic
+  session, zoom, frame-rate, microphone, and generation/action decisions, and
+  `Camera/Coordination` owns the lock-contained photo and video request
+  lifecycles plus the MainActor FPS debouncer. Do not move a continuation, task
+  handle, delegate correlation, or capture object independently of the lock or
+  queue that owns it.
 - `CameraSessionController` abstracts AVFoundation via
   `AVCaptureDevice.DiscoverySession`, preferring `.builtInTripleCamera` on Pro
   devices for optical zoom support, falling back to `.builtInLiDARDepthCamera`,
@@ -305,6 +318,15 @@ triggering excessive SwiftUI view rebuilds.
   session, so pre-preview cleanup or UI actions remain inert instead of creating
   capture hardware. Callback-based stop still delivers its MainActor completion
   when no session exists or it is already stopped.
+- **Retryable Session Topology and Presentation**: Initial configuration
+  preflights the required video input plus video and photo outputs before
+  mutating the session. A transient input/discovery failure releases its
+  reservation for a later start, while optional depth is attached only after
+  required outputs. `onStarted` publishes only after the session is running and
+  the controller's lifecycle generation still owns the start. The facade's
+  separate pure `CameraSessionPresentationState` rejects older start/stop
+  completions after a changed intent and coalesces duplicate starts or stops so
+  the one converging callback remains valid.
 - **Latest-State FPS Debounce**: `withObservationTracking` registrations are
   one-shot. The target-FPS callback must re-arm `trackFPS()` before awaiting or
   scheduling delayed work. The focused
@@ -368,7 +390,15 @@ triggering excessive SwiftUI view rebuilds.
   fallbacks separate from the accurate cache, retires pending one-shot work on
   authorization revocation, and fences the shared two-second timeout with an
   exact generation UUID before it may flush pending continuations. A cancelled
-  high-level request cannot return through the cached-location fallback.
+  high-level request cannot return through the cached-location fallback. After
+  the final one-shot waiter resolves, the controller restores the complete
+  composing profile: hundred-meter accuracy and the 100 m distance filter, even
+  when live tracking is idle.
+- The facade gates `lastKnownLocation` on its current authorization projection
+  and rechecks authorization after a suspended one-shot request. Revocation
+  therefore hides retained accurate and coarse fixes from Capture, Explore, Map,
+  and deferred-context consumers and prevents downstream geocoding or WeatherKit
+  work from starting with stale authority.
 - `EnvironmentContext/Services/EnvironmentGeocodingService.swift` is the sole
   `CLGeocoder` owner. It coalesces same-coordinate placemark work and shares one
   bounded three-decimal cache between display-name and region projections;
@@ -2583,17 +2613,16 @@ consults that Keychain entry.
 
 ### `MilestoneToastPresenter`
 
-- Lives at `Core/UI/Feedback/AchievementToastPresenter.swift` and is kept under
-  the legacy filename for Xcode/project continuity. It is an
-  `@MainActor
-  @Observable` DI-owned FIFO in-app milestone queue.
-  `AppDIContainer` constructs the one production presenter,
-  `MilestoneToastHostRegistry`, injectable `MilestoneToastClock`, and
-  `ScanMilestoneCoordinator`; previews/tests receive isolated graphs, and none
-  of these types exposes a production `.shared`. The container also injects its
-  producer-only `AppEventSending` capability into the scan coordinator; the
-  coordinator never reaches through `AppDIContainer.shared` to publish progress
-  invalidations.
+- Lives at `Core/UI/Feedback/Presentation/MilestoneToastPresenter.swift`. It is
+  an `@MainActor @Observable` DI-owned FIFO in-app milestone queue. The former
+  `AchievementToastPresenter.swift` aggregate is retired; compatibility aliases
+  preserve its established presenter/item type names. `AppDIContainer`
+  constructs the one production presenter, `MilestoneToastHostRegistry`,
+  injectable `MilestoneToastClock`, and `ScanMilestoneCoordinator`;
+  previews/tests receive isolated graphs, and none of these types exposes a
+  production `.shared`. The container also injects its producer-only
+  `AppEventSending` capability into the scan coordinator; the coordinator never
+  reaches through `AppDIContainer.shared` to publish progress invalidations.
 - Supports `.achievement(AwardPayload)` for achievement unlocks and
   `.dictionary(.newToMerian)` for species-dictionary contribution milestones,
   plus `.fieldTrip(FieldTripMilestonePayload)` for standard outing and Seasonal
@@ -2618,6 +2647,14 @@ consults that Keychain entry.
   `OfflineJobScheduler` replays leftover hints after relaunch; only success,
   terminal ingestion failure, or disabled Field trips acknowledges and removes
   the hint.
+- Milestone `Models` and `Policies` are immutable/effect-free; `Presentation`
+  owns only queue/host state; `Coordination` owns ordering, session fences, and
+  retry lifetime. The small initializer-injected
+  `ScanMilestoneCoordinator.Dependencies` value routes account identity,
+  acknowledgement, first-Field-trip caching, and notification eligibility.
+  `Services/ScanMilestoneDependencies.swift` is the sole live owner of those
+  effects plus Field trip networking, feature availability, and SwiftData-backed
+  achievement calculation. `AppDIContainer` explicitly composes `.live`.
 - The presenter controls only in-app banner presentation. It does not mutate
   Field trip progress, achievement progress, dictionary state, analytics, or
   native notification authorization. DEBUG Settings preview entry points enqueue

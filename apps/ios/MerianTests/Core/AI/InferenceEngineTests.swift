@@ -1816,6 +1816,7 @@ struct InferenceEngineTests {
         let circuitBreaker = CircuitBreakerManager.shared
         let originalContext = manager.modelContext
         let originalIsOnline = manager.isOnline
+        let originalIsSyncing = manager.isSyncing
         let context = try createInMemoryContext()
         manager.modelContext = context
         manager.isOnline = true
@@ -1825,6 +1826,7 @@ struct InferenceEngineTests {
             client.overridingInferenceConsentCheck = {}
             manager.modelContext = originalContext
             manager.isOnline = originalIsOnline
+            manager.isSyncing = originalIsSyncing
             circuitBreaker.recordSuccess()
         }
 
@@ -1973,6 +1975,15 @@ struct InferenceEngineTests {
                     ) == generation,
                     "A black-holed path must not depend on prior path-monitor retirement."
                 )
+
+                // Keep this foreground-handoff assertion isolated from the
+                // background worker. The minimal test row intentionally has no
+                // media, so an immediate online replay can correctly
+                // quarantine that synthetic fixture before the assertions
+                // below observe the handoff. This latch leaves the path and
+                // exact foreground owner unchanged while preventing an
+                // unrelated upload pass from evaluating the fixture.
+                manager.isSyncing = true
             }
 
             transportFailure.releaseFirstResponse()
@@ -2023,6 +2034,7 @@ struct InferenceEngineTests {
             )
             let queuedScan = try #require(context.fetch(descriptor).first)
             #expect(queuedScan.queueState == .pending)
+            manager.isSyncing = originalIsSyncing
             engine.cancelActiveRequest()
         }
     }

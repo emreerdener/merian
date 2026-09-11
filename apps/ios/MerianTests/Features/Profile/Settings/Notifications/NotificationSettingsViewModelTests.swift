@@ -99,6 +99,7 @@ final class NotificationSettingsViewModelTests: XCTestCase {
                         pendingRefreshes.append($0)
                     }
                 },
+                requestAuthorization: { _ in },
                 openSystemSettings: {},
                 syncRemoteRegistration: { _ in }
             )
@@ -127,8 +128,30 @@ final class NotificationSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.authorizationStatus, .authorized)
     }
 
+    func testAuthorizationPromptUsesInjectedRequester() {
+        var requestCount = 0
+        let viewModel = NotificationSettingsViewModel(
+            dependencies: makeDependencies(
+                status: .notDetermined,
+                requestAuthorization: { completion in
+                    requestCount += 1
+                    completion(true)
+                }
+            )
+        )
+        var granted: Bool?
+
+        viewModel.requestAuthorization { granted = $0 }
+
+        XCTAssertEqual(requestCount, 1)
+        XCTAssertEqual(granted, true)
+    }
+
     private func makeDependencies(
         status: UNAuthorizationStatus,
+        requestAuthorization: @escaping @MainActor (
+            @escaping (Bool) -> Void
+        ) -> Void = { _ in },
         openSystemSettings: @escaping @MainActor () -> Void = {},
         syncRemoteRegistration: @escaping @MainActor (
             String
@@ -136,6 +159,7 @@ final class NotificationSettingsViewModelTests: XCTestCase {
     ) -> NotificationSettingsDependencies {
         NotificationSettingsDependencies(
             fetchAuthorizationStatus: { status },
+            requestAuthorization: requestAuthorization,
             openSystemSettings: openSystemSettings,
             syncRemoteRegistration: syncRemoteRegistration
         )

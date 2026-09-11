@@ -1874,25 +1874,28 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   ordinary and milestone surfaces share an alignment, leaving independent
   top/bottom feedback visible, and that passive or incompletely wired action
   toasts never claim hit testing.
-- **`AchievementToastPresenterTests.swift`**: Runs serialized because legacy
-  gamification notification assertions share process UserDefaults. In addition
-  to proving the scan coordinator publishes progress and contribution
-  invalidations only through its injected event bus, it locks the 32-item
-  architecture through injectable bounds, stable duplicate coalescing,
-  case-insensitive foreground/background scan-ID race deduplication without
-  rewriting the resolver's caller-supplied ID, account/session stale-callback
-  rejection, one-time haptic/accessibility claims with remaining lifetime across
-  remounts, nested-host restoration, bounded stale-host retention, and stack
-  projection that mounts the first payload only while forwarding the remaining
-  queue depth to the two-layer decorative-backplate clamp. It also covers the
-  race where an account transition occurs while a retryable progress resolver is
-  suspended. That race must not create a replacement retry after session
-  cleanup. A paired test proves the new session can immediately process the same
-  canonical scan key while the stale resolver remains suspended. Another locks
-  completed-scan deduplication across a same-account session advance. Retry
-  tests also inject a two-task global bound, schedule three scan keys, and
-  require overflow plus session cleanup to retain no more than the configured
-  number of sleepers.
+- **Milestone feedback suites**: `MilestoneToastPresenterTests.swift` and
+  `MilestoneAchievementPolicyTests.swift` run with the serialized gamification
+  process-state lease because compatibility notification assertions share
+  process UserDefaults. `ScanMilestoneCoordinatorTests.swift` owns progress,
+  contribution-event, retry, session, race, ordering, and injected-effect
+  behavior. Its shared factory always supplies isolated account, Offline Sync,
+  cache, and achievement dependencies, so those tests neither resolve `.live`
+  nor require the process-state serialization used by the compatibility suites.
+  `ScanMilestonePolicyTests.swift` owns normalized scan identity and
+  progress-receipt mapping; `MilestoneFeedbackArchitectureTests.swift` freezes
+  declaration ownership, live-service isolation, retired aggregates, focused
+  test ownership, and the 600-line production/test ceiling. Together they lock
+  injectable queue bounds, stable duplicate coalescing, case-insensitive
+  foreground/background scan-ID race deduplication without rewriting the
+  resolver's caller-supplied ID, account/session stale-callback rejection,
+  one-time haptic/accessibility claims with remaining lifetime across remounts,
+  nested-host restoration, bounded stale-host retention, and one-payload stack
+  projection. The coordinator suite also covers an account transition while a
+  retryable resolver is suspended, same-key processing in the replacement
+  session, completed-scan deduplication across same-account session advance, the
+  global retry-task bound, and routing account/cache/acknowledgement/
+  achievement effects only through injected dependencies.
 - **Source guardrails**: `make validate-ios-event-routing` scans production
   sources; `make test-ios-event-routing` exercises multiline, alias,
   application-name/post, duplicate-subject, singleton, allowlist, and
@@ -2475,14 +2478,22 @@ before release.
   hardware.
 - **`Core/Hardware/Camera/CameraSessionPolicyTests.swift`**: Freezes the 15x
   presentation cap, optical-stop filtering, independent UI/hardware zoom
-  clamping, supported frame-duration bounds, and the min/max assignment order
-  required by AVFoundation device constraints.
+  clamping, supported frame-duration bounds, the min/max assignment order
+  required by AVFoundation device constraints, and
+  `CameraSessionPresentationState` generation/coalescing across duplicate and
+  changed running-state intent.
 - **`Core/Hardware/Camera/CameraSessionControllerTests.swift`**: Proves
   construction creates no capture object; controls and both stop APIs remain
   inert before first resolution; the callback-based stop still completes in that
   state; and concurrent root-session access initializes exactly one
-  `AVCaptureSession`. These tests exercise the lock-backed lazy ownership and
-  idempotent lifecycle contract without starting camera hardware.
+  `AVCaptureSession`. It also proves a failed required-input configuration
+  releases its reservation so a later start retries without publishing a false
+  start callback. The architecture suite additionally freezes the controller's
+  hardware-lifecycle callback fence and the facade's observable presentation
+  generation for start/stop ordering. `CameraSessionPolicyTests` proves
+  duplicate same-intent requests retain that generation while an actual
+  start/stop transition advances it. These tests exercise the lock-backed lazy
+  ownership and idempotent lifecycle contract without starting camera hardware.
 - **`Core/Hardware/Camera/CameraPhotoCaptureCoordinatorTests.swift`**: Proves
   cancellation before continuation registration is retained, every active
   terminal path has one winner, simultaneous cancellation/completion has exactly
@@ -2522,16 +2533,22 @@ before release.
   `stagedCapture.images`) and the failure path (`isStagingRefinement` drops back
   to `false` without appending a stale image).
   `CaptureShellPresentationPolicyTests` covers extracted goal/layout/binding
-  policy; `CaptureWorkspaceOperationStateTests` covers one-shot timeout,
-  route/sheet, deterministic overlapping-import retry coalescing, sheet resume,
-  the dismissal-before-task-release handoff, idempotent receipt feedback, and
-  ordered-crop state; `CaptureWorkspaceDependenciesTests` proves the view model
-  uses injected feedback/account lookup while a disabled prewarm remains idle;
-  and `CaptureShellArchitectureTests` enforces the live-service and
-  platform-neutral deterministic Models boundaries, confines raw
-  `NotificationCenter.default` access outside Views, Components, and Modifiers,
-  verifies the ownership directories, and enforces the 600-line production-file
-  ceiling. Shared inference-audio fixture generation lives in
+  policy; `CaptureControlBarPresentationTests` covers capacity, control
+  visibility, staged-action chrome, mode-specific recording progress, and
+  latent-audio isolation; `CaptureWorkspaceOperationStateTests` covers one-shot
+  timeout, route/sheet, deterministic overlapping-import retry coalescing, sheet
+  resume, the dismissal-before-task-release handoff, idempotent receipt
+  feedback, and ordered-crop state; `CaptureWorkspaceDependenciesTests` proves
+  the view model uses injected control entitlement, keyboard, paywall, haptic,
+  feedback, and account seams while a disabled prewarm remains idle; and
+  `CaptureShellArchitectureTests` enforces the live-service and platform-neutral
+  deterministic Models boundaries, Capture ownership of the control surface,
+  confines every reference to the split leaf controls to their `CaptureControls`
+  group, locks mode/scene/interaction invalidation and the stale-release guard
+  for a pending primary press, confines raw `NotificationCenter.default` access
+  outside Views, Components, and Modifiers, verifies the ownership directories,
+  and enforces the 600-line production-file ceiling. Shared inference-audio
+  fixture generation lives in
   `apps/ios/MerianTests/Support/InferenceAudioTestFixtures.swift`, not in an
   unrelated Core test class. This gives deterministic coverage without
   simulator-driven UI automation. The complete unit target, including these
@@ -2666,6 +2683,10 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -destination 'id=<BOOTED_SIMULATOR_ID>' \
   -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests \
   -only-testing:merianTests/CaptureShellPresentationPolicyTests \
+  -only-testing:merianTests/CaptureControlBarPresentationTests \
+  -only-testing:merianTests/CaptureControlHapticPolicyTests \
+  -only-testing:merianTests/CaptureNavigationViewModelTests \
+  -only-testing:merianTests/MediaModeToggleTests \
   -only-testing:merianTests/CaptureWorkspaceOperationStateTests \
   -only-testing:merianTests/CaptureWorkspaceDependenciesTests \
   -only-testing:merianTests/CaptureWorkspaceStagingTests \
@@ -2680,6 +2701,7 @@ Shell and Submission:
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -destination 'id=<BOOTED_SIMULATOR_ID>' \
   -only-testing:merianTests/StagedCaptureTests \
+  -only-testing:merianTests/CaptureStagingToolbarPresentationTests \
   -only-testing:merianTests/CaptureStagingArchitectureTests \
   -only-testing:merianTests/CaptureWorkspaceStagingTests \
   -only-testing:merianTests/CaptureSubmissionMediaTimelineTests \
@@ -2721,6 +2743,7 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/AudioCaptureManagerTests \
   -only-testing:merianTests/AudioCaptureTransitionStateTests \
   -only-testing:merianTests/AudioSessionCoordinatorTests \
+  -only-testing:merianTests/AudioPlaybackSessionControllerTests \
   -only-testing:merianTests/SpectrogramActorTests \
   -only-testing:merianTests/AudioSpectrogramRendererTests test
 ```
@@ -2731,7 +2754,10 @@ Simulator success does not replace Record's physical-device acceptance pass:
 verify first-use microphone permission, Camera-to-Audio startup, real input,
 record/pause/resume and early-stop review, mode/background preservation, both
 15-second confirmation branches, feedback, review playback/scrubbing, and the
-Audio-to-Describe handoff on a signed build.
+Audio-to-Describe handoff on a signed build. The same pass must prove that an
+idle Insight or Explore audio page does not interrupt recording or dictation,
+then exercise first play, seek-resume, owner replacement and reacquisition,
+background/disappearance during activation, and headphone or route changes.
 
 Run the focused Capture Describe matrix after changing prompts, subject
 inference, text/tag composition, dictation orchestration, the UIKit scroll host,
@@ -2803,11 +2829,14 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   shared placemark projection, same-coordinate request coalescing, retryable nil
   and empty results, and bounded eviction. `EnvironmentContextManagerTests`
   covers observable state projection, stable static policy wrappers,
-  unauthorized effect suppression, concurrent geocode/weather work, weather
-  failure fallback, historical capture-date preservation, and passive no-prompt
-  resolution. `EnvironmentContextArchitectureTests` freezes focused ownership,
-  framework exclusions, facade compatibility, retired aggregates, and production
-  line ceilings.
+  authorization-gated cached-coordinate presentation, unauthorized effect
+  suppression, revocation during a suspended deferred-location request,
+  concurrent geocode/weather work, weather failure fallback, historical
+  capture-date preservation, and passive no-prompt resolution. Controller
+  coverage also locks restoration of both composing accuracy and its distance
+  filter after an idle one-shot request. `EnvironmentContextArchitectureTests`
+  freezes focused ownership, framework exclusions, facade compatibility, retired
+  aggregates, and production line ceilings.
 - **Haptic feedback suites**: `HapticManagerTests` exercises the injected facade
   admission gates, all four impact routes, selection, success, delayed error,
   audio-session preparation, and attempt projection without constructing
@@ -2818,7 +2847,9 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   audio-session adapter boundary. `HapticArchitectureTests` freezes declaration
   ownership, main-actor hardware closures, framework separation, test rehoming,
   and focused line ceilings. Capture's pure release policy lives in
-  `CaptureButtonHapticFeedbackTests` under `Core/UI`.
+  `CaptureControlHapticPolicyTests` under `Features/Capture/Shared`; Shell's
+  `CaptureControlBarPresentationTests` separately covers control visibility,
+  capacity, staging, progress, and cross-mode state isolation.
 
 Run the focused environment-context matrix after changing authorization,
 location accuracy, timeout/cancellation, geocoding/cache, WeatherKit, passive
@@ -2834,10 +2865,16 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/EnvironmentContextArchitectureTests test
 ```
 
-The boundary currently contains 31 deterministic tests. The final Environment
+The boundary currently contains 34 deterministic tests. The final Environment
 Context cleanup checkpoint, including focused and complete-target execution
 evidence, is recorded in
 [Core Hardware Environment Context Boundary](../rfcs/codebase-cleanup.md#core-hardware-environment-context-boundary).
+Before release, use a signed physical device to grant, deny, and revoke Location
+access during live camera tracking and an in-flight shutter request. Confirm
+revocation immediately hides retained facade coordinates and prevents deferred
+geocoding/weather work; after regrant, confirm coarse tracking, accurate or
+bounded-fallback shutter acquisition, and restoration of hundred-meter accuracy
+plus the 100 m distance filter.
 
 Run the focused haptic matrix after changing a semantic trigger, global gate,
 hardware adapter, fallback, engine lifecycle, or Capture control mapping:
@@ -2849,7 +2886,7 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/HapticFeedbackPolicyTests \
   -only-testing:merianTests/HapticFeedbackControllerTests \
   -only-testing:merianTests/HapticArchitectureTests \
-  -only-testing:merianTests/CaptureButtonHapticFeedbackTests test
+  -only-testing:merianTests/CaptureControlHapticPolicyTests test
 ```
 
 - **`PhotoLibraryManagerTests.swift`**: Validates that the injected default-off
@@ -5468,13 +5505,16 @@ The assertions must prove the exact queued presentation ID, retained durable
 row, released upload hold, eventually cleared foreground generation, `.queued`
 Insight mode, no `SpeciesData`, no error haptic/circuit failure, and exactly one
 live transport request. The `.timedOut` branch must begin with generation
-metadata still present and retire it through the handoff itself. Request-policy
-and timing assertions must prove queue-backed Identify carries the 15-second
-foreground bound, does not enter the generic two-second replay or a 90-second
-deadline, and completes the post-error queued handoff within 1.5 seconds.
-Separate controls must preserve the 90-second window and **Network timeout** for
-a queue-less direct request and classify **Analysis delayed / Scan saved** as an
-inference error placeholder for an exhausted queue-backed server failure.
+metadata still present and retire it through the handoff itself. Only after
+those preconditions are asserted does the test close background upload dispatch;
+the transport-only fixture has no media and must not race an independent
+empty-media quarantine. Request-policy and timing assertions must prove
+queue-backed Identify carries the 15-second foreground bound, does not enter the
+generic two-second replay or a 90-second deadline, and completes the post-error
+queued handoff within 1.5 seconds. Separate controls must preserve the 90-second
+window and **Network timeout** for a queue-less direct request and classify
+**Analysis delayed / Scan saved** as an inference error placeholder for an
+exhausted queue-backed server failure.
 `testInferenceErrorPresentationRoleDoesNotDependOnDisplayCopy` separately proves
 that this classification comes from `SpeciesData.presentationRole`, not the
 localized title: arbitrary error copy remains an error, while result-role data
@@ -5554,28 +5594,32 @@ rechecks that the native badge accessibility frame stays inside the app window
 after each opacity-only label transition. Every configured UI-test launch also
 includes `-seedLocationPermissionPromptSuppressed`; the Debug seed coordinator
 accepts it only with the `UITesting` environment contract, and the
-`EnvironmentContextManager` facade passes it through the shared prompt policy to
-`EnvironmentLocationController` at both authorization entry points. The fixture
-does not invent an authorized state or location. It only prevents a fresh
-simulator's Core Location alert from consuming the first deterministic
-interaction. A location-permission UI test must launch without that argument.
-The Release archive marker denylist prevents this Debug contract from reaching
-the shipped executable. `LocalVisualAnalysisTests` exercise the contained
-local-analysis coordinator through the stable engine adapters and lock Vision
-threshold and margin qualification, every broad-category mapping, directly
-observable phrase decks, deterministic pixel inputs producing distinct palette
-cues; concrete saturation, lighting, contrast, and surface wording; rejection of
-vague midpoint bucket language; the injected clock and monotonic generic →
-category → local-trait → Foundation source handoff; and full-deck exhaustion
-before a phrase cycle wraps. They also cover natural verb-led rendering without
-`Kind: detail` labels, handoff ordering that consumes unseen entries before any
-prior phrase repeats, focus-region crop math, partial snapshot buffering,
-duplicate and unsafe cue rejection, runtime power/thermal/lifecycle eligibility,
-provider errors, replacement fences, idempotent consecutive inactive/background
-handling, app-deactivation cancellation without visible-copy regression, phrase
-rotation and Foundation streams, and cancellation of a permanently hung stream
-at simulated Gemini response arrival. The architecture suite separately locks
-the coordinator's private task/image/phrase ownership, aggregate removal, and
+`EnvironmentContextManager` facade forwards suppression to
+`EnvironmentLocationController`, which applies the shared prompt policy at both
+authorization entry points. The portable workflow contract checks suppression
+forwarding for permission validation, authorization requests, and
+current-location requests, both controller policy guards, and the policy's
+suppression condition. The fixture does not invent an authorized state or
+location. It only prevents a fresh simulator's Core Location alert from
+consuming the first deterministic interaction. A location-permission UI test
+must launch without that argument. The Release archive marker denylist prevents
+this Debug contract from reaching the shipped executable.
+`LocalVisualAnalysisTests` exercise the contained local-analysis coordinator
+through the stable engine adapters and lock Vision threshold and margin
+qualification, every broad-category mapping, directly observable phrase decks,
+deterministic pixel inputs producing distinct palette cues; concrete saturation,
+lighting, contrast, and surface wording; rejection of vague midpoint bucket
+language; the injected clock and monotonic generic → category → local-trait →
+Foundation source handoff; and full-deck exhaustion before a phrase cycle wraps.
+They also cover natural verb-led rendering without `Kind: detail` labels,
+handoff ordering that consumes unseen entries before any prior phrase repeats,
+focus-region crop math, partial snapshot buffering, duplicate and unsafe cue
+rejection, runtime power/thermal/lifecycle eligibility, provider errors,
+replacement fences, idempotent consecutive inactive/background handling,
+app-deactivation cancellation without visible-copy regression, phrase rotation
+and Foundation streams, and cancellation of a permanently hung stream at
+simulated Gemini response arrival. The architecture suite separately locks the
+coordinator's private task/image/phrase ownership, aggregate removal, and
 600-line split. `InsightQueuedHandoffTests` and `InsightMediaSuppressionTests`
 separately prove that an exact active-visual live-to-queue handoff carries
 contextual phrases and in-memory carousel media, that save plus offline/online
@@ -5772,29 +5816,29 @@ under `MerianTests/Features/Explore/FieldTrips` and share deterministic builders
 through `FieldTripTestFixtures.swift`; feature presentation behavior must not
 move back into the Core network suite. The progress-response tests cover both
 the legacy shape and an extended level-advancement shape where current counts
-are `0/N` but credited counts are the completed full level.
-`AchievementToastPresenterTests` covers delayed strict ordering, multiple
-standard/challenge destinations, common-name fallback, progress failure, empty
-matches, completed-level rings, foreground/background scan-ID deduplication,
-bounded overflow, typed payload coalescing, session fencing, and foreground-host
-lifetime/effect ownership. The Field Trips Deno `referenceMedia_test.ts` suite
-locks all 20 current goal-to-illustrative-species mappings, target extraction,
-one-per-source Naturebook/Wikipedia/GBIF ordering, and item-scoped payload
-attachment; `db_test.ts` also executes the bounded species/reference hydration
-projection. `InsightFieldTripContributionTests` covers contribution loading,
-scan-change race rejection, silent error/empty states,
-queued/unauthenticated/non-biological gates, public Event rows, invalidation
-reload, and root/embedded routing in addition to the dictionary eligibility
-policy. `FieldTripFeaturedMediaTests` covers the standard outing hero
-progression: default illustrative references; exact completed photo,
-video-poster, and legacy-cover replacement; fallback for missing, archived,
-incomplete, nonvisual, posterless-video, reference-only, and repeated-scan
-records; strict Naturebook → Wikipedia → GBIF failure advancement; stable goal
-identity across reference-to-user replacement; active-level-only checklist
-ordering and its six-item cap; same-level source-exhaustion reserve refill; and
-mixed reference/photo/video full-screen order with muted video. It also locks
-provider/user VoiceOver copy and top-edge underlap whenever at least one
-featured item exists, plus the bottom-leading Naturebook contributor and
+are `0/N` but credited counts are the completed full level. The milestone
+feedback suites cover delayed strict ordering, multiple standard/challenge
+destinations, common-name fallback, progress failure, empty matches,
+completed-level rings, foreground/background scan-ID deduplication, bounded
+overflow, typed payload coalescing, session fencing, foreground-host
+lifetime/effect ownership, pure receipt mapping, and injected live-effect
+routing. The Field Trips Deno `referenceMedia_test.ts` suite locks all 20
+current goal-to-illustrative-species mappings, target extraction, one-per-source
+Naturebook/Wikipedia/GBIF ordering, and item-scoped payload attachment;
+`db_test.ts` also executes the bounded species/reference hydration projection.
+`InsightFieldTripContributionTests` covers contribution loading, scan-change
+race rejection, silent error/empty states, queued/unauthenticated/non-biological
+gates, public Event rows, invalidation reload, and root/embedded routing in
+addition to the dictionary eligibility policy. `FieldTripFeaturedMediaTests`
+covers the standard outing hero progression: default illustrative references;
+exact completed photo, video-poster, and legacy-cover replacement; fallback for
+missing, archived, incomplete, nonvisual, posterless-video, reference-only, and
+repeated-scan records; strict Naturebook → Wikipedia → GBIF failure advancement;
+stable goal identity across reference-to-user replacement; active-level-only
+checklist ordering and its six-item cap; same-level source-exhaustion reserve
+refill; and mixed reference/photo/video full-screen order with muted video. It
+also locks provider/user VoiceOver copy and top-edge underlap whenever at least
+one featured item exists, plus the bottom-leading Naturebook contributor and
 bottom-trailing provider attribution policy, preventing empty-media detail from
 moving beneath transparent navigation chrome. `ActiveCaptureGoalStoreTests` also
 locks the inline-tip policy so completed, locked, guide-free, or fully completed
@@ -5844,13 +5888,20 @@ bounded FFT/noise-floor behavior and reset semantics. Run
 `AudioCaptureTransitionStateTests` for generation replacement/invalidation,
 `AudioSessionCoordinatorTests` for successful replacement, failed-activation
 configuration restoration, first-activation cleanup, and rollback-failure
-invalidation, and `AudioSpectrogramRendererTests` for reusable palette, raster
-orientation, live-horizon, and fit-to-data behavior. These suites live under
-mirrored `Features/Capture/Record`, `Core/Hardware`, and `Core/Media` test
-paths; do not move playback, hardware, or reusable renderer assertions back into
-an aggregate manager suite. Keep
-`merianUITests.testAudioFirstLaunchSelectsRecordMode` in the focused matrix for
-the real pager selection and mounted Audio presentation.
+invalidation plus cancellation before session mutation. Run the Core Media-owned
+`AudioPlaybackSessionControllerTests` for idle-mount isolation, lazy activation
+coalescing and retry, stale-token reacquisition, immediate teardown,
+cancellation before coordinator mutation, cancellation-ignoring late
+acquisition, teardown during lease validation, and replacement-safe cleanup, and
+`AudioSpectrogramRendererTests` for reusable palette, raster orientation,
+live-horizon, and fit-to-data behavior. The playback-session architecture check
+also requires reusable Core UI and Explore audio to await exact-token validation
+before every audible start and keeps generic media dependencies free of direct
+AVAudioSession mutation. These suites live under mirrored
+`Features/Capture/Record`, `Core/Hardware`, and `Core/Media` test paths; do not
+move playback, hardware, or reusable renderer assertions back into an aggregate
+manager suite. Keep `merianUITests.testAudioFirstLaunchSelectsRecordMode` in the
+focused matrix for the real pager selection and mounted Audio presentation.
 
 Capture startup diagnostics must also exercise the user-configurable first-mode
 matrix. For each of Camera, Audio, and Description, persist that mode first,
@@ -5882,7 +5933,8 @@ symbol size, 82 pt Describe content clearance, minimum 21 pt approximate
 horizontal symbol padding, minimum 44 pt segment width, installed selected-index
 image mapping, selected and inactive light/dark symbol palette,
 original-rendering images, adaptive thumb tint, all six stored order
-permutations, and missing/unknown-value healing.
+permutations, missing/unknown-value healing, mounted hit testing, both native
+selection-event routes, and one callback when UIKit emits both routes.
 `HapticManagerTests.testCaptureModeSelectionFeedbackUsesSelectionPulseAndGlobalGates`
 locks the distinct selector and pager sources plus the Haptics and Expedition
 mode gates. The focused
@@ -6007,12 +6059,12 @@ The public Field trips release has explicit regression coverage.
 account and verifies Events are absent from the feature-flag registry.
 `FieldTripAPIModelsTests`, `FieldTripPresentationTests`, the profile
 presentation suites in `FieldTripProfilePresentationTests.swift`, the Field
-Trips view-model suites, `ActiveCaptureGoalStoreTests`,
-`AchievementToastPresenterTests`, and `InsightFieldTripContributionTests` verify
-that Event sections, badges, progress, typed routes, publications, profiles, and
-scan contributions are part of the normal client path. Manually test a physical
-signed-in account, a physical ghost account, and a simulator build; all must see
-the Events segment and be able to exercise the server-authorized flow.
+Trips view-model suites, `ActiveCaptureGoalStoreTests`, the milestone feedback
+suites, and `InsightFieldTripContributionTests` verify that Event sections,
+badges, progress, typed routes, publications, profiles, and scan contributions
+are part of the normal client path. Manually test a physical signed-in account,
+a physical ghost account, and a simulator build; all must see the Events segment
+and be able to exercise the server-authorized flow.
 
 Manual refactor-parity QA must also switch Outings/Events while their catalog
 requests load, fail, retry, and refresh independently; combine difficulty and
@@ -6272,6 +6324,45 @@ ownership, manually regress:
 Ownership-only moves are code parity work: keep focused tests with their
 production owner, update XcodeGen source grouping, and do not change visible
 copy, accessibility, image-loading, playback, or navigation behavior.
+
+### Core UI integration audit
+
+`CoreUIArchitectureTests` keeps cross-feature presentation in `Core/UI`, moves
+feature- and domain-specific declarations to their narrowest owners, forbids
+live process-service resolution outside Core UI service adapters, pins each
+current lookup to its explicit adapter owner, and enforces the 600-line
+production-file ceiling. The audio-carousel assertion additionally keeps its
+mutable player, observer, and task state file-private. The surrounding feature
+architecture suites freeze the relocated Capture navigation, Explore wrapping
+layout, Profile stats/plan presentation, Insight entrance and confirmation
+controls, and Core Notifications permission sheet. Dependency tests lock
+injected milestone, Capture, notification, and Insight feedback or hardware
+actions.
+
+Run the focused matrix after changing these owners or their composition seams:
+
+```bash
+xcodebuild -quiet -scheme Merian -project merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/CoreUIArchitectureTests \
+  -only-testing:merianTests/MilestoneFeedbackArchitectureTests \
+  -only-testing:merianTests/MilestoneToastFeedbackDependenciesTests \
+  -only-testing:merianTests/CaptureShellArchitectureTests \
+  -only-testing:merianTests/CaptureWorkspaceDependenciesTests \
+  -only-testing:merianTests/NotificationArchitectureTests \
+  -only-testing:merianTests/NotificationSettingsViewModelTests \
+  -only-testing:merianTests/SettingsArchitectureTests \
+  -only-testing:merianTests/InsightContentArchitectureTests \
+  -only-testing:merianTests/InsightContentActionsTests \
+  -only-testing:merianTests/IdentificationReviewArchitectureTests test
+```
+
+Manual parity covers Capture navigation and badges; Explore wrapping layout;
+Profile plan allowance and stats heatmap scrolling; Insight card entrance with
+Reduce Motion and candidate-drag haptics; both notification-permission entry
+points; milestone feedback; VoiceOver; large Dynamic Type; and light/dark
+appearance. These checks verify presentation and interaction parity; they do not
+replace physical-device haptic or notification authorization testing.
 
 iOS audio playback policy coverage is split by production owner.
 `MerianTests/Core/Media/AudioPlaybackPresentationTests.swift` owns shared pill,

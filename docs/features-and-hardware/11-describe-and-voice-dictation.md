@@ -284,7 +284,7 @@ Lives at `apps/ios/Merian/Core/Hardware/SpeechManager.swift`. Registered as
 `var speechManager = SpeechManager()` in `AppDIContainer` and distributed via
 `.environment(container.speechManager)` in `DIContainerModifier.body()`. The
 manager is Core-owned because Capture Describe, Insight Field Notes, Insight
-media coordination, and the shared capture bar consume it.
+media coordination, and the Shell-owned Capture controls consume it.
 `CaptureWorkspaceView` reads the environment-owned instance and explicitly
 passes it to `DescribeInputLifecycleObserver`; that observer constructs
 `DescribeInputViewModel.Dependencies.live` rather than letting the paged
@@ -377,8 +377,9 @@ resetting `isRecording = false` without user action.
 `CaptureActionCoordinator` is the intent boundary between fixed capture chrome
 and Describe lifecycle state:
 
-- `CaptureControlBar` toggles `isDictationRequested` and assigns a new
-  `tocRequestID`; it does not own speech tasks or sheet presentation.
+- Shell's `Components/CaptureControls/CaptureControlBar` toggles
+  `isDictationRequested` and assigns a new `tocRequestID`; it does not own
+  speech tasks or sheet presentation.
 - `DescribeInputLifecycleObserver` observes those intents outside the pager. It
   captures the existing text as a baseline and forwards the intent to
   `DescribeInputViewModel`. The view model starts the injected speech action,
@@ -505,12 +506,12 @@ The recognition result handler dispatches back to `@MainActor` via
   Description-first render and sheet route. It also verifies that prompt,
   submit, and dictation controls share a centerline and that the rounded editor
   retains 8...32 pt of rendered clearance above them. The editor reserves the
-  row's fixed 204 pt `CaptureControlBarLayout.describeContentBottomClearance`
-  inside its UIKit-hosted scroll content and flexes to consume the remaining
-  height. At the top, the hosted page reserves only a fixed 60 pt selector band
-  because its origin is already safe-area adjusted. UI coverage requires an
-  8...32 pt gap from `CaptureModeToggle` to `DescribeQuestionNavigation`,
-  preventing duplicate top-safe-area padding.
+  row's fixed 204 pt `CaptureControlBarLayout.describeContentBottomClearance`,
+  owned by `Capture/Shared/Models`, inside its UIKit-hosted scroll content and
+  flexes to consume the remaining height. At the top, the hosted page reserves
+  only a fixed 60 pt selector band because its origin is already safe-area
+  adjusted. UI coverage requires an 8...32 pt gap from `CaptureModeToggle` to
+  `DescribeQuestionNavigation`, preventing duplicate top-safe-area padding.
 - `merianUITests.testDescribeTextAreaFocusesFromLowerRegion` taps below the
   multiline field's intrinsic frame and types through the newly focused input,
   locking the full rounded editor as the interaction target.

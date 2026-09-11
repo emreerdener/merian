@@ -63,11 +63,13 @@ The original-recording and PhotoKit lifetime contract is documented in
 [`27-camera-roll-media-export.md`](../../../../../../docs/features-and-hardware/27-camera-roll-media-export.md).
 
 Generic crop encoding lives in `Core/Media/ImageCropProcessor.swift` because
-Capture and Profile both consume it. `Core/UI` owns `ImageCropperView` and the
-presentation-only flash control. Capture-specific source/crop metadata remains
-in `Capture/Shared/Models/IdentifiableImage.swift`; Profile owns a separate
-avatar-crop value. Feature callers inject crop/zoom/flash feedback actions;
-shared components do not resolve the haptic or camera service.
+Capture and Profile both consume it, and `Core/UI` owns the shared
+`ImageCropperView`. The presentation-only `CaptureFlashButton` lives beside its
+complete control row under Capture Shell, which owns the injected camera
+mutation and feedback. Capture's source and crop metadata remain in
+`Capture/Shared/Models/IdentifiableImage.swift`; Profile owns a separate avatar
+crop value. Feature callers inject crop/zoom/flash feedback actions; shared
+components do not resolve the haptic or camera service.
 
 In-app `PhotosPicker` selection lives with Scan controls. A photo received from
 the iOS Photos share sheet enters through Capture Shell and

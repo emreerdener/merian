@@ -54,6 +54,12 @@ final class NotificationSettingsViewModel {
         pendingPreference = nil
     }
 
+    func requestAuthorization(
+        completion: @escaping (Bool) -> Void
+    ) {
+        dependencies.requestAuthorization(completion)
+    }
+
     func syncPreferenceChange(_ preference: NotificationPreference) async {
         guard let reason = preference.remoteRegistrationReason else { return }
         await dependencies.syncRemoteRegistration(reason)

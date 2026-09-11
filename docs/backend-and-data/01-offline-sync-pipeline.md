@@ -160,11 +160,12 @@ When `CaptureWorkspaceViewModel.submitStagedCapture(modelContext:)` fires:
    `BackgroundTaskWrapper`, dispatching disk writes to `FileIOActor` to prevent
    blocking the UI and ensuring the SwiftData insert completes before the
    cooperative thread pool can be preempted by an app suspension. GPS is sourced
-   from `EnvironmentContextManager.lastKnownLocation` — which prefers the latest
-   accepted accurate fix (≤30m) and otherwise uses the latest usable coarse
-   reading. Negative-accuracy updates enter neither slot, and a coarse fallback
-   is never promoted into the accurate cache. This lets scans captured during a
-   GPS satellite acquisition retain a macro-region coordinate. Weather and
+   from `EnvironmentContextManager.lastKnownLocation` — which returns a fix only
+   while current authorization allows access, then prefers the latest accepted
+   accurate fix (≤30m) and otherwise uses the latest usable coarse reading.
+   Negative-accuracy updates enter neither slot, and a coarse fallback is never
+   promoted into the accurate cache. This lets authorized scans captured during
+   a GPS satellite acquisition retain a macro-region coordinate. Weather and
    `locationName` may be absent from the initial queue record. A late
    shutter-prefetch result is merged into `OfflineQueuedScan` and submitted to
    `/update-scan-context`; background replay can still backfill missing

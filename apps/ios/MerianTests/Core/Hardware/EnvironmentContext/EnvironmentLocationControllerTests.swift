@@ -114,6 +114,35 @@ struct EnvironmentLocationControllerTests {
         #expect(controller.snapshot.fallbackInaccurateLocation === fallback)
     }
 
+    @Test("An idle one-shot request restores the complete composing profile")
+    func idleOneShotRestoresComposingProfile() async throws {
+        let probe = EnvironmentLocationHardwareProbe(
+            authorizationStatus: .authorizedWhenInUse
+        )
+        let timeoutGate = EnvironmentContextWaitGate()
+        let controller = makeController(
+            probe: probe,
+            timeoutGate: timeoutGate
+        )
+        let request = Task { await controller.requestSingleLocation() }
+        try await waitForEnvironmentCondition {
+            await timeoutGate.waiterCount == 1
+        }
+
+        controller.receiveLocations([syntheticEnvironmentLocation()])
+        _ = await request.value
+
+        #expect(
+            probe.profiles.last?.0 ==
+                EnvironmentLocationPolicy.composingAccuracy
+        )
+        #expect(
+            probe.profiles.last?.1 ==
+                EnvironmentLocationPolicy.composingDistanceFilter
+        )
+        await timeoutGate.releaseAll()
+    }
+
     @Test("Invalid accuracy is never retained as a location fallback")
     func invalidAccuracyIsIgnored() async throws {
         let probe = EnvironmentLocationHardwareProbe(

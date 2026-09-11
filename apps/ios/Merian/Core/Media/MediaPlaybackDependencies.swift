@@ -1,4 +1,3 @@
-import AVFoundation
 import CoreGraphics
 import Foundation
 
@@ -25,7 +24,6 @@ enum MediaPlaybackFeedbackEvent: String, Sendable {
 struct MediaPlaybackDependencies {
     let feedbackNamespace: String
     let activatePlaybackAudio: @MainActor (_ source: String) async -> Bool
-    let activateAudioPlayerSession: @MainActor () throws -> Void
     let acquireAudioSource: @MainActor (
         _ source: String
     ) async throws -> AudioSourceLease
@@ -50,7 +48,6 @@ struct MediaPlaybackDependencies {
         activatePlaybackAudio: @escaping @MainActor (
             _ source: String
         ) async -> Bool = { _ in true },
-        activateAudioPlayerSession: @escaping @MainActor () throws -> Void = {},
         acquireAudioSource: @escaping @MainActor (
             _ source: String
         ) async throws -> AudioSourceLease = { _ in
@@ -84,7 +81,6 @@ struct MediaPlaybackDependencies {
     ) {
         self.feedbackNamespace = feedbackNamespace
         self.activatePlaybackAudio = activatePlaybackAudio
-        self.activateAudioPlayerSession = activateAudioPlayerSession
         self.acquireAudioSource = acquireAudioSource
         self.prepareAudioBoost = prepareAudioBoost
         self.invalidateAudioBoost = invalidateAudioBoost
@@ -100,9 +96,6 @@ struct MediaPlaybackDependencies {
         return Self(
             activatePlaybackAudio: { source in
                 await MediaPlaybackAudioSession.activate(source: source)
-            },
-            activateAudioPlayerSession: {
-                try AVAudioSession.sharedInstance().setActive(true)
             },
             acquireAudioSource: { source in
                 try await AudioBoostProcessor.shared.acquireSource(source)
@@ -141,7 +134,6 @@ struct MediaPlaybackDependencies {
         Self(
             feedbackNamespace: feedbackNamespace,
             activatePlaybackAudio: activatePlaybackAudio,
-            activateAudioPlayerSession: activateAudioPlayerSession,
             acquireAudioSource: acquireAudioSource,
             prepareAudioBoost: prepareAudioBoost,
             invalidateAudioBoost: invalidateAudioBoost,

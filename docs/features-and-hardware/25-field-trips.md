@@ -1002,7 +1002,7 @@ Primary files:
 - `apps/ios/Merian/Core/Network/FieldTripAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift`
-- `apps/ios/Merian/Core/UI/Feedback/AchievementToastPresenter.swift`
+- `apps/ios/Merian/Core/UI/Feedback/{Models,Policies,Presentation,Coordination,Services}/`
 - `apps/ios/Merian/Core/UI/Feedback/AchievementToastBanner.swift`
 - `apps/ios/Merian/Core/Utilities/AppEventPublisher.swift`
 - `apps/ios/Merian/Core/Utilities/AppRouteCoordinator.swift`
@@ -1422,7 +1422,11 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/ExploreShellNavigationPolicyTests \
   -only-testing:merianTests/CaptureSubmissionPolicyTests \
   -only-testing:merianTests/OfflineQueuedScanDeletionTests \
-  -only-testing:merianTests/AchievementToastPresenterTests \
+  -only-testing:merianTests/MilestoneToastPresenterTests \
+  -only-testing:merianTests/MilestoneAchievementPolicyTests \
+  -only-testing:merianTests/ScanMilestoneCoordinatorTests \
+  -only-testing:merianTests/ScanMilestonePolicyTests \
+  -only-testing:merianTests/MilestoneFeedbackArchitectureTests \
   -only-testing:merianTests/FieldTripFeaturedMediaTests \
   -only-testing:merianTests/InsightMediaGalleryTests \
   -only-testing:merianTests/InsightMediaCarouselArchitectureTests \
@@ -1438,7 +1442,13 @@ swiftlint lint --strict --no-cache \
   apps/ios/Merian/Core/Network/FieldTripAPIModels.swift \
   apps/ios/Merian/Core/Network/MerianNetworkClient.swift \
   apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift \
-  apps/ios/Merian/Core/UI/Feedback/AchievementToastPresenter.swift
+  apps/ios/Merian/Core/UI/Feedback \
+  apps/ios/MerianTests/Core/UI/MilestoneToastPresenterTests.swift \
+  apps/ios/MerianTests/Core/UI/MilestoneAchievementPolicyTests.swift \
+  apps/ios/MerianTests/Core/UI/MilestoneFeedbackTestFixtures.swift \
+  apps/ios/MerianTests/Core/UI/ScanMilestoneCoordinatorTests.swift \
+  apps/ios/MerianTests/Core/UI/ScanMilestonePolicyTests.swift \
+  apps/ios/MerianTests/Core/UI/MilestoneFeedbackArchitectureTests.swift
 make validate-markdown-format
 git diff --check
 ```

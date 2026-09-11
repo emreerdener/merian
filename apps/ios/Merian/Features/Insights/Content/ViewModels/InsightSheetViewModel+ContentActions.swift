@@ -5,6 +5,10 @@ extension InsightSheetViewModel {
         contentDependencies.factManager()
     }
 
+    var isContentCardEntranceAnimationEnabled: Bool {
+        contentDependencies.isCardEntranceAnimationEnabled()
+    }
+
     func performContentSelectionFeedback() {
         dependencies.selectionFeedback()
     }

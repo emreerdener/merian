@@ -38,10 +38,12 @@ struct MediaModeToggleTests {
         #expect(CaptureModeSelectorStyle.describeContentClearance == 82)
         #expect(CaptureModeSelectorStyle.controlWidth <= 375 - 48)
         #expect(
-            CaptureModeSelectorStyle.controlWidth / CGFloat(CaptureMode.allCases.count) >= 44
+            CaptureModeSelectorStyle.controlWidth
+                / CGFloat(CaptureMode.allCases.count) >= 44
         )
         let horizontalSymbolPadding = (
-            CaptureModeSelectorStyle.controlWidth / CGFloat(CaptureMode.allCases.count)
+            CaptureModeSelectorStyle.controlWidth
+                / CGFloat(CaptureMode.allCases.count)
                 - CaptureModeSelectorStyle.symbolPointSize
         ) / 2
         #expect(horizontalSymbolPadding >= 21)
@@ -132,8 +134,91 @@ struct MediaModeToggleTests {
                 isSelected: index == 1,
                 colorScheme: .dark
             )
-            #expect(control.imageForSegment(at: index)?.pngData() == expectedImage?.pngData())
+            #expect(
+                control.imageForSegment(at: index)?.pngData()
+                    == expectedImage?.pngData()
+            )
         }
+    }
+
+    @Test("Native value changes update the SwiftUI selection binding")
+    func nativeValueChangeUpdatesBinding() throws {
+        try expectNativeSelectionUpdate(for: [.valueChanged])
+    }
+
+    @Test("Native primary actions update the SwiftUI selection binding")
+    func nativePrimaryActionUpdatesBinding() throws {
+        try expectNativeSelectionUpdate(for: [.primaryActionTriggered])
+    }
+
+    @Test("Duplicate native selector events notify once")
+    func duplicateNativeEventsNotifyOnce() throws {
+        try expectNativeSelectionUpdate(for: [
+            .valueChanged,
+            .primaryActionTriggered
+        ])
+    }
+
+    private func expectNativeSelectionUpdate(
+        for events: [UIControl.Event]
+    ) throws {
+        let selection = CaptureModeSelectionBox(mode: .visual)
+        var modeChangeCount = 0
+        let (window, control) = try hostedSelector(
+            selection: selection,
+            onModeChange: { modeChangeCount += 1 }
+        )
+        defer { window.isHidden = true }
+
+        let controlCenter = control.convert(
+            CGPoint(x: control.bounds.midX, y: control.bounds.midY),
+            to: window
+        )
+        let hitView = window.hitTest(controlCenter, with: nil)
+        #expect(
+            hitView === control
+                || hitView?.isDescendant(of: control) == true
+        )
+
+        control.selectedSegmentIndex = 1
+        for event in events {
+            control.sendActions(for: event)
+        }
+
+        #expect(selection.mode == .audio)
+        #expect(modeChangeCount == 1)
+    }
+
+    private func hostedSelector(
+        selection: CaptureModeSelectionBox,
+        onModeChange: @escaping () -> Void
+    ) throws -> (UIWindow, UISegmentedControl) {
+        let subject = MediaModeToggle(
+            activeMode: Binding(
+                get: { selection.mode },
+                set: { selection.mode = $0 }
+            ),
+            isDragging: .constant(false),
+            orderedModes: CaptureMode.allCases,
+            onModeChange: onModeChange
+        )
+        let host = UIHostingController(rootView: subject)
+        let window = UIWindow(
+            frame: CGRect(x: 0, y: 0, width: 390, height: 844)
+        )
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+
+        host.view.frame = window.bounds
+        host.view.setNeedsLayout()
+        window.layoutIfNeeded()
+        host.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        let control = try #require(
+            firstSegmentedControl(in: host.view)
+        )
+        return (window, control)
     }
 
     @Test("Configured capture mode permutations retain their order")
@@ -162,12 +247,39 @@ struct MediaModeToggleTests {
         ])
     }
 
-    private func expectWhiteColor(_ color: UIColor, alpha expectedAlpha: CGFloat) {
+    private func expectWhiteColor(
+        _ color: UIColor,
+        alpha expectedAlpha: CGFloat
+    ) {
         var white: CGFloat = 0
         var alpha: CGFloat = 0
 
         #expect(color.getWhite(&white, alpha: &alpha))
         #expect(abs(white - 1) < 0.001)
         #expect(abs(alpha - expectedAlpha) < 0.001)
+    }
+
+    private func firstSegmentedControl(
+        in view: UIView
+    ) -> UISegmentedControl? {
+        if let control = view as? UISegmentedControl {
+            return control
+        }
+
+        for subview in view.subviews {
+            if let control = firstSegmentedControl(in: subview) {
+                return control
+            }
+        }
+        return nil
+    }
+}
+
+@MainActor
+private final class CaptureModeSelectionBox {
+    var mode: CaptureMode
+
+    init(mode: CaptureMode) {
+        self.mode = mode
     }
 }

@@ -116,7 +116,19 @@ struct InsightContentArchitectureTests {
             )
         }
 
-        let coreNamePicker = try repositoryRoot().appendingPathComponent(
+        let repository = try repositoryRoot()
+        #expect(!FileManager.default.fileExists(
+            atPath: repository.appendingPathComponent(
+                "apps/ios/Merian/Core/UI/Modifiers/CardEntranceModifier.swift"
+            ).path
+        ))
+        #expect(FileManager.default.fileExists(
+            atPath: root.appendingPathComponent(
+                "Modifiers/InsightCardEntranceModifier.swift"
+            ).path
+        ))
+
+        let coreNamePicker = repository.appendingPathComponent(
             "apps/ios/Merian/Core/UI/Components/NamePickerSheet.swift"
         )
         #expect(FileManager.default.fileExists(atPath: coreNamePicker.path))

@@ -26,11 +26,13 @@ Tracks device-local discovery milestones and achievement notification state.
 - Routes newly eligible awards through the `AppDIContainer`-owned,
   account/session-fenced `MilestoneToastPresenter` for in-app milestone UX. The
   DI-owned `ScanMilestoneCoordinator` waits for the scan's Field trip progress
-  attempt, asks `GamificationManager.evaluateAchievementsForNotifications` for
-  newly eligible awards; the domain manager never invokes an in-app presenter.
-  The coordinator then evaluates `SpeciesData.isNewToMerianDictionary`, and
-  batches standard outing progress, Seasonal Challenge progress, achievements,
-  then `New to Naturebook`. Foreground and background scan completion use this
+  attempt, then uses its injected Feedback Services adapter to ask
+  `GamificationManager.evaluateAchievementsForNotifications` for newly eligible
+  awards. The domain manager never invokes an in-app presenter; the coordinator
+  receives its presenter and live-effect adapter from `AppDIContainer`. The
+  coordinator then evaluates `SpeciesData.isNewToMerianDictionary`, and batches
+  standard outing progress, Seasonal Challenge progress, achievements, then
+  `New to Naturebook`. Foreground and background scan completion use this
   boundary and deduplicate by a trimmed, lowercase coordination key while
   preserving the caller's ID for network/store operations; queue-generated UUIDs
   use lowercase casing and caller-supplied queue IDs retain their stable value.

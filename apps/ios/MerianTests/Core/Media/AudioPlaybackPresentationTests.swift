@@ -77,9 +77,6 @@ struct AudioPlaybackPresentationTests {
                 events.append("activate:\(source)")
                 return false
             },
-            activateAudioPlayerSession: {
-                events.append("activate-player")
-            },
             trackAudioBoost: { event, gainBand in
                 events.append("track:\(event):\(gainBand ?? "none")")
             },
@@ -89,7 +86,6 @@ struct AudioPlaybackPresentationTests {
         )
 
         #expect(await dependencies.activatePlaybackAudio("inline-video") == false)
-        try dependencies.activateAudioPlayerSession()
         dependencies.trackAudioBoost("enabled", "mid")
         dependencies.selectionFeedback("focus.resize")
 
@@ -102,7 +98,6 @@ struct AudioPlaybackPresentationTests {
 
         #expect(events == [
             "activate:inline-video",
-            "activate-player",
             "track:enabled:mid",
             "selection:focus.resize",
             "feature-track:disabled:none"

@@ -519,9 +519,12 @@ production Shell and Library file remains below the 600-line review guard.
   interface without re-routing the global hierarchy or interrupting the
   `.isCapturing` hardware state.
 - **Unread Scan Badge**: `MainTabBar` reads `AppSettings.hasUnseenScan` and
-  passes it as `showBadge:` to the Scans `TabBarButton`. When `true`, a red 8pt
-  `Circle` is overlaid on the top-right of the stack icon. The flag is set to
-  `true` through `diContainer.appSettings` in
+  passes it to the Scans `FloatingNavigationMenuButton`. When `true`, a red 8pt
+  `Circle` is overlaid on the top-right of the stack icon. Explore combines the
+  external-post setting with unread-notification state loaded through the
+  generation-fenced `CaptureNavigationViewModel`; the corresponding Shell
+  service owns its network, app-badge, settings, and haptic effects. The Scan
+  flag is set to `true` through `diContainer.appSettings` in
   `CaptureWorkspaceViewModel.handleInferenceProcessingChange` only when a real
   result arrives (`speciesData?.scanId != nil` — error placeholders like
   "Analysis Failed", "Network timeout", or "Analysis delayed" are excluded
@@ -1500,10 +1503,14 @@ dependency composition.
 - **Push Notifications & Progressive Disclosure (`NotificationSettingsView`)**:
   Push notification permission prompting has been fully excised from the initial
   onboarding flow to optimize funnel completion rates. Instead, the system
-  employs progressive disclosure: users are prompted dynamically via
-  `PostIdentificationNotificationSheetView` when the AI resolves its first edge
-  lookup over the network. `NotificationSettingsViewModel` owns authorization,
-  pending preference, and stable remote-registration reason selection, while
+  employs progressive disclosure when the AI resolves its first edge lookup over
+  the network. Core Notifications owns the render-only
+  `Views/PostIdentificationNotificationSheetView.swift` shared by Capture and
+  Profile Settings; each caller injects its existing authorization and
+  completion actions, so the sheet performs no notification-manager,
+  application-container, or system-service lookup.
+  `NotificationSettingsViewModel` owns Settings-specific authorization, pending
+  preference, and stable remote-registration reason selection, while
   `NotificationSettingsDependencies` adapts Core Notifications' system-status
   service, system Settings, and push-manager access. `NotificationSettingsView`
   retains only preference bindings and presentation. Authorization refreshes are
@@ -1760,23 +1767,39 @@ dependency composition.
   an encapsulated operation-state owner keeps task and one-shot handoff state in
   private storage. Views, Components, and Modifiers retain UI-only pager, focus,
   scroll, expansion, presentation bindings, and dismissal timing without direct
-  endpoint calls. `Capture/Shared/Utilities` owns the composing-center
-  environment contract shared by Shell and Record, while `Core/Media` owns the
-  immutable image concurrency wrapper shared with Insights. `Scan/` owns camera
-  composition, focus/zoom/photo/video actions, Pro video preparation, in-app
-  photo-library import, and viewfinder hints. It consumes the shared crop editor
-  and passive `CaptureFlashButton` from `Core/UI`, while `Core/Media` owns crop
-  encoding. `Record/` owns immutable audio presentation, the manager/haptic
-  adapter, idle/scrub state, its page, and focused interaction components.
-  `Core/Hardware` owns the audio engine, playback, FFT, noise-floor policy, and
-  audio-session leases; `Core/Media` and `Core/UI` own the shared spectrogram
-  renderer/view; `Capture/Shared` owns `RecordingCountdownBadge` for Record and
-  Scan video. `Describe/` owns text input, guided questions, deterministic
-  prompt/text Models, live dependency adapters, prompt/lifecycle view models,
-  subject matching, and dictation presentation, while the shared speech engine
-  stays in `Core/Hardware`; `Staging/Models` owns the ephemeral `StagedCapture`
-  aggregate, capacity policy, modality values, and canonical chronological
-  nodes, while `Staging/Views` owns description editing and crop presentation
+  endpoint calls. `Shell/Components/CaptureControls` owns the rendered row,
+  primary press lifecycle, and mode-specific secondary controls;
+  `Shell/Models/CaptureControlBarPresentation` owns deterministic chrome
+  projection; and `Shell/Services/CaptureControlDependencies` owns entitlement,
+  keyboard, paywall-telemetry, and semantic-haptic effects. A pending primary
+  press is invalidated across mode, inactive-scene, suppression, disablement,
+  and disappearance transitions, and visual Pro eligibility is read when the
+  hold matures. Shell's `Components/Navigation`, navigation view model, and
+  navigation service own the fixed tab bar plus generation-fenced Explore badge
+  refresh. `Components/ModeSelector` owns the native selector.
+  `Capture/Shared/Models` owns `CaptureMode`, the fixed row layout, and pure
+  haptic/source vocabulary used across Capture modalities.
+  `Capture/Shared/Utilities` owns the composing-center environment contract
+  shared by Shell and Record, while `Core/Media` owns the immutable image
+  concurrency wrapper shared with Insights. `Scan/` owns camera composition,
+  focus/zoom/photo/video actions, Pro video preparation, in-app photo-library
+  import, and viewfinder hints. It consumes the shared crop editor from
+  `Core/UI`, while `Core/Media` owns crop encoding. The Shell-owned row also
+  owns and composes the presentation-only `CaptureFlashButton`. `Record/` owns
+  immutable audio presentation, the manager/haptic adapter, idle/scrub state,
+  its page, and focused interaction components. `Core/Hardware` owns the audio
+  engine, playback, FFT, noise-floor policy, and audio-session leases;
+  `Core/Media` and `Core/UI` own the shared spectrogram renderer/view;
+  `Capture/Shared` owns `RecordingCountdownBadge` for Record and Scan video.
+  `Describe/` owns text input, guided questions, deterministic prompt/text
+  Models, live dependency adapters, prompt/lifecycle view models, subject
+  matching, and dictation presentation, while the shared speech engine stays in
+  `Core/Hardware`; `Staging/Models` owns the ephemeral `StagedCapture`
+  aggregate, capacity policy, modality values, canonical chronological nodes,
+  and deterministic toolbar projection. `Staging/Services` owns injected Photo
+  Library, keyboard, haptic, and tooltip-session effects;
+  `Staging/Components/Toolbar` owns the tray's UI-only tasks and animation
+  state; and `Staging/Views` owns description editing and crop presentation
   timing. Capture Shell owns draft mutation, disposable-file deletion, and the
   required-crop and automatic-submit presentation fences. `Submission/Models`
   owns staged-to-request projection, live/replay media timelines, and
@@ -1859,8 +1882,8 @@ dependency composition.
   remove actions. Closing preserves the mixed-media timeline, while removal
   deletes the selected temporary recording through the shared file owner. When
   the user reaches the 2-capture limit, `CaptureWorkspaceView`'s fixed overlays
-  hide `MediaModeToggle`, `CaptureButton`, `CaptureFlashButton`, and
-  `PhotoLibraryButton` to maximize the viewfinder. `ImageCropperView` bounds
+  hide `MediaModeToggle`, `CapturePrimaryActionButton`, `CaptureFlashButton`,
+  and `PhotoLibraryButton` to maximize the viewfinder. `ImageCropperView` bounds
   individual processing sequences per image without keeping full 12 MP buffers
   in background memory. Its close/delete controls use native leading/trailing
   navigation-toolbar placements, letting UIKit clear the status bar, Dynamic
@@ -1924,11 +1947,13 @@ dependency composition.
   shared Pro value-prop copy; `Settings/Notifications/` owns notification
   preferences; `Settings/Changelog/` owns bundled release notes;
   `Settings/Feedback/` owns the beta survey; and `Shared/` holds
-  `ProfileViewModel`. The complimentary display value shared by Settings and
-  Results lives in `Core/UI/Models`. `Profile/Shell/` composes only the Settings
-  adapters that require environment-owned geoprivacy and hardware managers;
-  other Settings state owners select their narrow live dependency at their own
-  boundary.
+  `ProfileViewModel`. `Settings/Plan/Models/ComplimentaryScanDisplayState.swift`
+  owns the Settings-only allowance projection consumed by `PlanCard` and its
+  DEBUG developer preview. Results passes its entitlement values directly to the
+  Core render-only `ModelTierBadge` and does not import that Profile model.
+  `Profile/Shell/` composes only the Settings adapters that require
+  environment-owned geoprivacy and hardware managers; other Settings state
+  owners select their narrow live dependency at their own boundary.
 - The `Scans` feature uses product-area-first folders. `Shell/` owns the
   presented sheet, paging, toolbar, search/filter chrome, and completed/queued
   pushed Insight destinations; `Library/` owns individual private scans,

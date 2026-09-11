@@ -16,6 +16,12 @@ extension CaptureWorkspaceViewModel {
         dependencies.captureGoalAccountId(userId)
     }
 
+    func requestNotificationAuthorization(
+        completion: @escaping (Bool) -> Void
+    ) {
+        dependencies.requestNotificationAuthorization(completion)
+    }
+
     func triggerSelectionFeedback(source: String) {
         dependencies.feedback.selection(source)
     }
@@ -30,6 +36,29 @@ extension CaptureWorkspaceViewModel {
 
     func triggerErrorFeedback() {
         dependencies.feedback.error()
+    }
+
+    var isCaptureControlVisualCaptureAllowed: Bool {
+        dependencies.controls.isVisualCaptureAllowed()
+    }
+
+    var isCaptureControlProVideoAvailable: Bool {
+        dependencies.controls.isProVideoAvailable()
+    }
+
+    func dismissCaptureControlKeyboard() {
+        dependencies.controls.dismissKeyboard()
+    }
+
+    func performCaptureControlHapticFeedback(
+        _ feedback: CaptureButtonHapticFeedback
+    ) {
+        dependencies.controls.performHapticFeedback(feedback)
+    }
+
+    func presentCaptureControlPaywall() {
+        dependencies.controls.trackProVideoPaywallImpression()
+        activeSheet = .paywall
     }
 
     // MARK: - Notification Suppression Context

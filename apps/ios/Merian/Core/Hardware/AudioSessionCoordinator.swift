@@ -6,6 +6,7 @@ actor AudioSessionCoordinator {
     enum Configuration: Equatable, Sendable {
         case recordMeasurement(preferredSampleRate: Double?)
         case playback
+        case playbackDucking
     }
 
     struct Lease: Sendable {
@@ -38,6 +39,12 @@ actor AudioSessionCoordinator {
                     }
                 case .playback:
                     try session.setCategory(.playback, mode: .default)
+                case .playbackDucking:
+                    try session.setCategory(
+                        .playback,
+                        mode: .default,
+                        options: .duckOthers
+                    )
                 }
                 try session.setActive(true)
             },
@@ -62,6 +69,7 @@ actor AudioSessionCoordinator {
     }
 
     func activate(_ configuration: Configuration) throws -> Lease {
+        try Task.checkCancellation()
         let previousConfiguration = activeConfiguration
         do {
             try operations.configureAndActivate(configuration)
@@ -87,6 +95,10 @@ actor AudioSessionCoordinator {
         operations.deactivate()
         activeToken = nil
         activeConfiguration = nil
+    }
+
+    func isCurrent(_ lease: Lease) -> Bool {
+        lease.token == activeToken
     }
 
     private func recoverAfterFailedActivation(

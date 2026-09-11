@@ -20,15 +20,21 @@ stack when changing pager behavior.
 The Shell is organized by responsibility rather than as a pair of aggregate
 files:
 
-- `Models/` owns value-only media, goal, and presentation policy. These
-  declarations do not resolve live state or platform actions; share-state and
-  account-seed lookups enter through injected closures.
+- `Models/` owns value-only media, goal, navigation-badge, and presentation
+  policy, including the capture-control visibility, capacity, staged-action,
+  recording-chrome, and haptic projections. These declarations do not resolve
+  live state or platform actions; share-state and account-seed lookups enter
+  through injected closures.
 - `Services/` is the only Shell owner that constructs live networking, remote
   media-download, connection-prewarm, share/account lookup, keyboard platform,
   and haptic adapters. `CaptureWorkspaceKeyboardService` owns the raw UIKit
-  keyboard publishers, dismissal action, and software-keyboard visibility check;
-  Views, Components, and Modifiers do not access `NotificationCenter.default`.
-  The root view model receives live dependencies through the narrow
+  keyboard publishers, dismissal action, and software-keyboard visibility check.
+  `CaptureControlDependencies` is the live boundary for the capture row's
+  entitlement reads, keyboard dismissal, paywall telemetry, and semantic haptic
+  delivery. `CaptureNavigationDependencies` owns Explore badge loading, app
+  badge coordination, settings mutation, and navigation feedback. Views,
+  Components, and Modifiers do not access `NotificationCenter.default` or those
+  live owners. The root view model receives live dependencies through the narrow
   closure-based `CaptureWorkspaceDependencies` value; it does not construct a
   network client or URL session.
 - `ViewModels/` owns capture state and orchestration. Responsibility-specific
@@ -40,7 +46,9 @@ files:
   MainActor turn so an overlapping request cannot be stranded at completion. A
   sheet deferral still stops that iteration until the exact dismissal callback;
   if dismissal wins the final handoff race, its resume request becomes the next
-  iteration before the handle is released.
+  iteration before the handle is released. `CaptureNavigationViewModel` owns the
+  workspace badge state and fences overlapping refreshes so only the latest
+  request may publish.
 - `Modifiers/` composes root routing, lifecycle observation, presentation,
   binding adapters, and external-import retry triggers. The mounted
   orchestration modifier delivers the keyboard service's publishers on the main
@@ -49,8 +57,16 @@ files:
   environment state, but they do not resolve endpoint, client, URL-session, or
   haptic singletons.
 - `Views/` and `Components/` retain UI-only pager selection, scroll/focus state,
-  goal expansion, presentation bindings, and exact dismissal timing. They send
-  user intents to the view model and contain no direct networking.
+  goal expansion, presentation bindings, and exact dismissal timing. The grouped
+  `Components/CaptureControls`, `Components/ModeSelector`, and
+  `Components/Navigation` directories own the capture row, fixed mode selector,
+  and workspace navigation chrome. The control row's recording-start and 180 ms
+  visual-hold tasks remain view-owned. A pending primary press is invalidated
+  when its mode changes, the scene becomes inactive, the control is suppressed
+  or disabled, or the view disappears; the eventual release cannot dispatch an
+  action for a different mode. Pro video eligibility is sampled when the hold
+  matures rather than frozen at touch-down. Components send user intents through
+  injected closures or the view model and contain no direct networking.
 
 Shell is the lifecycle authority for in-flight visual work. Scene inactivity,
 leaving Scan, root or feature presentation takeover, workspace teardown, and
@@ -62,18 +78,32 @@ cleared state or auto-submitting behind another presentation.
 
 Tests mirror this boundary under `apps/ios/MerianTests/Features/Capture/Shell/`.
 The architecture suite enforces the live-service and deterministic Models
-boundaries, required ownership directories, and a 600-line ceiling for every
-production Swift file in this folder. Presentation-policy and operation-state
-suites exercise the extracted deterministic behavior, the dependencies suite
-locks injected feedback/prewarm and account lookup behavior, and the existing
+boundaries, Capture ownership of the control surface, required ownership
+directories, effective confinement of cross-file leaf controls to the
+`CaptureControls` group, the primary press's mode/scene/interaction lifecycle
+fences, and a 600-line ceiling for every production Swift file in this folder.
+`CaptureControlBarPresentationTests` locks control visibility, capacity,
+staging, mode-specific progress, and latent-audio isolation.
+`CaptureNavigationViewModelTests` locks badge projection, unavailable-count
+preservation, latest-refresh ownership, teardown invalidation, and injected
+feedback. The feature-owned `MediaModeToggleTests` locks selector geometry,
+symbols, accessibility, native value-change and primary-action routing,
+duplicate-event suppression, hit testing, and configured-order healing. The
+dependencies suite locks the row's injected entitlement, keyboard, paywall, and
+haptic seams alongside feedback/prewarm and account lookup behavior.
+Operation-state and other presentation-policy suites exercise the remaining
+extracted deterministic behavior, and the existing
 `CaptureWorkspaceViewModelRefinementTests` selector remains stable across the
 responsibility-specific test files.
 
 Cross-area declarations do not remain in Shell merely because the root supplies
-them. `Capture/Shared/Utilities` owns the composing-center environment contract
-used by Shell and Record, while `Core/Media` owns the immutable
-`SendableCGImage` concurrency wrapper used by Capture and Insights. The
-architecture suite also prevents Shell Models from importing SwiftUI or UIKit.
+them. `Capture/Shared/Models` owns `CaptureMode`, the fixed control-row layout
+used by Shell, Scan, Record, and Describe, and the pure haptic vocabulary also
+consumed by Scan's video-start transition. `Capture/Shared/Utilities` owns the
+composing-center environment contract used by Shell and Record, while
+`Core/Media` owns the immutable `SendableCGImage` concurrency wrapper used by
+Capture and Insights. The architecture suite also prevents Shell Models from
+importing SwiftUI or UIKit.
 
 `MediaModeToggle` remains fixed above that pager and uses one native
 `UISegmentedControl`. Its bounded 200 by 56 pt frame uses compact tab-bar-like
@@ -89,15 +119,32 @@ uses a regular interactive Liquid Glass capsule; earlier systems use an
 segment interaction, and selected-state semantics. Normal and selected images
 are attached before each action is installed, and `setImage(_:forSegmentAt:)`
 refreshes the installed normal images from the actual selected index so UIKit
-cannot show a white active icon. Do not mutate the immutable action snapshots
-returned by the control on iOS 18. The existing SwiftUI binding keeps taps,
-horizontal paging, configured order, and camera-session ownership synchronized.
+cannot show a white active icon. The coordinator snapshots the mode identifiers,
+selected index, and appearance so unrelated SwiftUI updates do not reinstall
+those images while UIKit is tracking an interaction. Do not mutate the immutable
+action snapshots returned by the control on iOS 18. The existing SwiftUI binding
+keeps taps, horizontal paging, configured order, and camera-session ownership
+synchronized. The coordinator observes both documented native value-change and
+primary-action events so direct, assistive, and automated activation converge on
+one binding path. Its binding guard keeps the action callback and feedback at
+one delivery when UIKit emits both events for a normal segment selection.
 Successful selector changes and settled pager swipes each emit one selection
 pulse through `HapticManager`, preserving the user's Haptics setting and
 Expedition mode suppression without vibrating during programmatic page sync. Do
 not replace the control with custom capsules or restore app-wide
 `UISegmentedControl.appearance()` changes. This is the complete mode-selection
 surface, not a trigger for a separate filter or pop-up menu.
+
+`MainTabBar` is Capture-workspace navigation chrome rather than a Core UI route
+owner. Its Capture-only `FloatingNavigationMenu` layout is co-located in
+`Components/Navigation`; together they keep the existing Explore, Scans, and
+Profile bindings and accessibility identifiers. The injected navigation view
+model refreshes Explore badge sources on mount, foreground return, and Explore
+dismissal. A UUID generation fence rejects an older overlapping result or a
+completion after disappearance. An unavailable notification count preserves the
+last known notification badge, while the existing feed-fetch failure behavior
+clears the external-post badge. The view contains no network client, badge
+coordinator, or haptic singleton lookup.
 
 Describe keeps its vertical scrolling behind a UIKit `UIScrollView` hosting
 boundary. Its prompt/dictation lifecycle observer and questions sheet are owned

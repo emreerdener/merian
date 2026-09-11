@@ -126,6 +126,18 @@ struct IdentificationReviewArchitectureTests {
                 "Legacy Identification Review owner remains at \(legacyPath)"
             )
         }
+
+        let repository = try repositoryRoot()
+        #expect(!FileManager.default.fileExists(
+            atPath: repository.appendingPathComponent(
+                "apps/ios/Merian/Core/UI/Components/SlideToConfirm.swift"
+            ).path
+        ))
+        #expect(FileManager.default.fileExists(
+            atPath: root.appendingPathComponent(
+                "Candidates/Components/Review/SlideToConfirm.swift"
+            ).path
+        ))
     }
 
     @Test func featureDeclaresNoUncheckedSendableConformance() throws {

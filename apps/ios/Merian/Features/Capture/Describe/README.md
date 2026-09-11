@@ -27,7 +27,7 @@ network dispatch, persistence, or offline recovery.
 Shared speech recognition is not feature-owned. `Core/Hardware/SpeechManager`
 owns the `AVAudioEngine`, Speech framework, permission, audio-session lease, and
 teardown lifecycle consumed by Describe, Field Notes, Insight media, and the
-shared capture bar. `AppDIContainer` supplies that one manager to
+Shell-owned Capture controls. `AppDIContainer` supplies that one manager to
 `CaptureWorkspaceView`, which passes it explicitly to the workspace observer.
 The Services-owned `DescribeInputViewModel.Dependencies.live` factory converts
 it into narrow closures; the view model never stores or constructs the concrete
@@ -49,10 +49,11 @@ area recreates the duplicated empty band.
 
 The flexible rounded editor retains the stable `DescribeTextArea` and
 `DescribeTextInput` accessibility identifiers and reserves
-`CaptureControlBarLayout.describeContentBottomClearance` beneath it. Its entire
-rounded region remains tappable, including the space below the multiline field.
-`DescribeQuestionNavigation` and `CaptureModeToggle` remain stable UI-test
-identifiers with their documented 8...32 pt rendered spacing.
+`CaptureControlBarLayout.describeContentBottomClearance`, owned by
+`Capture/Shared/Models`, beneath it. Its entire rounded region remains tappable,
+including the space below the multiline field. `DescribeQuestionNavigation` and
+`CaptureModeToggle` remain stable UI-test identifiers with their documented
+8...32 pt rendered spacing.
 
 ## Lifecycle and cancellation
 

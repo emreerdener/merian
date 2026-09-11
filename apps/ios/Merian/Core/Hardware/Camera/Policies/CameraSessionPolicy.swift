@@ -7,6 +7,24 @@ struct CameraZoomConfiguration: Equatable, Sendable {
     let currentFactor: CGFloat
 }
 
+struct CameraSessionPresentationState: Equatable, Sendable {
+    private(set) var generation: UInt64 = 0
+    private(set) var requestsRunning = false
+
+    mutating func register(requestsRunning: Bool) -> UInt64 {
+        guard self.requestsRunning != requestsRunning else {
+            return generation
+        }
+        self.requestsRunning = requestsRunning
+        generation &+= 1
+        return generation
+    }
+
+    func owns(_ generation: UInt64) -> Bool {
+        self.generation == generation
+    }
+}
+
 enum CameraSessionPolicy {
     static func zoomConfiguration(
         maximumAvailableFactor: CGFloat,

@@ -5,6 +5,21 @@ import Testing
 
 @MainActor
 struct InsightContentActionsTests {
+    @Test func cardEntranceAnimationUsesInjectedEligibility() {
+        var isEnabled = false
+        let viewModel = InsightSheetViewModel(
+            contentDependencies: InsightContentDependencies(
+                isCardEntranceAnimationEnabled: { isEnabled }
+            )
+        )
+
+        #expect(!viewModel.isContentCardEntranceAnimationEnabled)
+
+        isEnabled = true
+
+        #expect(viewModel.isContentCardEntranceAnimationEnabled)
+    }
+
     @Test func preferredNameUsesInjectedPersistenceAndFeedback() throws {
         let context = try InsightSheetTestSupport.createIsolatedContext()
         let record = LocalScanRecord(

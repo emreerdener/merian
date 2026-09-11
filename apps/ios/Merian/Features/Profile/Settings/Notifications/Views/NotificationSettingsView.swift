@@ -113,20 +113,23 @@ struct NotificationSettingsView: View {
                 Task { await viewModel.refreshAuthorizationStatus() }
             }
         ) {
-            PostIdentificationNotificationSheetView { granted in
-                if let preference = viewModel.completePermissionPrompt(
-                    granted: granted
-                ) {
-                    applyEnabledPreference(preference)
-                    Task {
-                        await viewModel.syncEnabledAfterAuthorization(
-                            preference
-                        )
+            PostIdentificationNotificationSheetView(
+                requestAuthorization: viewModel.requestAuthorization,
+                onComplete: { granted in
+                    if let preference = viewModel.completePermissionPrompt(
+                        granted: granted
+                    ) {
+                        applyEnabledPreference(preference)
+                        Task {
+                            await viewModel.syncEnabledAfterAuthorization(
+                                preference
+                            )
+                        }
                     }
+                    Task { await viewModel.refreshAuthorizationStatus() }
+                    viewModel.showPermissionPrompt = false
                 }
-                Task { await viewModel.refreshAuthorizationStatus() }
-                viewModel.showPermissionPrompt = false
-            }
+            )
             .presentationDetents([.height(320)])
         }
         .task {

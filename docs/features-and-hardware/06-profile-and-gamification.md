@@ -514,12 +514,17 @@ dictionary-contribution banner. There is no separate presenter or coordinator
 singleton. The container injects its producer-only `AppEventSending` capability
 into the scan coordinator; the coordinator never reaches back through
 `AppDIContainer.shared`, so previews and tests retain isolated invalidation
-graphs. The process-local visual queue is capped at 32 lightweight items;
-overflow may omit ephemeral feedback but cannot lose already-durable progress or
-achievement state, while equivalent typed payloads coalesce onto a stable item
-ID. `ScanMilestoneCoordinator` owns the per-scan business ordering: standard
-outings in server order, Seasonal Challenges in server order, achievements in
-their existing order, then the dictionary milestone. Foreground and background
+graphs. It also explicitly composes the small live dependency value whose
+Feedback Services adapter owns authenticated account lookup, Field trip
+networking, Offline Sync acknowledgement, SwiftData-backed award calculation,
+first-Field-trip caching, feature availability, and gamification evaluation. The
+coordinator and presenter resolve none of those live owners directly. The
+process-local visual queue is capped at 32 lightweight items; overflow may omit
+ephemeral feedback but cannot lose already-durable progress or achievement
+state, while equivalent typed payloads coalesce onto a stable item ID.
+`ScanMilestoneCoordinator` owns the per-scan business ordering: standard outings
+in server order, Seasonal Challenges in server order, achievements in their
+existing order, then the dictionary milestone. Foreground and background
 completion paths share the coordinator and are deduplicated by final saved scan
 ID. Retryable Field trip failures do not finalize that key or discard the
 selected goal; they use bounded retries while an independent milestone-delivery

@@ -119,11 +119,13 @@ final class CameraSessionController: @unchecked Sendable {
 
     private struct State {
         var isSessionConfigured = false
+        var sessionLifecycleGeneration: UInt64 = 0
         var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     }
 
     let queue: DispatchQueue
     private let captureStack: CameraCaptureStack
+    private let makeVideoInput: @Sendable () -> AVCaptureDeviceInput?
     private let state = OSAllocatedUnfairLock(initialState: State())
 
     var session: AVCaptureSession { captureStack.session }
@@ -133,9 +135,27 @@ final class CameraSessionController: @unchecked Sendable {
         makeSession: @escaping @Sendable () -> AVCaptureSession = { AVCaptureSession() },
         makeVideoOutput: @escaping @Sendable () -> AVCaptureVideoDataOutput = { AVCaptureVideoDataOutput() },
         makeDepthOutput: @escaping @Sendable () -> AVCaptureDepthDataOutput = { AVCaptureDepthDataOutput() },
-        makePhotoOutput: @escaping @Sendable () -> AVCapturePhotoOutput = { AVCapturePhotoOutput() }
+        makePhotoOutput: @escaping @Sendable () -> AVCapturePhotoOutput = { AVCapturePhotoOutput() },
+        makeVideoInput: @escaping @Sendable () -> AVCaptureDeviceInput? = {
+            let discoverySession = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [
+                    .builtInTripleCamera,
+                    .builtInLiDARDepthCamera,
+                    .builtInDualCamera,
+                    .builtInDualWideCamera,
+                    .builtInWideAngleCamera
+                ],
+                mediaType: .video,
+                position: .back
+            )
+            guard let captureDevice = discoverySession.devices.first else {
+                return nil
+            }
+            return try? AVCaptureDeviceInput(device: captureDevice)
+        }
     ) {
         self.queue = queue
+        self.makeVideoInput = makeVideoInput
         self.captureStack = CameraCaptureStack(
             makeSession: makeSession,
             makeVideoOutput: makeVideoOutput,
@@ -156,15 +176,23 @@ final class CameraSessionController: @unchecked Sendable {
         )
         queue.async { [weak self] in
             guard let self, !session.isRunning else { return }
+            let lifecycleGeneration = advanceSessionLifecycle()
             if reserveSessionConfiguration() {
-                configureSession(
+                guard configureSession(
                     delegates: delegates,
                     prepareVideoOutput: prepareVideoOutput
-                )
+                ) else {
+                    releaseSessionConfiguration()
+                    return
+                }
             }
             session.startRunning()
+            guard session.isRunning else { return }
             let zoomConfiguration = readZoomConfiguration()
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
+                guard self?.ownsSessionLifecycle(
+                    lifecycleGeneration
+                ) == true else { return }
                 onStarted(zoomConfiguration)
             }
         }
@@ -172,6 +200,7 @@ final class CameraSessionController: @unchecked Sendable {
 
     func stopSession(onStopped: @escaping SessionStoppedHandler) {
         queue.async { [weak self] in
+            self?.invalidateSessionLifecycle()
             if let session = self?.captureStack.existingSession,
                session.isRunning {
                 session.stopRunning()
@@ -183,6 +212,7 @@ final class CameraSessionController: @unchecked Sendable {
     func stopSessionAndWait() async {
         await withCheckedContinuation { continuation in
             queue.async { [weak self] in
+                self?.invalidateSessionLifecycle()
                 if let session = self?.captureStack.existingSession,
                    session.isRunning {
                     session.stopRunning()
@@ -398,47 +428,44 @@ final class CameraSessionController: @unchecked Sendable {
     private func configureSession(
         delegates: CameraSessionDelegateReferences,
         prepareVideoOutput: PreparedVideoHandler
-    ) {
+    ) -> Bool {
         preconditionOnCameraQueue()
         let session = captureStack.session
         session.beginConfiguration()
         session.sessionPreset = .photo
 
-        let discoverySession = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [
-                .builtInTripleCamera,
-                .builtInLiDARDepthCamera,
-                .builtInDualCamera,
-                .builtInDualWideCamera,
-                .builtInWideAngleCamera
-            ],
-            mediaType: .video,
-            position: .back
-        )
-        guard let captureDevice = discoverySession.devices.first,
-              let videoInput = try? AVCaptureDeviceInput(device: captureDevice) else {
+        guard let videoInput = makeVideoInput() else {
             session.commitConfiguration()
-            return
+            return false
         }
+        let videoOutput = captureStack.videoOutput
+        let photoOutput = captureStack.photoOutput
+        guard session.canAddInput(videoInput),
+              session.canAddOutput(videoOutput),
+              session.canAddOutput(photoOutput) else {
+            session.commitConfiguration()
+            return false
+        }
+        let captureDevice = videoInput.device
         state.withLock {
             $0.rotationCoordinator = AVCaptureDevice.RotationCoordinator(
                 device: captureDevice,
                 previewLayer: nil
             )
         }
-        if session.canAddInput(videoInput) {
-            session.addInput(videoInput)
-        }
+        session.addInput(videoInput)
 
-        let videoOutput = captureStack.videoOutput
-        if session.canAddOutput(videoOutput) {
-            session.addOutput(videoOutput)
-            videoOutput.alwaysDiscardsLateVideoFrames = true
-            videoOutput.videoSettings = [
-                kCVPixelBufferPixelFormatTypeKey as String:
-                    Int(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
-            ]
-            videoOutput.setSampleBufferDelegate(delegates.video, queue: queue)
+        session.addOutput(videoOutput)
+        videoOutput.alwaysDiscardsLateVideoFrames = true
+        videoOutput.videoSettings = [
+            kCVPixelBufferPixelFormatTypeKey as String:
+                Int(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
+        ]
+        videoOutput.setSampleBufferDelegate(delegates.video, queue: queue)
+
+        session.addOutput(photoOutput)
+        if #unavailable(iOS 16.0) {
+            photoOutput.isHighResolutionCaptureEnabled = true
         }
 
         let hasLiDAR = !AVCaptureDevice.DiscoverySession(
@@ -456,18 +483,12 @@ final class CameraSessionController: @unchecked Sendable {
             }
         }
 
-        let photoOutput = captureStack.photoOutput
-        if session.canAddOutput(photoOutput) {
-            session.addOutput(photoOutput)
-            if #unavailable(iOS 16.0) {
-                photoOutput.isHighResolutionCaptureEnabled = true
-            }
-            if hasLiDAR, photoOutput.isDepthDataDeliverySupported {
-                photoOutput.isDepthDataDeliveryEnabled = true
-            }
+        if hasLiDAR, photoOutput.isDepthDataDeliverySupported {
+            photoOutput.isDepthDataDeliveryEnabled = true
         }
         prepareVideoOutput(currentVideoRotationAngle())
         session.commitConfiguration()
+        return true
     }
 
     private func reserveSessionConfiguration() -> Bool {
@@ -476,6 +497,28 @@ final class CameraSessionController: @unchecked Sendable {
             state.isSessionConfigured = true
             return true
         }
+    }
+
+    private func releaseSessionConfiguration() {
+        state.withLock {
+            $0.isSessionConfigured = false
+            $0.rotationCoordinator = nil
+        }
+    }
+
+    private func advanceSessionLifecycle() -> UInt64 {
+        state.withLock {
+            $0.sessionLifecycleGeneration &+= 1
+            return $0.sessionLifecycleGeneration
+        }
+    }
+
+    private func invalidateSessionLifecycle() {
+        _ = advanceSessionLifecycle()
+    }
+
+    private func ownsSessionLifecycle(_ generation: UInt64) -> Bool {
+        state.withLock { $0.sessionLifecycleGeneration == generation }
     }
 
     private func readZoomConfiguration() -> CameraZoomConfiguration {

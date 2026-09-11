@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A presentation-only flash toggle used by the shared capture control bar.
+/// A presentation-only flash toggle used by Capture Shell's control bar.
 ///
 /// The owning capture feature supplies both feedback and camera mutations
 /// through `onToggleFlash`; this component does not resolve either service.

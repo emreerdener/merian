@@ -12,6 +12,9 @@ struct CaptureWorkspaceFeedback {
 struct CaptureWorkspaceDependencies {
     let scan: CaptureScanDependencies
     let submission: CaptureSubmissionDependencies
+    let controls: CaptureControlDependencies
+    let navigation: CaptureNavigationDependencies
+    let stagingToolbar: CaptureStagingToolbarDependencies
     let prepareImage: PreparedStagedImageLoader
     let prepareHistoricalAudio: PreparedHistoricalAudioLoader
     let externalImageImports: ExternalImageImportStore
@@ -19,6 +22,9 @@ struct CaptureWorkspaceDependencies {
     let prewarmConnections: @MainActor @Sendable () async -> Void
     let sharedExplorePostId: @MainActor (_ scanId: String) -> String?
     let captureGoalAccountId: @MainActor (_ userId: UUID?) -> String?
+    let requestNotificationAuthorization: @MainActor (
+        _ completion: @escaping (Bool) -> Void
+    ) -> Void
     let feedback: CaptureWorkspaceFeedback
 
     @MainActor
@@ -32,6 +38,9 @@ struct CaptureWorkspaceDependencies {
         Self(
             scan: .live(diContainer: diContainer),
             submission: .live(diContainer: diContainer),
+            controls: .live(diContainer: diContainer),
+            navigation: .live(diContainer: diContainer),
+            stagingToolbar: .live(diContainer: diContainer),
             prepareImage: preparedImageLoader,
             prepareHistoricalAudio: preparedHistoricalAudioLoader,
             externalImageImports: externalImageImportStore
@@ -61,22 +70,31 @@ struct CaptureWorkspaceDependencies {
                 #endif
                 return userId?.uuidString
             },
+            requestNotificationAuthorization: { completion in
+                diContainer.pushNotificationManager.requestAuthorization(
+                    completion: completion
+                )
+            },
             feedback: .init(
                 selection: { source in
-                    HapticManager.shared.triggerSelectionPulse(source: source)
+                    diContainer.hapticManager.triggerSelectionPulse(
+                        source: source
+                    )
                 },
                 sheet: { source in
                     if let source {
-                        HapticManager.shared.triggerSheetSpring(source: source)
+                        diContainer.hapticManager.triggerSheetSpring(
+                            source: source
+                        )
                     } else {
-                        HapticManager.shared.triggerSheetSpring()
+                        diContainer.hapticManager.triggerSheetSpring()
                     }
                 },
                 medium: {
-                    HapticManager.shared.triggerMediumPulse()
+                    diContainer.hapticManager.triggerMediumPulse()
                 },
                 error: {
-                    HapticManager.shared.triggerErrorThump()
+                    diContainer.hapticManager.triggerErrorThump()
                 }
             )
         )

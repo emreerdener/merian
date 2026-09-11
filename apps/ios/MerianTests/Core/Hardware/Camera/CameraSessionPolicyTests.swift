@@ -3,6 +3,21 @@ import AVFoundation
 import XCTest
 
 final class CameraSessionPolicyTests: XCTestCase {
+    func testPresentationGenerationCoalescesDuplicateLifecycleIntents() {
+        var state = CameraSessionPresentationState()
+
+        let firstStart = state.register(requestsRunning: true)
+        let duplicateStart = state.register(requestsRunning: true)
+        let stop = state.register(requestsRunning: false)
+        let duplicateStop = state.register(requestsRunning: false)
+
+        XCTAssertEqual(firstStart, duplicateStart)
+        XCTAssertEqual(stop, duplicateStop)
+        XCTAssertNotEqual(firstStart, stop)
+        XCTAssertFalse(state.owns(firstStart))
+        XCTAssertTrue(state.owns(stop))
+    }
+
     func testZoomConfigurationCapsRangeAndFiltersOpticalStops() {
         let configuration = CameraSessionPolicy.zoomConfiguration(
             maximumAvailableFactor: 189,

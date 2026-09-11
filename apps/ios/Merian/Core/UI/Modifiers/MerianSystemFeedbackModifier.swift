@@ -34,6 +34,7 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
     @Environment(AppRouteCoordinator.self) private var appRouteCoordinator:
         AppRouteCoordinator?
     @Environment(\.milestoneToastClock) private var milestoneToastClock
+    @Environment(\.milestoneToastFeedback) private var milestoneToastFeedback
 
     @State private var milestoneHostID = UUID()
 
@@ -149,6 +150,7 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
                     onDismiss: { id in
                         milestoneToastPresenter.dismissActiveItem(id: id)
                     },
+                    feedback: milestoneToastFeedback,
                     onOpenAchievement: { award in
                         appRouteCoordinator?.request(
                             .achievement(award),

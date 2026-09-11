@@ -108,10 +108,14 @@ struct CameraSheetRouter: ViewModifier {
                             }
                         }
                     case .notificationPrompt:
-                        PostIdentificationNotificationSheetView { granted in
-                            appSettings.isPushNotificationsEnabled = granted
-                            viewModel.dismissActivePresentation()
-                        }
+                        PostIdentificationNotificationSheetView(
+                            requestAuthorization:
+                                viewModel.requestNotificationAuthorization,
+                            onComplete: { granted in
+                                appSettings.isPushNotificationsEnabled = granted
+                                viewModel.dismissActivePresentation()
+                            }
+                        )
                         .presentationDetents([.height(320)])
                         .presentationDragIndicator(.hidden)
                     }

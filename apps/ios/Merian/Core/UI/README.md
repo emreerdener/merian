@@ -10,79 +10,16 @@ buttons, custom toggles), typography extensions, and complex visual treatments
 like glassmorphism shaders. Code placed here ensures visual consistency across
 all feature modules and prevents duplication of fundamental UI elements.
 
-## Capture control layout
+## Capture ownership boundary
 
-`Components/CaptureControlBar.swift` exposes `CaptureControlBarLayout` as the
-fixed chrome contract shared with `CaptureWorkspaceView`: an 80 pt primary
-control, a 124 pt bottom inset, and a 204 pt reserved height. The workspace
-publishes that fixed reservation without measuring the rendered bar with a
-preference key. Full-screen Camera and Audio overlays use the separate fixed
-`fullScreenOverlayClearance` value of 250 pt, preserving the position used
-before child measurement was removed. The full-screen pager reports a zero
-bottom safe-area inset, so its geometry must not be used to derive this
-clearance. The shared capture row center-aligns its 80 pt primary control with
-the 50 pt secondary controls in Camera, Audio, and Describe. Describe's
-UIKit-hosted editor uses the 204 pt `describeContentBottomClearance`
-reservation, matching the row's actual reserved height. The editor's flexible
-interior consumes the remaining viewport height, and its own 24 pt bottom
-padding separates the rounded field from the fixed row instead of leaving blank
-page space. Camera crop composition keeps its separately documented framing
-margin.
-
-Do not reintroduce child-size-to-parent-state feedback for this fixed chrome. If
-the control dimensions change, update the constants and verify Camera-, Audio-,
-and Description-first cold launches with strict AttributeGraph cycle logging.
-`testCameraHintPreservesClearanceAboveShutter` also verifies the real rendered
-hint and shutter frames retain at least 8 pt of separation.
-`testDescribeFirstLaunchRendersAndOpensPrompts` verifies both the Describe
-control-row centerline and 8...32 pt of rendered clearance below the editor. It
-also requires 8...32 pt between the `CaptureModeToggle` and Describe question
-navigation, catching both overlap and duplicate top-safe-area padding. The
-Describe table-of-contents control exposes the accessibility label **Show
-prompts** and stable UI-test identifier `DescribePrompts`.
-
-## Capture mode selector
-
-`Components/MediaModeToggle.swift` owns Capture's fixed, icon-only mode
-selector. It bridges one per-instance `UISegmentedControl` into SwiftUI rather
-than composing a custom thumb or changing the global UIKit appearance proxy. The
-control uses a bounded 200 by 56 pt frame rather than expanding across the
-workspace. Its compact equal-width segments keep the icon centers close while
-giving its 24 pt symbols at least 21 pt of approximate horizontal padding. It
-retains at least 24 pt side margins on supported phone widths, and every segment
-still exceeds the 44 pt minimum touch width. Describe reserves an 82 pt content
-band for the selector and its required visual gap. `UIAction` segments use
-`viewfinder`, `waveform`, and `text.bubble`; their retained titles and symbol
-accessibility labels expose **Scan**, **Record**, and **Describe** to VoiceOver
-and UI automation while UIKit draws only the symbols.
-
-Construct every action with its normal and selected image before installing it.
-UIKit returns immutable action snapshots from a segmented control on iOS 18, so
-never mutate an action obtained from `actionForSegment(at:)`. Native selection
-updates `selectedSegmentIndex`, then refreshes each installed original-rendering
-image through `setImage(_:forSegmentAt:)` according to the actual selected index
-and appearance. An order change remains the only path that removes and rebuilds
-the segments.
-
-The selected segment receives a local adaptive near-white tint: 82% opacity in
-dark appearance, 96% in light appearance, and full white under Increased
-Contrast. On iOS 26, the entire selector track uses a regular interactive Liquid
-Glass capsule instead of an opacity-reduced material layer, while UIKit owns the
-native selected thumb and segment interaction. Earlier supported systems use an
-`ultraThinMaterial` capsule behind their native segmented-control presentation.
-The selected symbol's installed normal and selected images are both solid black
-against that light thumb, preventing UIKit from falling back to an inactive
-white image. Inactive symbols are solid white in dark appearance and black in
-light appearance. The images use original rendering so UIKit cannot apply one
-template tint to both states. Liquid Glass and the fallback material remain
-system-owned, so Reduce Transparency continues through the platform behavior.
-
-`CaptureWorkspaceView` owns the shared selection state. Selector actions and
-settled pager swipes each emit one `HapticManager` selection pulse, while the
-guarded programmatic synchronization path emits none. The shared manager keeps
-the user's Haptics preference and Expedition mode suppression authoritative.
-Keep the `CaptureModeToggle` automation identifier and never restore an app-wide
-`UISegmentedControl.appearance()` mutation.
+Core UI owns only visual primitives reused across product areas. Capture's mode
+selector, navigation bar, staged-media toolbar, flash button, and complete
+control row live under `Features/Capture`; their routes, badges, platform
+effects, task lifecycles, and presentation policies are feature semantics.
+Capture may compose reusable Core primitives such as `ImageCropperView` and
+`CircularMaterialControlModifier` without transferring feature-chrome ownership
+into Core. `FloatingNavigationMenu` is Capture-only layout and therefore lives
+beside `MainTabBar` under `Features/Capture/Shell/Components/Navigation`.
 
 ## Shared audio spectrogram
 
@@ -114,13 +51,6 @@ empty/loading states.
 
 ## Shared display values
 
-`Models/ComplimentaryScanDisplayState.swift` is the presentation-only value
-shared by the Settings plan card and the Insight model-tier badge. It describes
-available or exhausted complimentary Pro display state without owning
-entitlement lookup, quota admission, persistence, or RevenueCat behavior.
-Production callers derive it from their established entitlement owner; the
-Settings DEBUG gallery may inject a deterministic override for visual QA.
-
 `Components/ModelTierBadge.swift` renders an optional prepared
 `ModelTierBadgePresentation` and delegates upgrade handling to its caller. It
 does not resolve RevenueCat or entitlement singletons and does not own paywall
@@ -136,10 +66,6 @@ camera, haptic, persistence, or network services. Each feature retains its own
 input value: Capture owns source context and resumable geometry, while Profile
 owns its bounded avatar-crop preview. Pixel cropping and encoding remain in
 `Core/Media`.
-
-`Components/CaptureFlashButton.swift` is the presentation-only flash control
-used by the shared Capture control bar. The Capture owner supplies feedback and
-the `CameraManager` mutation through its action closure.
 
 ## Shared name selection
 
@@ -250,23 +176,79 @@ downward-offset backplates indicate pending items. Dismissing or opening the
 front toast reveals the next item, and VoiceOver announces the full pending
 count without exposing the decorative layers as separate elements.
 
-`Feedback/AchievementToastPresenter.swift` retains its legacy filename for
-project continuity but defines the generic `MilestoneToastPresenter`,
-`FieldTripMilestonePayload`, and `ScanMilestoneCoordinator`. The coordinator is
-the per-scan business boundary; the presenter is only a FIFO visual queue. The
-coordinator receives `AppEventSending` from `AppDIContainer` and never publishes
-by resolving a bus through `AppDIContainer.shared`, preserving isolated preview
-and test event graphs. Foreground and background completion both key
-coordination by final saved scan ID and enqueue standard outings, Seasonal
-Challenges, achievements, then `New to Naturebook` after the progress attempt
-finishes.
+Milestone feedback is split by responsibility under `Feedback/`:
+
+- `Models` owns immutable toast payloads, queue items, outcomes, and session
+  tokens.
+- `Policies` owns account/scan normalization, payload deduplication, Field trip
+  receipt mapping, and **New to Naturebook** eligibility.
+- `Presentation` owns the bounded FIFO presenter and nested-host registry.
+- `Coordination` owns session control plus foreground/background scan completion
+  sequencing, retry lifetime, and event publication.
+- `Services` owns the clock and the only live adapters for account identity,
+  Field trip networking, SwiftData-backed achievement calculation, offline
+  acknowledgement, achievement caching, feature availability, and notification
+  eligibility.
+
+The retired `AchievementToastPresenter.swift` aggregate must not return.
+Compatibility aliases preserve the established `AchievementToastPresenter` and
+`AchievementToastItem` type names while their generic implementations live in
+`Presentation/MilestoneToastPresenter.swift`. The coordinator remains the
+per-scan business boundary; the presenter remains only a FIFO visual queue.
+`AppDIContainer` explicitly composes `.live` scan dependencies and injects its
+producer-only `AppEventSending` capability. The coordinator therefore resolves
+no singleton, endpoint, offline queue, feature flag, or gamification manager
+directly, preserving isolated preview and test graphs. Foreground and background
+completion both key coordination by final saved scan ID and enqueue standard
+outings, Seasonal Challenges, achievements, then `New to Naturebook` after the
+progress attempt finishes.
 
 `MilestoneToastBanner` preserves the shared 3.5-second timeout, haptics,
-swipe/close dismissal, queue transition, and VoiceOver announcement. Field trip
-payloads use the completed goal artwork, goal-complete title, and outing name in
-the same compact layout as other milestones, and publish their typed
-capture-goal destination when tapped. Other views must not show a second plain
-progress message in response to the same refresh event.
+swipe/close dismissal, queue transition, and VoiceOver announcement. Its haptic
+actions arrive through `MilestoneToastFeedbackDependencies`, which the app root
+composes from its `HapticManager`; the banner and stack do not resolve the
+process singleton. Field trip payloads use the completed goal artwork,
+goal-complete title, and outing name in the same compact layout as other
+milestones, and publish their typed capture-goal destination when tapped. Other
+views must not show a second plain progress message in response to the same
+refresh event.
+
+Focused tests mirror these ownership boundaries: presenter, achievement policy,
+scan policy, coordinator, and architecture coverage live in separate Core UI
+suites. Coordinator subjects must be created through
+`MilestoneFeedbackTestFixtures.coordinator`, whose default dependency graph is
+fully isolated from authentication, offline sync, achievement cache, and
+gamification process state. Only the presenter and achievement-policy
+compatibility suites serialize access to the process-global gamification store.
+
+## Core UI integration audit
+
+Core UI is an actual cross-feature presentation package, not a holding area for
+one-off controls. The integration audit moved declarations to the narrowest
+owner without changing their rendering or interaction contracts:
+
+- Capture Shell owns `FloatingNavigationMenu`.
+- Explore Shared owns `FlowLayout`, which is reused by Feed and Field Trips.
+- Insights Content owns `InsightCardEntranceModifier`; its hardware motion gate
+  is supplied by `InsightContentDependencies` while Reduce Motion remains a view
+  environment decision.
+- Insights Identification Review owns `SlideToConfirm` and supplies its haptic
+  actions through `IdentificationReviewFeedbackDependencies`.
+- Profile User Profile owns `FadingScrollView`, and Profile Settings Plan owns
+  `ComplimentaryScanDisplayState`.
+- Core Notifications owns the cross-feature post-identification permission
+  sheet. Capture and Settings inject their existing authorization action, so the
+  shared view contains no notification-manager or app-container lookup.
+
+`CoreUIArchitectureTests` prevents those retired Core paths from returning,
+requires every production Core UI Swift file to remain at or below 600 lines,
+rejects direct live-process resolution outside `Services`, and pins every
+current lookup to its explicit image-loading or milestone adapter owner. The
+near-limit `AudioPlaybackCarouselPage` remains cohesive because its player,
+observer, replacement, boost, seek, and teardown state must share one private
+mounted-view lifetime. The architecture test explicitly requires every `@State`
+declaration and lifecycle helper to remain private; do not split that state
+merely to reduce the line count by widening it to module scope.
 
 ## Recovered image refresh
 

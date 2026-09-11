@@ -508,7 +508,8 @@ must preserve staged input. After that preview succeeds and the captured staging
 snapshot is revalidated, call `enqueueCapture()` synchronously before awaiting
 environment context or starting provider work. Use the already-cached GPS
 (`EnvironmentContextManager.lastKnownLocation` — live location tracking runs
-while the camera is active). Generate both a stable `scanId` and, when a live
+while the camera is active, and the facade returns the cache only while current
+authorization allows access). Generate both a stable `scanId` and, when a live
 request is eligible, a foreground inference UUID. The queue transaction must
 persist that UUID on the scan-ingestion job, and the concurrent live inference
 must receive the same value.

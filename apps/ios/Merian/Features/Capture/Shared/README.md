@@ -8,7 +8,11 @@ product area or modality. Code that is also used outside Capture belongs in
 
 - `Models/` contains shared Capture values such as observation context, the
   file-backed Photos transfer wrapper, and `IdentifiableImage` source context,
-  provenance, distance, and resumable crop geometry.
+  provenance, distance, and resumable crop geometry. It also owns the fixed
+  `CaptureControlBarLayout` consumed by Shell, Scan, Record, and Describe, plus
+  the platform-neutral feedback and source vocabulary in
+  `CaptureControlHapticPolicy.swift`, shared by Shell controls and Scan's
+  video-start transition. These values do not invoke platform effects.
 - `ViewModels/` contains the action coordinator shared by the Shell and capture
   modes.
 - `Components/RecordingCountdownBadge.swift` owns the passive countdown

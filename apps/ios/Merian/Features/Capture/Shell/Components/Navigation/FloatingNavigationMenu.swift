@@ -36,7 +36,12 @@ private struct FloatingNavigationMenuGlassModifier: ViewModifier {
                 .background(
                     Capsule()
                         .fill(.ultraThinMaterial)
-                        .shadow(color: .black.opacity(0.16), radius: 15, x: 0, y: 8)
+                        .shadow(
+                            color: .black.opacity(0.16),
+                            radius: 15,
+                            x: 0,
+                            y: 8
+                        )
                 )
                 .overlay(
                     Capsule()
@@ -88,7 +93,9 @@ struct FloatingNavigationMenuButton: View {
                     }
 
                 Text(title)
-                    .font(.system(size: FloatingNavigationMenuMetrics.labelFontSize))
+                    .font(.system(
+                        size: FloatingNavigationMenuMetrics.labelFontSize
+                    ))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }

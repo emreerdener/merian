@@ -15,7 +15,11 @@ extension ExplorePublicMediaView {
             }
             player.seek(to: .zero)
             if playbackOverlayState.isPlaying {
-                player.play()
+                if mediaItem.kind == .audio {
+                    startAudioPlayback(player)
+                } else {
+                    player.play()
+                }
             } else {
                 reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
             }

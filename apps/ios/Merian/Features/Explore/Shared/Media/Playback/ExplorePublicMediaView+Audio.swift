@@ -26,7 +26,7 @@ extension ExplorePublicMediaView {
         HapticManager.shared.triggerSelectionPulse(source: "media.explore.detail.seek.commit")
         if shouldResume, isPlaybackActive {
             playbackCoordinator?.activate(playerID: playerId, surface: surface)
-            player.play()
+            startAudioPlayback(player)
         } else {
             reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
         }
@@ -176,26 +176,13 @@ extension ExplorePublicMediaView {
         return String(format: "%d:%02d", totalSeconds / 60, totalSeconds % 60)
     }
 
-    func activateAudioPlaybackSession() -> Bool {
+    func activateAudioPlaybackSession() async -> Bool {
         guard mediaItem.kind == .audio else { return true }
-        guard !playbackState.hasActivatedAudioPlaybackSession else { return true }
-
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: .duckOthers)
-            try session.setActive(true)
-            playbackState.markAudioPlaybackSessionActive()
-            return true
-        } catch {
-            logPlayback("audio-session-activation-failed", extra: "error=\(error.localizedDescription)")
-            return false
+        let activated = await playbackState.activateAudioSession()
+        if !activated {
+            logPlayback("audio-session-activation-failed")
         }
-    }
-
-    func deactivateAudioPlaybackSessionIfNeeded() {
-        guard playbackState.hasActivatedAudioPlaybackSession else { return }
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        playbackState.markAudioPlaybackSessionInactive()
+        return activated
     }
 
     func updateAudioPlaybackProgress(

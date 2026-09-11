@@ -136,7 +136,8 @@ final class CaptureRecordArchitectureTests: XCTestCase {
         )
         let controlBar = try String(
             contentsOf: repository.appendingPathComponent(
-                "apps/ios/Merian/Core/UI/Components/" +
+                "apps/ios/Merian/Features/Capture/Shell/Components/" +
+                    "CaptureControls/" +
                     "CaptureControlBar.swift"
             ),
             encoding: .utf8

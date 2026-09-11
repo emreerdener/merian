@@ -172,6 +172,15 @@ readable control after the completed record replaces the queued presentation.
 The outer page identifier alone is not media-readiness evidence because it is
 also present while decoding and in the unavailable state.
 
+The shared audio page delegates process-wide session ownership to Core Media's
+`AudioPlaybackSessionController`. Mounting the page performs no process-wide
+audio-session mutation. The page acquires, validates, or reacquires its exact
+playback-ducking lease immediately before play-button, seek-resume, and
+fallback-player starts. Background and disappearance advance the player
+generation before teardown, so a suspended activation cannot start a stale
+player. The Insight adapter supplies boost telemetry and haptic feedback; it
+does not configure or deactivate AVAudioSession directly.
+
 Video pages track the underlying `AVPlayerItem` status instead of treating a
 created player as proof that media is playable. Each active video may carry one
 retained image fallback: its stored poster first, otherwise the middle of its

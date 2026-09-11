@@ -121,6 +121,18 @@ lowest-level integration with the iPhone optics.
   safe min/max update ordering against
   `device.activeFormat.videoSupportedFrameRateRanges`. The controller applies
   those decisions while the MainActor remains free during lens shifting.
+- Session configuration preflights the required video input, video output, and
+  photo output before mutating the topology. If device discovery or input
+  creation fails transiently, the controller releases its configuration
+  reservation so a later `startSession()` retries. Optional LiDAR depth is
+  attached only after the required photo output, and `onStarted` publishes only
+  when `AVCaptureSession.isRunning` is true and the start still owns the current
+  session-lifecycle generation. A queued callback from a start invalidated by
+  stop cannot mark the camera running again. `CameraManager` also assigns a
+  presentation generation when requested running/stopped intent changes,
+  preventing an older MainActor completion from overwriting newer observable
+  state while allowing duplicate starts or stops to share the converging
+  callback.
 - Cleanup and device-control requests inspect only an already-resolved capture
   session. Calling stop, target-FPS, idle-throttle, torch, zoom, focus, or
   exposure reset before preview/session startup is a true no-op and does not
@@ -516,7 +528,12 @@ path.
 
 ---
 
-### `CaptureMode` & `MediaModeToggle` (`Core/UI/Components/MediaModeToggle.swift`)
+### `CaptureMode` & `MediaModeToggle`
+
+**Locations**:
+
+- `Features/Capture/Shared/Models/CaptureMode.swift`
+- `Features/Capture/Shell/Components/ModeSelector/`
 
 `CaptureMode` is a `String` `CaseIterable` enum defining the three capture
 pages:
@@ -572,11 +589,16 @@ accessibility semantics instead of a custom drag-tracking capsule.
   retains the required 8...32 pt rendered gap. The decoded user order supplies
   their sequence, and the control rebuilds its segments only when that sequence
   changes. Selection updates the native `selectedSegmentIndex` and the installed
-  segment images without rebuilding actions.
+  segment images without rebuilding actions. A coordinator snapshot limits image
+  installation to mode-order, selected-index, or appearance changes, leaving the
+  native control untouched during unrelated SwiftUI refreshes.
 - **Two-way synchronization**: A segment selection updates `captureMode` with
-  the existing spring, while pager changes update the selected segment. Camera
-  session ownership remains keyed to that shared mode state. Successful
-  user-driven selector changes and settled pager swipes each call
+  the existing spring, while pager changes update the selected segment. The
+  bridge consumes both of UIKit's documented value-change and primary-action
+  events so direct, assistive, and automated activation share one binding path;
+  its binding guard collapses UIKit's normal dual emission to one action
+  callback. Camera session ownership remains keyed to that shared mode state.
+  Successful user-driven selector changes and settled pager swipes each call
   `HapticManager.shared.triggerSelectionPulse(...)` exactly once; programmatic
   page synchronization emits no feedback, and the shared manager preserves the
   Haptics and Expedition mode gates.
@@ -587,18 +609,20 @@ accessibility semantics instead of a custom drag-tracking capsule.
   resolvable and unique symbols, bounded width, compact tab-style height, symbol
   size, minimum symbol padding, minimum per-segment touch width, installed
   selected-index image mapping, state-specific symbol palette, original
-  rendering, all configured permutations, and stored-order healing.
-  `HapticManagerTests` locks the selector/pager sources and global suppression
-  gates. The focused selector UI test locks a 196...204 pt rendered width, at
-  least 24 pt side margins, a 52...60 pt rendered height, the three accessible
-  segment names and current value, minimum Scan touch width, tap selection, and
-  pager-to-selector synchronization on both the oldest supported runtime and iOS
-  26; this includes the iOS 18 immutable-action regression. The Audio-first and
-  Description-first UI tests retain reordered-launch coverage. Before release,
-  verify the full selector track and native iOS 26 thumb over bright and dark
-  live camera content, plus light/dark appearance, VoiceOver, Reduced Motion,
-  Reduced Transparency, and Increased Contrast. A physical device is required to
-  accept the refraction/stretch behavior and tactile feedback.
+  rendering, mounted hit testing, value-change and primary-action binding,
+  duplicate-event suppression, all configured permutations, and stored-order
+  healing. `HapticManagerTests` locks the selector/pager sources and global
+  suppression gates. The focused selector UI test locks a 196...204 pt rendered
+  width, at least 24 pt side margins, a 52...60 pt rendered height, the three
+  accessible segment names and current value, minimum Scan touch width, tap
+  selection, and pager-to-selector synchronization on both the oldest supported
+  runtime and iOS 26; this includes the iOS 18 immutable-action regression. The
+  Audio-first and Description-first UI tests retain reordered-launch coverage.
+  Before release, verify the full selector track and native iOS 26 thumb over
+  bright and dark live camera content, plus light/dark appearance, VoiceOver,
+  Reduced Motion, Reduced Transparency, and Increased Contrast. A physical
+  device is required to accept the refraction/stretch behavior and tactile
+  feedback.
 
 The active Field Trip goal is separate fixed chrome beside or beneath the
 selector according to its presentation state. Its compact 50-point artwork-only
@@ -677,13 +701,16 @@ the cross-feature immutable image transport belongs to `Core/Media` because
 Insights consumes it as well.
 
 `Capture/Staging/Models` owns the ephemeral aggregate, typed modality wrappers,
-image bundle, capacity policy, and single chronological node sequence. Shell
-mutates that aggregate and owns local-file cleanup; `ActiveScanToolbar` filters
-the canonical sequence for renderable video covers without sorting it again.
-`Capture/Submission/Models` owns the submission timeline, aligned projection,
-and exact `Identify*` request/replay descriptors. Staging views issue no
-endpoint or persistence calls; crop presentation retains its cancellable
-image-processing task and required-crop callback timing.
+image bundle, capacity policy, single chronological node sequence, and
+deterministic toolbar projection. Staging Services own injected Photo Library,
+keyboard, cancel-feedback, and tooltip-session effects; Staging Components own
+`ActiveScanToolbar` and keep picker, tooltip, shimmer, and admission-task state
+local. Shell mutates the aggregate and owns local-file cleanup. The toolbar
+projection filters the canonical sequence for renderable video covers without
+sorting it again. `Capture/Submission/Models` owns the submission timeline,
+aligned projection, and exact `Identify*` request/replay descriptors. Staging
+views issue no endpoint or persistence calls; crop presentation retains its
+cancellable image-processing task and required-crop callback timing.
 
 Describe's 350 ms tag-selection auto-advance is keyed to a lightweight request
 identity with SwiftUI `.task(id:)`. A newer tag replaces it and page unmount
@@ -736,40 +763,53 @@ unaffected by page position:
 
 - **Top** — `MediaModeToggle` (hidden when staging is at capacity, except during
   refinement).
-- **Capture bar** (`PhotoLibraryButton` · `CaptureButton` ·
-  `CaptureFlashButton`) and **toolbar** (`MainTabBar` / `ActiveScanToolbar`)
-  live in **two independent `VStack` overlays**, each with its own `Spacer()`
-  and fixed bottom padding. `CaptureControlBarLayout` defines the 80 pt primary
-  control, 124 pt bottom inset, and 204 pt safe-area-relative reservation. The
-  shared `HStack` center-aligns the 80 pt primary control with its 50 pt
-  auxiliary controls in all capture modes. Full-screen Camera and Audio overlays
-  use a separate fixed 250 pt clearance that preserves their pre-regression
-  position without consulting the safe-area-ignoring pager. No child-height
-  preference is written back into the workspace, avoiding a layout feedback loop
-  while keeping the shutter row fixed when the taller `ActiveScanToolbar` slides
-  in.
+- **Capture bar** (`PhotoLibraryButton` · `CapturePrimaryActionButton` ·
+  `CaptureFlashButton`) is owned by `Capture/Shell/Components/CaptureControls`;
+  it and the **toolbar** (`MainTabBar` / `ActiveScanToolbar`) live in **two
+  independent `VStack` overlays**, each with its own `Spacer()` and fixed bottom
+  padding. `CaptureControlBarLayout` in `Capture/Shared/Models` defines the 80
+  pt primary control, 124 pt bottom inset, and 204 pt safe-area-relative
+  reservation. The Shell-owned `HStack` center-aligns the 80 pt primary control
+  with its 50 pt auxiliary controls in all capture modes. Full-screen Camera and
+  Audio overlays use a separate fixed 250 pt clearance that preserves their
+  pre-regression position without consulting the safe-area-ignoring pager. No
+  child-height preference is written back into the workspace, avoiding a layout
+  feedback loop while keeping the shutter row fixed when the taller
+  `ActiveScanToolbar` slides in.
+- `MainTabBar` lives under `Capture/Shell/Components/Navigation`, and its
+  generation-fenced view model receives Explore badge loading, app-badge
+  coordination, settings mutation, and route feedback from Shell Services.
+  `ActiveScanToolbar` lives under `Capture/Staging/Components/Toolbar` and
+  receives its platform effects from Staging Services. Neither component issues
+  endpoint calls or resolves effect singletons.
 - `PhotoLibraryButton` and `CaptureFlashButton` fade to opacity 0 when
   `captureMode == .audio` (camera-only controls), preserving their layout slot
   so the shutter button stays centred. During active visual video recording, the
-  photo-library slot swaps to `VideoCancelButton`, matching the audio recording
-  cancel affordance and calling `cancelVideoCapture()` so the in-progress clip
-  is discarded without staging or submitting.
+  photo-library slot swaps to `CaptureVideoCancelButton`, matching the audio
+  recording cancel affordance and calling `cancelVideoCapture()` so the
+  in-progress clip is discarded without staging or submitting.
 - The capture bar and audio/describe utility buttons share
   `.circularMaterialControl(...)` from
   `Core/UI/Modifiers/IconButtonModifiers.swift` for identical 50 pt circular
-  material chrome. The modifier is presentation-only; each button still owns its
-  haptic path, action, icon, color, and accessibility identifier.
+  material chrome. The modifier is presentation-only. Shell owns each semantic
+  action and haptic request, `CaptureControlDependencies` delivers the live
+  effect, and the button retains only icon, color, animation, accessibility, and
+  gesture presentation.
 
-**`CaptureButton`**: The shutter button transitions its inner `Circle` fill
-between `.white` (visual), `.red` (audio), and `.primary` (describe) in place
-via `.animation(.easeInOut(duration: 0.25))`. In visual mode, a tap remains the
-photo-first path and still calls `executeCapture()`. Pro users can hold the
-visual shutter for roughly 180 ms to start a short video recording; a strong
-haptic fires when recording actually starts and again once recording has
-finished, the circular progress ring switches into the 5-second video duration,
-release does not stop the recording, and a follow-up tap stops early before the
-cap auto-stops it. Non-Pro long-presses do not open the paywall and resolve back
-to the normal photo capture on release. In Audio, an idle tap runs admission,
+**`CapturePrimaryActionButton`**: The shutter button transitions its inner
+`Circle` fill between `.white` (visual), `.red` (audio), and `.primary`
+(describe) in place via `.animation(.easeInOut(duration: 0.25))`. In visual
+mode, a tap remains the photo-first path and still calls `executeCapture()`. Pro
+users can hold the visual shutter for roughly 180 ms to start a short video
+recording; a strong haptic fires when recording actually starts and again once
+recording has finished, the circular progress ring switches into the 5-second
+video duration, release does not stop the recording, and a follow-up tap stops
+early before the cap auto-stops it. A non-Pro long-press presents the paywall
+and release does not also take a photo. Mode changes, scene inactivity, control
+suppression or disablement, and disappearance invalidate a pending press and
+make its eventual release a no-op; this prevents a visual hold from starting a
+video or dispatching an Audio/Describe action after the context changes. Pro
+eligibility is read when the hold matures. In Audio, an idle tap runs admission,
 requests microphone permission while the user action is visible, awaits camera
 shutdown, and starts recording. A recording tap pauses or resumes; review
 confirms the clip after admission. The flanking trash and checkmark controls own
@@ -785,7 +825,7 @@ uses it, so both audio and video countdowns use monospaced semibold subheadline
 digits, white text, ultra-thin material, dark color scheme, and capsule chrome.
 Video uses `CaptureWorkspaceViewModel.videoMaxDuration` to count down from the
 5-second cap while the shutter progress ring and stop icon continue to come from
-`CaptureButton`.
+`CapturePrimaryActionButton`.
 
 **Video capture preparation**: During `CameraSessionController`'s first session
 configuration, it invokes the injected `CameraVideoRecordingService` preparation
@@ -794,7 +834,7 @@ The service attaches its `AVCaptureMovieFileOutput` to the controller-owned
 session before the user starts holding the shutter. Before that explicit setup
 path, the service's session provider and movie-output factory remain
 unevaluated, preserving cold-launch and Onboarding permission priming behavior.
-`CaptureButton` uses a single short hold threshold, then calls
+`CapturePrimaryActionButton` uses a single short hold threshold, then calls
 `startVideoCapture()` directly; `CameraManager.recordVideo(...)` delegates
 microphone/audio-input preparation to the service on that start path. This keeps
 entering the camera from showing an early audio prompt while making the
@@ -888,11 +928,13 @@ Battery and thermal protection, monitoring device usage thresholds.
 - **Animation Gate (`isAnimationEnabled`)**: A computed property that exposes
   the current UI motion budget to the view layer. Returns
   `isGlassmorphismEnabled`, which is already `false` under expedition mode and
-  under `.serious`/`.critical` thermal states. `CardEntranceModifier` reads this
-  property to decide whether to run staggered entrance animations or render
-  cards instantly. `accessibilityReduceMotion` is evaluated separately within
-  the modifier to respect the system accessibility setting independently of
-  hardware constraints.
+  under `.serious`/`.critical` thermal states. Insight Content's live dependency
+  adapter reads this property and supplies it to `InsightCardEntranceModifier`,
+  which decides whether to run staggered entrance animations or render cards
+  instantly. The modifier does not resolve the hardware singleton.
+  `accessibilityReduceMotion` is evaluated separately within the modifier to
+  respect the system accessibility setting independently of hardware
+  constraints.
 
 ### `ViewfinderIntelligence` (VUI)
 
@@ -1216,11 +1258,12 @@ owners while preserving the battery-bounded camera lifecycle.
   `requestCurrentLocation()` concurrently with `CameraManager.captureImage()`.
   That request temporarily raises accuracy to `kCLLocationAccuracyBest`, calls
   `requestLocation()`, then restores the coarse composing profile when pending
-  location continuations resolve. The resolved shutter location is passed into
-  `PhotoLibraryManager` as the Photos asset location and into
-  `fetchDeferredContext`; `lastKnownLocation` remains the fallback if GPS cannot
-  settle before the timeout. Caller cancellation removes only its request; it
-  cannot retire an overlapping shutter request.
+  location continuations resolve, including both hundred-meter accuracy and the
+  100 m distance filter even when live tracking is idle. The resolved shutter
+  location is passed into `PhotoLibraryManager` as the Photos asset location and
+  into `fetchDeferredContext`; `lastKnownLocation` remains the fallback if GPS
+  cannot settle before the timeout. Caller cancellation removes only its
+  request; it cannot retire an overlapping shutter request.
 - `EnvironmentGeocodingService` is the sole `CLGeocoder` owner and derives the
   city/administrative-area label and normalized ISO region from one placemark.
   Same-coordinate lookups coalesce and share a bounded in-memory cache at the
@@ -1257,6 +1300,14 @@ owners while preserving the battery-bounded camera lifecycle.
   timeout cannot resolve a later replacement request. Task cancellation and
   authorization revocation both retire the affected one-shot return path before
   it can expose a cached coordinate.
+- **Cached-coordinate authorization**: the observable facade exposes
+  `lastKnownLocation` only while the current authorization state permits
+  location access. Revocation can leave internal cache state available for
+  controller bookkeeping, but Capture, Explore, Map, and other facade consumers
+  receive `nil` until access is authorized again. Deferred context assembly
+  rechecks authorization after awaiting its one-shot location, preventing a
+  mid-request revocation from falling back to the retained cache or starting
+  geocoding and WeatherKit work.
 - **Prompt policy**: eager and async authorization entry points use the same
   pure prompt policy. Passive location-name and region resolution never asks for
   permission; it returns `nil` unless Core Location is already authorized.

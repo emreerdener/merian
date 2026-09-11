@@ -326,9 +326,7 @@ final class EnvironmentLocationController: NSObject,
         guard activeLocationContinuations.isEmpty else { return }
         dependencies.hardware.applyProfile(
             EnvironmentLocationPolicy.composingAccuracy,
-            isLiveLocationTracking
-                ? EnvironmentLocationPolicy.composingDistanceFilter
-                : EnvironmentLocationPolicy.shutterDistanceFilter
+            EnvironmentLocationPolicy.composingDistanceFilter
         )
     }
 

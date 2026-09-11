@@ -56,6 +56,21 @@ final class SettingsArchitectureTests: XCTestCase {
         }
     }
 
+    func testComplimentaryDisplayStateIsPlanOwned() throws {
+        let repository = try repositoryRoot()
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: repository.appendingPathComponent(
+                "apps/ios/Merian/Core/UI/Models/" +
+                    "ComplimentaryScanDisplayState.swift"
+            ).path
+        ))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: try settingsSourceRoot().appendingPathComponent(
+                "Plan/Models/ComplimentaryScanDisplayState.swift"
+            ).path
+        ))
+    }
+
     private func settingsSourceRoot() throws -> URL {
         let repositoryRoot = try repositoryRoot()
         let sourceRoot = repositoryRoot.appendingPathComponent(

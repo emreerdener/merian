@@ -5,6 +5,9 @@ import UserNotifications
 struct NotificationSettingsDependencies {
     let fetchAuthorizationStatus: @MainActor () async
         -> UNAuthorizationStatus
+    let requestAuthorization: @MainActor (
+        _ completion: @escaping (Bool) -> Void
+    ) -> Void
     let openSystemSettings: @MainActor () -> Void
     let syncRemoteRegistration: @MainActor (_ reason: String) async -> Void
 
@@ -13,6 +16,10 @@ struct NotificationSettingsDependencies {
             fetchAuthorizationStatus: {
                 await SystemNotificationCenterService()
                     .authorizationStatus()
+            },
+            requestAuthorization: { completion in
+                AppDIContainer.shared.pushNotificationManager
+                    .requestAuthorization(completion: completion)
             },
             openSystemSettings: {
                 guard let url = URL(

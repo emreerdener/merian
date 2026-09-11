@@ -21,9 +21,10 @@ owning the audio engine, Capture lifecycle controls, or submission.
 
 `Capture/Shell` is the composition boundary. It resolves the environment-owned
 `AudioCaptureManager`, creates the Record presentation and dependency values,
-and keeps the pager state. The shared Capture control bar retains microphone
-permission, start, pause, resume, stop, discard, playback, and confirmation
-actions. `Capture/Submission` retains live/offline analysis orchestration.
+and keeps the pager state. The Shell-owned Capture control bar retains
+microphone permission, start, pause, resume, stop, discard, playback, and
+confirmation actions. `Capture/Submission` retains live/offline analysis
+orchestration.
 
 ## Shared owners
 

@@ -6,8 +6,7 @@ for the Profile tab.
 
 ## Structure
 
-- **Models** contains Settings-only presentation values. Cross-feature display
-  values, such as `ComplimentaryScanDisplayState`, belong in `Core/UI/Models`.
+- **Models** contains Settings-only presentation values.
 - **Services** contains small closure-based live adapters for account lifecycle,
   export, preference, review/share, and debug actions.
 - **ViewModels** contains `@MainActor @Observable` state for sign-out, account
@@ -17,8 +16,9 @@ for the Profile tab.
   animation timing.
 - **Components** owns Settings-only section composition plus reusable rows and
   banners grouped by Shared, Plan, and Developer responsibility.
-- **Plan** owns paywall and plan presentation models, RevenueCat adapters,
-  purchase/restore state owners, views, and components.
+- **Plan** owns paywall and plan presentation models, including
+  `ComplimentaryScanDisplayState`, RevenueCat adapters, purchase/restore state
+  owners, views, and components.
 - **Feedback** owns survey wire and presentation models, the submit adapter,
   draft/validation/submission state, choice components, and the thin survey
   host.

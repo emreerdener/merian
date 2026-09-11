@@ -16,6 +16,8 @@ failure_diagnostics_extractor="$repo_root/scripts/extract-ios-test-failure-diagn
 ui_test_source="$repo_root/apps/ios/MerianUITests/merianUITests.swift"
 ui_seed_source="$repo_root/apps/ios/Merian/App/MerianApp.swift"
 environment_context_source="$repo_root/apps/ios/Merian/Core/Hardware/EnvironmentContextManager.swift"
+environment_location_controller_source="$repo_root/apps/ios/Merian/Core/Hardware/EnvironmentContext/Services/EnvironmentLocationController.swift"
+environment_location_policy_source="$repo_root/apps/ios/Merian/Core/Hardware/EnvironmentContext/Policies/EnvironmentLocationPolicy.swift"
 analyzing_content_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Views/AnalyzingContentView.swift"
 scanning_experience_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Components/Scanning/ScanningExperienceView.swift"
 confidence_badge_source="$repo_root/apps/ios/Merian/Features/Insights/IdentificationReview/Confidence/Views/ConfidenceBadge.swift"
@@ -545,7 +547,29 @@ assert_file_contains \
 assert_file_count \
   "$environment_context_source" \
   3 \
-  "shouldRequestLocationAuthorization("
+  "dependencies.suppressesLocationPermissionPrompt()"
+# The facade forwards prompt suppression; the extracted controller owns both
+# authorization gates and applies the shared policy before requesting hardware.
+assert_file_contains \
+  "$environment_context_source" \
+  "dependencies.locationController.validatePermissions("
+assert_file_contains \
+  "$environment_context_source" \
+  "dependencies.locationController.requestAuthorizationIfNeeded("
+assert_file_contains \
+  "$environment_context_source" \
+  "dependencies.locationController.requestCurrentLocation("
+assert_file_count \
+  "$environment_location_controller_source" \
+  2 \
+  "guard EnvironmentLocationPolicy.shouldRequestAuthorization("
+assert_file_count \
+  "$environment_location_controller_source" \
+  3 \
+  "suppressesPrompt: suppressesPrompt"
+assert_file_contains \
+  "$environment_location_policy_source" \
+  'status == .notDetermined && !suppressesPrompt'
 assert_file_contains "$ui_test_source" '"-seedLiveQueueHandoffFlow"'
 assert_file_contains "$ui_test_source" '"-seedQueuedRetryPresentationFlow"'
 assert_file_count \

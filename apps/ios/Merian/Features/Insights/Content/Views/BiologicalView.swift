@@ -51,6 +51,8 @@ struct BiologicalView: View {
         let fieldNotesGeneration = viewModel.scanBoundActionGeneration
         let biologicalScanId = viewModel.presentedLocalRecordScanId
         let biologicalScientificName = inferenceEngine.speciesData?.scientificName
+        let cardEntranceAnimationEnabled =
+            viewModel.isContentCardEntranceAnimationEnabled
 
         VStack(spacing: 32) {
 
@@ -103,7 +105,7 @@ struct BiologicalView: View {
                     viewModel.state.showPaywall = true
                 }
             )
-            .cardEntrance(index: 0)
+            .insightCardEntrance(index: 0, isAnimationEnabled: cardEntranceAnimationEnabled)
             .sheet(isPresented: namePickerPresentedBinding) {
                 if let scanId = namePickerScanId,
                    let scientificName = namePickerScientificName,
@@ -157,7 +159,7 @@ struct BiologicalView: View {
 
             // MARK: - Toxicity Banner
             ToxicityBanner(hazardType: viewModel.hazardType)
-                .cardEntrance(index: 1)
+                .insightCardEntrance(index: 1, isAnimationEnabled: cardEntranceAnimationEnabled)
 
             // MARK: - Layout Guards
             let isBiological = inferenceEngine.speciesData?.isBiological ?? false
@@ -197,7 +199,7 @@ struct BiologicalView: View {
                             generation: fieldNotesGeneration
                         )
                     )
-                    .cardEntrance(index: 2)
+                    .insightCardEntrance(index: 2, isAnimationEnabled: cardEntranceAnimationEnabled)
                 }
 
                 Group {
@@ -226,7 +228,7 @@ struct BiologicalView: View {
                     .easeInOut(duration: 0.2),
                     value: viewModel.isLoadingFieldTripScanContributions
                 )
-                .cardEntrance(index: 3)
+                .insightCardEntrance(index: 3, isAnimationEnabled: cardEntranceAnimationEnabled)
 
                 if viewModel.shouldShowFieldNotesCard {
                     FieldNotesCard(
@@ -250,7 +252,7 @@ struct BiologicalView: View {
                             )
                         }
                     )
-                    .cardEntrance(index: 4)
+                    .insightCardEntrance(index: 4, isAnimationEnabled: cardEntranceAnimationEnabled)
                 }
 
                 // MARK: - Educational Reference
@@ -264,12 +266,12 @@ struct BiologicalView: View {
                         generation: fieldNotesGeneration
                     )
                 )
-                .cardEntrance(index: 5)
+                .insightCardEntrance(index: 5, isAnimationEnabled: cardEntranceAnimationEnabled)
 
                 // MARK: - Habitat & Distribution
                 if !isUnknownSubject {
                     HabitatAndDistributionCard()
-                        .cardEntrance(index: 5)
+                        .insightCardEntrance(index: 5, isAnimationEnabled: cardEntranceAnimationEnabled)
                 }
 
                 // MARK: - Observation Patterns
@@ -280,7 +282,7 @@ struct BiologicalView: View {
                         speciesId: viewModel.activeConfirmedSpeciesId,
                         scientificName: scientificName
                     )
-                    .cardEntrance(index: 6)
+                    .insightCardEntrance(index: 6, isAnimationEnabled: cardEntranceAnimationEnabled)
                 }
 
                 // MARK: - Biological Classification
@@ -289,7 +291,7 @@ struct BiologicalView: View {
                         taxonomyData: inferenceEngine.speciesData?.taxonomy,
                         scientificName: inferenceEngine.speciesData?.scientificName
                     )
-                    .cardEntrance(index: 7)
+                    .insightCardEntrance(index: 7, isAnimationEnabled: cardEntranceAnimationEnabled)
                 }
 
                 // MARK: - Similar Species Gallery
@@ -310,7 +312,7 @@ struct BiologicalView: View {
                         }
                     }
                     .animation(.easeInOut, value: inferenceEngine.isLookalikesLoading)
-                    .cardEntrance(index: 8)
+                    .insightCardEntrance(index: 8, isAnimationEnabled: cardEntranceAnimationEnabled)
                 }
 
                 // MARK: - Spatiotemporal Context
@@ -319,7 +321,7 @@ struct BiologicalView: View {
                     timestamp: timestamp,
                     imageCount: viewModel.activeImageCount
                 )
-                .cardEntrance(index: 9)
+                .insightCardEntrance(index: 9, isAnimationEnabled: cardEntranceAnimationEnabled)
 
                 // MARK: - Custom Tags
                 if let scanId = viewModel.presentedLocalRecordScanId,
@@ -327,7 +329,7 @@ struct BiologicalView: View {
                     .caseInsensitiveCompare(scanId) == .orderedSame {
                     UserTagsCard(scanId: scanId)
                         .id(scanId.lowercased())
-                        .cardEntrance(index: 10)
+                        .insightCardEntrance(index: 10, isAnimationEnabled: cardEntranceAnimationEnabled)
                 }
             }
         }

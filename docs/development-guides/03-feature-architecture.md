@@ -208,7 +208,7 @@ func executeCapture() {
 | ViewModel extensions             | Root type plus responsibility                             | `CaptureWorkspaceViewModel+PhotoCapture.swift`             |
 | Root presentation destination    | `ActiveSheet` plus an identified envelope                 | `CaptureWorkspaceViewModel.PresentedRoute`                 |
 | Feature-local presentation state | Owner-scoped typed item; Boolean only for one destination | `ExplorePostDetailPresentation`, staged-description editor |
-| Reusable components              | Descriptive noun                                          | `CaptureFlashButton`, `ScanThumbnail`                      |
+| Reusable components              | Descriptive noun                                          | `GoalProgressRing`, `ScanThumbnail`                        |
 | View modifiers                   | Modifier suffix                                           | `CropSheetModifier`, `ScansSheetPresentationModifier`      |
 | Local feature models             | No suffix                                                 | `ImageFileWrapper`, `SearchableScan`                       |
 | Utility helpers                  | Service/Processor suffix                                  | `MediaExportService`, `ImageCropProcessor`                 |

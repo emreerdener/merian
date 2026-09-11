@@ -1,4 +1,5 @@
 import CoreLocation
+import Photos
 import Testing
 
 @testable import Merian
@@ -176,6 +177,30 @@ struct CaptureScanDependenciesTests {
         let dependencies = CaptureWorkspaceDependencies(
             scan: scanDependencies,
             submission: submissionDependencies,
+            controls: CaptureControlDependencies(
+                isVisualCaptureAllowed: { true },
+                isProVideoAvailable: { true },
+                dismissKeyboard: {},
+                trackProVideoPaywallImpression: {},
+                performHapticFeedback: { _ in }
+            ),
+            navigation: CaptureNavigationDependencies(
+                loadBadgeSnapshot: { _ in
+                    CaptureNavigationBadgeSnapshot(
+                        hasUnseenExternalPost: false,
+                        unreadNotificationCount: nil
+                    )
+                },
+                setHasUnseenExplorePost: { _ in },
+                performRouteFeedback: {}
+            ),
+            stagingToolbar: CaptureStagingToolbarDependencies(
+                photoLibrary: PHPhotoLibrary.shared(),
+                dismissKeyboard: {},
+                performCancelFeedback: {},
+                hasShownTooltip: { true },
+                markTooltipShown: {}
+            ),
             prepareImage: { _ in nil },
             prepareHistoricalAudio: { _ in nil },
             externalImageImports: ExternalImageImportStore(rootURL: rootURL),
@@ -183,6 +208,7 @@ struct CaptureScanDependenciesTests {
             prewarmConnections: {},
             sharedExplorePostId: { _ in nil },
             captureGoalAccountId: { $0?.uuidString },
+            requestNotificationAuthorization: { _ in },
             feedback: CaptureWorkspaceFeedback(
                 selection: { _ in },
                 sheet: { _ in },

@@ -33,6 +33,8 @@ import UIKit
     @ObservationIgnored private let targetFPSDebouncer = CameraTargetFPSDebouncer()
     @ObservationIgnored nonisolated private let photoCaptureCoordinator = CameraPhotoCaptureCoordinator()
     @ObservationIgnored nonisolated private let videoRecordingService: CameraVideoRecordingService
+    @ObservationIgnored private var sessionPresentationState =
+        CameraSessionPresentationState()
 
     // MARK: - State
     var isSessionRunning = false
@@ -142,6 +144,9 @@ import UIKit
         MerianLog.hardware.debug("Camera session using simulator no-preview mode.")
         return
         #else
+        let presentationGeneration = sessionPresentationState.register(
+            requestsRunning: true
+        )
         sessionController.startSession(
             videoDelegate: self,
             depthDelegate: self,
@@ -152,7 +157,9 @@ import UIKit
                 )
             },
             onStarted: { [weak self] configuration in
-                guard let self else { return }
+                guard let self,
+                      sessionPresentationState.owns(presentationGeneration)
+                else { return }
                 if !hasResolvedNativeZoomFactor {
                     nativeZoomFactor = configuration.currentFactor
                     hasResolvedNativeZoomFactor = true
@@ -184,9 +191,15 @@ import UIKit
         isFlashEnabled = false
         return
         #else
+        let presentationGeneration = sessionPresentationState.register(
+            requestsRunning: false
+        )
         sessionController.stopSession { [weak self] in
-            self?.isSessionRunning = false
-            self?.isFlashEnabled = false
+            guard let self,
+                  sessionPresentationState.owns(presentationGeneration)
+            else { return }
+            isSessionRunning = false
+            isFlashEnabled = false
         }
         #endif
     }
@@ -198,7 +211,13 @@ import UIKit
         isSessionRunning = false
         isFlashEnabled = false
         #else
+        let presentationGeneration = sessionPresentationState.register(
+            requestsRunning: false
+        )
         await sessionController.stopSessionAndWait()
+        guard sessionPresentationState.owns(presentationGeneration) else {
+            return
+        }
         isSessionRunning = false
         isFlashEnabled = false
         #endif

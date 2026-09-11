@@ -1,119 +1,13 @@
 import SwiftUI
 import UIKit
 
-/// All capture modes available from the camera root view.
-/// Adding a case requires matching pager content, settings copy, persistence
-/// migration behavior, and startup-mode coverage.
-enum CaptureMode: String, CaseIterable {
-    case visual
-    case audio
-    case describe
-    
-    var title: String {
-        switch self {
-        case .visual:   return "Scan"
-        case .audio:    return "Record"
-        case .describe: return "Describe"
-        }
-    }
-
-    var symbolName: String {
-        switch self {
-        case .visual:   return "viewfinder"
-        case .audio:    return "waveform"
-        case .describe: return "text.bubble"
-        }
-    }
-    
-    /// Parses a comma-separated string into a safe array of CaptureModes.
-    /// Automatically detects missing enums across updates or migrations and 
-    /// appends them to heal the backing store.
-    static func userOrder(from raw: String) -> [CaptureMode] {
-        var decoded = raw
-            .split(separator: ",")
-            .compactMap { CaptureMode(rawValue: String($0)) }
-        let missing = CaptureMode.allCases.filter { !decoded.contains($0) }
-        if !missing.isEmpty {
-            decoded.append(contentsOf: missing)
-        }
-        return decoded
-    }
-}
-
-enum CaptureModeSelectorStyle {
-    static let controlWidth: CGFloat = 200
-    static let controlHeight: CGFloat = 56
-    static let symbolPointSize: CGFloat = 24
-    static let describeContentClearance: CGFloat = 82
-
-    static let selectedSegmentTintColor = UIColor { traits in
-        if traits.accessibilityContrast == .high {
-            return .white
-        }
-
-        return traits.userInterfaceStyle == .dark
-            ? UIColor.white.withAlphaComponent(0.82)
-            : UIColor.white.withAlphaComponent(0.96)
-    }
-
-    static func symbolColor(isSelected: Bool, colorScheme: ColorScheme) -> UIColor {
-        if isSelected || colorScheme == .light {
-            return .black
-        }
-
-        return .white
-    }
-
-    static func symbolImage(
-        for mode: CaptureMode,
-        isSelected: Bool,
-        colorScheme: ColorScheme
-    ) -> UIImage? {
-        let configuration = UIImage.SymbolConfiguration(
-            pointSize: symbolPointSize,
-            weight: .semibold
-        )
-        guard let symbol = UIImage(
-            systemName: mode.symbolName,
-            withConfiguration: configuration
-        ) else {
-            return nil
-        }
-
-        let image = symbol.withTintColor(
-            symbolColor(isSelected: isSelected, colorScheme: colorScheme),
-            renderingMode: .alwaysOriginal
-        )
-        image.accessibilityLabel = mode.title
-        return image
-    }
-
-    static func applySymbolImages(
-        to control: UISegmentedControl,
-        orderedModes: [CaptureMode],
-        selectedIndex: Int,
-        colorScheme: ColorScheme
-    ) {
-        for (index, mode) in orderedModes.enumerated() {
-            guard index < control.numberOfSegments else { continue }
-            control.setImage(
-                symbolImage(
-                    for: mode,
-                    isSelected: index == selectedIndex,
-                    colorScheme: colorScheme
-                ),
-                forSegmentAt: index
-            )
-        }
-    }
-}
-
 /// A native icon-only segmented control for the active capture mode.
 /// UIKit owns the selection thumb, Liquid Glass interaction, and accessibility
 /// semantics while SwiftUI continues to own the capture-mode binding and layout.
 struct MediaModeToggle: View {
     @Binding var activeMode: CaptureMode
-    @Binding var isDragging: Bool // Maintained for signature compatibility; unused internally
+    // Maintained for initializer compatibility; UIKit owns drag interaction.
+    @Binding var isDragging: Bool
     let orderedModes: [CaptureMode]
     let onModeChange: () -> Void
 
@@ -175,6 +69,12 @@ private final class CaptureModeSegmentedControl: UISegmentedControl {
     }
 }
 
+private struct CaptureModeInstalledImageState: Equatable {
+    let modeIdentifiers: [String]
+    let selectedIndex: Int
+    let colorScheme: ColorScheme
+}
+
 @MainActor
 private struct NativeCaptureModeSegmentedControl: UIViewRepresentable {
     @Binding var activeMode: CaptureMode
@@ -192,18 +92,19 @@ private struct NativeCaptureModeSegmentedControl: UIViewRepresentable {
             frame: .zero,
             actions: makeActions(coordinator: context.coordinator)
         )
+        // Action-backed segments report both documented selection events.
+        // Route either signal through the same guarded coordinator so native,
+        // assistive, and automated activation share one binding path.
         control.addTarget(
             context.coordinator,
             action: #selector(Coordinator.selectionChanged(_:)),
-            for: .valueChanged
+            for: [.valueChanged, .primaryActionTriggered]
         )
         configure(control)
         control.selectedSegmentIndex = selectedSegmentIndex
-        CaptureModeSelectorStyle.applySymbolImages(
-            to: control,
-            orderedModes: orderedModes,
-            selectedIndex: selectedSegmentIndex,
-            colorScheme: colorScheme
+        context.coordinator.refreshInstalledImages(
+            in: control,
+            force: true
         )
         return control
     }
@@ -212,13 +113,19 @@ private struct NativeCaptureModeSegmentedControl: UIViewRepresentable {
         context.coordinator.parent = self
 
         let modeIdentifiers = orderedModes.map(\.rawValue)
+        let rebuiltSegments: Bool
         if context.coordinator.modeIdentifiers != modeIdentifiers
             || control.numberOfSegments != orderedModes.count {
             control.removeAllSegments()
-            for (index, action) in makeActions(coordinator: context.coordinator).enumerated() {
+            for (index, action) in makeActions(
+                coordinator: context.coordinator
+            ).enumerated() {
                 control.insertSegment(action: action, at: index, animated: false)
             }
             context.coordinator.modeIdentifiers = modeIdentifiers
+            rebuiltSegments = true
+        } else {
+            rebuiltSegments = false
         }
 
         configure(control)
@@ -227,23 +134,25 @@ private struct NativeCaptureModeSegmentedControl: UIViewRepresentable {
         if control.selectedSegmentIndex != selectedSegmentIndex {
             control.selectedSegmentIndex = selectedSegmentIndex
         }
-        CaptureModeSelectorStyle.applySymbolImages(
-            to: control,
-            orderedModes: orderedModes,
-            selectedIndex: selectedSegmentIndex,
-            colorScheme: colorScheme
+        context.coordinator.refreshInstalledImages(
+            in: control,
+            force: rebuiltSegments
         )
     }
 
     private var selectedSegmentIndex: Int {
-        orderedModes.firstIndex(of: activeMode) ?? UISegmentedControl.noSegment
+        orderedModes.firstIndex(of: activeMode)
+            ?? UISegmentedControl.noSegment
     }
 
     private func makeActions(coordinator: Coordinator) -> [UIAction] {
         orderedModes.map { makeAction(for: $0, coordinator: coordinator) }
     }
 
-    private func makeAction(for mode: CaptureMode, coordinator: Coordinator) -> UIAction {
+    private func makeAction(
+        for mode: CaptureMode,
+        coordinator: Coordinator
+    ) -> UIAction {
         let action = UIAction(
             title: mode.title,
             image: CaptureModeSelectorStyle.symbolImage(
@@ -267,7 +176,8 @@ private struct NativeCaptureModeSegmentedControl: UIViewRepresentable {
 
     private func configure(_ control: UISegmentedControl) {
         control.apportionsSegmentWidthsByContent = false
-        control.selectedSegmentTintColor = CaptureModeSelectorStyle.selectedSegmentTintColor
+        control.selectedSegmentTintColor =
+            CaptureModeSelectorStyle.selectedSegmentTintColor
         control.accessibilityIdentifier = "CaptureModeToggle"
         control.accessibilityLabel = "Capture mode"
         control.accessibilityValue = activeMode.title
@@ -277,6 +187,7 @@ private struct NativeCaptureModeSegmentedControl: UIViewRepresentable {
     final class Coordinator: NSObject {
         var parent: NativeCaptureModeSegmentedControl
         var modeIdentifiers: [String]
+        private var installedImageState: CaptureModeInstalledImageState?
 
         init(parent: NativeCaptureModeSegmentedControl) {
             self.parent = parent
@@ -285,16 +196,33 @@ private struct NativeCaptureModeSegmentedControl: UIViewRepresentable {
 
         @objc
         func selectionChanged(_ control: UISegmentedControl) {
-            guard parent.orderedModes.indices.contains(control.selectedSegmentIndex) else {
+            guard parent.orderedModes.indices.contains(
+                control.selectedSegmentIndex
+            ) else {
                 return
             }
-            CaptureModeSelectorStyle.applySymbolImages(
-                to: control,
-                orderedModes: parent.orderedModes,
+            refreshInstalledImages(in: control)
+            select(parent.orderedModes[control.selectedSegmentIndex])
+        }
+
+        func refreshInstalledImages(
+            in control: UISegmentedControl,
+            force: Bool = false
+        ) {
+            let state = CaptureModeInstalledImageState(
+                modeIdentifiers: parent.orderedModes.map(\.rawValue),
                 selectedIndex: control.selectedSegmentIndex,
                 colorScheme: parent.colorScheme
             )
-            select(parent.orderedModes[control.selectedSegmentIndex])
+            guard force || state != installedImageState else { return }
+
+            CaptureModeSelectorStyle.applySymbolImages(
+                to: control,
+                orderedModes: parent.orderedModes,
+                selectedIndex: state.selectedIndex,
+                colorScheme: state.colorScheme
+            )
+            installedImageState = state
         }
 
         func select(_ mode: CaptureMode) {

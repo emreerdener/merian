@@ -49,19 +49,23 @@ submissions. It deliberately retires durable ownership while requests are
 pending before releasing `.networkConnectionLost` and `.notConnectedToInternet`.
 Its `.timedOut` branch instead keeps the exact durable owner active and the path
 online, modeling black-holed Wi-Fi reaching the foreground deadline without an
-`NWPathMonitor` callback. Both branches prove exact-ID queued routing, one
-request, bounded handoff timing, eventual durable retirement, row survival, and
-circuit isolation. The matrix also covers a transport-owned cancellation, the
-reviewed cannot-load-from-network and background-session-disconnect variants,
-and a successful response that becomes ownership-cancelled after the queue has
-already taken over. Admission and post-durable recovery share one bounded
-recursive URL-error classifier while TLS/authentication remain excluded from
-queue-only admission. Specific certificate, authentication, and ATS policy codes
-veto both decisions at every inspected wrapper depth, so a broad outer transport
-error cannot hide them; a chain exceeding the reviewed bound also fails closed.
-Separate protected controls retain the reviewed queue-less 90-second window,
-retry, and **Network timeout** presentation and keep provider `5xx` failures in
-**Analysis delayed / Scan saved**.
+`NWPathMonitor` callback. After proving those admission conditions, the harness
+temporarily closes the independent background-upload latch: its minimal durable
+row intentionally has no media and must not be quarantined by an unrelated
+worker before the foreground-handoff assertions run. Both branches prove
+exact-ID queued routing, one request, bounded handoff timing, eventual durable
+retirement, row survival, and circuit isolation. The matrix also covers a
+transport-owned cancellation, the reviewed cannot-load-from-network and
+background-session-disconnect variants, and a successful response that becomes
+ownership-cancelled after the queue has already taken over. Admission and
+post-durable recovery share one bounded recursive URL-error classifier while
+TLS/authentication remain excluded from queue-only admission. Specific
+certificate, authentication, and ATS policy codes veto both decisions at every
+inspected wrapper depth, so a broad outer transport error cannot hide them; a
+chain exceeding the reviewed bound also fails closed. Separate protected
+controls retain the reviewed queue-less 90-second window, retry, and **Network
+timeout** presentation and keep provider `5xx` failures in **Analysis delayed /
+Scan saved**.
 
 This is source-remediation evidence, not a production-release claim. Closure
 still requires one exact workflow SHA and the physical connectivity matrix
