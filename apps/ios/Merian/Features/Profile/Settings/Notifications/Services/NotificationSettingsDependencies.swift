@@ -11,14 +11,8 @@ struct NotificationSettingsDependencies {
     static var live: Self {
         Self(
             fetchAuthorizationStatus: {
-                await withCheckedContinuation { continuation in
-                    UNUserNotificationCenter.current()
-                        .getNotificationSettings { settings in
-                            continuation.resume(
-                                returning: settings.authorizationStatus
-                            )
-                        }
-                }
+                await SystemNotificationCenterService()
+                    .authorizationStatus()
             },
             openSystemSettings: {
                 guard let url = URL(

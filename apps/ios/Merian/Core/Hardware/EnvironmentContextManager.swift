@@ -1,68 +1,60 @@
 import CoreLocation
 import Foundation
-import MapKit
 import Observation
-import WeatherKit
 
-// MARK: - Environment Context Manager
+// MARK: - Environment Context Facade
 
 /// Lazily retrieves GPS and WeatherKit data only when triggered by a scan.
-/// Follows a "deferred context fetch" model to minimize battery impact.
+/// Follows a deferred context-fetch model to minimize battery impact.
 @MainActor
-@Observable final class EnvironmentContextManager: NSObject, CLLocationManagerDelegate {
-    // MARK: - Singleton Architecture
-    static let shared = EnvironmentContextManager()
+@Observable
+final class EnvironmentContextManager: NSObject {
+    struct Dependencies {
+        let locationController: EnvironmentLocationController
+        let geocodingService: EnvironmentGeocodingService
+        let weatherService: EnvironmentWeatherService
+        let suppressesLocationPermissionPrompt: @MainActor () -> Bool
+        let displayLocationName: @MainActor (String?) -> String?
 
-    // MARK: - Hardware
-    private let locationManager = CLLocationManager()
-    private let weatherService = WeatherService.shared
-    private let composingLocationAccuracy = kCLLocationAccuracyHundredMeters
-    private let shutterLocationAccuracy = kCLLocationAccuracyBest
+        @MainActor static var live: Self {
+            Self(
+                locationController: EnvironmentLocationController(),
+                geocodingService: EnvironmentGeocodingService(),
+                weatherService: .live,
+                suppressesLocationPermissionPrompt: {
+                    UITestSeedCoordinator.isLocationPermissionPromptSuppressed
+                },
+                displayLocationName: ExploreLocationPrivacy.displayLabel
+            )
+        }
+    }
 
-    // MARK: - State
-    var isAuthorized: Bool = false
-    var locationAuthorizationStatus: CLAuthorizationStatus = .notDetermined
+    static let shared = EnvironmentContextManager(dependencies: .live)
 
-    // MARK: - Cache
-    private var activeContinuations: [UUID: CheckedContinuation<CLLocation?, Never>] = [:]
-    private var authorizationContinuations: [UUID: CheckedContinuation<CLAuthorizationStatus, Never>] = [:]
-    private var timeoutTask: Task<Void, Never>?
-    private var isLiveLocationTracking = false
+    @ObservationIgnored private let dependencies: Dependencies
+    private(set) var isAuthorized: Bool
+    private(set) var locationAuthorizationStatus: CLAuthorizationStatus
     private(set) var cachedLocation: CLLocation?
     private(set) var fallbackInaccurateLocation: CLLocation?
 
-    /// Best available location at this instant: accurate lock preferred, inaccurate fallback
-    /// if GPS hasn't locked yet, nil only when the device has no fix at all.
-    /// Safe to call synchronously from the main actor with no async overhead.
-    var lastKnownLocation: CLLocation? { cachedLocation ?? fallbackInaccurateLocation }
-
-    private var geocodeCache: [String: String] = [:]
-    private var geocodeKeys: [String] = []
-    private let geocodeCacheLimit = 200
-    private var activeGeocodeTasks: [String: Task<String?, Never>] = [:]
-    private var regionGeocodeCache: [String: String] = [:]
-    private var regionGeocodeKeys: [String] = []
-    private var activeRegionGeocodeTasks: [String: Task<String?, Never>] = [:]
-
-    // MARK: - Initialization
-    private override init() {
-        super.init()
-        locationManager.delegate = self
-        locationManager.desiredAccuracy = composingLocationAccuracy
-        locationManager.distanceFilter = 100
-        locationManager.pausesLocationUpdatesAutomatically = true
-        locationAuthorizationStatus = locationManager.authorizationStatus
-        checkAuthorization()
+    /// Best available location at this instant: accurate lock preferred, then
+    /// the latest coarse fallback, and nil only when the device has no fix.
+    var lastKnownLocation: CLLocation? {
+        cachedLocation ?? fallbackInaccurateLocation
     }
 
-    private func checkAuthorization() {
-        locationAuthorizationStatus = locationManager.authorizationStatus
+    init(dependencies: Dependencies) {
+        self.dependencies = dependencies
+        let initialSnapshot = dependencies.locationController.snapshot
+        isAuthorized = initialSnapshot.isAuthorized
+        locationAuthorizationStatus = initialSnapshot.authorizationStatus
+        cachedLocation = initialSnapshot.cachedLocation
+        fallbackInaccurateLocation =
+            initialSnapshot.fallbackInaccurateLocation
+        super.init()
 
-        switch locationAuthorizationStatus {
-        case .authorizedWhenInUse, .authorizedAlways:
-            self.isAuthorized = true
-        default:
-            self.isAuthorized = false
+        dependencies.locationController.setSnapshotHandler { [weak self] in
+            self?.apply($0)
         }
     }
 
@@ -70,400 +62,149 @@ import WeatherKit
         for status: CLAuthorizationStatus,
         suppressesLocationPermissionPrompt: Bool
     ) -> Bool {
-        status == .notDetermined && !suppressesLocationPermissionPrompt
+        EnvironmentLocationPolicy.shouldRequestAuthorization(
+            for: status,
+            suppressesPrompt: suppressesLocationPermissionPrompt
+        )
+    }
+
+    nonisolated static func allowsPassiveRegionResolution(
+        for status: CLAuthorizationStatus
+    ) -> Bool {
+        EnvironmentLocationPolicy.isAuthorized(status)
+    }
+
+    nonisolated static func normalizedRegionIdentifier(
+        _ value: String?
+    ) -> String? {
+        EnvironmentLocationPolicy.normalizedRegionIdentifier(value)
     }
 
     func validatePermissions() {
-        guard Self.shouldRequestLocationAuthorization(
-            for: locationManager.authorizationStatus,
-            suppressesLocationPermissionPrompt:
-                UITestSeedCoordinator.isLocationPermissionPromptSuppressed
-        ) else { return }
-        locationManager.requestWhenInUseAuthorization()
+        dependencies.locationController.validatePermissions(
+            suppressesPrompt:
+                dependencies.suppressesLocationPermissionPrompt()
+        )
     }
 
-    func requestLocationAuthorizationIfNeeded() async -> CLAuthorizationStatus {
-        let status = locationAuthorizationStatus
-        guard Self.shouldRequestLocationAuthorization(
-            for: status,
-            suppressesLocationPermissionPrompt:
-                UITestSeedCoordinator.isLocationPermissionPromptSuppressed
-        ) else { return status }
-
-        let taskID = UUID()
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                authorizationContinuations[taskID] = continuation
-
-                if authorizationContinuations.count == 1 {
-                    locationManager.requestWhenInUseAuthorization()
-                }
-            }
-        } onCancel: {
-            Task { @MainActor in
-                if let continuation = self.authorizationContinuations.removeValue(forKey: taskID) {
-                    continuation.resume(returning: self.locationAuthorizationStatus)
-                }
-            }
-        }
+    func requestLocationAuthorizationIfNeeded() async
+        -> CLAuthorizationStatus {
+        await dependencies.locationController.requestAuthorizationIfNeeded(
+            suppressesPrompt:
+                dependencies.suppressesLocationPermissionPrompt()
+        )
     }
 
     func requestCurrentLocation() async -> CLLocation? {
-        let authorizationStatus = await requestLocationAuthorizationIfNeeded()
-        guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
-            return nil
-        }
-
-        if let location = await requestSingleLocation() {
-            cachedLocation = location
-            return location
-        }
-
-        return lastKnownLocation
+        await dependencies.locationController.requestCurrentLocation(
+            suppressesPrompt:
+                dependencies.suppressesLocationPermissionPrompt()
+        )
     }
 
-    /// Resolves the user's physical ISO country/region code only when location access is already authorized.
-    /// This intentionally avoids requesting location permission so passive surfaces can fall back to locale.
+    /// Resolves the user's physical ISO country/region code only when location
+    /// access is already authorized. Passive surfaces never present a prompt.
     func currentAuthorizedRegionIdentifier() async -> String? {
-        guard let location = await currentAuthorizedLocation() else { return nil }
-        return await reverseGeocodeRegionIdentifier(location: location)
+        guard let location = await dependencies.locationController
+            .currentAuthorizedLocation() else { return nil }
+        return await dependencies.geocodingService.regionIdentifier(
+            for: location
+        )
     }
 
-    /// Resolves a city/administrative-area label only when location access is already authorized.
-    /// Passive surfaces use this without ever presenting the location permission prompt.
+    /// Resolves a privacy-filtered city/administrative-area label only when
+    /// location access is already authorized. Passive surfaces never prompt.
     func currentAuthorizedLocationName() async -> String? {
-        guard let location = await currentAuthorizedLocation() else { return nil }
-        let locationName = await reverseGeocode(location: location)
-        return ExploreLocationPrivacy.displayLabel(from: locationName)
+        guard let location = await dependencies.locationController
+            .currentAuthorizedLocation() else { return nil }
+        let locationName = await dependencies.geocodingService.locationName(
+            for: location
+        )
+        return dependencies.displayLocationName(locationName)
     }
-
-    // MARK: - Live Location Tracking
 
     func startLiveLocationTracking() {
-        isLiveLocationTracking = true
-        guard isAuthorized else { return }
-        startComposingLocationUpdates()
+        dependencies.locationController.startLiveLocationTracking()
     }
 
     func stopLiveLocationTracking() {
-        isLiveLocationTracking = false
-        locationManager.stopUpdatingLocation()
-        locationManager.desiredAccuracy = composingLocationAccuracy
-        locationManager.distanceFilter = 100
+        dependencies.locationController.stopLiveLocationTracking()
     }
 
-    // MARK: - Deferred Context Fetch
-
     /// Fetches environment context pinned to the moment of the shutter press.
-    func fetchDeferredContext(preLockedLocation: CLLocation? = nil) async -> EnvironmentContext {
+    func fetchDeferredContext(
+        preLockedLocation: CLLocation? = nil
+    ) async -> EnvironmentContext {
         guard isAuthorized else {
             return EnvironmentContext(location: preLockedLocation)
         }
 
-        let validLocation: CLLocation
-        if let pre = preLockedLocation {
-            validLocation = pre
-        } else if let dynamicLocation = await requestSingleLocation() {
-            validLocation = dynamicLocation
-            self.cachedLocation = validLocation
-        } else if let cached = self.cachedLocation {
-            validLocation = cached
+        let location: CLLocation
+        if let preLockedLocation {
+            location = preLockedLocation
+        } else if let currentLocation = await dependencies.locationController
+            .requestSingleLocation() {
+            location = currentLocation
+        } else if let cachedLocation {
+            location = cachedLocation
         } else {
             return EnvironmentContext(location: nil)
         }
 
-        // Run geocoding and weather fetch concurrently — they are independent I/O operations.
-        async let locationName = reverseGeocode(location: validLocation)
-
+        async let locationName = dependencies.geocodingService.locationName(
+            for: location
+        )
         do {
-            let weather = try await weatherService.weather(for: validLocation)
-            let condition = weather.currentWeather.condition.description
-            let tempF = weather.currentWeather.temperature.converted(to: .fahrenheit).value
-
+            let weather = try await dependencies.weatherService.current(
+                location
+            )
             return EnvironmentContext(
-                location: validLocation,
+                location: location,
                 locationName: await locationName,
-                weatherCondition: condition,
-                weatherTemperature: tempF
+                weatherCondition: weather.condition,
+                weatherTemperature: weather.temperatureFahrenheit
             )
         } catch {
-            return EnvironmentContext(location: validLocation, locationName: await locationName)
+            return EnvironmentContext(
+                location: location,
+                locationName: await locationName
+            )
         }
     }
 
-    /// Fetches historical environment context for a gallery image, pinned to its creation date.
-    func fetchHistoricalContext(location: CLLocation, date: Date) async -> EnvironmentContext {
-        let locationName = await reverseGeocode(location: location)
-
+    /// Fetches historical context for gallery media at its creation date.
+    func fetchHistoricalContext(
+        location: CLLocation,
+        date: Date
+    ) async -> EnvironmentContext {
+        let locationName = await dependencies.geocodingService.locationName(
+            for: location
+        )
         do {
-            // WeatherKit supports historical queries via hourly time ranges.
-            let weatherData = try await weatherService.weather(for: location, including: .hourly(startDate: date, endDate: date.addingTimeInterval(3600)))
-
-            if let targetHour = weatherData.first {
-                return EnvironmentContext(
-                    location: location,
-                    locationName: locationName,
-                    weatherCondition: targetHour.condition.description,
-                    weatherTemperature: targetHour.temperature.converted(to: .fahrenheit).value,
-                    captureDate: date
-                )
-            } else {
-                return EnvironmentContext(location: location, locationName: locationName, captureDate: date)
-            }
+            let weather = try await dependencies.weatherService.historical(
+                location,
+                date
+            )
+            return EnvironmentContext(
+                location: location,
+                locationName: locationName,
+                weatherCondition: weather?.condition,
+                weatherTemperature: weather?.temperatureFahrenheit,
+                captureDate: date
+            )
         } catch {
-            return EnvironmentContext(location: location, locationName: locationName, captureDate: date)
+            return EnvironmentContext(
+                location: location,
+                locationName: locationName,
+                captureDate: date
+            )
         }
     }
 
-    // MARK: - Private Resolvers
-
-    private func reverseGeocode(location: CLLocation) async -> String? {
-        let key = String(format: "%.3f,%.3f", location.coordinate.latitude, location.coordinate.longitude)
-        if let cached = geocodeCache[key] {
-            return cached
-        }
-
-        // Coalesce concurrent geocode requests for the same coordinate to avoid API flooding.
-        if let existingTask = activeGeocodeTasks[key] {
-            return await existingTask.value
-        }
-
-        let task = Task { @MainActor [weak self] () -> String? in
-            guard let self = self else { return nil }
-            let geocoder = CLGeocoder()
-            // withTaskCancellationHandler ensures that if the parent task is cancelled,
-            // cancelGeocode() resumes the continuation immediately via CLError.geocodeCanceled.
-            let generatedString: String? = await withTaskCancellationHandler {
-                await withCheckedContinuation { continuation in
-                    geocoder.reverseGeocodeLocation(location) { placemarks, error in
-                        if error != nil {
-                            continuation.resume(returning: nil)
-                            return
-                        }
-
-                        if let placemark = placemarks?.first {
-                            if let city = placemark.locality, let adminArea = placemark.administrativeArea {
-                                continuation.resume(returning: "\(city), \(adminArea)")
-                            } else if let adminArea = placemark.administrativeArea {
-                                continuation.resume(returning: adminArea)
-                            } else {
-                                continuation.resume(returning: nil)
-                            }
-                        } else {
-                            continuation.resume(returning: nil)
-                        }
-                    }
-                }
-            } onCancel: {
-                geocoder.cancelGeocode()
-            }
-
-            if let validString = generatedString {
-                if self.geocodeKeys.count >= self.geocodeCacheLimit {
-                    let oldest = self.geocodeKeys.removeFirst()
-                    self.geocodeCache.removeValue(forKey: oldest)
-                }
-                self.geocodeKeys.append(key)
-                self.geocodeCache[key] = validString
-            }
-
-            self.activeGeocodeTasks.removeValue(forKey: key)
-            return generatedString
-        }
-
-        activeGeocodeTasks[key] = task
-        return await task.value
-    }
-
-    private func reverseGeocodeRegionIdentifier(location: CLLocation) async -> String? {
-        let key = String(format: "%.3f,%.3f", location.coordinate.latitude, location.coordinate.longitude)
-        if let cached = regionGeocodeCache[key] {
-            return cached
-        }
-
-        if let existingTask = activeRegionGeocodeTasks[key] {
-            return await existingTask.value
-        }
-
-        let task = Task { @MainActor [weak self] () -> String? in
-            guard let self = self else { return nil }
-            let geocoder = CLGeocoder()
-            let regionIdentifier: String? = await withTaskCancellationHandler {
-                await withCheckedContinuation { continuation in
-                    geocoder.reverseGeocodeLocation(location) { placemarks, error in
-                        if error != nil {
-                            continuation.resume(returning: nil)
-                            return
-                        }
-
-                        continuation.resume(
-                            returning: Self.normalizedRegionIdentifier(
-                                placemarks?.first?.isoCountryCode
-                            )
-                        )
-                    }
-                }
-            } onCancel: {
-                geocoder.cancelGeocode()
-            }
-
-            if let regionIdentifier {
-                if self.regionGeocodeKeys.count >= self.geocodeCacheLimit {
-                    let oldest = self.regionGeocodeKeys.removeFirst()
-                    self.regionGeocodeCache.removeValue(forKey: oldest)
-                }
-                self.regionGeocodeKeys.append(key)
-                self.regionGeocodeCache[key] = regionIdentifier
-            }
-
-            self.activeRegionGeocodeTasks.removeValue(forKey: key)
-            return regionIdentifier
-        }
-
-        activeRegionGeocodeTasks[key] = task
-        return await task.value
-    }
-
-    nonisolated static func normalizedRegionIdentifier(_ value: String?) -> String? {
-        let normalized = value?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .uppercased()
-        return normalized?.isEmpty == false ? normalized : nil
-    }
-
-    nonisolated static func allowsPassiveRegionResolution(for status: CLAuthorizationStatus) -> Bool {
-        status == .authorizedWhenInUse || status == .authorizedAlways
-    }
-
-    private func currentAuthorizedLocation() async -> CLLocation? {
-        checkAuthorization()
-        guard Self.allowsPassiveRegionResolution(for: locationAuthorizationStatus) else { return nil }
-
-        if let lastKnownLocation {
-            return lastKnownLocation
-        }
-
-        let location = await requestSingleLocation()
-        if let location {
-            cachedLocation = location
-        }
-        return location
-    }
-
-    private func requestSingleLocation() async -> CLLocation? {
-        let taskID = UUID()
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                self.activeContinuations[taskID] = continuation
-                self.locationManager.desiredAccuracy = self.shutterLocationAccuracy
-                self.locationManager.distanceFilter = kCLDistanceFilterNone
-                self.locationManager.requestLocation()
-
-                // Timeout: force-resume after 2 seconds if the hardware fails to lock satellites.
-                // Degrades to the best available loose lock (e.g., cellular-range accuracy)
-                // so the scan still receives some macro-region context.
-                if self.timeoutTask == nil {
-                    self.timeoutTask = Task { @MainActor [weak self] in
-                        try? await Task.sleep(nanoseconds: 2_000_000_000)
-
-                        guard !Task.isCancelled, let self = self else { return }
-
-                        let bestAvailableFallback = self.cachedLocation ?? self.fallbackInaccurateLocation
-                        _ = self.resolvePendingContinuations(with: bestAvailableFallback)
-                    }
-                }
-            }
-        } onCancel: {
-            Task { @MainActor in
-                if let continuation = self.activeContinuations.removeValue(forKey: taskID) {
-                    continuation.resume(returning: nil)
-                }
-                if self.activeContinuations.isEmpty {
-                    self.timeoutTask?.cancel()
-                    self.timeoutTask = nil
-                    self.restoreComposingLocationAccuracyIfNeeded()
-                }
-            }
-        }
-    }
-
-    // MARK: - CLLocationManagerDelegate
-
-    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
-            self.checkAuthorization()
-
-            if manager.authorizationStatus != .notDetermined {
-                self.resolvePendingAuthorizationContinuations(with: manager.authorizationStatus)
-            }
-
-            if self.isAuthorized, self.isLiveLocationTracking {
-                self.startComposingLocationUpdates()
-            } else if !self.isAuthorized {
-                self.locationManager.stopUpdatingLocation()
-            }
-        }
-    }
-
-    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
-
-            // Prioritize high-accuracy outdoor locks (≤ 30m horizontal accuracy).
-            let isAccurate = location.horizontalAccuracy >= 0 && location.horizontalAccuracy <= 30
-
-            if isAccurate {
-                self.cachedLocation = location
-                _ = self.resolvePendingContinuations(with: location)
-            } else {
-                // Store as a safety net in case the 2-second timeout fires before a strong lock.
-                self.fallbackInaccurateLocation = location
-            }
-        }
-    }
-
-    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
-            _ = self.resolvePendingContinuations(with: nil)
-        }
-    }
-
-    private func resolvePendingContinuations(with location: CLLocation?) -> Bool {
-        self.timeoutTask?.cancel()
-        self.timeoutTask = nil
-
-        let pending = Array(self.activeContinuations.values)
-        self.activeContinuations.removeAll()
-        restoreComposingLocationAccuracyIfNeeded()
-
-        for continuation in pending {
-            continuation.resume(returning: location)
-        }
-
-        return !pending.isEmpty
-    }
-
-    private func restoreComposingLocationAccuracyIfNeeded() {
-        guard activeContinuations.isEmpty else { return }
-        locationManager.desiredAccuracy = composingLocationAccuracy
-        locationManager.distanceFilter = isLiveLocationTracking ? 100 : kCLDistanceFilterNone
-    }
-
-    private func startComposingLocationUpdates() {
-        locationManager.desiredAccuracy = composingLocationAccuracy
-        locationManager.distanceFilter = 100
-        locationManager.startUpdatingLocation()
-    }
-
-    private func resolvePendingAuthorizationContinuations(with status: CLAuthorizationStatus) {
-        let pending = Array(authorizationContinuations.values)
-        authorizationContinuations.removeAll()
-
-        for continuation in pending {
-            continuation.resume(returning: status)
-        }
+    private func apply(_ snapshot: EnvironmentLocationSnapshot) {
+        locationAuthorizationStatus = snapshot.authorizationStatus
+        isAuthorized = snapshot.isAuthorized
+        cachedLocation = snapshot.cachedLocation
+        fallbackInaccurateLocation = snapshot.fallbackInaccurateLocation
     }
 }

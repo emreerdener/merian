@@ -44,10 +44,12 @@ Comment/reply request construction lives in
 state owner still controls traversal, fallback, pagination, and generation
 fencing. Notification catalog/count/read-state and push-registration request
 construction lives in
-`Core/Network/Endpoints/MerianNetworkClient+Notifications.swift`. Hardware
-retains push-token/permission and badge lifecycle state; notification Services
-and ViewModels retain their existing adapters and state. Neither extraction
-changes the notification or navigation contract.
+`Core/Network/Endpoints/MerianNetworkClient+Notifications.swift`. Core
+Notifications retains push-token/permission state, account-aware registration
+coordination, and badge lifecycle state behind focused Services and the stable
+push/badge facades. Explore Notifications Services and ViewModels retain their
+catalog, pagination, mark-read, reply-thread, and presentation state. Neither
+extraction changes the notification or navigation contract.
 
 ## Catalog lifecycle
 
@@ -110,10 +112,11 @@ Opening either Notifications sheet contributes one
 mount-to-disappear lifetime. The sheet binding becoming false begins teardown;
 it does not authorize early video resume.
 
-An OS push tap is a separate entry point. `PushNotificationManager` validates
-its lightweight identifiers and submits a typed route through
-`AppRouteCoordinator`; this feature does not create a sibling root sheet or use
-`NotificationCenter` as an application event bus.
+An OS push tap is a separate Core Notifications entry point.
+`PushNotificationPolicy` validates its lightweight identifiers and
+`PushNotificationManager` submits the typed route through `AppRouteCoordinator`;
+this feature does not own APNs/system effects, create a sibling root sheet, or
+use `NotificationCenter` as an application event bus.
 
 ## Focused tests
 

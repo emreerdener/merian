@@ -1195,8 +1195,8 @@ A dedicated `PHPhotoLibrary` handler.
 
 ### `EnvironmentContext`
 
-A plain data struct extracted from `EnvironmentContextManager`. Lives in
-`apps/ios/Merian/Core/Hardware/EnvironmentContext.swift`.
+A plain data struct owned by
+`apps/ios/Merian/Core/Hardware/EnvironmentContext/Models/EnvironmentContextModels.swift`.
 
 Fields: `location: CLLocation?`, `locationName: String?`,
 `weatherCondition: String?`, `weatherTemperature: Double?`,
@@ -1204,13 +1204,14 @@ Fields: `location: CLLocation?`, `locationName: String?`,
 
 ### `EnvironmentContextManager`
 
-Follows a battery-bounded tracking philosophy during the camera lifecycle.
+The stable observable facade composes focused location, geocoding, and weather
+owners while preserving the battery-bounded camera lifecycle.
 
-- Starts coarse `locationManager.startUpdatingLocation()` while the camera
-  viewport is visible with `desiredAccuracy = kCLLocationAccuracyHundredMeters`,
-  a 100 m distance filter, and automatic pausing enabled. The manager does not
-  start heading updates; compass telemetry is not consumed by the active capture
-  payload.
+- `EnvironmentLocationController` is the sole Core Location delegate and
+  `CLLocationManager` owner. It starts coarse updates while the camera viewport
+  is visible with `desiredAccuracy = kCLLocationAccuracyHundredMeters`, a 100 m
+  distance filter, and automatic pausing enabled. It does not start heading
+  updates; compass telemetry is not consumed by the active capture payload.
 - On shutter press, `CaptureWorkspaceViewModel.executeCapture` starts a one-shot
   `requestCurrentLocation()` concurrently with `CameraManager.captureImage()`.
   That request temporarily raises accuracy to `kCLLocationAccuracyBest`, calls
@@ -1218,35 +1219,44 @@ Follows a battery-bounded tracking philosophy during the camera lifecycle.
   location continuations resolve. The resolved shutter location is passed into
   `PhotoLibraryManager` as the Photos asset location and into
   `fetchDeferredContext`; `lastKnownLocation` remains the fallback if GPS cannot
-  settle before the timeout.
-- Resolves `CLLocation` and passes it to Apple's `WeatherKit`
-  `WeatherService.shared`, capturing `weatherCondition`, `weatherTemperatureF`,
-  and `gpsElevation`. Concurrently runs an `MKReverseGeocodingRequest` to derive
-  `locationName`. `fetchDeferredContext` returns an `EnvironmentContext` value;
-  it does not publish manager-owned presentation state. Scan stores the
-  shutter-pinned lookup as `CaptureWorkspaceViewModel.preFetchTask`, hiding
-  network latency behind crop or recording interaction. Submission consumes or
-  cancels that task according to its foreground-owner fence.
+  settle before the timeout. Caller cancellation removes only its request; it
+  cannot retire an overlapping shutter request.
+- `EnvironmentGeocodingService` is the sole `CLGeocoder` owner and derives the
+  city/administrative-area label and normalized ISO region from one placemark.
+  Same-coordinate lookups coalesce and share a bounded in-memory cache at the
+  established three-decimal coordinate precision. Failed and projection-empty
+  lookups are not cached.
+- `EnvironmentWeatherService` is the sole WeatherKit owner and adapts
+  `WeatherService.shared` into current and historical condition/temperature
+  readings. `fetchDeferredContext` starts current weather and geocoding
+  concurrently, preserves the geocode result on weather failure, and returns an
+  `EnvironmentContext` value; it does not publish context presentation. Scan
+  stores the shutter-pinned lookup as `CaptureWorkspaceViewModel.preFetchTask`,
+  hiding lookup latency behind crop or recording interaction. Submission
+  consumes or cancels that task according to its foreground-owner fence.
 - The environment snapshot feeds Gemini with regional context for identification
   and invasive species logic, and persists UI metrics in the offline Scans
   library. (Requires the `com.apple.developer.weatherkit` entitlement set to
-  `true` in `project.yml`; otherwise it silently returns `nil` for all fields.)
+  `true` in `project.yml`; without it, weather lookup is unavailable while the
+  resolved location and name remain usable.)
 - **Historical Weather & Location Backfilling**: `fetchHistoricalContext`
   queries WeatherKit using
-  `.hourly(startDate: date, endDate: date.addingTimeInterval(3600))` and runs a
-  historical `MKReverseGeocodingRequest`, allowing in-app gallery and Photos
-  document imports with both GPS and capture date to reconstruct environment
-  conditions without external servers. Date-only or coordinate-only imports
-  bypass weather lookup and preserve only the supplied values. If a scan was
-  captured offline and lacks `weatherCondition`, `OfflineQueueManager` calls
-  `fetchHistoricalContext` retroactively using the stored GPS coordinates and
-  capture timestamp before triggering inference.
-- **GPS Accuracy Filter (<= 30m Horizontal)**: Coordinate fetching waits behind
-  a 2.0-second `Task.sleep` to let the GPS settle. Incoming location updates are
-  filtered to `horizontalAccuracy < 30m`; if that threshold is met, the method
-  exits early with high-fidelity telemetry. If the device cannot achieve that
-  accuracy (indoors or under heavy canopy), the timeout falls back to the
-  strongest `cachedLocation` available. The timeout is managed via a
-  `timeoutTask: Task<Void, Never>?` that is checked with `!Task.isCancelled` and
-  cancelled immediately on a successful `didUpdateLocations` callback,
-  preventing stalled camera pipelines.
+  `.hourly(startDate: date, endDate: date.addingTimeInterval(3600))` and uses
+  the shared geocoding service, allowing in-app gallery and Photos document
+  imports with both GPS and capture date to reconstruct environment conditions
+  without external servers. Date-only or coordinate-only imports bypass weather
+  lookup and preserve only supplied values. If a scan was captured offline and
+  lacks `weatherCondition`, Offline Sync calls `fetchHistoricalContext` using
+  the stored coordinates and capture timestamp before inference.
+- **GPS Accuracy Filter (0...30 m Horizontal)**: An accurate update resolves all
+  overlapping one-shot requests immediately. Negative-accuracy updates are
+  invalid and never enter either cache. Otherwise, one shared two-second timeout
+  degrades to the accurate cache or latest coarse fallback without promoting
+  that fallback into the accurate cache. The timeout carries an exact generation
+  UUID in addition to checking task cancellation, so a cancelled non-cooperative
+  timeout cannot resolve a later replacement request. Task cancellation and
+  authorization revocation both retire the affected one-shot return path before
+  it can expose a cached coordinate.
+- **Prompt policy**: eager and async authorization entry points use the same
+  pure prompt policy. Passive location-name and region resolution never asks for
+  permission; it returns `nil` unless Core Location is already authorized.

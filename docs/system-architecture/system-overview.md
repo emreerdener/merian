@@ -24,10 +24,14 @@ begins this pipeline:
    `CameraManager` facade while `CameraSessionController` owns session/device
    configuration, rotation, zoom/focus/torch/frame-rate mutations, and hardware
    still capture. The manager's delegates publish LiDAR distance; Capture reads
-   shutter-time coordinates and elevation while WeatherKit and reverse geocoding
-   are prefetched. `CameraPhotoCaptureCoordinator` separately fences still-photo
-   timeout, cancellation, and delegate completion so one terminal path resumes
-   the shutter request. `CameraVideoRecordingCoordinator` similarly fences each
+   shutter-time coordinates and elevation while the focused environment
+   geocoding and WeatherKit services are prefetched through the stable
+   `EnvironmentContextManager` facade. `EnvironmentLocationController` owns the
+   Core Location delegate, valid-fix/cache policy enforcement, cancellation and
+   revocation fences, and exact-generation request timeout.
+   `CameraPhotoCaptureCoordinator` separately fences still-photo timeout,
+   cancellation, and delegate completion so one terminal path resumes the
+   shutter request. `CameraVideoRecordingCoordinator` similarly fences each
    bounded recording's start, stop, timeout, cancellation, and delegate
    completion while `CameraVideoRecordingService` owns the movie-output
    AVFoundation boundary on the controller's serial queue. The manager supplies
@@ -219,6 +223,11 @@ recursive updates or `EXC_BAD_ACCESS` warnings.
   live maintenance path delegates queue recovery and persisted retry-wake
   reconstruction to `OfflineJobScheduler`. Inactive stops the camera without
   dismissing sheets; background records only the session-timeout timestamp.
+- `Core/Notifications` isolates system authorization, APNs registration, local
+  scheduling and typed routing, foreground presentation, and aggregate app-icon
+  badge state. Its stable facades delegate live effects to focused Services and
+  retain latest-state/account and badge generations in their dedicated
+  coordinator/controller. Explore's visible activity feed remains feature-owned.
 - `CaptureWorkspaceViewModel.handleScenePhaseChange` owns capture interruption,
   recording pause, and background release of process-local upload suppression
   and durable foreground inference claims. Admitted captures are already durable

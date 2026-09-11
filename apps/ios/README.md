@@ -93,9 +93,9 @@ feedback methods, three media storage methods, and six account deletion/recovery
 methods are extracted. Both raw `uploadToR2` overloads, foreground
 `uploadStagedVideoFiles`, and publication-media restoration live in
 `Core/Network/Media/`; owned-row publication and Field Chat recovery live in
-`Core/Network/Recovery/`. Existing feature adapters, shared Profile state,
-Hardware push/badge owners, and Core's social guard retain their callers and
-state. `Core/Network/Transport/` owns stateless route/error/replay and Auth
+`Core/Network/Recovery/`. Existing feature adapters, shared Profile state, Core
+Notifications' push/badge owners, and Core's social guard retain their callers
+and state. `Core/Network/Transport/` owns stateless route/error/replay and Auth
 recovery policy, including the value-only `UnauthorizedRefreshTarget`, the
 request-scoped executor that applies those decisions, the sole pinned
 `URLSession`/TLS owner, and the per-attempt Auth dispatcher. The dispatcher owns
@@ -401,6 +401,30 @@ Keychain registry remain in the Utilities aggregate for their separately
 reviewed security slice. Mirrored Preferences and Species Preferences tests
 enforce these dependency, race, purge-inventory, and 600-line boundaries without
 treating the defaults store as durable value or server authority.
+
+## Core Notifications Ownership
+
+[Core Notifications](Merian/Core/Notifications/README.md) owns system
+authorization, APNs token/remote-registration lifecycle, local notification
+scheduling and typed route parsing, foreground presentation policy, and the
+aggregate app-icon badge. The stable `PushNotificationManager` and
+`AppIconBadgeCoordinator` facades preserve existing callers while focused
+Models, Policies, Services, Coordination, and Badges owners isolate
+deterministic rules, operating-system effects, endpoint adapters, and mutable
+task state.
+
+Remote registration retains the newest settings/token/account snapshot admitted
+during an active request. The account scope is a local coalescing fence and
+never enters the payload. Local inference deduplication commits only after the
+system accepts the notification request, so failed scheduling remains retryable.
+Badge loads remain single-flight, reuse only successful counts for ten seconds,
+and reject stale results after local mark-read or account cleanup with a state
+generation. Native permission polling defers while an authorization prompt is
+active, and permission completion does not wait for remote synchronization.
+Mirrored Core Notifications tests enforce these concurrency contracts, the
+stable facades, live-effect ownership, retired Hardware aggregates, and a
+400-line production ceiling. Explore's in-app activity feed remains
+independently owned by `Features/Explore/Notifications`.
 
 ## Core Consent Ownership
 
@@ -747,6 +771,19 @@ owns UIKit generators and the identity-fenced lazy Core Haptics engine; and
 `HapticAudioSessionAdapter` is the sole haptic owner of direct audio-session
 inspection. Features should receive the manager or narrow semantic closures
 rather than constructing feedback hardware.
+
+`EnvironmentContextManager` likewise remains the stable observable facade for
+Capture, Explore, Scans, Insights, and Profile. Its `EnvironmentContext/Models`
+and `Policies` contain context values and deterministic location rules;
+`EnvironmentLocationController` is the sole Core Location delegate and owns
+authorization, live tracking, one-shot continuations, and exact-generation
+timeouts. It rejects invalid fixes, separates accurate and coarse caches, and
+fences cancellation and authorization revocation before returning a location.
+`EnvironmentGeocodingService` is the sole `CLGeocoder` owner and shares bounded
+placemark work between name and region projections; and
+`EnvironmentWeatherService` is the sole WeatherKit owner. Platform effects and
+the UI-test prompt gate are initializer-injected, while the facade retains
+existing caller signatures and observable state.
 
 ## Insights Integration Ownership
 

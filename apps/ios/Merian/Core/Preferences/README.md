@@ -88,9 +88,9 @@ Mirrored tests live in `MerianTests/Core/Preferences/`:
 
 The process owners have direct reset/race coverage in
 `MerianTests/Core/Analytics/GamificationManagerTests.swift` and
-`MerianTests/Core/Hardware/AppIconBadgeCoordinatorTests.swift`. Both suites
-claim keyed shared-process-state traits so peer suites cannot concurrently
-mutate the same singleton-backed values.
+`MerianTests/Core/Notifications/AppIconBadgeControllerTests.swift`. Badge tests
+use an injected controller and in-memory dependencies, while the legacy
+gamification suite claims its keyed shared-process-state trait.
 
 Repository and cloud-convergence tests live under
 `MerianTests/Core/Data/SpeciesPreferences/`; Preferences tests retain ownership

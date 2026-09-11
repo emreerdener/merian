@@ -120,11 +120,16 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
   - `Data/OfflineSync/`: `OfflineQueueManager`, `SyncStateManager`, and
     `OfflineJobScheduler` for ordered drains and persisted retry-wake
     restoration
-  - `Hardware/`: `CameraManager`, `HardwareOrchestrator`,
-    `EnvironmentContextManager`, the `AudioCaptureManager` facade plus focused
-    recording/review controllers under `AudioCapture/`, and `SpectrogramActor`
+  - `Hardware/`: `CameraManager`, `HardwareOrchestrator`, the stable
+    `EnvironmentContextManager` facade plus focused location/geocoding/weather
+    owners under `EnvironmentContext/`, the `AudioCaptureManager` facade plus
+    focused recording/review controllers under `AudioCapture/`, and
+    `SpectrogramActor`
   - `Network/`: `MerianNetworkClient`, the live `SupabaseManager` orchestrator,
     and `Auth/` value models, policies, and coordinators
+  - `Notifications/`: the stable push and app-icon-badge facades plus focused
+    Models, Policies, Services, Coordination, and Badges owners for system
+    notification effects and mutable lifecycle state
   - `Security/`: `CircuitBreakerManager`, `DeviceIdentityManager`,
     `EntitlementManager`, `RevenueCatManager`, `SocialGuardManager`
   - `SpeciesReference/`: shared non-UI Wikipedia mobile-sections and GBIF

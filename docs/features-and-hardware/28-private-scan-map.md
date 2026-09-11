@@ -281,18 +281,18 @@ decorative map geometry as duplicate elements.
 
 ## Code Ownership
 
-| Area                                                                                                                          | Owner                                                                                     |
-| ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Collections placement, search/count/empty-state integration                                                                   | `apps/ios/Merian/Features/Scans/Collections/`                                             |
-| Detached snapshots, index values, region/annotation geometry, labels                                                          | `apps/ios/Merian/Features/Scans/Map/Models/`                                              |
-| SwiftData projection, store/index, reset and request fencing, screen projection, clustering, viewport work, preview rendering | `apps/ios/Merian/Features/Scans/Map/Services/`                                            |
-| Filter, selection, camera, and cancellable viewport state                                                                     | `apps/ios/Merian/Features/Scans/Map/ViewModels/`                                          |
-| Destination lifecycle and MapKit composition                                                                                  | `apps/ios/Merian/Features/Scans/Map/Views/`                                               |
-| Passive Collections card, waypoint, preview, filter, and list UI                                                              | `apps/ios/Merian/Features/Scans/Map/Components/`                                          |
-| Typed map/Insight path ownership and native push/back behavior                                                                | `apps/ios/Merian/Features/Scans/Shell/`; the map only emits selection values              |
-| Value-route lookup, one-time engine hydration, and embedded Insight construction                                              | `apps/ios/Merian/Features/Insights/Shell/`                                                |
-| Existing location permission and one-shot lookup                                                                              | `EnvironmentContextManager`                                                               |
-| Public map and public coordinate projection                                                                                   | `apps/ios/Merian/Features/Explore/Map/` and Supabase Explore contracts; never `Scans/Map` |
+| Area                                                                                                                          | Owner                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Collections placement, search/count/empty-state integration                                                                   | `apps/ios/Merian/Features/Scans/Collections/`                                                                |
+| Detached snapshots, index values, region/annotation geometry, labels                                                          | `apps/ios/Merian/Features/Scans/Map/Models/`                                                                 |
+| SwiftData projection, store/index, reset and request fencing, screen projection, clustering, viewport work, preview rendering | `apps/ios/Merian/Features/Scans/Map/Services/`                                                               |
+| Filter, selection, camera, and cancellable viewport state                                                                     | `apps/ios/Merian/Features/Scans/Map/ViewModels/`                                                             |
+| Destination lifecycle and MapKit composition                                                                                  | `apps/ios/Merian/Features/Scans/Map/Views/`                                                                  |
+| Passive Collections card, waypoint, preview, filter, and list UI                                                              | `apps/ios/Merian/Features/Scans/Map/Components/`                                                             |
+| Typed map/Insight path ownership and native push/back behavior                                                                | `apps/ios/Merian/Features/Scans/Shell/`; the map only emits selection values                                 |
+| Value-route lookup, one-time engine hydration, and embedded Insight construction                                              | `apps/ios/Merian/Features/Insights/Shell/`                                                                   |
+| Existing location permission and caller-facing one-shot lookup                                                                | `EnvironmentContextManager` facade; `EnvironmentLocationController` owns Core Location effects and lifecycle |
+| Public map and public coordinate projection                                                                                   | `apps/ios/Merian/Features/Explore/Map/` and Supabase Explore contracts; never `Scans/Map`                    |
 
 The implementation-local ownership notes live in the
 [Scans Map README](../../apps/ios/Merian/Features/Scans/Map/README.md).

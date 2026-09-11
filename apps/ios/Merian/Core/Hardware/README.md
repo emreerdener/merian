@@ -157,13 +157,51 @@ closure into the feature owner. Tests live under
 control-feedback policy lives separately in
 `MerianTests/Core/UI/CaptureButtonHapticFeedbackTests.swift`.
 
-## Location authorization and deterministic UI tests
+## Environment context and location authorization
 
-`EnvironmentContextManager` owns the runtime location-authorization request gate
-used by Capture and Explore. Both the eager `validatePermissions()` path and the
-async `requestLocationAuthorizationIfNeeded()` path must call
-`shouldRequestLocationAuthorization(...)` before asking Core Location to present
-a system prompt.
+`EnvironmentContextManager` remains the caller-compatible
+`@MainActor @Observable` facade used by Capture, Explore, Scans, Insights, and
+Profile. It owns only dependency composition, observable location-state
+projection, and the stable context methods. Projected state is read-only to
+callers so the focused location owner cannot be desynchronized. Focused
+implementation lives under `EnvironmentContext/`:
+
+- `Models/EnvironmentContextModels.swift` owns the returned context value and
+  internal placemark, weather, and location-snapshot values.
+- `Policies/EnvironmentLocationPolicy.swift` owns authorization, prompt,
+  accuracy, location-profile, three-decimal cache-key, placemark-presentation,
+  and region-normalization decisions.
+- `Services/EnvironmentLocationController.swift` is the sole Core Location
+  delegate and `CLLocationManager` owner. It coalesces authorization waiters,
+  owns live tracking and one-shot requests, scopes cancellation to the calling
+  request, rejects negative-accuracy updates, and keeps coarse fallbacks out of
+  the accurate cache. Revocation retires active one-shot requests, and a
+  cancelled request cannot escape through the cached-location fallback. The
+  controller restores the coarse composing profile after all shutter waiters
+  resolve. One shared two-second timeout carries an exact UUID generation, so a
+  cancelled non-cooperative timeout cannot resolve a replacement request.
+- `Services/EnvironmentGeocodingService.swift` is the sole `CLGeocoder` owner.
+  Location-name and ISO-region projections share one same-coordinate placemark
+  request, one bounded in-memory insertion-order cache, and one active-request
+  registry keyed at the established three-decimal precision. Failed and
+  projection-empty resolutions are not cached.
+- `Services/EnvironmentWeatherService.swift` is the sole WeatherKit owner. It
+  adapts `WeatherService.shared` into current and historical reading closures;
+  no view or deterministic policy resolves WeatherKit directly.
+
+`fetchDeferredContext` still starts geocoding and current weather concurrently,
+preserves the independently resolved location name if WeatherKit fails, and
+returns value state rather than publishing context presentation. Historical
+lookup remains date-pinned and preserves the capture date when weather is
+absent. The facade, controller, geocoder, and weather adapter use small
+initializer-injected dependency values rather than a broad protocol or a new
+singleton.
+
+Both the eager `validatePermissions()` path and the async
+`requestLocationAuthorizationIfNeeded()` path pass through the same policy
+before the controller asks Core Location to present a system prompt. Passive
+region and display-name resolution only proceeds from already-authorized state
+and never prompts.
 
 The common Debug UI-test launcher supplies
 `-seedLocationPermissionPromptSuppressed`. The flag is honored only when the
@@ -174,35 +212,30 @@ must use a launcher that omits this argument. The Release
 `UITestSeedCoordinator` implementation always disables the fixture, and archive
 validation rejects the marker if it reaches the main executable.
 
-## Push notification routing
+Deterministic coverage lives under
+`MerianTests/Core/Hardware/EnvironmentContext/`. Policy, controller, geocoder,
+facade, and architecture suites cover authorization and accuracy boundaries,
+revocation, overlap/cancellation/timeout generations, invalid-fix rejection,
+accurate-versus-coarse cache ownership, live-tracking transitions, cache
+coalescing, empty-result retry, and eviction, service concurrency and failure
+fallback, UI-test prompt suppression, declaration ownership, and focused line
+ceilings. The focused matrix currently contains 31 deterministic tests. The
+retired root model and aggregate test files must not be recreated.
 
-`PushNotificationManager` owns `UNUserNotificationCenter` delegate work and
-notification payload parsing. It emits validated typed `AppRoute` requests
-through an initializer-injected main-actor closure. The private production
-initializer binds that closure to the app-host `AppRouteCoordinator`; tests
-construct the manager with a private coordinator so they do not mutate shared
-application routing state. Dismiss actions remain non-routing, and the route
-source remains `.pushNotification`.
+## System notification boundary
 
-Keep payload parsing and OS delegate timing in Hardware, typed route policy in
-Core Utilities, and presentation in the Capture workspace host. Coverage lives
-in `MerianTests/Core/Hardware/PushNotificationManagerTests.swift` and
-`MerianTests/Core/Utilities/PushNotificationRoutingTests.swift`.
+System authorization, APNs registration, local scheduling, typed push routing,
+and app-icon badge state no longer live in Hardware. Their focused owner is
+[Core Notifications](../Notifications/README.md). Hardware retains camera,
+audio, haptic, environmental, thermal, battery, speech, and audio-session
+responsibilities only.
 
-Push registration, notification catalog/count, and mark-read wire requests live
-in `Core/Network/Endpoints/MerianNetworkClient+Notifications.swift`.
-`PushNotificationManager` still owns permissions, token synchronization, and
-registration lifecycle; `AppIconBadgeCoordinator` still owns badge refresh,
-cache, account-generation fencing, and post-deletion reset. Endpoint extraction
-does not move OS integration or badge state into Network.
-`AppIconBadgeCoordinatorTests` suspends an injected unread-count load across an
-account reset and proves its stale result cannot restore the coordinator's
-persisted unread count. The production reset retains the existing OS
-badge-update call. `NotificationEndpointTests` covers request fields and count
-projections, and `NotificationAndPublicProfileEndpointTransportTests` covers
-replay, cancellation, and body-ignoring registration success. Run the
-[Core Network notification/public-profile matrix](../Network/README.md#notification-and-public-profile-verification)
-for changes across this boundary.
+Push registration, notification catalog/count, and mark-read wire requests
+remain in `Core/Network/Endpoints/MerianNetworkClient+Notifications.swift`. Core
+Notifications composes push registration and unread-count refresh behind focused
+Services. `Features/Explore/Notifications` composes catalog and mark-read
+adapters and owns the in-app activity UI and state. Do not restore notification
+declarations or tests under Core Hardware.
 
 ## Camera ownership
 

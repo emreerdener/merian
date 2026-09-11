@@ -81,9 +81,15 @@ selectors and manual matrix are canonical in the
 `Notifications/Services/NotificationSettingsDependencies.swift` delegates remote
 registration synchronization to `PushNotificationManager`. Settings retains
 permission presentation, preference decisions, and stable synchronization
-reasons; Hardware retains token/registration lifetime. The request payload lives
-in `Core/Network/Endpoints/MerianNetworkClient+Notifications.swift`, not in
-Settings. For changes across this boundary, also run the
+reasons; Core Notifications retains token lifetime and account-aware
+latest-state registration coordination behind focused Services. Its account
+scope is local coalescing metadata and does not enter the request payload. The
+native permission completion returns before remote registration synchronization,
+so the Settings sheet can apply and dismiss its pending preference without
+waiting on endpoint latency; the subsequent synchronization projects that latest
+preference. The wire payload lives in
+`Core/Network/Endpoints/MerianNetworkClient+Notifications.swift`, not in
+Settings or its views. For changes across this boundary, also run the
 [notification/public-profile matrix](../../../Core/Network/README.md#notification-and-public-profile-verification):
 `NotificationSettingsViewModelTests` covers Settings state, while
 `NotificationEndpointTests` and the shared endpoint transport suite cover the

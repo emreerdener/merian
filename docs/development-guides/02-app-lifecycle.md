@@ -267,9 +267,13 @@ continue to use `AppEventPublisher`. See
    through the container's existing manager. It repairs the same identity after
    a transient failure; it does not require a new Auth event or open the consent
    gate.
-3. After the guard, `AppIconBadgeCoordinator` refreshes the Explore unread count
-   and `PushNotificationManager.syncRemotePushRegistrationIfPossible` reconciles
-   APNs state.
+3. After the guard, Core Notifications' source-compatible
+   `AppIconBadgeCoordinator` refreshes the Explore unread count through its
+   controller, and
+   `PushNotificationManager.syncRemotePushRegistrationIfPossible` admits the
+   latest account-scoped APNs snapshot to `PushRegistrationCoordinator`. The
+   account scope participates only in local coalescing and is not sent over the
+   wire.
 4. `OfflineQueueManager.purgeSoftDeletedRecords()` removes safe local records.
 5. When a model context exists, preferred-name sync, expired non-biological
    purge, and throttled historical scan download run. Historical sync stamps the

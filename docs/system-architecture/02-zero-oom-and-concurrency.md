@@ -693,7 +693,7 @@ preceding `session.uploadTask(with:fromFile:)` were removed. Since this
 URLSession factory creates a deferred upload object synchronously, calling
 `await` forced unnecessary thread hops and produced compiler concurrency faults.
 
-### Background Delegate Deadlocks (`PushNotificationManager`)
+### Background Delegate Deadlocks (Core Notifications)
 
 When executing URLSession hooks via a background task identifier, the Merian
 application remains visually suspended but structurally active. When AI
@@ -706,8 +706,9 @@ conditionally omitting notifications from `InferenceEngine` when the app was in
 the foreground prevented users from receiving alerts if they navigated away from
 the camera to browse their library.
 
-Now, `InferenceEngine` emits notifications unconditionally. The delegate
-executes purely synchronously by reading the persisted
+Now, `InferenceEngine` emits notifications unconditionally. Core Notifications'
+manager remains the delegate, while its pure policy determines foreground
+presentation. The callback executes synchronously by reading the persisted
 `suppressInferenceBanners` key because `willPresent` is nonisolated and must
 call its completion handler immediately. UI and view-model code mutate that
 persisted key through the `AppSettings.suppressInferenceBanners` typed boundary,
@@ -715,6 +716,32 @@ instructing the delegate to suppress the banner only when the user is explicitly
 staring at the scanning overlay or insight sheet. This guarantees reliable 100%
 delivery for insight completions and achievements without triggering main-thread
 blocking or spamming the active viewfinder context.
+
+### Notification Permission, Registration, and Badge Fences
+
+Core Notifications keeps three independent mutable lifecycles on the main actor.
+Permission-status reads use cancel-and-replace tasks plus monotonically
+advancing generations. Starting the native authorization prompt invalidates an
+admitted read and defers subsequent polls until the decision resolves. The
+completion returns before remote synchronization, so endpoint latency cannot
+hold the permission sheet open; unchanged authorization does not rewrite
+defaults.
+
+`PushRegistrationCoordinator` serializes authenticated registration calls and
+retains only the newest token, environment, preference, and account snapshot
+that arrives while one call is suspended. Equal trailing work coalesces only
+after success and retries after failure. The normalized account scope
+participates in local equality but never enters the six-field wire payload, so a
+response authenticated as one account cannot satisfy a replacement account's
+otherwise-identical request.
+
+`AppIconBadgeController` shares one active unread-count load and admits cached
+reuse only after a successful result within a nonnegative ten-second wall-clock
+interval. Local mark-read and accepted account cleanup cancel older work and
+advance a state generation, rejecting a loader that returns despite
+cancellation. Cleanup also clears the timestamp and persisted count. Badge
+aggregation normalizes negative unread values and saturates at `Int.max` instead
+of trapping on overflow.
 
 ### Hardware Rotation Defenses (`CameraSessionController`)
 
@@ -1851,42 +1878,43 @@ contribution graph, Merian abandons all `PreferenceKey` protocol loops.
 
 ### Concurrent Environment Context Fetch (`EnvironmentContextManager`)
 
-In `fetchDeferredContext`, reverse geocoding (`reverseGeocode(location:)`) and
-weather fetching (`weatherService.weather(for:)`) were previously sequential
-`await` calls. Since these are independent network I/O operations — typically
-300–800 ms each — sequential execution added 300–1000 ms of unnecessary latency
-to every shutter press.
+`EnvironmentContextManager` is the stable observable facade; it does not own a
+geocoder or WeatherKit object. In `fetchDeferredContext`, it launches
+`EnvironmentGeocodingService.locationName(for:)` as an `async let` child before
+awaiting `EnvironmentWeatherService.current`. These independent I/O operations
+continue in parallel. The location name is awaited when constructing the
+`EnvironmentContext`, including the weather-failure path, so a WeatherKit error
+does not discard or repeat successful geocoding.
 
-`reverseGeocode` is now launched as an `async let` child task before
-`weatherService.weather(for:)` begins on the main task. Both operations run in
-parallel. The geocode result is `await`-ed when constructing the
-`EnvironmentContext` return value — at which point it is almost always already
-resolved. The pattern also handles the failure case correctly: if weather
-throws, `await locationName` in the `catch` block retrieves the geocode result
-(which ran concurrently and is ready) without re-fetching.
-
-### Apple Geocoder Rate Limiting (`EnvironmentContextManager`)
+### Apple Geocoder Rate Limiting (`EnvironmentGeocodingService`)
 
 Invoking `CLGeocoder().reverseGeocodeLocation` on every historical index
 directly triggers Apple server rate limits. Rapid bulk photo imports fire
-`CLError.network` suspensions resulting in hours of stranded metadata. Merian
-abstracts the geocoder loop with a RAM-based LRU coordinate cache, rounding hash
-precision to 111 meters (`%.3f,%.3f`). Location patterns clustering on the same
-coordinates resolve from cache without touching the device radio, and offline
-synchronizations skip the server check entirely.
+`CLError.network` failures and can strand metadata. The focused geocoding
+service is the only `CLGeocoder` owner. It coalesces active requests by rounded
+coordinate and stores successful placemarks in a bounded insertion-order RAM
+cache at the established `%.3f,%.3f` precision. Display-name and ISO-region
+projections share that one placemark result; failed and projection-empty results
+are not cached and remain retryable.
 
-### Deferred Location Timeouts (`EnvironmentContextManager`)
+### Deferred Location Timeouts (`EnvironmentLocationController`)
 
 Unconditionally calling `timeoutTask?.cancel()` in debounced functions like
 `requestSingleLocation()` caused starvation. If the user tapped the shutter
 rapidly, the timeout task was deferred indefinitely, growing the
 `activeContinuations` array and permanently hanging the camera shutter pipeline.
-Merian resolves this: the timeout task is now instantiated only if one is not
-already running, allowing existing tasks to fire and flush. Active continuations
-are cancelled inside `locationManager(_:didUpdateLocations:)` and
-`didFailWithError`, enforcing limits on resolution latency.
+The focused controller creates a timeout only when the first one-shot waiter
+arrives and shares it across overlap. Each caller has its own request UUID, so
+cancellation removes and resumes only that continuation. The timeout also
+carries an exact generation UUID. Cancellation remains cooperative, but a stale
+wait that resumes after cancellation must still match that generation before it
+can flush current continuations. Accurate delegate updates and location failures
+invalidate the generation before resolving the active request set. The
+high-level current-location path checks task cancellation and current
+authorization again after that suspension; revocation flushes active one-shot
+waiters, so neither path can return through an older cached coordinate.
 
-### Battery-Bounded Location Accuracy (`EnvironmentContextManager`)
+### Battery-Bounded Location Accuracy (`EnvironmentLocationController`)
 
 The camera viewport no longer keeps CoreLocation pinned at
 `kCLLocationAccuracyBest` while the user is composing. Live tracking uses
@@ -1895,14 +1923,16 @@ pausing so the device can maintain a macro-region fallback without continuously
 driving GPS at full power. `startUpdatingHeading()` is not called because
 compass heading was removed from the inference telemetry payload.
 
-When the shutter fires, `CaptureWorkspaceViewModel.executeCapture` starts
-`requestCurrentLocation()` concurrently with `CameraManager.captureImage()`.
-That one-shot request temporarily raises `desiredAccuracy` to
-`kCLLocationAccuracyBest`, calls `requestLocation()`, and then restores the
-coarse composing profile after all pending continuations resolve. The resolved
-shutter fix is used for the Photos asset location and deferred
-WeatherKit/geocode context; if it times out, `lastKnownLocation` still provides
-the latest coarse fallback.
+When the shutter fires, `CaptureWorkspaceViewModel.executeCapture` starts the
+facade's `requestCurrentLocation()` concurrently with
+`CameraManager.captureImage()`. The controller temporarily raises
+`desiredAccuracy` to `kCLLocationAccuracyBest`, calls `requestLocation()`, and
+restores the coarse composing profile after every pending continuation resolves.
+The resolved shutter fix is used for the Photos asset location and deferred
+weather/geocode context; if it times out, `lastKnownLocation` still prefers the
+latest accurate cache before the coarse fallback. Negative-accuracy updates are
+discarded, and a usable coarse timeout fallback remains in its distinct fallback
+slot instead of being promoted into the accurate cache.
 
 ### Synchronous SQLite on the Launch Path (`ScanRepository`)
 
@@ -2269,25 +2299,27 @@ Promoting these to statics keeps network orchestration off the actor executor,
 while the asynchronous permit pool and dedicated decode queue own synchronous
 ImageIO admission and execution.
 
-### Task Capture Retain Cycles (`EnvironmentContextManager` and Scans search)
+### Task Capture Retain Cycles (Environment context and Scans search)
 
 When firing background `@MainActor` executions inside persistent managers (like
 `reverseGeocode` or `performSearch`), default `Task { ... }` or
 `Task.detached { ... }` blocks implicitly capture `self` via a strong reference.
-When a `Task` mutates a local property (e.g., `self.geocodeCache[key]`) and is
-retained by the class (e.g., `self.searchTask = task`), this creates a retain
-cycle, permanently locking memory inside zombie ViewModels.
+When a `Task` mutates owner state and is retained by that owner (for example,
+`self.searchTask = task`), this creates a retain cycle, permanently locking
+memory inside zombie ViewModels.
 
-**The Refactor**: The codebase captures `[weak self]` inside `Task` /
-`Task.detached` closures, dropping the strong pointer. A
-`guard let self = self else { return }` check precedes any variable mutation,
-allowing Swift garbage collection to purge mapping classes upon background
-termination. The Scans Library now contains `searchTask` and the related index
+**The Refactor**: The codebase captures `[weak self]` inside stored `Task` /
+`Task.detached` closures and upgrades that reference only after the suspending
+operation returns. The Scans Library contains `searchTask` and the related index
 tasks inside `ScansLibrarySearchCoordinator`; every stored task captures that
-owner weakly. `EnvironmentContextManager` asynchronously created CoreLocation
-delegates generated the same runaway cross-actor memory risk without closure
-guard isolation. These closures extract lightweight parameters outside the
-suspending boundary before accessing `@MainActor` variables locally.
+owner weakly. For environment context,
+`EnvironmentLocationController.timeoutTask` captures the controller weakly and
+copies the injected wait closure before suspension. Its exact timeout generation
+also prevents a cancelled task from mutating replacement state.
+`EnvironmentGeocodingService` stores tasks whose bodies capture only the
+injected resolver and immutable location; service-owned cache and registry
+mutation occurs after the await in the calling actor method. The observable
+facade stores no background task.
 
 ### Sync Pipeline State Machine (`SyncStateManager`)
 

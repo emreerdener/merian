@@ -389,10 +389,11 @@ provider attempt successful from an Apple error response.
   `CurrentSchema` deletion inventory, actual repository delete calls,
   idempotence, classified defaults cleanup, read-back verification, device-state
   preservation, and runtime reset delegation.
-- `GamificationManagerTests` and `AppIconBadgeCoordinatorTests`: observable and
-  persisted gamification reset plus cancellation/account-generation rejection of
-  an unread-count result admitted before cleanup. The badge test covers the
-  coordinator's persisted state; OS badge presentation remains an integration
+- `GamificationManagerTests` and `AppIconBadgeControllerTests`: observable and
+  persisted gamification reset plus injected cancellation/state-generation
+  rejection of an unread-count result admitted before cleanup. The badge suite
+  covers controller persistence and OS-presentation adaptation without touching
+  global state; physical Home Screen presentation remains an integration
   checklist item.
 - `AccountDeletionRecoveryCapabilityTests`: secure randomness, Keychain
   accessibility, write verification, reuse, and verified deletion.

@@ -18,6 +18,7 @@ enum MerianLog {
     static let network  = Logger(subsystem: "com.merian.app", category: "Network")
     static let data     = Logger(subsystem: "com.merian.app", category: "Data")
     static let hardware = Logger(subsystem: "com.merian.app", category: "Hardware")
+    static let notifications = Logger(subsystem: "com.merian.app", category: "Notifications")
     static let exploreVideo = Logger(subsystem: "com.merian.app", category: "ExploreVideo")
     static let general  = Logger(subsystem: "com.merian.app", category: "General")
 }
@@ -34,14 +35,15 @@ replaced before merge.
 
 ## Subsystem Selection
 
-| Subsystem                | Use for                                                                                                                                                                                               |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MerianLog.auth`         | `SupabaseManager` — sign in, Ghost sessions, JWT refresh, OAuth flows                                                                                                                                 |
-| `MerianLog.network`      | `MerianNetworkClient` — HTTP requests, R2 uploads, Edge function calls, status codes                                                                                                                  |
-| `MerianLog.data`         | All SwiftData actors, `OfflineQueueManager`, `ScanRepository`, `FileIOActor`, `ArchiveManager`                                                                                                        |
-| `MerianLog.hardware`     | `CameraSessionController`, `CameraManager`, and `CameraVideoRecordingService` — AVFoundation session/device locks, focus, torch, frame-rate application, recording lifecycle, and stabilization modes |
-| `MerianLog.exploreVideo` | Explore public video playback — active player changes, sheet overlay pause/resume, player/layer rebuilds, recovery watchdogs                                                                          |
-| `MerianLog.general`      | `InferenceEngine`, `CircuitBreakerManager`, `GamificationManager`, `PostHogManager`, `AppTelemetry`, everything else                                                                                  |
+| Subsystem                 | Use for                                                                                                                                                                                               |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MerianLog.auth`          | `SupabaseManager` — sign in, Ghost sessions, JWT refresh, OAuth flows                                                                                                                                 |
+| `MerianLog.network`       | `MerianNetworkClient` — HTTP requests, R2 uploads, Edge function calls, status codes                                                                                                                  |
+| `MerianLog.data`          | All SwiftData actors, `OfflineQueueManager`, `ScanRepository`, `FileIOActor`, `ArchiveManager`                                                                                                        |
+| `MerianLog.hardware`      | `CameraSessionController`, `CameraManager`, and `CameraVideoRecordingService` — AVFoundation session/device locks, focus, torch, frame-rate application, recording lifecycle, and stabilization modes |
+| `MerianLog.notifications` | System authorization, APNs registration, local scheduling/routing, and app-icon badge refresh/presentation                                                                                            |
+| `MerianLog.exploreVideo`  | Explore public video playback — active player changes, sheet overlay pause/resume, player/layer rebuilds, recovery watchdogs                                                                          |
+| `MerianLog.general`       | `InferenceEngine`, `CircuitBreakerManager`, `GamificationManager`, `PostHogManager`, `AppTelemetry`, everything else                                                                                  |
 
 When in doubt, use `MerianLog.general`. Do not create new `Logger` instances
 outside of `MerianLog` — adding a new category requires updating the enum and

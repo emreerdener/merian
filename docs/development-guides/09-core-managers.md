@@ -350,22 +350,37 @@ triggering excessive SwiftUI view rebuilds.
 
 ### `EnvironmentContextManager`
 
-- Manages the `EnvironmentContext` struct, which is defined in
-  `apps/ios/Merian/Core/Hardware/EnvironmentContext.swift` as a plain data model
-  with `location`, `locationName`, `weatherCondition`, and `weatherTemperature`
-  fields.
-- Maintains two data sources without triggering UI rerenders:
-  - **CoreLocation**: Caches and updates `CLLocationCoordinate2D`, `altitude`,
-    and `course`.
-  - **WeatherKit**: Fetches hyper-local `temperature` and `condition` to
-    supplement inference payloads.
-- Updates are gated by a `cacheThreshold` to limit unnecessary location and
-  weather polling.
-- **Concurrent geocode + weather**: In `fetchDeferredContext`,
-  `reverseGeocode(location:)` is launched as an `async let` child task before
-  the `weatherService.weather(for:)` call begins. Both I/O operations —
-  typically 300–800 ms each — run in parallel, cutting total context-fetch
-  latency by 300–1000 ms per shutter press.
+- Stable `@MainActor @Observable` facade at
+  `apps/ios/Merian/Core/Hardware/EnvironmentContextManager.swift`. Existing
+  callers retain the same authorization, current-location, passive region/name,
+  live-tracking, deferred-context, historical-context, and observable-state
+  surface.
+- `EnvironmentContext/Models/EnvironmentContextModels.swift` owns the plain
+  context payload plus internal placemark, weather-reading, and location-state
+  values. This refactor does not change any persisted or wire model.
+- `EnvironmentContext/Policies/EnvironmentLocationPolicy.swift` owns the pure
+  authorization, prompt, accuracy, location-profile, coordinate-cache-key,
+  placemark-presentation, and ISO-region normalization rules.
+- `EnvironmentContext/Services/EnvironmentLocationController.swift` is the sole
+  `CLLocationManagerDelegate` and live Core Location owner. It coalesces
+  authorization requests, owns live and one-shot location lifecycles, scopes
+  cancellation by request UUID, rejects negative-accuracy fixes, keeps coarse
+  fallbacks separate from the accurate cache, retires pending one-shot work on
+  authorization revocation, and fences the shared two-second timeout with an
+  exact generation UUID before it may flush pending continuations. A cancelled
+  high-level request cannot return through the cached-location fallback.
+- `EnvironmentContext/Services/EnvironmentGeocodingService.swift` is the sole
+  `CLGeocoder` owner. It coalesces same-coordinate placemark work and shares one
+  bounded three-decimal cache between display-name and region projections;
+  failed and projection-empty lookups remain retryable.
+- `EnvironmentContext/Services/EnvironmentWeatherService.swift` is the sole
+  WeatherKit owner and adapts current and date-pinned hourly results into small
+  values. `fetchDeferredContext` starts this adapter and geocoding concurrently,
+  while historical lookup retains its existing date and fallback semantics.
+- Live platform effects and the UI-test prompt gate enter through small
+  initializer-injected dependency values. Deterministic tests must not touch
+  `EnvironmentContextManager.shared`, a real `CLLocationManager`, `CLGeocoder`,
+  or `WeatherService.shared`.
 
 ### `PhotoLibraryManager`
 
@@ -444,16 +459,22 @@ triggering excessive SwiftUI view rebuilds.
 
 ### `PushNotificationManager`
 
-- Encapsulates `UNUserNotificationCenter` operations on the `@MainActor` thread.
-- Polls `authorizationStatus` to keep the local
-  `AppSettings.isPushNotificationsEnabled` /
-  `UserDefaultsKeys.isPushNotificationsEnabled` flag in sync with the OS
-  Settings state. If a user revokes permissions externally, the local flag is
-  corrected asynchronously via `Task { @MainActor in }` (not
-  `DispatchQueue.main.async`) to maintain Swift 6 strict concurrency compliance.
-- Configured as the `UNUserNotificationCenterDelegate`. Injects `scanId` values
-  into `.userInfo` payloads so background offline completions can surface
-  notifications over the lock screen.
+- Lives in `Core/Notifications` as the stable `@MainActor` application facade
+  and `UNUserNotificationCenterDelegate`. The injected
+  `SystemNotificationCenterService` alone resolves the live notification center
+  and notification-related `UIApplication` APIs.
+- Polls `authorizationStatus` to keep
+  `UserDefaultsKeys.hasPushNotificationAuthorization` aligned with OS Settings.
+  Each read carries a generation and replaces older work, so a late response
+  cannot overwrite newer permission state. Starting a native authorization
+  prompt invalidates an admitted read and defers new polls until the prompt
+  resolves, keeping the final user decision authoritative. The prompt completion
+  fires before remote synchronization, so endpoint latency cannot hold
+  permission UI open. Granted state still registers with APNs and every resolved
+  state attempts the existing remote preference sync. An unchanged status does
+  not rewrite defaults or trigger unrelated settings observation.
+- Uses pure `PushNotificationPolicy` values to construct local descriptors and
+  validate `scanId`, Explore post/comment, and Community Identification routes.
 - **Rich Media & Categorization**: Registers custom categories
   (`INFERENCE_COMPLETE`) with Interactive Actions ("View Details", "Share
   Discovery") and natively attaches species thumbnail images for premium
@@ -462,20 +483,17 @@ triggering excessive SwiftUI view rebuilds.
   prevent lock-screen explosion when sequentially scanning subjects, and
   elevates deliveries to `.timeSensitive` automatically (iOS 15+) for priority
   pass-through during field-use.
-- **Deduplication**: `sendInferenceCompleteNotification` guards against
-  duplicate notifications using a session-scoped `notifiedScanIds: Set<String>`.
-  The first call for a given scan ID proceeds and inserts the ID; subsequent
-  calls for the same scan return immediately. The `UNNotificationRequest` uses
-  `"inference_\(scanId)"` as its identifier rather than a fresh `UUID`, so even
-  if two requests reach `UNUserNotificationCenter` concurrently (not possible on
-  `@MainActor` but defensive), the OS deduplicates them. This prevents the user
-  receiving two "Analysis complete" alerts when both the live inference path and
-  the background URLSession path complete for the same scan in close succession.
+- **Deduplication**: `sendInferenceCompleteNotification` tracks both pending and
+  successfully accepted scan IDs. Simultaneous calls for one scan coalesce, but
+  the session-level committed ID is inserted only after
+  `UNUserNotificationCenter.add` succeeds. A failed add removes the pending ID
+  so later completion handling can retry. The stable `"inference_\(scanId)"`
+  system identifier supplies an additional OS-level replacement boundary.
 - **Safe Deep Linking**: Intercepts deep link taps from notification actions and
-  converts validated payloads into typed `AppRoute` requests. The manager emits
-  those requests through an initializer-injected main-actor closure; its private
-  production initializer binds to the app-host `AppRouteCoordinator`, while
-  tests use a private coordinator. It rigorously filters out
+  converts payloads into typed `AppRoute` requests through the deterministic
+  policy. The manager emits those requests through an initializer-injected
+  main-actor closure; its private production initializer binds to the app-host
+  `AppRouteCoordinator`, while tests inject a recorder. It filters out
   `UNNotificationDismissActionIdentifier` to ensure users who simply swipe away
   a notification are not forcefully navigated when they next open the app.
 - **Context-Aware Foreground Suppression**:
@@ -503,16 +521,33 @@ triggering excessive SwiftUI view rebuilds.
   `UIApplication` fallbacks, keeping inference alerts directly coupled to the
   user's scan-viewing behavior.
 - **Explore unread coordination**: `AppIconBadgeCoordinator` is the single
-  process-wide owner of unread-count refreshes used by lifecycle, `MainTabBar`,
-  and Explore. Concurrent callers await the same task, and a successful result
-  is reusable for 10 seconds. Explore-post activity uses Realtime as the primary
-  update path and polls every five minutes to cover Field trip-only activity,
-  missed events, and subscription failure. Realtime events and notification-
-  sheet dismissal use `force: true`. Failed or cancelled refreshes do not start
-  the reuse window or erase the last persisted count. Accepted account cleanup
-  cancels the active task, advances an account generation, clears the reuse
+  source-compatible entry point used by lifecycle, `MainTabBar`, and Explore.
+  Mutable work lives in the injected `AppIconBadgeController`; live persisted,
+  unseen-scan, endpoint, clock, logging, and OS presentation effects live in
+  `AppIconBadgeDependencies`. Concurrent callers await the same task, and a
+  successful result is reusable for 10 seconds. Explore-post activity uses
+  Realtime as the primary update path and polls every five minutes to cover
+  Field trip-only activity, missed events, and subscription failure. Realtime
+  events and notification-sheet dismissal use `force: true`. Failed or cancelled
+  refreshes do not start the reuse window or erase the last persisted count. A
+  direct local update, including mark-read from the notification sheet, cancels
+  admitted refresh work and advances the state generation before publishing the
+  new count. Accepted account cleanup uses the same fence, clears the reuse
   timestamp and persisted unread count, and updates the OS badge. A loader that
   ignores cancellation still cannot publish after the generation changes.
+  Backward wall-clock movement invalidates the reuse decision, and aggregate
+  badge addition saturates at `Int.max` rather than trapping.
+- **Remote registration overlap**: `PushRegistrationCoordinator` serializes the
+  `/register-push-device` adapter and retains the newest token/settings/account
+  snapshot admitted while a call is suspended. The account scope is read by a
+  focused service and remains local coordination metadata; it is never encoded
+  into the endpoint payload. A matching trailing snapshot coalesces after
+  success and is retried after failure; changed trailing state always drains
+  next. This prevents permission, preference, or account changes from being lost
+  behind an in-flight registration.
+
+See the focused
+[Core Notifications ownership guide](../../apps/ios/Merian/Core/Notifications/README.md).
 
 ## AI & Offline Synchronization
 
@@ -1846,7 +1881,7 @@ consults that Keychain entry.
   notification cursors, top-level counts, required-but-uninterpreted mark-read
   `success`, all push flags, and typed identity/availability projections. Three
   reads allow bounded ambiguous replay; five mutations refuse it. Notification
-  Services/ViewModels, `PushNotificationManager`, `AppIconBadgeCoordinator`, and
+  Services/ViewModels, Core Notifications' push/registration/badge owners, and
   shared `ProfileViewModel` retain state and lifecycle ownership. Avatar
   signing/upload remains separate from final promotion. Run the
   [notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification);

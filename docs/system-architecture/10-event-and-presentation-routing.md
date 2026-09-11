@@ -571,10 +571,12 @@ sink owner set above is enforced by the same fail-closed scan.
   dismissal, duplicate callback identity, timeout suppression, and
   missing-target rejection. Capture tests cover routed-sheet teardown and
   feature-local cover deferral.
-- Push routing tests inject a private `AppRouteCoordinator` through
-  `PushNotificationManager`'s route-request closure. The app-host coordinator
-  may consume a live route while tests are observing it, so tests must not drain
-  that process singleton.
+- Core Notifications policy tests lock push payload-to-route projection without
+  OS state. Manager tests inject a route recorder through
+  `PushNotificationManager`'s route-request closure, so they never observe or
+  drain the live app-host coordinator. The manager remains the
+  `UNUserNotificationCenterDelegate`; `PushNotificationPolicy` is the sole
+  notification payload parser.
 - `EventDeliveryTests` covers synchronous/reentrant event delivery, cancellable
   main-actor framework delivery, and detached-player callback suppression.
 - `AchievementToastPresenterTests` proves a milestone coordinator publishes

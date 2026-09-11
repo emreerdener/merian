@@ -84,6 +84,14 @@ hardware action reevaluates constraints. Export, feedback, sign-out, deletion,
 notification, and plan state similarly reject or supersede overlapping work at
 their owning state boundary.
 
+The Notifications settings subarea owns pending-preference and permission
+presentation state, while its live adapter delegates system authorization and
+token/registration lifecycle to Core Notifications. Native permission completion
+returns before remote registration synchronization, so endpoint latency cannot
+hold the sheet open. The subsequent account-aware coordinator snapshot includes
+the newly applied preference; its account scope remains process-local and never
+enters the push payload.
+
 `UserProfile` owns a separate `UserProfilePresentation` value for username,
 display-name, and avatar-crop destinations. Its item-based sheet and filtered
 full-screen cover read the same mutually exclusive value. The system

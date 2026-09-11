@@ -214,7 +214,10 @@ notifications feed remains complete and continues to include mention rows.
   `apps/ios/Merian/Features/Explore/Notifications/Components/NotificationRowView.swift`
 - Push preference:
   `apps/ios/Merian/Features/Profile/Settings/Notifications/Views/NotificationSettingsView.swift`
-  and `apps/ios/Merian/Core/Hardware/PushNotificationManager.swift`
+  plus Core Notifications' stable
+  `apps/ios/Merian/Core/Notifications/PushNotificationManager.swift` facade,
+  account-aware latest-state registration coordinator, local-only account-scope
+  service, and focused endpoint service
 - Regression tests:
   `apps/ios/MerianTests/Features/Explore/Feed/ExploreCommentMentionTextTests.swift`,
   `apps/ios/MerianTests/Features/Explore/Shared/ExploreCommentAuthorPresentationTests.swift`,

@@ -1260,7 +1260,7 @@ Implemented Core Network slices:
   build attempts exited 74 during package resolution before compilation,
   repeating the environment restriction above. No candidate iOS runtime or
   manual pass is claimed.
-- Documentation synchronization also covers Settings-to-Hardware push
+- Documentation synchronization also covers Settings-to-Core-Notifications push
   registration, the canonical Explore architecture inventory, and Profile
   editors' shared-state ownership. The Profile and backend guides no longer
   claim empty display names are rejected; the API contract explicitly records
@@ -4490,6 +4490,115 @@ tests with zero failures or skips (5,226 device/configuration-level passes after
 dynamic parameter expansion). Physical-device haptic/audio-recording interaction
 remains required before release. No route, endpoint, payload, persistence,
 feature flag, UI copy/layout, or deployment contract changed.
+
+### Core Hardware Environment Context Boundary
+
+The next Core Hardware slice retained `EnvironmentContextManager` as the
+caller-compatible `@MainActor @Observable` facade while moving deterministic
+values and live effects into `EnvironmentContext/{Models,Policies,Services}`.
+The facade fell from 469 to 210 lines and now owns live dependency composition,
+observable location-state projection, and the existing authorization, location,
+tracking, deferred, and historical methods. The retired 12-line root
+`EnvironmentContext.swift` model is now grouped with the focused placemark,
+weather-reading, and location-snapshot values in the 38-line Models file.
+
+`EnvironmentLocationPolicy` owns the established authorization and prompt rules,
+composing/shutter profiles, inclusive 0...30 m accurate-fix boundary, two-second
+timeout, 200-entry geocode limit, three-decimal cache key, placemark display,
+and ISO-region normalization. `EnvironmentLocationController` is the sole
+`CLLocationManagerDelegate` and Core Location resource owner. Its 356 lines
+contain authorization coalescing, passive authorized lookup, live tracking,
+one-shot continuations, request-scoped cancellation, and exact UUID timeout
+generations. An obsolete cancellation-ignoring timeout can no longer resolve a
+replacement request. The review pass also rejected negative-accuracy updates,
+kept coarse timeout results out of the accurate cache, fenced the high-level
+cached return after cancellation, and flushed in-flight one-shot work when
+authorization is revoked.
+
+`EnvironmentGeocodingService` is the sole `CLGeocoder` owner. Its 115 lines
+coalesce equal rounded coordinates and share one successful placemark plus a
+bounded insertion-order cache between location-name and ISO-region projections;
+failed and projection-empty lookups remain retryable. The 41-line
+`EnvironmentWeatherService` is the sole WeatherKit owner and maps current and
+date-pinned hourly values into a small reading. The facade preserves concurrent
+current geocoding/weather work, weather-failure location names, historical
+capture dates, passive no-prompt behavior, and small initializer-injected
+dependencies without adding a broad protocol or singleton.
+
+The retired 85-line aggregate manager test was replaced by 31 deterministic
+tests across policy, controller, geocoding, facade, and architecture suites.
+They cover prompt/accuracy boundaries, invalid-fix rejection, overlapping waits,
+request cancellation and revocation, stale timeout generations, accurate/coarse
+cache ownership, tracking authorization, cache coalescing/retry/eviction,
+independent service concurrency and failure, state projection, passive lookups,
+framework ownership, compatibility names, retired aggregates, and focused line
+ceilings. The exact final candidate passed the 31-test focused matrix and the
+complete `merianTests` target: 3,264 logical tests, 5,252 expanded
+device/configuration runs, zero failures, and zero skips. It also passed the
+generic iOS Simulator build, independent focused-source type-check, `swiftc`
+parsing, strict affected-source SwiftLint with zero violations, byte-stable
+XcodeGen, project/resource validation, generated-project source membership,
+event-routing checks, Markdown formatting, and whitespace validation. No route,
+endpoint, payload, persistence, feature flag, UI copy/layout, or deployment
+contract changed; real authorization, GPS accuracy, background/foreground
+tracking, geocoding, and WeatherKit remain in the physical-device release
+matrix.
+
+### Core Notifications Boundary
+
+The next Core slice moved system authorization, APNs registration, local
+scheduling/routing, and app-icon badge ownership out of `Core/Hardware` into
+`Core/Notifications`. Stable `PushNotificationManager` and
+`AppIconBadgeCoordinator` entry points preserve every existing caller. Focused
+Models and Policies contain immutable values and deterministic token, route,
+presentation, descriptor, and badge decisions. Services alone resolve
+`UserDefaults`, the current Supabase account scope, `UNUserNotificationCenter`,
+notification-related `UIApplication` APIs, and the push-registration and
+unread-count endpoints. Explore Notifications retains its catalog and mark-read
+adapters plus visible activity state.
+
+`PushRegistrationCoordinator` now drains the newest token/settings/account
+snapshot admitted while a request is suspended instead of dropping it behind the
+old Boolean in-flight guard. The normalized account scope affects local
+coalescing only and is omitted from the unchanged six-field wire payload, so an
+old account's authenticated call cannot satisfy an otherwise-identical request
+for its replacement. Matching trailing work coalesces after success and retries
+after failure. `AppIconBadgeController` contains the prior static task, cache,
+and state-generation ownership behind injected dependencies. Local mark-read
+mutations and accepted account cleanup both invalidate older badge loads, so a
+cancellation-ignoring response cannot restore stale unread state. Cache reuse
+also rejects backward clock movement, and badge aggregation saturates instead of
+overflowing. Native authorization prompts invalidate older permission reads and
+defer new polling until the user decision resolves; UI completion now fires
+before remote synchronization, and unchanged status does not rewrite defaults.
+Inference notification deduplication now distinguishes pending from
+system-accepted scan IDs, so a failed scheduling request remains retryable
+without permitting simultaneous duplicates.
+
+The retired Hardware and Utilities notification tests were replaced with 34
+deterministic tests across policy, remote-registration coordination, manager,
+badge-controller, and architecture suites. They run without mutating global OS,
+route, defaults, network, or badge state. Architecture coverage enforces
+source-compatible facades, sole live-effect owners, retired aggregate paths, and
+a 400-line production-file ceiling. No route, payload, persistence,
+feature-flag, visible UI, backend, or deployment contract changed. Canonical
+directory, lifecycle, concurrency, logging, routing, API, Settings, Explore,
+account-cleanup, and testing documents now use that same ownership boundary and
+point to the focused Core Notifications guide.
+
+The exact candidate rebuilds successfully as part of complete simulator test
+execution. The focused Core Notifications plus Settings boundary matrix passes
+39 tests. The complete `merianTests` target passes 3,288 logical tests (5,276
+expanded runs) with zero failures or skips. The generic iOS Simulator build and
+complete build-for-testing passed before the final review corrections; their
+redundant final rerun was blocked before compilation by the host's unavailable
+CoreSimulator and SwiftPM sandbox services. All 32 changed Swift files parse,
+strict SwiftLint reports zero violations across 1,147 production files, XcodeGen
+is byte-stable, and project/resource, generated-project source-membership,
+event-routing, adversarial routing, Markdown-format, and whitespace gates pass.
+Physical-device notification permission, APNs delivery/actions,
+Focus/time-sensitive behavior, attachments, and Home Screen badges remain in the
+release acceptance matrix.
 
 ## Phase 3: Ownership Cleanup
 

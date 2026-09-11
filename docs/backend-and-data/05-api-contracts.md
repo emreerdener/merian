@@ -5345,16 +5345,19 @@ activity notifications:
 Unlike most read endpoints, this response returns the scalar at the top level
 rather than nesting it under `data`.
 
-The iOS client coordinates this request globally through
-`AppIconBadgeCoordinator`. Concurrent callers await one in-flight request, and a
+The iOS client enters this request globally through the source-compatible
+`AppIconBadgeCoordinator`, while injected mutable state lives in
+`AppIconBadgeController` and the live endpoint closure lives in Core
+Notifications Services. Concurrent callers await one in-flight request, and a
 successful count may be reused for 10 seconds. Explore-post activity uses
 Realtime as the primary refresh path, while routine five-minute polling also
 covers Field trip-only rows, missed events, and subscription failure. Realtime
 events and notification-sheet dismissal force a fresh count. Keep the server
 endpoint side-effect-free so this deduplication remains safe. Accepted account
-cleanup cancels the active load, advances the coordinator's account generation,
-clears its cached timestamp and persisted count, and refreshes the OS badge. A
-stale result is rejected even when its loader does not honor cancellation.
+cleanup and local mark-read both cancel the active load and advance the
+controller's state generation. Cleanup additionally clears the cached timestamp
+and persisted count before refreshing the OS badge. A stale result is rejected
+even when its loader does not honor cancellation.
 
 ### `/mark-explore-notifications-read`
 
@@ -5390,6 +5393,11 @@ activity pushes:
 
 - The endpoint is authenticated with the viewer's existing Supabase session,
   just like the other Explore nodes.
+- Core Notifications includes the normalized current account ID in its local
+  registration snapshot so an in-flight call for one account cannot satisfy an
+  otherwise-identical request for a replacement account. That account scope is
+  coordination metadata only: `PushRegistrationService` deliberately omits it
+  from this JSON payload, which remains unchanged.
 - `device_token` is normalized to lowercase and upserted by
   `(device_token, platform, environment)`. It must contain only hexadecimal
   characters and be 32...512 characters long. The Edge Function may express that
@@ -5458,8 +5466,10 @@ The Explore iOS mapping, state, and presentation layers are:
   for notification catalog/count/read-state and push-registration requests.
   Three methods decode existing DTOs; mark-read returns the count without
   interpreting its required `success` flag, and push registration ignores
-  successful bodies. Notification Services/ViewModels retain catalog state;
-  Hardware retains push-token/permission and badge lifecycle
+  successful bodies. Feature Notification Services/ViewModels retain catalog
+  state; Core Notifications retains system push, account-aware latest-state
+  registration, and badge lifecycle. Its account scope remains local and does
+  not change the endpoint payload
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+PublicProfile.swift`
   for username/display-name/avatar updates and username availability. All four
   preserve raw payload values and typed server projections, including
@@ -5489,9 +5499,10 @@ The Explore iOS mapping, state, and presentation layers are:
 - `apps/ios/Merian/Features/Explore/Notifications/Services/` for the live
   notification catalog/read, comment/reply, current-viewer, telemetry, and error
   adapters
-- `apps/ios/Merian/Core/Hardware/PushNotificationManager.swift` for push
-  permission/token synchronization and the co-located `AppIconBadgeCoordinator`
-  unread-count refresh/cache policy
+- `apps/ios/Merian/Core/Notifications/` for push permission/token
+  synchronization, latest-state remote-registration coordination, local
+  scheduling/routing, and generation-fenced app-icon badge refresh/cache policy;
+  its `Services/` directory alone adapts the notification endpoints
 - `apps/ios/Merian/Features/Profile/Settings/Notifications/Services/NotificationSettingsDependencies.swift`
   for the Settings permission/remote-registration adapter; Settings state does
   not construct push payloads
@@ -5636,9 +5647,14 @@ The Explore detail page additionally uses:
   `ProfileViewModel` for the Profile account card username editor; display-name
   edits and final avatar promotion use the same shared owner and public-profile
   endpoint extension
-- `/register-push-device` through `PushNotificationManager` to sync the APNs
-  token, the Explore-specific push preference, the independent comment mention
-  push preference, and the independent Community identification push preference
+- `/register-push-device` through Core Notifications' `PushRegistrationService`,
+  coordinated by `PushRegistrationCoordinator` and entered through
+  `PushNotificationManager`, to sync the APNs token, environment,
+  Explore-specific push preference, independent comment-mention push preference,
+  and independent Community Identification push preference. A changed
+  token/settings/account snapshot admitted during an active request drains
+  afterward instead of being dropped; the account scope remains local and is not
+  a seventh wire field.
 
 The Explore map additionally uses:
 

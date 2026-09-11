@@ -1381,7 +1381,7 @@ Recommended feature module:
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Core/Network/Endpoints/`
-- `apps/ios/Merian/Core/Hardware/PushNotificationManager.swift`
+- `apps/ios/Merian/Core/Notifications/`
 - `apps/ios/Merian/Features/Profile/Shared/ViewModels/ProfileViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/Cards/ExplorePostCard.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/Media/ExploreFeedMediaHosts.swift`
@@ -1400,12 +1400,15 @@ Stateless wire construction and response projection live in
 refresh, retry, and cancellation while the main client injects its focused
 owners. Notification catalog/count/read-state and push registration use
 `MerianNetworkClient+Notifications.swift`. Feature Services and ViewModels
-retain catalog state, while Hardware's `PushNotificationManager` and
-`AppIconBadgeCoordinator` retain token/permission and badge lifecycle.
-Public-identity updates and username availability use
-`MerianNetworkClient+PublicProfile.swift`; shared `ProfileViewModel` retains
-identity state/events and avatar signing/upload orchestration. Composer media,
-share-state and incident reads, unshare, and public-notes/content edits use
+retain catalog state, while Core Notifications' `PushNotificationManager`,
+`PushRegistrationCoordinator`, and `AppIconBadgeController` retain
+token/permission, account-aware latest-state registration, and badge lifecycle
+behind the stable push and badge facades. Registration account scope remains
+local coordination metadata and is not sent to the endpoint. Public-identity
+updates and username availability use `MerianNetworkClient+PublicProfile.swift`;
+shared `ProfileViewModel` retains identity state/events and avatar
+signing/upload orchestration. Composer media, share-state and incident reads,
+unshare, and public-notes/content edits use
 `MerianNetworkClient+ExplorePostManagement.swift`. Feed, Insights Sharing, and
 Scans Shell retain adapters, draft/reconciliation state, and account fences;
 direct publication uses `MerianNetworkClient+ScanPublication.swift`, owned-row

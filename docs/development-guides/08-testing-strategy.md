@@ -923,9 +923,9 @@ injected closure dependencies for Settings state tests:
   [Core Network enrichment/export/feedback matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
 - `NotificationSettingsViewModelTests` covers authorization decisions, deferred
   enablement, disable behavior, stale-refresh fencing, and exact
-  remote-registration reason values. The live adapter delegates to Hardware's
-  `PushNotificationManager`; it does not own push payload construction.
-  `NotificationEndpointTests` and
+  remote-registration reason values. The live adapter delegates to Core
+  Notifications' `PushNotificationManager`; it does not own push payload
+  construction. `NotificationEndpointTests` and
   `NotificationAndPublicProfileEndpointTransportTests` retain wire/replay
   coverage. Cross-boundary changes also require the
   [Core Network notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification).
@@ -1796,16 +1796,25 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   cannot evict valid queued work. Capture workspace tests separately prove a
   route remains deferred during root interactive teardown and across a
   feature-local presentation until its exact `onDismiss` callback.
-- **`PushNotificationManagerTests.swift` and
-  `PushNotificationRoutingTests.swift`**: Construct `PushNotificationManager`
-  with an injected route-request closure backed by a private
-  `AppRouteCoordinator`. They validate Explore, Community, and scan tap payloads
-  without clearing or consuming the live app-host route queue.
-- **`AppIconBadgeCoordinatorTests.swift`**: Suspends an injected unread-count
-  load across accepted account cleanup and proves cancellation plus the account
-  generation fence reject the stale result instead of restoring the
-  coordinator's persisted unread count. The production reset continues through
-  the existing OS badge-update path.
+- **`Core/Notifications` suites**: `PushNotificationPolicyTests` locks token,
+  registration, Explore/Community/scan routing, foreground presentation, and
+  local descriptor contracts. `PushRegistrationCoordinatorTests` proves
+  changed/latest/equal in-flight snapshots drain or coalesce correctly and
+  failed equal work remains retryable. An equal token/settings snapshot under a
+  different account scope must still drain. `PushNotificationManagerTests`
+  injects system, preference, endpoint, account, identifier, and route effects
+  to cover category setup, idempotent permission persistence, permission
+  generations, prompt/status-poll overlap, prompt completion before remote
+  synchronization, APNs tokens, scheduling retry/deduplication, and typed route
+  emission without touching global OS or app-route state.
+  `AppIconBadgeControllerTests` covers count normalization/aggregation, overflow
+  saturation, single-flight loads, the ten-second reuse window, clock rollback,
+  failure retry, and stale-result rejection after both local mark-read and
+  account cleanup. `NotificationArchitectureTests` locks live-effect ownership,
+  local-only account scope, stable facades, retired paths, and the 400-line
+  production ceiling. Run those 34 Core tests with the five
+  `NotificationSettingsViewModelTests` boundary cases using the canonical
+  [Core Notifications focused matrix](../../apps/ios/Merian/Core/Notifications/README.md#verification).
 - **`EventDeliveryTests.swift`**: Locks synchronous and reentrant `AppEvent`
   delivery, cancellation behavior, main-actor ordering for framework publisher
   bridges, and generation-fenced media observation after player replacement and
@@ -2780,8 +2789,25 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   preflight cleanup does not initialize the microphone plus cancellation resets
   recording and level state. Describe session fencing remains in the
   feature-owned view-model suite.
-- **`EnvironmentContextManagerTests.swift`**: Asserts safe async handling over
-  simulated `CLLocationManager` outputs for offline contexts.
+- **Environment context suites**: Live under `Core/Hardware/EnvironmentContext/`
+  and use initializer-injected probes rather than
+  `EnvironmentContextManager.shared` or Apple services.
+  `EnvironmentLocationPolicyTests` locks authorization/prompt decisions, the
+  inclusive 0...30 m accuracy boundary, invalid-fix rejection, cache precision,
+  placemark display, and ISO-region normalization.
+  `EnvironmentLocationControllerTests` covers authorization coalescing, prompt
+  suppression, overlapping one-shot requests, coarse timeout fallback without
+  accurate-cache promotion, request-scoped and high-level cancellation,
+  authorization revocation, stale timeout-generation rejection, and
+  authorization-delayed live tracking. `EnvironmentGeocodingServiceTests` covers
+  shared placemark projection, same-coordinate request coalescing, retryable nil
+  and empty results, and bounded eviction. `EnvironmentContextManagerTests`
+  covers observable state projection, stable static policy wrappers,
+  unauthorized effect suppression, concurrent geocode/weather work, weather
+  failure fallback, historical capture-date preservation, and passive no-prompt
+  resolution. `EnvironmentContextArchitectureTests` freezes focused ownership,
+  framework exclusions, facade compatibility, retired aggregates, and production
+  line ceilings.
 - **Haptic feedback suites**: `HapticManagerTests` exercises the injected facade
   admission gates, all four impact routes, selection, success, delayed error,
   audio-session preparation, and attempt projection without constructing
@@ -2793,6 +2819,25 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   ownership, main-actor hardware closures, framework separation, test rehoming,
   and focused line ceilings. Capture's pure release policy lives in
   `CaptureButtonHapticFeedbackTests` under `Core/UI`.
+
+Run the focused environment-context matrix after changing authorization,
+location accuracy, timeout/cancellation, geocoding/cache, WeatherKit, passive
+region/name, or deferred/historical context behavior:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/EnvironmentLocationPolicyTests \
+  -only-testing:merianTests/EnvironmentLocationControllerTests \
+  -only-testing:merianTests/EnvironmentGeocodingServiceTests \
+  -only-testing:merianTests/EnvironmentContextManagerTests \
+  -only-testing:merianTests/EnvironmentContextArchitectureTests test
+```
+
+The boundary currently contains 31 deterministic tests. The final Environment
+Context cleanup checkpoint, including focused and complete-target execution
+evidence, is recorded in
+[Core Hardware Environment Context Boundary](../rfcs/codebase-cleanup.md#core-hardware-environment-context-boundary).
 
 Run the focused haptic matrix after changing a semantic trigger, global gate,
 hardware adapter, fallback, engine lifecycle, or Capture control mapping:
@@ -5508,45 +5553,46 @@ explicit badge taps. The smoke requires the exact three labels in order and
 rechecks that the native badge accessibility frame stays inside the app window
 after each opacity-only label transition. Every configured UI-test launch also
 includes `-seedLocationPermissionPromptSuppressed`; the Debug seed coordinator
-accepts it only with the `UITesting` environment contract, and
-`EnvironmentContextManager` applies it at both location-authorization request
-entry points. The fixture does not invent an authorized state or location. It
-only prevents a fresh simulator's Core Location alert from consuming the first
-deterministic interaction. A location-permission UI test must launch without
-that argument. The Release archive marker denylist prevents this Debug contract
-from reaching the shipped executable. `LocalVisualAnalysisTests` exercise the
-contained local-analysis coordinator through the stable engine adapters and lock
-Vision threshold and margin qualification, every broad-category mapping,
-directly observable phrase decks, deterministic pixel inputs producing distinct
-palette cues; concrete saturation, lighting, contrast, and surface wording;
-rejection of vague midpoint bucket language; the injected clock and monotonic
-generic → category → local-trait → Foundation source handoff; and full-deck
-exhaustion before a phrase cycle wraps. They also cover natural verb-led
-rendering without `Kind: detail` labels, handoff ordering that consumes unseen
-entries before any prior phrase repeats, focus-region crop math, partial
-snapshot buffering, duplicate and unsafe cue rejection, runtime
-power/thermal/lifecycle eligibility, provider errors, replacement fences,
-idempotent consecutive inactive/background handling, app-deactivation
-cancellation without visible-copy regression, phrase rotation and Foundation
-streams, and cancellation of a permanently hung stream at simulated Gemini
-response arrival. The architecture suite separately locks the coordinator's
-private task/image/phrase ownership, aggregate removal, and 600-line split.
-`InsightQueuedHandoffTests` and `InsightMediaSuppressionTests` separately prove
-that an exact active-visual live-to-queue handoff carries contextual phrases and
-in-memory carousel media, that save plus offline/online changes preserve its
-cursor, and that the carousel overlay remains active for the exact handoff in
-pending, uploading, staged, and inferencing. The same matrix rejects mismatched
-IDs, failed/external-import/attention states, and ordinary queued states before
-inferencing. `ImageFocusRegionDetectorTests` retain Core Vision candidate and
-geometry resolution coverage. `InsightMediaFocusPresentationTests` lock the
-carousel focus geometry, time-derived sweep, Reduce Motion midpoint, same-scan
-animation-session continuity, and resets for a different scan or a later
-analysis after completion. Engine tests cover prepared generic handoff, stale-ID
-rejection, audio/Describe isolation, dismissal with a late producer completion,
-visual-only reactivation, and atomic Auth cleanup of both phrase and media
-state. Separate non-cooperative trait-extractor cases prove Gemini completion
-returns immediately, replacement clears task ownership, and either boundary
-rejects the eventual stale cue.
+accepts it only with the `UITesting` environment contract, and the
+`EnvironmentContextManager` facade passes it through the shared prompt policy to
+`EnvironmentLocationController` at both authorization entry points. The fixture
+does not invent an authorized state or location. It only prevents a fresh
+simulator's Core Location alert from consuming the first deterministic
+interaction. A location-permission UI test must launch without that argument.
+The Release archive marker denylist prevents this Debug contract from reaching
+the shipped executable. `LocalVisualAnalysisTests` exercise the contained
+local-analysis coordinator through the stable engine adapters and lock Vision
+threshold and margin qualification, every broad-category mapping, directly
+observable phrase decks, deterministic pixel inputs producing distinct palette
+cues; concrete saturation, lighting, contrast, and surface wording; rejection of
+vague midpoint bucket language; the injected clock and monotonic generic →
+category → local-trait → Foundation source handoff; and full-deck exhaustion
+before a phrase cycle wraps. They also cover natural verb-led rendering without
+`Kind: detail` labels, handoff ordering that consumes unseen entries before any
+prior phrase repeats, focus-region crop math, partial snapshot buffering,
+duplicate and unsafe cue rejection, runtime power/thermal/lifecycle eligibility,
+provider errors, replacement fences, idempotent consecutive inactive/background
+handling, app-deactivation cancellation without visible-copy regression, phrase
+rotation and Foundation streams, and cancellation of a permanently hung stream
+at simulated Gemini response arrival. The architecture suite separately locks
+the coordinator's private task/image/phrase ownership, aggregate removal, and
+600-line split. `InsightQueuedHandoffTests` and `InsightMediaSuppressionTests`
+separately prove that an exact active-visual live-to-queue handoff carries
+contextual phrases and in-memory carousel media, that save plus offline/online
+changes preserve its cursor, and that the carousel overlay remains active for
+the exact handoff in pending, uploading, staged, and inferencing. The same
+matrix rejects mismatched IDs, failed/external-import/attention states, and
+ordinary queued states before inferencing. `ImageFocusRegionDetectorTests`
+retain Core Vision candidate and geometry resolution coverage.
+`InsightMediaFocusPresentationTests` lock the carousel focus geometry,
+time-derived sweep, Reduce Motion midpoint, same-scan animation-session
+continuity, and resets for a different scan or a later analysis after
+completion. Engine tests cover prepared generic handoff, stale-ID rejection,
+audio/Describe isolation, dismissal with a late producer completion, visual-only
+reactivation, and atomic Auth cleanup of both phrase and media state. Separate
+non-cooperative trait-extractor cases prove Gemini completion returns
+immediately, replacement clears task ownership, and either boundary rejects the
+eventual stale cue.
 
 Retry presentation tests cover every safe reason category, live countdown,
 elapsed-deadline silence, offline behavior, action eligibility, and a sentinel

@@ -82,6 +82,13 @@ orphaned object does not reconstruct its relational context.
   and periodic time callbacks are owned by `MediaPlaybackObservation`, which
   removes exact old-player tokens and rejects late callbacks with a generation
   fence.
+- System-notification effects are isolated under `Core/Notifications` rather
+  than mixed with Hardware or the application event bus. The stable manager and
+  badge facades preserve callers; focused Services own notification-center,
+  application, defaults, authenticated-account, push-registration, and
+  unread-count access; pure Policies own route/presentation decisions; and
+  coordinators/controllers own generation-fenced mutable work. Explore retains
+  its visible activity catalog and mark-read adapters.
 - Ordinary visual feedback is a typed, lightweight `ToastPayload` rendered by an
   alignment-scoped modifier; it accepts input only when a typed action and its
   view-owned handler both exist. Milestone feedback is a DI-owned, bounded and
@@ -152,17 +159,21 @@ orphaned object does not reconstruct its relational context.
   generator preparation is deferred in a main-actor task for 300 milliseconds,
   allowing the main thread to complete the heavy hardware layers
   (`AVCaptureSession`) unimpeded.
-- **Battery-bounded Context Tracking (`EnvironmentContextManager`):** Manages
-  `CoreLocation` and `WeatherKit` with coarse, pausable location updates while
-  the camera is active, then fires a one-shot high-accuracy `requestLocation()`
-  when the shutter is pressed. Heading updates are not started because compass
-  telemetry is not part of the active inference payload. The shutter location is
-  used for the Photos asset location and deferred weather/geocode context, while
-  stale cached coordinates remain a fallback if GPS cannot settle within the
-  timeout. It also backfills historical edge metadata (GPS and past WeatherKit
-  conditions) from `PHAsset` context for in-app gallery picks or embedded
-  ImageIO metadata for Photos document imports prior to inference. Date-only and
-  coordinate-only imports preserve only the fields actually present.
+- **Battery-bounded Context Tracking (`EnvironmentContextManager`):** The stable
+  facade projects state from `EnvironmentLocationController`, the sole Core
+  Location delegate and authorization/tracking/one-shot owner. It uses coarse,
+  pausable updates while the camera is active, then temporarily requests high
+  accuracy when the shutter is pressed. The shared two-second waiter timeout is
+  exact-generation fenced; heading updates remain disabled because compass
+  telemetry is absent from the active inference payload. The shutter fix feeds
+  the Photos asset and deferred context, preferring an accurate cache before the
+  coarse fallback if GPS cannot settle. Invalid negative-accuracy fixes are
+  ignored; a coarse timeout result is not promoted into the accurate cache; and
+  task cancellation or authorization revocation cannot escape through a cached
+  return. `EnvironmentGeocodingService` alone owns coalesced bounded
+  `CLGeocoder` work, and `EnvironmentWeatherService` alone owns current and
+  historical WeatherKit lookup. Gallery and shared-file imports preserve only
+  the historical date/location fields actually present.
 
 ### 4. Ephemeral Offline-First Sync (`OfflineQueueManager`, `OfflineJobScheduler`, `SwiftData`)
 

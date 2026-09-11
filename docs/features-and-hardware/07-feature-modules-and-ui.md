@@ -1504,21 +1504,26 @@ dependency composition.
   `PostIdentificationNotificationSheetView` when the AI resolves its first edge
   lookup over the network. `NotificationSettingsViewModel` owns authorization,
   pending preference, and stable remote-registration reason selection, while
-  `NotificationSettingsDependencies` owns notification-center, system Settings,
-  and push-manager access. `NotificationSettingsView` retains only preference
-  bindings and presentation. Authorization refreshes are generation-fenced, so a
-  result from an earlier refresh cannot replace newer permission state.
-  Navigation uses a `Button` + `.navigationDestination(isPresented:)` pattern
-  (not `NavigationLink`) to avoid the double-chevron that SwiftUI's `List`
-  injects on `NavigationLink` labels. The toggles inside the settings list
-  mutate the typed `AppSettings` notification properties through custom
-  `Binding(get:set:)` wrappers. If a user attempts to enable an alert type and
-  their OS status is `.notDetermined`, the app intercepts the interaction and
-  presents the `PostIdentificationNotificationSheetView` dynamically. If denied,
-  it routes them directly into the iOS settings app url domain
-  (`UIApplication.openSettingsURLString`). `Discovery Complete` deep link alerts
-  are queued to the OS only when `HardwareOrchestrator` resolves `!= .active`,
-  preventing popovers while the user is inside the app.
+  `NotificationSettingsDependencies` adapts Core Notifications' system-status
+  service, system Settings, and push-manager access. `NotificationSettingsView`
+  retains only preference bindings and presentation. Authorization refreshes are
+  generation-fenced, so a result from an earlier refresh cannot replace newer
+  permission state. Native prompt completion returns before remote registration
+  synchronization, allowing the sheet to commit its pending preference and
+  dismiss without waiting for endpoint latency. Navigation uses a `Button` +
+  `.navigationDestination(isPresented:)` pattern (not `NavigationLink`) to avoid
+  the double-chevron that SwiftUI's `List` injects on `NavigationLink` labels.
+  The toggles inside the settings list mutate the typed `AppSettings`
+  notification properties through custom `Binding(get:set:)` wrappers. If a user
+  attempts to enable an alert type and their OS status is `.notDetermined`, the
+  app intercepts the interaction and presents the
+  `PostIdentificationNotificationSheetView` dynamically. If denied, it routes
+  them directly into the iOS settings app url domain
+  (`UIApplication.openSettingsURLString`). Inference completion alerts are
+  always queued; Core Notifications' synchronous foreground policy suppresses
+  them only while the Insight surface marks inference banners suppressed. This
+  preserves background delivery and still alerts users who browse elsewhere in
+  the foreground.
 - **Changelog (`ChangelogView`)**: The Settings list includes a plain
   "Changelog" row in the Resources section. It pushes `ChangelogView`, which
   reads bundled structured notes from
@@ -1673,8 +1678,10 @@ dependency composition.
 
 - Hooks into iOS 17.2 tactile hardware boundaries, ensuring that pressing
   physical hardware buttons triggers the same `EnvironmentContextManager`
-  background `MKReverseGeocodingRequest` and `WeatherService` hooks as the
-  screen UI.
+  request path as the screen UI. The facade delegates one-shot Core Location to
+  `EnvironmentLocationController`, reverse geocoding to
+  `EnvironmentGeocodingService`, and weather lookup to
+  `EnvironmentWeatherService`.
 - Live camera still capture binds the shutter-time GPS snapshot into the saved
   Camera Roll asset. Imported photos instead preserve only the historical
   date/location that Photos or ImageIO actually supplies; excluding Location in

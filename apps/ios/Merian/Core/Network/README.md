@@ -396,9 +396,12 @@ feature-owned state tests.
 `Endpoints/MerianNetworkClient+Notifications.swift` owns four methods:
 `getExploreNotifications`, `getUnreadExploreNotificationCount`,
 `markExploreNotificationsRead`, and `registerPushDevice`. Notification Services
-and ViewModels retain catalog, pagination, and read-clearing state;
-`PushNotificationManager` retains OS permission, token, and registration
-lifecycle work; `AppIconBadgeCoordinator` retains badge refresh/cache policy.
+and ViewModels under Explore retain catalog, pagination, and read-clearing
+state; Core Notifications' `PushNotificationManager` retains OS permission and
+token entry points, `PushRegistrationCoordinator` owns account-aware
+latest-state registration draining, and `AppIconBadgeController` owns badge
+refresh/cache state behind the source-compatible badge facade. Only their
+focused Services call these endpoints.
 
 The endpoint owner preserves caller limits, paired cursors (including a complete
 blank pair), server row order, and top-level count projections without clamping.
@@ -406,7 +409,8 @@ Mark-read still decodes the required `success` field but returns `markedCount`
 without interpreting that flag. Push registration sends all six existing fields,
 including `platform: "ios"` and all three independent Boolean preferences, and
 ignores successful response bodies. No token/environment normalization or new
-response validation occurs in this layer.
+response validation occurs in this layer. The Core Notifications account scope
+is process-local coordination metadata and never enters this six-field payload.
 
 ### Public-profile endpoints
 
@@ -1393,8 +1397,11 @@ xcodebuild test \
   -only-testing:merianTests/ExploreNotificationRowPresentationTests \
   -only-testing:merianTests/ExploreNotificationNavigationCoordinatorTests \
   -only-testing:merianTests/ExploreCommentAuthorPresentationTests \
+  -only-testing:merianTests/PushNotificationPolicyTests \
+  -only-testing:merianTests/PushRegistrationCoordinatorTests \
   -only-testing:merianTests/PushNotificationManagerTests \
-  -only-testing:merianTests/PushNotificationRoutingTests \
+  -only-testing:merianTests/AppIconBadgeControllerTests \
+  -only-testing:merianTests/NotificationArchitectureTests \
   -only-testing:merianTests/NotificationSettingsViewModelTests \
   -only-testing:merianTests/ProfileViewModelTests \
   -only-testing:merianTests/ProfileTabViewModelTests \
@@ -1964,7 +1971,7 @@ xcodebuild test \
   -only-testing:merianTests/ScanRepositoryPurgeTests \
   -only-testing:merianTests/AccountScopedPreferencesTests \
   -only-testing:merianTests/GamificationManagerTests \
-  -only-testing:merianTests/AppIconBadgeCoordinatorTests \
+  -only-testing:merianTests/AppIconBadgeControllerTests \
   -only-testing:merianTests/AppDIContainerTests
 ```
 
