@@ -61,6 +61,9 @@ orphaned object does not reconstruct its relational context.
 
 ### 2. Typed Events, Routes, and Presentation Coordination
 
+- `Core/Routing` separates immutable Models, deterministic Policies, and
+  DI-scoped Coordination. Models and Policies remain effect-free; Coordination
+  owns the only mutable app-event and root-route delivery state.
 - Loss-tolerant reload hints and lifecycle commands use the synchronous,
   `@MainActor` `AppEventPublisher`. Events carry only IDs and small scalar
   hints; SwiftData, UserDefaults, Supabase, or the owning service remains

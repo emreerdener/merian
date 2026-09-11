@@ -52,7 +52,7 @@ struct SpeciesPreferencesArchitectureTests {
 
         let aggregate = try contents(
             of: repositoryRoot.appendingPathComponent(
-                "apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift"
+                "apps/ios/Merian/Core/Preferences/UserDefaultsKeys.swift"
             )
         )
         for declaration in Self.expectedDeclarationOwners.keys {

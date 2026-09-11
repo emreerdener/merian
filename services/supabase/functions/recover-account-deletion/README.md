@@ -89,8 +89,9 @@ Executable coverage lives in `handler_test.ts`,
 `../_tests/accountDeletionCoverage.test.ts`,
 `../_tests/accountDeletionMigrationContract.test.ts`, and
 `../../tests/account_deletion_security.sql`. The coverage contract reads the
-native `SupabaseManager` adapter and extracted `AccountDeletionWorkflow`
-together; moving either owner requires updating that cross-language path and
+native `SupabaseManager` adapter, extracted `AccountDeletionWorkflow`,
+Security-owned recovery-state model, durable phase store, and capability store
+together. Moving any owner requires updating that cross-language path and
 running the focused Deno test in the same change. The native workflow tests own
 preflight, post-legacy-marker, post-preparation, and post-v2-marker-pair
 cancellation. This cross-language guard additionally pins cancellation between

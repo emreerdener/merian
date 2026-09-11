@@ -219,8 +219,10 @@ recursive updates or `EXC_BAD_ACCESS` warnings.
 `AppDIContainer.swift` wires the shared dependency graph:
 
 - A global singleton providing protocol-free dependency injection.
-- Owns the typed `AppEventPublisher` and bounded `AppRouteCoordinator`, plus the
-  production `MilestoneToastPresenter`, host registry, clock, and
+- Composes the `Core/Routing` typed `AppEventPublisher` and bounded
+  `AppRouteCoordinator`; their immutable values and deterministic policy remain
+  separate from the DI-scoped mutable delivery state. The container also owns
+  the production `MilestoneToastPresenter`, host registry, clock, and
   `ScanMilestoneCoordinator`. Ordinary feedback remains a view-owned
   `ToastPayload`; application code never uses `NotificationCenter` as an event
   bus or creates a second root sheet.

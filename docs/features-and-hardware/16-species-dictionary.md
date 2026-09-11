@@ -84,7 +84,8 @@ Primary files:
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+FieldChat.swift`
 - `apps/ios/Merian/Core/Network/Decoding/FieldChatResponseDecoder.swift`
 - `apps/ios/Merian/Core/Network/InsightChatAPIModels.swift`
-- `apps/ios/Merian/Core/Utilities/AppRouteCoordinator.swift`
+- `apps/ios/Merian/Core/Routing/Models/AppRouteModels.swift`
+- `apps/ios/Merian/Core/Routing/Coordination/AppRouteCoordinator.swift`
 - `apps/ios/Merian/App/MerianApp.swift`
 - `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+Routing.swift`
 - `apps/ios/Merian/Features/Explore/Shell/Views/ExploreView.swift`

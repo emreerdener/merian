@@ -37,10 +37,11 @@ synchronization, authentication, networking, or feature presentation.
   the in-memory image cache. It runs only after SwiftData and preference cleanup
   succeed.
 
-`Core/Utilities/UserDefaultsKeys.swift` remains the single registry for exact
-persisted key strings. Do not duplicate or rename those strings during an
-ownership move. Account-deletion recovery state and Keychain key names remain in
-that aggregate for their separately reviewed security slice.
+`UserDefaultsKeys.swift` is the single registry for exact persisted key strings.
+Do not duplicate or rename those strings during an ownership move.
+Account-deletion recovery models and local stores live in
+`Core/Security/AccountDeletion`; Keychain key names live in
+`Core/Security/KeychainKeys.swift`.
 
 ## Boundaries
 
@@ -85,6 +86,8 @@ Mirrored tests live in `MerianTests/Core/Preferences/`:
   runtime-owner delegation.
 - `PreferencesArchitectureTests.swift` freezes declaration ownership, exact
   extracted-file inventory, dependency boundaries, and the 600-line ceiling.
+- `UserDefaultsKeysTests.swift` freezes the complete exact installed-key map so
+  organizational moves cannot silently rename or omit persisted state.
 
 The process owners have direct reset/race coverage in
 `MerianTests/Core/Analytics/GamificationManagerTests.swift` and

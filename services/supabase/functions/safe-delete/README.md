@@ -328,6 +328,16 @@ cancellation fence to follow durable marker persistence and precede destructive
 commit. A cancelled task retains any already-written recovery evidence but
 cannot invoke legacy intake or v2 commit.
 
+That cross-language guard reads these native owners:
+
+- `SupabaseManager`
+- `AccountDeletionWorkflow`
+- `Core/Security/AccountDeletion/Models/AccountDeletionLocalRecoveryState.swift`
+- `Core/Security/AccountDeletion/Stores/AccountDeletionLocalCleanupStore.swift`
+- `Core/Security/AccountDeletion/Stores/AccountDeletionRecoveryCapabilityStore.swift`
+
+Moving any owner requires updating its executable path in the same change.
+
 See the
 [canonical Sign in with Apple deletion contract](../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md)
 for secret provisioning, rotation, client rollout, and production smokes.
@@ -335,9 +345,10 @@ for secret provisioning, rotation, client rollout, and production smokes.
 The iOS request methods live in
 `Core/Network/Endpoints/MerianNetworkClient+AccountDeletion.swift`; unchanged
 DTOs and pure receipt/proof validation have separate Core Network owners.
-Private transport stays in the client, while `SupabaseManager`, Core Security,
-and `AppDIContainer` retain Auth transition, Keychain, and local cleanup
-authority. See the
+Private transport stays in the client, while `SupabaseManager`,
+`Core/Security/AccountDeletion`, and the Settings adapter retain Auth
+transition, Keychain, durable recovery-phase, and local-cleanup authority. See
+the
 [native ownership and verification matrix](../../../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification)
 for endpoint, decoder, transport, and workflow coverage. This native extraction
 does not change this Function or its release controls.

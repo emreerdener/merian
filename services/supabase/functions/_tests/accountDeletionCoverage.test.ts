@@ -59,11 +59,15 @@ const preparedRecoveryV2MigrationUrl = new URL(
   import.meta.url,
 );
 const swiftRecoveryCapabilityUrl = new URL(
-  "../../../../apps/ios/Merian/Core/Security/AccountDeletionRecoveryCapability.swift",
+  "../../../../apps/ios/Merian/Core/Security/AccountDeletion/Stores/AccountDeletionRecoveryCapabilityStore.swift",
   import.meta.url,
 );
-const swiftDeletionStateUrl = new URL(
-  "../../../../apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift",
+const swiftDeletionStateModelUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/AccountDeletion/Models/AccountDeletionLocalRecoveryState.swift",
+  import.meta.url,
+);
+const swiftDeletionStateStoreUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/AccountDeletion/Stores/AccountDeletionLocalCleanupStore.swift",
   import.meta.url,
 );
 
@@ -290,7 +294,8 @@ Deno.test("lost deletion responses recover through a hash-only public capability
     swiftCapability,
     swiftAuth,
     swiftDeletionWorkflow,
-    swiftDeletionState,
+    swiftDeletionStateModel,
+    swiftDeletionStateStore,
     config,
     workflow,
   ] = await Promise.all([
@@ -302,10 +307,13 @@ Deno.test("lost deletion responses recover through a hash-only public capability
     Deno.readTextFile(swiftRecoveryCapabilityUrl),
     Deno.readTextFile(swiftAuthUrl),
     Deno.readTextFile(swiftDeletionWorkflowUrl),
-    Deno.readTextFile(swiftDeletionStateUrl),
+    Deno.readTextFile(swiftDeletionStateModelUrl),
+    Deno.readTextFile(swiftDeletionStateStoreUrl),
     Deno.readTextFile(configUrl),
     Deno.readTextFile(workflowUrl),
   ]);
+  const swiftDeletionState =
+    `${swiftDeletionStateModel}\n${swiftDeletionStateStore}`;
 
   for (
     const fragment of [

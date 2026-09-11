@@ -1373,7 +1373,7 @@ See the focused
 
 ### `UserDefaultsKeys`
 
-- Centralized enum (`Core/Utilities/UserDefaultsKeys.swift`) holding all
+- Centralized enum (`Core/Preferences/UserDefaultsKeys.swift`) holding all
   persisted key strings.
 - Prevents silent key mismatches between storage sites. UI-facing state should
   normally flow through `AppSettings`, not local `@AppStorage` wrappers.
@@ -1547,7 +1547,7 @@ consults that Keychain entry.
 
 - `@MainActor @Observable` service living in
   `Core/Preferences/AppSettings.swift`; the exact key registry remains in
-  `Core/Utilities/UserDefaultsKeys.swift`.
+  `Core/Preferences/UserDefaultsKeys.swift`.
 - Owns the typed, in-memory representation of high-churn persisted settings such
   as `themeMode`, `isMultiCaptureEnabled`, `requiresScanConfirmation`,
   `showsCaptureGoalProgress`, `gridColumns`, `saveToCameraRoll`, and
@@ -1815,9 +1815,9 @@ consults that Keychain entry.
   the private capability-only transport's 20-second timeout, post-read 64 KiB
   cap, one bounded retry, and cancellation behavior. `Core/Network/Auth/` owns
   account-deletion classification and closure-injected phase sequencing;
-  `SupabaseManager`, Core Security, and `AppDIContainer` retain the live
-  transition, endpoint/SDK, Keychain, sign-out, and purge effects. The wire
-  layer adds no Auth bypass or cleanup authority. See the
+  `SupabaseManager`, `Core/Security/AccountDeletion`, and `AppDIContainer`
+  retain the live transition, endpoint/SDK, Keychain, sign-out, and purge
+  effects. The wire layer adds no Auth bypass or cleanup authority. See the
   [ownership guide](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-ownership)
   and
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification).
@@ -2334,6 +2334,12 @@ consults that Keychain entry.
 
 ### `AppEventPublisher` and `AppRouteCoordinator`
 
+- `Core/Routing/Models` owns immutable event, route, envelope, source, and
+  outcome values; `Policies` owns deterministic route decisions; and
+  `Coordination` owns the narrow capabilities plus mutable delivery state.
+  Models and Policies have no networking, persistence, singleton-resolution, or
+  presentation dependency. See the focused
+  [Core Routing guide](../../apps/ios/Merian/Core/Routing/README.md).
 - `AppDIContainer` owns one instance of each service. Preview containers receive
   isolated instances; neither type exposes a second static singleton.
 - `AppEventPublisher` is a synchronous `@MainActor` bus for loss-tolerant

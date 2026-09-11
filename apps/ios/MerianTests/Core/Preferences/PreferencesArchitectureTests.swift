@@ -33,21 +33,10 @@ struct PreferencesArchitectureTests {
             #expect(owners == [expectedPath])
         }
 
-        let aggregate = try contents(
-            of: repositoryRoot.appendingPathComponent(
-                "apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift"
-            )
+        let retiredPath = repositoryRoot.appendingPathComponent(
+            "apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift"
         )
-        for declaration in Self.expectedDeclarationOwners.keys {
-            #expect(!aggregate.contains(declaration))
-        }
-        for retiredImport in [
-            "import Combine",
-            "import Observation",
-            "import UIKit"
-        ] {
-            #expect(!aggregate.contains(retiredImport))
-        }
+        #expect(!FileManager.default.fileExists(atPath: retiredPath.path))
     }
 
     @Test func preferenceOwnersRemainNarrowAndBelowTheReviewCeiling() throws {
@@ -97,7 +86,8 @@ struct PreferencesArchitectureTests {
         "AppSettings.swift",
         "Stores/ExploreShareStateStore.swift",
         "Stores/FieldNotesStore.swift",
-        "Stores/SpeciesPreferredNameStore.swift"
+        "Stores/SpeciesPreferredNameStore.swift",
+        "UserDefaultsKeys.swift"
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
@@ -110,7 +100,8 @@ struct PreferencesArchitectureTests {
         ],
         "Stores/ExploreShareStateStore.swift": ["import Foundation"],
         "Stores/FieldNotesStore.swift": ["import Foundation"],
-        "Stores/SpeciesPreferredNameStore.swift": ["import Foundation"]
+        "Stores/SpeciesPreferredNameStore.swift": ["import Foundation"],
+        "UserDefaultsKeys.swift": []
     ]
 
     private static let expectedDeclarationOwners: [String: String] = [
@@ -127,7 +118,9 @@ struct PreferencesArchitectureTests {
         "struct SpeciesPreferredNameSyncDiagnostics":
             "apps/ios/Merian/Core/Preferences/Stores/SpeciesPreferredNameStore.swift",
         "enum SpeciesPreferredNameStore":
-            "apps/ios/Merian/Core/Preferences/Stores/SpeciesPreferredNameStore.swift"
+            "apps/ios/Merian/Core/Preferences/Stores/SpeciesPreferredNameStore.swift",
+        "enum UserDefaultsKeys":
+            "apps/ios/Merian/Core/Preferences/UserDefaultsKeys.swift"
     ]
 
     private func preferencesRoot() throws -> URL {

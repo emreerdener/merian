@@ -686,6 +686,12 @@ Coverage lives in `_shared/appleSignIn_test.ts`,
 deadline promotion coverage lives in
 `scripts/resolve_deployed_health_monitor_modes_test.ts`.
 
+The cross-language `accountDeletionCoverage.test.ts` guard reads the native
+`SupabaseManager` and `AccountDeletionWorkflow` owners together with
+`Core/Security/AccountDeletion`'s recovery-state model, durable phase store, and
+capability store. A native ownership move must update every executable source
+path and rerun that focused six-test contract.
+
 The complete Apple authorization, provider-stage, legacy fallback, hosted
 secret, rotation, rollout, and smoke-test contract is
 [`docs/backend-and-data/20-sign-in-with-apple-account-deletion.md`](../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).

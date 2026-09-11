@@ -1,7 +1,8 @@
 # Core Utilities
 
-The `Utilities` directory owns lightweight cross-cutting helpers and the typed
-process-local coordination primitives used across feature boundaries.
+The `Utilities` directory owns lightweight cross-cutting helpers that do not
+have a narrower Core or feature owner. Typed process-local event and route
+coordination lives in [`Core/Routing`](../Routing/README.md).
 
 `String+Trimming.swift` provides the single trim-to-non-empty normalization used
 by the shared scan-thumbnail projection, renderer, and reference-image backfill
@@ -51,31 +52,13 @@ coverage. Fixtures must not restore a queue context while production lifecycle
 tasks are still running, and background-phase tests restore the timestamp they
 write to standard preferences.
 
-## Typed event and route coordination
+## Routing boundary
 
-- `AppEventPublisher` is a DI-owned, synchronous `@MainActor` bus for
-  loss-tolerant invalidations and lifecycle hints. Producers receive
-  `AppEventSending`; consumers receive `AppEventStreaming`. The subject is
-  private, there is no `AppEventPublisher.shared`, and an event never replaces a
-  read from the authoritative SwiftData, UserDefaults, Supabase, or service
-  state. The erased subscriber stream is constructed once with the private
-  subject, so repeated `publisher` access does not allocate another wrapper.
-- `AppRouteCoordinator` is the bounded delivery state machine for root
-  navigation and presentation actions. Typed envelopes carry stable identity,
-  source priority, expiry, semantic coalescing, and account/session generations.
-  Route envelopes are process-local; durable imports and other recoverable work
-  stay in their owning stores.
-- `CaptureWorkspaceViewModel` is the sole root route consumer, and
-  `CameraSheetRouter` is the sole app-level sheet host. A feature must not add a
-  second global bus or sibling root sheet.
-
-Reference-type event subscribers retain and cancel their `AnyCancellable` and
-capture themselves weakly. SwiftUI `.onReceive` subscriptions are owned by the
-mounted view lifecycle. The event-routing guard rejects raw `.sink` use outside
-the reviewed lifetime-owner files; a new sink requires an explicit capture,
-storage, cancellation, ordering, and actor-delivery review. The exact owner
-matrix lives in the canonical routing contract; the allowlist is file-specific,
-not a general permission for a directory or feature.
+`Core/Routing` owns `AppEventPublisher`, `AppRouteCoordinator`, their immutable
+models and policies, and the producer/consumer protocols. Its README and the
+canonical routing contract define subscription lifetime, root presentation, and
+event-versus-route rules. Do not add event or route declarations back to
+Utilities.
 
 ## Framework publisher bridge
 
@@ -88,13 +71,13 @@ reentrant on `@MainActor`.
 `Core/Preferences/AppSettings.swift` is the one Preferences-owned
 `UserDefaults.didChangeNotification` boundary. It retains the exact observer
 token, captures its owner weakly, hops explicitly to the main actor, and removes
-the token during teardown. `UserDefaultsKeys.swift` remains the exact key
-registry plus the staged account-deletion and Keychain compatibility owner; it
-no longer imports Observation, UIKit, Supabase, or SwiftData. Durable species
-preference reconciliation lives in `Core/Data/SpeciesPreferences`; verified
-cleanup of account-derived defaults lives in
-`Core/Preferences/AccountScopedPreferences.swift` and deliberately leaves the
-Utilities-owned deletion marker and manual Apple notice intact.
+the token during teardown. `Core/Preferences/UserDefaultsKeys.swift` owns the
+exact persisted-key registry, while `Core/Security/KeychainKeys.swift` and
+`Core/Security/AccountDeletion/` own secure-key and deletion-recovery state.
+Durable species preference reconciliation lives in
+`Core/Data/SpeciesPreferences`; verified cleanup of account-derived defaults
+lives in `Core/Preferences/AccountScopedPreferences.swift` and deliberately
+leaves the Security-owned deletion marker and manual Apple notice intact.
 Application-defined notification names and posts are forbidden.
 
 See the canonical

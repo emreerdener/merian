@@ -282,6 +282,34 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertNil(viewModel.pendingCommunityIdentificationRequestId)
     }
 
+    func testMissingScanIsRejectedAndDoesNotStallTheQueue() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let container = AppDIContainer.preview
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: container,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        let requestID = container.appRouteCoordinator.request(
+            .scan(scanId: "definitely-missing-scan"),
+            source: .deepLink,
+            now: now
+        )
+
+        viewModel.consumeNextAppRoute(now: now)
+
+        XCTAssertNil(container.appRouteCoordinator.inFlightRequest)
+        XCTAssertNil(container.appRouteCoordinator.nextRequestID)
+        XCTAssertEqual(
+            container.appRouteCoordinator.recentOutcomes.last?.requestID,
+            requestID
+        )
+        XCTAssertEqual(
+            container.appRouteCoordinator.recentOutcomes.last?.outcome,
+            .rejected(reason: .targetUnavailable)
+        )
+    }
+
     func testSessionTimeoutResetClearsStaleExploreRoute() async throws {
         let diContainer = AppDIContainer.preview
         let viewModel = CaptureWorkspaceViewModel(
@@ -298,5 +326,4 @@ extension CaptureWorkspaceViewModelRefinementTests {
             viewModel.activeSheet == nil && viewModel.pendingExplorePostId == nil
         }
     }
-
 }

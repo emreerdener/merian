@@ -40,6 +40,13 @@ flowchart LR
 
 ## Dependency Ownership
 
+`Core/Routing` separates this infrastructure by responsibility. `Models/` owns
+the immutable event, route, envelope, source, and outcome values; `Policies/`
+owns deterministic coalescing, source, account-sensitivity, and terminality
+rules; and `Coordination/` owns the narrow capabilities plus mutable event and
+route delivery state. Models and Policies perform no networking, persistence,
+singleton resolution, or presentation.
+
 `AppDIContainer` constructs one `AppEventPublisher` and one
 `AppRouteCoordinator` for the application graph. Neither service exposes a
 second static singleton. Production process-global producers enter through
@@ -566,19 +573,28 @@ sink owner set above is enforced by the same fail-closed scan.
 
 ## Verification
 
-- `AppRouteCoordinatorTests` covers priority/FIFO ordering, semantic coalescing,
+- `Core/Routing/AppRoutePolicyTests` directly covers identifier normalization,
+  semantic coalescing, account sensitivity, source priority/lifetime/session
+  survival, and outcome terminality.
+- `Core/Routing/AppRouteCoordinatorTests` covers priority/FIFO ordering,
   overflow, expiry, account/session fences, deferral/resume, presentation
-  dismissal, duplicate callback identity, timeout suppression, and
-  missing-target rejection. Capture tests cover routed-sheet teardown and
-  feature-local cover deferral.
+  dismissal, duplicate callback identity, and timeout suppression. Capture Shell
+  routing tests cover missing-target rejection, routed-sheet teardown, and
+  feature-local cover deferral because those behaviors depend on the root route
+  consumer rather than the Core state machine alone.
+- `Core/Routing/AppEventPublisherTests` covers synchronous/reentrant event
+  delivery and cancellation. `Core/Routing/CoreRoutingArchitectureTests` locks
+  declaration ownership, exact imports, effect-free Models/Policies, retired
+  Utilities paths, feature-consumption test ownership, and the 600-line
+  production ceiling.
 - Core Notifications policy tests lock push payload-to-route projection without
   OS state. Manager tests inject a route recorder through
   `PushNotificationManager`'s route-request closure, so they never observe or
   drain the live app-host coordinator. The manager remains the
   `UNUserNotificationCenterDelegate`; `PushNotificationPolicy` is the sole
   notification payload parser.
-- `EventDeliveryTests` covers synchronous/reentrant event delivery, cancellable
-  main-actor framework delivery, and detached-player callback suppression.
+- `Core/Utilities/EventDeliveryTests` covers cancellable main-actor framework
+  delivery and detached-player callback suppression.
 - `ScanMilestoneCoordinatorTests` proves the coordinator publishes progress and
   scan-contribution invalidations only through its injected bus and routes every
   account, cache, acknowledgement, and achievement effect through isolated
@@ -601,8 +617,9 @@ sink owner set above is enforced by the same fail-closed scan.
   included in `make test-ios-ci-tooling`. Both `ios-project-guardrails.yml` and
   the primary iOS workflow execute the production guard; their path filters
   include the checker, its exact allowlist, and its adversarial test script. The
-  guard also rejects a shared feedback host that reaches through
-  `AppDIContainer.shared` instead of its injected route coordinator.
+  fixtures prove both canonical split owners are required. The guard also
+  rejects a shared feedback host that reaches through `AppDIContainer.shared`
+  instead of its injected route coordinator.
 - A local source-only verification can parse all production and test Swift files
   with `swiftc -frontend -parse`, but it does not replace the hosted
   `build-for-testing` plus complete `merianTests` execution. Simulator service

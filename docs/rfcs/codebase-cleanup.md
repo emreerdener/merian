@@ -131,7 +131,7 @@ Suggested first targets:
 | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/ios/Merian/Core/AI/InferenceEngine.swift`                              | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`                     | Complete for this hygiene round. Eighteen endpoint owners cover the extracted feature, inference, publication, lifecycle, collection-sync, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport.                                                                                                                                                                                                                                                                                        |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                      | Complete for this hygiene round. `Core/Preferences` owns `AppSettings`, keyed compatibility stores, the verified accepted-account-deletion cache inventory, and an injected post-persistence runtime reset; `Core/Data/SpeciesPreferences` owns SwiftData CRUD, normalization/conflict policy, exact PostgREST values, the narrow injected live client, focused local-mutation recovery, and contained single-flight cloud coordination. The residual aggregate is 450 lines and imports only Foundation. Mirrored suites cover settings/store behavior, schema-complete local erasure, explicit-null wire encoding, stable pagination, account fencing, clock skew, interruption recovery, mid-upsert edit fencing, trailing reconciliation, and process-state reset delegation. Account-deletion recovery state and Keychain keys intentionally remain for their separately reviewed security ownership.                                                                                                                                           |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                      | Retired. `Core/Preferences/UserDefaultsKeys.swift` owns the exact unchanged defaults strings; focused Preferences owners retain typed settings, compatibility stores, verified accepted-account-deletion cache inventory, and post-persistence runtime reset. `Core/Data/SpeciesPreferences` owns durable preferred-name state and synchronization. `Core/Security/KeychainKeys.swift` owns exact secure-key strings, and `Core/Security/AccountDeletion/{Models,Stores}` owns deletion recovery phases, manual-provider notice state, secure proof storage, and pre-Auth barrier restoration. Mirrored suites freeze every installed key string, declaration and test ownership, local-only effects, compatibility behavior, and the 600-line ceiling.                                                                                                                                                                                                                                                                                              |
 | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`      | Retired. Capture admission and live handoff, funding, Field Trip progress, and uploaded-scan inference replay now have focused Services owners; retry mutations remain in `OfflineQueueDurability.swift`. All production files in this slice are below 600 lines, and mirrored suites plus hosted-result validation follow the new ownership.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift` | Retired. Passes 5A through 5G moved terminal tracking, Auth quiescence, exact owner adoption, terminal routing, and delegate conformance into `Services/BackgroundTransfer`; generation-fenced upload completion into `Services/MediaUpload`; queued-row lookup/mapping and mirrored durable authority into `Persistence`; actor-independent inference decisions into `Policies`; and inference generation lifecycle, request dispatch, accepted task-result/transport-failure completion, delayed status probing, exact-generation task retirement, server-result recovery, durable-authority orphan reconciliation, and retry/server-poll lifetime plus response-to-persistence finalization into eight focused `Services/BackgroundInference` files. Both inference retry paths restore the durable wake immediately after persistence, before post-save ownership revalidation and optional process-local replacement. All nine Background Inference production owners, including policy, are below 600 lines.                                   |
 | `apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift`           | Complete for the actor aggregate. Collection sync lives across an immutable OfflineSync snapshot, an injected account-lease service, a persistence-only actor extension, and a Core Network endpoint owner. Queue selection, upload lifecycle, background-account work, inference lifecycle, inference retry, live/offline scan finalization, shared scan-record support, species metadata, and non-biological retention have separate persistence-only extensions with mirrored behavior and repository-wide architecture tests. An actor-isolated support extension reconciles the durable scan/job retry mirror for only upload and focused inference persistence. A source audit removed the speculative queued-audio repair path; the final unsupported-audio claim fence now lives with inference lifecycle. The declaration-only aggregate is 9 lines. Cross-domain background finalization, stateless record/media mapping, and shared foreground/background response preparation have focused owners with no schema, payload, or UI change. |
@@ -361,9 +361,9 @@ Implemented Core slices:
   process-state traits prevent peer suites from racing either singleton. This
   synchronous boundary does not claim whole-store replacement or unreferenced
   app-container file traversal, which requires a separate storage-owner
-  inventory. The residual `UserDefaultsKeys.swift` aggregate is Foundation-only
-  and 450 lines; account-deletion recovery state and Keychain keys remain for a
-  separately reviewed security slice. Mirrored suites and architecture guards
+  inventory. The subsequent ownership slice moved the unchanged defaults-key
+  registry into Core Preferences and moved account-deletion recovery state plus
+  Keychain key names into Core Security. Mirrored suites and architecture guards
   enforce injected dependency ownership and the 600-line production ceiling.
   Byte-stable XcodeGen, project/source membership, event-routing, tooling,
   documentation, parsing, strict lint, and focused production/test typechecking
@@ -4883,6 +4883,84 @@ new boundaries. No endpoint, payload, persistence, schema, feature flag,
 navigation, visible copy/layout, backend, deployment, or publication contract
 changes.
 
+### Core Routing foundation
+
+The first Core Utilities hygiene slice moves process-local cross-feature event
+and root-route infrastructure into `Core/Routing`. Immutable event, route,
+envelope, source, and outcome values live under `Models`; deterministic
+coalescing, account-sensitivity, source, and outcome rules live under
+`Policies`; and narrow capabilities plus the only mutable event and route
+delivery state live under `Coordination`. The former Utilities aggregate files
+are removed.
+
+The existing module-internal type and initializer surfaces remain stable.
+`AppEventPublisher` is still a synchronous, reentrant, DI-owned `@MainActor` bus
+with a private subject. `AppRouteCoordinator` retains the same queue bounds,
+priority/FIFO ordering, semantic coalescing, expiry, account/session fences,
+outcomes, and one-request presentation identity. No payload, persistence,
+navigation, endpoint, feature-flag, copy, or visual behavior changes.
+
+Mirrored Core Routing suites now separate pure policy, mutable coordinator,
+event-delivery, and architecture coverage. The architecture suite locks the
+exact source inventory and imports, effect-free Models and Policies, retired
+Utilities paths, feature-consumption test ownership, and the 600-line production
+ceiling. The Capture-specific missing-target regression lives with the concrete
+root route consumer under Capture Shell rather than importing feature
+composition into the Core coordinator suite. The event-routing guard reads the
+canonical event model and publisher owner independently, preserving its
+fail-closed event, subject, raw-sink, and platform-notification checks.
+
+XcodeGen is byte-stable. Project/resource and generated-source membership,
+production and adversarial event routing, the complete iOS CI-tooling contract,
+Swift parsing, focused production/test typechecking, strict SwiftLint, Markdown
+formatting, and whitespace checks pass. The code-signing-disabled generic iOS
+Simulator build passes. On the iOS 26.5 Simulator, the focused Core Routing plus
+Capture missing-target matrix passes 29 tests (28 Swift Testing cases and one
+XCTest), and the complete `merianTests` target passes 932 XCTest cases plus
+2,424 Swift Testing cases with zero failures.
+
+### Core preference-key and account-deletion security ownership
+
+The second Core Utilities hygiene slice retires the residual
+`Core/Utilities/UserDefaultsKeys.swift` aggregate. The exact 70 unchanged
+`UserDefaults` strings now live in `Core/Preferences/UserDefaultsKeys.swift`,
+while the exact 10 unchanged Keychain strings live in
+`Core/Security/KeychainKeys.swift`. Source-level registry tests freeze the full
+maps so a future organizational move cannot omit or rename installed state.
+
+Account-deletion recovery now has a focused
+`Core/Security/AccountDeletion/{Models,Stores}` package. Models own the exact
+installed recovery-phase raw values, fail-closed classification, prepared
+capability value, and existing localized storage error. Stores separately own
+the read-back-verified defaults phase, manual Apple-revocation notice, protocol
+v2 capability envelope, legacy protocol-v1 decoding, secure random generation,
+verified Keychain writes/removal, and pre-Auth barrier restoration. The former
+flat Security capability file is removed. Existing type and initializer
+surfaces, raw values, storage keys, accessibility, event timing, singleton live
+defaults, network workflow, payloads, routes, persistence formats, and UI remain
+unchanged.
+
+The capability store remains network-free. Core Network Auth retains workflow
+phase order through injected effects, `SupabaseManager` retains live Auth and
+endpoint assembly, and the Settings adapter retains accepted-account purge.
+Mirrored store suites now own tests previously mixed into `AppDIContainerTests`;
+the container suite retains container identity, preview isolation, and
+launch/root-presentation policy coverage. The Security architecture suite
+freezes the exact source/test inventory, declaration uniqueness, effect-free
+models, local-only stores, retired paths, and the 600-line production ceiling.
+The cross-language account-deletion source contract follows the relocated model
+and stores.
+
+Verification passes byte-stable XcodeGen, project/resource and generated-source
+membership, production and adversarial event routing, the complete iOS CI
+tooling contract, Swift parsing, strict focused production/test typechecking,
+strict SwiftLint, exact 70-key defaults and 10-key Keychain comparisons, the
+six-test cross-language account-deletion contract, recursive Supabase
+functions/scripts formatting, Markdown formatting, and whitespace checks. Full
+Xcode build and Simulator execution are not claimed for this local run:
+CoreSimulatorService is unavailable, and the managed host rejects SwiftPM's
+nested `sandbox-exec` before package compilation even with writable caches.
+
 ## Phase 3: Ownership Cleanup
 
 After the large files are split, move code to clearer long-term homes:
@@ -4903,7 +4981,8 @@ After the large files are split, move code to clearer long-term homes:
 - `Core/UI` should contain reusable primitives only; one-off feature chrome
   should move back into the feature.
 - `Core/Utilities` should shrink over time. New utilities belong there only when
-  at least two features use them.
+  at least two features use them. Process-local cross-feature event and root
+  route infrastructure belongs in `Core/Routing`.
 
 ## Validation Gates
 

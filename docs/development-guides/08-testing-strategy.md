@@ -1783,19 +1783,24 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   missing and ineligible scan rejection before the endpoint, publication state
   followed by event and success feedback only after endpoint success, and
   failure feedback without a false local publication commit.
-- **`AppRouteCoordinatorTests.swift`**: Locks priority/FIFO ordering, semantic
-  coalescing, latest lightweight pending payload with stable identity,
-  stronger-source promotion, bounded overflow, pending/deferred expiry without
-  expiring an already viewed presentation, explicit initial-session restoration
-  versus runtime sign-in fencing, session generations, defer/resume, exact
-  presentation dismissal, duplicate/stale callback rejection, external-route
-  timeout suppression, and missing-target rejection. A rejected route must
-  release the in-flight slot so later work cannot stall. Deferred-resume
-  regressions additionally prove that resume cannot exceed the pending bound, a
-  stronger live resume evicts exactly one eligible route, and an expired resume
-  cannot evict valid queued work. Capture workspace tests separately prove a
-  route remains deferred during root interactive teardown and across a
-  feature-local presentation until its exact `onDismiss` callback.
+- **`Core/Routing/AppRoutePolicyTests.swift`**: Locks identifier normalization,
+  semantic coalescing, account sensitivity, source priority/lifetime/session
+  survival, and outcome terminality independently of mutable coordination.
+- **`Core/Routing/AppRouteCoordinatorTests.swift`**: Locks priority/FIFO
+  ordering, semantic coalescing, latest lightweight pending payload with stable
+  identity, stronger-source promotion, bounded overflow, pending/deferred expiry
+  without expiring an already viewed presentation, explicit initial-session
+  restoration versus runtime sign-in fencing, session generations, defer/resume,
+  exact presentation dismissal, duplicate/stale callback rejection, and
+  external-route timeout suppression. Deferred-resume regressions additionally
+  prove that resume cannot exceed the pending bound, a stronger live resume
+  evicts exactly one eligible route, and an expired resume cannot evict valid
+  queued work.
+- **`Features/Capture/Shell/CaptureWorkspaceRoutingTests.swift`**: Locks root
+  route application and deferral against the concrete Capture workspace. It
+  proves that missing-target rejection releases the in-flight slot, that a route
+  remains deferred during root interactive teardown, and that feature-local
+  presentation remains deferred until its exact `onDismiss` callback.
 - **`Core/Notifications` suites**: `PushNotificationPolicyTests` locks token,
   registration, Explore/Community/scan routing, foreground presentation, and
   local descriptor contracts. `PushRegistrationCoordinatorTests` proves
@@ -1815,10 +1820,17 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   production ceiling. Run those 34 Core tests with the five
   `NotificationSettingsViewModelTests` boundary cases using the canonical
   [Core Notifications focused matrix](../../apps/ios/Merian/Core/Notifications/README.md#verification).
-- **`EventDeliveryTests.swift`**: Locks synchronous and reentrant `AppEvent`
-  delivery, cancellation behavior, main-actor ordering for framework publisher
-  bridges, and generation-fenced media observation after player replacement and
-  detach.
+- **`Core/Routing/AppEventPublisherTests.swift`**: Locks synchronous and
+  reentrant `AppEvent` delivery plus cancellation behavior.
+- **`Core/Routing/CoreRoutingArchitectureTests.swift`**: Locks exact production
+  ownership/imports, effect-free Models and Policies, retired Utilities paths,
+  feature route-consumption coverage in feature-owned suites, and the 600-line
+  production ceiling. Run all four Core suites with Capture's concrete
+  missing-target regression using the
+  [Core Routing focused matrix](../../apps/ios/Merian/Core/Routing/README.md#verification).
+- **`Core/Utilities/EventDeliveryTests.swift`**: Locks main-actor ordering for
+  framework publisher bridges and generation-fenced media observation after
+  player replacement and detach.
 - **`AppDIContainerTests.swift`**: Proves preview graphs receive independent
   event publishers, route coordinators, milestone presenters, and host
   registries. The event-routing source guard separately rejects any shared
@@ -1831,9 +1843,10 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   sync-diagnostic values, normalized duplicate markers, and monotonic delete
   generations; `AccountScopedPreferencesTests` locks the direct account-cache
   key/prefix inventory, read-back erasure, preservation of device settings, and
-  exact process-state reset delegation; and `PreferencesArchitectureTests` locks
-  the exact extracted-file production inventory, declaration ownership,
-  dependency exclusions, and 600-line extracted-owner ceiling.
+  exact process-state reset delegation; `UserDefaultsKeysTests` freezes the
+  complete exact installed-key map; and `PreferencesArchitectureTests` locks the
+  exact extracted-file production inventory, declaration ownership, dependency
+  exclusions, and 600-line extracted-owner ceiling.
 - **`Core/Data/SpeciesPreferences` suites**:
   `SpeciesPreferredNameRepositoryTests` retains account-isolated SwiftData CRUD,
   legacy discard, display-map, resource-limit, and conflict-policy coverage
@@ -1897,14 +1910,14 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   global retry-task bound, and routing account/cache/acknowledgement/
   achievement effects only through injected dependencies.
 - **Source guardrails**: `make validate-ios-event-routing` scans production
-  sources; `make test-ios-event-routing` exercises multiline, alias,
-  application-name/post, duplicate-subject, singleton, allowlist, and
-  test-target-exclusion fixtures. An adversarial leaky-owner fixture also proves
-  a raw Combine `.sink` outside the five exact reviewed lifetime owners is
-  rejected. These fixtures are part of `make test-ios-ci-tooling`. The fast
-  `ios-project-guardrails.yml` lane and the compiled iOS workflow both validate
-  the live repository, and both are path-sensitive to the checker, its exact
-  allowlist, and its fixture script.
+  sources; `make test-ios-event-routing` exercises missing canonical model/bus,
+  multiline, alias, application-name/post, duplicate-subject, singleton,
+  allowlist, and test-target-exclusion fixtures. An adversarial leaky-owner
+  fixture also proves a raw Combine `.sink` outside the five exact reviewed
+  lifetime owners is rejected. These fixtures are part of
+  `make test-ios-ci-tooling`. The fast `ios-project-guardrails.yml` lane and the
+  compiled iOS workflow both validate the live repository, and both are
+  path-sensitive to the checker, its exact allowlist, and its fixture script.
 - **Verification tiers**: A recursive `swiftc -frontend -parse` catches syntax
   errors quickly. A direct iOS module/test-target type-check can add useful
   compile evidence when CoreSimulator is unavailable, but neither runs XCTest,
@@ -2662,18 +2675,19 @@ before release.
   unreadable file is removed with terminal feedback. Confirmation and crop
   cancellation continue to be owned by the shared gallery staging tests rather
   than a second import-only pipeline.
-- **Launch presentation and explicit-route precedence**: `AppDIContainerTests`
-  proves `opensExploreOnLaunch` defaults off, persists an enabled value, reloads
-  from external `UserDefaults`, and requires both completed onboarding and
-  opt-in. The same suite locks the root matrix: incomplete onboarding presents
-  onboarding, completed/current consent presents the workspace,
-  completed/pending consent presents restoration, and completed/resolved missing
-  consent returns to onboarding. `CaptureWorkspaceViewModelRefinementTests`
-  initializes generic Explore, then verifies Photos/Files imports, Explore post
-  routes, community requests, scan routes, and the Scans library replace it. The
-  import case also sends the foreground timeout event and asserts the staged
-  image and required crop survive. Foreground returns must never be modeled as
-  another launch-policy evaluation.
+- **Launch presentation and explicit-route precedence**: `AppSettingsTests`
+  proves `opensExploreOnLaunch` defaults off, persists an enabled value, and
+  reloads external `UserDefaults` changes. `AppDIContainerTests` requires both
+  completed onboarding and opt-in before opening Explore and locks the root
+  matrix: incomplete onboarding presents onboarding, completed/current consent
+  presents the workspace, completed/pending consent presents restoration, and
+  completed/resolved missing consent returns to onboarding.
+  `CaptureWorkspaceViewModelRefinementTests` initializes generic Explore, then
+  verifies Photos/Files imports, Explore post routes, community requests, scan
+  routes, and the Scans library replace it. The import case also sends the
+  foreground timeout event and asserts the staged image and required crop
+  survive. Foreground returns must never be modeled as another launch-policy
+  evaluation.
 
 Run the focused Capture Shell matrix after changing its models, services, state,
 view-model extensions, root view, components, or modifiers:
@@ -5068,12 +5082,19 @@ device-evidence checks:
   repeats local cleanup, rejection-retirement relaunch removes the unused proof,
   restores only the exact cached source session, and then clears the marker
   without destructive local cleanup, while matched-expired recovery takes only
-  the conservative cleanup-then-acknowledge path. `AppDIContainerTests` proves
-  legacy Boolean and pre-capability markers remain compatible, unknown future
-  states fail closed before local erasure, and the manual notice survives until
-  explicit resolution. `AccountDeletionRecoveryCapabilityTests` cover
-  randomness, existing-proof reuse, locked/unreadable Keychain, write
-  verification, and read-after-delete verification.
+  the conservative cleanup-then-acknowledge path.
+  `AccountDeletionLocalCleanupStoreTests` proves legacy Boolean and
+  pre-capability markers remain compatible, unknown future states fail closed
+  before local erasure, and every exact installed phase remains readable.
+  `ManualAppleRevocationNoticeStoreTests` proves the notice persists before its
+  synchronous event and survives until explicit resolution.
+  `AccountDeletionRecoveryCapabilityStoreTests` covers randomness,
+  existing-proof reuse, locked/unreadable Keychain, write verification, and
+  read-after-delete verification. `AccountDeletionSecurityArchitectureTests`,
+  `KeychainKeysTests`, and `UserDefaultsKeysTests` freeze the new Security and
+  Preferences ownership plus every exact persisted key string.
+  `AppDIContainerTests` remains scoped to container identity, preview-graph
+  isolation, and launch/root-presentation policy.
 - The final fail-closed audit ran a freshly built combined
   account-deletion/Auth/Core Network and Explore media regression matrix on an
   iPhone 17 Pro iOS 26.4 Simulator. It passed 50 XCTest cases and 29 Swift

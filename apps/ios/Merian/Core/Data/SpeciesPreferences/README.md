@@ -38,7 +38,7 @@ next account that signs in.
 
 `Core/Preferences/Stores/SpeciesPreferredNameStore.swift` owns legacy cleanup
 and the account-partitioned pending-delete and support-diagnostic keys.
-`Core/Utilities/UserDefaultsKeys.swift` remains the exact key registry.
+`Core/Preferences/UserDefaultsKeys.swift` owns the exact key registry.
 
 ## Invariants
 

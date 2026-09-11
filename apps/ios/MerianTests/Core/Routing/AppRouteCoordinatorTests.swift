@@ -483,28 +483,4 @@ struct AppRouteCoordinatorTests {
         #expect(coordinator.shouldSuppressTimeoutReset(now: now.addingTimeInterval(5)))
         #expect(!coordinator.shouldSuppressTimeoutReset(now: now.addingTimeInterval(5.001)))
     }
-
-    @Test func missingScanIsRejectedAndDoesNotStallTheQueue() {
-        let container = AppDIContainer.preview
-        let viewModel = CaptureWorkspaceViewModel(
-            diContainer: container,
-            preparedImageLoader: { _ in nil },
-            prewarmHeadersOnInit: false
-        )
-        let requestID = container.appRouteCoordinator.request(
-            .scan(scanId: "definitely-missing-scan"),
-            source: .deepLink,
-            now: now
-        )
-
-        viewModel.consumeNextAppRoute(now: now)
-
-        #expect(container.appRouteCoordinator.inFlightRequest == nil)
-        #expect(container.appRouteCoordinator.nextRequestID == nil)
-        #expect(container.appRouteCoordinator.recentOutcomes.last?.requestID == requestID)
-        #expect(
-            container.appRouteCoordinator.recentOutcomes.last?.outcome
-                == .rejected(reason: .targetUnavailable)
-        )
-    }
 }

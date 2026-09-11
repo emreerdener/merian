@@ -1004,8 +1004,10 @@ Primary files:
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift`
 - `apps/ios/Merian/Core/UI/Feedback/{Models,Policies,Presentation,Coordination,Services}/`
 - `apps/ios/Merian/Core/UI/Feedback/AchievementToastBanner.swift`
-- `apps/ios/Merian/Core/Utilities/AppEventPublisher.swift`
-- `apps/ios/Merian/Core/Utilities/AppRouteCoordinator.swift`
+- `apps/ios/Merian/Core/Routing/Models/AppEvent.swift`
+- `apps/ios/Merian/Core/Routing/Models/AppRouteModels.swift`
+- `apps/ios/Merian/Core/Routing/Coordination/AppEventPublisher.swift`
+- `apps/ios/Merian/Core/Routing/Coordination/AppRouteCoordinator.swift`
 - `apps/ios/Merian/Core/AI/InferenceEngine.swift`
 - `apps/ios/Merian/Core/Data/OfflineSync/README.md`
 - `apps/ios/Merian/Core/Data/OfflineSync/Services/CaptureAdmission/OfflineQueueManager+CaptureEnqueue.swift`

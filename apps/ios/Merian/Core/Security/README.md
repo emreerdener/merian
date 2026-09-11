@@ -32,10 +32,15 @@ pin lifecycle. See the
 
 - `DeviceIdentityManager` persists the stable IDFV-backed device identity used
   before Supabase establishes the canonical account UUID.
-- `AccountDeletionRecoveryCapabilityStore` owns device-only deletion proofs:
-  secure generation, atomic v2 envelope storage, legacy proof decoding, verified
-  reads/removal, and pre-Auth-bootstrap barrier restoration. HTTP payloads and
-  receipt validation belong to Core Network, not this store.
+- `KeychainKeys.swift` is the single registry for exact app-owned Keychain key
+  strings. Ownership moves must not rename an installed key.
+- `AccountDeletion/` owns device-local deletion recovery models and stores:
+  durable fail-closed phases, the manual Apple-revocation notice, secure proof
+  generation, atomic v2 envelope storage, legacy proof decoding, verified
+  reads/removal, and pre-Auth-bootstrap barrier restoration. HTTP payloads,
+  receipt validation, workflow task lifetime, and account-local purge belong to
+  their existing Network and Settings owners; see its
+  [ownership guide](AccountDeletion/README.md).
 - `PurchaseIdentity/` owns purchase-principal domain and wire values,
   deterministic policies, capability and resolver-state Keychain stores, secure
   random generation, and the typed remote-service boundary. Its live adapter is
@@ -186,13 +191,22 @@ pin lifecycle. See the
 
 ## Account-deletion recovery authority
 
-`AccountDeletionRecoveryCapability.swift` keeps two independent 256-bit v2
-proofs in one read-after-write-verified Keychain envelope using
-`WhenUnlockedThisDeviceOnly`. The compatibility-named key continues to accept
-legacy 32-byte v1 data. The store does not send requests, select an account, or
-decide whether a receipt permits local erasure. A present or unreadable proof
-restores the conservative barrier before Auth bootstrap; verified absence can
-resolve that lookup barrier without deleting data.
+`AccountDeletion/Stores/AccountDeletionRecoveryCapabilityStore.swift` keeps two
+independent 256-bit v2 proofs in one read-after-write-verified Keychain envelope
+using `WhenUnlockedThisDeviceOnly`. The compatibility-named key continues to
+accept legacy 32-byte v1 data. The store does not send requests, select an
+account, or decide whether a receipt permits local erasure. A present or
+unreadable proof restores the conservative barrier before Auth bootstrap;
+verified absence can resolve that lookup barrier without deleting data.
+
+`AccountDeletion/Models/AccountDeletionLocalRecoveryState.swift` owns the exact
+installed phase values and fail-closed classification.
+`AccountDeletion/Stores/AccountDeletionLocalCleanupStore.swift` owns their
+read-back-verified `UserDefaults` marker, and
+`AccountDeletion/Stores/ManualAppleRevocationNoticeStore.swift` owns the
+separate legacy-provider notice. The exact defaults and secure-key strings live
+in `Core/Preferences/UserDefaultsKeys.swift` and `KeychainKeys.swift`; this move
+changes neither string nor storage format.
 
 `Core/Network/Auth/` owns the value-only transition/session/lease models,
 deterministic admission and account-deletion classification policy, ghost-merge

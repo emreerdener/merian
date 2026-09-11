@@ -632,7 +632,7 @@ unrelated views that mutate the same preference.
 
 ### ✅ The Pattern: `UserDefaultsKeys` + `AppSettings`
 
-- Keep storage names in `Core/Utilities/UserDefaultsKeys.swift`.
+- Keep storage names in `Core/Preferences/UserDefaultsKeys.swift`.
 - Expose typed, observable properties through
   `Core/Preferences/AppSettings.swift`.
 - Inject `AppSettings` via environment, or through the owning view model/manager

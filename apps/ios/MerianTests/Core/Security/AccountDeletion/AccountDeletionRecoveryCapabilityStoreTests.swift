@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 @Suite("Account Deletion Recovery Capability Tests")
-struct AccountDeletionRecoveryCapabilityTests {
+struct AccountDeletionRecoveryCapabilityStoreTests {
     private final class SecureStoreStub:
         AccountDeletionRecoverySecureStore {
         var values: [String: Data] = [:]
@@ -180,7 +180,8 @@ struct AccountDeletionRecoveryCapabilityTests {
     @MainActor
     @Test("A markerless or unreadable Keychain proof restores a pre-Auth barrier")
     func orphanedProofRestoresBarrierBeforeAuth() throws {
-        let suiteName = "AccountDeletionRecoveryCapabilityTests.\(UUID())"
+        let suiteName =
+            "AccountDeletionRecoveryCapabilityStoreTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let secureStore = SecureStoreStub()
@@ -200,7 +201,7 @@ struct AccountDeletionRecoveryCapabilityTests {
         )
 
         let uncertainSuiteName =
-            "AccountDeletionRecoveryCapabilityTests.\(UUID())"
+            "AccountDeletionRecoveryCapabilityStoreTests.\(UUID())"
         let uncertainDefaults = try #require(
             UserDefaults(suiteName: uncertainSuiteName)
         )
@@ -228,7 +229,8 @@ struct AccountDeletionRecoveryCapabilityTests {
     @MainActor
     @Test("Verified proof absence does not create a recovery barrier")
     func absentProofKeepsBootstrapOpen() throws {
-        let suiteName = "AccountDeletionRecoveryCapabilityTests.\(UUID())"
+        let suiteName =
+            "AccountDeletionRecoveryCapabilityStoreTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let secureStore = SecureStoreStub()

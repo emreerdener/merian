@@ -176,8 +176,11 @@ cached-session restoration eligibility.
 durable/prepared intake, accepted cleanup, proof retirement, deferred
 restoration, and pending cleanup through injected closures. `SupabaseManager`
 retains the live Auth, SDK, endpoint, Keychain, sign-out, purge, and lifecycle
-effect assembly. Core Security owns the proof store; `AppDIContainer` and the
-Settings adapter supply the account-local purge boundary.
+effect assembly. `Core/Security/AccountDeletion/` owns the device-local recovery
+models, phase and notice stores, and proof store;
+`Core/Preferences/UserDefaultsKeys.swift` and `Core/Security/KeychainKeys.swift`
+own the exact installed key strings. `AppDIContainer` and the Settings adapter
+supply the account-local purge boundary.
 
 The native intake owner rejects cancellation before any durable marker write. It
 checks again after the legacy marker, immediately before and after
@@ -266,9 +269,10 @@ The migration and these runtime consumers form one release unit:
 - `reconcile-account-deletions`
 - iOS `SupabaseManager`, `MerianNetworkClient`,
   `AccountDeletionTransitionPolicy`, `AccountDeletionWorkflow`,
-  `AccountDeletionRecoveryCapability`, the Settings
-  `AccountDeletionDependencies`, `DeleteAccountViewModel`, and
-  `DeleteAccountSheet` presentation path, and the app-root manual notice
+  `AccountDeletionRecoveryCapabilityStore`, the Security-owned local recovery
+  and manual-notice stores, the Settings `AccountDeletionDependencies`,
+  `DeleteAccountViewModel`, and `DeleteAccountSheet` presentation path, and the
+  app-root manual notice
 
 The production workflow applies migrations before Edge bundles. The prior worker
 rejects the new `provider_revocation_pending` cleanup result, so a stored
@@ -381,10 +385,19 @@ provider attempt successful from an Apple error response.
   preparation, and after the v2 marker pair, recovery phase order,
   ambiguous-response retention, deferred restoration revalidation, and terminal
   capability retirement.
-- `SupabaseManagerTests`, `MerianNetworkClientTests`, and `AppDIContainerTests`:
-  bounded registration retry, subject-bound credential-state handling, durable
-  notice persistence, live Auth and endpoint effect assembly, and local-purge
-  dependency wiring.
+- `SupabaseManagerTests`: bounded Apple credential-registration retry,
+  provider-subject validation, provider-bound merge fallback, and Auth
+  transition gating. The focused endpoint and workflow suites above own
+  account-deletion transport and sequencing; real-session effect assembly
+  remains an integration responsibility.
+- `AccountDeletionLocalCleanupStoreTests`,
+  `ManualAppleRevocationNoticeStoreTests`, and
+  `AccountDeletionRecoveryCapabilityStoreTests`: durable local phase and notice
+  persistence, legacy compatibility, fail-closed reads, synchronous invalidation
+  ordering, and verified Keychain proof creation and retirement.
+- `AccountSettingsViewModelTests`: deletion eligibility, fail-closed purchase
+  continuity, fresh and pending-recovery dependency handoff, local-purge
+  callback forwarding, and overlapping-attempt feedback fencing.
 - `ScanRepositoryPurgeTests` and `AccountScopedPreferencesTests`: exact
   `CurrentSchema` deletion inventory, actual repository delete calls,
   idempotence, classified defaults cleanup, read-back verification, device-state
@@ -395,5 +408,11 @@ provider attempt successful from an Apple error response.
   covers controller persistence and OS-presentation adaptation without touching
   global state; physical Home Screen presentation remains an integration
   checklist item.
-- `AccountDeletionRecoveryCapabilityTests`: secure randomness, Keychain
+- `AccountDeletionRecoveryCapabilityStoreTests`: secure randomness, Keychain
   accessibility, write verification, reuse, and verified deletion.
+- `AccountDeletionLocalCleanupStoreTests` and
+  `ManualAppleRevocationNoticeStoreTests`: exact installed phase compatibility,
+  persistence/event order, fail-closed unknown-state handling, and explicit
+  notice resolution. `AccountDeletionSecurityArchitectureTests`,
+  `KeychainKeysTests`, and `UserDefaultsKeysTests` freeze package ownership and
+  the complete exact storage-key registries.

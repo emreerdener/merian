@@ -805,15 +805,16 @@ admission, replay policy, task owner, or singleton is introduced.
 
 `Core/Network/Auth/` owns deterministic transition admission, stable-error
 classification, cached-session restoration eligibility, and closure-injected
-intake/cleanup/retirement ordering. `SupabaseManager`, Core Security, and
-`AppDIContainer` retain live transition state, endpoint and SDK calls, Keychain
-proof/marker effects, verified local sign-out, SwiftData cleanup, and runtime
-proof retirement. The decoder cannot authorize cleanup or reinterpret a 404/410
-error. Every live deletion result that can advance or retire those durable
-effects is fenced by the transition's exact session and Auth generation on both
-success and failure; token ownership by itself is insufficient.
-[Core Security](../Security/README.md#account-deletion-recovery-authority) owns
-secure proof storage;
+intake/cleanup/retirement ordering. `SupabaseManager`,
+`Core/Security/AccountDeletion`, and `AppDIContainer` retain live transition
+state, endpoint and SDK calls, Keychain proof/marker effects, verified local
+sign-out, SwiftData cleanup, and runtime proof retirement. The decoder cannot
+authorize cleanup or reinterpret a 404/410 error. Every live deletion result
+that can advance or retire those durable effects is fenced by the transition's
+exact session and Auth generation on both success and failure; token ownership
+by itself is insufficient.
+[Core Account Deletion Security](../Security/AccountDeletion/README.md) owns
+secure proof and durable recovery-phase storage;
 [Settings](../../Features/Profile/Settings/README.md#account-deletion) continues
 to delegate deletion and recovery to the retained owners. See the canonical
 [account-deletion API](../../../../../docs/backend-and-data/05-api-contracts.md#deno-safe-delete-edge-node),
@@ -1967,7 +1968,12 @@ xcodebuild test \
   -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/SupabaseManagerTests \
-  -only-testing:merianTests/AccountDeletionRecoveryCapabilityTests \
+  -only-testing:merianTests/AccountDeletionRecoveryCapabilityStoreTests \
+  -only-testing:merianTests/AccountDeletionLocalCleanupStoreTests \
+  -only-testing:merianTests/ManualAppleRevocationNoticeStoreTests \
+  -only-testing:merianTests/AccountDeletionSecurityArchitectureTests \
+  -only-testing:merianTests/KeychainKeysTests \
+  -only-testing:merianTests/UserDefaultsKeysTests \
   -only-testing:merianTests/ScanRepositoryPurgeTests \
   -only-testing:merianTests/AccountScopedPreferencesTests \
   -only-testing:merianTests/GamificationManagerTests \

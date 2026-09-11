@@ -14,9 +14,11 @@ fail() {
 make_fixture() {
   local name="$1"
   local fixture="$tmp_dir/$name/apps/ios/Merian"
-  mkdir -p "$fixture/Core/Utilities"
+  mkdir -p \
+    "$fixture/Core/Routing/Coordination" \
+    "$fixture/Core/Routing/Models" \
+    "$fixture/Core/Utilities"
   printf '%s\n' \
-    'import Combine' \
     'enum AppEvent {' \
     '  case accountDeletionRecoveryStateChanged' \
     '  case appDidResumeAfterTimeout' \
@@ -35,10 +37,12 @@ make_fixture() {
     '  case publicAuthorIdentityChanged' \
     '  case scanLibraryChanged' \
     '  case scanSearchIndexInvalidated' \
-    '}' \
+    '}' > "$fixture/Core/Routing/Models/AppEvent.swift"
+  printf '%s\n' \
+    'import Combine' \
     'final class AppEventPublisher {' \
     '  private let subject = PassthroughSubject<AppEvent, Never>()' \
-    '}' > "$fixture/Core/Utilities/AppEventPublisher.swift"
+    '}' > "$fixture/Core/Routing/Coordination/AppEventPublisher.swift"
   : > "$tmp_dir/$name/allowlist.txt"
   printf '%s\n' "$fixture"
 }
@@ -65,6 +69,20 @@ assert_fails_with() {
 bash -n "$checker"
 clean_fixture="$(make_fixture clean)"
 run_check "$clean_fixture" "$tmp_dir/clean/allowlist.txt"
+
+missing_model_fixture="$(make_fixture missing-model)"
+rm "$missing_model_fixture/Core/Routing/Models/AppEvent.swift"
+assert_fails_with \
+  'Missing canonical event model' \
+  "$missing_model_fixture" \
+  "$tmp_dir/missing-model/allowlist.txt"
+
+missing_bus_fixture="$(make_fixture missing-bus)"
+rm "$missing_bus_fixture/Core/Routing/Coordination/AppEventPublisher.swift"
+assert_fails_with \
+  'Missing canonical event bus' \
+  "$missing_bus_fixture" \
+  "$tmp_dir/missing-bus/allowlist.txt"
 
 multiline_fixture="$(make_fixture multiline-default)"
 mkdir -p "$multiline_fixture/Feature"
@@ -168,11 +186,10 @@ assert_fails_with \
 
 route_fixture="$(make_fixture route-in-event)"
 printf '%s\n' \
-  'import Combine' \
-  'enum AppEvent { case requestOpenScansIntent }' \
-  'final class AppEventPublisher {' \
-  '  private let subject = PassthroughSubject<AppEvent, Never>()' \
-  '}' > "$route_fixture/Core/Utilities/AppEventPublisher.swift"
+  'enum AppEvent {' \
+  '  case requestOpenScansIntent' \
+  '}' \
+  > "$route_fixture/Core/Routing/Models/AppEvent.swift"
 assert_fails_with \
   'Delivery-critical navigation cases belong to AppRoute' \
   "$route_fixture" \
@@ -180,11 +197,10 @@ assert_fails_with \
 
 unapproved_event_fixture="$(make_fixture unapproved-event)"
 printf '%s\n' \
-  'import Combine' \
-  'enum AppEvent { case triggerPaywall }' \
-  'final class AppEventPublisher {' \
-  '  private let subject = PassthroughSubject<AppEvent, Never>()' \
-  '}' > "$unapproved_event_fixture/Core/Utilities/AppEventPublisher.swift"
+  'enum AppEvent {' \
+  '  case triggerPaywall' \
+  '}' \
+  > "$unapproved_event_fixture/Core/Routing/Models/AppEvent.swift"
 assert_fails_with \
   'AppEvent cases changed without updating the reviewed invalidation contract.' \
   "$unapproved_event_fixture" \

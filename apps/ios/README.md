@@ -81,6 +81,9 @@ Examples:
   feature-specific scan screen.
 - `Core/Data/SpeciesPreferences` owns the cross-feature SwiftData and cloud
   reconciliation boundary for preferred species display names.
+- [`Core/Routing`](Merian/Core/Routing/README.md) owns immutable app-event and
+  root-route values, deterministic routing policy, and the DI-scoped
+  coordination state machines.
 
 Cross-feature wire operations can live in `Core/Network/Endpoints/` even when
 grouped by feature. Field Trips, Community Identification browsing/contribution,
@@ -412,21 +415,23 @@ gamification/badge/image projections from surviving the complete active-schema
 purge. Badge refresh is generation-fenced across deletion; device preferences
 and deletion recovery fences remain.
 
-`Core/Utilities/UserDefaultsKeys.swift` remains the exact persisted-key
-registry. The account-scoped SwiftData repository, conflict/resource policy,
-wire values, local interruption-recovery owner, injected PostgREST client, and
-single-flight coordinator live in
+`Core/Preferences/UserDefaultsKeys.swift` owns the exact persisted-key registry.
+The account-scoped SwiftData repository, conflict/resource policy, wire values,
+local interruption-recovery owner, injected PostgREST client, and single-flight
+coordinator live in
 [Core Data/Species Preferences](Merian/Core/Data/SpeciesPreferences/README.md).
 Only the narrow live client resolves Supabase. V51 discards unowned V50/defaults
 values instead of assigning them to the next account; pending deletes,
 freshness, and diagnostics are account-qualified. Scientific-name keyset paging,
 a 1,000-species union bound, the server-aligned 200-character limit, monotonic
 tombstone acknowledgement, and a post-upsert local refetch close pagination,
-interruption, and mid-flight edit races. Account-deletion recovery state and the
-Keychain registry remain in the Utilities aggregate for their separately
-reviewed security slice. Mirrored Preferences and Species Preferences tests
-enforce these dependency, race, purge-inventory, and 600-line boundaries without
-treating the defaults store as durable value or server authority.
+interruption, and mid-flight edit races. Account-deletion recovery models and
+local stores live in
+[Core Security/Account Deletion](Merian/Core/Security/AccountDeletion/README.md),
+and `Core/Security/KeychainKeys.swift` owns the exact secure-key registry.
+Mirrored Preferences, Species Preferences, and Security tests enforce these
+dependency, race, purge-inventory, installed-key, and 600-line boundaries
+without treating the defaults store as durable value or server authority.
 
 ## Core Notifications Ownership
 

@@ -50,16 +50,18 @@ as their permanent engineering identity.
   A released SwiftData predecessor additionally requires the
   [physical-device install-over gate](./development-guides/14-ios-release-versioning.md#schema-upgrade-acceptance-gate)
   before wider TestFlight or App Review promotion.
-- **Typed iOS event and presentation routing (2026-08-08)**: Cross-module reload
-  hints now use a DI-owned, main-actor `AppEventPublisher`; root navigation uses
-  a bounded `AppRouteCoordinator` with stable identity, priority/FIFO order,
-  expiry, account/session fences, and exact outcomes. Capture serializes all
-  routed destinations through one item-based sheet host and defers behind
-  feature-local covers until their real dismissal callback. Apple framework
-  notifications remain in seven exact allowlisted files, and AVPlayer observer
-  ownership is generation-fenced. Raw Combine sinks are fail-closed to five
-  exact reviewed lifetime owners. Ordinary feedback now uses typed
-  `ToastPayload` values; the DI-owned milestone queue is bounded,
+- **Typed iOS event and presentation routing (updated 2026-09-11)**:
+  Cross-module reload hints now use a DI-owned, main-actor `AppEventPublisher`;
+  root navigation uses a bounded `AppRouteCoordinator` with stable identity,
+  priority/FIFO order, expiry, account/session fences, and exact outcomes. Their
+  immutable values, deterministic policy, and mutable delivery state live under
+  `Core/Routing/{Models,Policies,Coordination}`, with mirrored Core Routing
+  tests. Capture serializes all routed destinations through one item-based sheet
+  host and defers behind feature-local covers until their real dismissal
+  callback. Apple framework notifications remain in seven exact allowlisted
+  files, and AVPlayer observer ownership is generation-fenced. Raw Combine sinks
+  are fail-closed to five exact reviewed lifetime owners. Ordinary feedback now
+  uses typed `ToastPayload` values; the DI-owned milestone queue is bounded,
   payload-deduplicated, host-serialized, clock-injected, and account/session
   fenced. Candidate, Confidence, Insight Chat, Explore activity,
   Insight-to-Community, and patch-gallery handoffs resume from exact `onDismiss`
@@ -71,6 +73,16 @@ as their permanent engineering identity.
   application-defined NotificationCenter, bus-singleton, and unreviewed raw-sink
   patterns. See the
   [canonical event and presentation contract](./system-architecture/10-event-and-presentation-routing.md).
+- **iOS persistence and deletion-security ownership (updated 2026-09-11)**:
+  `Core/Preferences/UserDefaultsKeys.swift` owns every exact installed defaults
+  string, while `Core/Security/KeychainKeys.swift` owns every exact app Keychain
+  string. Device-local account-deletion recovery models and stores live under
+  `Core/Security/AccountDeletion/{Models,Stores}`; Core Network retains endpoint
+  and workflow sequencing, and Settings retains accepted-account purge. The
+  focused registries and Security package preserve existing strings, raw phase
+  values, formats, accessibility, events, payloads, and UI behavior. See the
+  [account-deletion contract](./backend-and-data/20-sign-in-with-apple-account-deletion.md)
+  and [Keychain contract](./development-guides/05-keychain-and-secrets.md).
 - **Supabase candidate assurance**: **Supabase Candidate Validation** verifies
   the exact clean SHA for relevant pull requests, manual candidate refs, and the
   production deployment workflow with pinned Deno/Supabase tooling, migration

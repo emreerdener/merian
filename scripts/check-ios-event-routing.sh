@@ -90,8 +90,11 @@ if [[ -f "$feedback_modifier" ]] && file_matches \
   fail "The shared feedback host must route through its environment-injected AppRouteCoordinator."
 fi
 
-canonical_bus="$source_root/Core/Utilities/AppEventPublisher.swift"
+canonical_bus="$source_root/Core/Routing/Coordination/AppEventPublisher.swift"
 [[ -f "$canonical_bus" ]] || fail "Missing canonical event bus: ${canonical_bus#"$source_root"/}"
+canonical_event_model="$source_root/Core/Routing/Models/AppEvent.swift"
+[[ -f "$canonical_event_model" ]] \
+  || fail "Missing canonical event model: ${canonical_event_model#"$source_root"/}"
 
 while IFS= read -r -d '' swift_file; do
   if [[ "$swift_file" != "$canonical_bus" ]] \
@@ -117,7 +120,7 @@ done < <(find "$source_root" -type f -name '*.swift' -print0)
 
 if file_matches \
   '\bcase\s+[A-Za-z_][A-Za-z0-9_]*(?:Open|Route|Intent|ExternalImageImport)[A-Za-z0-9_]*\b' \
-  "$canonical_bus"; then
+  "$canonical_event_model"; then
   fail "Delivery-critical navigation cases belong to AppRoute, not AppEvent."
 fi
 
@@ -152,7 +155,7 @@ actual_event_cases="$(
     while ($body =~ /^\s*case\s+([A-Za-z_][A-Za-z0-9_]*)/mg) {
       print "$1\n";
     }
-  ' "$canonical_bus" | LC_ALL=C sort
+  ' "$canonical_event_model" | LC_ALL=C sort
 )"
 [[ "$actual_event_cases" == "$approved_event_cases" ]] \
   || fail "AppEvent cases changed without updating the reviewed invalidation contract. Navigation and authoritative payloads are forbidden."
