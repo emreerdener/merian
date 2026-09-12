@@ -156,6 +156,11 @@ struct CoreIntegrationArchitectureTests {
             #"""
             \(resultFileURL.path,
             privacy: .public)
+            """#,
+            #"\(inferenceFileNames.joined(separator: ","), privacy: .public)"#,
+            #"""
+            \(displayFileNames.joined(separator: ","),
+            privacy: .public)
             """#
         ]
         for example in rejectedExamples {
@@ -171,7 +176,13 @@ struct CoreIntegrationArchitectureTests {
             #"\(MerianLog.errorKind(error), privacy: .public)"#,
             #"\(message, privacy: .public)"#,
             #"\(error.localizedDescription, privacy: .private) scan=\(scanId, privacy: .public)"#,
-            #"\(outputURL.lastPathComponent, privacy: .private) duration=\(duration, privacy: .public)"#
+            #"\(outputURL.lastPathComponent, privacy: .private) duration=\(duration, privacy: .public)"#,
+            #"""
+            displayFileNames = persistedDisplayNames
+            MerianLog.data.debug(
+                "scanId=\(resolvedScanId, privacy: .public) inferenceFiles=\(inferenceFileNames.joined(separator: ","), privacy: .private) displayFiles=\(displayFileNames.joined(separator: ","), privacy: .private)"
+            )
+            """#
         ]
         for example in allowedExamples {
             #expect(!Self.sensitivePublicLogPatterns.contains { pattern in
@@ -307,6 +318,8 @@ struct CoreIntegrationArchitectureTests {
         #"\(\s*(?:error|[A-Za-z_][A-Za-z0-9_]*Error)\s*,\s*privacy:\s*\.public\s*\)"#,
         #"localizedDescription(?:(?!privacy:)[\s\S]){0,160}privacy:\s*\.public"#,
         #"terminal server failure(?:(?!message=)[\s\S]){0,200}message=(?:(?!privacy:)[\s\S]){0,160}privacy:\s*\.public"#,
-        #"(?:tempPath|resultFileURL\.path|outputURL\.lastPathComponent|callbackURL\.lastPathComponent|[Ff]ileNames)(?:(?!privacy:)[\s\S]){0,200}privacy:\s*\.public"#
+        // Match the sensitive value and its privacy annotation within one interpolation.
+        // A nearby filename assignment must not consume another field's public annotation.
+        #"\\\((?:(?!\\\(|privacy:)[\s\S]){0,160}(?:tempPath|resultFileURL\.path|outputURL\.lastPathComponent|callbackURL\.lastPathComponent|[Ff]ileNames)(?:(?!\\\(|privacy:)[\s\S]){0,200}privacy:\s*\.public"#
     ]
 }
