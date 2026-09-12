@@ -422,14 +422,15 @@ steps are tracked in the
 ### Explore
 
 - Explore uses exactly three bottom items: **Observations**, **Field trips**,
-  and **Identify**. Identify owns a **Requests / Index** root picker. Requests
-  is a dashboard with shared All/Yours/organism filters, a 12-card **Identify
-  requests** preview, and 10 grouped **Recent activity** rows. **See all
-  requests** and **See all activity** push paginated **Identify requests** and
-  **Identify activity** pages; Index renders the existing Species Dictionary
-  overview. Taxonomy remains reference metadata in Index rows and species
-  detail; the retired Tree/galaxy implementation, flag, route, and endpoint mode
-  are no longer part of the product.
+  and **Identify**. Identify owns a **Species / Requests** root picker, with
+  Species leading and selected by default. Species renders the existing Species
+  Dictionary overview. Requests is a dashboard with shared All/Yours/organism
+  filters, a 12-card **Identify requests** preview, and 10 grouped **Recent
+  activity** rows. **See all requests** and **See all activity** push paginated
+  **Identify requests** and **Identify activity** pages. Taxonomy remains
+  reference metadata in Species rows and species detail; the retired Tree/galaxy
+  implementation, flag, route, and endpoint mode are no longer part of the
+  product.
 - Public feed, following feed, trending, nearby, and map views backed by
   Supabase RPCs and Edge Functions.
 - Explore post details expose the same floating Field chat entry point as
@@ -527,7 +528,7 @@ steps are tracked in the
   `https://naturebook.earth/species/{speciesId}/{slug}`. The UUID stays
   authoritative, while UUID-only and stale-slug browser links permanently
   redirect to the current readable canonical URL. Installed apps select Explore
-  Identify/Index before opening species detail; browser recipients get the
+  Identify/Species before opening species detail; browser recipients get the
   server-rendered public reference page with attribution-approved imagery and no
   scan- or user-specific data.
 

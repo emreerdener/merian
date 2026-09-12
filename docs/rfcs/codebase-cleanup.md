@@ -133,6 +133,8 @@ Suggested first targets:
 | `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`                                         | Complete for this hygiene round. Eighteen endpoint owners cover the extracted feature, inference, publication, lifecycle, collection-sync, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport.                                                                                                                                                                                                                                                                                        |
 | `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                                          | Retired. `Core/Preferences/UserDefaultsKeys.swift` owns the exact unchanged defaults strings; focused Preferences owners retain typed settings, compatibility stores, verified accepted-account-deletion cache inventory, and post-persistence runtime reset. `Core/Data/SpeciesPreferences` owns durable preferred-name state and synchronization. `Core/Security/KeychainKeys.swift` owns exact secure-key strings, and `Core/Security/AccountDeletion/{Models,Stores}` owns deletion recovery phases, manual-provider notice state, secure proof storage, and pre-Auth barrier restoration. Mirrored suites freeze every installed key string, declaration and test ownership, local-only effects, compatibility behavior, and the 600-line ceiling.                                                                                                                                                                                                                                                                                              |
 | `apps/ios/Merian/Core/Utilities/{ImageDownsampler,ImageFocusRegionDetector,SizeEstimator}.swift` | Retired. Shared stateless ImageIO downsampling lives in `Core/Data/Images`; Capture-only focus detection lives in `Features/Capture/Shared/Services`; and optional Capture telemetry size estimation lives in `Features/Capture/Submission/Services`. Mirrored suites and architecture guards freeze the new owners, retired paths, framework/effect boundaries, and 600-line ceilings.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `apps/ios/Merian/Core/Utilities/{ShimmerModifier,ShareSheetUtility}.swift`                       | Retired. The retained cross-feature glow skeleton lives in `Core/UI/Components/Loading`; the sole main-actor UIKit activity-controller bridge is `Core/UI/Services/ShareSheetPresenter`; and the unused shimmer modifier/extension are removed. Core UI architecture coverage freezes sole ownership, retired paths, effect placement, and the existing visual and presentation contracts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `apps/ios/Merian/Core/Utilities/ExploreErrorFormatter.swift`                                     | Retired. The unchanged customer-safe mapping now lives in `Features/Explore/Shared/Models/ExploreErrorFormatter.swift`; its focused behavioral and ownership suites live in `MerianTests/Features/Explore/Shared`. The policy remains effect-free, callers retain task/retry/logging/presentation state, and the former Utilities source and mixed `MerianConfigTests` ownership are guarded against returning.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`                          | Retired. Capture admission and live handoff, funding, Field Trip progress, and uploaded-scan inference replay now have focused Services owners; retry mutations remain in `OfflineQueueDurability.swift`. All production files in this slice are below 600 lines, and mirrored suites plus hosted-result validation follow the new ownership.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift`                     | Retired. Passes 5A through 5G moved terminal tracking, Auth quiescence, exact owner adoption, terminal routing, and delegate conformance into `Services/BackgroundTransfer`; generation-fenced upload completion into `Services/MediaUpload`; queued-row lookup/mapping and mirrored durable authority into `Persistence`; actor-independent inference decisions into `Policies`; and inference generation lifecycle, request dispatch, accepted task-result/transport-failure completion, delayed status probing, exact-generation task retirement, server-result recovery, durable-authority orphan reconciliation, and retry/server-poll lifetime plus response-to-persistence finalization into eight focused `Services/BackgroundInference` files. Both inference retry paths restore the durable wake immediately after persistence, before post-save ownership revalidation and optional process-local replacement. All nine Background Inference production owners, including policy, are below 600 lines.                                   |
 | `apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift`                               | Complete for the actor aggregate. Collection sync lives across an immutable OfflineSync snapshot, an injected account-lease service, a persistence-only actor extension, and a Core Network endpoint owner. Queue selection, upload lifecycle, background-account work, inference lifecycle, inference retry, live/offline scan finalization, shared scan-record support, species metadata, and non-biological retention have separate persistence-only extensions with mirrored behavior and repository-wide architecture tests. An actor-isolated support extension reconciles the durable scan/job retry mirror for only upload and focused inference persistence. A source audit removed the speculative queued-audio repair path; the final unsupported-audio claim fence now lives with inference lifecycle. The declaration-only aggregate is 9 lines. Cross-domain background finalization, stateless record/media mapping, and shared foreground/background response preparation have focused owners with no schema, payload, or UI change. |
@@ -5001,6 +5003,75 @@ Preferences/Security slice: the now import-free exact defaults-key registry no
 longer expects `Foundation`, and the account-deletion model guard rejects live
 `UserDefaults.standard` access without treating explanatory comment text as an
 effect.
+
+### Core UI loading and system presentation ownership
+
+The fourth Core Utilities hygiene slice removes the remaining shared UI from the
+generic Utilities folder. `GlowPulsingSkeletonView` and its two-style value now
+live under `Core/UI/Components/Loading`, matching their use across Explore,
+Field Trips, Insights, Profile, Scans, and Species Dictionary. The extraction
+preserves the exact fill, glow, border, shadow, animation, Reduce Motion, corner
+radius, and raised-grid behavior. The unreferenced `ShimmerModifier` and
+`View.shimmering()` API are deleted.
+
+The app-target share namespace is renamed from `ShareSheetUtility` to
+`ShareSheetPresenter` and moved to `Core/UI/Services`. Its main-actor UIKit
+bridge retains unavailable-root dismissal, caller-prepared activity items,
+main-actor completion delivery, traversal to the topmost presented controller,
+centered iPad popover anchoring, and animated presentation. The shared bridge
+now owns the existing asynchronous actor hop from UIKit completion; Explore Feed
+restores its overlay token directly without launching a second task. Explore
+Feed, Insight Shell, Profile Shared, and Scans Library call the focused owner;
+each retains its existing payload and task, overlay, or playback lifecycle
+policy.
+
+`CoreUIArchitectureTests` freezes both sole declaration owners, retired
+Utilities paths, removal of the unused shimmer symbols, the only permitted
+`UIApplication.shared` lookup in Core UI, the presenter's bounded UIKit
+contract, and the existing 600-line ceiling. The Insight integration guard
+follows the renamed effect boundary. No payload, persistence, schema, endpoint,
+route, copy, layout, animation, accessibility, or share-content contract
+changes.
+
+Verification passes byte-stable XcodeGen, project/resource and generated-source
+membership, affected-file Swift parsing, strict SwiftLint with zero violations,
+Markdown formatting, agent-asset validation, and whitespace checks. The
+code-signing-disabled generic iOS Simulator build passes. On the booted iOS 26.5
+Simulator, the focused Core UI, Insight integration/export, Explore share-copy,
+Profile share-content, and Scans Library matrix passes, followed by the complete
+`merianTests` target with zero failures. Physical-device and manual VoiceOver,
+large Dynamic Type, Reduce Motion, iPad popover, and share-destination
+regression remain release QA.
+
+### Explore Shared error presentation ownership
+
+The fifth Core Utilities hygiene slice moves `ExploreErrorFormatter` from the
+generic Utilities folder to `Features/Explore/Shared/Models`. The unchanged pure
+mapping owns customer-safe generic, publication, Field Trip detail, Recent
+activity, and observation-statistics error copy. Explore Feed, Author Profile,
+Map, Identify, Field Trips, Notifications, and Shell consume it directly;
+Insights sharing, Scans publication, Species Dictionary, and Species Reference
+use it only when adapting an Explore-owned experience. Each caller retains its
+existing task cancellation, retry, logging, toast, and presentation lifetime.
+The formatter resolves no network, persistence, singleton, or UI effect.
+
+All sixteen behavior cases move intact from the mixed Core Utilities
+`MerianConfigTests.swift` file to
+`MerianTests/Features/Explore/Shared/ExploreErrorFormatterTests.swift`.
+`ExploreSharedArchitectureTests` freezes the sole production declaration,
+repository-wide focused test ownership, retired Utilities path, exact
+Foundation-only effect boundary, and the 600-line ceiling across every Explore
+Shared production source. No error copy, matching order, cancellation
+classification, payload, endpoint, persistence, route, or presentation behavior
+changes.
+
+Verification passes byte-stable XcodeGen, project/resource and generated-source
+membership, affected-file Swift parsing, strict SwiftLint with zero violations,
+and a cold code-signing-disabled generic iOS Simulator build using isolated
+DerivedData. On the booted iOS 26.5 Simulator, the focused formatter,
+architecture, and retained Core configuration suites pass; the ten-suite
+cross-feature consumer matrix passes; and the complete `merianTests` target
+finishes with zero failures.
 
 ## Phase 3: Ownership Cleanup
 

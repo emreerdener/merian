@@ -7,13 +7,22 @@ The `Feed` directory drives the core social timeline of the application.
 This area owns the Observations catalog, hashtag collections, post detail,
 publishing/editing presentation, and comment interactions. It supports the
 global public feed, a following-only feed, trending observations, and
-geographically nearby posts while preserving one shared `ExplorePostStore` for
-cross-surface mutations.
+geographically nearby posts, and the viewer’s liked observations while
+preserving one shared `ExplorePostStore` for cross-surface mutations.
 
 The
 [canonical Explore product contract](../../../../../../docs/rfcs/explore-page.md)
 remains authoritative for shipped behavior, copy, routing, privacy, and backend
 semantics; this README documents the iOS ownership boundary.
+
+## Liked feed
+
+**Liked** appears after Nearby in the filter sheet and horizontal bar. It shows
+the authenticated viewer’s liked observation posts in shared-date order, using
+the existing media, date, species, and cursor behavior. Field Trip publications
+are excluded. Unliking updates the heart optimistically and restores it on
+failure; a successfully unliked post stays visible until refresh. Recent alone
+continues to update unread and widget state.
 
 ## Ownership Boundaries
 
@@ -343,7 +352,9 @@ cover a playing video must participate in the coordinator:
   false earlier and is not dismissal authority.
 - UIKit presenters such as `UIActivityViewController` should call
   `beginOverlay(reason:)` before presentation and end the returned token in the
-  completion callback.
+  completion callback. `ShareSheetPresenter` delivers that callback on the main
+  actor, so Feed restores coordinator state directly rather than spawning a
+  second unstructured task.
 - Nested sheets are safe as long as each host owns exactly one token for its own
   presented state. Do not send global playback notifications.
 

@@ -3560,8 +3560,8 @@ and merely similar-species posts do not match.
 ### `/get-explore-feed`
 
 Returns public Explore feed cards for the shipped `recent`, `following`,
-`trending`, and `nearby` modes. The backend routes to a dedicated SQL RPC per
-mode and already filters out:
+`trending`, `nearby`, and `liked` modes. The backend routes to a dedicated SQL
+RPC per mode and already filters out:
 
 - unshared posts
 - tombstoned scans
@@ -3571,10 +3571,11 @@ mode and already filters out:
 
 Post `location_sharing` controls public location output, not ordinary feed
 visibility. `private` posts can still appear in Recent, Following, Trending,
-profile, hashtag, and detail surfaces, but their public location fields are
-empty. The `nearby` filter is spatial and uses post-owned public coordinates;
-for non-owned posts this means only saved `location_sharing = "open"` posts with
-a stored public coordinate can match the radius query.
+Liked, profile, hashtag, and detail surfaces, but their public location fields
+are empty. The `nearby` filter is spatial and uses post-owned public
+coordinates; for non-owned posts this means only saved
+`location_sharing = "open"` posts with a stored public coordinate can match the
+radius query.
 
 Primary request shapes:
 
@@ -3588,6 +3589,13 @@ Recent feed, which is also the default when `filter` is omitted:
   "before_post_id": "uuid"
 }
 ```
+
+Liked feed uses `filter: "liked"` with the same cursor and advanced-filter
+fields as Recent. Only the authenticated viewer’s current likes on visible
+observations qualify; ordering is by shared date, not like time. Identity comes
+from the validated JWT, never a request-supplied user ID. The response shape is
+unchanged. Deploy the SQL migration and Edge support before distributing an app
+that sends this filter.
 
 Following feed:
 
@@ -3638,8 +3646,8 @@ Optional advanced filters for every mode:
 
 Validation rules:
 
-- `recent`, `following`, and `nearby` page on `(shared_at DESC, post_id DESC)`.
-  Omit both cursor fields for the first page.
+- `recent`, `following`, `nearby`, and `liked` page on
+  `(shared_at DESC, post_id DESC)`. Omit both cursor fields for the first page.
 - `following` returns only posts by followed authors that remain visible to the
   requester.
 - `trending` pages on `(ranking_value DESC, shared_at DESC, post_id DESC)`. The
@@ -3657,7 +3665,8 @@ Validation rules:
 - Values are OR-ed within species/media groups and AND-ed across all populated
   groups. The SQL RPCs apply them before ordering and `LIMIT`; clients must not
   fetch a page and discard non-matching rows locally.
-- `before_ranking_value` is rejected for `recent`, `following`, and `nearby`.
+- `before_ranking_value` is rejected for `recent`, `following`, `nearby`, and
+  `liked`.
 - `trending` is freshness-biased rather than all-time top. The ranking value is
   the post's like activity from the trailing 30 days.
 - `nearby` reads `explore_posts.public_latitude` / `public_longitude` and limits

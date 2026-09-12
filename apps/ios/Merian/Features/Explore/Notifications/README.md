@@ -18,7 +18,8 @@ routing, and backend payloads; this README documents iOS ownership.
   notification-specific reply sheet.
 - `Services/ExploreNotificationsDependencies.swift` is the only catalog layer
   that resolves the live notification fetch/read endpoints, feature
-  availability, telemetry, logging, and error formatting.
+  availability, telemetry, and logging, and it adapts the customer-safe error
+  formatter from `Explore/Shared/Models`.
 - `Services/ExploreReplyThreadDependencies.swift` is the only reply-thread layer
   that resolves live comment/reply endpoints and current-viewer avatar context.
 - `ViewModels/ExploreNotificationsViewModel.swift` owns catalog loading,

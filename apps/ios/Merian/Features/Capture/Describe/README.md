@@ -37,7 +37,9 @@ hardware owner.
 
 `DescribeInputView` remains render-only inside the horizontal capture pager.
 `DescribeInputLifecycleObserver`, `DescribePromptViewModel`, and questions-sheet
-presentation remain owned by `CaptureWorkspaceView` outside the pager.
+presentation remain owned by `CaptureWorkspaceView` outside the pager. Previous
+and next chevron taps emit the Describe selection pulse before moving between
+guided questions; presentation-driven tag auto-advance remains silent.
 
 The page's vertical content must stay inside the UIKit `UIScrollView` hosting
 boundary. Do not replace it with a nested SwiftUI vertical `ScrollView` without

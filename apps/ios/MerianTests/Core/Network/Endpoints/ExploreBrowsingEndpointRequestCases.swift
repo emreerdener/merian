@@ -69,6 +69,18 @@ struct ExploreBrowsingEndpointRequestCase: Sendable, CustomTestStringConvertible
 
     private static var feedVariations: [Self] {
         [
+            Self(name: "liked forwards filters and unranked cursor", function: "get-explore-feed",
+                 expectedJSON: """
+                 {"limit":20,"filter":"liked","species_categories":["birds"],"media_types":["audio"],
+                  "shared_since":"1970-01-01T00:00:00Z","before_shared_at":"cursor-time","before_post_id":"cursor-post"}
+                 """, responseJSON: #"{"data":[]}"#) { client in
+                _ = try await client.getExploreFeed(
+                    filter: .liked,
+                    cursor: .init(beforeSharedAt: "cursor-time", beforePostId: "cursor-post", beforeRankingValue: nil),
+                    advancedFilters: .init(speciesCategories: [.birds], mediaTypes: [.audio], nearbyRadius: .ten),
+                    sharedSince: Date(timeIntervalSince1970: 0)
+                )
+            },
             Self(name: "following omits radius even with a stored selection", function: "get-explore-feed",
                  expectedJSON: #"{"limit":20,"filter":"following"}"#,
                  responseJSON: #"{"data":[]}"#) { client in

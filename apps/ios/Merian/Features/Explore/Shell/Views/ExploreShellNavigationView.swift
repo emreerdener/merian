@@ -36,11 +36,32 @@ struct ExploreShellNavigationView: View {
         Binding(
             get: { activeTab },
             set: { newValue in
-                guard newValue != activeTab else { return }
+                if let reset = ExploreRootTabReselectionPolicy.resolve(
+                    currentTab: activeTab,
+                    selectedTab: newValue
+                ) {
+                    applyRootModeReset(reset)
+                    return
+                }
+
                 dependencies.triggerSelectionFeedback()
                 activeTab = newValue
             }
         )
+    }
+
+    private func applyRootModeReset(_ reset: ExploreRootModeSelection) {
+        switch reset {
+        case .discovery(let mode):
+            guard activeDiscoveryMode != mode else { return }
+            activeDiscoveryMode = mode
+        case .fieldTrips(let section):
+            guard activeFieldTripsSection != section else { return }
+            activeFieldTripsSection = section
+        case .identify(let mode):
+            guard activeIdentifyMode != mode else { return }
+            activeIdentifyMode = mode
+        }
     }
 
     var body: some View {

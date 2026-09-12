@@ -8,6 +8,36 @@ struct ExploreShellNavigationPolicyTests {
         #expect(ExploreTab.allCases == [.feed, .fieldTrips, .community])
     }
 
+    @Test func reselectingRootTabsResetsEachSectionToItsLeadingMode() {
+        #expect(
+            ExploreRootTabReselectionPolicy.resolve(
+                currentTab: .feed,
+                selectedTab: .feed
+            ) == .discovery(.feed)
+        )
+        #expect(
+            ExploreRootTabReselectionPolicy.resolve(
+                currentTab: .fieldTrips,
+                selectedTab: .fieldTrips
+            ) == .fieldTrips(.fieldTrips)
+        )
+        #expect(
+            ExploreRootTabReselectionPolicy.resolve(
+                currentTab: .community,
+                selectedTab: .community
+            ) == .identify(.index)
+        )
+    }
+
+    @Test func selectingAnotherRootTabDoesNotResetItsRememberedMode() {
+        #expect(
+            ExploreRootTabReselectionPolicy.resolve(
+                currentTab: .feed,
+                selectedTab: .fieldTrips
+            ) == nil
+        )
+    }
+
     @Test func speciesRouteSelectsIdentifyIndex() {
         let route = speciesRoute()
 
@@ -41,7 +71,7 @@ struct ExploreShellNavigationPolicyTests {
         )
     }
 
-    @Test func requestedRootTabIsPreservedWithoutAnOverride() {
+    @Test func requestedIdentifyRootDefaultsToSpecies() {
         let plan = ExploreShellInitialNavigationPlan.resolve(
             initialPostId: nil,
             initialSpeciesDictionaryRoute: nil,
@@ -53,7 +83,7 @@ struct ExploreShellNavigationPolicyTests {
         )
 
         #expect(plan.activeTab == .community)
-        #expect(plan.activeIdentifyMode == .requests)
+        #expect(plan.activeIdentifyMode == .index)
         #expect(plan.destination == nil)
     }
 

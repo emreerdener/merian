@@ -71,22 +71,28 @@ library route.
 ## Root navigation and Identify routing
 
 `ExploreTab` contains `.feed`, `.fieldTrips`, and `.community` only. The
-`.community` tab is labeled **Identify** and owns `ExploreIdentifyMode.requests`
-/ `.index`:
+`.community` tab is labeled **Identify** and owns `ExploreIdentifyMode.index` /
+`.requests` in that visible order:
 
+- Species is the plain-entry default and renders the existing Species Dictionary
+  overview directly.
 - Requests renders the 12-request/10-Activity dashboard and can push the
   complete **Identify requests** and **Identify activity** feeds.
-- Index renders the existing Species Dictionary overview directly.
 
 The bottom tab bar and root segmented picker are visible only while
 `navigationPath` is empty. Complete Identify feeds, request detail, species
 catalog/detail, and other pushed pages hide root chrome and rely on native Back
 navigation.
 
+Tapping the already-selected bottom item resets only that section's root mode to
+its leading segment: Observations returns to Feed, Field trips returns to
+Outings, and Identify returns to Species. Switching between bottom items keeps
+each section's current root mode until that item is explicitly reselected.
+
 Deep-link policy is explicit. `ExploreInitialTabPolicy` selects Identify for a
 species or community-request destination. `ExploreInitialIdentifyModePolicy`
-selects Index for species and Requests for community requests. Runtime request
-notifications follow the same policy in
+selects Species (`.index`) for species and Requests for community requests.
+Runtime request notifications follow the same policy in
 `openCommunityIdentificationRequest(_:)`. Preserve this selection-before-push
 order when adding entry points.
 
@@ -121,7 +127,7 @@ target carried inside `ExplorePostRoute`. Post detail converts that target to
 the Notifications-owned reply route immediately before presenting the thin reply
 sheet.
 
-Identify/Index is the sole Species Dictionary browsing surface. The Shell does
+Identify/Species is the sole Species Dictionary browsing surface. The Shell does
 not own or register a separate taxonomy visualization route.
 
 ## Feed route ownership

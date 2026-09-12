@@ -1618,7 +1618,7 @@ that the first call throws.
 
 Run the complete `merianTests` target and the project, source, lint, and
 documentation gates above. A shared bridge/guard change also requires all other
-endpoint matrices. Manually cover Index filters/search/refresh/pagination,
+endpoint matrices. Manually cover Species filters/search/refresh/pagination,
 UUID/name/deep-link fallback, Dictionary reopen/error/retry, observation chart
 refresh and partial/local-only states, and VoiceOver/large Dynamic Type. Record
 candidate build/runtime and manual results in the

@@ -173,7 +173,7 @@ struct ExploreCommentsSheet: View {
         EmptyStateView(
             iconName: "bubble.left.and.bubble.right",
             title: "No comments yet",
-            message: "Be the first to leave a note on this discovery."
+            message: "Be the first to comment on this discovery."
         )
     }
 

@@ -9,6 +9,30 @@ enum ExploreDiscoveryMode: Hashable {
     case map
 }
 
+enum ExploreRootModeSelection: Equatable {
+    case discovery(ExploreDiscoveryMode)
+    case fieldTrips(FieldTripsSection)
+    case identify(ExploreIdentifyMode)
+}
+
+enum ExploreRootTabReselectionPolicy {
+    static func resolve(
+        currentTab: ExploreTab,
+        selectedTab: ExploreTab
+    ) -> ExploreRootModeSelection? {
+        guard selectedTab == currentTab else { return nil }
+
+        switch selectedTab {
+        case .feed:
+            return .discovery(.feed)
+        case .fieldTrips:
+            return .fieldTrips(.fieldTrips)
+        case .community:
+            return .identify(.index)
+        }
+    }
+}
+
 enum ExploreInitialTabPolicy {
     static func resolve(
         requestedTab: ExploreTab,
@@ -32,7 +56,7 @@ enum ExploreInitialIdentifyModePolicy {
         if communityRequestId != nil {
             return .requests
         }
-        return .requests
+        return .index
     }
 }
 

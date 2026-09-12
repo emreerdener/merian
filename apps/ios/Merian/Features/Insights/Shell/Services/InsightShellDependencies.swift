@@ -228,7 +228,7 @@ struct InsightShellDependencies {
                 await mediaExportService.prepareShare(request)
             },
             presentMediaShare: { payload in
-                ShareSheetUtility.present(items: payload.activityItems)
+                ShareSheetPresenter.present(items: payload.activityItems)
             }
         )
     }

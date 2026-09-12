@@ -586,8 +586,9 @@ An unexpected preview or full-thread fetch failure emits one
 `MerianLog.network.error` entry. Only the localized failure description is
 included and it is marked private; comment IDs, reply payloads, draft text, and
 counts are omitted. The view model still records its retry state and presents
-the customer-safe `ExploreErrorFormatter` message. Cancellation remains silent
-and must not set failure state.
+the customer-safe `ExploreErrorFormatter` message owned by
+`Features/Explore/Shared/Models`. Cancellation remains silent and must not set
+failure state.
 
 Use `ExploreReplyLoadingStateTests`, the reply-thread render-state tests, and a
 debugger breakpoint around `loadReplyPreviewIfNeeded` / `loadReplies` when

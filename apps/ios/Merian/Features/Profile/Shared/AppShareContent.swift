@@ -20,6 +20,6 @@ enum AppShareContent {
 
     @MainActor
     static func presentShareSheet() {
-        ShareSheetUtility.present(items: activityItems)
+        ShareSheetPresenter.present(items: activityItems)
     }
 }

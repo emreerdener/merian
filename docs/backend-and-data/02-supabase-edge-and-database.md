@@ -1560,8 +1560,7 @@ Field trip scan evidence. Field trip challenge badges can appear as lightweight
 profile rewards, but they expose no scan IDs, media, exact location, notes, or
 private evidence.
 
-`get-explore-feed` now supports four shipped feed modes through one edge
-contract:
+`get-explore-feed` now supports five feed modes through one edge contract:
 
 - `recent`: the default reverse-chronological feed, backed by
   `public.get_explore_feed(...)` and paginated by `(shared_at, post_id)`
@@ -1578,6 +1577,10 @@ contract:
   `public_longitude`, filtering non-owned coordinate-bearing posts to the
   selected 1–100-mile radius (50 miles by default), and then sorting the
   resulting posts by recency
+
+- `liked`: the authenticated viewer’s currently liked visible observations,
+  backed by `public.get_explore_feed_liked(...)`, ordered and paginated by
+  `(shared_at DESC, post_id DESC)` rather than like time
 
 Every mode also accepts shared species-category, media-kind, and inclusive
 `shared_since` filters. Values are OR-ed within each group and AND-ed across

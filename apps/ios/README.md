@@ -40,7 +40,7 @@ buckets appear.
 Features/<FeatureName>/
   Shell/          Root container, routing, tabs, pagers, and feature chrome
   <ProductArea>/  User-recognizable area such as Feed, Map, Settings, or Scan
-  Shared/         Helpers shared only inside this feature
+  Shared/         Feature-owned helpers shared by multiple product areas
 ```
 
 Inside a product area, use focused implementation folders only when they are
@@ -66,15 +66,19 @@ Use the narrowest owner that fits:
 
 - Put code in `<Feature>/Shared` when it is reused by multiple product areas
   inside one feature.
-- Promote code to `Core` only when it is reused across features or represents
-  app infrastructure.
-- Keep feature-specific business rules out of `Core` even if the code feels
-  reusable.
+- Promote code to `Core` only when it is domain-neutral and reused across
+  features or represents app infrastructure.
+- Keep feature-specific business and presentation rules out of `Core` even when
+  another feature's adapter invokes them to enter or present that experience.
 
 Examples:
 
 - `Features/Scans/Shared` owns the Scans-only composite grid, queued-row value
   policy, and deletion interaction boundary.
+- `Features/Explore/Shared` owns customer-safe Explore error presentation.
+  Insights, Scans, Species Dictionary, and Species Reference adapters may
+  consume that policy when they publish into or present Explore, but the policy
+  remains Explore-owned.
 - `Core/UI` owns `ScanThumbnail` and `EmptyStateView` because Explore, Scans,
   Profile, and Species Dictionary consume them.
 - `Core/Data/OfflineSync` owns sync infrastructure rather than a
@@ -399,10 +403,16 @@ dependency value and injected `AppEventSending` capability. `AppDIContainer`
 explicitly selects live adapters, while previews and tests can build isolated
 graphs. `CoreUIArchitectureTests` prevents feature-owned declarations or direct
 live-service resolution from returning, pins current live lookups to their
-explicit image-loading or milestone adapter, and keeps every production Core UI
-file at or below 600 lines. The legacy production and test aggregates are
-retired without changing payloads, persistence, routes, retry semantics,
-layouts, or visible feedback.
+explicit image-loading, share-presentation, or milestone adapter, and keeps
+every production Core UI file at or below 600 lines. Cross-feature loading now
+has one render-only owner at `Components/Loading/GlowPulsingSkeletonView.swift`,
+and the single UIKit activity-controller bridge is
+`Services/ShareSheetPresenter.swift`, including the actor hop that delivers
+dismissal callbacks on the main actor. Features still own loading state,
+prepared activity items, and playback or overlay lifetime. The unused shimmer
+API and former Utilities share helper are retired. The legacy production and
+test aggregates are retired without changing payloads, persistence, routes,
+retry semantics, layouts, or visible feedback.
 
 ## Core Preferences Ownership
 
@@ -638,7 +648,7 @@ boundary. The concise ownership map lives in
 [Species Dictionary](Merian/Features/SpeciesDictionary/README.md):
 
 - [Catalog](Merian/Features/SpeciesDictionary/Catalog/README.md) owns Explore
-  Identify/Index overview, category search, pagination, and region browsing.
+  Identify/Species overview, category search, pagination, and region browsing.
 - [Detail](Merian/Features/SpeciesDictionary/Detail/README.md) owns the public
   species reference page, reference gallery, share action, and Community
   sightings.
@@ -655,7 +665,7 @@ debounce; grouped Components render without direct networking or concrete
 singleton lookup. Codable wire DTOs remain in
 `Core/Network/SpeciesDictionaryAPIModels.swift`. Core Network also owns strict
 schema/identity validation and the bounded in-memory cache, while Explore Shell
-remains the navigation-stack and Identify/Index selection owner. Mirrored
+remains the navigation-stack and Identify/Species selection owner. Mirrored
 feature tests enforce those boundaries, cross-selection race handling, and a
 600-line production-file ceiling.
 

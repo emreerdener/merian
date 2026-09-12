@@ -14,11 +14,14 @@ Returns public Explore post cards for the feed tab. The endpoint accepts one
 - `nearby`: location-gated radius feed, backed by
   `public.get_explore_feed_nearby(...)`.
 
-The iOS filter order is `Recent`, `Following`, `Trending`, `Nearby`.
+- `liked`: the authenticated viewer’s liked observations, newest shared posts
+  first, backed by `public.get_explore_feed_liked(...)`.
+
+The iOS filter order is `Recent`, `Following`, `Trending`, `Nearby`, `Liked`.
 
 ## Request
 
-Recent and Following:
+Recent, Following, and Liked use the same request and cursor fields:
 
 ```json
 {
@@ -81,7 +84,8 @@ sparse because the client discarded non-matching rows after pagination.
 
 ## Pagination
 
-- `recent`, `following`, and `nearby` page on `(shared_at DESC, post_id DESC)`.
+- `recent`, `following`, `nearby`, and `liked` page on
+  `(shared_at DESC, post_id DESC)`.
 - `trending` pages on `(ranking_value DESC, shared_at DESC, post_id DESC)`.
 - Cursor fields must be omitted for the first page.
 - `nearby` requires both `latitude` and `longitude`.
@@ -175,6 +179,11 @@ and `private` posts do not have public coordinates to match.
 `following` additionally requires an active `public.user_follows` row where the
 requester follows the post author. Following does not reveal hidden profiles or
 grant access to private scans.
+
+`liked` requires an active like belonging to the JWT-authenticated viewer. It
+uses the standard visibility projection and advanced filters; a like never
+grants additional access. The RPC is service-role-only. Ship its migration and
+Edge support before clients begin requesting `filter: "liked"`.
 
 ## Local Verification
 

@@ -3,7 +3,12 @@ import { PublicHttpError, publicHttpError } from "./http.ts";
 
 export const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export type ExploreFeedFilter = "recent" | "following" | "trending" | "nearby";
+export type ExploreFeedFilter =
+  | "recent"
+  | "following"
+  | "trending"
+  | "nearby"
+  | "liked";
 
 type NestedRelation<T> = T | T[] | null | undefined;
 
@@ -126,14 +131,14 @@ export function normalizeExploreFeedFilter(
   if (rawValue == null) return "recent";
   if (
     rawValue === "recent" || rawValue === "following" ||
-    rawValue === "trending" || rawValue === "nearby"
+    rawValue === "trending" || rawValue === "nearby" || rawValue === "liked"
   ) {
     return rawValue;
   }
 
   throw makeHttpError(
     400,
-    "filter must be one of: recent, following, trending, nearby.",
+    "filter must be one of: recent, following, trending, nearby, liked.",
   );
 }
 

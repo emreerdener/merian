@@ -138,7 +138,7 @@ private struct CurrentUserActiveFieldTripProfileCard: View {
                             .lineLimit(1)
 
                         Text("Level \(item.currentLevelNumber)")
-                            .font(.footnote.weight(.semibold))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -207,7 +207,7 @@ struct ActiveFieldTripProfileCardSkeleton: View {
 
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(Color.secondary.opacity(0.1))
-                        .frame(width: 64, height: 13)
+                        .frame(width: 64, height: 15)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 

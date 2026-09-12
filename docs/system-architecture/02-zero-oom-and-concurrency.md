@@ -1392,7 +1392,9 @@ Scans maps `[LocalScanRecord]` into immutable `MediaSaveRequest` or
 suspension. No SwiftData model enters the export actor. The actor processes
 requests sequentially, checks cancellation between items, and transfers only
 counts, text, URLs, `Data`, and immutable `SendableCGImage` values. UIKit image
-conversion remains main-actor-only at the injected presentation edge.
+conversion remains main-actor-only at feature adapters.
+`Core/UI/Services/ShareSheetPresenter` owns the sole activity-controller
+presentation bridge and delivers its dismissal callback on the main actor.
 
 Insight retains one save task and one share-preparation task. Operation UUID,
 scan ID, and presentation generation must all still match before feedback or a
@@ -1536,11 +1538,11 @@ behavior where explicitly appropriate.
 
 ### Species Dictionary Catalog Selection and Request Generations
 
-The Explore Identify/Index catalog can receive overlapping work from its initial
-`.task`, search-driven `.task(id:)`, pull-to-refresh, and near-end pagination.
-Task cancellation alone is insufficient because an endpoint adapter may finish
-after cancellation, and a normalized selection can follow an A → B → A sequence
-that makes value-only checks ambiguous.
+The Explore Identify/Species catalog can receive overlapping work from its
+initial `.task`, search-driven `.task(id:)`, pull-to-refresh, and near-end
+pagination. Task cancellation alone is insufficient because an endpoint adapter
+may finish after cancellation, and a normalized selection can follow an A → B →
+A sequence that makes value-only checks ambiguous.
 
 `SpeciesDictionaryCatalogView` therefore records the normalized
 `SpeciesDictionaryCatalogSelection` before the 300-millisecond search debounce.

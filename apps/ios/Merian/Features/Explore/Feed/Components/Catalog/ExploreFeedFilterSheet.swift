@@ -185,6 +185,7 @@ struct ExploreFeedFilterSheet: View {
         case .following: "Discoveries from people you follow"
         case .trending: "Discoveries getting attention now"
         case .nearby: "Discoveries near your current location"
+        case .liked: "Discoveries you’ve liked"
         }
     }
 
@@ -194,6 +195,7 @@ struct ExploreFeedFilterSheet: View {
         case .following: "person.2"
         case .trending: "flame"
         case .nearby: "location"
+        case .liked: "heart"
         }
     }
 

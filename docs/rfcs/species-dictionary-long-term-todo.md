@@ -335,5 +335,5 @@ Status: removed.
       routing it to the complete catalog instead of restoring a separate
       surface.
 
-Why it matters: Index supplies the maintained browsing path without carrying a
+Why it matters: Species supplies the maintained browsing path without carrying a
 second interaction, performance, accessibility, authorization, and API surface.

@@ -575,6 +575,15 @@ production Shell and Library file remains below the 600-line review guard.
   consumed by Feed, Identify, Map, Shell, Author Profile, Profile, or Species
   Dictionary. Feed-only square hosts and zoom remain under Feed. Run the
   cross-area matrix in the Feed README after changing Shared media.
+- **Explore Error Presentation**:
+  `Explore/Shared/Models/ExploreErrorFormatter.swift` owns the pure
+  customer-safe mapping used across Explore. Insights, Scans, Species
+  Dictionary, and Species Reference adapters consume it only while publishing
+  into or presenting an Explore experience; that adapter reuse does not promote
+  the Explore-specific copy policy to Core. Callers retain cancellation, retry,
+  logging, and presentation lifetime. The focused formatter and architecture
+  suites lock behavior, sole ownership, Foundation-only imports, effect
+  exclusion, and the Explore Shared 600-line ceiling.
 - **Explore Audio Playhead**: Feed and detail standalone audio share
   `ExplorePublicMediaView`, so both surfaces render the same thin playhead over
   the spectrogram. While playback intent and `AVPlayer.timeControlStatus` are
@@ -591,14 +600,15 @@ production Shell and Library file remains below the 600-line review guard.
   `Observations`, `Field trips`, and `Identify`. The Observations tab owns a
   root-only Feed/Map segmented header toggle with Feed first, Field trips opens
   directly to Outings and always includes its Outings/Events segmented view, and
-  Identify owns Requests/Index. Requests shows shared filters over a 12-card
-  **Identify requests** preview, places the dismissible Ask the community banner
-  directly under that heading, and separates it from 10 grouped **Recent
-  activity** rows with a larger section gap. Stack pages for the complete feeds
-  are titled **Identify requests** and **Identify activity**. Requests and
-  Activity maintain independent load/error states. Index renders the existing
-  catalog overview. Taxonomy remains catalog/detail reference data and has no
-  separate visualization route or feature flag.
+  Identify owns Species/Requests with Species leading and selected by default.
+  Requests shows shared filters over a 12-card **Identify requests** preview,
+  places the dismissible Ask the community banner directly under that heading,
+  and separates it from 10 grouped **Recent activity** rows with a larger
+  section gap. Stack pages for the complete feeds are titled **Identify
+  requests** and **Identify activity**. Requests and Activity maintain
+  independent load/error states. Species renders the existing catalog overview.
+  Taxonomy remains catalog/detail reference data and has no separate
+  visualization route or feature flag.
 - **Field trips**: `Explore/FieldTrips/` owns a separate Explore-adjacent
   checklist surface. Standard Outings and live/upcoming curated Events are
   released for every user. The area is organized into feature-owned Models,
@@ -1221,10 +1231,12 @@ an Edge API response or opened offline via the Scans library.
   `Task.detached(priority: .userInitiated)` and `autoreleasepool` to avoid
   blocking the `@MainActor` without causing JetSam OOMs. Duplicate recursive iOS
   `UIActivityViewController` presentation loops were removed; all sharing flows
-  into a global isolated `ShareSheetUtility.present(items:)` pipeline that
-  handles iPad Popover safety. Local file retrieval executes absolute path
-  expansion (`URL.documentsDirectory.appendingPathComponent(path)`) before
-  extraction. Remote URL parsing trims invisible whitespace characters
+  through the main-actor `Core/UI/Services/ShareSheetPresenter.present(items:)`
+  bridge, which traverses to the topmost controller and handles iPad popover
+  safety. Features prepare the activity items and retain their task, playback,
+  and overlay lifecycles. Local file retrieval executes absolute path expansion
+  (`URL.documentsDirectory.appendingPathComponent(path)`) before extraction.
+  Remote URL parsing trims invisible whitespace characters
   (`.trimmingCharacters(in: .whitespacesAndNewlines)`) to prevent `nil` URL
   resolutions. Explore post messages lead with media-aware content copy: image
   and video use `Check out this {species}`, while audio uses
@@ -1912,7 +1924,7 @@ dependency composition.
   Shell notification coordinator fences post preparation, commits matching
   success/failure outcomes, and separates staged state from the pending
   destination consumed after dismissal; `Shell/Views` owns the view-local
-  navigation path, root Feed/Map/Field trips router, Identify Requests/Index
+  navigation path, root Feed/Map/Field trips router, Identify Species/Requests
   mode, destination registration, sheet and lifecycle timing, and playback
   state; and `Shell/Components` owns root chrome. Shell views contain no
   endpoint or singleton lookup. Stack-based request/activity and author-profile

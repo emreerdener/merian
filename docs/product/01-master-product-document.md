@@ -552,14 +552,15 @@ imagery, short video, and audio. Canonical public links use `naturebook.earth`.
 
 The native Explore root has exactly three bottom items: Observations, Field
 trips, and Identify. Observations contains Feed/Map. Identify contains
-Requests/Index. Requests is a dashboard with shared All/Yours/organism filters,
-12 open request cards, and 10 recent grouped Activity rows; complete feeds push
-as **Identify requests** and **Identify activity** pages. Index is the existing
-Species Dictionary catalog. Species links select Identify/Index and request
-links select Identify/Requests before opening detail.
+Species/Requests. Species is the leading/default mode and renders the existing
+Species Dictionary catalog. Requests is a dashboard with shared
+All/Yours/organism filters, 12 open request cards, and 10 recent grouped
+Activity rows; complete feeds push as **Identify requests** and **Identify
+activity** pages. Species links select Identify/Species and request links select
+Identify/Requests before opening detail.
 
 The retired taxonomy visualization is not a product surface. Taxonomy remains
-reference data within the Index and species detail; no separate taxonomy route,
+reference data within Species and species detail; no separate taxonomy route,
 feature flag, or API mode is supported.
 
 ## 7.2 Social graph and engagement - Implemented

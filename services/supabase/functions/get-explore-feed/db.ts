@@ -78,6 +78,11 @@ export async function fetchExploreFeed(
       rpcArgs.before_shared_at = cursor.beforeSharedAt;
       rpcArgs.before_post_id = cursor.beforePostId;
       break;
+    case "liked":
+      rpcName = "get_explore_feed_liked";
+      rpcArgs.before_shared_at = cursor.beforeSharedAt;
+      rpcArgs.before_post_id = cursor.beforePostId;
+      break;
     case "following":
       rpcName = "get_explore_feed_following";
       rpcArgs.before_shared_at = cursor.beforeSharedAt;

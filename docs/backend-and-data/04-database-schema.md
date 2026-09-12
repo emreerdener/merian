@@ -511,7 +511,7 @@ results, not dictionary taxa.
   `20260327140000_drop_global_distribution_regions.sql`. Previously populated
   with Gemini Flash-generated ISO 3166-1/3166-2 region codes that proved
   inaccurate. Species pages communicate geographic density through the GBIF
-  occurrence tile overlay (driven by `gbif_taxon_key`), while Index country
+  occurrence tile overlay (driven by `gbif_taxon_key`), while Species country
   catalogs use normalized GBIF occurrence facets.
 - `similar_species` (Text Array): Legacy flat array of validated similar-species
   scientific names. Kept only as a compatibility cache alongside the
@@ -3063,6 +3063,9 @@ Like edge table for Explore posts. Added in migration
 the 30-day trending feed can aggregate recent like activity without full-table
 scans over the like edge table.
 
+**Liked-feed index**: `idx_explore_post_likes_user_id_post_id` on
+`(user_id, post_id)` supports viewer-scoped like membership lookups.
+
 ### `explore_post_comments`
 
 Comment table for Explore posts. Added in migration
@@ -3323,6 +3326,11 @@ coordinates to the client contract.
   `auth.users`. Paging is stable on `(shared_at DESC, post_id DESC)` so new
   posts inserted above the viewer do not cause skips or duplicates while
   scrolling.
+- `public.get_explore_feed_liked(self_id UUID, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID, requested_species_categories TEXT[], requested_media_types TEXT[], shared_since TIMESTAMPTZ)`:
+  Service-role-only, security-invoker feed joining the viewer’s likes to the
+  canonical public post projection. Returns standard cards with null
+  `ranking_value`, applies advanced filters before limits, and paginates by
+  `(shared_at DESC, post_id DESC)`. Likes do not bypass visibility rules.
 - `public.get_explore_feed_following(self_id UUID, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`:
   The shipped `following` feed projection. It returns the same card-shaped rows
   as `get_explore_feed`, but joins `public.user_follows` so only followed

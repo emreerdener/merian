@@ -1,5 +1,7 @@
 import Foundation
 
+/// Customer-safe error presentation shared by Explore-owned experiences and
+/// adapters that publish into or present those experiences.
 enum ExploreErrorFormatter {
     private static let genericMessage = "Something went wrong. Please try again."
     private static let fieldTripUnavailableMessage = "We couldn’t find this field trip. Please go back and choose another outing."

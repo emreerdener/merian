@@ -417,6 +417,7 @@ enum ExploreFeedFilter: String, CaseIterable, Hashable, Identifiable {
     case following
     case trending
     case nearby
+    case liked
 
     static let nearbyRadiusMiles = ExploreFeedNearbyRadius.default.rawValue
 
@@ -432,6 +433,8 @@ enum ExploreFeedFilter: String, CaseIterable, Hashable, Identifiable {
             return "Trending"
         case .nearby:
             return "Nearby"
+        case .liked:
+            return "Liked"
         }
     }
 

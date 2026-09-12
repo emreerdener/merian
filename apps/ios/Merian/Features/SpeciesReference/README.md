@@ -16,8 +16,9 @@ This README defines the iOS ownership and verification boundary.
   presentation, normalization, aggregation, and GBIF response classification.
 - `Services/` is the only owner that resolves `MerianNetworkClient`,
   `URLSession`, `LocalImageLoader`, app haptics, habitat enrichment actions, or
-  imperative SwiftData queries. Small closure-based dependency values adapt
-  those live effects for initializer injection.
+  imperative SwiftData queries. It also adapts Explore Shared's contextual
+  customer-safe observation-statistics error mapping. Small closure-based
+  dependency values adapt those effects for initializer injection.
 - `ViewModels/` owns generation-fenced observation-stat, GBIF-tile, and fallback
   reference-image state. A late response cannot overwrite a newer species or
   taxon request. Empty identities invalidate active work, and an already-

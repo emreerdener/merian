@@ -3,6 +3,7 @@ import SwiftUI
 struct DescribeQuestionNavigationView: View {
     let questionCount: Int
     let activeQuestionIndex: Int
+    let selectionFeedback: @MainActor () -> Void
     let onPrevious: () -> Void
     let onNext: () -> Void
 
@@ -24,13 +25,19 @@ struct DescribeQuestionNavigationView: View {
             Spacer()
 
             HStack(spacing: 4) {
-                Button(action: onPrevious) {
+                Button {
+                    selectionFeedback()
+                    onPrevious()
+                } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.primary)
                         .frame(width: 44, height: 44)
                 }
-                Button(action: onNext) {
+                Button {
+                    selectionFeedback()
+                    onNext()
+                } label: {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.primary)

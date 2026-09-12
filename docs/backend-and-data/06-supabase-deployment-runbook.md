@@ -5443,7 +5443,7 @@ Smoke matrix:
 After the iOS rollout, verify:
 
 - root Explore shows exactly Observations, Field trips, and Identify;
-- Identify shows Requests/Index only;
+- Identify shows Species/Requests only, with Species selected by default;
 - the Requests dashboard caps previews at 12 request cards and 10 Activity
   groups under one filter;
 - Requests and Activity expose independent loading/error/Retry states;
@@ -5452,9 +5452,9 @@ After the iOS rollout, verify:
 - **See all requests** and **See all activity** inherit the filter and open
   stack pages titled **Identify requests** and **Identify activity**;
 - Back returns to the dashboard without exposing root chrome on the pushed page;
-- species links select Identify/Index and request links select
+- species links select Identify/Species and request links select
   Identify/Requests; and
-- Identify/Index has no separate taxonomy visualization entry point.
+- Identify/Species has no separate taxonomy visualization entry point.
 
 Rollback is forward-only for data. Do not drop or truncate the additive
 projection after deployment and do not grant its RPC to client roles. A broken

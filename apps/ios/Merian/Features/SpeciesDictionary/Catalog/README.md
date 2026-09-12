@@ -2,7 +2,7 @@
 
 The `Catalog` directory contains the browsing interfaces for the complete
 Species Dictionary. In Explore, these surfaces appear directly as Identify's
-**Index** mode; Index is not a bottom-navigation item.
+**Species** mode (internally `.index`); Species is not a bottom-navigation item.
 
 The canonical behavior and backend contract remain the
 [Species Dictionary product contract](../../../../../../docs/features-and-hardware/16-species-dictionary.md#overview-and-catalog-modes).
@@ -14,8 +14,9 @@ The canonical behavior and backend contract remain the
   group-row layout values. These are presentation models, not wire DTOs. Shared
   species-detail routes and taxonomy adaptation live in sibling `Shared/Models`.
 - `Services/` is the only Catalog layer that resolves live endpoint, image
-  loader, geocoder, and MapKit snapshot implementations. Dependencies stay
-  narrow closure values rather than a feature-wide protocol or singleton.
+  loader, geocoder, and MapKit snapshot implementations, and it adapts Explore
+  Shared's customer-safe error presentation. Dependencies stay narrow closure
+  values rather than a feature-wide protocol or singleton.
 - `ViewModels/` owns `@MainActor @Observable` catalog, overview, and region-map
   loading state. Request generations fence stale search, refresh, pagination,
   and map completions.
@@ -29,7 +30,7 @@ The canonical behavior and backend contract remain the
 ## Purpose
 
 This area provides a structured encyclopedia index independent of a user's
-personal observations. `SpeciesDictionaryOverviewView` is the Identify/Index
+personal observations. `SpeciesDictionaryOverviewView` is the Identify/Species
 root, while catalog, group, region, and species pages push onto Explore's shared
 navigation stack and hide root tab/mode chrome.
 
@@ -40,8 +41,8 @@ visible but non-interactive with `Coverage updating` when a valid device country
 has not been hydrated yet; occurrence evidence is described as "recorded in" and
 must not be presented as native range.
 
-Species deep links must select Explore Identify/Index before pushing species
-detail. Index is the only dictionary browsing surface. Taxonomy remains
+Species deep links must select Explore Identify/Species before pushing species
+detail. Species is the only dictionary browsing surface. Taxonomy remains
 reference metadata displayed in catalog rows and species detail, not a separate
 navigation mode.
 
@@ -54,8 +55,8 @@ navigation mode.
   pinned and authenticated transport owners. Catalog and overview do not use the
   separate detail/stats memos; Catalog Services adapt their calls for observable
   state.
-- Explore Shell owns the shared `NavigationPath`, Identify/Index selection, and
-  route destination registration. Catalog owns the category route value and
+- Explore Shell owns the shared `NavigationPath`, Identify/Species selection,
+  and route destination registration. Catalog owns the category route value and
   emits species-detail routes without creating another navigation stack.
 - Catalog Views and Components do not resolve endpoints, `LocalImageLoader`,
   geocoding, or map snapshots directly. The remote-image component preserves the

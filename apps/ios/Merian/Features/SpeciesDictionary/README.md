@@ -6,8 +6,8 @@ canonical behavior, API, privacy, and release contract is
 
 ## Ownership
 
-- [`Catalog/`](Catalog/README.md) owns Identify/Index overview, category search,
-  pagination, and region browsing.
+- [`Catalog/`](Catalog/README.md) owns Identify/Species overview, category
+  search, pagination, and region browsing.
 - [`Detail/`](Detail/README.md) owns the species page, gallery, share action,
   Field Chat presentation, and Community sightings.
 - `Shared/Models/` owns only cross-surface route/entry-point values, taxonomy
@@ -25,7 +25,7 @@ canonical behavior, API, privacy, and release contract is
   client also retains private Auth, transport, retries, and cancellation; see
   the
   [Core ownership guide](../../Core/Network/README.md#species-dictionary-endpoints-validation-and-caches).
-- Explore Shell owns Identify/Index selection, the shared navigation path, and
+- Explore Shell owns Identify/Species selection, the shared navigation path, and
   destination registration. Views keep selection, navigation, presentation,
   scroll, focus, and lifecycle timing.
 
@@ -48,7 +48,7 @@ detail/stats TTLs, alias capacity, warm-cache cancellation, and DEBUG reset
 semantics, use the
 [Core identity/cache contract](../../Core/Network/README.md#species-dictionary-identity-and-cache-boundary).
 
-Index is the only dictionary browser. Taxonomy remains metadata in Catalog and
+Species is the only dictionary browser. Taxonomy remains metadata in Catalog and
 Detail; the Tree implementation, route, feature flag, DTOs, and endpoint mode
 are retired. Decode-only handling of the former `taxonomy` overview category
 maps an old response to the complete All catalog.

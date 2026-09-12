@@ -102,7 +102,7 @@ struct InsightsIntegrationArchitectureTests {
             "InsightMediaExportManager",
             "MerianNetworkClient.shared",
             "RevenueCatManager.shared",
-            "ShareSheetUtility.present",
+            "ShareSheetPresenter.present",
             "SupabaseManager.shared"
         ]
 
@@ -136,7 +136,7 @@ struct InsightsIntegrationArchitectureTests {
         #expect(viewModel.contains("mediaSaveTaskID == taskID"))
         #expect(viewModel.contains("mediaShareTaskID == taskID"))
         #expect(viewModel.contains("isPresentingLocalRecord"))
-        #expect(!viewModel.contains("ShareSheetUtility.present"))
+        #expect(!viewModel.contains("ShareSheetPresenter.present"))
         #expect(!viewModel.contains("PhotoLibraryManager.shared"))
         #expect(dependencies.contains("let saveMedia:"))
         #expect(dependencies.contains("let prepareMediaShare:"))

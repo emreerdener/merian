@@ -164,12 +164,12 @@ coordinates, private notes, raw scan telemetry, authenticated Community
 sightings, local observation aggregates, user media, or server credentials.
 
 The native Explore root contains Observations, Field trips, and Identify only.
-Identify's Requests mode concurrently reads a 12-row unresolved request preview
-and 10 grouped Activity rows under one scope/organism filter; Index renders the
-Species Dictionary overview. Complete **Identify requests** and **Identify
-activity** feeds push onto the shared stack with independent cursor pagination.
-Species links select Identify/Index before detail, while request links select
-Identify/Requests.
+Identify defaults to its leading Species mode, which renders the Species
+Dictionary overview. Its Requests mode concurrently reads a 12-row unresolved
+request preview and 10 grouped Activity rows under one scope/organism filter.
+Complete **Identify requests** and **Identify activity** feeds push onto the
+shared stack with independent cursor pagination. Species links select
+Identify/Species before detail, while request links select Identify/Requests.
 
 Identify Activity is projected from identification and consensus inserts, then
 privacy-filtered at read time through an authenticated Edge Function and
@@ -177,7 +177,7 @@ service-role-only RPC. Projection rows store actor IDs/counts, not names.
 Suggestion bursts chain at intervals of at most 60 minutes, submission-caused
 consensus metadata folds into a burst, and resolutions are immutable separate
 milestones. Visible actors are shown by public username, never profile/display
-name. This feed is unrelated to bell unread state. Index is the sole Species
+name. This feed is unrelated to bell unread state. Species is the sole Species
 Dictionary browser; taxonomy remains catalog/detail reference data and has no
 separate route or feature flag.
 

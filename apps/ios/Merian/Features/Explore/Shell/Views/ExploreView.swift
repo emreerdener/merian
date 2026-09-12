@@ -12,7 +12,7 @@ struct ExploreView: View {
     @State private var pendingInsightCommunityRequestId: String?
     @State private var activeTab: ExploreTab = .feed
     @State private var activeDiscoveryMode: ExploreDiscoveryMode = .feed
-    @State private var activeIdentifyMode: ExploreIdentifyMode = .requests
+    @State private var activeIdentifyMode: ExploreIdentifyMode = .index
     @State private var activeFieldTripsSection: FieldTripsSection = .fieldTrips
     @State private var dictionaryUserRegionIdentifier = Self.defaultDictionaryUserRegionIdentifier()
     @State private var playbackCoordinator = ExploreVideoPlaybackCoordinator()

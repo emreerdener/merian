@@ -48,7 +48,9 @@ struct CommunityIdentificationPresentationTests {
         )
     }
 
-    @Test func rootModeRemainsRequestsAndIndex() {
-        #expect(ExploreIdentifyMode.allCases == [.requests, .index])
+    @Test func speciesIsTheLeadingIdentifyMode() {
+        #expect(ExploreIdentifyMode.allCases == [.index, .requests])
+        #expect(ExploreIdentifyMode.index.title == "Species")
+        #expect(ExploreIdentifyMode.requests.title == "Requests")
     }
 }

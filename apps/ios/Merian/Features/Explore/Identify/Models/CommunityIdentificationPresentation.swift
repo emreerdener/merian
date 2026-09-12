@@ -11,15 +11,15 @@ struct ExploreCommunityActivityFeedRoute: Hashable {
 }
 
 enum ExploreIdentifyMode: Hashable, CaseIterable {
-    case requests
     case index
+    case requests
 
     var title: String {
         switch self {
+        case .index:
+            "Species"
         case .requests:
             "Requests"
-        case .index:
-            "Index"
         }
     }
 }

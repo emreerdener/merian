@@ -1156,3 +1156,120 @@ Deno.test("Explore feed DB - advanced filters compose before pagination", async 
     assertEquals(rows.rows.map((row) => row.post_id), [recentBirdPostId]);
   });
 });
+
+Deno.test("Explore liked feed DB - viewer membership, share-date pagination, filters, and visibility", async () => {
+  await withExploreDbTest("exploreFeedDb.test", async (client: Client) => {
+    const ownerId = crypto.randomUUID();
+    const viewerId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+    await insertUser(client, ownerId, "Liked Fixture Owner");
+    await insertUser(client, viewerId, "Liked Fixture Viewer");
+    await insertSpecies(client, speciesId, "Rosa likedfixture");
+    const postIds = [1, 2, 3, 4].map((id) =>
+      `00000000-0000-4000-8000-${String(id).padStart(12, "0")}`
+    );
+    for (let i = 0; i < postIds.length; i++) {
+      const scanId = crypto.randomUUID();
+      await insertScan(client, {
+        id: scanId,
+        userId: ownerId,
+        speciesId,
+        latitude: 0,
+        longitude: 0,
+        geoprivacy: "private",
+      });
+      await insertExplorePost(client, {
+        id: postIds[i],
+        userId: ownerId,
+        scanId,
+        sharedAt: i === 3 ? "2026-08-03T00:00:00Z" : "2026-08-01T00:00:00Z",
+      });
+      await client.queryArray(
+        `INSERT INTO public.explore_post_likes(post_id, user_id, created_at)
+         VALUES ($1, $2, $3::timestamptz)`,
+        [
+          postIds[i],
+          i === 3 ? ownerId : viewerId,
+          `2026-08-0${4 - i}T00:00:00Z`,
+        ],
+      );
+    }
+    // Use the actual RPC caller role, not the fixture's owner connection.
+    await client.queryArray("SET LOCAL ROLE service_role");
+    const first = await client.queryObject<
+      ExploreFeedRow & { viewer_has_liked: boolean }
+    >(
+      `SELECT post_id, shared_at::text, viewer_has_liked
+       FROM public.get_explore_feed_liked($1, 2)`,
+      [viewerId],
+    );
+    assertEquals(first.rows.map((row) => row.post_id), [
+      postIds[2],
+      postIds[1],
+    ]);
+    assertEquals(first.rows.every((row) => row.viewer_has_liked), true);
+    const cursor = first.rows[1];
+    const second = await client.queryObject<ExploreFeedRow>(
+      `SELECT post_id FROM public.get_explore_feed_liked($1, 2, $2::timestamptz, $3::uuid)`,
+      [viewerId, cursor.shared_at, cursor.post_id],
+    );
+    assertEquals(second.rows.map((row) => row.post_id), [postIds[0]]);
+    const otherViewer = await client.queryObject<ExploreFeedRow>(
+      `SELECT post_id FROM public.get_explore_feed_liked($1)`,
+      [ownerId],
+    );
+    assertEquals(otherViewer.rows.map((row) => row.post_id), [postIds[3]]);
+    await client.queryArray("RESET ROLE");
+    await client.queryArray(
+      `UPDATE public.explore_post_media SET kind = 'video', has_audio = TRUE WHERE post_id = $1`,
+      [postIds[0]],
+    );
+    await client.queryArray("SET LOCAL ROLE service_role");
+    const filtered = await client.queryObject<ExploreFeedRow>(
+      `SELECT post_id FROM public.get_explore_feed_liked(
+        $1, 1, NULL, NULL, ARRAY['plants']::text[], ARRAY['video']::text[],
+        '2026-08-01T00:00:00Z'::timestamptz)`,
+      [viewerId],
+    );
+    assertEquals(filtered.rows.map((row) => row.post_id), [postIds[0]]);
+    const tooRecent = await client.queryObject<ExploreFeedRow>(
+      `SELECT post_id FROM public.get_explore_feed_liked(
+        self_id => $1, shared_since => '2026-08-02T00:00:00Z'::timestamptz)`,
+      [viewerId],
+    );
+    assertEquals(tooRecent.rows, []);
+    const wrongSpecies = await client.queryObject<ExploreFeedRow>(
+      `SELECT post_id FROM public.get_explore_feed_liked(
+        self_id => $1, requested_species_categories => ARRAY['birds']::text[])`,
+      [viewerId],
+    );
+    assertEquals(wrongSpecies.rows, []);
+    await client.queryArray("RESET ROLE");
+    await client.queryArray(
+      `UPDATE public.explore_posts SET moderated_at = now() WHERE id = $1`,
+      [postIds[2]],
+    );
+    await client.queryArray(
+      `DELETE FROM public.explore_post_likes WHERE post_id = $1 AND user_id = $2`,
+      [postIds[1], viewerId],
+    );
+    await client.queryArray("SET LOCAL ROLE service_role");
+    const refreshed = await client.queryObject<ExploreFeedRow>(
+      `SELECT post_id FROM public.get_explore_feed_liked($1)`,
+      [viewerId],
+    );
+    assertEquals(refreshed.rows.map((row) => row.post_id), [postIds[0]]);
+    await client.queryArray("RESET ROLE");
+    await client.queryArray(
+      `INSERT INTO public.user_blocks (blocker_id, blocked_id) VALUES ($1, $2)`,
+      [viewerId, ownerId],
+    );
+    await client.queryArray("SET LOCAL ROLE service_role");
+    const blocked = await client.queryObject<ExploreFeedRow>(
+      `SELECT post_id FROM public.get_explore_feed_liked($1)`,
+      [viewerId],
+    );
+    assertEquals(blocked.rows, []);
+    await client.queryArray("RESET ROLE");
+  });
+});

@@ -2,8 +2,8 @@
 
 The Explore sheet uses root-only bottom navigation as its primary section
 navigation. The menu uses native tab-bar chrome for exactly three items, in
-production order: Observations, Field trips, and Identify. Index is not a
-bottom-navigation item; it is the second root mode inside Identify.
+production order: Observations, Field trips, and Identify. Species is not a
+bottom-navigation item; it is the default root mode inside Identify.
 
 ## Presentation entry points
 
@@ -39,9 +39,10 @@ seen.
   replace their artwork with the device-local completing scan thumbnail when
   available; tapping the thumbnail pushes the existing Insight view in this same
   Explore navigation stack.
-- **Identify** owns a root-only `Requests` / `Index` segmented control.
-  `Requests` renders `ExploreCommunityIdentificationView`, while `Index` renders
-  the existing `SpeciesDictionaryOverviewView` directly.
+- **Identify** owns a root-only `Species` / `Requests` segmented control.
+  `Species` is the leading/default segment and renders the existing
+  `SpeciesDictionaryOverviewView` directly, while `Requests` renders
+  `ExploreCommunityIdentificationView`.
 - **Requests** is a dashboard rather than the complete request feed. A shared
   filter row keeps `All` and `Yours` first, followed by Plants, Birds, Insects,
   Fungi, Mammals, and Herps. `Yours` means requests owned by the viewer.
@@ -77,7 +78,7 @@ seen.
   Filters count and Reset/All actions cover both groups, while media types stay
   out of the horizontal pills. Active filters apply before clusters or
   individual waypoints render.
-- **Index** opens `SpeciesDictionaryOverviewView`, a browse overview with
+- **Species** opens `SpeciesDictionaryOverviewView`, a browse overview with
   Recently Added, local region, organism-group, and region entry points. The
   featured Recently Added card opens that species' detail page, while a separate
   Recently Added row opens the full newest-species list. Pushed category and
@@ -89,7 +90,7 @@ seen.
   selection before its debounce so superseded refresh/page work cannot publish,
   while Views and Components remain free of direct endpoint or platform-service
   lookup.
-- **Taxonomy** remains reference data shown and searched within Index catalog
+- **Taxonomy** remains reference data shown and searched within Species catalog
   rows and species detail. There is no separate taxonomy visualization, feature
   flag, API mode, or Explore route.
 
@@ -99,11 +100,16 @@ seen.
 route state for post detail, hashtag collections, author profiles, and
 dictionary destinations. `ExploreTab.allCases` contains only `.feed`,
 `.fieldTrips`, and `.community`; `ExploreIdentifyMode.allCases` contains only
-`.requests` and `.index`. Observations owns a Feed/Map header toggle. Identify
-owns Requests/Index and resets no pushed route merely because the user changes
-that root mode.
+`.index` and `.requests` in that visible order. A plain Identify entry defaults
+to `.index`; species and request routes continue to select their matching mode
+explicitly. Observations owns a Feed/Map header toggle. Identify owns
+Species/Requests and resets no pushed route merely because the user changes that
+root mode. When the user taps the currently selected bottom item again, its root
+mode returns to the leading segment: Feed for Observations, Outings for Field
+trips, and Species for Identify. Moving between different bottom items preserves
+their remembered root modes.
 
-Species deep links and in-app species routes select Identify/Index before
+Species deep links and in-app species routes select Identify/Species before
 pushing `SpeciesDictionaryRoute`. Community request deep links and notifications
 select Identify/Requests before pushing `ExploreCommunityRequestRoute`. This
 policy keeps canonical and legacy links compatible after removal of the
@@ -213,12 +219,12 @@ for the surface they are changing:
   profile content, route metadata, and published-scan library presentation.
 - `apps/ios/Merian/Features/Explore/Shared/` is reserved for Explore helpers
   that are used by more than one product area.
-- `apps/ios/Merian/Features/SpeciesDictionary/Catalog/` owns the Explore Index
+- `apps/ios/Merian/Features/SpeciesDictionary/Catalog/` owns the Explore Species
   catalog, overview, and regions surfaces. Its Models own the category route and
   deterministic presentation policy; Services alone resolve endpoint, cached
   image, geocoding, and map-snapshot work; and ViewModels fence asynchronous
   browse state by normalized selection and request generation. Explore Shell
-  continues to own Index selection and the shared `NavigationPath`. See the
+  continues to own Species selection and the shared `NavigationPath`. See the
   feature-local
   [`Catalog` README](../../apps/ios/Merian/Features/SpeciesDictionary/Catalog/README.md)
   for its source and test boundaries.
@@ -226,8 +232,8 @@ for the surface they are changing:
 The bottom menu and root segmented control are intentionally root-scoped. They
 are hidden on the complete Identify Requests and Activity feeds, pushed post
 details, Identify request details, catalog detail pages, hashtag lists, author
-profile routes, comments, notification sheets, and the Insight sheet. Index rows
-push `SpeciesDictionaryRoute` into the sheet's existing `NavigationPath`.
+profile routes, comments, notification sheets, and the Insight sheet. Species
+rows push `SpeciesDictionaryRoute` into the sheet's existing `NavigationPath`.
 
 Community request details use `ExploreCommunityIdentificationDetailView`, which
 loads `/get-community-identification-detail`, frames the starting name as
@@ -283,7 +289,7 @@ species and media groups before clustering, and treats attached media kinds as
 an OR match. The horizontal pill row remains species-focused; image, video, and
 audio choices live in the full Map filters sheet.
 
-Index uses species-level public data only. The Dictionary overview returns
+Species uses species-level public data only. The Dictionary overview returns
 featured, group, and region summaries, while pushed catalog pages return compact
 species rows with taxonomy, content quality, tags, status fields, and a single
 reference image URL. Promoted Naturebook community photos rank before external

@@ -20,8 +20,8 @@ This creates three separate species surfaces in the iOS app:
 ## Product Scope
 
 In-app entry includes similar-species cards in Insight and Explore,
-Identify/Index browsing, and canonical or legacy external species links. An
-external link selects Explore's Identify tab and Index mode before pushing the
+Identify/Species browsing, and canonical or legacy external species links. An
+external link selects Explore's Identify tab and Species mode before pushing the
 page in the existing Explore navigation stack. The standalone dictionary
 presenter still uses a large-detent sheet when opened directly.
 
@@ -226,7 +226,7 @@ host/scheme forms, ignores the optional slug for identity, and requests
 `AppRoute.speciesDictionary` with only the normalized UUID.
 `CaptureWorkspaceViewModel` clears conflicting launch routes, protects the
 destination from the immediate foreground timeout reset, opens Explore, selects
-Identify/Index, and pushes a `SpeciesDictionaryRoute(entryPoint: .deepLink)`.
+Identify/Species, and pushes a `SpeciesDictionaryRoute(entryPoint: .deepLink)`.
 
 The share button appears only after the loaded response supplies a valid UUID
 and uses the loaded names to build its readable slug. Its primary item is the
@@ -544,22 +544,23 @@ snapshot card whenever iOS can supply an ISO country. The card links to the
 exact country catalog when coverage exists and remains visible, non-interactive,
 with `Coverage updating` while the scheduled backfill is still filling that
 country. `All` moves into a bottom row link. Explore keeps all Dictionary
-surfaces under the Identify tab's `Index` mode; Index renders the Catalog
-overview/search content directly. Taxonomy remains searchable reference data in
-catalog and detail responses; it is not a separate overview category or route.
-The region snapshot uses the backend's country display title and falls back to a
-default United States map only when MapKit geocoding cannot resolve that title.
-If the overview has no non-empty country summaries with species counts, iOS
-hides the Region section and the "Browse all regions" row while the personal
-country card still communicates the pending refresh state. Catalog detail pages
-opened from overview cards or rows, including Birds, Mammals, All, Your Region,
-and Recently Added, keep the same paginated species row list but add toolbar
-search, matching the Scans library search presentation, that filters within the
-active category. Overview and catalog results are gated to public biological
-taxa: a row must have a scientific name plus either a positive GBIF taxon key or
-usable biological taxonomy with a kingdom and at least one downstream rank. Rows
-that only resolve to generic encyclopedia concepts are filtered out before they
-can appear as dictionary records. Migration
+surfaces under the Identify tab's `Species` mode (internally `.index`); Species
+renders the Catalog overview/search content directly. Taxonomy remains
+searchable reference data in catalog and detail responses; it is not a separate
+overview category or route. The region snapshot uses the backend's country
+display title and falls back to a default United States map only when MapKit
+geocoding cannot resolve that title. If the overview has no non-empty country
+summaries with species counts, iOS hides the Region section and the "Browse all
+regions" row while the personal country card still communicates the pending
+refresh state. Catalog detail pages opened from overview cards or rows,
+including Birds, Mammals, All, Your Region, and Recently Added, keep the same
+paginated species row list but add toolbar search, matching the Scans library
+search presentation, that filters within the active category. Overview and
+catalog results are gated to public biological taxa: a row must have a
+scientific name plus either a positive GBIF taxon key or usable biological
+taxonomy with a kingdom and at least one downstream rank. Rows that only resolve
+to generic encyclopedia concepts are filtered out before they can appear as
+dictionary records. Migration
 `20260901180000_add_public_biological_species_eligibility.sql` stores that
 decision in `species_dictionary.is_public_biological`; catalog keysets, overview
 ranges, and country-summary aggregation apply it in PostgreSQL before limits.
@@ -690,7 +691,7 @@ content.
 #### iOS Catalog ownership and request lifecycle
 
 `apps/ios/Merian/Features/SpeciesDictionary/Catalog/` owns the Explore
-Identify/Index browse experience. Its existing root interfaces remain
+Identify/Species browse experience. Its existing root interfaces remain
 `SpeciesDictionaryOverviewView(userRegion:)`,
 `SpeciesDictionaryCatalogView(...)`, and
 `SpeciesDictionaryRegionsView(userRegion:)`; Explore Shell registers the typed
@@ -1127,10 +1128,10 @@ npm run build
 
 Manual acceptance:
 
-- Switch Identify repeatedly between Requests and Index. Confirm Index preserves
-  the existing overview layout, Recently Added and organism-group order, local
-  region treatment, loading skeletons, empty/error copy, and pushed-navigation
-  chrome.
+- Switch Identify repeatedly between Species and Requests. Confirm Species
+  preserves the existing overview layout, Recently Added and organism-group
+  order, local region treatment, loading skeletons, empty/error copy, and
+  pushed-navigation chrome.
 - Search a catalog, clear and re-enter the same query while results are loading,
   pull to refresh while the next page is loading, and retry a failed replacement
   query. Confirm only the current normalized selection publishes, no stale page
@@ -1176,8 +1177,8 @@ Manual acceptance:
 - Share a loaded dictionary page and confirm the payload uses the canonical UUID
   HTTPS URL and common-name subject.
 - Open canonical and legacy HTTPS/custom-scheme species links and confirm
-  Explore selects Identify/Index, pushes the species, and survives an immediate
-  session-timeout event.
+  Explore selects Identify/Species, pushes the species, and survives an
+  immediate session-timeout event.
 - In a browser, confirm canonical metadata, licensed image attribution, textual
   similar-species navigation, native-app CTA, and clean omission of absent
   optional sections.

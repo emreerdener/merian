@@ -287,7 +287,7 @@ extension ExploreFeedViewModel {
             mode = .recent
         case .following:
             mode = .following
-        case .trending, .nearby:
+        case .trending, .nearby, .liked:
             return []
         }
 

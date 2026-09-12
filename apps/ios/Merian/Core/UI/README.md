@@ -10,6 +10,28 @@ buttons, custom toggles), typography extensions, and complex visual treatments
 like glassmorphism shaders. Code placed here ensures visual consistency across
 all feature modules and prevents duplication of fundamental UI elements.
 
+## Shared loading presentation
+
+`Components/Loading/GlowPulsingSkeletonView.swift` owns the reusable rounded
+loading surface used by Explore, Field Trips, Insights, Profile, Scans, and
+Species Dictionary. It preserves the standard and raised-grid treatments and
+disables its repeating pulse when Reduce Motion is enabled. Callers own loading
+state, geometry, copy, task lifetime, and replacement content; the Core view
+owns only the mounted visual treatment. The unreferenced `ShimmerModifier` and
+`View.shimmering()` API were retired rather than carried into this package.
+
+## System share presentation
+
+`Services/ShareSheetPresenter.swift` is the single main-actor UIKit bridge for
+presenting caller-prepared activity items. It retains topmost-controller
+traversal, unavailable-root dismissal, main-actor completion delivery, and
+centered iPad popover anchoring. The presenter owns the actor hop from UIKit's
+completion handler; feature callbacks may restore their playback or overlay
+state directly. Feature owners continue to prepare share payloads and own
+overlay, playback, export, analytics, and task state. Do not move payload
+construction or feature lifecycle policy into the presenter, and do not add a
+second `UIApplication`-resolving share helper under Utilities.
+
 ## Capture ownership boundary
 
 Core UI owns only visual primitives reused across product areas. Capture's mode
@@ -243,12 +265,15 @@ owner without changing their rendering or interaction contracts:
 `CoreUIArchitectureTests` prevents those retired Core paths from returning,
 requires every production Core UI Swift file to remain at or below 600 lines,
 rejects direct live-process resolution outside `Services`, and pins every
-current lookup to its explicit image-loading or milestone adapter owner. The
-near-limit `AudioPlaybackCarouselPage` remains cohesive because its player,
-observer, replacement, boost, seek, and teardown state must share one private
-mounted-view lifetime. The architecture test explicitly requires every `@State`
-declaration and lifecycle helper to remain private; do not split that state
-merely to reduce the line count by widening it to module scope.
+current lookup to its explicit image-loading, share-presentation, or milestone
+adapter owner. It also freezes the skeleton and presenter declaration owners,
+the retired Utilities paths, removal of the unused shimmer API, and the share
+presenter's bounded UIKit contract. The near-limit `AudioPlaybackCarouselPage`
+remains cohesive because its player, observer, replacement, boost, seek, and
+teardown state must share one private mounted-view lifetime. The architecture
+test explicitly requires every `@State` declaration and lifecycle helper to
+remain private; do not split that state merely to reduce the line count by
+widening it to module scope.
 
 ## Recovered image refresh
 

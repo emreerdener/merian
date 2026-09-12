@@ -108,11 +108,11 @@ only a camera/performance setting.
   zoomable full-screen viewer at that selection; when more patches are earned,
   the viewer supports horizontal paging and shows page dots.
 - The authenticated user's active Field trip Profile card shows a leading title
-  matching the profile stat-value style, a footnote-sized current-level label,
-  and a larger trailing collectible patch in one top-aligned row above the
-  existing device-local goal thumbnail strip. It does not show lifecycle status,
-  a progress ring, or the former horizontal progress bar, and it does not change
-  the public Explore author-profile row.
+  matching the profile stat-value style, a subheadline-sized current-level
+  label, and a larger trailing collectible patch in one top-aligned row above
+  the existing device-local goal thumbnail strip. It does not show lifecycle
+  status, a progress ring, or the former horizontal progress bar, and it does
+  not change the public Explore author-profile row.
 - Public Explore profiles render active, pinned, and published Field trip row
   titles with the bold headline text style. Active rows use an enlarged numeric
   label in their compact progress rings. Challenge badge titles retain their

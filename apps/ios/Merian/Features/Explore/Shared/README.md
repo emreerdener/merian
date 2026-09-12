@@ -5,21 +5,31 @@ when they are not generic enough for Core.
 
 ## Purpose
 
-Place a declaration here when Feed, Map, Identify, Author Profile, or Shell
-share one Explore-specific presentation or lifecycle contract. Promote a
-declaration to Core only when it is domain-neutral and reused outside Explore.
-Product-area screens, cards, filters, and view models remain with their owning
-area.
+Place a declaration here when two or more Explore product areas, such as Feed,
+Map, Identify, Author Profile, Field Trips, Notifications, or Shell, share one
+Explore-specific presentation or lifecycle contract. Promote a declaration to
+Core only when it is domain-neutral and reused outside Explore. A non-Explore
+adapter that publishes into or presents an Explore experience does not change
+the ownership of Explore-specific policy. Product-area screens, cards, filters,
+and view models remain with their owning area.
 
 The root components own keyboard dismissal, unavailable-state presentation, and
 the Explore onboarding prompt. `Models/ExploreCommentAuthorPresentation.swift`
-owns secure comment-avatar fallback shared by Feed and Notifications. `Media/`
-owns the cross-area media boundary:
+owns secure comment-avatar fallback shared by Feed and Notifications.
+
+`Models/ExploreErrorFormatter.swift` owns customer-safe error presentation for
+Explore experiences and for non-Explore adapters that publish into or present
+those experiences. It is a pure mapping boundary over caller-supplied errors;
+callers retain task cancellation, retry state, logging, and presentation
+lifetime. Do not return this Explore-specific copy policy to Core Utilities or
+add live network resolution to it.
 
 `Components/FlowLayout.swift` owns the Explore-only wrapping layout shared by
 Feed comments/details and Field Trips catalog cards. It remains a pure SwiftUI
 layout value with no product state or live effects; promote it back to Core only
 if a non-Explore product area adopts the same contract.
+
+`Media/` owns the cross-area media boundary:
 
 - `Components/` owns `ExplorePublicMediaView`, the thin player-layer bridge,
   hero-image rendering, and media indicators.
@@ -56,5 +66,11 @@ Changes to Shared media require its focused playback-state/policy tests, Feed
 layout tests, and manual regression of Identify, Map, Shell previews, Author
 Profile, Profile, and Species Dictionary consumers. Comment-author presentation
 changes require the focused Shared presentation suite plus manual Feed and
-Notifications avatar regression. The detailed media matrix lives in the
+Notifications avatar regression. Error-presentation changes require
+`ExploreErrorFormatterTests` and `ExploreSharedArchitectureTests`, plus focused
+regression of Feed, Author Profile, Map, Identify, Field Trips, Notifications,
+Shell, Insights sharing, Scans publication, Species Dictionary, and
+observation-statistics consumers. The architecture suite also pins the
+formatter's Foundation-only, effect-free boundary and keeps every Explore Shared
+production file at or below 600 lines. The detailed media matrix lives in the
 [Feed README](../Feed/README.md#focused-tests).

@@ -134,12 +134,17 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
   - `Notifications/`: the stable push and app-icon-badge facades plus focused
     Models, Policies, Services, Coordination, and Badges owners for system
     notification effects and mutable lifecycle state
+  - `UI/`: cross-feature render-only primitives, including the shared glow
+    loading surface, plus explicit UI service adapters such as the sole
+    main-actor `ShareSheetPresenter`; features retain loading, payload, route,
+    playback, and overlay lifecycle state
   - `Security/`: `CircuitBreakerManager`, `DeviceIdentityManager`,
     `EntitlementManager`, `RevenueCatManager`, `SocialGuardManager`
   - `SpeciesReference/`: shared non-UI Wikipedia mobile-sections and GBIF
     taxon-key transport/parsing used by Inference and scan-thumbnail recovery
-  - `Utilities/`: `MerianConfig`, `AppLifecycleManager`,
-    `BackgroundTaskWrapper`, and `FieldNotesRepository`
+  - `Utilities/`: non-visual cross-cutting helpers such as `MerianConfig`,
+    `AppLifecycleManager`, `BackgroundTaskWrapper`, and `FieldNotesRepository`;
+    do not place shared SwiftUI presentation or UIKit presentation bridges here
   - `Analytics/`, `Intents/`
 - `Models/`: Standardized pure Data structures and `SwiftData` logic.
 - `Configuration/`: target-owned Info.plist, entitlement, and privacy-manifest

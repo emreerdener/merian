@@ -303,6 +303,14 @@ local work after it resumes.
 
 ## UI Error Surface Patterns
 
+Explore-specific customer copy is owned by
+`apps/ios/Merian/Features/Explore/Shared/Models/ExploreErrorFormatter.swift`,
+including when an Insights, Scans, Species Dictionary, or Species Reference
+adapter publishes into or presents Explore. The formatter maps caller-supplied
+errors only; callers continue to own cancellation, retry, logging, and
+presentation lifetime. Domain-neutral transport and error classification remain
+in Core.
+
 | Error scenario                                                                                                                        | UI outcome                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Inference decoding failure (`MerianError.decodingFailed`)                                                                             | InsightSheet opens with "Analysis Failed" / "Data Unreadable" placeholder result                                                                                                                                                                                                                                                                                                                                                           |

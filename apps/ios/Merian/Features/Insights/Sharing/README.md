@@ -303,6 +303,10 @@ Customer copy remains feature-level:
 - internal server-key/publication boundary failure:
   `Explore is temporarily unavailable. Please try again in a few minutes.`
 
+`Explore/Shared/Models/ExploreErrorFormatter.swift` owns this mapping. Sharing
+Services adapt it for the Insights state owner and do not define a second copy
+policy.
+
 Raw SQL, authorization, object-key, and internal recovery errors are never shown
 to users.
 

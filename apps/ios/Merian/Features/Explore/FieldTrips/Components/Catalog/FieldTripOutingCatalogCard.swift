@@ -142,7 +142,7 @@ struct FieldTripLifecycleStatusBadge: View {
         .padding(.vertical, 6)
         .background(
             Capsule()
-                .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+                .fill(Color(uiColor: .secondarySystemFill))
         )
         .fixedSize(horizontal: true, vertical: false)
         .accessibilityElement(children: .ignore)

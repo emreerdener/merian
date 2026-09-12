@@ -219,6 +219,9 @@ AttributeGraph cold-launch testing for all three configurable first modes.
 The former aggregate view is split without changing layout ownership:
 
 - `DescribeQuestionNavigationView` owns dots and previous/next controls.
+- Previous and next chevron taps emit the injected selection haptic before
+  transitioning; the tag strip's automatic advancement does not emit another
+  pulse.
 - `DescribePromptTagsView` owns prompt/tag rendering and the UI-only 350 ms
   auto-advance task.
 - `DescribeTextEditorView` owns the flexible rounded text region and receives a

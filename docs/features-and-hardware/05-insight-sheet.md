@@ -2146,8 +2146,10 @@ The service handles two export paths:
   scientific name, and best available image order (live > historic > reference).
   Core keeps local and remote preview decoding file-backed where possible,
   downsamples the selected image to at most 2,048 px, and returns a Sendable
-  payload. The injected Shell adapter converts it to UIKit values and presents
-  `UIActivityViewController` on the main actor only after the task fences pass.
+  payload. The injected Shell adapter converts it to UIKit values and delegates
+  to `Core/UI/Services/ShareSheetPresenter`; that shared presenter performs the
+  main-actor activity-controller presentation and delivers dismissal on the main
+  actor only after the task fences pass.
 
 Scans batch export uses the same request and service types, so URL approval,
 primary/fallback ordering, and partial-success copy cannot drift between Library

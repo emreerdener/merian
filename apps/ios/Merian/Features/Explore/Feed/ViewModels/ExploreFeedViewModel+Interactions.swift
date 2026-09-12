@@ -103,11 +103,9 @@ extension ExploreFeedViewModel {
         )
 
         let overlayToken = playbackCoordinator?.beginOverlay(reason: "explore-share-sheet")
-        ShareSheetUtility.present(items: [shareText]) {
+        ShareSheetPresenter.present(items: [shareText]) {
             guard let overlayToken else { return }
-            Task { @MainActor in
-                playbackCoordinator?.endOverlay(overlayToken)
-            }
+            playbackCoordinator?.endOverlay(overlayToken)
         }
         dependencies.feedback.selection()
     }

@@ -68,6 +68,7 @@ struct DescribeInputView: View {
                                 questionCount: promptViewModel.activeQuestions.count,
                                 activeQuestionIndex:
                                     promptViewModel.activeQuestionIndex,
+                                selectionFeedback: dependencies.selectionFeedback,
                                 onPrevious: previousQuestion,
                                 onNext: advanceQuestion
                             )

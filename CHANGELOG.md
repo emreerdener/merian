@@ -1200,6 +1200,11 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 
+- Identify now opens with **Species** as its leading/default mode so the page
+  always has useful browsing content even when no community requests are active.
+  The former **Index** label is now **Species**; request links and notifications
+  still open **Requests** directly, and reselecting the active Identify bottom
+  item returns to Species.
 - Fixed queued scans that showed an **Automatic retry** time but could remain
   staged after that deadline. Naturebook now reconstructs an actual wake timer
   from the durable queue on foreground, reconnect, sheet presentation, and every
@@ -1461,14 +1466,15 @@ TestFlight, App Store, support, and QA.
 
 ### Species Dictionary
 
-- Fixed the Index's **Your Region** section so a valid device country no longer
-  disappears. Regional catalogs now use refreshable GBIF occurrence evidence and
-  exact country codes instead of trying to match country names inside broad
-  free-text ranges. While existing species are being backfilled, the map card
-  stays visible with a clear coverage-updating state; new identifications also
-  stop overwriting curated legacy range text with `Unknown`.
-- Temporarily hid the unfinished Tree of Life view from Explore’s Index while
-  keeping the Species Dictionary catalog available.
+- Fixed the Species catalog's **Your Region** section so a valid device country
+  no longer disappears. Regional catalogs now use refreshable GBIF occurrence
+  evidence and exact country codes instead of trying to match country names
+  inside broad free-text ranges. While existing species are being backfilled,
+  the map card stays visible with a clear coverage-updating state; new
+  identifications also stop overwriting curated legacy range text with
+  `Unknown`.
+- Temporarily hid the unfinished Tree of Life view from Explore’s Species mode
+  while keeping the Species Dictionary catalog available.
 - Hardened public observation charts against duplicate cold refreshes and
   provider outages. Charts now require a canonical Dictionary species, reuse
   negatively cached misses, and bound provider work with server-side rate
@@ -2392,7 +2398,7 @@ TestFlight, App Store, support, and QA.
 - Added extra species dictionary data fetches so undiscovered species can still
   load dictionary pages when users navigate to them.
 - Reduced Explore bottom navigation to Observations, Field trips, and Identify,
-  with Feed/Map grouped inside Observations and Requests/Index grouped inside
+  with Feed/Map grouped inside Observations and Species/Requests grouped inside
   Identify.
 - Added a searchable Species Dictionary catalog with category browsing,
   Dictionary detail pages, and species reference imagery.
@@ -2402,9 +2408,9 @@ TestFlight, App Store, support, and QA.
 - Added high-level Dictionary group cards with custom graphics for broad browse
   paths such as Plants, Birds, Insects, Fungi, Mammals, and Reptiles &
   Amphibians, with toolbar search available inside those species lists.
-- Moved the Species Dictionary catalog into Identify's **Index** mode and
-  removed Dictionary/Index from bottom navigation. Species links now select
-  Identify/Index before opening detail, while request links select
+- Moved the Species Dictionary catalog into Identify's **Species** mode and
+  removed Dictionary from bottom navigation. Species links now select
+  Identify/Species before opening detail, while request links select
   Identify/Requests.
 - Disconnected the unfinished taxonomy Tree/galaxy map from MVP navigation while
   preserving its code, API support, and default-off feature flag for future

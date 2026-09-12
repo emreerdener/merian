@@ -4,6 +4,87 @@ import XCTest
 
 @MainActor
 final class ExploreFeedViewModelTests: XCTestCase {
+    func testLikedFeedForwardsFiltersAndPaginatesBySharedDate() async {
+        let page = (0..<20).map {
+            ExploreFeedTestFixtures.post(id: "liked-\($0)", viewerHasLiked: true)
+        }
+        let filters = ExploreFeedAdvancedFilters(speciesCategories: [.birds], mediaTypes: [.audio], dateRange: .pastWeek)
+        var cursors: [ExploreFeedCursor] = []
+        var cutoffs: [Date?] = []
+        let viewModel = makeViewModel(loadPosts: { _, filter, latitude, longitude, cursor, advanced, sharedSince in
+            XCTAssertEqual(filter, .liked)
+            XCTAssertNil(latitude)
+            XCTAssertNil(longitude)
+            XCTAssertEqual(advanced, filters)
+            cursors.append(cursor ?? .empty)
+            cutoffs.append(sharedSince)
+            return cursors.count == 1 ? page : []
+        })
+        viewModel.advancedFilters = filters
+        await viewModel.selectFilter(.liked)
+        XCTAssertEqual(viewModel.posts, page)
+        XCTAssertTrue(viewModel.fieldTripPublications.isEmpty)
+        await viewModel.loadMoreIfNeeded(currentPost: page.last!)
+        XCTAssertEqual(cursors, [.empty, .init(beforeSharedAt: page.last?.sharedAt,
+                                              beforePostId: page.last?.id, beforeRankingValue: nil)])
+        XCTAssertTrue(viewModel.hasReachedEndOfFeed)
+        XCTAssertEqual(cutoffs.count, 2)
+        XCTAssertNotNil(cutoffs[0])
+        XCTAssertEqual(cutoffs[0], cutoffs[1])
+    }
+
+    func testSwitchingToLikedDiscardsPendingRecentResponse() async {
+        let started = expectation(description: "Recent started")
+        var pending: CheckedContinuation<[ExplorePost], any Error>?
+        let liked = ExploreFeedTestFixtures.post(id: "liked", viewerHasLiked: true)
+        let viewModel = makeViewModel(loadPosts: { _, filter, _, _, _, _, _ in
+            if filter == .liked { return [liked] }
+            return try await withCheckedThrowingContinuation {
+                pending = $0
+                started.fulfill()
+            }
+        })
+        let initial = Task { await viewModel.loadInitialFeed() }
+        await fulfillment(of: [started], timeout: 1)
+        await viewModel.selectFilter(.liked)
+        pending?.resume(returning: [ExploreFeedTestFixtures.post(id: "stale")])
+        await initial.value
+        XCTAssertEqual(viewModel.activeFilter, .liked)
+        XCTAssertEqual(viewModel.posts, [liked])
+    }
+
+    func testLikedUnlikeRemainsVisibleUntilRefresh() async {
+        let post = ExploreFeedTestFixtures.post(id: "liked", likeCount: 1, viewerHasLiked: true)
+        var serverLiked = true
+        let viewModel = makeViewModel(
+            loadPosts: { _, _, _, _, _, _, _ in serverLiked ? [post] : [] },
+            setLike: { postId, liked in
+                serverLiked = liked
+                return ExploreLikeResponse(success: true, postId: postId, viewerHasLiked: liked, likeCount: 0)
+            }
+        )
+        await viewModel.selectFilter(.liked)
+        await viewModel.toggleLike(for: post)
+        XCTAssertEqual(viewModel.posts.map(\.id), [post.id])
+        XCTAssertFalse(viewModel.posts[0].viewerHasLiked)
+        await viewModel.refreshFeed()
+        XCTAssertTrue(viewModel.posts.isEmpty)
+    }
+
+    func testLikedUnlikeFailureRestoresHeartAndRemainsAfterRefresh() async {
+        let post = ExploreFeedTestFixtures.post(id: "liked", likeCount: 1, viewerHasLiked: true)
+        let viewModel = makeViewModel(
+            loadPosts: { _, _, _, _, _, _, _ in [post] },
+            setLike: { _, _ in throw ExploreFeedTestFixtures.StubError.failed }
+        )
+        await viewModel.selectFilter(.liked)
+        await viewModel.toggleLike(for: post)
+        XCTAssertEqual(viewModel.posts, [post])
+        XCTAssertEqual(viewModel.toastMessage?.severity, .error)
+        await viewModel.refreshFeed()
+        XCTAssertEqual(viewModel.posts, [post])
+    }
+
     func testInitialLoadPublishesPageAndForwardsRequestState() async {
         let expectedPost = ExploreFeedTestFixtures.post(id: "first")
         var receivedLimit: Int?

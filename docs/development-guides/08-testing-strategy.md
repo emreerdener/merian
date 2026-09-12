@@ -3904,9 +3904,9 @@ not accept one layer as evidence for another.
 iOS focused coverage:
 
 - `Features/Explore/Identify/CommunityIdentificationPresentationTests.swift`
-  locks Requests/Index mode cases, 12/10 preview limits, 30-row complete page
-  size, independent request/Activity presentation state, filter mapping, empty
-  copy, and current-filter route propagation.
+  locks Species/Requests mode order and titles, 12/10 preview limits, 30-row
+  complete page size, independent request/Activity presentation state, filter
+  mapping, empty copy, and current-filter route propagation.
 - `Features/Explore/Identify/IdentifyDashboardViewModelTests.swift` verifies
   dashboard request construction, stale-content retention, independent errors,
   refreshes, and section-only retries.
@@ -3921,11 +3921,11 @@ iOS focused coverage:
   search, debounce-independent search outcomes, 4,000-character feedback
   validation, trimming, success, and failure restoration.
 - `Features/Explore/Shell/ExploreShellNavigationPolicyTests.swift` locks the
-  exact three root tabs plus species-to-Index and request-to-Requests deep-link
-  policy. Identify presentation and asynchronous state tests remain with
-  Identify. Catalog routing, presentation, asynchronous state, and architecture
-  tests live in `Features/SpeciesDictionary/Catalog/`; detail state,
-  presentation, Services, and architecture tests live in
+  exact three root tabs plus species-to-Species and request-to-Requests
+  deep-link policy. Identify presentation and asynchronous state tests remain
+  with Identify. Catalog routing, presentation, asynchronous state, and
+  architecture tests live in `Features/SpeciesDictionary/Catalog/`; detail
+  state, presentation, Services, and architecture tests live in
   `Features/SpeciesDictionary/Detail/`; cross-surface model ownership lives in
   `Features/SpeciesDictionary/Shared/`. Wire, strict schema/identity, cache, and
   observation-stats compatibility now live in the mirrored Core Network
@@ -3953,9 +3953,14 @@ iOS focused coverage:
   [scan-publication matrix](../../apps/ios/Merian/Core/Network/README.md#scan-publication-and-owned-recovery-verification).
   `Core/Network/CommunityIdentificationModelsTests.swift` retains standalone
   DTO/model compatibility tests.
-- `Core/Utilities/MerianConfigTests.swift` verifies a temporary service failure
-  uses Recent activity-specific copy rather than the generic Explore outage
-  message.
+- `Features/Explore/Shared/ExploreErrorFormatterTests.swift` owns all sixteen
+  customer-safe mapping cases, including cancellation, technical-error
+  sanitization, publication recovery, Field Trip detail, Recent activity, and
+  observation-statistics copy. `ExploreSharedArchitectureTests.swift` pins the
+  sole production and focused test owners, rejects the retired Utilities path,
+  keeps the formatter's import set Foundation-only and its implementation
+  effect-free, and enforces the 600-line ceiling across Explore Shared
+  production sources.
 
 Backend focused coverage:
 
@@ -3994,9 +3999,9 @@ requires the fully migrated disposable catalog and the complete
 Manual root-UI acceptance requires:
 
 1. Exactly Observations, Field trips, and Identify in bottom navigation.
-2. Requests/Index at the Identify root and no separate taxonomy visualization
-   entry point.
-3. Index overview, catalog, and regions navigation retaining their established
+2. Species/Requests at the Identify root, with Species leading/default, and no
+   separate taxonomy visualization entry point.
+3. Species overview, catalog, and regions navigation retaining their established
    loading, empty, error, search, refresh, pagination, VoiceOver, and large
    Dynamic Type presentation.
 4. Rapid catalog search replacement, selection reversion, refresh/pagination
@@ -5506,7 +5511,8 @@ Identification latency has focused contract coverage at each boundary:
   calls: URLSession protocol scheduling is not coupled to executor-yield count
   on a loaded hosted simulator. Each case must assert its exact request count
   both immediately before cancellation and after the retry delay exits.
-  `MerianConfigTests` locks customer-facing Explore error translation;
+  `ExploreErrorFormatterTests` locks customer-facing Explore error translation;
+  `ExploreSharedArchitectureTests` locks feature ownership; and
   `FieldChatViewModelStateTests` locks retryable still-syncing feedback.
 
 Before production percentage increases, run a device/simulator lifecycle matrix
@@ -6386,13 +6392,17 @@ copy, accessibility, image-loading, playback, or navigation behavior.
 feature- and domain-specific declarations to their narrowest owners, forbids
 live process-service resolution outside Core UI service adapters, pins each
 current lookup to its explicit adapter owner, and enforces the 600-line
-production-file ceiling. The audio-carousel assertion additionally keeps its
-mutable player, observer, and task state file-private. The surrounding feature
-architecture suites freeze the relocated Capture navigation, Explore wrapping
-layout, Profile stats/plan presentation, Insight entrance and confirmation
-controls, and Core Notifications permission sheet. Dependency tests lock
-injected milestone, Capture, notification, and Insight feedback or hardware
-actions.
+production-file ceiling. The suite also pins the cross-feature glow skeleton to
+`Core/UI/Components/Loading`, pins the UIKit activity-controller bridge to
+`Core/UI/Services`, rejects the retired Utilities paths and unused shimmer API,
+and freezes the presenter's main-actor presentation and dismissal callback,
+completion, topmost-controller, and iPad popover contract. The audio-carousel
+assertion additionally keeps its mutable player, observer, and task state
+file-private. The surrounding feature architecture suites freeze the relocated
+Capture navigation, Explore wrapping layout, Profile stats/plan presentation,
+Insight entrance and confirmation controls, and Core Notifications permission
+sheet. Dependency tests lock injected milestone, Capture, notification, and
+Insight feedback or hardware actions.
 
 Run the focused matrix after changing these owners or their composition seams:
 
@@ -6409,15 +6419,23 @@ xcodebuild -quiet -scheme Merian -project merian.xcodeproj \
   -only-testing:merianTests/SettingsArchitectureTests \
   -only-testing:merianTests/InsightContentArchitectureTests \
   -only-testing:merianTests/InsightContentActionsTests \
-  -only-testing:merianTests/IdentificationReviewArchitectureTests test
+  -only-testing:merianTests/IdentificationReviewArchitectureTests \
+  -only-testing:merianTests/InsightsIntegrationArchitectureTests \
+  -only-testing:merianTests/ExploreShareMessageFormatterTests \
+  -only-testing:merianTests/AppShareContentTests \
+  -only-testing:merianTests/InsightMediaExportLifecycleTests \
+  -only-testing:merianTests/ScansLibraryActionsTests test
 ```
 
 Manual parity covers Capture navigation and badges; Explore wrapping layout;
 Profile plan allowance and stats heatmap scrolling; Insight card entrance with
 Reduce Motion and candidate-drag haptics; both notification-permission entry
-points; milestone feedback; VoiceOver; large Dynamic Type; and light/dark
-appearance. These checks verify presentation and interaction parity; they do not
-replace physical-device haptic or notification authorization testing.
+points; standard and raised-grid skeletons with Reduce Motion; Explore, Insight,
+Profile, and Scans share sheets including iPad anchoring and dismissal-owned
+playback restoration; milestone feedback; VoiceOver; large Dynamic Type; and
+light/dark appearance. These checks verify presentation and interaction parity;
+they do not replace physical-device haptic or notification authorization
+testing.
 
 iOS audio playback policy coverage is split by production owner.
 `MerianTests/Core/Media/AudioPlaybackPresentationTests.swift` owns shared pill,

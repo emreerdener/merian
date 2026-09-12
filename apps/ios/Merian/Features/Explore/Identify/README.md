@@ -2,7 +2,7 @@
 
 The `Identify` directory owns community-driven species identification inside
 Explore. Identify is one of the three root bottom-navigation items and contains
-the `Requests` / `Index` root mode picker. Product behavior remains defined by
+the `Species` / `Requests` root mode picker. Product behavior remains defined by
 the canonical
 [Explore bottom-menu contract](../../../../../../docs/features-and-hardware/24-explore-bottom-menu.md).
 
@@ -11,18 +11,20 @@ the canonical
 This area lets explorers ask for help with an observation, review recent
 identification activity, open complete request/activity feeds, suggest a taxon,
 and follow community consensus to resolution. The existing Species Dictionary
-overview is rendered as Identify's `Index` mode, although its implementation
-continues to live under
+overview is rendered as Identify's `Species` mode (internally `.index`),
+although its implementation continues to live under
 [`Features/SpeciesDictionary/Catalog`](../../SpeciesDictionary/Catalog/README.md).
-Identify owns the mode switch; Catalog owns Index loading, presentation, and
+Identify owns the mode switch; Catalog owns Species loading, presentation, and
 typed category routes.
 
 ## Root surfaces
 
-`ExploreIdentifyMode` has exactly two cases:
+`ExploreIdentifyMode` has exactly two cases in visible order, with `.index` as
+the default for a plain Identify entry:
 
-- `.requests` renders `ExploreCommunityIdentificationView`.
-- `.index` renders `SpeciesDictionaryOverviewView`.
+- `.index` is titled **Species** and renders `SpeciesDictionaryOverviewView`.
+- `.requests` is titled **Requests** and renders
+  `ExploreCommunityIdentificationView`.
 
 The Requests root is a dashboard with one shared
 `CommunityIdentificationRequestFilter`. `All` and `Yours` precede Plants, Birds,
@@ -55,7 +57,7 @@ The dashboard pushes two typed routes while preserving the selected filter:
 - `ExploreCommunityActivityFeedRoute` opens `ExploreCommunityActivityFeedView`,
   titled **Identify activity**.
 
-Both pages hide the root tab bar and Requests/Index picker. Back navigation
+Both pages hide the root tab bar and Species/Requests picker. Back navigation
 returns to the dashboard with its prior filter. Complete feeds request 30 rows
 per page and de-duplicate IDs while appending:
 
@@ -176,7 +178,7 @@ generation.
   The
   [Network matrix](../../../Core/Network/README.md#enrichment-export-and-feedback-verification)
   verifies the 30-second request, ignored success body, and replay refusal.
-- `Core/Utilities/ExploreErrorFormatter.swift` owns generic and Recent
+- `Explore/Shared/Models/ExploreErrorFormatter.swift` owns generic and Recent
   activity-specific error copy.
 - `Explore/Shell/Models/ExploreShellNavigationModels.swift` owns initial
   tab/mode and deep-link policy; `Explore/Shell/Views/` owns root selection and
@@ -200,9 +202,9 @@ Backend ownership:
 
 ## Dictionary scope
 
-Identify/Index is the sole Species Dictionary browsing surface. Taxonomy remains
-searchable reference data within catalog and detail responses; there is no
-separate taxonomy visualization, control, or route.
+Identify/Species is the sole Species Dictionary browsing surface. Taxonomy
+remains searchable reference data within catalog and detail responses; there is
+no separate taxonomy visualization, control, or route.
 
 ## Verification
 

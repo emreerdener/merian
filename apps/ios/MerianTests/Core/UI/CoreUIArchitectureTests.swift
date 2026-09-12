@@ -90,6 +90,116 @@ struct CoreUIArchitectureTests {
         }
     }
 
+    @Test("Shared loading and system presentation have explicit Core UI owners")
+    func sharedLoadingAndSystemPresentationHaveExplicitOwners() throws {
+        let root = try repositoryRoot()
+        let productionRoot = root.appendingPathComponent("apps/ios/Merian")
+        let sources = try swiftFiles(in: productionRoot).map { file in
+            (
+                path: String(file.path.dropFirst(root.path.count + 1)),
+                contents: try contents(of: file)
+            )
+        }
+
+        let loadingOwners = Set(sources.compactMap { source in
+            source.contents.contains("struct GlowPulsingSkeletonView: View")
+                ? source.path
+                : nil
+        })
+        #expect(
+            loadingOwners == Set([Self.glowPulsingSkeletonPath]),
+            "GlowPulsingSkeletonView owners changed: \(loadingOwners.sorted())"
+        )
+
+        let loadingStyleOwners = Set(sources.compactMap { source in
+            source.contents.contains("enum GlowPulsingSkeletonStyle")
+                ? source.path
+                : nil
+        })
+        #expect(
+            loadingStyleOwners == Set([Self.glowPulsingSkeletonPath]),
+            "GlowPulsingSkeletonStyle owners changed: \(loadingStyleOwners.sorted())"
+        )
+
+        let presenterOwners = Set(sources.compactMap { source in
+            source.contents.contains("public enum ShareSheetPresenter")
+                ? source.path
+                : nil
+        })
+        #expect(
+            presenterOwners == Set([Self.shareSheetPresenterPath]),
+            "ShareSheetPresenter owners changed: \(presenterOwners.sorted())"
+        )
+
+        for retiredPath in Self.retiredUtilitiesUIPaths {
+            #expect(
+                !FileManager.default.fileExists(
+                    atPath: root.appendingPathComponent(retiredPath).path
+                ),
+                "Retired Utilities UI owner remains at \(retiredPath)"
+            )
+        }
+
+        let retiredSymbols = [
+            "ShimmerModifier",
+            "func shimmering(",
+            ".shimmering(",
+            "ShareSheetUtility"
+        ]
+        for source in sources {
+            for retiredSymbol in retiredSymbols {
+                #expect(
+                    !source.contents.contains(retiredSymbol),
+                    "Retired \(retiredSymbol) remains in \(source.path)"
+                )
+            }
+        }
+    }
+
+    @Test("Shared loading preserves its two styles and Reduce Motion policy")
+    func sharedLoadingPreservesPresentationContract() throws {
+        let source = try contents(
+            of: repositoryRoot().appendingPathComponent(
+                Self.glowPulsingSkeletonPath
+            )
+        )
+
+        #expect(source.contains("@Environment(\\.accessibilityReduceMotion)"))
+        #expect(source.contains("@Environment(\\.colorScheme)"))
+        #expect(source.contains("var cornerRadius: CGFloat = 12"))
+        #expect(source.contains("var style: GlowPulsingSkeletonStyle = .standard"))
+        #expect(source.contains("case standard"))
+        #expect(source.contains("case raisedGrid"))
+        #expect(source.contains("reduceMotion ? nil"))
+        #expect(source.contains("repeatForever(autoreverses: true)"))
+        #expect(source.contains("isGlowing = true"))
+    }
+
+    @Test("Share presenter preserves its bounded UIKit presentation contract")
+    func sharePresenterPreservesPresentationContract() throws {
+        let source = try contents(
+            of: repositoryRoot().appendingPathComponent(
+                Self.shareSheetPresenterPath
+            )
+        )
+
+        #expect(source.contains("@MainActor"))
+        #expect(source.contains("onDismiss: (@MainActor () -> Void)?"))
+        #expect(source.contains("UIApplication.shared.connectedScenes.first"))
+        #expect(source.contains("windowScene.windows.first"))
+        #expect(source.contains("while let presentedViewController"))
+        #expect(source.contains("UIActivityViewController("))
+        #expect(source.contains("applicationActivities: nil"))
+        #expect(source.contains("completionWithItemsHandler"))
+        #expect(source.contains("Task { @MainActor in"))
+        #expect(source.components(separatedBy: "onDismiss?()").count == 3)
+        #expect(source.contains("popoverPresentationController"))
+        #expect(source.contains("popover.sourceView = topViewController.view"))
+        #expect(source.contains("popover.sourceRect = CGRect("))
+        #expect(source.contains("popover.permittedArrowDirections = []"))
+        #expect(source.contains("topViewController.present(activityViewController, animated: true)"))
+    }
+
     @Test("Audio page keeps mutable playback state file-private")
     func audioPlaybackStateRemainsEncapsulated() throws {
         let file = try repositoryRoot().appendingPathComponent(
@@ -161,9 +271,14 @@ struct CoreUIArchitectureTests {
         "apps/ios/Merian/Core/UI/Services/AsyncLocalImageDependencies.swift"
     private static let scanThumbnailLoaderPath =
         "apps/ios/Merian/Core/UI/Services/ScanThumbnailLoader.swift"
+    private static let shareSheetPresenterPath =
+        "apps/ios/Merian/Core/UI/Services/ShareSheetPresenter.swift"
     private static let scanMilestoneDependenciesPath =
         "apps/ios/Merian/Core/UI/Feedback/Services/" +
             "ScanMilestoneDependencies.swift"
+    private static let glowPulsingSkeletonPath =
+        "apps/ios/Merian/Core/UI/Components/Loading/" +
+            "GlowPulsingSkeletonView.swift"
 
     private static let liveEffectOwnership: [(
         token: String,
@@ -214,7 +329,7 @@ struct CoreUIArchitectureTests {
         ),
         (
             "UIApplication.shared",
-            []
+            [shareSheetPresenterPath]
         ),
         (
             "UNUserNotificationCenter.current()",
@@ -248,5 +363,10 @@ struct CoreUIArchitectureTests {
         "apps/ios/Merian/Features/Insights/IdentificationReview/Candidates/Components/Review/SlideToConfirm.swift",
         "apps/ios/Merian/Features/Profile/Settings/Plan/Models/ComplimentaryScanDisplayState.swift",
         "apps/ios/Merian/Features/Profile/UserProfile/Components/Stats/FadingScrollView.swift"
+    ]
+
+    private static let retiredUtilitiesUIPaths = [
+        "apps/ios/Merian/Core/Utilities/ShareSheetUtility.swift",
+        "apps/ios/Merian/Core/Utilities/ShimmerModifier.swift"
     ]
 }

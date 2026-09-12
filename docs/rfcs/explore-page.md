@@ -43,8 +43,8 @@ mutation. The current rollout state is documented in
   feed/detail author headers.
 - The author profile sheet can transition sideways into the author's full
   published Explore scan library.
-- The feed now ships four user-facing filters: `Recent`, `Following`,
-  `Trending`, and `Nearby`.
+- The feed now ships five user-facing filters: `Recent`, `Following`,
+  `Trending`, `Nearby`, and `Liked`.
 - Explore posts may carry up to five normalized public hashtags. Hashtag chips
   open currently visible tagged-post collections; event and BioBlitz
   auto-submission remains later scope.
@@ -99,7 +99,7 @@ mutation. The current rollout state is documented in
 - Captions, DMs, private sharing, mutual friend requests, or standalone social
   profile pages beyond the privacy-scoped author sheet
 - Heavy personalization, editorial curation, or ranking beyond the shipped
-  `Recent` / `Following` / `Trending` / `Nearby` modes
+  `Recent` / `Following` / `Trending` / `Nearby` / `Liked` modes
 - Public species pages in this scope
 
 ## Shipped V1 Snapshot (updated 2026-07-31)
@@ -109,17 +109,19 @@ is:
 
 - `ExploreView` uses exactly three bottom-navigation items: `Observations`,
   `Field trips`, and `Identify`. Observations owns a root-only Feed/Map header
-  toggle with Feed first. Identify owns a Requests/Index toggle: Requests is a
-  dashboard with 12 open-request cards followed by 10 recent activity groups,
-  plus stack routes to each complete feed; Index renders the existing Species
-  Dictionary catalog. Species links select Identify/Index before detail and
-  request links select Identify/Requests. Taxonomy remains catalog/detail
-  reference data and has no separate visualization route or feature flag. Field
-  trips opens directly to Outings and always owns the Outings/Events toggle.
-  Completed standard-outing goals resolve their private completion scan ID to a
-  device-local photo/video-poster thumbnail; tapping one pushes the existing
-  Insight view in the same Explore navigation stack and returns to the outing on
-  back.
+  toggle with Feed first. Identify owns a Species/Requests toggle: Species is
+  the leading/default mode and renders the existing Species Dictionary catalog;
+  Requests is a dashboard with 12 open-request cards followed by 10 recent
+  activity groups, plus stack routes to each complete feed. Species links select
+  Identify/Species before detail and request links select Identify/Requests.
+  Reselecting an active bottom item returns only that section to its first root
+  mode: Observations to Feed, Field trips to Outings, and Identify to Species.
+  Taxonomy remains catalog/detail reference data and has no separate
+  visualization route or feature flag. Field trips opens directly to Outings and
+  always owns the Outings/Events toggle. Completed standard-outing goals resolve
+  their private completion scan ID to a device-local photo/video-poster
+  thumbnail; tapping one pushes the existing Insight view in the same Explore
+  navigation stack and returns to the outing on back.
 - Identify request and Activity previews load concurrently with independent
   states, share the current All/Yours/organism filter, and reload together on
   refresh or filter change. **See all requests** and **See all activity** carry
@@ -158,9 +160,16 @@ is:
   links, species stats, and taxonomy routing continue to use
   `species_scientific_name`.
 - The feed tab now ships a leading `Filters` pill before `Recent`, `Following`,
-  `Trending`, and `Nearby`. The pill opens a sheet for feed mode, species
-  groups, image/audio/video media, shared-date range, and a Nearby-only
+  `Trending`, `Nearby`, and `Liked`. The pill opens a sheet for feed mode,
+  species groups, image/audio/video media, shared-date range, and a Nearby-only
   10/25/50/100-mile distance.
+- `Liked` follows Nearby in both the sheet and filter bar, with a heart icon and
+  “Discoveries you’ve liked” subtitle. It shows the viewer’s current likes on
+  visible observation posts, newest shared posts first, and supports media,
+  date, and species filters. It excludes Field Trip publications. An unliked
+  post stays visible until refresh; failed unlikes restore the heart. Empty
+  results show “No liked discoveries yet” / “Like discoveries to find them
+  here.” Advanced-filter empty results retain “No matching discoveries.”
 - `Recent` remains the default mode and still uses the canonical
   `(shared_at, post_id)` cursor.
 - `Following` is an asymmetric-follow feed backed by followed authors' visible
@@ -689,8 +698,8 @@ Recommended V1 endpoints:
     intent, and optional `species_common_name` snapshot while preserving the
     existing name when it is omitted
 - `get-explore-feed`
-  - Returns Explore cards for `Recent`, `Following`, `Trending`, or `Nearby`
-    depending on the requested filter
+  - Returns Explore cards for `Recent`, `Following`, `Trending`, `Nearby`, or
+    `Liked` depending on the requested filter
 - `get-explore-post`
   - Returns a single Explore card projection for notification routing and deep
     links
@@ -774,8 +783,8 @@ trigger. Follow notifications and Field trip activity stay in-app only.
 Pagination:
 
 - `get-explore-feed` should use cursor pagination, not offset pagination
-- `Recent`, `Following`, and `Nearby` should use `(shared_at, post_id)` so feed
-  paging remains stable while new posts are inserted above the viewer
+- `Recent`, `Following`, `Nearby`, and `Liked` should use `(shared_at, post_id)`
+  so feed paging remains stable while new posts are inserted above the viewer
 - `Trending` should use `(ranking_value, shared_at, post_id)` so ranking ties do
   not skip or duplicate rows
 - Recommended request fields:
@@ -1483,7 +1492,7 @@ Client behavior:
 
 - Explore is online-only in V1
 - Likes/comments/shares do not use the offline queue
-- `Recent`, `Following`, and `Nearby` pagination are cursor-based on
+- `Recent`, `Following`, `Nearby`, and `Liked` pagination are cursor-based on
   `(shared_at, post_id)`
 - `Trending` pagination is cursor-based on `(ranking_value, shared_at, post_id)`
 - Feed species, media, date, and Nearby-distance constraints execute server-side
@@ -1505,7 +1514,7 @@ Client behavior:
 - Map filters should keep species shortcuts in the horizontal pill row and put
   image, video, and audio multi-select controls in the full filter sheet. The
   generic Filters count and All/Reset actions include both groups.
-- Feed filters should keep the four modes in the horizontal row and add a
+- Feed filters should keep the five modes in the horizontal row and add a
   leading Filters pill. Its sheet owns mode, species, media, shared date, and
   Nearby-only distance; Reset clears advanced constraints but preserves mode.
 - Marker selection should open a preview card first and only then open full
@@ -1598,7 +1607,7 @@ Client behavior:
 - A user can manually share an eligible scan with supported image, video, or
   audio media to Explore.
 - A shared post appears in the public feed, with `Recent` as the default
-  reverse-chronological mode plus shipped `Following`, `Trending`, and `Nearby`
+  reverse-chronological mode plus `Following`, `Trending`, `Nearby`, and `Liked`
   filters.
 - The feed shows privacy-safe author identity and general location.
 - Authenticated authors can show a public avatar when a provider avatar URL is

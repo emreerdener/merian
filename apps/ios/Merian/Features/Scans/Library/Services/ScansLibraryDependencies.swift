@@ -48,7 +48,7 @@ struct ScansLibraryDependencies {
                     request
                 )
                 guard !Task.isCancelled else { return }
-                ShareSheetUtility.present(items: payload.activityItems)
+                ShareSheetPresenter.present(items: payload.activityItems)
             },
             batchSaveMedia: { scans in
                 let requests = scans.map { scan in

@@ -17,9 +17,9 @@ captures.
   reader and actor-isolated text filter. `ScansLibraryDependencies.swift` is the
   only Library layer that resolves live app events, adapts the Core
   `MediaExportService`, performs Explore publication, writes durable local share
-  state, formats errors, or triggers haptics. Core Media—not Library—owns remote
-  media validation, downloading, downsampling, sequential export processing, and
-  share-payload preparation.
+  state, adapts Explore Shared's customer-safe error presentation, or triggers
+  haptics. Core Media—not Library—owns remote media validation, downloading,
+  downsampling, sequential export processing, and share-payload preparation.
 - `ViewModels/ScansManager.swift` retains the existing UI-facing interface,
   selection state, filter input, action feedback, and event subscription.
   `ScansLibrarySearchCoordinator.swift` contains the private generation-fenced

@@ -207,6 +207,8 @@ struct ExploreFeedTabContent: View {
             return "Nothing trending yet"
         case .nearby:
             return "Nothing nearby yet"
+        case .liked:
+            return "No liked discoveries yet"
         }
     }
 
@@ -222,6 +224,8 @@ struct ExploreFeedTabContent: View {
             return "Follow authors from their public profiles to build this feed."
         case .trending:
             return "Freshly liked discoveries will appear here as the community reacts."
+        case .liked:
+            return "Like discoveries to find them here."
         case .nearby:
             return "We couldn’t find shared discoveries within \(viewModel.advancedFilters.nearbyRadius.rawValue) miles of your current location."
         }

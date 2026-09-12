@@ -61,22 +61,21 @@ authenticated in-product report write.
 
    ```ts
    {
-     p_target_post_id: postId
+     p_target_post_id: postId;
    }
    ```
 
    PostgreSQL fixes the underlying viewer to `NULL`; no request or environment
    value can impersonate another user. The routine is revoked from
    `PUBLIC`/`anon`/`authenticated` and calls `internal.require_service_role()`.
-5. That one statement returns `post_payload` plus independently
-   canonical-gated `detail_payload`, hydrating public field notes, hashtags,
-   references, overview, conservation status, taxonomy labels, and alternate
-   names without a check-then-fetch race.
+5. That one statement returns `post_payload` plus independently canonical-gated
+   `detail_payload`, hydrating public field notes, hashtags, references,
+   overview, conservation status, taxonomy labels, and alternate names without a
+   check-then-fetch race.
 6. The server maps those payloads into the `ExplorePost` page model. The card
-   includes the canonical ordered `media_items` snapshot; the hero image
-   remains the static poster and metadata fallback.
-   Engagement counts are always zero and viewer/ownership flags are always false
-   on this anonymous surface.
+   includes the canonical ordered `media_items` snapshot; the hero image remains
+   the static poster and metadata fallback. Engagement counts are always zero
+   and viewer/ownership flags are always false on this anonymous surface.
 7. `explorePosterUrl(...)` prefers the canonical visual hero and otherwise uses
    the first persisted standalone-audio spectrogram thumbnail.
 8. `generateMetadata(...)` emits canonical, Open Graph, and Twitter metadata
@@ -89,10 +88,9 @@ Confirmed-missing items are absent from that ordered snapshot. If every primary
 item is confirmed missing, canonical visibility excludes the post. The atomic
 page RPC and direct detail RPC both return no row, so the permalink and its
 social metadata resolve to the same non-indexable not-found response as other
-hidden posts.
-The retained post becomes visible at the same URL after verified repair; the web
-app never reconstructs it from direct table reads or substitutes species
-reference artwork for missing observation evidence.
+hidden posts. The retained post becomes visible at the same URL after verified
+repair; the web app never reconstructs it from direct table reads or substitutes
+species reference artwork for missing observation evidence.
 
 The active video slide autoplays muted and inline with native browser controls;
 it loops continuously while selected, and leaving the slide pauses and rewinds
@@ -182,8 +180,8 @@ Optional public values:
 - `NEXT_PUBLIC_SITE_URL` — canonical site URL. Production should be
   `https://naturebook.earth`.
 - `NEXT_PUBLIC_APP_STORE_URL` — leave unset before launch so the site retains
-  its waitlist CTA. Once the listing is publicly reachable, set the reviewed
-  App Store Connect campaign link and update the iOS app-share TODO and
+  its waitlist CTA. Once the listing is publicly reachable, set the reviewed App
+  Store Connect campaign link and update the iOS app-share TODO and
   cross-repository test in the same change.
 - `NEXT_PUBLIC_SUPPORT_EMAIL` — public support contact shown on legal/support
   pages.
@@ -394,7 +392,7 @@ back to their public web pages for everyone else.
 4. **Deep Linking Route Handler**: Incoming `NSUserActivityTypeBrowsingWeb` web
    links route through the same typed native router as custom-scheme links.
    Species routes carry only the validated canonical UUID, ignore the optional
-   descriptive slug, select Explore's Identify tab and Index mode, and push
+   descriptive slug, select Explore's Identify tab and Species mode, and push
    `SpeciesDictionaryRoute(entryPoint: .deepLink)`. The parser accepts both
    Naturebook and legacy Merian hosts/schemes and ignores unrelated policy
    routes.
@@ -491,7 +489,7 @@ content and verify:
    404. A forced transient Edge failure produces a server error, never a cached
    not-found page.
 5. With the current app installed, canonical, UUID-only, and stale-slug HTTPS
-   links open Explore, select Index/Dictionary, and push the matching species
+   links open Explore, select Identify/Species, and push the matching species
    page by UUID. Without the app, or when opened explicitly in a browser, the
    canonical URL remains on the web fallback and compatibility forms redirect
    there. The page's **Open in Naturebook** action targets

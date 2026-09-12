@@ -11,6 +11,18 @@ and optional physical size estimation belongs to
 [Capture Submission](../../Features/Capture/Submission/README.md); do not add
 those responsibilities back to Utilities.
 
+Cross-feature visual loading treatment and the UIKit share-presentation bridge
+belong to [`Core/UI`](../UI/README.md). The retired `ShimmerModifier.swift` and
+`ShareSheetUtility.swift` owners must not return: Core UI owns the retained glow
+skeleton and `ShareSheetPresenter`, while features retain loading state, share
+payload construction, and presentation lifecycle.
+
+Explore-specific customer-safe error presentation belongs to
+[`Features/Explore/Shared`](../../Features/Explore/Shared/README.md). The
+retired `ExploreErrorFormatter.swift` Utilities path must not return; Core
+Utilities retains only domain-neutral error and connectivity classification that
+is shared across capture and durable recovery boundaries.
+
 `String+Trimming.swift` provides the single trim-to-non-empty normalization used
 by the shared scan-thumbnail projection, renderer, and reference-image backfill
 pipeline. Keep that mechanical normalization here instead of recreating
