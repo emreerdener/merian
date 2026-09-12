@@ -2443,7 +2443,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The former consolidated pre-queue admission declaration is now three exact Core Utilities cases: `connectivityFailuresSelectQueueOnlyAdmission`, `authenticationAndTrustFailuresRemainFailClosed`, and `secureTransportFailuresUseOnlyDurableRecovery`.",
+    "The former consolidated pre-queue admission declaration is now three exact Core Data Offline Sync cases: `connectivityFailuresSelectQueueOnlyAdmission`, `authenticationAndTrustFailuresRemainFailClosed`, and `secureTransportFailuresUseOnlyDurableRecovery`.",
   );
   assertStringIncludes(
     compact(testingStrategySource),
