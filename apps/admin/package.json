@@ -16,7 +16,7 @@
     "audit:dependencies": "npm audit --audit-level=high"
   },
   "dependencies": {
-    "@mantine/core": "9.5.0",
+    "@mantine/core": "9.5.1",
     "@mantine/hooks": "9.5.0",
     "@supabase/ssr": "0.12.4",
     "@supabase/supabase-js": "2.111.0",
