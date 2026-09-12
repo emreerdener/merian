@@ -1059,7 +1059,7 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   post-persistence runtime delegation.
 - **`UsageManagerTests.swift`**: Validates the advisory daily capture meter
   without treating it as a live API constraint. The suite exercises the normal
-  default plus DEBUG override; `FieldTripsAvailabilityTests` locks the shipped
+  default plus DEBUG override; `FeatureFlagsTests` locks the shipped
   `.unlimitedFreeScans` default to `false`. Server authorization is covered
   separately by the Edge and database quota suites.
 
@@ -6116,15 +6116,20 @@ checks; an unreachable explicitly configured URL is a test failure, so a
 successful run proves the test actually connected.
 
 The public Field trips release has explicit regression coverage.
-`FieldTripsAvailabilityTests` locks the parent Field trips surface on for every
-account and verifies Events are absent from the feature-flag registry.
-`FieldTripAPIModelsTests`, `FieldTripPresentationTests`, the profile
-presentation suites in `FieldTripProfilePresentationTests.swift`, the Field
-Trips view-model suites, `ActiveCaptureGoalStoreTests`, the milestone feedback
-suites, and `InsightFieldTripContributionTests` verify that Event sections,
-badges, progress, typed routes, publications, profiles, and scan contributions
-are part of the normal client path. Manually test a physical signed-in account,
-a physical ghost account, and a simulator build; all must see the Events segment
+`FeatureFlagsTests` locks the parent Field trips surface on for every account,
+the complete app-wide registry and production defaults, all installed DEBUG
+override keys and reset behavior, and the absence of an Events gate.
+`FieldTripSharingAvailabilityTests` separately locks the deferred
+standard-outing sharing policy with Field Trips rather than treating it as an
+app-wide gate. `FeatureFlagsArchitectureTests` enforces those two owners and the
+retired Utilities paths. `FieldTripAPIModelsTests`,
+`FieldTripPresentationTests`, the profile presentation suites in
+`FieldTripProfilePresentationTests.swift`, the Field Trips view-model suites,
+`ActiveCaptureGoalStoreTests`, the milestone feedback suites, and
+`InsightFieldTripContributionTests` verify that Event sections, badges,
+progress, typed routes, publications, profiles, and scan contributions are part
+of the normal client path. Manually test a physical signed-in account, a
+physical ghost account, and a simulator build; all must see the Events segment
 and be able to exercise the server-authorized flow.
 
 Manual refactor-parity QA must also switch Outings/Events while their catalog

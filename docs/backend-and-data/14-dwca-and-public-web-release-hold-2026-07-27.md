@@ -36,8 +36,9 @@ The release unit contains:
 
 DwC-A is not part of the active initial-launch product surface:
 
-- `FeatureFlag.dwcaExports` defaults false, so Release iOS builds omit the
-  Settings section. Debug overrides are presentation-only.
+- `FeatureFlag.dwcaExports` defaults false in
+  `apps/ios/Merian/Configuration/FeatureFlags.swift`, so Release iOS builds omit
+  the Settings section. Debug overrides are presentation-only.
 - `internal.dwca_export_release_control` is a private no-API-grant singleton
   whose canonical state defaults false; missing state also fails closed.
 - Every intake path retains a shared lock on that singleton until transaction
@@ -189,12 +190,11 @@ rather than a swallowed background error. Compatibility recovery permits
 structured `terminal_reason_code = replay_exhausted`. Forward migration
 `20260729173000_recover_media_abandoned_owned_scans.sql` also permits exact
 `media_reconciliation_abandoned` only with matching composite
-dead-letter/quota/media-lifecycle proof; later policy, unproven abandonment, and unknown
-reasons fail closed. The catalog trigger rejects unfenced completion,
+dead-letter/quota/media-lifecycle proof; later policy, unproven abandonment, and
+unknown reasons fail closed. The catalog trigger rejects unfenced completion,
 reopening, and scan-identity changes even from service-key table writes.
-Completed owner reparenting is allowed only when all exact
-source/target/enabled markers from the atomic ghost-profile merge transaction
-match.
+Completed owner reparenting is allowed only when all exact source/target/enabled
+markers from the atomic ghost-profile merge transaction match.
 
 Individual scan erasure now takes the same generation lock and commits a private
 owner/UUID deletion tombstone before R2 work. The tombstone terminal-marks

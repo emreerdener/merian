@@ -148,7 +148,12 @@ only a camera/performance setting.
 ## Rollout State
 
 - `FeatureFlag.fieldTrips.defaultValue == true` makes the complete Field trips
-  surface public.
+  surface public. The app-wide registry and DEBUG-only local override resolver
+  live in `apps/ios/Merian/Configuration/FeatureFlags.swift`.
+- The separate `FieldTripSharingAvailability` policy remains Field Trips-owned
+  in `Models/FieldTripSharingAvailability.swift`; it keeps the standard-outing
+  publication CTA and visibility labels deferred without changing public
+  publication reads, Event entry flows, or backend authorization.
 - Events were published for every user on 2026-08-07. The former
   `.fieldTripEvents` registry case, tester-email allowlist, simulator bypass,
   debug override, rollout logger, and Events-disabled presentation paths were

@@ -182,16 +182,21 @@ creates a status check; it cannot make itself required or prevent Force
 Promote/direct manual promotion. Record and verify these two external controls
 during initial setup and after changing GitHub or Vercel integration settings.
 
-The current production graph, reviewed on 2026-07-26, is:
+The checked-in dependency graph, reviewed on 2026-09-12, is:
 
-- Next.js 16.2.12, pinned exactly above the
-  [Server Actions DoS patched floor](https://github.com/vercel/next.js/security/advisories/GHSA-m99w-x7hq-7vfj);
-- PostCSS 8.5.18, pinned exactly and enforced for Next.js transitively at the
+- Next.js 16.3.5, pinned exactly above the
+  [Windows-hosted RCE](https://github.com/advisories/GHSA-p293-qw3h-jr36) and
+  [AVIF image-optimization RCE](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4)
+  patched floors;
+- PostCSS 8.5.25, pinned exactly and enforced for Next.js transitively at the
   [path-traversal patched floor](https://github.com/advisories/GHSA-r28c-9q8g-f849);
   and
-- Sharp 0.35.3, enforced through the Next.js override, following the
-  [libvips advisory recommendation](https://github.com/advisories/GHSA-f88m-g3jw-g9cj)
+- Sharp 0.35.4, enforced through the Next.js override, following the
+  [libheif advisory recommendation](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c)
   and including its optional native packages.
+
+The selector parser lockfile floor is 7.1.3 for the reviewed
+[uncontrolled recursion vulnerability](https://github.com/advisories/GHSA-w9m9-85wc-3x92).
 
 For a dependency update, change the manifest and committed lockfile together,
 review all resolved and optional-native package changes, and run the complete

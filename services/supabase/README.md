@@ -50,6 +50,14 @@ access or mutation. The separate production job requires it before `db push`.
 
 ### Validation-Only Candidate Workflow
 
+The liked-feed invoker requires the forward repair
+`20260912045555_restore_explore_liked_feed_source_reads.sql` after its creation
+migration. It grants the service caller only the missing reads on
+`explore_post_likes`, `explore_observation_projection`, and `user_blocks`.
+`tests/explore_liked_feed.sql` checks the complete source-read chain, read-only
+repair privileges, RLS, client RPC denials, and a filtered service-role call
+with a nonzero limit.
+
 `.github/workflows/supabase-candidate-validation.yml` is the reusable backend
 evidence gate. It reports a stable **Candidate readiness** result on every pull
 request, supports manual dispatch, and is called by

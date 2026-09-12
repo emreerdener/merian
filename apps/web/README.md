@@ -143,22 +143,30 @@ need live backend behavior. See the canonical destination matrix in
 
 The package pins the reviewed Next.js release exactly; do not replace it with a
 range or `latest`. Use `npm ci` so CI and production consume the committed lock
-file. Next currently declares older PostCSS and Sharp releases, so the root
-manifest explicitly overrides those two transitive edges to the reviewed patched
-versions. Keep the overrides until a stable Next.js release declares equal or
-newer versions. Do not remove them merely because image optimization is disabled
-or CSS inputs are currently trusted.
+file. Next.js 16.3.5 includes the fixes for the reviewed
+[Windows-hosted RCE](https://github.com/advisories/GHSA-p293-qw3h-jr36) and
+[AVIF image-optimization RCE](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4).
+Next still declares an older PostCSS release, so the manifest overrides that
+edge and retains an exact reviewed Sharp pin. Do not remove security constraints
+merely because image optimization is disabled or CSS inputs are currently
+trusted.
 
-The PostCSS 8.5.25 pin covers both
+The Next PostCSS 8.5.25 override covers both
 [attacker-controlled source-map file reads](https://github.com/advisories/GHSA-6g55-p6wh-862q)
 and the remaining
 [source-map path traversal](https://github.com/advisories/GHSA-r28c-9q8g-f849).
-The Sharp override tracks 0.35.3, the release recommended by the
-[Sharp/libvips advisory](https://github.com/advisories/GHSA-f88m-g3jw-g9cj).
-`lib/dependencySecurity.test.ts` rejects any PostCSS version below 8.5.18, any
-Sharp version below 0.35.0, missing Next overrides, or removal of the workflow
-audit step. Dependency update pull requests must run the full dependency audit,
-test, type-check, and production-build gate.
+The Sharp override tracks 0.35.4, which addresses the
+[libheif vulnerabilities](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c).
+The direct Tiptap packages are pinned together at 3.31.3 to cover both the
+[attribute prototype issue](https://github.com/advisories/GHSA-cp6q-959q-f8rh)
+and [Markdown parser ReDoS](https://github.com/advisories/GHSA-j95f-988m-3j2f).
+The lockfile also excludes the affected
+[CSS selector parser releases](https://github.com/advisories/GHSA-w9m9-85wc-3x92).
+`lib/dependencySecurity.test.ts` enforces the reviewed Next.js 16.3.5, PostCSS
+8.5.25, Sharp 0.35.4, Tiptap core 3.30.5, and selector parser 7.1.3 floors,
+explicit Next overrides, and the workflow audit step. Dependency update pull
+requests must run the full dependency audit, test, type-check, and
+production-build gate.
 
 `proxy.ts` generates one cryptographically random nonce per request and places
 the same nonce-based Content Security Policy on the request passed to Next.js
@@ -397,19 +405,19 @@ membership in canonical anonymous `explore_projected_post_cards(NULL)`, while
 `get_public_web_explore_post_page(...)` returns card and detail from one
 statement/MVCC snapshot. `fetchExplorePostPage(...)` uses only the combined
 routine. Browser `anon` and `authenticated` roles cannot invoke any of these
-server routines directly. Engagement counts are zero and viewer/ownership
-flags are false.
+server routines directly. Engagement counts are zero and viewer/ownership flags
+are false.
 
-Do not replace the combined routine with sequential calls or direct
-service-key table reads. Exact-SHA promotion evidence is tracked in the
+Do not replace the combined routine with sequential calls or direct service-key
+table reads. Exact-SHA promotion evidence is tracked in the
 [release assurance record](../../docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 Every submitted scan contributes Scientific Data. Account deletion removes the
 account, attribution, media, private notes, semantic/public location labels,
 custom tags, and device context, but retains the ownerless observation's exact
 coordinates/elevation, time, taxonomy, identification, environmental, quality,
-and provenance facts in the restricted backend. This retention is a condition
-of the Service without a separate opt-in or opt-out. Public surfaces remain
+and provenance facts in the restricted backend. This retention is a condition of
+the Service without a separate opt-in or opt-out. Public surfaces remain
 governed by geoprivacy, sensitive-taxon projection, and tombstone exclusion.
 
 The page may consume the resulting public image, species labels, public author

@@ -20,7 +20,7 @@ const downloadHandler = await Deno.readTextFile(
 );
 const featureFlags = await Deno.readTextFile(
   new URL(
-    "../../../../apps/ios/Merian/Core/Utilities/FieldTripsAvailability.swift",
+    "../../../../apps/ios/Merian/Configuration/FeatureFlags.swift",
     import.meta.url,
   ),
 );

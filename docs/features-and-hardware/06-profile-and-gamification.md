@@ -596,10 +596,11 @@ incomplete first, easiest first, hardest first.
 ## ExportScans (DwC-A)
 
 `ExportScans` is staged and does not appear in an initial-launch Release build:
-`FeatureFlag.dwcaExports` defaults to `false`. Debug-only overrides can expose
-the UI for development, but cannot override the canonical PostgreSQL release
-gate. Migration `20260728133835_disable_dwca_exports_for_launch.sql` also makes
-old builds and direct authenticated requests fail closed.
+`FeatureFlag.dwcaExports` defaults to `false` in
+`apps/ios/Merian/Configuration/FeatureFlags.swift`. Debug-only overrides can
+expose the UI for development, but cannot override the canonical PostgreSQL
+release gate. Migration `20260728133835_disable_dwca_exports_for_launch.sql`
+also makes old builds and direct authenticated requests fail closed.
 
 `ExportScans` delegates request state and overlap rejection to
 `ExportScansViewModel`. Its live `SettingsExportDependencies` adapter calls

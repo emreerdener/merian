@@ -2563,8 +2563,9 @@ consults that Keychain entry.
   `DeviceIdentityManager.shared.deviceId`. Resets limits at calendar day
   boundaries via `evaluateDailyRefresh()`, called from
   `AppLifecycleManager.handleActivePhase()` on foreground transitions.
-- **Debug override**: `FeatureFlag.unlimitedFreeScans.defaultValue` is `false`.
-  DEBUG Settings/environment overrides bypass only this local meter;
+- **Debug override**: `FeatureFlag.unlimitedFreeScans.defaultValue` is `false`
+  in `apps/ios/Merian/Configuration/FeatureFlags.swift`. DEBUG
+  Settings/environment overrides bypass only this local meter;
   Release/TestFlight ignores them and all builds remain subject to server quota.
 - The authoritative database uses a UTC-day bucket and stable request UUID.
   Local refunds do not refund a provider attempt. `reconcileServerPlanUsed`
@@ -2644,15 +2645,15 @@ consults that Keychain entry.
   do not replay the original scan-achievement/dictionary batch. When Field trips
   are disabled, the coordinator skips its progress resolver while ordinary scan
   achievements and dictionary milestones continue normally. `.fieldTrips` is
-  currently enabled in the central `FeatureFlags` registry; availability
-  injection remains as a test seam and future emergency client-build control.
-  Retryable failures keep the selected-goal SwiftData row as a durable outbox,
-  release ordinary milestones through a separate once-per-scan guard, and use
-  the 2/5/15-second per-scan budget plus a global cap of 16 sleeping in-process
-  retries. Oldest overflow releases process-local captures;
-  `OfflineJobScheduler` replays leftover hints after relaunch; only success,
-  terminal ingestion failure, or disabled Field trips acknowledges and removes
-  the hint.
+  currently enabled in `apps/ios/Merian/Configuration/FeatureFlags.swift`;
+  availability injection remains as a test seam and future emergency
+  client-build control. Retryable failures keep the selected-goal SwiftData row
+  as a durable outbox, release ordinary milestones through a separate
+  once-per-scan guard, and use the 2/5/15-second per-scan budget plus a global
+  cap of 16 sleeping in-process retries. Oldest overflow releases process-local
+  captures; `OfflineJobScheduler` replays leftover hints after relaunch; only
+  success, terminal ingestion failure, or disabled Field trips acknowledges and
+  removes the hint.
 - Milestone `Models` and `Policies` are immutable/effect-free; `Presentation`
   owns only queue/host state; `Coordination` owns ordering, session fences, and
   retry lifetime. The small initializer-injected

@@ -74,20 +74,21 @@ before Flash when the server has unheld capacity, so a new account can receive
 three Pro results plus one separate Flash result on day one. Users cannot spend
 Flash manually to preserve a complimentary credit.
 
-`FeatureFlag.unlimitedFreeScans.defaultValue` is `false`. DEBUG builds may
-temporarily bypass the local meter from Settings → Feature Flags or
-`MERIAN_DISABLE_FREE_SCAN_LIMIT=1`; Release and TestFlight builds ignore those
-persisted overrides. The bypass never changes a database entitlement or the
-server quota, so it is useful for UI testing but cannot create free provider
-capacity.
+`FeatureFlag.unlimitedFreeScans.defaultValue` is `false` in the app-wide
+[`Configuration/FeatureFlags.swift`](../../Configuration/FeatureFlags.swift)
+registry. DEBUG builds may temporarily bypass the local meter from Settings →
+Feature Flags or `MERIAN_DISABLE_FREE_SCAN_LIMIT=1`; Release and TestFlight
+builds ignore those persisted overrides. The bypass never changes a database
+entitlement or the server quota, so it is useful for UI testing but cannot
+create free provider capacity.
 
 The local meter may refund a staged scan after a client-side failure. The
 authoritative server reservation is separate: provider attempts consume their
 database quota, while a verified pre-provider no-op may transition its
 reservation to `refunded`. Provider failure remains charged and transitions to
 `failed`, allowing a new metered retry with the stable scan request key. Keep
-`UsageManagerTests`, `FieldTripsAvailabilityTests`, the Edge quota tests, and
-the pgTAP quota contract aligned whenever this UX changes.
+`UsageManagerTests`, `FeatureFlagsTests`, the Edge quota tests, and the pgTAP
+quota contract aligned whenever this UX changes.
 
 After a valid success envelope, `reconcileServerPlanUsed(_:scanId:)` uses the
 authoritative `plan_used`: a complimentary or paid result refunds any optimistic

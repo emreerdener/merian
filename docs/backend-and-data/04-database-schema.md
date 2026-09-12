@@ -3331,6 +3331,10 @@ coordinates to the client contract.
   canonical public post projection. Returns standard cards with null
   `ranking_value`, applies advanced filters before limits, and paginates by
   `(shared_at DESC, post_id DESC)`. Likes do not bypass visibility rules.
+  Migration `20260912045555_restore_explore_liked_feed_source_reads.sql`
+  supplies the missing `service_role` `SELECT` grants on `explore_post_likes`,
+  `explore_observation_projection`, and `user_blocks` used by the invoker chain.
+  It adds no write privileges or client RPC access and preserves RLS.
 - `public.get_explore_feed_following(self_id UUID, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`:
   The shipped `following` feed projection. It returns the same card-shaped rows
   as `get_explore_feed`, but joins `public.user_follows` so only followed

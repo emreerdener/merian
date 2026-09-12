@@ -23,7 +23,7 @@ The main app is organized as:
 Merian/
   App/              App entry point, launch screen, root lifecycle wiring
   Assets.xcassets/  App, brand, persona, and reusable visual assets
-  Configuration/    Entitlements, Info.plist, privacy manifest, environment configuration
+  Configuration/    Build resources, environment configuration, and app-wide client flags
   Core/             Cross-feature services, infrastructure, and UI primitives
   Features/         User-facing product areas
   Models/           SwiftData schemas and app-wide persisted models
@@ -88,6 +88,11 @@ Examples:
 - [`Core/Routing`](Merian/Core/Routing/README.md) owns immutable app-event and
   root-route values, deterministic routing policy, and the DI-scoped
   coordination state machines.
+- [`Configuration/FeatureFlags.swift`](Merian/Configuration/FeatureFlags.swift)
+  owns the app-wide client-build flag registry—release gates plus the advisory
+  scan-meter control—and DEBUG-only local overrides. Feature-specific
+  availability policy remains with its feature; Field Trips owns standard-outing
+  sharing availability in its `Models/` directory.
 
 Cross-feature wire operations can live in `Core/Network/Endpoints/` even when
 grouped by feature. Field Trips, Community Identification browsing/contribution,

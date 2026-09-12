@@ -9,8 +9,9 @@ the canonical
 
 - `Models/` contains feature presentation models and policies plus the typed
   template, publication, Event, and Event-entry routes consumed by Explore,
-  Profile, Feed, Author Profile, and Insights. Codable wire DTOs remain in
-  `Core/Network/FieldTripAPIModels.swift`.
+  Profile, Feed, Author Profile, and Insights.
+  `FieldTripSharingAvailability.swift` owns the staged standard-outing sharing
+  policy. Codable wire DTOs remain in `Core/Network/FieldTripAPIModels.swift`.
 - `Services/` adapts `MerianNetworkClient` operations into small, typed closure
   endpoints. It is the only feature layer that supplies live networking
   closures.
@@ -53,6 +54,9 @@ behind one narrow JSON POST bridge. See the
 - Profile ordering, visibility, patch, and cover decisions live in
   `Models/FieldTripProfilePresentation.swift`. Profile components render those
   decisions and do not reconstruct them.
+- `Models/FieldTripSharingAvailability.swift` owns only the standard-outing
+  publication CTA and visibility-label release decision. App-wide client-build
+  flags and DEBUG overrides live in `Configuration/FeatureFlags.swift`.
 
 ## Compatibility guardrails
 
@@ -100,6 +104,13 @@ goal identity, and the reference/user reuse boundary. Pair it with
 `InsightMediaGalleryTests` and `InsightMediaCarouselArchitectureTests` whenever
 the shared Core pager, page identity, zoom host, pagination, or top-edge
 treatment changes.
+
+`FieldTripSharingAvailabilityTests` locks the deferred standard-outing sharing
+default. `MerianTests/Configuration/FeatureFlagsTests.swift` separately owns the
+app-wide flag registry, including the released parent Field Trips gate and the
+absence of an Events gate. `FeatureFlagsArchitectureTests` freezes both
+production owners and prevents the retired mixed Utilities aggregate from
+returning.
 
 Use the canonical
 [Field Trips verification matrix](../../../../../../docs/features-and-hardware/25-field-trips.md#verification)

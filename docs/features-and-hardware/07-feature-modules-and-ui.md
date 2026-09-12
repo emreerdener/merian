@@ -1630,7 +1630,8 @@ dependency composition.
   Feedback survey opens the native beta survey, and Changelog routes to the
   bundled in-app notes screen.
 - **Export Scans (DwC-A)**: _(Staged; launch-disabled)_ Release iOS builds hide
-  this section because `.dwcaExports` defaults off. Debug can show it, but the
+  this section because `.dwcaExports` defaults off in
+  `apps/ios/Merian/Configuration/FeatureFlags.swift`. Debug can show it, but the
   private PostgreSQL gate remains authoritative for old builds and direct
   requests. After the separate feature-enable gate, it queues background ZIP
   generation via `/request-export-dwca`. Job creation freezes bounded occurrence

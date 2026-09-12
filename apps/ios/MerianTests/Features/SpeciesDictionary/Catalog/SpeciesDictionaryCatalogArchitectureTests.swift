@@ -182,7 +182,7 @@ struct SpeciesCatalogArchitectureTests {
         let guardedSources = [
             "apps/ios/Merian/Core/Network/SpeciesDictionaryAPIModels.swift",
             "apps/ios/Merian/Core/Network/MerianNetworkClient.swift",
-            "apps/ios/Merian/Core/Utilities/FieldTripsAvailability.swift",
+            "apps/ios/Merian/Configuration/FeatureFlags.swift",
             "apps/ios/Merian/Features/Explore/Shell/Views/ExploreShellNavigationView.swift"
         ]
         for relativePath in guardedSources {

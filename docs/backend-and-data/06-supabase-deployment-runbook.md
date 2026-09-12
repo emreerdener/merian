@@ -2490,7 +2490,8 @@ Enabling is a separate release requiring:
    bounded once-per-minute continuation schedule from
    `20260726230837_scale_dwca_export_continuations.sql`; and
 5. server-first promotion and negative/positive smoke before a later iOS Release
-   changes `.dwcaExports` to true.
+   changes `.dwcaExports` to true in
+   `apps/ios/Merian/Configuration/FeatureFlags.swift`.
 
 A rollback is another forward migration that first sets the singleton false,
 unschedules continuation, terminalizes nonterminal jobs, revokes capabilities,

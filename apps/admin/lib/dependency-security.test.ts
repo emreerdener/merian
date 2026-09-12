@@ -45,6 +45,7 @@ function packageVersions(packageName: string): string[] {
 }
 
 function versionAtLeast(version: string, floor: string): boolean {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) return false;
   const actual = version.split(".").map(Number);
   const minimum = floor.split(".").map(Number);
 
@@ -75,29 +76,38 @@ test("the frozen admin graph excludes reviewed vulnerable dependency ranges", ()
   assert.ok(sharpVersions.length > 0, "Sharp must be present in the lockfile");
 
   assert.equal(
-    nextVersions.every((version) => versionAtLeast(version, "16.2.12")),
+    nextVersions.every((version) => versionAtLeast(version, "16.3.5")),
     true,
-    `Next.js versions below 16.2.12: ${nextVersions.join(", ")}`,
+    `Next.js versions below 16.3.5: ${nextVersions.join(", ")}`,
   );
   assert.equal(
-    postcssVersions.every((version) => versionAtLeast(version, "8.5.18")),
+    postcssVersions.every((version) => versionAtLeast(version, "8.5.25")),
     true,
-    `PostCSS versions below 8.5.18: ${postcssVersions.join(", ")}`,
+    `PostCSS versions below 8.5.25: ${postcssVersions.join(", ")}`,
   );
   assert.equal(
-    sharpVersions.every((version) => versionAtLeast(version, "0.35.0")),
+    sharpVersions.every((version) => versionAtLeast(version, "0.35.4")),
     true,
-    `Sharp versions below 0.35.0: ${sharpVersions.join(", ")}`,
+    `Sharp versions below 0.35.4: ${sharpVersions.join(", ")}`,
   );
 });
 
 test("Next.js transitive security overrides remain explicit", () => {
-  assert.equal(packageManifest.dependencies?.next, "16.2.12");
+  assert.equal(packageManifest.dependencies?.next, "16.3.5");
   assert.equal(packageManifest.devDependencies?.postcss, "8.5.25");
   assert.deepEqual(packageManifest.overrides?.next, {
     postcss: "8.5.25",
-    sharp: "0.35.3",
+    sharp: "0.35.4",
   });
+});
+
+test("the admin CSS parser excludes the reviewed recursion vulnerability", () => {
+  const versions = packageVersions("postcss-selector-parser");
+  assert.ok(versions.length > 0);
+  assert.ok(
+    versions.every((version) => versionAtLeast(version, "7.1.3")),
+    `Selector parser versions below 7.1.3: ${versions.join(", ")}`,
+  );
 });
 
 test("the admin build installs its pinned TypeScript compiler API", () => {

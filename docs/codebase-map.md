@@ -27,6 +27,13 @@ Tracked build config:
 - `Config.xcconfig` stores app-facing runtime values such as Supabase URL,
   Supabase publishable key, RevenueCat, PostHog, and Google Sign-In client IDs.
   These are bundled client config values, not backend-only secrets.
+- `apps/ios/Merian/Configuration/MerianEnvironment.swift` validates those
+  client-safe values. `Configuration/FeatureFlags.swift` owns the app-wide
+  client-build flag registry (release gates plus the advisory scan-meter
+  control) and DEBUG-only device overrides. Feature-local availability is not
+  added to that registry:
+  `Explore/FieldTrips/Models/FieldTripSharingAvailability.swift` owns the
+  standard-outing sharing decision.
 - `Signing.xcconfig` includes optional ignored `Signing.local.xcconfig`.
 - `Signing.local.example.xcconfig` is the template for a local Apple Developer
   Team ID.

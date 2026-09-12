@@ -1,25 +1,26 @@
 # Naturebook Internal Admin
 
-Private Next.js + Mantine operations application for
-`admin.naturebook.earth`. Deploy it separately from `apps/web`.
+Private Next.js + Mantine operations application for `admin.naturebook.earth`.
+Deploy it separately from `apps/web`.
 
 The application uses only Supabase's public URL and publishable/anon key. Never
 configure a service-role key, direct database URL, Gemini key, or third-party
 analytics token in this project. Every data operation goes through a narrowly
-granted authenticated RPC that rechecks Google identity, active membership,
-TOTP `aal2`, the live Supabase Auth `session_id`, internal session age, and role.
+granted authenticated RPC that rechecks Google identity, active membership, TOTP
+`aal2`, the live Supabase Auth `session_id`, internal session age, and role.
 
 Do not clone the GitHub `Production` or public-web Vercel environment into this
-project. This explicitly excludes `SUPABASE_ACCESS_TOKEN`,
-`SUPABASE_DB_URL`, `SUPABASE_DB_PASSWORD`, every `REVENUECAT_*` server secret,
-and `DWCA_PSEUDONYM_HMAC_KEY_V1`. The complete cross-environment destination
-matrix is in
+project. This explicitly excludes `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_URL`,
+`SUPABASE_DB_PASSWORD`, every `REVENUECAT_*` server secret, and
+`DWCA_PSEUDONYM_HMAC_KEY_V1`. The complete cross-environment destination matrix
+is in
 [`docs/development-guides/05-keychain-and-secrets.md`](../../docs/development-guides/05-keychain-and-secrets.md#deployment-environment-ownership).
 
 ## Documentation
 
 - Architecture, roles, data model, RPCs, metrics, review lifecycle, and AI
-  ledger: [`docs/backend-and-data/10-internal-admin.md`](../../docs/backend-and-data/10-internal-admin.md)
+  ledger:
+  [`docs/backend-and-data/10-internal-admin.md`](../../docs/backend-and-data/10-internal-admin.md)
 - Local/production setup, bootstrap, deployment, recovery, and smoke tests:
   [`docs/backend-and-data/11-internal-admin-operations.md`](../../docs/backend-and-data/11-internal-admin-operations.md)
 - Backend-wide deployment rules:
@@ -50,11 +51,11 @@ Allowed application callbacks are:
 - `http://localhost:3000/auth/callback`
 - `https://admin.naturebook.earth/auth/callback`
 
-Keep production redirects exact; do not add a broad admin-host wildcard.
-The OAuth initiation and callback route both construct destinations from this
+Keep production redirects exact; do not add a broad admin-host wildcard. The
+OAuth initiation and callback route both construct destinations from this
 validated origin. Callback `next` values must be single-leading-slash paths;
-absolute, protocol-relative, backslash, and encoded-separator forms fall back
-to the fixed local destination.
+absolute, protocol-relative, backslash, and encoded-separator forms fall back to
+the fixed local destination.
 
 ## Local commands
 
@@ -77,21 +78,25 @@ npm run build
 that complete sequence for every pull request and every affected `main` push. It
 deliberately reports on every pull request so GitHub can require a stable check
 without path-filtered changes remaining pending. The currently protected graph
-pins Next.js 16.2.12 and PostCSS 8.5.25 and overrides Next.js's private Sharp
-dependency to 0.35.3. `lib/dependency-security.test.ts`
-rejects a lockfile below those floors or a workflow that drops or reorders the
-frozen install, blocking audit, tests, type-check, and production build. Keep
-the overrides until a reviewed Next.js release declares equal or newer
-transitive versions; do not remove them merely because the direct PostCSS
-dependency is current.
+pins Next.js 16.3.5 and PostCSS 8.5.25 and overrides Next.js's private Sharp
+dependency to 0.35.4. `lib/dependency-security.test.ts` rejects a lockfile below
+those floors or a workflow that drops or reorders the frozen install, blocking
+audit, tests, type-check, and production build. Keep the overrides until a
+reviewed Next.js release declares equal or newer transitive versions; do not
+remove them merely because the direct PostCSS dependency is current.
 
-Repository and deployment controls must make
-`Naturebook Admin Quality / test` a required check before any change can merge
-or reach the production Vercel project. The workflow file creates the check but
-cannot make itself required. Add that GitHub Action as a required Vercel
-Deployment Check so a production build is not promoted to the custom domain
-until the exact commit's check passed; never treat Force Promote or a direct
-manual deployment as routine bypass authority.
+The dependency test also requires selector parser 7.1.3 or newer for the
+reviewed
+[uncontrolled recursion vulnerability](https://github.com/advisories/GHSA-w9m9-85wc-3x92).
+The current lockfile resolves 7.1.6.
+
+Repository and deployment controls must make `Naturebook Admin Quality / test` a
+required check before any change can merge or reach the production Vercel
+project. The workflow file creates the check but cannot make itself required.
+Add that GitHub Action as a required Vercel Deployment Check so a production
+build is not promoted to the custom domain until the exact commit's check
+passed; never treat Force Promote or a direct manual deployment as routine
+bypass authority.
 
 When changing dependencies:
 
@@ -123,16 +128,16 @@ The final active owner cannot be disabled or demoted.
 
 ## Routes
 
-| Route | Minimum role | Purpose |
-|---|---|---|
-| `/overview` | Analyst | Account, plan, scan, moderation, feedback, and cost aggregates |
-| `/ai-usage` | Analyst | Token, modality, cache, percentile, and estimated-cost analytics |
-| `/complimentary-entitlements` | Analyst | Three-scan balances, hold age, settlement, Flash fallback, exhaustion, and paid conversion aggregates |
-| `/reviews` | Moderator | Live grouped moderation/identification queue |
-| `/reviews/[caseId]` | Moderator | Evidence, context, notes, transitions, and hide/restore |
-| `/feedback` | Moderator | Unified feedback workflow overlay |
-| `/users` | Moderator | Audited account search and detail |
-| `/access` | Owner | Memberships, sessions, revocation, and audit history |
+| Route                         | Minimum role | Purpose                                                                                               |
+| ----------------------------- | ------------ | ----------------------------------------------------------------------------------------------------- |
+| `/overview`                   | Analyst      | Account, plan, scan, moderation, feedback, and cost aggregates                                        |
+| `/ai-usage`                   | Analyst      | Token, modality, cache, percentile, and estimated-cost analytics                                      |
+| `/complimentary-entitlements` | Analyst      | Three-scan balances, hold age, settlement, Flash fallback, exhaustion, and paid conversion aggregates |
+| `/reviews`                    | Moderator    | Live grouped moderation/identification queue                                                          |
+| `/reviews/[caseId]`           | Moderator    | Evidence, context, notes, transitions, and hide/restore                                               |
+| `/feedback`                   | Moderator    | Unified feedback workflow overlay                                                                     |
+| `/users`                      | Moderator    | Audited account search and detail                                                                     |
+| `/access`                     | Owner        | Memberships, sessions, revocation, and audit history                                                  |
 
 Raw routes are always `no-store`. Overview and AI aggregate results may be
 cached in the private database schema for five minutes after authorization.

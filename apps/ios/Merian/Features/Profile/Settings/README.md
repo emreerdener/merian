@@ -284,10 +284,13 @@ gate are canonical in
 
 Settings → Plan is the canonical manual entry point for `PaywallView`. Every
 release build enables the advisory local meter, while Supabase remains the
-authoritative quota boundary. Debug builds can bypass only the local meter from
-Settings → Feature Flags or with `MERIAN_DISABLE_FREE_SCAN_LIMIT=1`; the backend
-still reserves quota and applies the durable plan limits. Purchase QA should
-open Plan directly instead of relying on a quota-triggered presentation.
+authoritative quota boundary. The app-wide
+[`Configuration/FeatureFlags.swift`](../../../Configuration/FeatureFlags.swift)
+owner keeps `.unlimitedFreeScans` default-off; Debug builds can bypass only the
+local meter from Settings → Feature Flags or with
+`MERIAN_DISABLE_FREE_SCAN_LIMIT=1`. The backend still reserves quota and applies
+the durable plan limits. Purchase QA should open Plan directly instead of
+relying on a quota-triggered presentation.
 
 The paywall is ready only when RevenueCat's current offering resolves packages
 for both `pro_week` and `pro_annual`. A successful RevenueCat login proves the

@@ -2,7 +2,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(7);
+SELECT extensions.plan(10);
 
 SELECT extensions.ok(
     NOT routine.prosecdef AND routine.provolatile = 's',
@@ -39,6 +39,47 @@ SELECT extensions.ok(
 FROM pg_catalog.pg_index idx
 WHERE idx.indexrelid = 'public.idx_explore_post_likes_user_id_post_id'::regclass;
 
+SELECT extensions.ok(
+    pg_catalog.bool_and(pg_catalog.has_table_privilege('service_role', source_relation, 'SELECT')),
+    'The service invoker can read every direct and canonical projection source'
+)
+FROM pg_catalog.unnest(ARRAY[
+    'public.explore_post_likes',
+    'public.explore_posts',
+    'public.scans',
+    'public.users',
+    'public.species_dictionary',
+    'public.species_reference_images',
+    'public.explore_observation_projection',
+    'public.taxon_nodes',
+    'public.explore_community_requests',
+    'public.explore_post_media',
+    'public.user_blocks'
+]) AS sources(source_relation);
+
+SELECT extensions.ok(
+    pg_catalog.bool_and(NOT pg_catalog.has_table_privilege(
+        'service_role', source_relation, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER,MAINTAIN'
+    )),
+    'The repaired sources give the service role no write or maintenance privileges'
+)
+FROM pg_catalog.unnest(ARRAY[
+    'public.explore_post_likes',
+    'public.explore_observation_projection',
+    'public.user_blocks'
+]) AS sources(source_relation);
+
+SELECT extensions.ok(
+    pg_catalog.bool_and(relation.relrowsecurity),
+    'The repaired sources retain row-level security'
+)
+FROM pg_catalog.pg_class relation
+WHERE relation.oid IN (
+    'public.explore_post_likes'::regclass,
+    'public.explore_observation_projection'::regclass,
+    'public.user_blocks'::regclass
+);
+
 SET LOCAL ROLE anon;
 SELECT extensions.throws_ok(
     $$ SELECT * FROM public.get_explore_feed_liked('00000000-0000-4000-8000-000000000001') $$,
@@ -55,8 +96,11 @@ SELECT extensions.throws_ok(
 RESET ROLE;
 SET LOCAL ROLE service_role;
 SELECT extensions.is_empty(
-    $$ SELECT * FROM public.get_explore_feed_liked('00000000-0000-4000-8000-000000000001', 0) $$,
-    'The service role can execute the complete projection'
+    $$ SELECT * FROM public.get_explore_feed_liked(
+        '00000000-0000-4000-8000-000000000001', 20,
+        NULL, NULL, ARRAY['birds'], ARRAY['image'], pg_catalog.now() - INTERVAL '7 days'
+    ) $$,
+    'The service role can execute the filtered projection with a nonzero limit'
 );
 RESET ROLE;
 

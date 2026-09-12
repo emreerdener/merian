@@ -150,9 +150,10 @@ filter in the console output stream, use `subsystem` as a filter prefix.
 
 ### Feature flag registry and local overrides
 
-All client-build release gates are listed in the `FeatureFlag` enum in
-`Core/Utilities/FieldTripsAvailability.swift`. Their `defaultValue` entries are
-the values used by TestFlight and App Store builds.
+All app-wide client-build flags are listed in the `FeatureFlag` enum in
+`apps/ios/Merian/Configuration/FeatureFlags.swift`. The registry contains
+product release gates plus the advisory local scan-meter bypass; each
+`defaultValue` is the value used by TestFlight and App Store builds.
 
 DEBUG builds add a **Feature Flags** section to Settings. Its toggles persist
 device-local overrides so unfinished or staged UI can be exercised without

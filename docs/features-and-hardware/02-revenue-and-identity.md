@@ -652,8 +652,9 @@ provider-cost enforcement boundary.
   before any background downsampling begins. If the batch is over quota, it
   clears the picker selection immediately, tracks the paywall impression, and
   exits before loading gallery bytes into memory.
-- `FeatureFlag.unlimitedFreeScans.defaultValue` is `false`. DEBUG builds may
-  bypass the local meter from Settings or `MERIAN_DISABLE_FREE_SCAN_LIMIT=1`;
+- `FeatureFlag.unlimitedFreeScans.defaultValue` is `false` in
+  `apps/ios/Merian/Configuration/FeatureFlags.swift`. DEBUG builds may bypass
+  the local meter from Settings or `MERIAN_DISABLE_FREE_SCAN_LIMIT=1`;
   Release/TestFlight ignores persisted debug overrides. This never changes the
   database entitlement, model, or server quota.
 - **Advisory reservation at capture time**: when paid or verified unheld

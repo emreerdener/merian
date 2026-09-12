@@ -23,6 +23,13 @@ retired `ExploreErrorFormatter.swift` Utilities path must not return; Core
 Utilities retains only domain-neutral error and connectivity classification that
 is shared across capture and durable recovery boundaries.
 
+App-wide client-build flags belong to
+[`Configuration/FeatureFlags.swift`](../../Configuration/FeatureFlags.swift),
+while standard-outing sharing availability belongs to Field Trips Models. The
+retired `FieldTripsAvailability.swift` Utilities aggregate must not return:
+configuration owns the cross-feature registry and each feature owns its local
+product policy.
+
 `String+Trimming.swift` provides the single trim-to-non-empty normalization used
 by the shared scan-thumbnail projection, renderer, and reference-image backfill
 pipeline. Keep that mechanical normalization here instead of recreating

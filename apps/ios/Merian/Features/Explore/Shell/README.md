@@ -50,10 +50,13 @@ into an asynchronous state owner. Production Shell files remain below the
 600-line review guard.
 
 Field trips and standard Outings are released for every user through the
-`.fieldTrips` entry in the central `FeatureFlags` registry. Events are also
-public for every user and have no independent feature flag, allowlist, simulator
-bypass, or debug override. Event entry points route directly through the same
-typed Explore navigation boundary as standard outings.
+`.fieldTrips` entry in
+[`Configuration/FeatureFlags.swift`](../../../Configuration/FeatureFlags.swift).
+Events are also public for every user and have no independent feature flag,
+allowlist, simulator bypass, or debug override. Event entry points route
+directly through the same typed Explore navigation boundary as standard outings.
+Standard-outing sharing availability is a separate Field Trips Models policy and
+is not owned by Shell or the app-wide registry.
 
 ## Fresh-launch entry
 
