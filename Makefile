@@ -118,6 +118,7 @@ test-ios-xcode-release-workflow:
 test-ios-ci-tooling:
 	bash scripts/test-check-ios-project-resources.sh
 	bash scripts/test-check-ios-event-routing.sh
+	bash scripts/test-check-ios-migration-source-guardrails.sh
 	bash scripts/test-validate-ios-privacy-manifest.sh
 	bash scripts/test-validate-ios-transport-security.sh
 	bash scripts/test-validate-ios-archive.sh

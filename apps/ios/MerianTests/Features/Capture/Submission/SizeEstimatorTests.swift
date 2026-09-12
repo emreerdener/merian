@@ -1,12 +1,13 @@
-import Testing
 import Foundation
+import Testing
+
 @testable import Merian
 
 struct SizeEstimatorTests {
     
     @Test func testEstimateSizeGracefullyFailsWithNilOnCorruptedData() async {
         // Arrange
-        let brokenData = "not an image".data(using: .utf8)!
+        let brokenData = Data("not an image".utf8)
         let distance: Float = 1.5 // 1.5 meters away
         
         // Act

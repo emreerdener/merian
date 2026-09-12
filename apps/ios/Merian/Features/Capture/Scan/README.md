@@ -85,9 +85,10 @@ progress, or change Field-trip semantics. See
 [Capture Shell](../Shell/README.md) and
 [`25-field-trips.md`](../../../../../../docs/features-and-hardware/25-field-trips.md).
 
-`ImageFocusRegionDetector` runs after still encoding on a bounded derivative
-with its existing deadline and acceptance policy. The region remains transient
-tentative metadata and never replaces the full inference image.
+The [Capture Shared](../Shared/README.md) `ImageFocusRegionDetector` runs after
+still encoding on a bounded derivative with its existing deadline and acceptance
+policy. The region remains transient tentative metadata and never replaces the
+full inference image.
 
 ## Verification
 

@@ -77,14 +77,17 @@ capture or gallery pick (consolidated into
 
 ### Automatic focus metadata
 
-`ImageFocusRegionDetector` runs `VNGenerateObjectnessBasedSaliencyImageRequest`
-revision 2 off the main actor against a 512 px derivative of the final inference
-image. The request has a 300 ms deadline. Selection uses a 0.50 confidence
-floor, center proximity only as a near-confidence tie-break, 12%
-subject-relative padding, a 3–70% accepted area range, and ambiguity rejection
-for spatially separate near-confidence candidates. Failure, timeout, a broad
-scene, or no clear subject produces `nil`; no synthetic fallback rectangle is
-created.
+Capture Shared's `Services/ImageFocusRegionDetector.swift` runs
+`VNGenerateObjectnessBasedSaliencyImageRequest` revision 2 off the main actor
+against a 512 px derivative of the final inference image. The request has a 300
+ms deadline. Selection uses a 0.50 confidence floor, center proximity only as a
+near-confidence tie-break, 12% subject-relative padding, a 3–70% accepted area
+range, and ambiguity rejection for spatially separate near-confidence
+candidates. Failure, timeout, a broad scene, or no clear subject produces `nil`;
+no synthetic fallback rectangle is created.
+
+The detector records only outcome, duration, and a coarse area bucket in
+diagnostics and telemetry. It never records image content or region coordinates.
 
 An accepted region has passed the client confidence, ambiguity, area, and
 geometry checks only. It has not been semantically verified as the user's
@@ -1113,18 +1116,20 @@ destination is retained as a user-attention failure rather than submitted.
 
 ## Component Responsibilities Summary
 
-| Component                   | Location                        | Responsibility                                                                                                                         |
-| --------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `ImageDownsampler`          | `Core/Utilities/`               | CGImageSource thumbnail decoding; `public enum` with `static func` — no actor overhead; autoreleasepool                                |
-| `ExternalImageImportStore`  | `Core/Data/Images/`             | Durable Application Support inbox for security-scoped Photos document imports; manifest recovery, acknowledgement, and EXIF extraction |
-| `MediaPreparationActor`     | `Core/Data/Images/`             | File-backed still-image preparation; owns inference/display encoding and budget metrics                                                |
-| `FileIOActor`               | `Core/Data/Database/`           | Disk reads/writes; isolated from Main and SwiftData actors                                                                             |
-| `LocalImageLoader`          | `Core/Data/Images/`             | Load orchestration, RAM cache hits, request coalescing, local/remote routing, and the isolated media session                           |
-| `AsyncPermitPool`           | `Core/Data/Images/Concurrency/` | Cancellation-safe four-slot decode admission                                                                                           |
-| Image loading policies      | `Core/Data/Images/Policies/`    | HTTPS/content admission plus retryable HTTP/transport classification and bounded backoff                                               |
-| Local scan-media recovery   | `Core/Data/Images/Recovery/`    | Immutable scan snapshots plus exact filename, read-only rescue-store, and constrained timestamp evidence for surviving local files     |
-| Recovery registration       | `Core/Data/Images/Services/`    | Post-startup, cancellation-aware two-pass SwiftData paging that registers strong evidence before timestamp fallback                    |
-| `MediaPlaybackObservation`  | `Core/Media/`                   | Exact AVPlayer KVO/notification/time-token ownership and generation-fenced replacement callbacks                                       |
-| `CloudScanImageRepairActor` | `Core/Data/Images/Services/`    | Serial owner-authenticated inspection, staging upload, and cloud-reference repair for strongly matched surviving local images          |
-| `ImageCache`                | `Core/Data/Images/`             | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap                                                             |
-| `ArchiveManager`            | `Core/Data/Images/`             | `@MainActor` coordinator for generated dataset archive ZIP downloads                                                                   |
+| Component                   | Location                                | Responsibility                                                                                                                         |
+| --------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `ImageDownsampler`          | `Core/Data/Images/`                     | CGImageSource thumbnail decoding; `public enum` with `static func` — no actor overhead; autoreleasepool                                |
+| `ImageFocusRegionDetector`  | `Features/Capture/Shared/Services/`     | Capture-only bounded Vision objectness request, deadline/cancellation bridge, and candidate-resolution policy                          |
+| `SizeEstimator`             | `Features/Capture/Submission/Services/` | Optional Capture telemetry projection from LiDAR distance and a bounded Vision objectness result                                       |
+| `ExternalImageImportStore`  | `Core/Data/Images/`                     | Durable Application Support inbox for security-scoped Photos document imports; manifest recovery, acknowledgement, and EXIF extraction |
+| `MediaPreparationActor`     | `Core/Data/Images/`                     | File-backed still-image preparation; owns inference/display encoding and budget metrics                                                |
+| `FileIOActor`               | `Core/Data/Database/`                   | Disk reads/writes; isolated from Main and SwiftData actors                                                                             |
+| `LocalImageLoader`          | `Core/Data/Images/`                     | Load orchestration, RAM cache hits, request coalescing, local/remote routing, and the isolated media session                           |
+| `AsyncPermitPool`           | `Core/Data/Images/Concurrency/`         | Cancellation-safe four-slot decode admission                                                                                           |
+| Image loading policies      | `Core/Data/Images/Policies/`            | HTTPS/content admission plus retryable HTTP/transport classification and bounded backoff                                               |
+| Local scan-media recovery   | `Core/Data/Images/Recovery/`            | Immutable scan snapshots plus exact filename, read-only rescue-store, and constrained timestamp evidence for surviving local files     |
+| Recovery registration       | `Core/Data/Images/Services/`            | Post-startup, cancellation-aware two-pass SwiftData paging that registers strong evidence before timestamp fallback                    |
+| `MediaPlaybackObservation`  | `Core/Media/`                           | Exact AVPlayer KVO/notification/time-token ownership and generation-fenced replacement callbacks                                       |
+| `CloudScanImageRepairActor` | `Core/Data/Images/Services/`            | Serial owner-authenticated inspection, staging upload, and cloud-reference repair for strongly matched surviving local images          |
+| `ImageCache`                | `Core/Data/Images/`                     | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap                                                             |
+| `ArchiveManager`            | `Core/Data/Images/`                     | `@MainActor` coordinator for generated dataset archive ZIP downloads                                                                   |

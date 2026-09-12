@@ -136,6 +136,47 @@ final class CaptureSubmissionArchitectureTests: XCTestCase {
         }
     }
 
+    func testSizeEstimatorAndTestsRemainSubmissionOwned() throws {
+        let repository = try repositoryRoot()
+        let sourcePath = repository.appendingPathComponent(
+            "apps/ios/Merian/Features/Capture/Submission/Services/SizeEstimator.swift"
+        )
+        let testPath = repository.appendingPathComponent(
+            "apps/ios/MerianTests/Features/Capture/Submission/SizeEstimatorTests.swift"
+        )
+        let retiredPaths = [
+            "apps/ios/Merian/Core/Utilities/SizeEstimator.swift",
+            "apps/ios/MerianTests/Core/Utilities/SizeEstimatorTests.swift"
+        ]
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourcePath.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: testPath.path))
+        for path in retiredPaths {
+            XCTAssertFalse(FileManager.default.fileExists(
+                atPath: repository.appendingPathComponent(path).path
+            ))
+        }
+
+        let productionRoot = repository.appendingPathComponent(
+            "apps/ios/Merian"
+        )
+        let declarationOwners = try swiftFiles(in: productionRoot).filter {
+            try String(contentsOf: $0, encoding: .utf8)
+                .contains("enum SizeEstimator")
+        }
+        XCTAssertEqual(declarationOwners, [sourcePath])
+
+        let source = try String(contentsOf: sourcePath, encoding: .utf8)
+        XCTAssertTrue(source.contains("enum SizeEstimator"))
+        XCTAssertTrue(source.contains("ImageDownsampler.downsample("))
+        XCTAssertFalse(source.contains("import UIKit"))
+        XCTAssertFalse(source.contains("MerianNetworkClient"))
+        XCTAssertFalse(source.contains("AppDIContainer"))
+
+        let tests = try String(contentsOf: testPath, encoding: .utf8)
+        XCTAssertTrue(tests.contains("struct SizeEstimatorTests"))
+    }
+
     private func submissionSourceRoot() throws -> URL {
         let root = try repositoryRoot().appendingPathComponent(
             "apps/ios/Merian/Features/Capture/Submission"

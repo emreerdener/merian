@@ -35,10 +35,11 @@ Merian resolves this by wrapping the ImageIO rendering blocks inside
 `autoreleasepool { ... }` boundaries, clearing C-level `NSMutableData` instances
 immediately on each loop iteration and preserving a clean RAM ceiling.
 
-This identical RAM ceiling violation exists during Apple Vision AI inferences,
+This identical RAM ceiling violation exists during Apple Vision requests,
 detached image decoding, manual cropping, and metadata scrubbing. Executing
-`VNImageRequestHandler` classifications (e.g., `InferenceEngine.swift` and
-`SizeEstimator.swift`), decoding live/fullscreen carousel blobs in
+`VNImageRequestHandler` work (e.g., `Core/AI/InferenceEngine.swift` and
+`Features/Capture/Submission/Services/SizeEstimator.swift`), decoding
+live/fullscreen carousel blobs in
 `apps/ios/Merian/Features/Insights/Media/Carousel/Pages/LiveCapturePageView.swift`
 and
 `apps/ios/Merian/Core/UI/Components/MediaCarousel/Gallery/FullscreenMediaLiveImageView.swift`,

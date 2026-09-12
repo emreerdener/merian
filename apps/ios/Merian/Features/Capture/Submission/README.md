@@ -17,6 +17,9 @@ staged-video upload, and `/identify-multimodal` dispatch. The paired
 attempt fence to the existing parse/save actor; typed completion returns to the
 engine for presentation and queue cleanup.
 
+The canonical bounded-image and focus handoff is documented in the
+[image pipeline](../../../../../../docs/system-architecture/03-image-pipeline.md).
+
 ## Ownership
 
 - `Models/` owns deterministic admission, media, goal-preference, and latency
@@ -26,11 +29,14 @@ engine for presentation and queue cleanup.
   replay descriptors. Staging owns chronological draft nodes; Submission alone
   maps those nodes into live and durable transport values.
 - `Services/` composes narrow live admission and context closures, owns the 150
-  ms one-shot context race, formats submission telemetry, and is the only
-  Submission layer that adapts `/update-scan-context`. The deferred-context
-  adapter persists locally before remote delivery and performs at most one
-  remote retry after 500 ms; endpoint, transport, or task cancellation is
-  terminal and does not trigger that retry.
+  ms one-shot context race, formats submission telemetry, and owns the optional
+  LiDAR/Vision `SizeEstimator`. That estimator consumes the shared bounded
+  [Core image decoder](../../../Core/Data/Images/README.md) and remains free of
+  networking, app-container lookup, and UI. Services is also the only Submission
+  layer that adapts `/update-scan-context`. The deferred-context adapter
+  persists locally before remote delivery and performs at most one remote retry
+  after 500 ms; endpoint, transport, or task cancellation is terminal and does
+  not trigger that retry.
   `Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift` owns
   deferred-context request construction and its 15-second HTTP boundary, not
   persistence or the service's delayed retry. See the
@@ -52,7 +58,10 @@ alignment, sparse persisted source indexes, compact indexing after omitted
 inputs, local Codable provenance, network-key omission, focus lookup, and
 descriptor factories. These are hand-written request/replay values rather than
 generated response DTOs; moving them here changes no request field, enum raw
-value, JSON key, persistence schema, or replay rule.
+value, JSON key, persistence schema, or replay rule. `SizeEstimatorTests` retain
+corrupted and empty-input failure coverage, while the Submission architecture
+suite freezes the estimator's production and test ownership and retired
+Utilities paths.
 
 For visual scans, submission passes only the first visual item's existing focus
 region with the primary inference image to `InferenceEngine`. The engine starts

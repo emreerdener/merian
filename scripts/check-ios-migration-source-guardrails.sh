@@ -185,6 +185,8 @@ extract_block() {
   ' "$schema_file"
 }
 
+# Feed extracted text directly to grep. With pipefail, printf | grep -q can
+# report SIGPIPE after a successful early match (including forbidden matches).
 migration_plan_schemas="$(
   awk '
     /enum MerianMigrationPlan/ { in_plan = 1 }
@@ -203,34 +205,34 @@ migration_plan_stages="$(
   ' "$schema_file"
 )"
 
-printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV49.self" \
+grep -Fq "MerianSchemaV49.self" <<< "$migration_plan_schemas" \
   || fail "MerianMigrationPlan.schemas must include MerianSchemaV49.self."
-printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianActiveSchemaV50.self" \
+grep -Fq "MerianActiveSchemaV50.self" <<< "$migration_plan_schemas" \
   || fail "MerianMigrationPlan.schemas must include the frozen V50 bridge."
-printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV51.self" \
+grep -Fq "MerianSchemaV51.self" <<< "$migration_plan_schemas" \
   || fail "MerianMigrationPlan.schemas must finish with the account-scoped V51 schema."
-if printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV50.self"; then
+if grep -Fq "MerianSchemaV50.self" <<< "$migration_plan_schemas"; then
   fail "MerianMigrationPlan.schemas must not include the checksum-identical released V50 fixture beside active V50."
 fi
 
 for retired_recent_schema in MerianSchemaV43.self MerianSchemaV44.self MerianSchemaV45.self MerianSchemaV46.self MerianSchemaV47.self MerianSchemaV48.self; do
-  if printf '%s\n' "$migration_plan_schemas" | grep -Fq "$retired_recent_schema"; then
+  if grep -Fq "$retired_recent_schema" <<< "$migration_plan_schemas"; then
     fail "MerianMigrationPlan.schemas must omit source-isolated recent schema $retired_recent_schema and remain linear through V42 to V49."
   fi
 done
 
-printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV42toV49" \
+grep -Fq "migrateV42toV49" <<< "$migration_plan_stages" \
   || fail "MerianMigrationPlan.stages must jump from V42 to V49."
-printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV49toV50" \
+grep -Fq "migrateV49toV50" <<< "$migration_plan_stages" \
   || fail "MerianMigrationPlan.stages must advance V49 to the frozen V50 bridge."
-printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV50toV51" \
+grep -Fq "migrateV50toV51" <<< "$migration_plan_stages" \
   || fail "MerianMigrationPlan.stages must discard unowned V50 preferences while advancing to V51."
-if printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV47toV49"; then
+if grep -Fq "migrateV47toV49" <<< "$migration_plan_stages"; then
   fail "MerianMigrationPlan.stages must not route historical stores through V47."
 fi
 
 for source_isolated_stage in migrateV42toV43 migrateV43toV49 migrateV44toV49 migrateV45toV49 migrateV46toV49 migrateV48toV49 migrateV43toV47 migrateV44toV47 migrateV45toV47 migrateV46toV47 migrateV45toV46; do
-  if printf '%s\n' "$migration_plan_stages" | grep -Fq "$source_isolated_stage"; then
+  if grep -Fq "$source_isolated_stage" <<< "$migration_plan_stages"; then
     fail "MerianMigrationPlan.stages must not include source-isolated or duplicate recent stage $source_isolated_stage."
   fi
 done
@@ -280,12 +282,12 @@ contains "$schema_file" "enum MerianSchemaV51: VersionedSchema" \
 
 v49_schema="$(extract_block "enum MerianSchemaV49: VersionedSchema" "enum MerianSchemaV50: VersionedSchema")"
 for frozen_model in LocalScanRecord OfflineQueuedScan CapturedMediaEntry ScanCollection PendingCloudDeletionTask UserSpeciesPreference OfflineJobRecord OfflineQueueEvent; do
-  printf '%s\n' "$v49_schema" | grep -Fq "MerianSchemaV49.$frozen_model.self" \
+  grep -Fq "MerianSchemaV49.$frozen_model.self" <<< "$v49_schema" \
     || fail "V49 must reference its frozen MerianSchemaV49.$frozen_model snapshot."
   contains "$v49_snapshot_file" "final class $frozen_model" \
     || fail "V49 snapshot file must define $frozen_model."
 done
-if printf '%s\n' "$v49_schema" | grep -Fq "MerianSchemaV49Offline"; then
+if grep -Fq "MerianSchemaV49Offline" <<< "$v49_schema"; then
   fail "V49 must not alias an active model through a top-level bridge."
 fi
 not_contains "$v49_snapshot_file" "typealias"
@@ -298,7 +300,7 @@ contains "$v49_snapshot_file" "inverse: \\MerianSchemaV49.LocalScanRecord.collec
 
 v50_schema="$(extract_block "enum MerianSchemaV50: VersionedSchema" "enum MerianReleasedActiveSchemaV50: VersionedSchema")"
 for frozen_model in LocalScanRecord OfflineQueuedScan CapturedMediaEntry ScanCollection PendingCloudDeletionTask UserSpeciesPreference OfflineJobRecord OfflineQueueEvent; do
-  printf '%s\n' "$v50_schema" | grep -Fq "MerianSchemaV50.$frozen_model.self" \
+  grep -Fq "MerianSchemaV50.$frozen_model.self" <<< "$v50_schema" \
     || fail "V50 must reference its frozen MerianSchemaV50.$frozen_model snapshot."
   contains "$v50_snapshot_file" "final class $frozen_model" \
     || fail "V50 snapshot file must define $frozen_model."
@@ -316,12 +318,12 @@ not_contains "$v50_snapshot_file" "isPendingDeletion"
 
 released_active_v50_schema="$(extract_block "enum MerianReleasedActiveSchemaV50: VersionedSchema" "enum MerianActiveSchemaV50: VersionedSchema")"
 for frozen_model in LocalScanRecord OfflineQueuedScan CapturedMediaEntry ScanCollection PendingCloudDeletionTask UserSpeciesPreference OfflineJobRecord OfflineQueueEvent; do
-  printf '%s\n' "$released_active_v50_schema" | grep -Fq "MerianReleasedActiveSchemaV50.$frozen_model.self" \
+  grep -Fq "MerianReleasedActiveSchemaV50.$frozen_model.self" <<< "$released_active_v50_schema" \
     || fail "Released-active V50 must reference its frozen MerianReleasedActiveSchemaV50.$frozen_model snapshot."
   contains "$v50_released_active_snapshot_file" "final class $frozen_model" \
     || fail "Released-active V50 snapshot file must define $frozen_model."
 done
-printf '%s\n' "$released_active_v50_schema" | grep -Fq "MerianReleasedActiveSchemaV50.OfflineQueuedScanGoalHint.self" \
+grep -Fq "MerianReleasedActiveSchemaV50.OfflineQueuedScanGoalHint.self" <<< "$released_active_v50_schema" \
   || fail "Released-active V50 must reference its frozen goal-hint snapshot."
 not_contains "$v50_released_active_snapshot_file" "typealias"
 contains "$v50_released_active_snapshot_file" "[MerianReleasedActiveSchemaV50.CapturedMediaEntry]?" \
@@ -338,10 +340,10 @@ not_contains "$v50_released_active_snapshot_file" "var isDeleted: Bool"
 
 active_v50_schema="$(extract_block "enum MerianActiveSchemaV50: VersionedSchema" "enum MerianSchemaV51: VersionedSchema")"
 for frozen_model in LocalScanRecord OfflineQueuedScan CapturedMediaEntry ScanCollection PendingCloudDeletionTask UserSpeciesPreference OfflineJobRecord OfflineQueueEvent; do
-  printf '%s\n' "$active_v50_schema" | grep -Fq "MerianSchemaV50.$frozen_model.self" \
+  grep -Fq "MerianSchemaV50.$frozen_model.self" <<< "$active_v50_schema" \
     || fail "The V50 bridge must reference frozen MerianSchemaV50.$frozen_model."
 done
-printf '%s\n' "$active_v50_schema" | grep -Fq "MerianActiveSchemaV50.OfflineQueuedScanGoalHint.self" \
+grep -Fq "MerianActiveSchemaV50.OfflineQueuedScanGoalHint.self" <<< "$active_v50_schema" \
   || fail "The V50 bridge must preserve its released goal-hint model owner."
 contains "$schema_file" "MerianSchemaV49.CapturedMediaEntry.makeEntries(" \
   || fail "V49 queue repair must create frozen V49 captured-media rows."
@@ -476,13 +478,13 @@ require_v51_tail() {
   local plan_text="$1"
   local plan_name="$2"
 
-  printf '%s\n' "$plan_text" | grep -Fq "MerianActiveSchemaV50.self" \
+  grep -Fq "MerianActiveSchemaV50.self" <<< "$plan_text" \
     || fail "$plan_name must include the frozen V50 bridge."
-  printf '%s\n' "$plan_text" | grep -Fq "MerianSchemaV51.self" \
+  grep -Fq "MerianSchemaV51.self" <<< "$plan_text" \
     || fail "$plan_name must include the V51 target."
-  printf '%s\n' "$plan_text" | grep -Fq "MerianMigrationPlan.migrateV49toV50" \
+  grep -Fq "MerianMigrationPlan.migrateV49toV50" <<< "$plan_text" \
     || fail "$plan_name must include the shared V49 to V50 stage."
-  printf '%s\n' "$plan_text" | grep -Fq "MerianMigrationPlan.migrateV50toV51" \
+  grep -Fq "MerianMigrationPlan.migrateV50toV51" <<< "$plan_text" \
     || fail "$plan_name must include the shared V50 to V51 stage."
 }
 
@@ -496,112 +498,112 @@ require_v51_tail "$recent_v48_plan" "Recent V48 plan"
 require_v51_tail "$optional_v48_plan" "Optional-queue V48 plan"
 require_v51_tail "$recent_v49_plan" "Recent V49 plan"
 
-printf '%s\n' "$recent_v50_plan" | grep -Fq "MerianActiveSchemaV50.self" \
+grep -Fq "MerianActiveSchemaV50.self" <<< "$recent_v50_plan" \
   || fail "Recent V50 plan must include the frozen V50 source bridge."
-printf '%s\n' "$recent_v50_plan" | grep -Fq "MerianSchemaV51.self" \
+grep -Fq "MerianSchemaV51.self" <<< "$recent_v50_plan" \
   || fail "Recent V50 plan must target V51."
-printf '%s\n' "$recent_v50_plan" | grep -Fq "MerianMigrationPlan.migrateV50toV51" \
+grep -Fq "MerianMigrationPlan.migrateV50toV51" <<< "$recent_v50_plan" \
   || fail "Recent V50 plan must run exactly the account-partition migration."
-if printf '%s\n' "$recent_v50_plan" | grep -Fq "migrateV49toV50"; then
+if grep -Fq "migrateV49toV50" <<< "$recent_v50_plan"; then
   fail "Recent V50 plan must not validate the V49 source."
 fi
 
-printf '%s\n' "$released_active_v50_plan" | grep -Fq "MerianReleasedActiveSchemaV50.self" \
+grep -Fq "MerianReleasedActiveSchemaV50.self" <<< "$released_active_v50_plan" \
   || fail "Released-active V50 plan must include its exact frozen source graph."
-printf '%s\n' "$released_active_v50_plan" | grep -Fq "MerianSchemaV51.self" \
+grep -Fq "MerianSchemaV51.self" <<< "$released_active_v50_plan" \
   || fail "Released-active V50 plan must target V51."
-printf '%s\n' "$released_active_v50_plan" | grep -Fq "MerianMigrationPlan.migrateReleasedActiveV50toV51" \
+grep -Fq "MerianMigrationPlan.migrateReleasedActiveV50toV51" <<< "$released_active_v50_plan" \
   || fail "Released-active V50 plan must run exactly its account-partition migration."
-if printf '%s\n' "$released_active_v50_plan" | grep -Fq "migrateV49toV50"; then
+if grep -Fq "migrateV49toV50" <<< "$released_active_v50_plan"; then
   fail "Released-active V50 plan must not validate the V49 source."
 fi
 
-printf '%s\n' "$recent_v42_plan" | grep -Fq "MerianSchemaV42.self" \
+grep -Fq "MerianSchemaV42.self" <<< "$recent_v42_plan" \
   || fail "Recent V42 plan must include MerianSchemaV42."
-printf '%s\n' "$recent_v42_plan" | grep -Fq "MerianSchemaV49.self" \
+grep -Fq "MerianSchemaV49.self" <<< "$recent_v42_plan" \
   || fail "Recent V42 plan must target V49."
-printf '%s\n' "$recent_v42_plan" | grep -Fq "MerianMigrationPlan.migrateV42toV49" \
+grep -Fq "MerianMigrationPlan.migrateV42toV49" <<< "$recent_v42_plan" \
   || fail "Recent V42 plan must run migrateV42toV49."
-if printf '%s\n' "$recent_v42_plan" | grep -Fq "MerianSchemaV43.self"; then
+if grep -Fq "MerianSchemaV43.self" <<< "$recent_v42_plan"; then
   fail "Recent V42 plan must skip V43."
 fi
-if printf '%s\n' "$recent_v42_plan" | grep -Fq "migrateV42toV43"; then
+if grep -Fq "migrateV42toV43" <<< "$recent_v42_plan"; then
   fail "Recent V42 plan must not run migrateV42toV43."
 fi
-if printf '%s\n' "$recent_v42_plan" | grep -Fq "migrateV43toV49"; then
+if grep -Fq "migrateV43toV49" <<< "$recent_v42_plan"; then
   fail "Recent V42 plan must not depend on migrateV43toV49."
 fi
 
-printf '%s\n' "$recent_v43_plan" | grep -Fq "MerianSchemaV43.self" \
+grep -Fq "MerianSchemaV43.self" <<< "$recent_v43_plan" \
   || fail "Recent V43 plan must include MerianSchemaV43."
-printf '%s\n' "$recent_v43_plan" | grep -Fq "MerianSchemaV49.self" \
+grep -Fq "MerianSchemaV49.self" <<< "$recent_v43_plan" \
   || fail "Recent V43 plan must target V49."
-printf '%s\n' "$recent_v43_plan" | grep -Fq "MerianMigrationPlan.migrateV43toV49" \
+grep -Fq "MerianMigrationPlan.migrateV43toV49" <<< "$recent_v43_plan" \
   || fail "Recent V43 plan must run migrateV43toV49."
 
-printf '%s\n' "$recent_v44_plan" | grep -Fq "MerianSchemaV44.self" \
+grep -Fq "MerianSchemaV44.self" <<< "$recent_v44_plan" \
   || fail "Recent V44 plan must include MerianSchemaV44."
-printf '%s\n' "$recent_v44_plan" | grep -Fq "MerianSchemaV49.self" \
+grep -Fq "MerianSchemaV49.self" <<< "$recent_v44_plan" \
   || fail "Recent V44 plan must target V49."
-printf '%s\n' "$recent_v44_plan" | grep -Fq "MerianMigrationPlan.migrateV44toV49" \
+grep -Fq "MerianMigrationPlan.migrateV44toV49" <<< "$recent_v44_plan" \
   || fail "Recent V44 plan must run migrateV44toV49."
-if printf '%s\n' "$recent_v44_plan" | grep -Fq "MerianSchemaV47.self"; then
+if grep -Fq "MerianSchemaV47.self" <<< "$recent_v44_plan"; then
   fail "Recent V44 plan must skip V47."
 fi
 
-printf '%s\n' "$recent_v45_plan" | grep -Fq "MerianSchemaV45.self" \
+grep -Fq "MerianSchemaV45.self" <<< "$recent_v45_plan" \
   || fail "Recent V45 plan must include MerianSchemaV45."
-printf '%s\n' "$recent_v45_plan" | grep -Fq "MerianSchemaV49.self" \
+grep -Fq "MerianSchemaV49.self" <<< "$recent_v45_plan" \
   || fail "Recent V45 plan must target V49."
-printf '%s\n' "$recent_v45_plan" | grep -Fq "MerianMigrationPlan.migrateV45toV49" \
+grep -Fq "MerianMigrationPlan.migrateV45toV49" <<< "$recent_v45_plan" \
   || fail "Recent V45 plan must run migrateV45toV49."
-if printf '%s\n' "$recent_v45_plan" | grep -Fq "MerianSchemaV47.self"; then
+if grep -Fq "MerianSchemaV47.self" <<< "$recent_v45_plan"; then
   fail "Recent V45 plan must skip V47."
 fi
 
-printf '%s\n' "$recent_v46_plan" | grep -Fq "MerianSchemaV46.self" \
+grep -Fq "MerianSchemaV46.self" <<< "$recent_v46_plan" \
   || fail "Recent V46 plan must include MerianSchemaV46."
-printf '%s\n' "$recent_v46_plan" | grep -Fq "MerianSchemaV49.self" \
+grep -Fq "MerianSchemaV49.self" <<< "$recent_v46_plan" \
   || fail "Recent V46 plan must target V49."
-printf '%s\n' "$recent_v46_plan" | grep -Fq "MerianMigrationPlan.migrateV46toV49" \
+grep -Fq "MerianMigrationPlan.migrateV46toV49" <<< "$recent_v46_plan" \
   || fail "Recent V46 plan must run migrateV46toV49."
-if printf '%s\n' "$recent_v46_plan" | grep -Fq "MerianSchemaV45.self"; then
+if grep -Fq "MerianSchemaV45.self" <<< "$recent_v46_plan"; then
   fail "Recent V46 plan must not use the V45 source representative."
 fi
 
-printf '%s\n' "$recent_v47_plan" | grep -Fq "MerianSchemaV47.self" \
+grep -Fq "MerianSchemaV47.self" <<< "$recent_v47_plan" \
   || fail "Recent V47 plan must include MerianSchemaV47."
-printf '%s\n' "$recent_v47_plan" | grep -Fq "MerianSchemaV49.self" \
+grep -Fq "MerianSchemaV49.self" <<< "$recent_v47_plan" \
   || fail "Recent V47 plan must target V49."
-printf '%s\n' "$recent_v47_plan" | grep -Fq "MerianMigrationPlan.migrateV47toV49" \
+grep -Fq "MerianMigrationPlan.migrateV47toV49" <<< "$recent_v47_plan" \
   || fail "Recent V47 plan must run migrateV47toV49."
 
-printf '%s\n' "$recent_v48_plan" | grep -Fq "MerianSchemaV48.self" \
+grep -Fq "MerianSchemaV48.self" <<< "$recent_v48_plan" \
   || fail "Recent V48 plan must include the known-good V48 source."
-printf '%s\n' "$recent_v48_plan" | grep -Fq "MerianSchemaV49.self" \
+grep -Fq "MerianSchemaV49.self" <<< "$recent_v48_plan" \
   || fail "Recent V48 plan must target V49."
-printf '%s\n' "$recent_v48_plan" | grep -Fq "MerianMigrationPlan.migrateV48toV49" \
+grep -Fq "MerianMigrationPlan.migrateV48toV49" <<< "$recent_v48_plan" \
   || fail "Recent V48 plan must run migrateV48toV49."
-if printf '%s\n' "$recent_v48_plan" | grep -Fq "MerianSchemaV48OptionalQueue.self"; then
+if grep -Fq "MerianSchemaV48OptionalQueue.self" <<< "$recent_v48_plan"; then
   fail "Recent V48 known-good plan must not mix in the optional-queue source."
 fi
 
-printf '%s\n' "$optional_v48_plan" | grep -Fq "MerianSchemaV48OptionalQueue.self" \
+grep -Fq "MerianSchemaV48OptionalQueue.self" <<< "$optional_v48_plan" \
   || fail "Optional-queue V48 plan must include the bad V48 source."
-printf '%s\n' "$optional_v48_plan" | grep -Fq "MerianSchemaV49.self" \
+grep -Fq "MerianSchemaV49.self" <<< "$optional_v48_plan" \
   || fail "Optional-queue V48 plan must target V49."
-printf '%s\n' "$optional_v48_plan" | grep -Fq "MerianMigrationPlan.migrateOptionalQueueV48toV49" \
+grep -Fq "MerianMigrationPlan.migrateOptionalQueueV48toV49" <<< "$optional_v48_plan" \
   || fail "Optional-queue V48 plan must run migrateOptionalQueueV48toV49."
 
-printf '%s\n' "$recent_v49_plan" | grep -Fq "MerianSchemaV49.self" \
+grep -Fq "MerianSchemaV49.self" <<< "$recent_v49_plan" \
   || fail "Recent V49 plan must include the released V49 source."
-if printf '%s\n' "$recent_v49_plan" | grep -Eq "MerianSchemaV(4[2-8]|48OptionalQueue)[.]self"; then
+if grep -Eq "MerianSchemaV(4[2-8]|48OptionalQueue)[.]self" <<< "$recent_v49_plan"; then
   fail "Recent V49 plan must not validate an earlier source schema."
 fi
-if [ "$(printf '%s\n' "$recent_v49_plan" | grep -Fc "MerianMigrationPlan.migrateV49toV50")" -ne 1 ]; then
+if [ "$(grep -Fc "MerianMigrationPlan.migrateV49toV50" <<< "$recent_v49_plan")" -ne 1 ]; then
   fail "Recent V49 plan must contain exactly one V49 to V50 stage reference."
 fi
-if printf '%s\n' "$recent_v49_plan" | grep -Fq "MerianSchemaV50.self"; then
+if grep -Fq "MerianSchemaV50.self" <<< "$recent_v49_plan"; then
   fail "Recent V49 plan must not pair the checksum-identical released and active V50 schemas."
 fi
 
@@ -681,10 +683,10 @@ recent_source_dispatch="$(
   ' "$app_file"
 )"
 for recent_major in $(seq 42 50); do
-  printf '%s\n' "$recent_source_dispatch" | grep -Fq "case .v${recent_major}:" \
+  grep -Fq "case .v${recent_major}:" <<< "$recent_source_dispatch" \
     || fail "MerianApp recent-source dispatch must handle V${recent_major} explicitly."
 done
-if printf '%s\n' "$recent_source_dispatch" | grep -Eq '^[[:space:]]*(@unknown[[:space:]]+)?default:'; then
+if grep -Eq '^[[:space:]]*(@unknown[[:space:]]+)?default:' <<< "$recent_source_dispatch"; then
   fail "MerianApp recent-source dispatch must remain compiler-exhaustive without a default branch."
 fi
 not_contains "$app_file" "recent-fallback-full"

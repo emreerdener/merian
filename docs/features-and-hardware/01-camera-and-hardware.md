@@ -196,12 +196,13 @@ lowest-level integration with the iPhone optics.
   shutter capture. Deferring this read to `handleCropCompletion` would return
   floor data or `nil` after the user pans away, so `capturedDistance` is
   extracted during shutter engagement. This depth metric is then asynchronously
-  paired with the high-resolution capture inside `SizeEstimator.swift`, which
-  issues a `VNGenerateObjectnessBasedSaliencyImageRequest` via Apple Vision to
-  isolate the primary foreground subject's bounding box. By multiplying the
-  normalized subject bounding box against the physical plane width (derived from
-  the LiDAR distance and the iPhone's 70º lens FOV), Merian calculates a
-  real-world `estimated_size_cm` metric before ever making a cloud request.
+  paired with the bounded inference image inside
+  `Features/Capture/Submission/Services/SizeEstimator.swift`, which issues a
+  `VNGenerateObjectnessBasedSaliencyImageRequest` via Apple Vision to isolate
+  the primary foreground subject's bounding box. By multiplying the normalized
+  subject bounding box against the physical plane width (derived from the LiDAR
+  distance and the iPhone's 70º lens FOV), Merian calculates a real-world
+  `estimated_size_cm` metric before ever making a cloud request.
 - Throttles preview feeds between 15–60 FPS to conserve memory.
 - **Native Hardware Interaction (`AVCaptureEventInteraction`)**: Uses the iOS
   17.2 hardware API to intercept native volume buttons, the Action button, and

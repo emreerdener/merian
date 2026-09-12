@@ -1065,6 +1065,12 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
 
 ### AI & Data Architectures
 
+- **`scripts/test-check-ios-migration-source-guardrails.sh`**: Runs the source
+  guardrail against isolated fixtures, including a valid V47 plan padded beyond
+  pipe capacity, missing source/stage entries, and a forbidden recent source.
+  Extracted-text checks use here-strings so an early `grep -q` match cannot
+  produce a `printf` SIGPIPE failure under `pipefail` or hide a forbidden match.
+  Run this regression through `make test-ios-ci-tooling`.
 - **`MigrationPlanTests.swift`**: Two-tier structural guard for the SwiftData
   migration plan.
   - `migrationPlanContainerInitializesWithoutCrash`: mirrors `MerianApp.init()`
@@ -1924,6 +1930,10 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   links the application, validates resources, or replaces the hosted
   `xcodebuild build-for-testing` and complete `merianTests` execution. Record an
   environment failure as such; do not reinterpret it as a passing native build.
+- **`Core/Data/Images/ImageDownsamplerTests.swift`**: Exercises the shared
+  synchronous ImageIO owner with a generated 4000x4000 payload and both file-
+  and data-backed bounded UIKit previews. It mirrors the production owner rather
+  than remaining in the generic Utilities suite.
 - **`Core/Data/Images/LocalImageLoaderTests.swift`**: Locks concurrent network
   payload boundaries and deterministic injected request coalescing to prevent
   multi-grid fetch flooding. The async decode permit tests prove concurrency
@@ -1961,8 +1971,8 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   strong-evidence pass before timestamp fallback, and the no-index fast path.
 - **`Core/Data/Images/ImageLoadingArchitectureTests.swift`**: Freezes focused
   declaration ownership, pure policy/recovery imports, live-effect containment,
-  post-startup bounded and throwing registration, test rehoming, and the
-  600-line production guard.
+  post-startup bounded and throwing registration, downsampler/test rehoming,
+  retired Utilities paths, and the 600-line production guard.
 - **`BackgroundTransferOwnershipTests.swift`**: Covers lock-protected terminal
   completion, synchronous URLSession delegate registration, durable-before-
   cancel Auth-transition quiescence, relaunched task lease adoption, and bounded
@@ -2346,6 +2356,7 @@ xcodebuild test-without-building \
   -only-testing:merianTests/CapturedMediaPersistenceServiceTests \
   -only-testing:merianTests/ScanFinalizationArchitectureTests \
   -only-testing:merianTests/ScanMediaRecoveryRegistrationTests \
+  -only-testing:merianTests/ImageDownsamplerTests \
   -only-testing:merianTests/ImageLoadingArchitectureTests \
   -only-testing:merianTests/CoreDataIntegrationArchitectureTests \
   -only-testing:merianTests/QueueSelectionPersistenceTests \
@@ -2598,6 +2609,12 @@ before release.
   every production Scan Swift file at 600 lines. Build-for-testing typechecks
   these suites without camera hardware; actual execution still requires a
   functioning simulator or device test destination.
+- **`apps/ios/MerianTests/Features/Capture/Shared/`**: Owns cross-modality
+  Capture contracts. `ImageFocusRegionDetectorTests` retains deterministic
+  Vision candidate, geometry, padding, area, and ambiguity resolution coverage;
+  `CaptureSharedArchitectureTests` freezes the Capture-only service owner,
+  framework imports, dependency exclusions, retired Utilities paths, mirrored
+  test location, and 600-line production ceiling.
 - **`apps/ios/MerianTests/Features/Capture/Describe/`**: Mirrors typed/dictated
   observation presentation. `DescribePromptViewModelTests` locks standard,
   funnel, Insight, and reanalysis prompt state plus taxonomy-to-subject mapping.
@@ -2634,7 +2651,9 @@ before release.
   of captured environment work when queue rejection or queue-only routing leaves
   no live consumer. `CaptureSubmissionArchitectureTests` rejects old aggregate
   files, endpoint calls in ViewModels, live resolution or UI imports in Models,
-  unchecked sendability, and production files over 600 lines.
+  unchecked sendability, misplaced size-estimation ownership, and production
+  files over 600 lines. `SizeEstimatorTests` retains corrupt and empty bounded
+  input failure coverage for the optional LiDAR/Vision telemetry service.
 - **`apps/ios/MerianTests/Features/Capture/Staging/`**: Mirrors the ephemeral
   mixed-media draft owner. `StagedCaptureTests` covers state, capacity, cleanup,
   chronological nodes, stable tray identities, allowed combinations, and image
@@ -2705,6 +2724,17 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/CaptureWorkspaceDependenciesTests \
   -only-testing:merianTests/CaptureWorkspaceStagingTests \
   -only-testing:merianTests/CaptureShellArchitectureTests test
+```
+
+Run the focused Capture Shared matrix after changing cross-modality values,
+feedback policy, or focus detection:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/CaptureControlHapticPolicyTests \
+  -only-testing:merianTests/ImageFocusRegionDetectorTests \
+  -only-testing:merianTests/CaptureSharedArchitectureTests test
 ```
 
 Run the focused Capture Staging matrix after changing its aggregate, modality
@@ -2811,6 +2841,7 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/CaptureSubmissionDeferredContextServiceTests \
   -only-testing:merianTests/CaptureSubmissionMediaTimelineTests \
   -only-testing:merianTests/CaptureSubmissionMediaProjectionTests \
+  -only-testing:merianTests/SizeEstimatorTests \
   -only-testing:merianTests/CaptureSubmissionArchitectureTests \
   -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests test
 ```
@@ -3495,11 +3526,13 @@ import, and permission-denial UI require the physical-device checklist in
   singleton shared by inference suites, whose Swift Testing process-state gate
   cannot serialize XCTest cases.
 
-### UI & Utilities
+### UI & shared image infrastructure
 
-- **`ImageDownsamplerTests.swift`**: Tests Core Graphics memory constraints by
-  processing 4000x4000 payloads under safe metric limits, preventing
-  Out-Of-Memory JetSam crashes.
+- **`Core/Data/Images/ImageDownsamplerTests.swift`**: Tests Core Graphics memory
+  constraints by processing 4000x4000 payloads under safe metric limits,
+  preventing Out-of-Memory JetSam crashes. `ImageLoadingArchitectureTests`
+  freezes the Core Data Images production/test ownership and retired Utilities
+  paths.
 - **`MessageScanShareCacheTests.swift`**: Verifies the Messages App Group cache,
   generated description text, field-notes opt-in behavior, public Explore URL
   inclusion, canonical `naturebook://` generation, and legacy `merian://`
@@ -5188,8 +5221,9 @@ Owned scan-image recovery has five complementary boundaries:
   `CloudScanImageRepairActorTests` owns the exact injected client workflow,
   canonical in-flight duplicate fence, and evidence-loss/verified-retry cases.
   `ImageLoadingArchitectureTests` owns declaration relocation, live-effect
-  containment, and the production line ceiling. `ScanImageCloudEndpointTests`
-  owns authenticated inspection/repair payloads and response projection;
+  containment, downsampler test ownership, retired Utilities paths, and the
+  production line ceiling. `ScanImageCloudEndpointTests` owns authenticated
+  inspection/repair payloads and response projection;
   `MediaStorageAPIModelsTests` owns wire decoding. The
   [media storage matrix](../../apps/ios/Merian/Core/Network/README.md#media-storage-and-upload-verification)
   adds signing, signed PUT, transport, and workflow integration coverage.
@@ -5647,9 +5681,9 @@ contextual phrases and in-memory carousel media, that save plus offline/online
 changes preserve its cursor, and that the carousel overlay remains active for
 the exact handoff in pending, uploading, staged, and inferencing. The same
 matrix rejects mismatched IDs, failed/external-import/attention states, and
-ordinary queued states before inferencing. `ImageFocusRegionDetectorTests`
-retain Core Vision candidate and geometry resolution coverage.
-`InsightMediaFocusPresentationTests` lock the carousel focus geometry,
+ordinary queued states before inferencing. Capture Shared's
+`ImageFocusRegionDetectorTests` retain Vision candidate and geometry resolution
+coverage. `InsightMediaFocusPresentationTests` lock the carousel focus geometry,
 time-derived sweep, Reduce Motion midpoint, same-scan animation-session
 continuity, and resets for a different scan or a later analysis after
 completion. Engine tests cover prepared generic handoff, stale-ID rejection,

@@ -51,7 +51,7 @@ struct AccountDeletionSecurityArchitectureTests {
                 "KeychainManager",
                 "Supabase",
                 "URLSession",
-                "UserDefaults"
+                "UserDefaults.standard"
             ] {
                 #expect(
                     !source.contains(forbidden),

@@ -4,6 +4,13 @@ The `Utilities` directory owns lightweight cross-cutting helpers that do not
 have a narrower Core or feature owner. Typed process-local event and route
 coordination lives in [`Core/Routing`](../Routing/README.md).
 
+Shared bounded image decoding belongs to
+[`Core/Data/Images`](../Data/Images/README.md). Capture-only Vision focus
+detection belongs to [Capture Shared](../../Features/Capture/Shared/README.md),
+and optional physical size estimation belongs to
+[Capture Submission](../../Features/Capture/Submission/README.md); do not add
+those responsibilities back to Utilities.
+
 `String+Trimming.swift` provides the single trim-to-non-empty normalization used
 by the shared scan-thumbnail projection, renderer, and reference-image backfill
 pipeline. Keep that mechanical normalization here instead of recreating

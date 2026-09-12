@@ -182,6 +182,42 @@ struct ImageLoadingArchitectureTests {
         ))
     }
 
+    @Test func downsamplerAndItsTestsRemainImageOwned() throws {
+        let repository = try DatabaseActorTestSupport.repositoryRoot()
+        let owners = try DatabaseActorTestSupport.swiftSources(
+            below: "apps/ios/Merian"
+        ).compactMap { source in
+            source.contents.contains("public enum ImageDownsampler")
+                ? source.relativePath
+                : nil
+        }
+        let productionPath = repository.appendingPathComponent(
+            "apps/ios/Merian/Core/Data/Images/ImageDownsampler.swift"
+        )
+        let testPath = repository.appendingPathComponent(
+            "apps/ios/MerianTests/Core/Data/Images/ImageDownsamplerTests.swift"
+        )
+        let retiredPaths = [
+            "apps/ios/Merian/Core/Utilities/ImageDownsampler.swift",
+            "apps/ios/MerianTests/Core/Utilities/ImageDownsamplerTests.swift"
+        ]
+
+        #expect(owners == ["Core/Data/Images/ImageDownsampler.swift"])
+        #expect(FileManager.default.fileExists(atPath: productionPath.path))
+        #expect(FileManager.default.fileExists(atPath: testPath.path))
+        for path in retiredPaths {
+            #expect(!FileManager.default.fileExists(
+                atPath: repository.appendingPathComponent(path).path
+            ))
+        }
+
+        let tests = try String(contentsOf: testPath, encoding: .utf8)
+        #expect(tests.contains("struct ImageDownsamplerTests"))
+        #expect(tests.contains(
+            "testImageDownsamplerConstrainsMassivePayloadsToSafeMemoryLimits"
+        ))
+    }
+
     private static let imageDirectory =
         "apps/ios/Merian/Core/Data/Images"
 
@@ -208,6 +244,8 @@ struct ImageLoadingArchitectureTests {
             "Services/CloudScanImageRepairActor.swift",
         "actor ScanMediaRecoveryRegistrationService":
             "Services/ScanMediaRecoveryRegistrationService.swift",
+        "public enum ImageDownsampler":
+            "ImageDownsampler.swift",
         "actor LocalImageLoader":
             "LocalImageLoader.swift"
     ]
@@ -227,6 +265,12 @@ struct ImageLoadingArchitectureTests {
     private static let extractedOwnerImports = [
         "LocalImageLoader.swift": [
             "import Foundation",
+            "import UIKit"
+        ],
+        "ImageDownsampler.swift": [
+            "import CoreGraphics",
+            "import Foundation",
+            "import ImageIO",
             "import UIKit"
         ],
         "Concurrency/AsyncPermitPool.swift": [

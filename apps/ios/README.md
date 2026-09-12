@@ -358,23 +358,25 @@ timestamps that reached the successful save path.
 
 ## Core Image Ownership
 
-[Core Data Images](Merian/Core/Data/Images/README.md) separates
-`LocalImageLoader` orchestration from decode admission, external URL and retry
-policy, local scan-media recovery, and cloud repair. Post-startup recovery-index
-registration uses a cancellation-aware actor, fresh bounded SwiftData contexts,
-and two ordered passes so scan-ID/media-order evidence across the whole library
-precedes timestamp fallback. The process-local registry independently preserves
-that priority when bounded callers interleave and admits or evicts a multi-image
-timestamp group atomically. Direct filenames are reserved even without a rescued
-row. Recovery revisions version cache/coalescing identities, and a shared Core
-UI modifier reloads retained Scan, Explore, Profile, gallery, and composer
-images. Cloud repair accepts only an exact local URL backed by direct filename
-or registered strong evidence; timestamp guesses remain local display fallbacks.
-The injected live adapters retain the existing network and app-event effects,
-while pure policy and recovery owners contain neither UI nor endpoint calls.
-Focused behavior and architecture suites freeze coalescing, recovery evidence,
-canonical single-flight repair, bounded registration, imports, test ownership,
-and the 600-line production guard.
+[Core Data Images](Merian/Core/Data/Images/README.md) separates the shared
+stateless `ImageDownsampler` from `LocalImageLoader` orchestration, decode
+admission, external URL and retry policy, local scan-media recovery, and cloud
+repair. Post-startup recovery-index registration uses a cancellation-aware
+actor, fresh bounded SwiftData contexts, and two ordered passes so
+scan-ID/media-order evidence across the whole library precedes timestamp
+fallback. The process-local registry independently preserves that priority when
+bounded callers interleave and admits or evicts a multi-image timestamp group
+atomically. Direct filenames are reserved even without a rescued row. Recovery
+revisions version cache/coalescing identities, and a shared Core UI modifier
+reloads retained Scan, Explore, Profile, gallery, and composer images. Cloud
+repair accepts only an exact local URL backed by direct filename or registered
+strong evidence; timestamp guesses remain local display fallbacks. The injected
+live adapters retain the existing network and app-event effects, while the
+downsampler, pure policy, and recovery owners contain neither UI nor endpoint
+calls. Focused behavior and architecture suites freeze bounded downsampling,
+coalescing, recovery evidence, canonical single-flight repair, bounded
+registration, imports, test ownership, retired Utilities paths, and the 600-line
+production guard.
 
 ## Core UI Ownership
 
@@ -700,13 +702,14 @@ Capture-wide layout and interaction vocabulary lives in `Capture/Shared`,
 including the fixed control-row geometry consumed by Shell, Scan, Record, and
 Describe; the pure `CaptureMode` value; the haptic policy shared by Shell and
 Scan; and the composing-center environment value supplied by Shell and consumed
-by Record. The rendered control row, flash control, native mode selector,
-workspace navigation, and their deterministic presentation projections live in
-Shell. The selector converges UIKit value-change and primary-action events
-through one binding guard, while its installed-image snapshot prevents unrelated
-SwiftUI updates from rewriting segment artwork during interaction. The cross-
-feature immutable `CGImage` concurrency wrapper lives in `Core/Media` because
-Insights also consumes it.
+by Record. Capture Shared Services also owns the bounded Vision focus detector
+used by Scan, Shell imports, and Staging crop confirmation. The rendered control
+row, flash control, native mode selector, workspace navigation, and their
+deterministic presentation projections live in Shell. The selector converges
+UIKit value-change and primary-action events through one binding guard, while
+its installed-image snapshot prevents unrelated SwiftUI updates from rewriting
+segment artwork during interaction. The cross-feature immutable `CGImage`
+concurrency wrapper lives in `Core/Media` because Insights also consumes it.
 
 The modality folders remain independent: `Scan` owns camera and video input,
 `Record` owns audio presentation and interaction, `Describe` owns typed and
@@ -722,19 +725,21 @@ boundary and its paired Shell/Submission verification.
 [Capture Submission](Merian/Features/Capture/Submission/README.md) separates
 deterministic admission/media/goal policy and normalized payload values in
 `Models`, narrow live admission/context/deferred-update adapters and telemetry
-in `Services`, and visual/nonvisual/Describe orchestration in responsibility-
-specific `CaptureWorkspaceViewModel` extensions. Submission has no view layer;
-Shell and modality views retain UI-only timing. The actor-backed 150 ms context
-race transfers only a sendable snapshot and bounds environment-context waiting,
-not total dispatch preparation. A branch with no foreground consumer cancels its
-captured lookup; only a timeout-losing lookup remains for late enrichment, and
-that task retains the injected service and bounded telemetry inputs rather than
-the workspace view model or full display-image collection. The deferred-context
-service updates the durable local queue before `/update-scan-context` and
-performs at most one remote retry after 500 ms; endpoint, transport, or task
-cancellation is terminal. View-model extensions make no endpoint calls, mirrored
-tests enforce the ownership boundary, and every production Submission file
-remains within the 600-line review guard.
+in `Services`, including the Submission-only LiDAR/Vision physical-size
+estimator, and visual/nonvisual/Describe orchestration in
+responsibility-specific `CaptureWorkspaceViewModel` extensions. Submission has
+no view layer; Shell and modality views retain UI-only timing. The actor-backed
+150 ms context race transfers only a sendable snapshot and bounds
+environment-context waiting, not total dispatch preparation. A branch with no
+foreground consumer cancels its captured lookup; only a timeout-losing lookup
+remains for late enrichment, and that task retains the injected service and
+bounded telemetry inputs rather than the workspace view model or full
+display-image collection. The deferred-context service updates the durable local
+queue before `/update-scan-context` and performs at most one remote retry after
+500 ms; endpoint, transport, or task cancellation is terminal. View-model
+extensions make no endpoint calls, mirrored tests enforce the ownership
+boundary, and every production Submission file remains within the 600-line
+review guard.
 
 [Capture Scan](Merian/Features/Capture/Scan/README.md) separates
 platform-neutral media requests/results, narrow live

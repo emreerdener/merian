@@ -1,17 +1,17 @@
 # Core Analytics
 
-The `Analytics` directory manages the app's telemetry and product analytics infrastructure.
+The `Analytics` directory manages the app's telemetry and product analytics
+infrastructure.
 
 ## Purpose
 
 This area integrates optional, consent-gated PostHog app analytics. It provides
 a unified, cross-feature API without coupling feature modules directly to the
-third-party SDK. The required contract makes `ConsentManager` the sole
-lifecycle authority: unless the all-disclosure provider head is a grant for the
-current analytics disclosure, PostHog must not be configured or identified and
-every capture call must be rejected. Withdrawal
-must leave core functionality unchanged and shut down analytics without
-starting another SDK request.
+third-party SDK. The required contract makes `ConsentManager` the sole lifecycle
+authority: unless the all-disclosure provider head is a grant for the current
+analytics disclosure, PostHog must not be configured or identified and every
+capture call must be rejected. Withdrawal must leave core functionality
+unchanged and shut down analytics without starting another SDK request.
 
 ## Release status
 
@@ -37,26 +37,25 @@ drift before any old account grant can reopen analytics. This synchronization
 generation fence is inside the mutation boundary. `CONSENT-011` is also closed
 in source: every local PostHog action names its observed stream head, the
 authenticated database RPC serializes compare-and-append, and a stale offline
-grant is rejected instead of acquiring authority from its later upload time.
-A revocation is accepted under the same lock and rebased to the current head,
-so concurrent or delayed withdrawal remains deny-wins. iOS stores the accepted
+grant is rejected instead of acquiring authority from its later upload time. A
+revocation is accepted under the same lock and rebased to the current head, so
+concurrent or delayed withdrawal remains deny-wins. iOS stores the accepted
 parent and orders state only by the server-issued `consentRevision`. Both the
 iOS SDK lifecycle gate and Edge PostHog capture resolve the provider-wide
 greatest revision across every disclosure version before testing compatibility.
 A head revocation under older disclosure copy therefore stays authoritative;
 only a head grant carrying the current analytics disclosure may enable capture.
-Hosted verification must still prove zero setup, identification,
-capture, or network activity before grant and after withdrawal/account change.
-See the
+Hosted verification must still prove zero setup, identification, capture, or
+network activity before grant and after withdrawal/account change. See the
 [production consent readiness record](../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
 ## Privacy manifest boundary
 
 The main app's `PrivacyInfo.xcprivacy` conservatively declares the potential
 linked analytics categories and declares no tracking. This disclosure does not
-configure PostHog, open its transport, or substitute for the account-wide
-grant. Any new event or property must remain inside the allowlist documented
-below and be reviewed against the
+configure PostHog, open its transport, or substitute for the account-wide grant.
+Any new event or property must remain inside the allowlist documented below and
+be reviewed against the
 [iOS App Privacy Manifest Contract](../../../../../docs/development-guides/16-ios-privacy-manifest.md).
 Changes to data type, purpose, identity linking, tracking, or recipient require
 synchronized manifest, validator, policy, App Store, and counsel review.
@@ -87,9 +86,8 @@ authoritative server reservation is separate: provider attempts consume their
 database quota, while a verified pre-provider no-op may transition its
 reservation to `refunded`. Provider failure remains charged and transitions to
 `failed`, allowing a new metered retry with the stable scan request key. Keep
-`UsageManagerTests`,
-`FieldTripsAvailabilityTests`, the Edge quota tests, and the pgTAP quota
-contract aligned whenever this UX changes.
+`UsageManagerTests`, `FieldTripsAvailabilityTests`, the Edge quota tests, and
+the pgTAP quota contract aligned whenever this UX changes.
 
 After a valid success envelope, `reconcileServerPlanUsed(_:scanId:)` uses the
 authoritative `plan_used`: a complimentary or paid result refunds any optimistic
@@ -107,8 +105,8 @@ blocks, and coarse terminal failures. Its only feature-specific property is
 `outcome`; the shared facade also adds `event_source = "ios_client"`.
 
 Never attach filenames, file paths, image bytes, EXIF values, coordinates,
-capture dates, Photos asset identifiers, scan IDs, or user IDs. The authoritative
-event inventory and privacy boundary live in
+capture dates, Photos asset identifiers, scan IDs, or user IDs. The
+authoritative event inventory and privacy boundary live in
 `docs/features-and-hardware/03-gamification-and-telemetry.md`.
 
 ## Capture Goals
@@ -118,3 +116,15 @@ event inventory and privacy boundary live in
 selection. Only the source kind and coarse action are included. Do not attach
 the goal prompt, goal ID, source instance ID/title, progress counts, route IDs,
 or account identifiers.
+
+## Capture focus detection
+
+`AppTelemetry.trackImageFocusDetection(durationMilliseconds:outcome:areaBucket:)`
+emits one `ImageFocusDetectionCompleted` event when Capture Shared's bounded
+Vision focus request completes, times out, fails, or is cancelled. Its payload
+is limited to nonnegative duration, a coarse outcome, and the optional
+`small`/`medium`/`large` area bucket. Never attach image content, region
+coordinates, scan IDs, filenames, species values, or account identifiers.
+
+The authoritative allowlist lives in
+[Gamification and Privacy-Bounded Telemetry](../../../../../docs/features-and-hardware/03-gamification-and-telemetry.md).

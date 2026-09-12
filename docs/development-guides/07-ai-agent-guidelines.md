@@ -98,6 +98,10 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
 
 - `Features/`: Complete user domains (`Capture`, `Explore`, `Insights`,
   `Onboarding`, `Profile`, `Scans`, `SpeciesDictionary`).
+  - `Capture/Shared/Services/`: Capture-only services reused by multiple capture
+    modes, including bounded Vision focus detection.
+  - `Capture/Submission/Services/`: durable-submission adapters, telemetry
+    composition, and optional LiDAR/Vision physical-size estimation.
 - `Core/`: Foundational logic organized into subdirectories:
   - `AI/`: `InferenceEngine`, generated Edge DTOs, `InferenceProcessingActor`,
     the stateless shared `Inference/Services` response-preparation boundary, the
@@ -112,11 +116,11 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
     `FileIOActor`, `ScanRepository`, and the focused
     `HistoricalSync/{Models,Decoding,Services,Persistence}` boundary containing
     `HistoricalDatabaseActor`
-  - `Data/Images/`: image preparation, loading, caching, import/export,
-    recovery, and thumbnail infrastructure. `LocalImageLoader` retains load
-    orchestration; `Concurrency/`, `Policies/`, `Recovery/`, and `Services/` own
-    decode admission, URL/retry policy, local scan-media evidence, and cloud
-    repair
+  - `Data/Images/`: shared `ImageDownsampler` decoding plus image preparation,
+    loading, caching, import/export, recovery, and thumbnail infrastructure.
+    `LocalImageLoader` retains load orchestration; `Concurrency/`, `Policies/`,
+    `Recovery/`, and `Services/` own decode admission, URL/retry policy, local
+    scan-media evidence, and cloud repair
   - `Data/OfflineSync/`: `OfflineQueueManager`, `SyncStateManager`, and
     `OfflineJobScheduler` for ordered drains and persisted retry-wake
     restoration
@@ -135,7 +139,7 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
   - `SpeciesReference/`: shared non-UI Wikipedia mobile-sections and GBIF
     taxon-key transport/parsing used by Inference and scan-thumbnail recovery
   - `Utilities/`: `MerianConfig`, `AppLifecycleManager`,
-    `BackgroundTaskWrapper`, `FieldNotesRepository`, `ImageDownsampler`
+    `BackgroundTaskWrapper`, and `FieldNotesRepository`
   - `Analytics/`, `Intents/`
 - `Models/`: Standardized pure Data structures and `SwiftData` logic.
 - `Configuration/`: target-owned Info.plist, entitlement, and privacy-manifest

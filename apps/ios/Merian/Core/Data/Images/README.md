@@ -1,12 +1,18 @@
 # Core Data Images
 
-This directory owns file-backed still-image preparation, bounded local and
-remote loading, image caches, scan-image recovery, photo-library writes, and
-thumbnail backfill. The canonical runtime contract is the
+This directory owns shared bounded ImageIO downsampling, file-backed still-image
+preparation, bounded local and remote loading, image caches, scan-image
+recovery, photo-library writes, and thumbnail backfill. The canonical runtime
+contract is the
 [image pipeline](../../../../../../docs/system-architecture/03-image-pipeline.md).
 
 ## Ownership
 
+- `ImageDownsampler.swift` is the synchronous, stateless ImageIO thumbnail
+  decoder used across Core AI, Capture, Insights, Profile, shared UI, and
+  Species Reference. Its URL and encoded-data entry points preserve the existing
+  autorelease-pool and optional alpha-stripping boundaries; it owns no mutable
+  singleton or actor state.
 - `LocalImageLoader.swift` is the actor entry point for cache lookup, request
   coalescing, local/remote routing, and the isolated media session. Its injected
   `Dependencies` value is the live bridge to recovery, decoding, fetching,
@@ -87,6 +93,11 @@ thumbnail backfill. The canonical runtime contract is the
   live adapter is the only owner of endpoint and app-event effects.
 - Every production Swift file in this directory stays at or below the 600-line
   review guard.
+- Capture-only Vision focus detection remains under
+  [Capture Shared](../../../Features/Capture/Shared/README.md); optional
+  LiDAR/Vision physical-size estimation remains under
+  [Capture Submission](../../../Features/Capture/Submission/README.md). Neither
+  is general image-storage infrastructure.
 
 ## Verification
 
@@ -106,10 +117,10 @@ thumbnail backfill. The canonical runtime contract is the
   cancellation, the hard 200-record cap, stable paging, and
   strong-evidence-before-timestamp ordering.
 - `ImageLoadingArchitectureTests` freezes declaration ownership, imports,
-  dependency boundaries, post-startup bounded registration, test ownership, and
-  the production line ceiling.
-- `ImageCacheTests` and `MediaPreparationActorTests` retain their focused cache
-  and preparation contracts.
+  dependency boundaries, post-startup bounded registration, downsampler/test
+  ownership, retired Utilities paths, and the production line ceiling.
+- `ImageDownsamplerTests`, `ImageCacheTests`, and `MediaPreparationActorTests`
+  retain their focused bounded-decode, cache, and preparation contracts.
 
 The repository-wide native testing tiers are documented in the
 [iOS testing strategy](../../../../../../docs/development-guides/08-testing-strategy.md).

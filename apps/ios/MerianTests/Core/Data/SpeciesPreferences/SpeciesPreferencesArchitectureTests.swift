@@ -60,7 +60,7 @@ struct SpeciesPreferencesArchitectureTests {
         }
         #expect(!aggregate.contains("import Supabase"))
         #expect(!aggregate.contains("import SwiftData"))
-        #expect(imports(in: aggregate) == ["import Foundation"])
+        #expect(imports(in: aggregate).isEmpty)
         #expect(lineCount(of: aggregate) <= 600)
     }
 
