@@ -1144,6 +1144,12 @@ helper. See the [Core Data README](Merian/Core/Data/README.md),
 
 ## Tests
 
+Use `make ios-local-build` for local command-line validation so simulator and
+device builds reuse checkout-local caches. Use `make ios-build-storage` to
+inspect disk use and `make ios-clean-build-cache` to preview cleanup. The
+[local build storage procedure](../../docs/development-guides/08-testing-strategy.md#local-ios-build-storage)
+defines commands, isolated checks, disk thresholds, and retained test evidence.
+
 Unit tests should mirror the production owner:
 
 ```text

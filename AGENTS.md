@@ -58,6 +58,13 @@ here and load task procedures from the project skills discovered through
 
 ## Verification
 
+- For local iOS verification, use `scripts/local-ios-build.py` through
+  `make ios-local-build`; reuse its checkout-local simulator/device caches and
+  dependency downloads. Do not create another task-named DerivedData directory.
+  Use its `--isolated` mode when isolation is necessary; it removes temporary
+  build data after the run. Keep retained evidence outside `.build` and follow
+  the local build storage procedure in
+  `docs/development-guides/08-testing-strategy.md`.
 - Run the narrowest relevant checks while iterating, then the complete
   repository gate for every affected surface. Report what ran and what could not
   run; never imply an unrun check passed.

@@ -52,6 +52,8 @@ xcuserdata/
 
 # Swift Package Manager
 .build/
+# Local verification reports are retained separately from disposable build caches.
+.artifacts/
 .swiftpm/
 Package.resolved
 !merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved

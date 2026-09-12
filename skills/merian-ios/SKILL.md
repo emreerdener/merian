@@ -47,6 +47,12 @@ production capture path for simulator convenience.
 
 ## Verify the affected surface
 
+Use `make ios-local-build` for local command-line Xcode validation. Its shared
+cache, disk preflight, isolated-run cleanup, and evidence retention procedure
+are in [architecture-and-project.md](references/architecture-and-project.md). Do
+not create task-specific DerivedData, package clones, or module caches that
+remain after handoff.
+
 Run focused tests first. Then run the applicable repository gates, including
 `make xcodegen`, `make validate-ios-project`, the relevant focused `xcodebuild`
 tests, and `make test-ios-ci-tooling` when CI or Xcode tooling changes. Verify

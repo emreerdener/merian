@@ -15,6 +15,39 @@ dependency injection, persistence ownership, or shared iOS/watchOS code.
 - Preserve automatic signing and established bundle identifiers. Signing and
   distribution belong to `$merian-release`, not routine implementation.
 
+## Local build storage
+
+- Use
+  `make ios-local-build ARGS='simulator -- build-for-testing -configuration Debug -destination "generic/platform=iOS Simulator"'`
+  for simulator compilation; use `device` for unsigned device compilation. Real
+  test execution requires a concrete simulator destination. The wrapper
+  preserves Xcode's exit status and keeps console diagnostics visible.
+- Reuse `.build/local-ios/simulator` and `.build/local-ios/device` per checkout.
+  Package clones and package caches are shared within the checkout. Builds and
+  cleanup use one exclusive lock; do not run raw Xcode commands against these
+  managed paths or remove their lock file.
+- When fresh DerivedData is necessary, put `--isolated` before the platform:
+  `make ios-local-build ARGS='--isolated simulator -- build-for-testing -configuration Debug -destination "generic/platform=iOS Simulator"'`.
+  Temporary build data is removed after success, failure, or handled
+  interruption; result bundles remain under `.artifacts/local-ios`.
+- Do not use isolated `build-for-testing` followed by `test-without-building`:
+  its build products have already been removed. Use a single isolated `test`
+  invocation or the reusable simulator cache for the two-step sequence.
+- The wrapper warns below 50 GiB free and refuses a build below 20 GiB. Run
+  `make ios-build-storage` for a manual storage report. Stop builds and quit
+  Xcode before `make ios-clean-build-cache ARGS=--apply`; omit `ARGS` to
+  preview. Cleanup preserves downloaded dependencies, evidence, release
+  archives, and all legacy `.build` directories. It refuses removal if process
+  inspection fails or any `xcodebuild` is running.
+- This wrapper is local unsigned validation only. CI retains its runner-local
+  paths, and Xcode Organizer remains the release/archive owner. Keep only
+  reports needed for current diagnosis or explicit release evidence; review
+  historical `.artifacts/local-ios` reports separately from cache cleanup.
+
+See the canonical
+[testing strategy](../../../docs/development-guides/08-testing-strategy.md) for
+commands, storage ownership, and legacy cleanup.
+
 ## Dependency and state ownership
 
 - Use the existing `AppDIContainer` seams for long-lived services. Prefer

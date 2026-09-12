@@ -263,6 +263,76 @@ boundaries:
 }
 ```
 
+## Local iOS Build Storage
+
+Local command-line validation uses `scripts/local-ios-build.py`. Reusing a small
+set of checkout-local paths avoids accumulating a fresh multi-gigabyte
+DerivedData tree for every task. Xcode GUI builds retain Xcode's own DerivedData
+location; CI retains its disposable runner-local paths.
+
+```bash
+# Compile shared test targets using the reusable simulator cache.
+make ios-local-build ARGS='simulator -- build-for-testing -configuration Debug -destination "generic/platform=iOS Simulator"'
+
+# Run tests against those build products; substitute an available simulator UDID.
+make ios-local-build ARGS='simulator -- test-without-building -configuration Debug -destination "platform=iOS Simulator,id=SIMULATOR_UDID" -only-testing:merianTests'
+
+# Compile for a device without signing or distribution.
+make ios-local-build ARGS='device -- build -configuration Release -destination "generic/platform=iOS"'
+
+# Inspect storage, preview cleanup, then explicitly remove managed build outputs.
+make ios-build-storage
+make ios-clean-build-cache
+make ios-clean-build-cache ARGS=--apply
+```
+
+| Location                                        | Ownership and retention                                                       |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| `.build/local-ios/simulator`                    | Reusable simulator DerivedData; disposable after builds stop.                 |
+| `.build/local-ios/device`                       | Reusable device DerivedData; disposable after builds stop.                    |
+| `.build/local-ios/packages` and `package-cache` | Shared dependency downloads; preserved by cleanup.                            |
+| `.build/local-ios/temporary`                    | Isolated DerivedData; automatically removed when its run exits.               |
+| `.build/.local-ios.lock`                        | Advisory lock shared by wrapper builds and cleanup; never manually remove it. |
+| `.artifacts/local-ios/*.xcresult`               | Historical result bundles, including failures; outside cache cleanup and Git. |
+
+The wrapper serializes its builds and cleanup in one checkout. Do not point a
+raw `xcodebuild` invocation or Xcode GUI build at these managed directories.
+Stop all builds and quit Xcode before applying cleanup. Cleanup also checks for
+any active `xcodebuild` process and fails closed when it cannot inspect process
+state. That check cannot prevent someone starting an unmanaged build afterward;
+the shared lock coordinates wrapper operations only.
+
+Before starting Xcode, the wrapper reports free disk space, warns below 50 GiB,
+and refuses a build below 20 GiB. These are local operating thresholds, not
+guarantees that a particular build will fit. It owns output paths, disables code
+signing, and refuses archive/export/provisioning actions. Use Xcode Organizer
+for releases under the existing release procedure.
+
+For a fresh DerivedData check, use `run --isolated simulator -- test ...` or
+`make ios-local-build ARGS='--isolated simulator -- test ...'` with a concrete
+destination. Isolation shares package downloads but creates temporary build
+products and removes them on success, failure, or handled interruption. Use a
+single `test` action when both compilation and execution must be isolated;
+isolated `build-for-testing` deliberately does not leave products for a later
+`test-without-building`. An uncatchable kill or machine crash can leave scratch
+data; the normal managed cleanup removes that remainder after builds stop.
+
+Cache cleanup previews by default and requires `--apply` for deletion. It only
+removes the managed simulator, device, and temporary directories, rejects
+symlinked managed paths, and preserves packages, reports, archives, source, and
+all older `.build` folders. Legacy task directories require individual review;
+their names alone do not establish that every file is disposable. The storage
+report includes the largest older build folders and historical reports without
+deleting them. Keep reports only while needed for diagnosis or reviewed release
+evidence; historical logs and results cannot be regenerated. A future test run
+creates new evidence for that run, not a replacement for the old result.
+
+Run `make test-ios-local-build` for disposable-fixture tests of cache reuse,
+isolation cleanup, evidence retention, low-space refusal, process inspection,
+exclusive locking, and symlink boundaries. The complete
+`make test-ios-ci-tooling` gate includes this suite; Python iOS tooling changes
+also trigger the iOS scope detector.
+
 ## Compiled iOS CI Gate
 
 `.github/workflows/ios-build-and-test.yml` is the authoritative compiled

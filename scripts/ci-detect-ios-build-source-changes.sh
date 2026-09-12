@@ -83,6 +83,7 @@ is_ios_build_input() {
     apps/ios/* | \
     apps/watch/* | \
     scripts/*ios*.sh | \
+    scripts/*ios*.py | \
     scripts/config/ios-*.txt | \
     scripts/select-ios-*.sh)
       return 0

@@ -2,12 +2,17 @@
 
 SUPABASE_WORKDIR := services
 
+.PHONY: ios-local-build ios-build-storage ios-clean-build-cache test-ios-local-build
+
 help:
 	@printf "Available targets:\n"
 	@printf "  make validate-markdown-format         Check changed and untracked Markdown formatting\n"
 	@printf "  make test-markdown-format-tooling     Test the diff-aware Markdown format checker\n"
 	@printf "  make validate-agent-assets            Validate Codex skills, agents, pointers, and eval infrastructure\n"
 	@printf "  make xcodegen                         Regenerate Merian.xcodeproj from project.yml\n"
+	@printf "  make ios-local-build ARGS='...'       Run local validation with reusable build caches\n"
+	@printf "  make ios-build-storage                Report free space and largest build/report folders\n"
+	@printf "  make ios-clean-build-cache            Preview managed build cleanup (ARGS=--apply to delete)\n"
 	@printf "  iOS release: Product > Archive, then Organizer > Distribute App\n"
 	@printf "  make validate-ios-project             Check generated iOS project guardrails\n"
 	@printf "  make validate-ios-event-routing       Enforce typed app events/routes and reviewed framework bridges\n"
@@ -41,6 +46,18 @@ help:
 	@printf "  make grant-account-access ARGS='...'  Plan or apply account-owned access through the private ledger\n"
 	@printf "  make db-push                          Push Supabase database migrations\n"
 	@printf "  make functions-deploy                 Deploy all Supabase Edge Functions\n"
+
+ios-local-build:
+	python3 scripts/local-ios-build.py run $(ARGS)
+
+ios-build-storage:
+	python3 scripts/local-ios-build.py report
+
+ios-clean-build-cache:
+	python3 scripts/local-ios-build.py clean $(ARGS)
+
+test-ios-local-build:
+	python3 -B scripts/test-local-ios-build.py
 
 validate-markdown-format:
 	bash scripts/check-changed-markdown-format.sh
@@ -116,6 +133,7 @@ test-ios-xcode-release-workflow:
 	bash scripts/test-ios-xcode-release-workflow.sh
 
 test-ios-ci-tooling:
+	python3 -B scripts/test-local-ios-build.py
 	bash scripts/test-check-ios-project-resources.sh
 	bash scripts/test-check-ios-event-routing.sh
 	bash scripts/test-check-ios-migration-source-guardrails.sh
