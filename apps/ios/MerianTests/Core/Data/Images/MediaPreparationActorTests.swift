@@ -39,13 +39,13 @@ struct MediaPreparationActorTests {
         )
 
         #expect(prepared.metrics.isWithinImageBudgets)
-        #expect(prepared.metrics.largestInferenceDimension <= Int(MerianConfig.flashInferenceImageMaxSize))
-        #expect(prepared.metrics.largestDisplayDimension <= Int(MerianConfig.displayImageMaxSize))
+        #expect(prepared.metrics.largestInferenceDimension <= Int(ImagePreparationPolicy.flashInferenceMaxDimension))
+        #expect(prepared.metrics.largestDisplayDimension <= Int(ImagePreparationPolicy.displayMaxDimension))
         #expect(prepared.metrics.inferenceByteCount == prepared.inferenceData.count)
         #expect(prepared.metrics.displayByteCount == prepared.displayData.count)
-        #expect(prepared.metrics.inferenceByteCount <= MerianConfig.stagedImagePayloadMaxBytes)
-        #expect(prepared.metrics.displayByteCount <= MerianConfig.stagedImagePayloadMaxBytes)
-        #expect(max(prepared.previewImage.cgImage.width, prepared.previewImage.cgImage.height) <= Int(MerianConfig.flashInferenceImageMaxSize))
+        #expect(prepared.metrics.inferenceByteCount <= ScanMediaPayloadPolicy.maxStagedImageBytes)
+        #expect(prepared.metrics.displayByteCount <= ScanMediaPayloadPolicy.maxStagedImageBytes)
+        #expect(max(prepared.previewImage.cgImage.width, prepared.previewImage.cgImage.height) <= Int(ImagePreparationPolicy.flashInferenceMaxDimension))
     }
 
     @Test func preparePreviewImageReturnsBoundedSendablePreview() async throws {

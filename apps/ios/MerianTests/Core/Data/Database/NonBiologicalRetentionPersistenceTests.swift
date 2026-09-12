@@ -181,7 +181,7 @@ struct NonBiologicalRetentionPersistenceTests {
         let referenceDate = Date(timeIntervalSince1970: 1_800_000_000)
         let cutoffDate = referenceDate.addingTimeInterval(
             TimeInterval(
-                -MerianConfig.nonBiologicalRetentionDays * 24 * 60 * 60
+                -NonBiologicalRetentionPolicy.retentionDays * 24 * 60 * 60
             )
         )
         let mediaJSON = try #require(CapturedMediaSnapshot(items: [

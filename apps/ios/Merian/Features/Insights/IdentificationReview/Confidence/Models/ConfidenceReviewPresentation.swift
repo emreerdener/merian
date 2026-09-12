@@ -81,7 +81,7 @@ struct ConfidenceBadgePresentation: Equatable {
             )
         }
 
-        let bands = MerianConfig.confidenceBands(
+        let bands = InferenceConfidencePolicy.bands(
             forInferenceTier: inferenceTier
         )
         switch confidenceScore {

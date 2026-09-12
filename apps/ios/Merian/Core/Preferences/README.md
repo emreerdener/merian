@@ -15,7 +15,7 @@ synchronization, authentication, networking, or feature presentation.
 - `Stores/ExploreShareStateStore.swift` owns the legacy per-scan Explore post-ID
   cache.
 - `Stores/FieldNotesStore.swift` owns the legacy per-scan field-note bridge.
-  `Core/Utilities/FieldNotesRepository.swift` remains the SwiftData-first
+  `Core/Data/FieldNotes/FieldNotesRepository.swift` remains the SwiftData-first
   reconciliation authority.
 - `Stores/SpeciesPreferredNameStore.swift` owns fail-closed cleanup of legacy
   device-global preferred-name keys plus account-qualified pending-delete

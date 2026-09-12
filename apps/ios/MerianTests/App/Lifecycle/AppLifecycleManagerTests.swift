@@ -90,8 +90,8 @@ struct AppLifecycleManagerTests {
     func testHandleActivePhaseDoesNotEagerlyInitializeGhostSession() throws {
         let testFileURL = URL(fileURLWithPath: #filePath)
         let sourcePath = testFileURL.path.replacingOccurrences(
-            of: "/MerianTests/Core/Utilities/AppLifecycleManagerTests.swift",
-            with: "/Merian/Core/Utilities/AppLifecycleManager.swift"
+            of: "/MerianTests/App/Lifecycle/AppLifecycleManagerTests.swift",
+            with: "/Merian/App/Lifecycle/AppLifecycleManager.swift"
         )
         let source = try String(contentsOfFile: sourcePath, encoding: .utf8)
 
@@ -103,8 +103,8 @@ struct AppLifecycleManagerTests {
 
     @Test func liveForegroundMaintenanceRoutesToTheDurableQueueScheduler() throws {
         let sourcePath = URL(fileURLWithPath: #filePath).path.replacingOccurrences(
-            of: "/MerianTests/Core/Utilities/AppLifecycleManagerTests.swift",
-            with: "/Merian/Core/Utilities/AppLifecycleManager.swift"
+            of: "/MerianTests/App/Lifecycle/AppLifecycleManagerTests.swift",
+            with: "/Merian/App/Lifecycle/AppLifecycleManager.swift"
         )
         let source = try String(contentsOfFile: sourcePath, encoding: .utf8)
         #expect(source.contains("await OfflineJobScheduler.shared.drainRunnableJobs("))

@@ -14,6 +14,8 @@ library. The layers are intentionally narrow:
   keep request forwarding deterministic in tests.
 - `Persistence/HistoricalDatabaseActor.swift` owns only actor-isolated SwiftData
   reconciliation, checkpoint saves, rollback, and cancellation.
+- `HistoricalSyncPolicy.swift` owns the scan/collection page sizes and
+  persistence checkpoint interval used by the repository and actor.
 
 `../ScanRepository.swift` remains the main-actor orchestrator. It drains local
 collection mutations before pulling, checks the account lease after suspension,
@@ -56,6 +58,7 @@ and
   and collection reconciliation behavior.
 - `HistoricalSyncCloudClientTests` owns injected account-lease and request-value
   forwarding through the service seam.
+- `HistoricalSyncPolicyTests` freezes the exact page and checkpoint values.
 - `CoreDataIntegrationArchitectureTests` freezes the production/test inventory,
   imports, dependency direction, sole query ownership, and file-size ceilings.
 

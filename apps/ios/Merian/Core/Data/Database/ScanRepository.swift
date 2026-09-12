@@ -138,7 +138,8 @@ final class ScanRepository {
 
     /// Pulls the authenticated user's scan and collection history from Supabase and reconciles it with the local SwiftData store.
     ///
-    /// Fetches are paginated (`MerianConfig.historicalSyncPageSize` / `collectionsSyncPageSize`) to
+    /// Fetches are paginated (`HistoricalSyncPolicy.scanPageSize` /
+    /// `HistoricalSyncPolicy.collectionPageSize`) to
     /// prevent OOM on accounts with large histories. All reconciliation work runs on a single
     /// `HistoricalDatabaseActor` invocation to minimise actor-boundary crossings.
     func syncHistoricalScansDown(modelContext: ModelContext) async {
@@ -177,7 +178,7 @@ final class ScanRepository {
             // the full allScans[] array can exceed 100 MB before any processing begins,
             // causing OOM kills on 3GB devices under memory pressure.
             var scanOffset = 0
-            let scanPageSize = MerianConfig.historicalSyncPageSize
+            let scanPageSize = HistoricalSyncPolicy.scanPageSize
             var totalNewRecords = 0
 
             while true {
@@ -237,9 +238,9 @@ final class ScanRepository {
             // Memory exposure is bounded: sync-collections enforces MAX_COLLECTIONS = 200 on
             // write, so the remote DB cannot hold more than 200 rows for this user.
             var allCollections: [CloudCollectionResponse] = []
-            allCollections.reserveCapacity(MerianConfig.collectionsSyncPageSize)
+            allCollections.reserveCapacity(HistoricalSyncPolicy.collectionPageSize)
             var colOffset = 0
-            let colPageSize = MerianConfig.collectionsSyncPageSize
+            let colPageSize = HistoricalSyncPolicy.collectionPageSize
             while true {
                 let page = try await historicalCloudClient
                     .fetchCollectionPage(
@@ -430,7 +431,7 @@ final class ScanRepository {
     ) async {
         guard let cutoffDate = Calendar.current.date(
             byAdding: .day,
-            value: -MerianConfig.nonBiologicalRetentionDays,
+            value: -NonBiologicalRetentionPolicy.retentionDays,
             to: referenceDate
         ) else { return }
 

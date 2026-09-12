@@ -73,7 +73,7 @@ struct MediaStagingBudgetTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        let imageNames = (0...MerianConfig.mediaStagingMaxImageFilesPerRequest)
+        let imageNames = (0...MediaStagingContract.maxImageItemsPerRequest)
             .map { "still-\($0).webp" }
         for imageName in imageNames {
             try Data(repeating: 0x21, count: 64)
@@ -136,7 +136,7 @@ struct MediaStagingBudgetTests {
         let audioURL = directory.appendingPathComponent(audioName)
         _ = FileManager.default.createFile(atPath: audioURL.path, contents: nil)
         let handle = try FileHandle(forWritingTo: audioURL)
-        try handle.truncate(atOffset: UInt64(MerianConfig.audioPayloadMaxBytes + 1))
+        try handle.truncate(atOffset: UInt64(ScanMediaPayloadPolicy.maxInferenceAudioBytes + 1))
         try handle.close()
 
         let payload = PendingScanPayload(
@@ -189,7 +189,7 @@ struct MediaStagingBudgetTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        let audioNames = (0...MerianConfig.mediaStagingMaxAudioFilesPerRequest).map { "queued-\($0).wav" }
+        let audioNames = (0...MediaStagingContract.maxAudioItemsPerRequest).map { "queued-\($0).wav" }
         for audioName in audioNames {
             try makeInferenceTestPCM16WAVData().write(
                 to: directory.appendingPathComponent(audioName)

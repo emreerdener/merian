@@ -174,7 +174,7 @@ extension OfflineQueueManager {
             )
         } catch {
             MerianLog.data.debug(
-                "recoverCompletedInferenceFromServer: status check failed scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                "recoverCompletedInferenceFromServer: status check failed scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
             )
             if hadDurableCompletedServerResult {
                 return await deferCompletedServerResultRecovery(
@@ -306,7 +306,7 @@ extension OfflineQueueManager {
             return action
         case .terminalFailure(let message):
             MerianLog.data.debug(
-                "recoverCompletedInferenceFromServer: terminal server failure scanId=\(scanId, privacy: .public) message=\((message ?? "nil"), privacy: .public)"
+                "recoverCompletedInferenceFromServer: terminal server failure scanId=\(scanId, privacy: .public) message=\((message ?? "nil"), privacy: .private)"
             )
             _ = softDeleteQueuedScan(
                 scanId: scanId,
@@ -575,7 +575,7 @@ extension OfflineQueueManager {
             record = try context.fetch(descriptor).first
         } catch {
             MerianLog.data.debug(
-                "promoteRecoveredLocalScan: fetch failed scanId=\(scanId, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                "promoteRecoveredLocalScan: fetch failed scanId=\(scanId, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
             )
             return nil
         }
@@ -591,7 +591,7 @@ extension OfflineQueueManager {
         } catch {
             context.rollback()
             MerianLog.data.error(
-                "promoteRecoveredLocalScan: save failed scanId=\(scanId, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                "promoteRecoveredLocalScan: save failed scanId=\(scanId, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
             )
             return nil
         }

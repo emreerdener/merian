@@ -233,7 +233,6 @@ stable pagination. See:
 - `apps/ios/MerianTests/Core/Network/Endpoints/ScanPublicationRecoveryArchitectureTests.swift`
 - `apps/ios/MerianTests/Core/Network/Endpoints/MerianNetworkArchitectureTests.swift`
 - `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift`
-- `apps/ios/MerianTests/Core/Utilities/MerianConfigTests.swift`
 - `services/supabase/functions/get-community-identification-activity/db_test.ts`
 - `services/supabase/functions/flag-issue/db_test.ts`
 - `services/supabase/functions/_tests/flagIssueMigrationContract.test.ts`
@@ -309,8 +308,7 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/SpeciesDictionaryAPIModelsTests \
   -only-testing:merianTests/SpeciesDictionaryCatalogAPIModelsTests \
   -only-testing:merianTests/SpeciesObservationStatsAPIModelsTests \
-  -only-testing:merianTests/MerianNetworkClientTests \
-  -only-testing:merianTests/MerianConfigTests test
+  -only-testing:merianTests/MerianNetworkClientTests test
 ```
 
 Regenerate and validate source membership, lint the affected production

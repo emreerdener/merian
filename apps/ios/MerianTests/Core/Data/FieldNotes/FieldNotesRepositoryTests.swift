@@ -3,6 +3,7 @@ import Testing
 
 @testable import Merian
 
+@Suite("Field Notes Repository")
 @MainActor
 struct FieldNotesRepositoryTests {
     @Test func deletedActiveRecordFallsBackToLegacyBridge() async throws {

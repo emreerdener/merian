@@ -118,9 +118,9 @@ struct MediaStorageBoundaryTests {
         let plan = try networkSource("Media/StagedVideoUploadPlan.swift")
         try expectOrder(["for videoFilePath in videoFilePaths", "guard !videoFileURLs.isEmpty",
                          "if !missingVideoPaths.isEmpty", "let uploadFiles = try videoFileURLs.map",
-                         "try MediaStagingContract.fileSizeBytes", "uploadFiles.count <= MerianConfig.mediaStagingMaxVideoFilesPerRequest",
-                         "uploadFiles.count <= MerianConfig.mediaStagingMaxFilesPerRequest", "for uploadFile in uploadFiles",
-                         "uploadFile.sizeBytes > 0", "uploadFile.sizeBytes <= MerianConfig.videoPayloadMaxBytes",
+                         "try MediaStagingContract.fileSizeBytes", "uploadFiles.count <= MediaStagingContract.maxVideoItemsPerRequest",
+                         "uploadFiles.count <= MediaStagingContract.maxUploadItemsPerRequest", "for uploadFile in uploadFiles",
+                         "uploadFile.sizeBytes > 0", "uploadFile.sizeBytes <= ScanMediaPayloadPolicy.maxSavedVideoBytes",
                          "return Self(fileURLs: videoFileURLs, uploadFiles: uploadFiles)"],
                         in: plan)
         #expect(plan.contains("private init("))

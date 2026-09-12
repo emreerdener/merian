@@ -208,7 +208,7 @@ struct SpeciesData: Sendable {
     var petIdentification: PetIdentification?
 
     /// Per-scan alternative candidates the model considered when confidence was below the
-    /// tier-specific `MerianConfig.diagnosticTrigger` threshold. Nil for confident scans.
+    /// tier-specific `InferenceConfidencePolicy.Bands.diagnosticTrigger` threshold. Nil for confident scans.
     var candidates: [IdentificationCandidate]?
 
     /// Gemini's photographic quality score (0–100) for the submitted image.

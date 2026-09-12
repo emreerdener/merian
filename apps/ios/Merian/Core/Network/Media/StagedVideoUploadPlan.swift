@@ -45,13 +45,13 @@ struct StagedVideoUploadPlan {
             )
         }
 
-        guard uploadFiles.count <= MerianConfig.mediaStagingMaxVideoFilesPerRequest,
-              uploadFiles.count <= MerianConfig.mediaStagingMaxFilesPerRequest else {
+        guard uploadFiles.count <= MediaStagingContract.maxVideoItemsPerRequest,
+              uploadFiles.count <= MediaStagingContract.maxUploadItemsPerRequest else {
             throw MerianError.payloadTooLarge
         }
         for uploadFile in uploadFiles {
             guard uploadFile.sizeBytes > 0,
-                  uploadFile.sizeBytes <= MerianConfig.videoPayloadMaxBytes else {
+                  uploadFile.sizeBytes <= ScanMediaPayloadPolicy.maxSavedVideoBytes else {
                 throw MerianError.payloadTooLarge
             }
         }

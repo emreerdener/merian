@@ -66,8 +66,12 @@ extension InsightSheetViewModel {
     var displayAlternativeCommonNames: [String]? {
         let all = allNamesForPicker
         guard !all.isEmpty else { return nil }
-        let activeKey = resolvedHeaderTitle.commonNameKey
-        let filtered = all.filter { $0.commonNameKey != activeKey }
+        let activeKey = SpeciesCommonNamePresentation.normalizationKey(
+            for: resolvedHeaderTitle
+        )
+        let filtered = all.filter {
+            SpeciesCommonNamePresentation.normalizationKey(for: $0) != activeKey
+        }
         return filtered.isEmpty ? nil : filtered
     }
 
@@ -77,7 +81,9 @@ extension InsightSheetViewModel {
         guard let species = inferenceEngine?.speciesData else { return [] }
         let primary = species.commonName.trimmingCharacters(in: .whitespacesAndNewlines).capitalized
         let alternatives = species.alternativeCommonNames ?? []
-        return ([primary] + alternatives).removingFuzzyDuplicateNames()
+        return SpeciesCommonNamePresentation.removingFuzzyDuplicates(
+            from: [primary] + alternatives
+        )
     }
 
     var headerSubtitle: String {

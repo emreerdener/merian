@@ -46,11 +46,11 @@ extension OfflineQueueManager {
     ) -> [PendingScanPayload] {
         let maxPresignedURLsPerRequest = MediaStagingContract.maxUploadItemsPerRequest
         var selected: [PendingScanPayload] = []
-        selected.reserveCapacity(MerianConfig.uploadBatchSize)
+        selected.reserveCapacity(OfflineQueueBatchPolicy.uploadBatchSize)
         var uploadItemCount = 0
 
         for scan in scans {
-            guard selected.count < MerianConfig.uploadBatchSize else { break }
+            guard selected.count < OfflineQueueBatchPolicy.uploadBatchSize else { break }
             let scanUploadCount = scan.localUploadPaths.count
             guard scanUploadCount > 0 else { continue }
             if uploadItemCount + scanUploadCount > maxPresignedURLsPerRequest {

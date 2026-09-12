@@ -12,7 +12,7 @@ enum InferenceLiveEngineTestSupport {
     static func withState(_ operation: @MainActor () async throws -> Void) async throws {
         let key = UserDefaultsKeys.localLookalikesCacheResetVersion
         let previousResetVersion = UserDefaults.standard.object(forKey: key)
-        UserDefaults.standard.set(MerianConfig.localLookalikesCacheResetVersion, forKey: key)
+        UserDefaults.standard.set(InferenceLookalikeCachePolicy.resetVersion, forKey: key)
         CircuitBreakerManager.shared.recordSuccess()
         defer {
             UserDefaults.standard.set(previousResetVersion, forKey: key)

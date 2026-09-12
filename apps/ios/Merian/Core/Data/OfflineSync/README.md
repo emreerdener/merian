@@ -122,7 +122,9 @@ The canonical behavioral contract is the
 | `Policies/MediaStagingContract.swift`                                             | Filename and object-key construction, staging manifests and budgets, upload task descriptions, and compatibility parsing.                                                                          |
 | `Policies/QueuedInferenceMediaPolicy.swift`                                       | Manifest-only local-WAV admission for durable queue inference; byte validation remains with media staging.                                                                                         |
 | `Policies/OfflineQueueRetryPolicy.swift`                                          | Retry classification, capped base delays, and bounded jitter.                                                                                                                                      |
+| `Policies/OfflineQueueBatchPolicy.swift`                                          | Pending-row fetch and per-cycle scan dispatch counts.                                                                                                                                              |
 | `Policies/OfflineQueueStoragePolicy.swift`                                        | File-backed queue admission and available-capacity checks.                                                                                                                                         |
+| `Policies/ScanConnectivityFailurePolicy.swift`                                    | Bounded, fail-closed transport classification shared by pre-durability admission and durable inference recovery.                                                                                   |
 | `Policies/BackgroundInferencePolicy.swift`                                        | Actor-independent response, route, status-recovery, restaging, dispatch-admission, retry-date, and consent-attention decisions.                                                                    |
 | `Coordinators/GenerationTaskRegistry.swift`                                       | Compare-before-clear process-local generation task cancellation.                                                                                                                                   |
 | `Persistence/ModelContext+FieldTripGoalHints.swift`                               | Durable Field Trip goal-hint reads and deletion shared by replay, recovery, progress acknowledgement, and queue cleanup.                                                                           |
@@ -162,6 +164,7 @@ The canonical behavioral contract is the
 | `Services/BackgroundTransfer/OfflineQueueManager+BackgroundAccountWork.swift`     | Auth-bound task lease retention, shared rejected-work retirement, durable-before-cancel transition quiescence, and post-commit generation completion.                                              |
 | `Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift` | Private owner validation/adoption and accepted/rejected upload and inference terminal callback routing.                                                                                            |
 | `Services/BackgroundTransfer/OfflineQueueManager+URLSessionDelegate.swift`        | Nonisolated upload/download callback routing and immutable task-property capture.                                                                                                                  |
+| `Services/BackgroundExecution/BackgroundTaskWrapper.swift`                        | Lock-protected UIKit background-execution window used only by durable queue admission, sync, and terminal callback work.                                                                           |
 | `OfflineQueueDurability.swift`                                                    | Live durable manager mutations and retry orchestration that consume the focused owners.                                                                                                            |
 | `SyncStateManager.swift`                                                          | UI-observable, generation-aware projection of active upload and inference phases.                                                                                                                  |
 
@@ -363,6 +366,10 @@ recoverable.
 
 Focused tests mirror the extracted owners:
 
+- `BackgroundTaskWrapperTests` covers idempotent ending and result-preserving
+  execution. `ScanConnectivityFailurePolicyTests` covers eligible offline
+  failures, nested transport chains, security-policy vetoes, bounded traversal,
+  and the distinct pre- and post-durability classifications.
 - `OfflineSyncFoundationArchitectureTests` freezes the complete relocated
   declaration inventory, exact focused-file and framework-import inventory,
   dependency direction, private mutable state, and the 600-line ceiling for this
@@ -470,6 +477,11 @@ Focused tests mirror the extracted owners:
   `MediaStagingCompletionStateTests` cover storage-aware local-WAV admission,
   manifests, resource bounds, server-authoritative ownership, and exact
   completion accumulation.
+- `OfflineQueuePolicyTests` freezes the queue's 5-scan dispatch and 50-row fetch
+  limits plus the 100 MiB free-space reserve and 25 MiB single-payload soft
+  ceiling. `MediaStagingContractTests` separately keeps signing counts and
+  shared media byte budgets aligned with the executable upload-manifest
+  contract.
 - `InferenceURLSessionTaskContractTests` covers current and legacy inference
   task identities.
 - `OfflineQueueRetryPolicyTests` covers retry eligibility, deterministic base

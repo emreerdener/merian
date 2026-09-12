@@ -19,6 +19,11 @@ contract is the
   diagnostics, and cloud repair.
 - `Concurrency/AsyncPermitPool.swift` owns cancellation-safe admission to the
   four-slot image decode boundary.
+- `Policies/ImagePreparationPolicy.swift` owns WebP/JPEG compression quality and
+  the Flash, Pro, derived maximum-inference, and display longest-edge caps.
+  Capture recropping and live/full-screen display decoding retain explicit links
+  to those values. Shared scan-media byte ceilings remain in
+  `Core/Media/ScanMediaPayloadPolicy.swift`.
 - `Policies/ExternalReferenceImagePolicy.swift` owns HTTPS admission and the
   exact external-media suppression rule. `RemoteImageRetryPolicy.swift` owns
   retryable HTTP and transport classification plus bounded backoff.
@@ -121,6 +126,8 @@ contract is the
   ownership, retired Utilities paths, and the production line ceiling.
 - `ImageDownsamplerTests`, `ImageCacheTests`, and `MediaPreparationActorTests`
   retain their focused bounded-decode, cache, and preparation contracts.
+- `ImagePreparationPolicyTests` freezes tier selection, compression quality,
+  display sizing, and the shared staged-image ceiling.
 
 The repository-wide native testing tiers are documented in the
 [iOS testing strategy](../../../../../../docs/development-guides/08-testing-strategy.md).

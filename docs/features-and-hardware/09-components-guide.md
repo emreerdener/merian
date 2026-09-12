@@ -141,7 +141,8 @@ scan.
   where users can undo their review decision.
 - **Band logic**: When no review state is active, derives label, color, and icon
   through the platform-neutral `ConfidenceBadgePresentation`, dynamically from
-  `confidenceScore` against `MerianConfig.confidenceBands(for: isPro)`. High
+  `confidenceScore` against
+  `InferenceConfidencePolicy.bands(forInferenceTier: inferenceTier)`. High
   constraints for Free tier (≥ 96%), relaxed bounds for Pro (≥ 85%). Three bands
   exist: Strong (green), Possible (orange), Weak (gray).
 - **Liquid glass aesthetic**: Layered `ZStack` — `ultraThickMaterial` base,
@@ -193,8 +194,9 @@ explaining what each band means.
 
 - **Threshold parity**: Band percentage strings are computed dynamically based
   on the current user's entitlement tier via
-  `MerianConfig.confidenceBands(for: isPro)`. This ensures that the displayed
-  ranges in the UI always match the live badge thresholds exactly.
+  `InferenceConfidencePolicy.bands(forInferenceTier: inferenceTier)`. This
+  ensures that the displayed ranges in the UI always match the live badge
+  thresholds exactly.
 - **Current bands**: Strong (≥ 96% Flash / ≥ 85% Pro), Possible (75–95% Flash /
   65–84% Pro), Weak (below 75% Flash / below 65% Pro).
 
@@ -363,7 +365,7 @@ mutation orchestration; SwiftUI retains animation and sheet timing.
   threshold, or when a Strong primary has a top candidate with
   `confidenceScore >= 0.80` within `0.15` of the primary confidence.
 - **Threshold sourcing**: Candidate persistence still follows
-  `MerianConfig.confidenceBands(forInferenceTier: inferenceTier).diagnosticTrigger`,
+  `InferenceConfidencePolicy.bands(forInferenceTier: inferenceTier).diagnosticTrigger`,
   matching `FLASH_DIAGNOSTIC_TRIGGER` and `PRO_DIAGNOSTIC_TRIGGER` in
   `services/supabase/functions/_shared/identify/thresholds.ts`. Candidate
   display uses the on-device `CandidateReviewVisibilityPolicy` constants above,
@@ -722,7 +724,7 @@ attempt generation. Prepared visual, audio, Describe, and stale-owner transfers
 cannot inherit that media or contextual deck. Queue-state and connectivity
 changes cannot reset the visual cursor; **Waiting for connection** temporarily
 overlays it without consuming a phrase. Phrase rotation uses
-`MerianConfig.scanningPhaseRotationIntervalNs`.
+`ScanningPhrasePolicy.rotationIntervalNanoseconds`.
 
 For a foreground visual scan, that single text binding progresses from a
 morphology-only generic phrase to an immediate qualifying Vision category and,

@@ -122,7 +122,7 @@ extension InsightSheetViewModel {
               !speciesData.isHumanSubject else {
             return false
         }
-        let bands = MerianConfig.confidenceBands(forInferenceTier: speciesData.inferenceTier)
+        let bands = InferenceConfidencePolicy.bands(forInferenceTier: speciesData.inferenceTier)
         return speciesData.confidenceScore >= bands.strong
     }
 }

@@ -171,8 +171,8 @@ enum CaptureScanVideoMediaPreparer {
             let generator = AVAssetImageGenerator(asset: asset)
             generator.appliesPreferredTrackTransform = true
             generator.maximumSize = CGSize(
-                width: MerianConfig.displayImageMaxSize,
-                height: MerianConfig.displayImageMaxSize
+                width: ImagePreparationPolicy.displayMaxDimension,
+                height: ImagePreparationPolicy.displayMaxDimension
             )
 
             let sampleOffsets = CaptureScanVideoFrameSamplingPolicy
@@ -183,7 +183,7 @@ enum CaptureScanVideoMediaPreparer {
             let times = sampleOffsets.map {
                 CMTime(seconds: $0, preferredTimescale: 600)
             }
-            let inferenceMaxSize = MerianConfig.inferenceImageMaxSize(
+            let inferenceMaxSize = ImagePreparationPolicy.inferenceMaxDimension(
                 isProActive: request.isProActive
             )
 
@@ -266,7 +266,7 @@ enum CaptureScanVideoMediaPreparer {
             let compressedURL = compressedLease.fileURL
             let compressedSize = try fileSize(at: compressedURL)
             guard compressedSize > 0,
-                  compressedSize <= MerianConfig.videoPayloadMaxBytes else {
+                  compressedSize <= ScanMediaPayloadPolicy.maxSavedVideoBytes else {
                 try? FileManager.default.removeItem(at: compressedURL)
                 let sizeError = NSError(
                     domain: "CaptureWorkspaceViewModel",
@@ -276,7 +276,7 @@ enum CaptureScanVideoMediaPreparer {
                             "Compressed video exceeds the upload budget."
                     ]
                 )
-                guard originalSize <= MerianConfig.videoPayloadMaxBytes else {
+                guard originalSize <= ScanMediaPayloadPolicy.maxSavedVideoBytes else {
                     throw sizeError
                 }
                 MerianLog.hardware.warning(
@@ -307,7 +307,7 @@ enum CaptureScanVideoMediaPreparer {
                 """
             )
             if compressedSize >= originalSize,
-               originalSize <= MerianConfig.videoPayloadMaxBytes {
+               originalSize <= ScanMediaPayloadPolicy.maxSavedVideoBytes {
                 try? FileManager.default.removeItem(at: compressedURL)
                 MerianLog.hardware.warning(
                     """
@@ -350,12 +350,12 @@ enum CaptureScanVideoMediaPreparer {
             MerianLog.hardware.error(
                 "Video compression failed: \(error, privacy: .private)"
             )
-            guard originalSize <= MerianConfig.videoPayloadMaxBytes else {
+            guard originalSize <= ScanMediaPayloadPolicy.maxSavedVideoBytes else {
                 MerianLog.hardware.error(
                     """
                     Video staging failed because neither compression nor the original clip fit the upload budget. \
                     originalBytes=\(originalSize, privacy: .public), \
-                    maxBytes=\(MerianConfig.videoPayloadMaxBytes, privacy: .public)
+                    maxBytes=\(ScanMediaPayloadPolicy.maxSavedVideoBytes, privacy: .public)
                     """
                 )
                 throw error
@@ -364,7 +364,7 @@ enum CaptureScanVideoMediaPreparer {
                 """
                 Video compression unavailable; staging original upload-safe clip. \
                 originalBytes=\(originalSize, privacy: .public), \
-                maxBytes=\(MerianConfig.videoPayloadMaxBytes, privacy: .public), \
+                maxBytes=\(ScanMediaPayloadPolicy.maxSavedVideoBytes, privacy: .public), \
                 source=original, \
                 fallback=true
                 """
@@ -395,7 +395,7 @@ enum CaptureScanVideoMediaPreparer {
             )
         }
 
-        let presetName = MerianConfig.videoPlaybackLongEdgeMaxPixels <= 1280
+        let presetName = ScanMediaPayloadPolicy.videoPlaybackLongEdgeMaxPixels <= 1280
             ? AVAssetExportPreset1280x720
             : AVAssetExportPresetHighestQuality
         guard let exportSession = AVAssetExportSession(
@@ -423,7 +423,7 @@ enum CaptureScanVideoMediaPreparer {
         exportSession.outputFileType = .mp4
         exportSession.shouldOptimizeForNetworkUse = true
         exportSession.fileLengthLimit = Int64(
-            MerianConfig.videoPlaybackExpectedMaxBytes
+            ScanMediaPayloadPolicy.videoPlaybackExpectedMaxBytes
         )
 
         try await CaptureScanAssetExportSessionFinisher(exportSession)

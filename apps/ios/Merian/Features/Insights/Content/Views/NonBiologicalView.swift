@@ -79,7 +79,7 @@ struct NonBiologicalView: View {
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("You can find this scan in the Non-biological collection. Naturebook automatically deletes non-biological scans after \(MerianConfig.nonBiologicalRetentionDays) days.")
+                Text("You can find this scan in the Non-biological collection. Naturebook automatically deletes non-biological scans after \(NonBiologicalRetentionPolicy.retentionDays) days.")
                     .font(.footnote)
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)

@@ -128,7 +128,7 @@ extension OfflineQueueManager {
             try context.save()
         } catch {
             context.rollback()
-            MerianLog.data.debug("recordQueueEvent: save failed: \(error.localizedDescription, privacy: .public)")
+            MerianLog.data.debug("recordQueueEvent: save failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 

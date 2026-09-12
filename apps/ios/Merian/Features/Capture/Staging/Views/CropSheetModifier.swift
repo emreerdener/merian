@@ -42,15 +42,18 @@ struct CropSheetModifier: ViewModifier {
                                 original: updatedOriginal
                             ).replacingFocusRegion(nil)
 
-                            // Re-run the same crop geometry on the 2048px display image so
-                            // the scan library stores what Gemini actually analyzed.
+                            // Re-run the same crop geometry on the policy-bounded display
+                            // image so the scan library stores what Gemini actually analyzed.
                             // Runs off the main thread; display data updates asynchronously
                             // before the user can tap Submit.
                             let capturedDisplayData = existing.displayData
                             viewModel.replaceActiveCropTask(with: Task {
                                 async let detectedFocusRegion = ImageFocusRegionDetector.detect(in: croppedData)
                                 async let displayCropped = Task.detached {
-                                    let src = ImageDownsampler.downsampledUIImage(data: capturedDisplayData, maxSize: 2048)
+                                    let src = ImageDownsampler.downsampledUIImage(
+                                        data: capturedDisplayData,
+                                        maxSize: ImagePreparationPolicy.displayMaxDimension
+                                    )
                                     guard let image = src else { return Data() }
 
                                     return await ImageCropProcessor.generateCrop(

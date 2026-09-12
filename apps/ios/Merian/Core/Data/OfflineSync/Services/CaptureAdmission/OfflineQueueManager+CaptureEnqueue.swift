@@ -138,7 +138,7 @@ extension OfflineQueueManager {
                 }
 
                 MerianLog.data.debug(
-                    "enqueueCapture: persisted temp files scanId=\(resolvedScanId, privacy: .public) inferenceFiles=\(inferenceFileNames.joined(separator: ","), privacy: .public) displayFiles=\(displayFileNames.joined(separator: ","), privacy: .public)"
+                    "enqueueCapture: persisted temp files scanId=\(resolvedScanId, privacy: .public) inferenceFiles=\(inferenceFileNames.joined(separator: ","), privacy: .private) displayFiles=\(displayFileNames.joined(separator: ","), privacy: .private)"
                 )
                 let persistedAudioNamesBySourcePath = try OfflineCaptureFileStore.persistFiles(
                     audioFilePaths,

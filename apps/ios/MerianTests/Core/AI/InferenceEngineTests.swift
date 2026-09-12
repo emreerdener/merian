@@ -161,7 +161,7 @@ struct InferenceEngineTests {
         MerianNetworkClient.shared.overridingInferenceConsentCheck = {}
         MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
         UserDefaults.standard.set(
-            MerianConfig.localLookalikesCacheResetVersion,
+            InferenceLookalikeCachePolicy.resetVersion,
             forKey: UserDefaultsKeys.localLookalikesCacheResetVersion
         )
     }
@@ -1190,7 +1190,7 @@ struct InferenceEngineTests {
 
     @Test func testLoadFromBiologicalRecordIgnoresLocalLookalikesWhenResetPending() throws {
         UserDefaults.standard.set(
-            max(0, MerianConfig.localLookalikesCacheResetVersion - 1),
+            max(0, InferenceLookalikeCachePolicy.resetVersion - 1),
             forKey: UserDefaultsKeys.localLookalikesCacheResetVersion
         )
 
@@ -1707,27 +1707,6 @@ struct InferenceEngineTests {
 
         #expect(engine.speciesData?.userIdentificationOverride == "Procyon cancrivorus", "No-op when scanId is nil — override must remain unchanged")
         #expect(engine.speciesData?.scientificName == "Procyon cancrivorus", "No-op when scanId is nil — scientificName must remain unchanged")
-    }
-
-    // MARK: - Inference Tier Configuration Validation
-    @Test func testInferenceTier_ConfigurationValidation() throws {
-        // Assert Flash Free-Tier thresholds are strict
-        let flashBands = MerianConfig.confidenceBands(forInferenceTier: "flash")
-        #expect(flashBands.strong == 0.95)
-        #expect(flashBands.possible == 0.75)
-        // diagnosticTrigger sits above strong (0.99) so Strong-match scans still carry candidates as an escape hatch
-        #expect(flashBands.diagnosticTrigger == 0.99)
-
-        // Assert Pro Premium-Tier thresholds are relaxed
-        let proBands = MerianConfig.confidenceBands(forInferenceTier: "pro")
-        #expect(proBands.strong == 0.85)
-        #expect(proBands.possible == 0.65)
-        #expect(proBands.diagnosticTrigger == 0.99)
-
-        // Assert Legacy/Nil scans resolve to Flash thresholds for safety
-        let legacyBands = MerianConfig.confidenceBands(forInferenceTier: nil)
-        #expect(legacyBands.strong == 0.95)
-        #expect(legacyBands.diagnosticTrigger == 0.99)
     }
 
     // MARK: - Enqueue-at-submission durability (win condition + cancellation)

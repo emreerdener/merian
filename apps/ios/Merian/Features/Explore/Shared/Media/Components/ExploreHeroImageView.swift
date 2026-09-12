@@ -15,7 +15,7 @@ struct ExploreHeroImageView: View {
     init(
         imageUrl: String,
         reloadGeneration: UInt64,
-        maxDimension: Int = Int(MerianConfig.displayImageMaxSize),
+        maxDimension: Int = Int(ImagePreparationPolicy.displayMaxDimension),
         preloadedImage: UIImage? = nil
     ) {
         self.init(
@@ -30,7 +30,7 @@ struct ExploreHeroImageView: View {
     init(
         imageUrl: String,
         reloadGeneration: UInt64,
-        maxDimension: Int = Int(MerianConfig.displayImageMaxSize),
+        maxDimension: Int = Int(ImagePreparationPolicy.displayMaxDimension),
         preloadedImage: UIImage? = nil,
         dependencies: ExploreHeroImageDependencies
     ) {

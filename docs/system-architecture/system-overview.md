@@ -212,13 +212,17 @@ are documented in the
 ## Core Decoupling (AppDIContainer)
 
 The Merian app module does not use `@EnvironmentObject` for its core
-architectural engines. All complex business logic is bound using `@Observable`
-macros and `@Environment()` injection to keep the `View` lifecycle free from
-recursive updates or `EXC_BAD_ACCESS` warnings.
+architectural engines. App-scoped observable state uses `@Observable` and
+`@Environment()` injection, while narrow services and stateless policies remain
+explicit dependencies. This keeps the `View` lifecycle free from recursive
+updates or `EXC_BAD_ACCESS` warnings.
 
 `AppDIContainer.swift` wires the shared dependency graph:
 
-- A global singleton providing protocol-free dependency injection.
+- `AppDIContainer.shared` is the production composition root for one app-scoped
+  graph. Heavy platform and service seams use focused protocols or immutable
+  service values where deterministic substitution is useful. The DEBUG preview
+  graph does not bind production route or milestone session controllers.
 - Composes the `Core/Routing` typed `AppEventPublisher` and bounded
   `AppRouteCoordinator`; their immutable values and deterministic policy remain
   separate from the DI-scoped mutable delivery state. The container also owns
@@ -226,6 +230,11 @@ recursive updates or `EXC_BAD_ACCESS` warnings.
   `ScanMilestoneCoordinator`. Ordinary feedback remains a view-owned
   `ToastPayload`; application code never uses `NotificationCenter` as an event
   bus or creates a second root sheet.
+- Owns the live inference request/result services, account-fenced
+  identification-review service, and bounded throwing review-snapshot service.
+  Confirmation and reset distinguish a genuinely absent local record from an
+  unreadable SwiftData store and fail closed before review state or remote work
+  changes.
 - `MerianApp` constructs `AppLifecycleManager` with the container and forwards
   scene phases to it. After onboarding, active-phase consent synchronization and
   purchase-identity retry run even when required consent is closed; ordinary
@@ -324,9 +333,10 @@ A structured schema built on native SwiftData migrations:
   reads and saves throw instead of becoming empty success, targeted hydration
   maps persistence failure to durable transient recovery, and cancellation rolls
   back before collection pruning and commit.
-- **Centralized Policy (`MerianConfig`)**: All batch sizes, page sizes, and
-  retention window constants are defined in `MerianConfig.swift`. Tuning any
-  policy constant requires exactly one change.
+- **Domain-owned policy**: Queue batching, historical pagination, media
+  payloads, image preparation, inference, and retention each have one focused
+  policy owner beside their consumers. Tuning a value still requires one change,
+  without coupling unrelated Core domains through a Utilities aggregate.
 
 ## Identity Pipeline
 

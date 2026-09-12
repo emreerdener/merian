@@ -146,8 +146,8 @@ export function diagnosticTriggerForTier(tier: "pro" | "flash"): number;
 `identify/index.ts`, `identify-multimodal/index.ts`, and
 `identify-describe/index.ts` import `diagnosticTriggerForTier` from this file so
 the candidate-strip gate cannot drift across inference entry points. The iOS
-client mirrors these in `MerianConfig.flashConfidence` and
-`MerianConfig.proConfidence`; comments in that file point back to
+client mirrors these in `InferenceConfidencePolicy.flash` and
+`InferenceConfidencePolicy.pro`; comments in that file point back to
 `thresholds.ts` as the source of truth. Any threshold change must be applied in
 both places.
 

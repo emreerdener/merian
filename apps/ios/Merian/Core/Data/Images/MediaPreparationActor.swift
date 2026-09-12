@@ -25,8 +25,8 @@ struct MediaPreparationMetrics: Sendable, Equatable {
     var isWithinImageBudgets: Bool {
         inferenceByteCount > 0
             && displayByteCount > 0
-            && inferenceByteCount <= MerianConfig.stagedImagePayloadMaxBytes
-            && displayByteCount <= MerianConfig.stagedImagePayloadMaxBytes
+            && inferenceByteCount <= ScanMediaPayloadPolicy.maxStagedImageBytes
+            && displayByteCount <= ScanMediaPayloadPolicy.maxStagedImageBytes
             && largestInferenceDimension <= inferenceMaxDimension
             && largestDisplayDimension <= displayMaxDimension
     }
@@ -80,8 +80,8 @@ actor MediaPreparationActor {
     func prepareStillImage(fileURL: URL, isPro: Bool) throws -> PreparedStillImage {
         try prepareStillImage(
             fileURL: fileURL,
-            inferenceMaxSize: MerianConfig.inferenceImageMaxSize(isProActive: isPro),
-            displayMaxSize: MerianConfig.displayImageMaxSize
+            inferenceMaxSize: ImagePreparationPolicy.inferenceMaxDimension(isProActive: isPro),
+            displayMaxSize: ImagePreparationPolicy.displayMaxDimension
         )
     }
 
@@ -158,7 +158,7 @@ actor MediaPreparationActor {
             let renderData = NSMutableData()
             guard let destination = makeImageDestination(renderData) else { return nil }
             let options: [CFString: Any] = [
-                kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality
+                kCGImageDestinationLossyCompressionQuality: ImagePreparationPolicy.compressionQuality
             ]
             CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
             guard CGImageDestinationFinalize(destination) else { return nil }

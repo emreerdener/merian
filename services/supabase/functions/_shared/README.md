@@ -489,7 +489,7 @@ identical:
   incidental background biology. The base `is_biological_subject` description is
   also inherited by Describe, so its current visual-only wording remains a known
   cross-modality semantic gap.
-- **`thresholds.ts`**: Tier-specific confidence thresholds mirrored by
-  `MerianConfig`.
+- **`thresholds.ts`**: Tier-specific confidence thresholds mirrored by the iOS
+  `InferenceConfidencePolicy` owner.
 - **`types.ts`**: Shared request/database types plus model and client payload
   aliases inferred from `contract.ts`.

@@ -50,7 +50,7 @@ extension OfflineQueueManager {
             generation: generation
         )
         MerianLog.data.debug(
-            "processInferenceDownloadResult: scanId=\(scanId, privacy: .public) status=\(statusCode ?? -1, privacy: .public) file=\(resultFileURL.path, privacy: .public)"
+            "processInferenceDownloadResult: scanId=\(scanId, privacy: .public) status=\(statusCode ?? -1, privacy: .public) file=\(resultFileURL.path, privacy: .private)"
         )
 
         let resultData = try? Data(contentsOf: resultFileURL)

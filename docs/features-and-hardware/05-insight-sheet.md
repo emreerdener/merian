@@ -99,7 +99,7 @@ observations.
 | `Core/UI/Components/NamePickerSheet`                                     | Display-only bottom sheet (`.medium` detent) presented when the user taps the "Also known as" line in `InsightHeader`. The shared component renders a `NavigationStack` list of caller-provided common names with a checkmark on the active name; it owns no repository or feedback. Pet labels are intentionally excluded by Insight Content. `Content/ViewModels/InsightSheetViewModel+NamePreferences` uses injected Content dependencies to write through `SpeciesPreferredNameRepository`, refresh state, and publish the existing toast/feedback.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `ImagesCarousel`                                                         | Horizontally scrolling mixed-media strip combining live captures, persisted user media pages, and reference images. `ActiveScanMedia` preserves images, videos, standalone audio clips, and descriptions in one stable timeline. A missing video resolves in place to its one retained poster or middle sampled frame; if a submitted user visual becomes unavailable and no usable user visual remains, `Original photo unavailable` is appended after all nonvisual, reference, and loading pages. Intentionally audio/description-only scans never synthesize a photo error. Images and playable videos open the Core `FullscreenMediaGallery`; audio, descriptions, loading pages, and the terminal unavailable state stay out. Page identity remains stable across queued/live/result handoff and asynchronous fallback replacement.                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `ConfidenceBadge`                                                        | Tappable liquid-glass capsule showing the AI's confidence band (Strong / Possible / Weak) with a shimmering glare animation; opens `ConfidenceExplanationSheet` on a completed-result tap. When `userIdentificationOverride` is non-nil or `userConfirmedIdentification` is `true`, shows "Confirmed" (green, `checkmark.circle.fill`). **Analyzing mode** (`analyzingPhrase != nil`): background glass layers collapse to transparent, icon switches to `sparkle`, text uses the AI gradient on a minimal capsule border, and the optional private analyzing callback receives the tap without opening the explanation sheet. Label changes use an opacity-only content transition and the capsule width springs to fit the new string. The completed-state glare is painted inside a fixed Canvas, so neither animation creates translated child geometry that can enlarge the Button's accessibility frame. Phrases are auto-suffixed with `...` if not already ending with one.                                                                                                                                                                                                                                                                            |
-| `ConfidenceSpectrum`                                                     | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `MerianConfig`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `ConfidenceSpectrum`                                                     | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `InferenceConfidencePolicy`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `ConfidenceExplanationSheet`                                             | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy. When an alternatives-exhausted, override, or confirmed state is active, renders bespoke explanation cards at the top of the modal payload that allow the user to undo, reset, review again, or ask the community for help. **Review-state cards (mutually exclusive):** `AllCandidatesReviewedView` (`alternativesExhausted == true`; user rejected all swipe-deck alternatives), `OverriddenView` (user selected an alternative species), and `ConfirmedView` (user confirmed the AI match). Contains `ConfidenceHeader`, `ConfidenceSpectrum`, `ModelInfoSection`, `AIMistakesBanner`, and `ProTips`. The sheet supplies the environment-observed Pro state to `ProTips`; Settings, refinement-route, SwiftData snapshot, haptic, image, and review-mutation effects resolve only through Identification Review Services.                                                                                                                                                                                                                                                                                                                                   |
 | `ModelInfoSection`                                                       | Informational card inside `ConfidenceExplanationSheet` showing which Naturebook AI tier processed the scan. Standard tier (`inferenceTier == nil` or `"flash"`) renders a blue `cpu` icon with a gray "Standard" capsule badge. Pro tier (`inferenceTier == "pro"`) renders an indigo `sparkles` icon with an indigo "Pro" capsule badge and a "Powered by Gemini 2.5 Pro" footnote. Positioned between `ConfidenceSpectrum` and `AIMistakesBanner`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `CandidatesCard`                                                         | Identification candidates card with a multi-state approve/deny and Community handoff UX. Shown only with policy-visible candidates from `CandidateReviewVisibilityPolicy`, not raw `speciesData.candidates`. Hidden after confirmation, override, or alternatives exhaustion; when `alternativesExhausted == true`, `AllCandidatesReviewedView` inside `ConfidenceExplanationSheet` replaces the card with a condensed summary, Review again, and Ask the community affordances.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -1500,9 +1500,9 @@ threshold, or when a Strong primary has a genuinely competitive alternative.
    self-suppress, the server enforces the rule unconditionally. **Thresholds**:
    `0.99` for both Flash and Pro (intentionally above `FLASH_STRONG` = 0.95 and
    `PRO_STRONG` = 0.85 so Strong match scans still carry candidates).
-   `MerianConfig.flashConfidence.diagnosticTrigger` and
-   `MerianConfig.proConfidence.diagnosticTrigger` in the iOS client mirror these
-   values and must be kept in sync.
+   `InferenceConfidencePolicy.flash.diagnosticTrigger` and
+   `InferenceConfidencePolicy.pro.diagnosticTrigger` in the iOS client mirror
+   these values and must be kept in sync.
 3. **Supabase persistence** (`candidates` JSONB, migration
    `20260330000000_add_candidates_to_scans.sql`): Stored as a JSONB column on
    `public.scans`. `NULL` for non-biological scans, processed-material
@@ -1544,13 +1544,13 @@ candidates.isEmpty == false
 userIdentificationOverride == nil
 userConfirmedIdentification == false
 alternativesExhausted == false
-primaryConfidence < MerianConfig.confidenceBands(forInferenceTier: tier).diagnosticTrigger
+primaryConfidence < InferenceConfidencePolicy.bands(forInferenceTier: tier).diagnosticTrigger
 ```
 
 After the baseline guards pass, one of these confidence checks must also pass:
 
 ```swift
-primaryConfidence < MerianConfig.confidenceBands(forInferenceTier: tier).strong
+primaryConfidence < InferenceConfidencePolicy.bands(forInferenceTier: tier).strong
 
 // OR, for Strong primaries:
 topCandidateConfidence >= 0.80
@@ -1718,10 +1718,10 @@ Users can confirm or override the AI's primary identification directly from
   The original capture is also accessible via a PiP thumbnail (bottom-right)
   that expands to a full-screen `OriginalCaptureExpandedView`; that expanded
   path downscales `activeMedia.liveImageData` through `ImageDownsampler` at
-  `MerianConfig.displayImageMaxSize` rather than inflating the original capture
-  with `UIImage(data:)`. Tapping the candidate image expands it to a paged
-  `TabView` carousel containing up to 5 progressively loaded reference images
-  inside `CandidateImageExpandedView`.
+  `ImagePreparationPolicy.displayMaxDimension` rather than inflating the
+  original capture with `UIImage(data:)`. Tapping the candidate image expands it
+  to a paged `TabView` carousel containing up to 5 progressively loaded
+  reference images inside `CandidateImageExpandedView`.
 - **`.confirmed`**: Replaces the prompt with nothing (the card hides its body).
   `ConfidenceBadge` transitions to "Confirmed" (green, `checkmark.seal.fill`).
   `ConfidenceExplanationSheet` shows a confirmation message.
@@ -1869,7 +1869,7 @@ identification decisions before falling back to the confidence-band logic:
 | User confirmed | "Confirmed" | Green | `checkmark.circle.fill` | `userConfirmedIdentification == true` |
 
 **Confidence bands** (when no review state is set — managed dynamically via
-`MerianConfig.confidenceBands(for: isPro)`):
+`InferenceConfidencePolicy.bands(forInferenceTier: inferenceTier)`):
 
 **Gemini 2.5 Flash (Ordinary Naturebook Tier)**
 
@@ -1902,8 +1902,8 @@ The badge renders for override/confirmed states even when `confidenceScore == 0`
 (historical scans where confidence is unavailable).
 
 `ConfidenceSpectrum` renders a vertical list of `SpectrumNode` items using the
-same `MerianConfig` constants so the displayed percentage ranges are always in
-sync with the badge logic.
+same `InferenceConfidencePolicy` bands so the displayed percentage ranges are
+always in sync with the badge logic.
 
 `ConfidenceExplanationSheet` opens as a bottom sheet from the badge tap. It
 contains `ConfidenceHeader`, `ConfidenceSpectrum`, `ModelInfoSection`,

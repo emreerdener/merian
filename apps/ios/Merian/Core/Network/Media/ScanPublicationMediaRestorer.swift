@@ -242,9 +242,9 @@ struct ScanPublicationMediaRestorer {
     ) async throws -> [String] {
         guard !localVideoPaths.isEmpty else { return [] }
         guard localVideoPaths.count
-                <= MerianConfig.mediaStagingMaxVideoFilesPerRequest,
+                <= MediaStagingContract.maxVideoItemsPerRequest,
               localVideoPaths.count
-                <= MerianConfig.mediaStagingMaxFilesPerRequest else {
+                <= MediaStagingContract.maxUploadItemsPerRequest else {
             throw MerianError.payloadTooLarge
         }
 
@@ -257,7 +257,7 @@ struct ScanPublicationMediaRestorer {
                 "\(source.scanId)_explore_restore_video_\(index).\(fileExtension)"
             )
             let sizeBytes = try MediaStagingContract.fileSizeBytes(at: fileURL)
-            guard sizeBytes <= MerianConfig.videoPayloadMaxBytes else {
+            guard sizeBytes <= ScanMediaPayloadPolicy.maxSavedVideoBytes else {
                 throw MerianError.payloadTooLarge
             }
             return ScanPublicationMediaRestorePolicy.makeUploadFile(
@@ -305,9 +305,9 @@ struct ScanPublicationMediaRestorer {
         }
         guard !sources.isEmpty else { return [] }
         guard sources.count
-                <= MerianConfig.mediaStagingMaxAudioFilesPerRequest,
+                <= MediaStagingContract.maxAudioItemsPerRequest,
               sources.count
-                <= MerianConfig.mediaStagingMaxFilesPerRequest else {
+                <= MediaStagingContract.maxUploadItemsPerRequest else {
             throw MerianError.payloadTooLarge
         }
 
@@ -321,7 +321,7 @@ struct ScanPublicationMediaRestorer {
             let sizeBytes = try MediaStagingContract.fileSizeBytes(
                 at: sourceFile.fileURL
             )
-            guard sizeBytes <= MerianConfig.audioPayloadMaxBytes else {
+            guard sizeBytes <= ScanMediaPayloadPolicy.maxInferenceAudioBytes else {
                 throw MerianError.payloadTooLarge
             }
             return ScanPublicationMediaRestorePolicy.makeUploadFile(

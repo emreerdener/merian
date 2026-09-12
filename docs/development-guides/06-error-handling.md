@@ -9,7 +9,9 @@ works at the network boundary, and how errors surface to the UI.
 
 `MerianError` conforms to `LocalizedError` and acts as the singular error
 boundary for the entire application, bridging HTTP limits, missing hardware, and
-SwiftUI catch blocks.
+SwiftUI catch blocks. Its source owner is
+`apps/ios/Merian/Core/Errors/MerianError.swift`; retry and presentation policy
+remain with the consuming domain.
 
 ```swift
 public enum MerianError: LocalizedError, Equatable {
@@ -17,7 +19,9 @@ public enum MerianError: LocalizedError, Equatable {
     case uploadFailed
     case invalidResponse
     case decodingFailed
+    case payloadTooLarge
     case httpError(statusCode: Int, message: String)
+    case edgeFunctionUnavailable
     case networkTimeout
     case aiConsentRequired
     case proRequiredForOfflineTracking
@@ -31,7 +35,9 @@ public enum MerianError: LocalizedError, Equatable {
 | `uploadFailed`                  | R2 `PUT` returned non-200.                                                              | Retain local media; retry transient 429/5xx and use needs-attention for auth/policy. Never infer deletion.                          |
 | `invalidResponse`               | Missing/non-HTTP, malformed-success, or unresolved auth response.                       | Never infer a remote mutation from this error. Preserve durable retry state and surface the appropriate UI error.                   |
 | `decodingFailed`                | `JSONDecoder` failed on a network response.                                             | Surface "Analysis Failed" graceful degradation result in `InsightSheet`; queued retry keeps the consumed scan.                      |
+| `payloadTooLarge`               | Prepared capture media exceeds the accepted request budget.                             | Preserve the capture and ask the user to remove media before retrying.                                                              |
 | `httpError`                     | A handler or service returned non-2xx.                                                  | Classify by stable handler code and durable ownership; never infer device connectivity from a `5xx`.                                |
+| `edgeFunctionUnavailable`       | The required Edge Function cannot currently serve the request.                          | Preserve caller state and surface temporary-unavailability recovery; do not infer missing remote data.                              |
 | `networkTimeout`                | The request boundary classified connectivity loss.                                      | Queue-backed work changes to the exact queued presentation; only queue-less direct work shows "Network timeout".                    |
 | `aiConsentRequired`             | Required adult, Terms, or Gemini cloud evidence is absent or rejected.                  | Preserve the saved scan, return the account to Ready, and never increment the network circuit breaker.                              |
 | `proRequiredForOfflineTracking` | Legacy compatibility signal; current scan submissions are queue-backed before inference | Do not use it to delete or reject an already-durable ordinary Flash queue item. Pro-only mode selection is gated before submission. |

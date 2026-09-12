@@ -55,7 +55,7 @@ struct ImageCropProcessor {
     /// Encodes WebP when ImageIO advertises support, otherwise JPEG.
     nonisolated static func encode(
         _ cgImage: CGImage,
-        quality: Double = MerianConfig.imageCompressionQuality,
+        quality: Double = ImagePreparationPolicy.compressionQuality,
         orientation: CGImagePropertyOrientation? = nil,
         maxPixelSize: Int? = nil
     ) -> Data? {
@@ -90,7 +90,9 @@ struct ImageCropProcessor {
         currentScale: CGFloat,
         offset: CGSize,
         currentOffset: CGSize,
-        maxPixelSize: Int? = 1024
+        maxPixelSize: Int? = Int(
+            ImagePreparationPolicy.maximumInferenceDimension
+        )
     ) async -> Data {
         let finalScale = scale * currentScale
         let finalOffset = CGSize(

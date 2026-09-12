@@ -13,7 +13,7 @@ enum CaptureScanStillMediaPreparer {
                 data: Data,
                 preview: SendableCGImage
             )? = autoreleasepool {
-                let inferenceMaxSize = MerianConfig.inferenceImageMaxSize(
+                let inferenceMaxSize = ImagePreparationPolicy.inferenceMaxDimension(
                     isProActive: request.isProActive
                 )
                 guard let safeCGImage = ImageDownsampler.downsample(
@@ -49,7 +49,7 @@ enum CaptureScanStillMediaPreparer {
             let displaySafeData: Data = autoreleasepool {
                 guard let displayCGImage = ImageDownsampler.downsample(
                     data: request.captureData,
-                    maxSize: MerianConfig.displayImageMaxSize
+                    maxSize: ImagePreparationPolicy.displayMaxDimension
                 ) else {
                     return inferencePrepared.data
                 }

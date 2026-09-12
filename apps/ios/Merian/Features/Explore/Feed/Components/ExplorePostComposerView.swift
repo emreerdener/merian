@@ -48,9 +48,11 @@ struct ExplorePostComposerView: View {
         self.heroImageUrl = heroImageUrl
         self.publicLocationLabel = publicLocationLabel
         let selectedName = Self.cleanedCommonName(initialSelectedCommonName) ?? Self.cleanedCommonName(speciesName) ?? scientificName
-        let options = ([selectedName, speciesName] + commonNameOptions)
+        let candidates = ([selectedName, speciesName] + commonNameOptions)
             .compactMap(Self.cleanedCommonName)
-            .removingFuzzyDuplicateNames()
+        let options = SpeciesCommonNamePresentation.removingFuzzyDuplicates(
+            from: candidates
+        )
         self.commonNameOptions = options.isEmpty ? [selectedName] : options
         self.initialFieldNotes = initialFieldNotes
         self.initialFieldNotesArePublic = initialFieldNotesArePublic

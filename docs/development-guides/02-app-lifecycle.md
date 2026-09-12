@@ -1,7 +1,7 @@
 # App Lifecycle Management
 
 `MerianApp` constructs the `@MainActor` `AppLifecycleManager`
-(`Core/Utilities/AppLifecycleManager.swift`) with its `AppDIContainer` and
+(`App/Lifecycle/AppLifecycleManager.swift`) with its `AppDIContainer` and
 forwards scene phases to it. The manager owns app-wide admission and
 maintenance; Capture-specific interruption and queue-claim release remain with
 `CaptureWorkspaceViewModel.handleScenePhaseChange`. The app also forwards

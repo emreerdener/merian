@@ -172,7 +172,7 @@ enum InferenceAudioPreparer {
     private static func wavMetadata(at url: URL) -> WAVMetadata? {
         guard let byteSize = try? fileSize(at: url),
               byteSize > 0,
-              byteSize <= MerianConfig.audioPayloadMaxBytes,
+              byteSize <= ScanMediaPayloadPolicy.maxInferenceAudioBytes,
               let data = try? Data(contentsOf: url, options: [.mappedIfSafe]),
               data.count >= 44 else {
             return nil
@@ -281,7 +281,7 @@ enum InferenceAudioPreparer {
               (200..<300).contains(httpResponse.statusCode) else {
             throw InferenceAudioPreparationError.sourceUnavailable
         }
-        let maximumBytes = MerianConfig.audioPayloadMaxBytes
+        let maximumBytes = ScanMediaPayloadPolicy.maxInferenceAudioBytes
         guard response.expectedContentLength <= 0
                 || response.expectedContentLength <= Int64(maximumBytes) else {
             throw InferenceAudioPreparationError.payloadTooLarge
@@ -371,7 +371,7 @@ enum InferenceAudioPreparer {
             duration * sampleRate * Double(channelCount) * 2
         ) + 4_096
         guard estimatedOutputBytes.isFinite,
-              estimatedOutputBytes <= Double(MerianConfig.audioPayloadMaxBytes) else {
+              estimatedOutputBytes <= Double(ScanMediaPayloadPolicy.maxInferenceAudioBytes) else {
             throw InferenceAudioPreparationError.payloadTooLarge
         }
 
@@ -434,7 +434,7 @@ enum InferenceAudioPreparer {
         var buffer = Data(
             count: Int(framesPerBuffer) * bytesPerFrame
         )
-        let maxPCMByteCount = MerianConfig.audioPayloadMaxBytes - 44
+        let maxPCMByteCount = ScanMediaPayloadPolicy.maxInferenceAudioBytes - 44
         var writtenByteCount = 0
 
         while true {
@@ -501,7 +501,7 @@ enum InferenceAudioPreparer {
         guard byteSize > 0 else {
             throw InferenceAudioPreparationError.invalidAudio
         }
-        guard byteSize <= MerianConfig.audioPayloadMaxBytes else {
+        guard byteSize <= ScanMediaPayloadPolicy.maxInferenceAudioBytes else {
             throw InferenceAudioPreparationError.payloadTooLarge
         }
     }

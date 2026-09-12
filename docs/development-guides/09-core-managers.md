@@ -1,8 +1,17 @@
 # Core Application Services & Managers
 
-Merian uses a structured singleton pattern managed through
-`AppDIContainer.swift`. These singletons own global application state without
-triggering excessive SwiftUI view rebuilds.
+Merian composes app-scoped observable managers and focused service values in
+`AppDIContainer.swift`. A manager may wrap a platform-required singleton when
+there must be one runtime owner. Policies remain stateless within their
+documented live-input bounds, while narrow network or persistence adapters use
+initializer injection. Feature views consume the composed environment or
+feature-owned dependencies instead of resolving live singletons directly.
+
+The [Core root contract](../../apps/ios/Merian/Core/README.md) defines the
+cross-domain ownership rules and residual large-file inventory. Domain sections
+below describe behavior; the Core-wide and domain architecture suites prevent
+their ownership, composition, persistence, UI, and diagnostic boundaries from
+drifting apart.
 
 ## Hardware Domain
 
@@ -755,6 +764,12 @@ See the focused
   account-work lease before transport and reject results after an Auth
   transition. AppDI owns the live value; the engine retains review sequencing,
   local persistence, presentation, and post-success invalidation.
+- `Inference/Services/InferenceReviewSnapshotService.swift` — the immutable
+  initializer-injected adapter for the bounded SwiftData projection needed by
+  confirmation and reset. It distinguishes an absent record from an unreadable
+  store by returning an optional value and throwing failures. `InferenceEngine`
+  preflights this read before advancing review generations or mutating
+  presentation, local persistence, or cloud state; AppDI owns the live value.
 - `Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift` — the
   shared injected public Wikipedia/GBIF request, wire DTO, and off-main parsing
   boundary used by Inference and scan-thumbnail recovery. It performs no engine,
@@ -1017,12 +1032,10 @@ See the focused
   app suspension or restart. Server-side replay is also capped at 10 claims per
   sanitized intent; over-budget jobs are marked `failed_terminal` at
   `server_replay_limit_reached`.
-- **`MerianConfig` Batch Limits**: `uploadBatchSize` (5),
-  `pendingScanFetchLimit` (50), `mediaStagingMaxFilesPerRequest` (6),
-  `mediaStagingMaxImageFilesPerRequest` (5),
-  `mediaStagingMaxAudioFilesPerRequest` (2), `stagedImagePayloadMaxBytes` (5
-  MB), and `audioPayloadMaxBytes` (2.7 MB) are governed by `MerianConfig`
-  constants rather than inline literals.
+- **Queue and media policy limits**: `OfflineQueueBatchPolicy` owns the queue
+  fetch and dispatch counts, `MediaStagingContract` owns per-request media
+  counts, and `ScanMediaPayloadPolicy` owns image, audio, and video byte limits.
+  Keep each value in its domain owner rather than duplicating inline literals.
 - **`MediaStagingContract`**: Owns the canonical R2 staging manifest for queued
   images, audio, and video: sanitized filename, deterministic
   `staging/{userId}/...` key, media kind, content type, `sizeBytes`,
@@ -1182,10 +1195,10 @@ See the focused
   `HistoricalSyncCloudClient` owns the live Auth/PostgREST effects,
   `HistoricalScanPageDecoder` owns row isolation, and `HistoricalDatabaseActor`
   owns only SwiftData reconciliation. After the push, it fetches cloud scan and
-  collection history with pagination (`MerianConfig.historicalSyncPageSize`,
-  `MerianConfig.collectionsSyncPageSize`). Each raw PostgREST scan page is split
-  into rows and decoded with the SDK's production decoder; malformed rows are
-  quarantined with a bounded coding path while valid neighbors reconcile
+  collection history with pagination (`HistoricalSyncPolicy.scanPageSize`,
+  `HistoricalSyncPolicy.collectionPageSize`). Each raw PostgREST scan page is
+  split into rows and decoded with the SDK's production decoder; malformed rows
+  are quarantined with a bounded coding path while valid neighbors reconcile
   immediately through one reused `HistoricalDatabaseActor`. Pagination advances
   by the raw remote row count, never the surviving decoded count, so quarantine
   cannot repeat or skip a page. Collections remain accumulated until every scan
@@ -1345,31 +1358,29 @@ See the focused
 - `downloadArchive(id:url:)` streams the generated ZIP to the local Documents
   directory and reuses an existing file for the same archive id.
 
-### `MerianConfig`
+### Domain policy owners
 
-- Centralized enum (`Core/Utilities/MerianConfig.swift`) holding all policy
-  constants for the data and AI layers.
-- A policy change requires exactly one edit, with no risk of values diverging
-  across files.
-- Referenced by `OfflineQueueManager`, `ScanRepository`
-  (`HistoricalDatabaseActor`), `CaptureWorkspaceViewModel`, and
-  `InferenceEngine`.
+Policy constants live beside the behavior they constrain. This keeps a single
+source of truth for each value without coupling unrelated Core domains through
+one configuration aggregate.
 
-| Constant                              | Value  | Consumer                                               |
-| ------------------------------------- | ------ | ------------------------------------------------------ |
-| `uploadBatchSize`                     | 5      | `OfflineQueueManager+UploadPreparation`                |
-| `pendingScanFetchLimit`               | 50     | `OfflineQueueManager+UploadSync`                       |
-| `mediaStagingMaxFilesPerRequest`      | 6      | `MediaStagingContract`                                 |
-| `mediaStagingMaxImageFilesPerRequest` | 5      | `MediaStagingContract`                                 |
-| `stagedImagePayloadMaxBytes`          | 5 MB   | `MediaStagingContract`, Edge image fetch contract      |
-| `audioPayloadMaxBytes`                | 2.7 MB | `MediaStagingContract`, `MerianNetworkClient`          |
-| `historicalSyncPageSize`              | 200    | `ScanRepository`                                       |
-| `collectionsSyncPageSize`             | 100    | `ScanRepository`                                       |
-| `ingestCheckpointInterval`            | 100    | `HistoricalDatabaseActor`                              |
-| `imageCompressionQuality`             | 0.85   | `Capture`, `CaptureWorkspaceViewModel`                 |
-| `visionConfidenceThreshold`           | 0.65   | `VisionSubjectClassificationResolver`                  |
-| `visionMarginThreshold`               | 0.15   | `VisionSubjectClassificationResolver`                  |
-| `scanningPhaseRotationIntervalNs`     | 2.3 s  | `ContinuousScanningPhraseSleeper`, `QueuedContentView` |
+| Owner                           | Values                                                                  | Primary consumers                                      |
+| ------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------ |
+| `OfflineQueueBatchPolicy`       | 5 uploads; 50 pending rows                                              | Offline queue selection and upload sync                |
+| `MediaStagingContract`          | 6 total items; 5 images; 2 audio files; 1 video                         | Signing manifests and publication-media restore        |
+| `OfflineQueueStoragePolicy`     | 100 MiB free-space reserve; 25 MiB single-payload soft limit            | Offline queue admission                                |
+| `ScanMediaPayloadPolicy`        | 5 MiB image; 2.7 MB audio; 12 MiB video; 1,280 px / 3 MiB video targets | Capture, inference, staging, restoration, and playback |
+| `HistoricalSyncPolicy`          | 200 scan rows; 100 collection rows; 100-record save checkpoints         | `ScanRepository` and `HistoricalDatabaseActor`         |
+| `NonBiologicalRetentionPolicy`  | 30-day retention; 250-record purge batches                              | Non-biological cleanup and presentation                |
+| `ImagePreparationPolicy`        | 0.85 compression; 768/1,024 px inference; 2,048 px display              | Bounded image preparation and rendering                |
+| `InferenceConfidencePolicy`     | Flash and Pro strong, possible, and diagnostic thresholds               | Inference, Insight, Field Chat, and tier badges        |
+| `ScanningPhrasePolicy`          | 0.65 Vision confidence; 0.15 margin; 2.3-second phrase cadence          | Local-analysis classification and scanning copy        |
+| `InferenceLookalikeCachePolicy` | Versioned local lookalike reset marker                                  | Inference cache recovery                               |
+
+`CorePolicyOwnershipArchitectureTests` freezes sole declaration ownership,
+focused tests, exact declaration-name boundaries, effect-free policy files,
+selected live image-policy consumer links, the retired aggregate paths, and the
+200-line ceiling for the pure policy owners.
 
 ### `UserDefaultsKeys`
 
@@ -1425,11 +1436,14 @@ consults that Keychain entry.
 ### `FieldNotesRepository`
 
 - `@MainActor` local/private field-note boundary living in
-  `Core/Utilities/FieldNotesRepository.swift`.
+  `Core/Data/FieldNotes/FieldNotesRepository.swift`.
 - Resolves notes in durability order: `LocalScanRecord.fieldNotes`,
   `OfflineQueuedScan.fieldNotes`, then the legacy `FieldNotesStore` bridge.
   Successful SwiftData reads mirror the bridge; bridge-only reads are promoted
   back into SwiftData.
+- SwiftData fetches throw through the repository boundary. A read failure is
+  logged and fails closed instead of being treated as an absent row that permits
+  a stale defaults fallback.
 - SwiftData writes save explicitly and call `modelContext.rollback()` on
   failure. The legacy bridge is mirrored only after a SwiftData commit succeeds,
   preventing `UserDefaults` from claiming a note that the local database
@@ -1443,7 +1457,7 @@ consults that Keychain entry.
   `FieldNotesStore`. Insight Field Notes confines those calls to
   `FieldNotes/Services/InsightFieldNotesDependencies.swift`; its views and view
   models consume injected closures. Repository reconciliation tests live under
-  `MerianTests/Core/Utilities/FieldNotesRepositoryTests.swift`.
+  `MerianTests/Core/Data/FieldNotes/FieldNotesRepositoryTests.swift`.
 
 ### `SpeciesPreferredNameRepository`
 
@@ -1610,8 +1624,9 @@ consults that Keychain entry.
   `MediaPreparationMetrics`.
 - Avatar crop previews call `preparePreviewImage(fileURL:maxSize:)` before any
   `UIImage` is constructed on `@MainActor`.
-- Enforces Merian's image contract in code: non-empty encoded payloads, longest
-  edge caps from `MerianConfig`, and the 5 MB staged image byte ceiling.
+- Enforces Merian's image contract in code: non-empty encoded payloads,
+  `ImagePreparationPolicy` longest-edge caps, and the
+  `ScanMediaPayloadPolicy.maxStagedImageBytes` ceiling.
 
 ### `LocalImageLoader`
 
@@ -2301,7 +2316,11 @@ consults that Keychain entry.
 
 ### `DetachedWork`
 
-- Small shared executor-escape helper defined alongside app-wide DI primitives.
+- Small shared executor-escape helper in `Core/Concurrency/DetachedWork.swift`;
+  app-wide DI only composes consumers.
+- The co-located `DetachedWorkCategory` taxonomy gives every approved escape a
+  stable, searchable label. Keep the taxonomy narrow rather than adding an
+  unclassified or miscellaneous category.
 - Sanctioned use cases: background SDK bootstrap, sendable image preparation,
   bounded file cleanup, and narrow background database bridges.
 - `DetachedWork.fireAndForget(...)` replaces ad hoc `Task.detached` in

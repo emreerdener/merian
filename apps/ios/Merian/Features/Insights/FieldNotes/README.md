@@ -84,8 +84,8 @@ Tests mirror the final owners:
 - `FieldNotesArchitectureTests.swift` enforces folder ownership, Services-only
   live effects, the view networking ban, aggregate removal, and the 600-line
   ceiling;
-- `MerianTests/Core/Utilities/FieldNotesRepositoryTests.swift` owns storage
-  reconciliation; and
+- `MerianTests/Core/Data/FieldNotes/FieldNotesRepositoryTests.swift` owns
+  storage reconciliation; and
 - `MerianTests/Features/Insights/Sharing/InsightSharingCacheRefreshTests.swift`
   owns Share-cache refresh behavior formerly mixed into Field Notes tests.
 

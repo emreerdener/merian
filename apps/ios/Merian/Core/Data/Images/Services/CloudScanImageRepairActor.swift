@@ -164,7 +164,7 @@ actor CloudScanImageRepairActor {
 
         let sizeBytes = dependencies.fileSizeBytes(candidate.localURL) ?? 0
         guard sizeBytes > 0,
-              sizeBytes <= MerianConfig.stagedImagePayloadMaxBytes,
+              sizeBytes <= ScanMediaPayloadPolicy.maxStagedImageBytes,
               let contentType = Self.contentType(for: candidate.localURL) else {
             return false
         }

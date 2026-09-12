@@ -4,7 +4,7 @@ import Testing
 
 struct ConfidenceReviewPresentationTests {
     @Test func badgePresentationPreservesEveryVisibleState() {
-        let bands = MerianConfig.confidenceBands(forInferenceTier: "pro")
+        let bands = InferenceConfidencePolicy.bands(forInferenceTier: "pro")
 
         #expect(badge(score: nil).isVisible == false)
         #expect(badge(score: bands.strong).label == "Strong match")

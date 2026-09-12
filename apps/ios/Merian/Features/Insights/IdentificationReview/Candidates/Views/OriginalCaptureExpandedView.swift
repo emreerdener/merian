@@ -24,7 +24,7 @@ struct OriginalCaptureExpandedView: View {
                                     autoreleasepool { () -> UIImage? in
                                         guard let cgImage = ImageDownsampler.downsample(
                                             data: imageData,
-                                            maxSize: MerianConfig.displayImageMaxSize
+                                            maxSize: ImagePreparationPolicy.displayMaxDimension
                                         ) else {
                                             return nil
                                         }

@@ -44,11 +44,11 @@ struct StagedVideoUploadPlanTests {
     func byteBudgetKeepsEmptyMaximumAndOverMaximumBoundaries(kind: Int) throws {
         let files = try NetworkMediaFileFixture()
         defer { files.close() }
-        let size = kind == 0 ? 0 : MerianConfig.videoPayloadMaxBytes + (kind == 2 ? 1 : 0)
+        let size = kind == 0 ? 0 : ScanMediaPayloadPolicy.maxSavedVideoBytes + (kind == 2 ? 1 : 0)
         let file = try files.sizedFile(size)
         if kind == 1 {
             let plan = try StagedVideoUploadPlan.make(videoFilePaths: [file.path], scanId: "synthetic")
-            #expect(plan.uploadFiles.first?.sizeBytes == MerianConfig.videoPayloadMaxBytes)
+            #expect(plan.uploadFiles.first?.sizeBytes == ScanMediaPayloadPolicy.maxSavedVideoBytes)
         } else {
             #expect(throws: MerianError.payloadTooLarge) {
                 try StagedVideoUploadPlan.make(videoFilePaths: [file.path], scanId: "synthetic")
@@ -60,7 +60,7 @@ struct StagedVideoUploadPlanTests {
         let files = try NetworkMediaFileFixture()
         defer { files.close() }
         let file = try files.write()
-        let paths = Array(repeating: file.path, count: MerianConfig.mediaStagingMaxVideoFilesPerRequest + 1)
+        let paths = Array(repeating: file.path, count: MediaStagingContract.maxVideoItemsPerRequest + 1)
         #expect(throws: MerianError.payloadTooLarge) {
             try StagedVideoUploadPlan.make(videoFilePaths: paths, scanId: "synthetic")
         }

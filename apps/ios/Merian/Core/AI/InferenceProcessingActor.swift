@@ -32,8 +32,8 @@ actor InferenceProcessingActor {
     /// ensuring the carousel always has the user's image available immediately after inference.
     ///
     /// - Parameters:
-    ///   - compressedDatas: 1024 px inference-quality images (used for base64 encoding only).
-    ///   - displayDatas: 2048 px display-quality images written to disk. When non-empty these
+    ///   - compressedDatas: Tier-bounded inference images used for base64 encoding only.
+    ///   - displayDatas: Display-policy-bounded images written to disk. When non-empty these
     ///     are written instead of `compressedDatas` so the insight sheet and scan library
     ///     render at full display quality. Falls back to `compressedDatas` when empty
     ///     (e.g. offline-queue reprocessing path where only inference-quality data is stored).
@@ -90,7 +90,8 @@ actor InferenceProcessingActor {
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             if !compressedDatas.isEmpty {
                 // Standard image path: write display-quality images when available, fall back to
-                // inference-quality (offline-queue reprocessing path with only 1024 px on disk).
+                // inference-quality (offline-queue reprocessing path with only
+                // tier-bounded media on disk).
                 let datasToWrite = displayDatas.isEmpty ? compressedDatas : displayDatas
                 savedPaths = await FileIOActor.shared.writeTemporaryImages(imageDatas: datasToWrite)
                 let persistenceResult = await dbActor.saveLiveScanRecord(

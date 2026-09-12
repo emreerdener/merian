@@ -3,10 +3,10 @@ import UIKit
 /// One staged photograph. Its inference, display, thumbnail, and original
 /// representations stay together so collection indexes cannot drift apart.
 struct StagedImage {
-    /// 1024 px WebP/JPEG payload used for inference, never UI rendering.
+    /// Tier-bounded WebP/JPEG payload used for inference, never UI rendering.
     let compressedData: Data
 
-    /// 2048 px WebP/JPEG persisted for crisp post-inference rendering.
+    /// Display-policy-bounded WebP/JPEG persisted for post-inference rendering.
     let displayData: Data
 
     /// Decoded thumbnail rendered in the active capture toolbar.

@@ -323,10 +323,13 @@ struct ExploreFeedTabContent: View {
     }
 
     private func commonNameOptions(for post: ExplorePost, detail: ExplorePostDetail?) -> [String] {
-        ([postSnapshotCommonName(for: post)] + (detail?.alternativeCommonNames ?? []))
+        let candidates = ([postSnapshotCommonName(for: post)]
+            + (detail?.alternativeCommonNames ?? []))
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-            .removingFuzzyDuplicateNames()
+        return SpeciesCommonNamePresentation.removingFuzzyDuplicates(
+            from: candidates
+        )
     }
 
     private func persistPreferredCommonName(_ name: String, scientificName: String) {

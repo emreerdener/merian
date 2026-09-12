@@ -69,7 +69,7 @@ extension OfflineQueueManager {
                 self.deferredLiveUploadScanIds
             }
             var scanData = await dbActor.fetchPendingScans(
-                limit: MerianConfig.pendingScanFetchLimit,
+                limit: OfflineQueueBatchPolicy.pendingScanFetchLimit,
                 excludingScanIds: initialDeferredLiveUploadIds,
                 allowsVideoUploads: initialAllowsLargeUploads,
                 forcedVideoUploadScanIds: initialForcedLargeUploadIds
@@ -85,7 +85,7 @@ extension OfflineQueueManager {
                 || forcedLargeUploadIds != initialForcedLargeUploadIds
                 || deferredLiveUploadIds != initialDeferredLiveUploadIds {
                 scanData = await dbActor.fetchPendingScans(
-                    limit: MerianConfig.pendingScanFetchLimit,
+                    limit: OfflineQueueBatchPolicy.pendingScanFetchLimit,
                     excludingScanIds: deferredLiveUploadIds,
                     allowsVideoUploads: allowsLargeUploads,
                     forcedVideoUploadScanIds: forcedLargeUploadIds

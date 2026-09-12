@@ -39,11 +39,11 @@ enum ScanPublicationMediaRestorePolicy {
         guard imageCount >= 0,
               videoCount >= 0,
               audioCount >= 0,
-              imageCount <= MerianConfig.mediaStagingMaxImageFilesPerRequest,
-              videoCount <= MerianConfig.mediaStagingMaxVideoFilesPerRequest,
-              audioCount <= MerianConfig.mediaStagingMaxAudioFilesPerRequest,
+              imageCount <= MediaStagingContract.maxImageItemsPerRequest,
+              videoCount <= MediaStagingContract.maxVideoItemsPerRequest,
+              audioCount <= MediaStagingContract.maxAudioItemsPerRequest,
               imageCount + videoCount + audioCount
-                <= MerianConfig.mediaStagingMaxFilesPerRequest else {
+                <= MediaStagingContract.maxUploadItemsPerRequest else {
             throw MerianError.payloadTooLarge
         }
     }
@@ -64,16 +64,16 @@ enum ScanPublicationMediaRestorePolicy {
             let addition = totalImageBytes.addingReportingOverflow(sizeBytes)
             guard sizeBytes > 0,
                   !addition.overflow,
-                  addition.partialValue <= MerianConfig.stagedImagePayloadMaxBytes else {
+                  addition.partialValue <= ScanMediaPayloadPolicy.maxStagedImageBytes else {
                 throw MerianError.payloadTooLarge
             }
             totalImageBytes = addition.partialValue
         }
         guard videoSizes.allSatisfy({
-            $0 > 0 && $0 <= MerianConfig.videoPayloadMaxBytes
+            $0 > 0 && $0 <= ScanMediaPayloadPolicy.maxSavedVideoBytes
         }),
         audioSizes.allSatisfy({
-            $0 > 0 && $0 <= MerianConfig.audioPayloadMaxBytes
+            $0 > 0 && $0 <= ScanMediaPayloadPolicy.maxInferenceAudioBytes
         }) else {
             throw MerianError.payloadTooLarge
         }

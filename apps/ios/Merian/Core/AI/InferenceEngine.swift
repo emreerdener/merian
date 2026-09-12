@@ -102,6 +102,8 @@ import SwiftUI
         SpeciesReferenceHydrationService
     @ObservationIgnored private let identificationReviewService:
         InferenceIdentificationReviewService
+    @ObservationIgnored private let identificationReviewSnapshotService:
+        InferenceReviewSnapshotService
     @ObservationIgnored private let hydrationCoordinator:
         InferenceHydrationCoordinator
     @ObservationIgnored private let writeCoordinator = InferenceWriteCoordinator()
@@ -123,6 +125,8 @@ import SwiftUI
         speciesReferenceService: SpeciesReferenceHydrationService = .live,
         identificationReviewService:
             InferenceIdentificationReviewService = .live,
+        identificationReviewSnapshotService:
+            InferenceReviewSnapshotService = .live,
         hydrationCoordinator: InferenceHydrationCoordinator? = nil,
         requestPaywall: @escaping @MainActor () -> Void = {
             UsageManager.shared.showPaywall = true
@@ -143,6 +147,8 @@ import SwiftUI
         self.liveResultService = liveResultService
         self.speciesReferenceService = speciesReferenceService
         self.identificationReviewService = identificationReviewService
+        self.identificationReviewSnapshotService =
+            identificationReviewSnapshotService
         self.hydrationCoordinator = hydrationCoordinator
             ?? InferenceHydrationCoordinator()
         self.requestPaywall = requestPaywall
@@ -336,7 +342,7 @@ import SwiftUI
 
     private func shouldResetLocalLookalikesCache() -> Bool {
         UserDefaults.standard.integer(forKey: UserDefaultsKeys.localLookalikesCacheResetVersion) <
-        MerianConfig.localLookalikesCacheResetVersion
+        InferenceLookalikeCachePolicy.resetVersion
     }
 
     private func scheduleLocalLookalikesCacheResetIfNeeded(modelContext: ModelContext?) {
@@ -350,7 +356,7 @@ import SwiftUI
             await dbActor.clearAllLocalLookalikesCache()
             await MainActor.run {
                 UserDefaults.standard.set(
-                    MerianConfig.localLookalikesCacheResetVersion,
+                    InferenceLookalikeCachePolicy.resetVersion,
                     forKey: UserDefaultsKeys.localLookalikesCacheResetVersion
                 )
                 Self.localLookalikesCacheResetInFlight = false
@@ -960,8 +966,8 @@ import SwiftUI
     /// - Parameters:
     ///   - scanId: The `OfflineQueuedScan.id` for this capture. Passed to the Edge function
     ///     so the backend can correlate the live response with the queued upload.
-    ///   - imageDatas: 1024 px inference-quality images. Sent to Gemini as base64.
-    ///   - displayDatas: 2048 px display-quality images. Written to disk so the insight
+    ///   - imageDatas: Tier-bounded inference images. Sent to Gemini as base64.
+    ///   - displayDatas: Display-policy-bounded images. Written to disk so the insight
     ///     sheet renders without JPEG blocking artifacts. Never sent to AI.
     ///     Falls back to `imageDatas` when empty (e.g. offline-queue reprocessing path).
     ///   - telemetry: GPS, weather, and device context bundled at capture time.
@@ -1155,7 +1161,7 @@ import SwiftUI
             }
 
             let pipelineStart = CFAbsoluteTimeGetCurrent()
-            let compressedDatas = imageDatas  // 1024 px — only these are base64-encoded for Gemini
+            let compressedDatas = imageDatas  // Only these are base64-encoded for Gemini.
 
             do {
                 // --- Step 1: Pre-flight Checks & Data Preparation ---
@@ -2622,6 +2628,22 @@ import SwiftUI
               expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
             return
         }
+
+        let confirmedSpeciesId: String?
+        do {
+            if let modelContext {
+                confirmedSpeciesId = try identificationReviewSnapshotService
+                    .load(scanId, modelContext)?.speciesId
+            } else {
+                confirmedSpeciesId = nil
+            }
+        } catch {
+            MerianLog.data.error(
+                "confirmAIIdentification: persistence preflight failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return
+        }
+
         let confirmationActionGeneration =
             beginIdentificationConfirmationAction(scanId: scanId)
         hydrationCoordinator.cancelCurrentTask(in: .review)
@@ -2632,13 +2654,6 @@ import SwiftUI
         }
 
         let container = modelContext?.container
-        let confirmedSpeciesId: String?
-        if let context = modelContext {
-            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-            confirmedSpeciesId = (try? context.fetch(descriptor))?.first?.speciesId
-        } else {
-            confirmedSpeciesId = nil
-        }
 
         enqueueIdentificationWrite(
             scanId: scanId,
@@ -2679,20 +2694,28 @@ import SwiftUI
                 expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame,
               let aiName = speciesData?.aiScientificName,
               !aiName.isEmpty else { return }
+
+        let originalAiReasoning: String?
+        do {
+            if let modelContext {
+                originalAiReasoning = try identificationReviewSnapshotService
+                    .load(scanId, modelContext)?.aiReasoning
+            } else {
+                originalAiReasoning = nil
+            }
+        } catch {
+            MerianLog.data.error(
+                "resetIdentificationReview: persistence preflight failed for \(scanId, privacy: .private): \(error, privacy: .private)"
+            )
+            return
+        }
+
         let reviewActionGeneration = beginIdentificationReviewAction(scanId: scanId)
         let flagActionGeneration = beginIdentificationFlagAction(scanId: scanId)
         let presentationGeneration = writeCoordinator.generation
         cancelSpeciesHydrationForIdentificationChange()
 
         let container = modelContext?.container
-        var originalAiReasoning: String?
-        if let context = modelContext {
-            let descriptor = FetchDescriptor<LocalScanRecord>(
-                predicate: #Predicate { $0.id == scanId }
-            )
-            originalAiReasoning = (try? context.fetch(descriptor))?
-                .first?.aiReasoning
-        }
         let restoredReasoning = originalAiReasoning
             ?? speciesData?.aiReasoning
             ?? ""

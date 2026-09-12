@@ -65,6 +65,13 @@ This README maps that contract to native source and test ownership.
   generations, presentation, local persistence, and post-success effects; it
   contains no direct Supabase query or RPC. `AppDIContainer` composes this
   service alongside the live request and result services.
+- `Inference/Services/InferenceReviewSnapshotService.swift` owns the bounded,
+  throwing SwiftData read required before confirmation or reset. It returns only
+  the durable species UUID and original AI reasoning. A missing row remains an
+  optional compatibility result, while a store failure propagates to
+  `InferenceEngine`; the engine then returns before changing presentation,
+  action generations, local state, or cloud state. `AppDIContainer` owns and
+  injects the live value so this failure path is deterministic in tests.
 - `Inference/Result/InferenceScanReplacement.swift` owns the synchronous
   reanalysis metadata safety boundary. Only a typed persisted outcome with
   distinct, non-empty scan IDs and a replacement visible in a fresh store
@@ -107,6 +114,13 @@ This README maps that contract to native source and test ownership.
   `AppDIContainer` owns the live providers and light-impact start feedback and
   injects them through `InferenceEngine` into the lifecycle coordinator.
   Direct/default engine instances keep start feedback inert.
+- `Inference/LocalAnalysis/ScanningPhrasePolicy.swift` owns the accepted Vision
+  confidence and margin plus phrase cadence.
+  `Inference/Result/InferenceConfidencePolicy.swift` owns the Flash/Pro
+  presentation bands and safe unknown-tier fallback.
+  `Inference/Recovery/InferenceLookalikeCachePolicy.swift` owns the versioned
+  local-cache reset marker. These effect-free values stay beside their behavior
+  and do not return to a cross-domain Utilities aggregate.
 - On-device Vision classification runs concurrently with the network request to
   provide scanning phrases. It does not replace or add a Gemini call, and the
   local image and phrase text never enter the request, persistence, analytics,
@@ -279,16 +293,17 @@ requests. Do not independently aggregate audio paths or descriptors: their raw
 input positions are the durable identity used by Edge validation and promotion.
 
 Audio evidence has a format and ownership invariant as well. Provider-bound
-audio must be a local, structurally valid WAV within `audioPayloadMaxBytes`;
-`InferenceEngine` must never reinterpret an HTTPS reference as a Documents path
-or pass M4A directly to ordinary inference. Historical refinement resolves a
-local or secure remote `StoredMediaReference` through `InferenceAudioPreparer`,
-streams remote bytes under the same bound, and creates a new Documents-owned
-mono 44.1 kHz Int16 PCM WAV sidecar. Offline replay uses the queue's freshly
-signed WAV staging keys. M4A remains a playback/restore format and is eligible
-for upload only under `scan_share_restore`. iOS validates new queue sources
-before persistence and Edge independently validates RIFF/WAVE bytes plus the
-complete WAV structure before the provider call.
+audio must be a local, structurally valid WAV within
+`ScanMediaPayloadPolicy.maxInferenceAudioBytes`; `InferenceEngine` must never
+reinterpret an HTTPS reference as a Documents path or pass M4A directly to
+ordinary inference. Historical refinement resolves a local or secure remote
+`StoredMediaReference` through `InferenceAudioPreparer`, streams remote bytes
+under the same bound, and creates a new Documents-owned mono 44.1 kHz Int16 PCM
+WAV sidecar. Offline replay uses the queue's freshly signed WAV staging keys.
+M4A remains a playback/restore format and is eligible for upload only under
+`scan_share_restore`. iOS validates new queue sources before persistence and
+Edge independently validates RIFF/WAVE bytes plus the complete WAV structure
+before the provider call.
 
 External-reference suppressions are also an invariant: they target an immutable
 media identity, never a species name, result index, or provider host. A denied
@@ -545,6 +560,10 @@ records slice completion, integration-audit outcomes, and outstanding runtime
 evidence.
 
 Focused tests live under `apps/ios/MerianTests/Core/AI/`.
+`Core/AI/Inference/InferenceConfidencePolicyTests.swift`,
+`InferenceLookalikeCachePolicyTests.swift`, and
+`ScanningPhrasePolicyTests.swift` freeze the extracted inference thresholds,
+installed cache-reset version, tier fallback, and phrase cadence.
 `Core/AI/Inference/InferenceHydrationCoordinatorTests.swift` covers replacement
 task retention, exact-task awaiting for review replacements, Auth admission and
 drain behavior, stale completion isolation, bounded request histories, persisted
@@ -562,6 +581,10 @@ after image encoding, video upload, or provider return.
 visual/nonvisual persistence inputs, model-context identity, canonical media
 order, exact fence forwarding, typed outcomes, nil/empty compatibility,
 confidence-zero completion, stale/cancelled returns, and the live actor adapter.
+`Core/AI/Inference/InferenceReviewSnapshotServiceTests.swift` proves the live
+bounded projection, preserves the missing-row compatibility result, and shows
+that an unreadable SwiftData store fails confirmation and reset closed before
+observable review state changes.
 `Core/AI/Inference/InferenceLiveResultIntegrationTests.swift` proves both engine
 pipelines use the injected result boundary, publish confidence-zero completion,
 forward the original media timeline and ordered context JSON, preserve persisted

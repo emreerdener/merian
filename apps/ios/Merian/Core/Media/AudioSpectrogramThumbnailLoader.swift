@@ -83,12 +83,12 @@ actor AudioSpectrogramThumbnailLoader {
                 let (temporaryURL, response) = try await URLSession.shared.download(for: request)
                 guard let response = response as? HTTPURLResponse,
                       (200..<300).contains(response.statusCode),
-                      response.expectedContentLength <= Int64(MerianConfig.audioPayloadMaxBytes) else {
+                      response.expectedContentLength <= Int64(ScanMediaPayloadPolicy.maxInferenceAudioBytes) else {
                     return nil
                 }
 
                 let byteSize = try temporaryURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-                guard byteSize <= MerianConfig.audioPayloadMaxBytes else { return nil }
+                guard byteSize <= ScanMediaPayloadPolicy.maxInferenceAudioBytes else { return nil }
 
                 let renderURL = FileManager.default.temporaryDirectory
                     .appendingPathComponent("explore-spectrogram-\(UUID().uuidString).wav")

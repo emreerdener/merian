@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+import Foundation
 import UIKit
 
 /// Thread-safe wrapper around `UIBackgroundTaskIdentifier` for Swift 6 strict concurrency.
@@ -29,7 +30,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
             _id = .invalid
             return oldId
         }
-        
+
         guard idToEnd != .invalid else { return }
         #if os(iOS)
         UIApplication.shared.endBackgroundTask(idToEnd)

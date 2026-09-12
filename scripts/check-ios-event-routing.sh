@@ -38,7 +38,7 @@ is_allowlisted_boundary() {
 is_reviewed_raw_sink_owner() {
   case "$1" in
     Core/Media/MediaPlaybackObservation.swift | \
-      Core/Utilities/Publisher+MainActor.swift | \
+      Core/Hardware/Utilities/Publisher+MainActor.swift | \
       Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift | \
       Features/Scans/Library/ViewModels/ScansManager.swift | \
       Features/Scans/Map/Services/PrivateScanMapStore.swift)

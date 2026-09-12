@@ -1029,8 +1029,9 @@ A dedicated `PHPhotoLibrary` handler.
   retain their true available origin metadata.
 - **OOM Prevention & UI Decoupling**: Live 12MP hardware buffers, gallery
   `PhotosPickerItem` bytes, and files shared from Photos all run through two
-  bounded ImageIO passes — one at `MerianConfig.inferenceImageMaxSize` (1024 px
-  for Pro, 768 px for free/Flash) and one at `MerianConfig.displayImageMaxSize`
+  bounded ImageIO passes — one at
+  `ImagePreparationPolicy.inferenceMaxDimension(isProActive:)` (1024 px for Pro,
+  768 px for free/Flash) and one at `ImagePreparationPolicy.displayMaxDimension`
   (2048 px, written to disk for the insight sheet and scan library). For
   `PhotosPickerItem`, the system uses file-backed transfer to write bytes to a
   temporary sandboxed URL rather than `loadTransferable(type: Data.self)`,

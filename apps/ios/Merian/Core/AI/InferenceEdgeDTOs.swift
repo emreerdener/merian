@@ -1,6 +1,6 @@
 import Foundation
 
-// Using MerianError from Core/Utilities.
+// Uses the shared MerianError taxonomy from Core/Errors.
 
 // BEGIN GENERATED: Identify wire DTOs
 // Generated from services/supabase/functions/_shared/identify/contract.ts.

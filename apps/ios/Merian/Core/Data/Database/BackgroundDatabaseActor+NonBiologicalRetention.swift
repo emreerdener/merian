@@ -92,7 +92,7 @@ extension BackgroundDatabaseActor {
     /// independently. A later foreground may process another batch.
     func purgeExpiredNonBiologicalScans(
         cutoffDate: Date,
-        limit: Int = MerianConfig.nonBiologicalPurgeBatchSize
+        limit: Int = NonBiologicalRetentionPolicy.purgeBatchSize
     ) throws -> ExpiredNonBiologicalPurgeResult {
         var descriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate {

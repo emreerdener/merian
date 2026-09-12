@@ -142,9 +142,12 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
     `EntitlementManager`, `RevenueCatManager`, `SocialGuardManager`
   - `SpeciesReference/`: shared non-UI Wikipedia mobile-sections and GBIF
     taxon-key transport/parsing used by Inference and scan-thumbnail recovery
-  - `Utilities/`: non-visual cross-cutting helpers such as `MerianConfig`,
-    `AppLifecycleManager`, `BackgroundTaskWrapper`, and `FieldNotesRepository`;
-    do not place shared SwiftUI presentation or UIKit presentation bridges here
+  - `Utilities/`: Foundation-only, effect-free mechanical helpers shared by
+    unrelated domains; the current exact owners are cached ISO 8601 formatters
+    and trim-to-non-empty string normalization. Lifecycle belongs to `App`,
+    execution primitives to `Core/Concurrency`, persistence to `Core/Data`,
+    platform bridges to their platform domain, UI to `Core/UI`, and feature
+    terminology to its feature rather than this cross-domain fallback
   - `Analytics/`, `Intents/`
 - `Models/`: Standardized pure Data structures and `SwiftData` logic.
 - `Configuration/`: target-owned Info.plist, entitlement, and privacy-manifest
@@ -247,8 +250,8 @@ dependency audit, tests, type-check, and production build; preserve the required
 - **Image encoding — WebP first, JPEG fallback only through ImageIO**: Image
   payloads produced by the app (inference, display, offline queue, manual crop)
   attempt lossy WebP via `CGImageDestinationCreateWithData` with
-  `UTType.webP.identifier`, using `MerianConfig.imageCompressionQuality`. If
-  ImageIO cannot create a WebP destination in the current runtime, the shared
+  `UTType.webP.identifier`, using `ImagePreparationPolicy.compressionQuality`.
+  If ImageIO cannot create a WebP destination in the current runtime, the shared
   encoder may fall back to `UTType.jpeg` with the same quality setting and the
   client must label the MIME type from the payload magic bytes. Never introduce
   `UIImage.jpegData(compressionQuality:)` or ad hoc JPEG branches outside the

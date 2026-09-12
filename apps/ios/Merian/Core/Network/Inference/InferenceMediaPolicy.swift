@@ -2,7 +2,7 @@ import Foundation
 
 enum InferenceMediaPolicy {
     static let maxInlineBodyBytes = 3_600_000
-    static let maxInlineAudioBytes = MerianConfig.audioPayloadMaxBytes
+    static let maxInlineAudioBytes = ScanMediaPayloadPolicy.maxInferenceAudioBytes
 
     static func validatePayloadBudget(
         imageBase64s: [String],

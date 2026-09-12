@@ -184,9 +184,12 @@ struct ExplorePostDetailSheetContent: View {
     }
 
     private func commonNameOptions(for post: ExplorePost) -> [String] {
-        ([postSnapshotCommonName(for: post)] + (detailViewModel.detail?.alternativeCommonNames ?? []))
+        let candidates = ([postSnapshotCommonName(for: post)]
+            + (detailViewModel.detail?.alternativeCommonNames ?? []))
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-            .removingFuzzyDuplicateNames()
+        return SpeciesCommonNamePresentation.removingFuzzyDuplicates(
+            from: candidates
+        )
     }
 }

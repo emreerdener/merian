@@ -127,18 +127,20 @@ push toggles in `Profile/Settings/Notifications/`, bundled release notes in
 
 Suggested first targets:
 
-| File                                                                                             | Cleanup Direction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`                                                  | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`                                         | Complete for this hygiene round. Eighteen endpoint owners cover the extracted feature, inference, publication, lifecycle, collection-sync, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport.                                                                                                                                                                                                                                                                                        |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                                          | Retired. `Core/Preferences/UserDefaultsKeys.swift` owns the exact unchanged defaults strings; focused Preferences owners retain typed settings, compatibility stores, verified accepted-account-deletion cache inventory, and post-persistence runtime reset. `Core/Data/SpeciesPreferences` owns durable preferred-name state and synchronization. `Core/Security/KeychainKeys.swift` owns exact secure-key strings, and `Core/Security/AccountDeletion/{Models,Stores}` owns deletion recovery phases, manual-provider notice state, secure proof storage, and pre-Auth barrier restoration. Mirrored suites freeze every installed key string, declaration and test ownership, local-only effects, compatibility behavior, and the 600-line ceiling.                                                                                                                                                                                                                                                                                              |
-| `apps/ios/Merian/Core/Utilities/{ImageDownsampler,ImageFocusRegionDetector,SizeEstimator}.swift` | Retired. Shared stateless ImageIO downsampling lives in `Core/Data/Images`; Capture-only focus detection lives in `Features/Capture/Shared/Services`; and optional Capture telemetry size estimation lives in `Features/Capture/Submission/Services`. Mirrored suites and architecture guards freeze the new owners, retired paths, framework/effect boundaries, and 600-line ceilings.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `apps/ios/Merian/Core/Utilities/{ShimmerModifier,ShareSheetUtility}.swift`                       | Retired. The retained cross-feature glow skeleton lives in `Core/UI/Components/Loading`; the sole main-actor UIKit activity-controller bridge is `Core/UI/Services/ShareSheetPresenter`; and the unused shimmer modifier/extension are removed. Core UI architecture coverage freezes sole ownership, retired paths, effect placement, and the existing visual and presentation contracts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `apps/ios/Merian/Core/Utilities/ExploreErrorFormatter.swift`                                     | Retired. The unchanged customer-safe mapping now lives in `Features/Explore/Shared/Models/ExploreErrorFormatter.swift`; its focused behavioral and ownership suites live in `MerianTests/Features/Explore/Shared`. The policy remains effect-free, callers retain task/retry/logging/presentation state, and the former Utilities source and mixed `MerianConfigTests` ownership are guarded against returning.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `apps/ios/Merian/Core/Utilities/FieldTripsAvailability.swift`                                    | Retired. App-wide client-build flags and DEBUG-only overrides live in `Configuration/FeatureFlags.swift`; the Field Trips-only standard-outing sharing policy lives in `Features/Explore/FieldTrips/Models/FieldTripSharingAvailability.swift`. Focused tests mirror both owners and freeze the installed override keys, architecture coverage freezes the split, and the DwC-A launch contract follows the configuration source.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`                          | Retired. Capture admission and live handoff, funding, Field Trip progress, and uploaded-scan inference replay now have focused Services owners; retry mutations remain in `OfflineQueueDurability.swift`. All production files in this slice are below 600 lines, and mirrored suites plus hosted-result validation follow the new ownership.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift`                     | Retired. Passes 5A through 5G moved terminal tracking, Auth quiescence, exact owner adoption, terminal routing, and delegate conformance into `Services/BackgroundTransfer`; generation-fenced upload completion into `Services/MediaUpload`; queued-row lookup/mapping and mirrored durable authority into `Persistence`; actor-independent inference decisions into `Policies`; and inference generation lifecycle, request dispatch, accepted task-result/transport-failure completion, delayed status probing, exact-generation task retirement, server-result recovery, durable-authority orphan reconciliation, and retry/server-poll lifetime plus response-to-persistence finalization into eight focused `Services/BackgroundInference` files. Both inference retry paths restore the durable wake immediately after persistence, before post-save ownership revalidation and optional process-local replacement. All nine Background Inference production owners, including policy, are below 600 lines.                                   |
-| `apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift`                               | Complete for the actor aggregate. Collection sync lives across an immutable OfflineSync snapshot, an injected account-lease service, a persistence-only actor extension, and a Core Network endpoint owner. Queue selection, upload lifecycle, background-account work, inference lifecycle, inference retry, live/offline scan finalization, shared scan-record support, species metadata, and non-biological retention have separate persistence-only extensions with mirrored behavior and repository-wide architecture tests. An actor-isolated support extension reconciles the durable scan/job retry mirror for only upload and focused inference persistence. A source audit removed the speculative queued-audio repair path; the final unsupported-audio claim fence now lives with inference lifecycle. The declaration-only aggregate is 9 lines. Cross-domain background finalization, stateless record/media mapping, and shared foreground/background response preparation have focused owners with no schema, payload, or UI change. |
+| File                                                                                                                                               | Cleanup Direction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`                                                                                                    | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`                                                                                           | Complete for this hygiene round. Eighteen endpoint owners cover the extracted feature, inference, publication, lifecycle, collection-sync, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport.                                                                                                                                                                                                                                                                                        |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                                                                                            | Retired. `Core/Preferences/UserDefaultsKeys.swift` owns the exact unchanged defaults strings; focused Preferences owners retain typed settings, compatibility stores, verified accepted-account-deletion cache inventory, and post-persistence runtime reset. `Core/Data/SpeciesPreferences` owns durable preferred-name state and synchronization. `Core/Security/KeychainKeys.swift` owns exact secure-key strings, and `Core/Security/AccountDeletion/{Models,Stores}` owns deletion recovery phases, manual-provider notice state, secure proof storage, and pre-Auth barrier restoration. Mirrored suites freeze every installed key string, declaration and test ownership, local-only effects, compatibility behavior, and the 600-line ceiling.                                                                                                                                                                                                                                                                                              |
+| `apps/ios/Merian/Core/Utilities/{ImageDownsampler,ImageFocusRegionDetector,SizeEstimator}.swift`                                                   | Retired. Shared stateless ImageIO downsampling lives in `Core/Data/Images`; Capture-only focus detection lives in `Features/Capture/Shared/Services`; and optional Capture telemetry size estimation lives in `Features/Capture/Submission/Services`. Mirrored suites and architecture guards freeze the new owners, retired paths, framework/effect boundaries, and 600-line ceilings.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `apps/ios/Merian/Core/Utilities/{ShimmerModifier,ShareSheetUtility}.swift`                                                                         | Retired. The retained cross-feature glow skeleton lives in `Core/UI/Components/Loading`; the sole main-actor UIKit activity-controller bridge is `Core/UI/Services/ShareSheetPresenter`; and the unused shimmer modifier/extension are removed. Core UI architecture coverage freezes sole ownership, retired paths, effect placement, and the existing visual and presentation contracts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `apps/ios/Merian/Core/Utilities/ExploreErrorFormatter.swift`                                                                                       | Retired. The unchanged customer-safe mapping now lives in `Features/Explore/Shared/Models/ExploreErrorFormatter.swift`; its focused behavioral and ownership suites live in `MerianTests/Features/Explore/Shared`. The policy remains effect-free, callers retain task/retry/logging/presentation state, and the former Utilities source and mixed `MerianConfigTests` ownership are guarded against returning.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `apps/ios/Merian/Core/Utilities/FieldTripsAvailability.swift`                                                                                      | Retired. App-wide client-build flags and DEBUG-only overrides live in `Configuration/FeatureFlags.swift`; the Field Trips-only standard-outing sharing policy lives in `Features/Explore/FieldTrips/Models/FieldTripSharingAvailability.swift`. Focused tests mirror both owners and freeze the installed override keys, architecture coverage freezes the split, and the DwC-A launch contract follows the configuration source.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `apps/ios/Merian/Core/Utilities/MerianConfig.swift`                                                                                                | Retired. Its unrelated constants now have focused AI, Database, Images, OfflineSync, and Media policy owners. Exact values and helper semantics are preserved, the mixed test suite is split beside those owners, and a repository-wide architecture guard prevents the aggregate or duplicate declarations from returning.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `apps/ios/Merian/Core/Utilities/{AppLifecycleManager,Array+Safe,BackgroundTaskWrapper,FieldNotesRepository,MerianError,Publisher+MainActor}.swift` | Retired. Lifecycle, concurrency, persistence, Offline Sync execution/connectivity, error taxonomy, hardware publisher delivery, Core UI safe access, and Species Reference name presentation now have focused owners and mirrored suites. The unused generic array deduplication API is removed. `Core/Utilities` retains exactly the Foundation-only date and string helpers under a whole-folder architecture guard.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`                                                                            | Retired. Capture admission and live handoff, funding, Field Trip progress, and uploaded-scan inference replay now have focused Services owners; retry mutations remain in `OfflineQueueDurability.swift`. All production files in this slice are below 600 lines, and mirrored suites plus hosted-result validation follow the new ownership.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift`                                                                       | Retired. Passes 5A through 5G moved terminal tracking, Auth quiescence, exact owner adoption, terminal routing, and delegate conformance into `Services/BackgroundTransfer`; generation-fenced upload completion into `Services/MediaUpload`; queued-row lookup/mapping and mirrored durable authority into `Persistence`; actor-independent inference decisions into `Policies`; and inference generation lifecycle, request dispatch, accepted task-result/transport-failure completion, delayed status probing, exact-generation task retirement, server-result recovery, durable-authority orphan reconciliation, and retry/server-poll lifetime plus response-to-persistence finalization into eight focused `Services/BackgroundInference` files. Both inference retry paths restore the durable wake immediately after persistence, before post-save ownership revalidation and optional process-local replacement. All nine Background Inference production owners, including policy, are below 600 lines.                                   |
+| `apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift`                                                                                 | Complete for the actor aggregate. Collection sync lives across an immutable OfflineSync snapshot, an injected account-lease service, a persistence-only actor extension, and a Core Network endpoint owner. Queue selection, upload lifecycle, background-account work, inference lifecycle, inference retry, live/offline scan finalization, shared scan-record support, species metadata, and non-biological retention have separate persistence-only extensions with mirrored behavior and repository-wide architecture tests. An actor-isolated support extension reconciles the durable scan/job retry mirror for only upload and focused inference persistence. A source audit removed the speculative queued-audio repair path; the final unsupported-audio claim fence now lives with inference lifecycle. The declaration-only aggregate is 9 lines. Cross-domain background finalization, stateless record/media mapping, and shared foreground/background response preparation have focused owners with no schema, payload, or UI change. |
 
 Rules for this phase:
 
@@ -2918,7 +2920,7 @@ activation-before-resume ordering checks with the dispatch owner.
 
 Documentation closure redirects current upload/retry references to the focused
 owners and corrects the historical-ingest checkpoint documentation from 50 to
-the existing `MerianConfig` value of 100. Neither correction changes runtime
+the then-existing centralized value of 100. Neither correction changes runtime
 policy.
 
 Verification for this slice includes byte-stable XcodeGen output, project and
@@ -5110,6 +5112,222 @@ of the app, unit-test, and UI-test targets. Actual Simulator test execution is
 not claimed for this local run because CoreSimulatorService is unavailable. No
 endpoint, payload, backend, authorization, persistence, schema, navigation,
 copy, layout, or release-state behavior changes.
+
+### Domain-owned Core policy constants
+
+The seventh Core Utilities hygiene slice retires `MerianConfig.swift`, which had
+become a dependency hub for unrelated AI, image, database, offline-queue, and
+media decisions. Each unchanged value now lives beside its behavior:
+
+- `InferenceConfidencePolicy`, `ScanningPhrasePolicy`, and
+  `InferenceLookalikeCachePolicy` live under `Core/AI/Inference`;
+- `HistoricalSyncPolicy` and `NonBiologicalRetentionPolicy` live under
+  `Core/Data/Database`;
+- `ImagePreparationPolicy` lives under `Core/Data/Images/Policies`;
+- `OfflineQueueBatchPolicy`, `MediaStagingContract`, and
+  `OfflineQueueStoragePolicy` live under `Core/Data/OfflineSync/Policies`; and
+- `ScanMediaPayloadPolicy` lives under `Core/Media` because Capture, Images,
+  OfflineSync, Network, Profile, and Media share its byte ceilings.
+
+The split preserves the exact retention and purge limits; queue batch, fetch,
+count, and storage limits; historical page and checkpoint sizes; cache reset
+version; image quality and dimensions; Flash/Pro confidence bands and fallback;
+Vision thresholds and phrase cadence; and image/audio/video payload and playback
+targets. It changes no endpoint, JSON, SwiftData schema, persistence state,
+navigation, feature flag, entitlement, layout, copy, or runtime effect.
+
+The mixed `MerianConfigTests.swift` suite is removed. Environment validation now
+lives in `MerianTests/Configuration/MerianEnvironmentTests.swift`; focused AI,
+Database, Images, OfflineSync, and Media suites freeze their own values and
+helper semantics. `CorePolicyOwnershipArchitectureTests` enforces one
+declaration per owner with an exact name boundary, focused test presence,
+effect-free imports and bodies, selected live image-policy consumer links, the
+retired source/test paths, and a 200-line ceiling for the pure policy files.
+Existing domain architecture inventories include the new sources and tests.
+
+Initial verification covered byte-stable XcodeGen output, project/resource and
+source membership, recursive Swift parsing, strict SwiftLint, the
+code-signing-disabled generic iOS Simulator build-for-testing for app,
+unit-test, and UI-test targets, Markdown formatting, and whitespace validation.
+On the booted iOS 26.5 Simulator, the initial 26-test focused policy and
+architecture matrix passed across 11 suites. The complete `merianTests` target
+also passed with zero failures; its result bundle reported 3,395 passed tests,
+while Swift Testing reported 2,458 tests across 375 suites.
+
+A follow-up audit found four live recrop/display paths that still embedded the
+same 1,024 or 2,048 pixel values and a declaration-owner matcher that admitted
+longer names sharing a policy prefix. The live paths now reference
+`ImagePreparationPolicy`; its maximum inference cap is derived from the Flash
+and Pro caps; and the architecture matcher requires a declaration boundary and
+freezes those consumer links. The focused matrix therefore contains 27 tests
+across the same 11 suites. Byte-stable XcodeGen, project/source membership,
+recursive Swift parsing, strict SwiftLint, and the generic build-for-testing
+pass on the reviewed source. CoreSimulatorService became unavailable before the
+revised 27-test matrix or complete target could be executed at that checkpoint.
+The later Core Utilities-wide integration audit's final complete `merianTests`
+run covered the corrected policy links and strengthened guards and passed 2,467
+tests across 380 suites. The final documentation audit records the domain owners
+in their local READMEs, the Core map, testing and manager guides,
+image/offline/AI architecture contracts, and the canonical API threshold
+contract; no current document points to `MerianConfig` as a live owner.
+
+### Core Utilities-wide integration audit
+
+The eighth and closing Core Utilities slice audits every remaining declaration
+and consumer instead of preserving the folder as a generic holding area.
+`Core/Utilities` now contains exactly two Foundation-only mechanical value
+helpers: cached ISO 8601 formatters and trim-to-non-empty string normalization.
+Both remain effect-free and below 100 lines.
+
+Declarations with a narrower responsibility now live beside that behavior:
+
+- `AppLifecycleManager` and its tests move to `App/Lifecycle`;
+- `DetachedWork` moves out of `AppDIContainer` into `Core/Concurrency`;
+- `FieldNotesRepository` and its tests move to `Core/Data/FieldNotes`;
+- `BackgroundTaskWrapper` and `ScanConnectivityFailurePolicy` move with their
+  tests to `Core/Data/OfflineSync`;
+- `MerianError` moves to `Core/Errors` without absorbing retry or presentation
+  policy;
+- `Publisher.sinkOnMainActor` moves with its focused ordering test to
+  `Core/Hardware/Utilities`;
+- bounds-safe array access moves to `Core/UI/Utilities`; and
+- species common-name normalization and fuzzy deduplication move to
+  `Features/SpeciesReference/Models` with explicit namespace calls from Explore
+  and Insights.
+
+The unused generic `Array.removingDuplicates()` API is removed. The mixed
+`EventDeliveryTests` aggregate is split between Hardware publisher delivery and
+Core Media playback observation. The Field Notes move also closes a correctness
+gap exposed by Core Data's existing fail-closed architecture rule: SwiftData
+fetch failures now log and return failure instead of collapsing into “row
+absent” and allowing a stale defaults value to override unreadable durable
+state. Successful reads, writes, legacy promotion, public-to-local repair,
+visible behavior, callable production names, payloads, schemas, routes, and
+platform behavior remain unchanged.
+
+`CoreUtilitiesArchitectureTests` freezes the exact two-file inventory, imports,
+effect exclusions, 100-line ceiling, sole declaration and member owners,
+mirrored tests, removed helpers, throwing Field Notes reads, and retired paths.
+Existing Core Data, policy, inference, event-routing, project, and
+source-membership gates remain part of the closure matrix. The local READMEs,
+Core map, lifecycle, error, manager, testing, concurrency, routing, and feature
+ownership contracts now point to the focused owners.
+
+Final verification covered byte-stable XcodeGen output, project/resource and
+source membership, recursive Swift parsing, strict SwiftLint, the
+code-signing-disabled generic iOS Simulator build-for-testing for app,
+unit-test, and UI-test targets, the focused Utilities matrix, event-routing
+validation and adversarial tests, Markdown formatting, and whitespace
+validation. The first complete target run exposed that the relocated scan
+connectivity policy was missing from Offline Sync's exact owner inventory; the
+inventory now freezes its declaration, path, imports, and effect-free policy
+boundary. Its focused architecture suite then passed 5 tests, and the final
+complete `merianTests` rerun passed 2,467 tests across 380 suites on the booted
+iOS 26.5 Simulator.
+
+A final review found that the whole-folder architecture suite froze the
+relocated `DetachedWork` executor but not its coupled `DetachedWorkCategory`
+taxonomy. The owner inventory now freezes both exact declarations in
+`Core/Concurrency/DetachedWork.swift`, and the local owner README, codebase map,
+concurrency architecture, manager guide, and testing strategy state that
+boundary explicitly. The same review corrected the earlier policy-checkpoint
+note so it no longer obscures the later successful complete-target run. No
+production source or runtime contract changed.
+
+Post-review verification passed repeated byte-stable XcodeGen, project/resource
+and source-membership guards, event-routing validation, the complete iOS CI
+tooling suite, Swift parsing, strict lint, Markdown and Deno formatting, and
+whitespace validation. A code-only unsigned generic iOS device
+`build-for-testing` compiled the app and test targets with asset catalogs and
+storyboards excluded. Full resource compilation and Simulator execution were not
+rerun because CoreSimulatorService was unavailable; the preceding complete
+Simulator build and 2,467-test run remain the behavioral evidence for the
+unchanged production source.
+
+### Post-refactor Core-wide integration audit
+
+After the domain-by-domain Core passes, a cross-domain audit reviewed the final
+ownership graph rather than selecting another large file immediately. The Core
+root now has an explicit local contract: only `AppDIContainer.swift` and
+`MerianLog.swift` are root Swift owners, every domain supplies its own README,
+Policies remain bounded and stateless, and reusable Core UI components do not
+read transport or persistence directly. The Core guard bans network, SwiftData,
+application, preference, task, and singleton acquisition from Policies while an
+exact allowlist records the already-documented local-file, clock, and jitter
+inputs in Offline Sync, Store Recovery, and RevenueCat access policy.
+
+The audit found two identification-review reads in `InferenceEngine` that used
+`try?` and therefore treated an unreadable SwiftData store like an absent row.
+`InferenceReviewSnapshotService` now owns one bounded, throwing projection of
+the durable species UUID and original AI reasoning. AppDI injects the live
+value. Confirmation and reset preflight that read and return before changing
+presentation, action generations, local state, or cloud state when durable
+authority cannot be read. A missing row retains the established optional-value
+compatibility path. Focused tests cover the live projection and both fail-closed
+engine paths.
+
+The same audit made raw local file paths, media filenames, localized error
+descriptions, and a server-supplied terminal failure message private in the
+reviewed Core database, Offline Sync, and camera diagnostics. Stable internal
+scan/generation/status identifiers remain public where they are necessary to
+correlate lifecycle events; no payload, response body, credential, account
+state, or raw coordinate was added to logs.
+
+`CoreIntegrationArchitectureTests` freezes the root/domain inventory, README
+coverage, policy boundaries and exact local-input exceptions, the Core-wide ban
+on `try?` SwiftData fetches, and privacy-safe diagnostic interpolation. Its
+privacy patterns self-test raw errors, multiline localized descriptions, server
+messages, and local paths while permitting bounded error kinds and fixed safe
+messages. It also records the exact residual production files above the 600-line
+review ceiling:
+
+- `Core/AI/InferenceEngine.swift`
+- `Core/Network/ExploreAPIModels.swift`
+- `Core/Network/FieldTripAPIModels.swift`
+- `Core/Network/SupabaseManager.swift`
+- `Core/Security/ConsentManager.swift`
+
+The inventory prevents silent growth or drift; it does not exempt these owners
+from later behavior-preserving splits. This audit changes no endpoint, JSON,
+SwiftData schema, migration, persistence state, route, entitlement, copy,
+layout, or deployment contract.
+
+Candidate verification includes byte-stable XcodeGen output, project/resource
+and source-membership guards, event-routing validation, recursive Swift parsing,
+strict SwiftLint, static mirrors of the new architecture assertions, Markdown
+and Deno formatting, whitespace validation, and a code-signing-disabled generic
+iOS device `build-for-testing` of the app, unit-test, and UI-test targets. The
+current source and all new tests compile. CoreSimulatorService became
+unavailable before the focused or complete runtime suites could be rerun; the
+latest complete Simulator baseline remains 2,467 tests across 380 suites, and
+runtime execution is explicitly outstanding for this candidate.
+
+A follow-up review corrected the initial Core-wide wording, which had described
+every Policy as deterministic and effect-free even though the established
+Offline Sync contract explicitly permits stateless local-file inspection and
+bounded jitter, Store Recovery accepts an injected file manager, and two policy
+owners default their clock input. The architecture suite now freezes those exact
+exceptions instead of silently omitting them, expands the shared-component
+effect exclusions, and proves its diagnostic regexes reject sensitive public
+interpolation without rejecting bounded public error kinds. The review snapshot
+suite also locks the missing-row result separately from store failure. These are
+guard, test, and documentation corrections only; production behavior is
+unchanged.
+
+Documentation closure cross-checked the iOS structure, Core root/AI/Data
+READMEs, codebase map, manager guide, AI architecture and system overview,
+testing strategy, and this RFC against the final source and test owners. It
+corrected the last global effect-free-policy wording and attributes composition
+guarantees to the Core-wide and domain suites together. Post-correction
+verification passed repeated byte-stable tracked XcodeGen output, the unsigned
+generic iOS device `build-for-testing`, project/resource and source-membership
+guards, event-routing validation and adversarial tests, the complete iOS
+CI-tooling suite, Swift parsing, strict SwiftLint with zero violations across
+2,384 files, changed-Markdown and exact Supabase Deno formatting, and whitespace
+validation. The booted iOS 26.5 Simulator became visible again, but
+CoreSimulatorService failed when `xcodebuild` connected, so focused runtime
+execution remains outstanding and the preceding 2,467-test baseline remains the
+latest complete Simulator evidence.
 
 ## Phase 3: Ownership Cleanup
 

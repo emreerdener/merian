@@ -459,10 +459,11 @@ production Shell and Library file remains below the 600-line review guard.
   `NonBiologicalScansViewModel`, which derives both the visible projection and
   bulk-deletion state without another SwiftData query. The catalog count uses
   the same Shell record set. Expired local non-biological records are purged
-  after `MerianConfig.nonBiologicalRetentionDays` through the feature's injected
-  service and `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)`
-  on app foreground and again when the destination opens, preserving the
-  save-first tombstone and file-cleanup contract. The focused
+  after `NonBiologicalRetentionPolicy.retentionDays` through the feature's
+  injected service and
+  `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)` on app
+  foreground and again when the destination opens, preserving the save-first
+  tombstone and file-cleanup contract. The focused
   `BackgroundDatabaseActor+NonBiologicalRetention.swift` extension owns the
   bounded SwiftData selection and atomic record/tombstone commit. Its retention
   result distinguishes accepted erasures from rows actually deleted;

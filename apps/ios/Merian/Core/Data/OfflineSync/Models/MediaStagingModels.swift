@@ -21,11 +21,11 @@ enum StagedMediaKind: String, Codable, Sendable, Equatable {
     var maxStagedBytes: Int {
         switch self {
         case .image:
-            return MerianConfig.stagedImagePayloadMaxBytes
+            return ScanMediaPayloadPolicy.maxStagedImageBytes
         case .audio:
-            return MerianConfig.audioPayloadMaxBytes
+            return ScanMediaPayloadPolicy.maxInferenceAudioBytes
         case .video:
-            return MerianConfig.videoPayloadMaxBytes
+            return ScanMediaPayloadPolicy.maxSavedVideoBytes
         }
     }
 

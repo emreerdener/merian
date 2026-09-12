@@ -680,38 +680,39 @@ exact batch volume to the UI. The generation is the same UUID stored on the
 active upload batch and encoded into every URLSession upload task created by
 that batch.
 
-Batch sizing is governed by `MerianConfig`:
+Batch sizing is divided by responsibility:
 
-- **`pendingScanFetchLimit`** (50): maximum runnable `OfflineQueuedScan` records
-  returned per cycle by `BackgroundDatabaseActor.fetchPendingScans(limit:)`. The
-  focused queue-selection actor extension may inspect additional deterministic
-  pages to move past future-dated retries, deferred live uploads, and
-  network-blocked videos.
-- **`uploadBatchSize`** (5): maximum scans considered for R2 staging per cycle.
-  Selection scans the full bounded runnable window, skips empty rows and
-  non-fitting combinations, and admits later work that still fits. A malformed
-  empty `.pending` row becomes needs-attention rather than remaining an
-  invisible queue blocker; its serialized quarantine rechecks state and media
-  before committing queue/job/event state. The selected scan batch is
-  additionally capped by `MediaStagingContract.maxUploadItemsPerRequest` /
-  `MerianConfig.mediaStagingMaxFilesPerRequest` to the `generate-upload-urls`
+- **`OfflineQueueBatchPolicy.pendingScanFetchLimit`** (50): maximum runnable
+  `OfflineQueuedScan` records returned per cycle by
+  `BackgroundDatabaseActor.fetchPendingScans(limit:)`. The focused
+  queue-selection actor extension may inspect additional deterministic pages to
+  move past future-dated retries, deferred live uploads, and network-blocked
+  videos.
+- **`OfflineQueueBatchPolicy.uploadBatchSize`** (5): maximum scans considered
+  for R2 staging per cycle. Selection scans the full bounded runnable window,
+  skips empty rows and non-fitting combinations, and admits later work that
+  still fits. A malformed empty `.pending` row becomes needs-attention rather
+  than remaining an invisible queue blocker; its serialized quarantine rechecks
+  state and media before committing queue/job/event state. The selected scan
+  batch is additionally capped by
+  `MediaStagingContract.maxUploadItemsPerRequest` to the `generate-upload-urls`
   limit of 6 media files total. This covers the canonical Pro video shape (five
   sampled inference frames plus one playback clip) while keeping mixed scans
   inside the pre-signed URL contract.
-- **`mediaStagingMaxAudioFilesPerRequest`** (2): maximum audio files in one
-  upload-signing request, matching the Edge parser and the documented
+- **`MediaStagingContract.maxAudioItemsPerRequest`** (2): maximum audio files in
+  one upload-signing request, matching the Edge parser and the documented
   cross-language contract in
   `docs/contracts/media-staging-upload-manifest.json`. Ordinary inference audio
   is `audio/wav` only. `audio/mp4` is reserved for a deterministic
   `scan_share_restore` request whose filename ends in `.m4a`.
-- **`mediaStagingMaxImageFilesPerRequest`** (5): maximum images in one signing
-  request. The sixth total slot is reserved for the canonical five-frame plus
-  one-playback-video shape, not a sixth still.
-- **`mediaStagingMaxVideoFilesPerRequest`** (1): maximum video files in one
-  upload-signing request, with `video/mp4` as the canonical queued content type.
-  New Pro video captures prefer a compressed 720p playback clip of roughly 3 MB
-  before upload while retaining the 12 MB hard cap for capture-time bounding,
-  compatibility, and fallback when export is slow or unavailable.
+- **`MediaStagingContract.maxImageItemsPerRequest`** (5): maximum images in one
+  signing request. The sixth total slot is reserved for the canonical five-frame
+  plus one-playback-video shape, not a sixth still.
+- **`MediaStagingContract.maxVideoItemsPerRequest`** (1): maximum video files in
+  one upload-signing request, with `video/mp4` as the canonical queued content
+  type. New Pro video captures prefer a compressed 720p playback clip of roughly
+  3 MB before upload while retaining the 12 MB hard cap for capture-time
+  bounding, compatibility, and fallback when export is slow or unavailable.
 
 Before upload tasks are dispatched, `MediaStagingContract` builds the canonical
 staging manifest: sanitized filename, deterministic
@@ -1983,8 +1984,8 @@ not resolve Supabase or construct scan/collection queries directly.
 Both the scans and collections queries are paginated via Supabase PostgREST's
 `.range(from:to:)` to prevent OOM on accounts with large histories:
 
-- Scans: pages of `MerianConfig.historicalSyncPageSize` (200) records
-- Collections: pages of `MerianConfig.collectionsSyncPageSize` (100) records
+- Scans: pages of `HistoricalSyncPolicy.scanPageSize` (200) records
+- Collections: pages of `HistoricalSyncPolicy.collectionPageSize` (100) records
 
 Each loop runs until the raw returned page is smaller than the page size,
 indicating the last page. Scan pagination uses the remote row count before
@@ -2030,10 +2031,10 @@ Each page passes through these steps inside the actor:
    to push before the downward sync.
 3. **`ingestScans`**: Inserts new `LocalScanRecord` rows for cloud records
    absent locally entirely. Checkpoint-saves every
-   `MerianConfig.ingestCheckpointInterval` (100) records to limit data loss if a
-   background task is killed mid-ingest. Rows with invalid timestamps are
-   skipped and excluded from the returned insertion count. SwiftData read and
-   save failures abort the page as retryable local failures instead of being
+   `HistoricalSyncPolicy.ingestCheckpointInterval` (100) records to limit data
+   loss if a background task is killed mid-ingest. Rows with invalid timestamps
+   are skipped and excluded from the returned insertion count. SwiftData read
+   and save failures abort the page as retryable local failures instead of being
    treated as an empty successful reconciliation. _Crucially, it defaults
    `hasBeenViewed: true` when instantiating the record to prevent re-installing
    users from being inundated with thousands of "New" badges on their historical
@@ -2105,24 +2106,26 @@ filter locally:
 private var cleanRecords: [LocalScanRecord] { rawRecords.filter { $0.isBiological } }
 ```
 
-## Centralized Configuration (`MerianConfig`)
+## Sync policy owners
 
-All magic numbers governing the sync pipeline live in `MerianConfig.swift`
-(Core/Utilities):
+The pipeline uses focused, domain-local owners instead of one cross-domain
+configuration aggregate:
 
-| Constant                              | Value  | Purpose                                                              |
-| ------------------------------------- | ------ | -------------------------------------------------------------------- |
-| `uploadBatchSize`                     | 5      | Scans dispatched per sync cycle                                      |
-| `pendingScanFetchLimit`               | 50     | `OfflineQueuedScan` records fetched per cycle                        |
-| `mediaStagingMaxFilesPerRequest`      | 6      | Media files allowed by `generate-upload-urls` per request            |
-| `mediaStagingMaxVideoFilesPerRequest` | 1      | Video files allowed by `generate-upload-urls` per request            |
-| `stagedImagePayloadMaxBytes`          | 5 MB   | Maximum staged image bytes fetched by edge inference                 |
-| `audioPayloadMaxBytes`                | 2.7 MB | Maximum inline or staged audio bytes accepted for inference          |
-| `videoPlaybackExpectedMaxBytes`       | 3 MB   | Client-side target for preferred compressed Pro video playback clips |
-| `videoPayloadMaxBytes`                | 12 MB  | Hard maximum staged video bytes accepted for persistence             |
-| `historicalSyncPageSize`              | 200    | Records per page for scans rehydration                               |
-| `collectionsSyncPageSize`             | 100    | Records per page for collections rehydration                         |
-| `ingestCheckpointInterval`            | 100    | SwiftData save frequency during bulk ingest                          |
+| Owner and value                                                  | Purpose                                                              |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `OfflineQueueBatchPolicy.uploadBatchSize` = 5                    | Scans dispatched per sync cycle                                      |
+| `OfflineQueueBatchPolicy.pendingScanFetchLimit` = 50             | `OfflineQueuedScan` records fetched per cycle                        |
+| `MediaStagingContract.maxUploadItemsPerRequest` = 6              | Media files allowed by `generate-upload-urls` per request            |
+| `MediaStagingContract.maxVideoItemsPerRequest` = 1               | Video files allowed by `generate-upload-urls` per request            |
+| `ScanMediaPayloadPolicy.maxStagedImageBytes` = 5 MiB             | Maximum staged image bytes fetched by edge inference                 |
+| `ScanMediaPayloadPolicy.maxInferenceAudioBytes` = 2.7 MB         | Maximum inline or staged audio bytes accepted for inference          |
+| `ScanMediaPayloadPolicy.videoPlaybackExpectedMaxBytes` = 3 MiB   | Client-side target for preferred compressed Pro video playback clips |
+| `ScanMediaPayloadPolicy.maxSavedVideoBytes` = 12 MiB             | Hard maximum staged video bytes accepted for persistence             |
+| `OfflineQueueStoragePolicy.minimumFreeDiskBytes` = 100 MiB       | Free-space reserve after queue admission                             |
+| `OfflineQueueStoragePolicy.singlePayloadSoftLimitBytes` = 25 MiB | Soft ceiling for one queued payload                                  |
+| `HistoricalSyncPolicy.scanPageSize` = 200                        | Records per page for scans rehydration                               |
+| `HistoricalSyncPolicy.collectionPageSize` = 100                  | Records per page for collections rehydration                         |
+| `HistoricalSyncPolicy.ingestCheckpointInterval` = 100            | SwiftData save frequency during bulk ingest                          |
 
 ## 2026-04 Hardening Updates
 

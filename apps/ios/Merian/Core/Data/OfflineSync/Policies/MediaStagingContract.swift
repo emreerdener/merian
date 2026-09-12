@@ -1,7 +1,10 @@
 import Foundation
 
 enum MediaStagingContract {
-    static let maxUploadItemsPerRequest = MerianConfig.mediaStagingMaxFilesPerRequest
+    static let maxUploadItemsPerRequest = 6
+    static let maxImageItemsPerRequest = 5
+    static let maxAudioItemsPerRequest = 2
+    static let maxVideoItemsPerRequest = 1
     private static let uploadTaskPrefix = "upload"
     private static let accountOwnedUploadTaskPrefix = "upload_v2"
 
@@ -247,16 +250,16 @@ enum MediaStagingContract {
 
             if item.mediaKind == .image {
                 imageItemCount += 1
-                guard imageItemCount <= MerianConfig.mediaStagingMaxImageFilesPerRequest else {
+                guard imageItemCount <= maxImageItemsPerRequest else {
                     throw MerianError.payloadTooLarge
                 }
                 totalImageBytes += size
-                guard totalImageBytes <= MerianConfig.stagedImagePayloadMaxBytes else {
+                guard totalImageBytes <= ScanMediaPayloadPolicy.maxStagedImageBytes else {
                     throw MerianError.payloadTooLarge
                 }
             } else if item.mediaKind == .audio {
                 audioItemCount += 1
-                guard audioItemCount <= MerianConfig.mediaStagingMaxAudioFilesPerRequest else {
+                guard audioItemCount <= maxAudioItemsPerRequest else {
                     throw MerianError.payloadTooLarge
                 }
                 guard item.contentType == "audio/wav",
@@ -268,7 +271,7 @@ enum MediaStagingContract {
                 }
             } else {
                 videoItemCount += 1
-                guard videoItemCount <= MerianConfig.mediaStagingMaxVideoFilesPerRequest else {
+                guard videoItemCount <= maxVideoItemsPerRequest else {
                     throw MerianError.payloadTooLarge
                 }
             }

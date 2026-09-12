@@ -22,7 +22,7 @@ struct SpeciesDictionaryCatalogRemoteImage: View {
             guard let sanitizedSource else { return }
             let loadedImage = await dependencies.loadImage(
                 sanitizedSource,
-                Int(MerianConfig.displayImageMaxSize)
+                Int(ImagePreparationPolicy.displayMaxDimension)
             )
             guard !Task.isCancelled else { return }
             image = loadedImage

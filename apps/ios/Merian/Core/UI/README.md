@@ -275,6 +275,17 @@ test explicitly requires every `@State` declaration and lifecycle helper to
 remain private; do not split that state merely to reduce the line count by
 widening it to module scope.
 
+## Safe collection access
+
+`Utilities/Array+Safe.swift` owns only the bounds-checked array subscript shared
+by reusable Core UI and feature presentation. It performs no normalization,
+deduplication, persistence, or feature policy. Species common-name comparison
+lives in `Features/SpeciesReference/Models`.
+
+`SafeArrayAccessTests` covers valid, negative, and upper-bound indices. The
+Utilities-wide architecture suite freezes this member's exact Core UI owner and
+prevents the removed generic deduplication helpers from returning.
+
 ## Recovered image refresh
 
 `Modifiers/ImageRecoveryReloadModifier.swift` observes canonical scan-media

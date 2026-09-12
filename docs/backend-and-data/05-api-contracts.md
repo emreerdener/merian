@@ -2687,6 +2687,10 @@ constraint in the Deno schema.
 > stripped to `null` regardless of confidence. Candidates are scan-specific and
 > persist to `public.scans.candidates` plus `LocalScanRecord.candidatesData`,
 > while client display is separately gated by `CandidateReviewVisibilityPolicy`.
+> The server constants in `_shared/identify/thresholds.ts` remain canonical; iOS
+> mirrors their Flash and Pro bands in
+> `Core/AI/Inference/Result/InferenceConfidencePolicy.swift`. A threshold change
+> must update both owners and their focused contract tests in the same change.
 >
 > **Executable validation**: Numeric bounds, enums, nested required fields,
 > nullability, safe-integer semantics, string lengths, and array cardinalities

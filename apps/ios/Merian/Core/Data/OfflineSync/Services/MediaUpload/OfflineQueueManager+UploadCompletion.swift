@@ -37,7 +37,7 @@ extension OfflineQueueManager {
         }
         let uploadIndex = uploadIdentity.uploadIndex ?? -1
         MerianLog.data.debug(
-            "processUploadCompletion: scanId=\(scanId, privacy: .public) uploadIndex=\(uploadIndex, privacy: .public) status=\(responseStatusCode ?? -1, privacy: .public) error=\((uploadError?.localizedDescription ?? "nil"), privacy: .public)"
+            "processUploadCompletion: scanId=\(scanId, privacy: .public) uploadIndex=\(uploadIndex, privacy: .public) status=\(responseStatusCode ?? -1, privacy: .public) error=\((uploadError?.localizedDescription ?? "nil"), privacy: .private)"
         )
 
         // Record this callback's outcome before the first suspension. URLSession

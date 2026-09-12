@@ -14,10 +14,14 @@ struct InferenceArchitectureTests {
             "LocalAnalysis/LocalVisualAnalysisImageBuilder.swift",
             "LocalAnalysis/LocalVisualTraitExtraction.swift",
             "LocalAnalysis/FoundationVisualCues.swift",
+            "LocalAnalysis/ScanningPhrasePolicy.swift",
             "LocalAnalysis/ScanningPhraseCoordinator.swift",
             "Request/InferenceLiveRequestService.swift",
+            "Services/InferenceReviewSnapshotService.swift",
             "Result/InferenceLiveResultService.swift",
+            "Result/InferenceConfidencePolicy.swift",
             "Result/InferenceScanReplacement.swift",
+            "Recovery/InferenceLookalikeCachePolicy.swift",
             "Recovery/InferenceLiveFailurePolicy.swift",
             "Recovery/InferenceFailurePresentation.swift"
         ] {
@@ -50,6 +54,11 @@ struct InferenceArchitectureTests {
         #expect(source.contains("private let liveRequestService:"))
         #expect(source.contains("private let liveResultService:"))
         #expect(source.contains("private let identificationReviewService:"))
+        #expect(
+            source.contains(
+                "private let identificationReviewSnapshotService:"
+            )
+        )
         #expect(source.contains("resetEnrichmentRateLimit()"))
         #expect(source.contains("replaceAndAwaitTask("))
         #expect(source.contains("in: .review"))
@@ -115,7 +124,7 @@ struct InferenceArchitectureTests {
             "Core/Data/OfflineSync/ProfileActorCacheTests.swift",
             "Core/Data/OfflineSync/QueueActorCacheTests.swift",
             "Core/Hardware/HardwareOrchestratorTests.swift",
-            "Core/Utilities/AppLifecycleManagerTests.swift",
+            "App/Lifecycle/AppLifecycleManagerTests.swift",
             "Features/Capture/Shell/CaptureWorkspaceStagingTests.swift"
         ] {
             let source = try contents(of: testRoot.appendingPathComponent(path))
@@ -209,11 +218,16 @@ struct InferenceArchitectureTests {
         #expect(appDISource.contains("liveResultService:"))
     }
 
-    @Test func identificationReviewNetworkServiceOwnsPostgRESTAndAccountFence() throws {
+    @Test func identificationReviewServicesOwnNetworkAndPersistenceBoundaries() throws {
         let root = try repositoryRoot()
         let service = try contents(of: root.appendingPathComponent(
             "apps/ios/Merian/Core/Network/Inference/InferenceIdentificationReviewService.swift"
         ))
+        let snapshotService = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Services/InferenceReviewSnapshotService.swift"
+            )
+        )
         let engine = try contents(of: root.appendingPathComponent(
             "apps/ios/Merian/Core/AI/InferenceEngine.swift"
         ))
@@ -235,8 +249,50 @@ struct InferenceArchitectureTests {
         for token in ["SupabaseManager.shared", ".from(\"", ".rpc("] {
             #expect(!engine.contains(token))
         }
+        for token in [
+            "FetchDescriptor<LocalScanRecord>",
+            "descriptor.fetchLimit = 1",
+            "try modelContext.fetch(descriptor).first.map"
+        ] {
+            #expect(snapshotService.contains(token))
+        }
+        #expect(!snapshotService.contains("try?"))
+        #expect(!engine.contains("try? context.fetch"))
+
+        let confirmationStart = try #require(engine.range(
+            of: "func confirmAIIdentification("
+        ))
+        let resetStart = try #require(engine.range(
+            of: "func resetIdentificationReview("
+        ))
+        let confirmation = engine[
+            confirmationStart.lowerBound..<resetStart.lowerBound
+        ]
+        let confirmationRead = try #require(confirmation.range(
+            of: "identificationReviewSnapshotService"
+        ))
+        let confirmationMutation = try #require(confirmation.range(
+            of: "beginIdentificationConfirmationAction("
+        ))
+        #expect(confirmationRead.lowerBound < confirmationMutation.lowerBound)
+
+        let reset = engine[resetStart.lowerBound...]
+        let resetRead = try #require(reset.range(
+            of: "identificationReviewSnapshotService"
+        ))
+        let resetMutation = try #require(reset.range(
+            of: "beginIdentificationReviewAction("
+        ))
+        #expect(resetRead.lowerBound < resetMutation.lowerBound)
+
         #expect(appDI.contains("liveInferenceIdentificationReviewService"))
         #expect(appDI.contains("identificationReviewService:"))
+        #expect(
+            appDI.contains(
+                "liveInferenceReviewSnapshotService"
+            )
+        )
+        #expect(appDI.contains("identificationReviewSnapshotService:"))
         #expect(
             service.split(
                 separator: "\n",

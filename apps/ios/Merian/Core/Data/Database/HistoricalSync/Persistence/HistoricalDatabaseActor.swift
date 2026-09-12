@@ -292,7 +292,7 @@ actor HistoricalDatabaseActor {
     private func ingestScans(
         missingScans: [HistoricalScanResponse]
     ) throws -> Int {
-        let checkpointInterval = MerianConfig.ingestCheckpointInterval
+        let checkpointInterval = HistoricalSyncPolicy.ingestCheckpointInterval
         // Hoist encoder outside the loop — JSONEncoder allocation is non-trivial (Obj-C init,
         // key strategy setup, etc.) and creating one per scan across thousands of records adds
         // measurable GC pressure on the @ModelActor thread.

@@ -228,6 +228,8 @@ struct ImageLoadingArchitectureTests {
             "Concurrency/AsyncPermitPool.swift",
         "enum RemoteImageRetryPolicy":
             "Policies/RemoteImageRetryPolicy.swift",
+        "enum ImagePreparationPolicy":
+            "Policies/ImagePreparationPolicy.swift",
         "enum LocalScanMediaRecoveryResolver":
             "Recovery/LocalScanMediaRecoveryResolver.swift",
         "struct LocalScanMediaRecoverySnapshot:":
@@ -281,6 +283,9 @@ struct ImageLoadingArchitectureTests {
         ],
         "Policies/RemoteImageRetryPolicy.swift": [
             "import Foundation"
+        ],
+        "Policies/ImagePreparationPolicy.swift": [
+            "import CoreGraphics"
         ],
         "Recovery/LocalScanMediaRecoveryResolver.swift": [
             "import Foundation"

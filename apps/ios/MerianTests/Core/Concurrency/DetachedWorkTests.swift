@@ -1,6 +1,5 @@
-import XCTest
-
 @testable import Merian
+import XCTest
 
 final class DetachedWorkTests: XCTestCase {
     func testValuePropagatesParentCancellationToDetachedOperation() async {

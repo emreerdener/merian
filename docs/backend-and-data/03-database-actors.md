@@ -521,10 +521,10 @@ orchestration.
   above both loops to avoid per-record allocation overhead. Prevents IN-clause
   planner degradation and bounds peak faulted-object count to one chunk.
 - `ingestScans` (private) — inserts new `LocalScanRecord` rows; checkpoint-saves
-  every `MerianConfig.ingestCheckpointInterval` (100) records. Checkpoint and
-  final save failures rollback the pending insert batch so failed historical
-  ingestion cannot poison later sync attempts; the failure is rethrown rather
-  than returned as an empty successful page.
+  every `HistoricalSyncPolicy.ingestCheckpointInterval` (100) records.
+  Checkpoint and final save failures rollback the pending insert batch so failed
+  historical ingestion cannot poison later sync attempts; the failure is
+  rethrown rather than returned as an empty successful page.
 - `syncCollections` (private) — upserts `ScanCollection` records; fetches local
   scans referenced by incoming collections and builds current membership from
   bounded inverse-side `LocalScanRecord.collections` batches. Read failures

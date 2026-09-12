@@ -243,6 +243,10 @@ struct OfflineSyncFoundationArchitectureTests {
             "Policies/OfflineQueueRetryPolicy.swift",
         "enum OfflineQueueStoragePolicy":
             "Policies/OfflineQueueStoragePolicy.swift",
+        "enum ScanConnectivityFailurePolicy":
+            "Policies/ScanConnectivityFailurePolicy.swift",
+        "enum OfflineQueueBatchPolicy":
+            "Policies/OfflineQueueBatchPolicy.swift",
         "final class GenerationTaskRegistry":
             "Coordinators/GenerationTaskRegistry.swift",
         "func deletePreferredGoalHint":
@@ -310,10 +314,12 @@ struct OfflineSyncFoundationArchitectureTests {
         "Policies/InferenceURLSessionTaskContract.swift",
         "Policies/BackgroundInferencePolicy.swift",
         "Policies/MediaStagingContract.swift",
+        "Policies/OfflineQueueBatchPolicy.swift",
         "Policies/QueuedInferenceMediaPolicy.swift",
         "Policies/OfflineQueueRetryPolicy.swift",
         "Policies/OfflineQueueStoragePolicy.swift",
         "Policies/OfflineScanJobMetadataContract.swift",
+        "Policies/ScanConnectivityFailurePolicy.swift",
         "Services/OfflineQueueManager+Diagnostics.swift"
     ]
 
@@ -326,10 +332,12 @@ struct OfflineSyncFoundationArchitectureTests {
         "Policies/BackgroundInferencePolicy.swift",
         "Policies/InferenceURLSessionTaskContract.swift",
         "Policies/MediaStagingContract.swift",
+        "Policies/OfflineQueueBatchPolicy.swift",
         "Policies/QueuedInferenceMediaPolicy.swift",
         "Policies/OfflineQueueRetryPolicy.swift",
         "Policies/OfflineQueueStoragePolicy.swift",
-        "Policies/OfflineScanJobMetadataContract.swift"
+        "Policies/OfflineScanJobMetadataContract.swift",
+        "Policies/ScanConnectivityFailurePolicy.swift"
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
@@ -365,10 +373,12 @@ struct OfflineSyncFoundationArchitectureTests {
         "Policies/BackgroundInferencePolicy.swift": ["import Foundation"],
         "Policies/InferenceURLSessionTaskContract.swift": ["import Foundation"],
         "Policies/MediaStagingContract.swift": ["import Foundation"],
+        "Policies/OfflineQueueBatchPolicy.swift": [],
         "Policies/QueuedInferenceMediaPolicy.swift": ["import Foundation"],
         "Policies/OfflineQueueRetryPolicy.swift": ["import Foundation"],
         "Policies/OfflineQueueStoragePolicy.swift": ["import Foundation"],
         "Policies/OfflineScanJobMetadataContract.swift": ["import Foundation"],
+        "Policies/ScanConnectivityFailurePolicy.swift": ["import Foundation"],
         "Services/OfflineQueueManager+Diagnostics.swift": [
             "import Foundation",
             "import SwiftData"

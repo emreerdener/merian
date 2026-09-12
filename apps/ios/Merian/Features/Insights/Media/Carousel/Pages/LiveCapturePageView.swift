@@ -32,7 +32,10 @@ struct LiveCapturePageView: View {
             category: .imagePreparation
         ) {
             autoreleasepool {
-                ImageDownsampler.downsample(data: imageData, maxSize: 2048)
+                ImageDownsampler.downsample(
+                    data: imageData,
+                    maxSize: ImagePreparationPolicy.displayMaxDimension
+                )
                     .map { SendableCGImage(image: $0) }
             }
         }

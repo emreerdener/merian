@@ -94,7 +94,7 @@ struct InferenceAudioPreparerTests {
         BoundedAudioURLProtocol.payloadStore.set(
             Data(
                 repeating: 0x41,
-                count: MerianConfig.audioPayloadMaxBytes + 1
+                count: ScanMediaPayloadPolicy.maxInferenceAudioBytes + 1
             ),
             for: remoteURL
         )

@@ -539,7 +539,7 @@ fail-closed to these five reviewed owners:
 | Owner file                                                          | Purpose                                           | Required lifetime and actor contract                                                                                        |
 | ------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `Core/Media/MediaPlaybackObservation.swift`                         | AVPlayer KVO publisher state                      | Stored optional cancellables; weak observation/player/item captures; main-queue delivery plus player/item generation checks |
-| `Core/Utilities/Publisher+MainActor.swift`                          | The framework-to-main-actor bridge implementation | Returns the cancellable to its caller; main-queue delivery occurs before `MainActor.assumeIsolated`                         |
+| `Core/Hardware/Utilities/Publisher+MainActor.swift`                 | The framework-to-main-actor bridge implementation | Returns the cancellable to its caller; main-queue delivery occurs before `MainActor.assumeIsolated`                         |
 | `Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift` | App lifecycle invalidation                        | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
 | `Features/Scans/Library/ViewModels/ScansManager.swift`              | Targeted scan-index invalidation                  | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
 | `Features/Scans/Map/Services/PrivateScanMapStore.swift`             | Private-map invalidation                          | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
@@ -593,8 +593,9 @@ sink owner set above is enforced by the same fail-closed scan.
   drain the live app-host coordinator. The manager remains the
   `UNUserNotificationCenterDelegate`; `PushNotificationPolicy` is the sole
   notification payload parser.
-- `Core/Utilities/EventDeliveryTests` covers cancellable main-actor framework
-  delivery and detached-player callback suppression.
+- `Core/Hardware/FrameworkPublisherBridgeTests` covers cancellable main-actor
+  framework delivery; `Core/Media/MediaPlaybackObservationTests` covers
+  detached-player callback suppression.
 - `ScanMilestoneCoordinatorTests` proves the coordinator publishes progress and
   scan-contribution invalidations only through its injected bus and routes every
   account, cache, acknowledgement, and achievement effect through isolated

@@ -528,11 +528,11 @@ via a two-layer decode:
    Wikipedia/GBIF metadata and thumbnail loading when
    `referenceImageUrl == nil`.
 
-To heal previously poisoned local rich blobs, the client also carries a one-time
-`localLookalikesCacheResetVersion`. When that version bumps, `load(from:)`
-temporarily ignores stored `lookalikesData` / `similarSpecies`, schedules a
-background wipe of those fields across local `LocalScanRecord`s, and lets
-validated enrichment repopulate them.
+To heal previously poisoned local rich blobs, the client also carries the
+versioned `InferenceLookalikeCachePolicy.resetVersion`. When that version bumps,
+`load(from:)` temporarily ignores stored `lookalikesData` / `similarSpecies`,
+schedules a background wipe of those fields across local `LocalScanRecord`s, and
+lets validated enrichment repopulate them.
 
 ## Multi-Modal Combined Image + Description Path
 
@@ -956,10 +956,10 @@ provider dispatch:
   `FLASH_DIAGNOSTIC_TRIGGER = 0.99`, `PRO_STRONG = 0.85`, `PRO_POSSIBLE = 0.65`,
   `PRO_DIAGNOSTIC_TRIGGER = 0.99`, and `diagnosticTriggerForTier(tier)`. The iOS
   client mirrors the strong/possible thresholds in
-  `MerianConfig.flashConfidence` and `MerianConfig.proConfidence`. The Possible
-  thresholds are also the automatic evidence boundary for Field trip progress.
-  An unreviewed score below the applicable boundary must not receive standard
-  outing or Event credit; explicit confirmation or a confirmed
+  `InferenceConfidencePolicy.flash` and `InferenceConfidencePolicy.pro`. The
+  Possible thresholds are also the automatic evidence boundary for Field trip
+  progress. An unreviewed score below the applicable boundary must not receive
+  standard outing or Event credit; explicit confirmation or a confirmed
   correction/community resolution can qualify it later. Any threshold change
   must update the database evidence helper, migration contract, Field trip
   behavior tests, and
@@ -1029,19 +1029,24 @@ provider dispatch:
       observable replacement. It advances the independent confirmation action
       generation, leaving same-species live/historical hydration valid, and
       rejects a stale confirmation action after an override presentation has
-      already become current. It then securely fetches the immutable native UUID
-      from SwiftData via a localized `FetchDescriptor`, avoiding corrupted view
-      states. Persists to `LocalScanRecord` via `updateScanWithOverride`
-      (passing `.aiConfirmed`), and syncs all three review variables to
-      `public.scans` via `syncIdentificationReviewToCloud`.
+      already become current. Before either mutation, the injected
+      `InferenceReviewSnapshotService` performs one bounded, throwing SwiftData
+      projection for the immutable native UUID. An unreadable store fails closed
+      before observable state, action generations, local persistence, or cloud
+      state changes; an absent row remains the existing optional-ID
+      compatibility path. The accepted action persists to `LocalScanRecord` via
+      `updateScanWithOverride` (passing `.aiConfirmed`), and syncs all three
+      review variables to `public.scans` via `syncIdentificationReviewToCloud`.
     - `resetIdentificationReview(expectedScanId:modelContext:)`: Clears
       `userIdentificationOverride`, `userConfirmedIdentification`, the legacy
       `isFlagged` bit, and `alternativesExhausted`, reverts
       `speciesData.scientificName` to `aiScientificName`, and clears
-      override-owned presentation metadata before any suspension. It enqueues
-      the local `.unreviewed` mutation and cloud reset on the ordered
-      identification tail. The local mutation atomically clears the same stale
-      common-name, hazard, taxonomy, Wikipedia, reference, conservation,
+      override-owned presentation metadata before any suspension. The same
+      snapshot service first projects the durable original AI reasoning; a read
+      failure leaves the review presentation and all downstream work untouched.
+      It then enqueues the local `.unreviewed` mutation and cloud reset on the
+      ordered identification tail. The local mutation atomically clears the same
+      stale common-name, hazard, taxonomy, Wikipedia, reference, conservation,
       habitat, GBIF, lookalike, and alternate-name fields; every later hydrated
       metadata write is serialized behind it. The Species Dictionary request may
       execute while that reset drains, but cannot persist its patch ahead of the
@@ -1274,10 +1279,10 @@ exposing partial tokens.
 A broad-category phrase series is only activated if all four conditions are met:
 
 1. **Confidence threshold** — the top `VNClassificationObservation` must score ≥
-   0.65 (`MerianConfig.visionConfidenceThreshold`)
+   0.65 (`ScanningPhrasePolicy.visionConfidenceThreshold`)
 2. **Margin guard** — the top observation must lead the second-best by ≥ 0.15
-   (`MerianConfig.visionMarginThreshold`); split/ambiguous results stay on the
-   generic series
+   (`ScanningPhrasePolicy.visionMarginThreshold`); split/ambiguous results stay
+   on the generic series
 3. **Category map** — the top observation's tokenized identifier must map to one
    of the supported broad categories below; substring-only collisions do not
    qualify
@@ -1307,14 +1312,14 @@ such as Reviewing, Comparing, Studying, or Tracing.
 The generic phrase is visible immediately; a qualifying Vision category hands
 off immediately and restarts the interval so another label cannot follow less
 than 2.3 seconds later. Later phrases advance through
-`MerianConfig.scanningPhaseRotationIntervalNs`. Deterministic image traits enter
-at the next clock tick. Foundation cues, when available, replace that deck at a
-later tick and permanently raise source priority. `ScanningPhraseCoordinator`
-records every normalized phrase already displayed during the scan and advances
-through every currently available deck entry before wrapping to index zero for a
-new round. A newly appended cue is consumed before the deck can wrap. When all
-five deterministic image cues qualify, they span 11.5 seconds at the shared
-cadence before their first repeat.
+`ScanningPhrasePolicy.rotationIntervalNanoseconds`. Deterministic image traits
+enter at the next clock tick. Foundation cues, when available, replace that deck
+at a later tick and permanently raise source priority.
+`ScanningPhraseCoordinator` records every normalized phrase already displayed
+during the scan and advances through every currently available deck entry before
+wrapping to index zero for a new round. A newly appended cue is consumed before
+the deck can wrap. When all five deterministic image cues qualify, they span
+11.5 seconds at the shared cadence before their first repeat.
 
 An active visual live-to-queue handoff snapshots this ephemeral order only after
 the typed presentation owner matches both scan ID and attempt generation. The
@@ -1521,22 +1526,23 @@ insight sheet display.
   display copy changes. The queue-handoff source gates are repaired; hosted and
   device acceptance remain open.
 - **Tier-conditional inference resolution**
-  (`MerianConfig.inferenceImageMaxSize(isProActive:)`): Flash/free-tier captures
-  are downsampled to **768 px** (single Gemini vision tile, ~258 input tokens);
-  Pro captures are downsampled to **1024 px** (four tiles, ~1032 tokens). This
-  reduces vision input-token cost by ~75% for free users with negligible
-  accuracy impact for common-species macro-feature identification. Pro
-  resolution is preserved to support the fine morphological detail required for
-  subspecies and cultivar discrimination. The live entitlement owner is
-  evaluated at the capture boundary before encoding: Scan carries it through
-  `CaptureWorkspaceViewModel+PhotoCapture.swift` into
+  (`ImagePreparationPolicy.inferenceMaxDimension(isProActive:)`):
+  Flash/free-tier captures are downsampled to **768 px** (single Gemini vision
+  tile, ~258 input tokens); Pro captures are downsampled to **1024 px** (four
+  tiles, ~1032 tokens). This reduces vision input-token cost by ~75% for free
+  users with negligible accuracy impact for common-species macro-feature
+  identification. Pro resolution is preserved to support the fine morphological
+  detail required for subspecies and cultivar discrimination. The live
+  entitlement owner is evaluated at the capture boundary before encoding: Scan
+  carries it through `CaptureWorkspaceViewModel+PhotoCapture.swift` into
   `CaptureScanStillMediaPreparer`, while gallery input uses
   `CaptureWorkspaceViewModel+Imports.swift`. The image is therefore already
   correctly sized before the Edge function receives it.
-- **Image compression quality 0.85** (`MerianConfig.imageCompressionQuality`):
-  Raised from 0.80 to preserve fine morphological detail (feather barbs, insect
-  wing venation, leaf margins) that influences AI identification accuracy. File
-  size increase is ~10–15%, well within the 5 MB payload limit.
+- **Image compression quality 0.85**
+  (`ImagePreparationPolicy.compressionQuality`): Raised from 0.80 to preserve
+  fine morphological detail (feather barbs, insect wing venation, leaf margins)
+  that influences AI identification accuracy. File size increase is ~10–15%,
+  well within the 5 MB payload limit.
 
 ### Edge Function Critical Path
 

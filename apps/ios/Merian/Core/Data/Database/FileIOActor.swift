@@ -119,7 +119,7 @@ public actor FileIOActor {
         } else if fileManager.fileExists(atPath: temporarySourceURL.path) {
             sourceURL = temporarySourceURL
         } else {
-            MerianLog.data.error("FileIOActor: Cannot persist media, file missing at \(tempPath, privacy: .public)")
+            MerianLog.data.error("FileIOActor: Cannot persist media, file missing at \(tempPath, privacy: .private)")
             return nil
         }
 

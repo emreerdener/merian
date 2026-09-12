@@ -527,7 +527,7 @@ extension OfflineQueueManager {
             OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
         } catch {
             context.rollback()
-            MerianLog.data.debug("persistServerStatus: save failed: \(error.localizedDescription, privacy: .public)")
+            MerianLog.data.debug("persistServerStatus: save failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 

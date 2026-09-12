@@ -33,7 +33,7 @@ typed route when the Scans root is presented. Both paths therefore use one
 destination and one Back behavior.
 
 Opening the destination asks the injected service to purge records older than
-`MerianConfig.nonBiologicalRetentionDays`. Correction does not mutate the
+`NonBiologicalRetentionPolicy.retentionDays`. Correction does not mutate the
 original record; it requests
 `AppRoute.refinement(..., entryPoint: .nonBiologicalCorrection)` so the existing
 replacement pipeline remains authoritative.

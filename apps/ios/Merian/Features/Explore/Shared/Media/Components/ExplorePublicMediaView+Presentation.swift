@@ -117,7 +117,7 @@ extension ExplorePublicMediaView {
             .task(id: audioUrl) {
                 spectrogram = await dependencies.loadImage(
                     audioUrl,
-                    Int(MerianConfig.displayImageMaxSize)
+                    Int(ImagePreparationPolicy.displayMaxDimension)
                 )
             }
             .accessibilityLabel("Audio spectrogram")

@@ -25,7 +25,7 @@ struct UserProfileAvatarDependencies {
             let preview = try await MediaPreparationActor.shared
                 .preparePreviewImage(
                     fileURL: fileURL,
-                    maxSize: MerianConfig.displayImageMaxSize
+                    maxSize: ImagePreparationPolicy.displayMaxDimension
                 )
             return UserProfileAvatarCropImage(
                 image: UIImage(cgImage: preview.cgImage)

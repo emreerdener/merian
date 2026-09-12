@@ -223,7 +223,7 @@ final class ProfileViewModel {
             return false
         }
 
-        guard avatar.data.count <= MerianConfig.stagedImagePayloadMaxBytes else {
+        guard avatar.data.count <= ScanMediaPayloadPolicy.maxStagedImageBytes else {
             avatarUpdateErrorMessage = "Choose a smaller profile picture."
             return false
         }

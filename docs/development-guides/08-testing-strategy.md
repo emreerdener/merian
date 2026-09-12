@@ -395,7 +395,7 @@ HTTP request is dispatched. See the
    Eleven more form the live-connectivity follow-up: nine engine-level
    ownership, presentation, and exact-generation recovery fences plus two
    network-client replay-policy controls. The former consolidated pre-queue
-   admission declaration is now three exact Core Utilities cases:
+   admission declaration is now three exact Core Data Offline Sync cases:
    `connectivityFailuresSelectQueueOnlyAdmission`,
    `authenticationAndTrustFailuresRemainFailClosed`, and
    `secureTransportFailuresUseOnlyDurableRecovery`. They separately protect the
@@ -1121,7 +1121,7 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     classification as `.frozenSnapshot` or `.releasedActive`. The V49 fixture
     opens with `MerianRecentV49MigrationPlan` (`[V49, frozen V50, V51]` and two
     hops); original V50 opens with `MerianRecentV50MigrationPlan`, and
-    processed- release V50 opens with `MerianReleasedActiveV50MigrationPlan`.
+    processed-release V50 opens with `MerianReleasedActiveV50MigrationPlan`.
     Each V50 plan contains its exact source graph and one custom hop to V51.
     Store-recovery tests keep the exhaustive recent-source enum consecutive and
     ending at `CurrentSchema - 1`; app dispatch has no default branch, so a
@@ -1257,8 +1257,9 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     record path). Asserts nil `similarSpecies` on the record produces `nil` (not
     an empty `SimilarSpecies` struct) on `speciesData`.
   - **Inference tier**: Validates Flash vs Pro confidence band thresholds via
-    `MerianConfig.confidenceBands(forInferenceTier:)`. Asserts nil tier resolves
-    to Flash for safety.
+    `InferenceConfidencePolicy.bands(forInferenceTier:)`. Asserts nil tier
+    resolves to Flash for safety. The exact values and fallback are owned by
+    `Core/AI/Inference/InferenceConfidencePolicyTests.swift`.
   - **Legacy moderation state**: Asserts `isFlagged` restores from
     `LocalScanRecord` on cold boot (`testLoadFromRecordPopulatesIsFlagged`).
 - **`Core/AI/Inference/InferenceWriteCoordinatorTests.swift`**: Executes the
@@ -1342,10 +1343,16 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   IDs, pending-only replacement rejection, durable tags/collections/notes,
   retained replacement notes, fresh review state, and save-failure restoration
   without discarding unrelated pending user edits.
+- **`Core/AI/Inference/InferenceReviewSnapshotServiceTests.swift`**: Uses
+  isolated current-schema stores to verify the bounded species-ID and
+  original-reasoning projection, including the distinct missing-row result.
+  Injected store failures prove confirmation and reset return before changing
+  observable review state; source-order coverage separately prevents downstream
+  work from starting first.
 - **`Core/AI/Inference/InferenceIntegrationAuditTests.swift`**: Exercises
   visual, audio, and Describe pipelines. It covers original-scan preservation
   after confidence-zero or missing-ID results, Auth quiescence with a
-  cancellation- ignoring live parser returning success or failure, closed Auth
+  cancellation-ignoring live parser returning success or failure, closed Auth
   admission, and suspended queue-backed positive-confidence results losing to
   cancellation or a new exact generation. It asserts retained durable queue
   rows, no foreground completion event, no published result/hydration, exact
@@ -1378,6 +1385,14 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `LocalVisualAnalysis.swift` aggregate; and keeps every extracted owner and
   split local-analysis policy file below 600 lines. The Species Reference
   architecture suite applies the same ceiling to the shared transport owner.
+- **`Core/Architecture/CoreIntegrationArchitectureTests.swift`**: Freezes the
+  complete Core domain and root-file inventory, requires each domain README,
+  tracks the five remaining production files above 600 lines, keeps Policies
+  stateless with an exact allowlist for documented file/clock/jitter inputs,
+  keeps shared UI components free of transport/persistence, rejects `try?`
+  SwiftData fetches across Core, and self-validates the patterns that prevent
+  raw errors, localized descriptions, local media paths, or server terminal-
+  failure messages from being logged as public values.
 - **`Core/Network/Decoding/SpeciesDictionaryAPIModelsTests.swift`,
   `SpeciesDictionaryCatalogAPIModelsTests.swift`, and
   `SpeciesObservationStatsAPIModelsTests.swift`**: Own the rehomed public
@@ -1590,8 +1605,8 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `QueuedScanningPresentationTests`, `InsightQueuedRetryPresentationTests`, and
   `InsightContentArchitectureTests` in Content. FieldNotes owns
   `FieldNotesEditPolicyTests`, `FieldNotesEditorViewModelTests`,
-  `InsightFieldNotesStateTests`, and `FieldNotesArchitectureTests`; Core
-  Utilities owns `FieldNotesRepositoryTests`. Media owns
+  `InsightFieldNotesStateTests`, and `FieldNotesArchitectureTests`; Core Data
+  Field Notes owns `FieldNotesRepositoryTests`. Media owns
   `InsightMediaAvailabilityTests`, `InsightMediaGalleryTests`,
   `InsightMediaSuppressionTests`, `InsightMediaFocusPresentationTests`,
   `InsightAudioBoostPolicyTests`, `InsightMediaExportLifecycleTests`, and
@@ -1834,9 +1849,20 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   production ceiling. Run all four Core suites with Capture's concrete
   missing-target regression using the
   [Core Routing focused matrix](../../apps/ios/Merian/Core/Routing/README.md#verification).
-- **`Core/Utilities/EventDeliveryTests.swift`**: Locks main-actor ordering for
-  framework publisher bridges and generation-fenced media observation after
-  player replacement and detach.
+- **`Core/Hardware/FrameworkPublisherBridgeTests.swift`**: Locks main-actor
+  ordering for framework publisher bridges.
+- **`Core/Media/MediaPlaybackObservationTests.swift`**: Locks generation-fenced
+  media observation after player replacement and detach.
+- **`Core/Utilities/CoreUtilitiesIntegrationArchitectureTests.swift`**
+  (`CoreUtilitiesArchitectureTests`): Freezes the exact two-file Foundation-only
+  Utilities inventory, the focused owner of every relocated declaration/member
+  and behavior suite, retired paths, effect exclusions, and the 100-line
+  production ceiling. Date and string behavior remain in the two sibling
+  Utilities suites; the ownership inventory separately freezes both the
+  `DetachedWorkCategory` taxonomy and `DetachedWork` executor in their shared
+  Concurrency source. App lifecycle, detached execution, Field Notes, Offline
+  Sync, Hardware, Media, Core UI, and Species Reference tests mirror their
+  production owners.
 - **`AppDIContainerTests.swift`**: Proves preview graphs receive independent
   event publishers, route coordinators, milestone presenters, and host
   registries. The event-routing source guard separately rejects any shared
@@ -2032,16 +2058,17 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     queue while preserving save/context behavior.
   - **Media staging contract drift**: Loads
     `docs/contracts/media-staging-upload-manifest.json` and asserts
-    `MerianConfig` matches the documented file, audio, and video budgets and
-    locks the exact signed `Content-Length`/`Content-Type` response contract,
-    including WAV-only inference audio and purpose-scoped M4A restore audio.
-    File-mutation coverage proves a signing-time size mismatch is discarded for
-    re-signing before task creation. Persisted M4A fixtures prove pending and
-    staged queue rows fail closed before signing or inference; the queue does
-    not rewrite legacy audio. Purpose-scoped historical publication playback and
-    restore retain their separate M4A compatibility. Coverage also includes the
-    canonical video scan upload shape: five sampled inference frame files plus
-    one playback video file must fit in one signing batch.
+    `MediaStagingContract` and `ScanMediaPayloadPolicy` match the documented
+    file counts and image, audio, and video budgets, and locks the exact signed
+    `Content-Length`/`Content-Type` response contract, including WAV-only
+    inference audio and purpose-scoped M4A restore audio. File-mutation coverage
+    proves a signing-time size mismatch is discarded for re-signing before task
+    creation. Persisted M4A fixtures prove pending and staged queue rows fail
+    closed before signing or inference; the queue does not rewrite legacy audio.
+    Purpose-scoped historical publication playback and restore retain their
+    separate M4A compatibility. Coverage also includes the canonical video scan
+    upload shape: five sampled inference frame files plus one playback video
+    file must fit in one signing batch.
   - **Historical audio preparation**: `InferenceAudioPreparerTests.swift`
     transcodes a real stereo 48 kHz PCM input to the Documents-owned mono 44.1
     kHz Int16 WAV contract, proves hardware-rate PCM WAV remains
@@ -2347,9 +2374,11 @@ xcodebuild test-without-building \
   -only-testing:merianTests/SharedProcessStateGateTests \
   -only-testing:merianTests/InferenceHydrationCoordinatorTests \
   -only-testing:merianTests/InferenceWriteCoordinatorTests \
+  -only-testing:merianTests/InferenceReviewSnapshotServiceTests \
   -only-testing:merianTests/LocalVisualAnalysisTests \
   -only-testing:merianTests/SpeciesReferenceHydrationServiceTests \
   -only-testing:merianTests/InferenceArchitectureTests \
+  -only-testing:merianTests/CoreIntegrationArchitectureTests \
   -only-testing:merianTests/InferenceEngineTests \
   -only-testing:merianTests/CircuitBreakerManagerTests \
   -only-testing:merianTests/BackgroundDatabaseActorTests \
@@ -2599,7 +2628,7 @@ before release.
   non-cooperative still-capture and video-admission continuations after a
   lifecycle interruption to prove neither can publish stale work.
   `CaptureScanTemporaryFileLeaseTests` proves unaccepted artifacts are deleted
-  and accepted artifacts survive ownership transfer. The shared Core Utilities
+  and accepted artifacts survive ownership transfer. The shared Core Concurrency
   `DetachedWorkTests` proves parent cancellation reaches a detached value worker
   and is observed by its caller; Capture media and inference request preparation
   both rely on that boundary. `CaptureScanArchitectureTests` enforces the
@@ -2663,8 +2692,8 @@ before release.
   confines UIKit to `StagedImage`, and prevents the toolbar from restoring a
   duplicate sort. `CaptureWorkspaceStagingTests` lives under Shell for import
   admission, automatic-submit/crop chrome fences, and selected-media removal.
-  `ScanConnectivityFailurePolicyTests` lives under Core Utilities for queue-only
-  versus fail-closed transport classification.
+  `ScanConnectivityFailurePolicyTests` lives under Core Data Offline Sync for
+  queue-only versus fail-closed transport classification.
 - **`MediaPreparationActorTests.swift`**: Pins the production still-image
   contract directly: file URL inputs return bounded inference/display payloads,
   metrics stay within byte and dimension limits, avatar/crop previews return
@@ -3513,12 +3542,21 @@ import, and permission-denial UI require the physical-device checklist in
   fence, and stable-versus-legacy sign-out retention. The manager suite
   separately proves its public handoff read-through remains observable after
   state ownership moves into the nested coordinator.
-- **`MerianConfigTests.swift` production-environment coverage**: Verifies that a
-  Debug simulator pointed at production Supabase reports a configuration issue
-  by default, remains configured so deliberate smoke tests can proceed, and
-  suppresses only the warning when
+- **`Configuration/MerianEnvironmentTests.swift` production-environment
+  coverage**: Verifies that a Debug simulator pointed at production Supabase
+  reports a configuration issue by default, remains configured so deliberate
+  smoke tests can proceed, and suppresses only the warning when
   `MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1`. It also verifies that
   non-production projects and non-simulator/release contexts do not warn.
+- **Domain policy suites**: `InferenceConfidencePolicyTests`,
+  `InferenceLookalikeCachePolicyTests`, `ScanningPhrasePolicyTests`,
+  `HistoricalSyncPolicyTests`, `NonBiologicalRetentionPolicyTests`,
+  `ImagePreparationPolicyTests`, `OfflineQueuePolicyTests`, and
+  `ScanMediaPayloadPolicyTests` freeze the values formerly mixed into Core
+  Utilities. `CorePolicyOwnershipArchitectureTests` freezes their sole
+  declaration and test owners, exact declaration-name boundaries, effect-free
+  imports, retired aggregate paths, pure-policy line ceilings, and the retained
+  image-policy links in recrop and live/full-screen display consumers.
 - **`SocialGuardManagerTests.swift`**: Asserts offline logic ensuring blocked
   users do not re-populate the feed.
 - **`CircuitBreakerManagerTests.swift`**: Covers the failure threshold and reset
@@ -5615,13 +5653,13 @@ offline/data-path URL code and the bounded underlying-error traversal;
 certificate-policy veto precedence over broad outer transport errors, and
 fail-closed over-depth handling; and
 `secureTransportFailuresUseOnlyDurableRecovery` locks the broader
-post-durability secure-connection recovery boundary. Together the Core Utilities
-cases cover the pure route policy without mutating process-wide connectivity
-state. `automaticSingleCaptureFencesTheIdentifyTray` independently locks the
-adjacent Shell presentation boundary: automatic single-capture ownership hides
-`ActiveScanToolbar` before asynchronous admission begins, admission recovery can
-reveal the retained staged media, and confirmation-enabled capture continues to
-present **Identify** normally.
+post-durability secure-connection recovery boundary. Together the Core Data
+Offline Sync cases cover the pure route policy without mutating process-wide
+connectivity state. `automaticSingleCaptureFencesTheIdentifyTray` independently
+locks the adjacent Shell presentation boundary: automatic single-capture
+ownership hides `ActiveScanToolbar` before asynchronous admission begins,
+admission recovery can reveal the retained staged media, and
+confirmation-enabled capture continues to present **Identify** normally.
 `requiredCropStateFencesCaptureChromeBeforePresentation` locks the distinct
 pre-crop boundary: a required crop suppresses capture chrome even before
 `imageToCrop` mounts the full-screen cover. The workflow source guard requires
@@ -6190,8 +6228,8 @@ replacement, and late-result rejection after automatic termination;
 `InsightFieldNotesStateTests` locks queued/completed identity and injected
 persistence forwarding; and `FieldNotesArchitectureTests` locks the ownership
 boundary. Storage reconciliation lives in
-`MerianTests/Core/Utilities/FieldNotesRepositoryTests.swift`, while the rehomed
-Share-cache refresh behavior lives in
+`MerianTests/Core/Data/FieldNotes/FieldNotesRepositoryTests.swift`, while the
+rehomed Share-cache refresh behavior lives in
 `MerianTests/Features/Insights/Sharing/InsightSharingCacheRefreshTests.swift`.
 Run the focused matrix after changing `FieldNotesSheet`, the editor state owner,
 Insight/Explore field-note saves, or shared field-note feedback:
@@ -7133,19 +7171,20 @@ The identity test matrix now has two explicit lanes:
   rollout changes, and public error mapping. Protocol-3 cases additionally prove
   exact prepare/claim/cancel request and response shapes, no client-supplied
   Auth or principal IDs, raw-secret exclusion from database input and logs,
-  fresh- anonymous-only claims, exact completed replay, source-only
-  cancellation, and fail-closed expiry/terminal conflicts. iOS source and unit
-  coverage must keep the `preparing` proof journal durable before prepare, the
-  `prepared` receipt durable before local sign-out, unrelated permanent sessions
-  off ordinary resolution and RevenueCat linking, and the journal present until
-  claim, RevenueCat readiness, a `true` entitlement-session result, and current
-  Auth generation are all verified. Tests also require exact current-projection
-  evidence before first pass adoption, locked completion revalidation, and reuse
-  of an active principal's durable pass policy. Webhook/reconciliation tests
-  cover stable-first identity resolution, separate stable and UUID queues, claim
-  fencing, authoritative promo exclusion, and the previous bundle's
-  mutation/scheduler adapters. The adapters share the cutover advisory lock and
-  principal-before-user row-lock order with activation; the disposable
+  claims restricted to fresh anonymous sessions, exact completed replay,
+  source-only cancellation, and fail-closed expiry/terminal conflicts. iOS
+  source and unit coverage must keep the `preparing` proof journal durable
+  before prepare, the `prepared` receipt durable before local sign-out,
+  unrelated permanent sessions off ordinary resolution and RevenueCat linking,
+  and the journal present until claim, RevenueCat readiness, a `true`
+  entitlement-session result, and current Auth generation are all verified.
+  Tests also require exact current-projection evidence before first pass
+  adoption, locked completion revalidation, and reuse of an active principal's
+  durable pass policy. Webhook/reconciliation tests cover stable-first identity
+  resolution, separate stable and UUID queues, claim fencing, authoritative
+  promo exclusion, and the previous bundle's mutation/scheduler adapters. The
+  adapters share the cutover advisory lock and principal-before-user row-lock
+  order with activation; the disposable
   `purchasePrincipalCompatibilityConcurrencyDb.test.ts` test rebinds an active
   principal to a previously unrelated Auth UUID, forces completion to win that
   race, and requires the delayed legacy mutation to leave no state, queue, or a

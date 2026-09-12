@@ -90,13 +90,14 @@ pin lifecycle. See the
   unavailability, and every other failure. Only the transport-unavailable result
   may use current local eligibility to select a queue-only Capture route;
   cancellation, malformed data, authentication/TLS, and server failures remain
-  fail-closed. `ScanConnectivityFailurePolicy` centralizes that reviewed
-  URL-code set, recognizes bounded underlying-error wrappers, gives
-  certificate/authentication/ATS policy codes veto precedence over broader outer
-  transport errors, and separately defines the broader post-durability recovery
-  set so the two ownership boundaries cannot drift. The manager never reserves
-  quota; the provider-side `reserve_ai_quota(...)` transaction remains the
-  authorization boundary and can still reject a concurrent race.
+  fail-closed. `Core/Data/OfflineSync/Policies/ScanConnectivityFailurePolicy`
+  centralizes that reviewed URL-code set, recognizes bounded underlying-error
+  wrappers, gives certificate/authentication/ATS policy codes veto precedence
+  over broader outer transport errors, and separately defines the broader
+  post-durability recovery set so the two ownership boundaries cannot drift. The
+  manager never reserves quota; the provider-side `reserve_ai_quota(...)`
+  transaction remains the authorization boundary and can still reject a
+  concurrent race.
 - `Consent/Models` owns the exact policy versions and evidence copy, storage and
   handoff errors, plus the source-compatible `ConsentManager.*` receipt, event,
   ledger, journal, restoration, and remote-state values. `Consent/Policies` owns

@@ -373,17 +373,18 @@ single-capture suppression and failure recovery. The pre-import admission
 follow-up extends it to 95 by protecting paywall denial before picker/crop work.
 The later Capture Staging hygiene pass rehomed and split three consolidated
 declarations into six ownership-aligned cases under Core Utilities and Capture
-Shell. The Capture-wide integration audit adds two exact lifecycle cases that
-resume controlled still-capture and video-admission work after cancellation and
-prove stale generations cannot publish. The current validator therefore protects
-98 exact cases without broadening the behaviors established here. The complete
-local candidate/tooling gate now passes: 186 standard TypeScript tooling tests,
-16 isolated DTO tests, executable Identify contract tests, every shell/tooling
-check, and all 18 documentation contracts. All 262 migration source assertions
-pass across 39 discovered test files, including the caller-scoped read-only
-scan-admission RPC. These source results repair the reported contract failure
-but do not substitute for the workflow's fresh disposable-database replay on one
-committed exact SHA.
+Shell. The later Utilities-wide audit moved the connectivity cases beside Core
+Data Offline Sync. The Capture-wide integration audit adds two exact lifecycle
+cases that resume controlled still-capture and video-admission work after
+cancellation and prove stale generations cannot publish. The current validator
+therefore protects 98 exact cases without broadening the behaviors established
+here. The complete local candidate/tooling gate now passes: 186 standard
+TypeScript tooling tests, 16 isolated DTO tests, executable Identify contract
+tests, every shell/tooling check, and all 18 documentation contracts. All 262
+migration source assertions pass across 39 discovered test files, including the
+caller-scoped read-only scan-admission RPC. These source results repair the
+reported contract failure but do not substitute for the workflow's fresh
+disposable-database replay on one committed exact SHA.
 
 The sandbox cannot reliably connect to CoreSimulatorService or apply SwiftPM's
 nested build sandbox, so it cannot run the Xcode test bundle locally. Direct

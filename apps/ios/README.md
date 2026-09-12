@@ -71,6 +71,12 @@ Use the narrowest owner that fits:
 - Keep feature-specific business and presentation rules out of `Core` even when
   another feature's adapter invokes them to enter or present that experience.
 
+[`Core/README.md`](Merian/Core/README.md) defines the root and cross-domain
+guardrails. The Core root contains only dependency composition and logging;
+domain READMEs and architecture suites own the detailed boundaries. The
+Core-wide audit tracks the five residual production files above 600 lines
+instead of treating their current size as a permanent exemption.
+
 Examples:
 
 - `Features/Scans/Shared` owns the Scans-only composite grid, queued-row value
@@ -947,9 +953,10 @@ platform-neutral prompt, edit, visibility-request, and feedback Models;
 Services-only persistence, speech, visibility-action, and haptic adapters; an
 observable editor plus the focused root-state extension in ViewModels;
 composition Views; and Card/Editor Components. The Core-owned
-`FieldNotesRepository` remains the shared local reconciliation boundary, while
-the Shell-owned `InsightSheetViewModel` accepts an optional trailing Field Notes
-dependency for deterministic persistence and feedback tests.
+[`FieldNotesRepository`](Merian/Core/Data/FieldNotes/README.md) remains the
+shared local reconciliation boundary, while the Shell-owned
+`InsightSheetViewModel` accepts an optional trailing Field Notes dependency for
+deterministic persistence and feedback tests.
 
 The editor view model owns draft, save, validation, and generation-fenced
 dictation state. Views retain focus, keyboard, confirmation animation, actual
@@ -1082,26 +1089,31 @@ immutable `Core/Network/Inference/InferenceIdentificationReviewService`
 separately owns the exact-name Species Dictionary projection and owned-scan
 review RPC. Every live operation is fenced by an account-work lease;
 `InferenceEngine` retains review task generations, local persistence,
-presentation, and post-success effects without issuing Supabase queries.
-`Inference/Recovery` contains stateless interruption/failure classification and
-recovery presentation, including the existing visual/nonvisual decoding and
-telemetry differences. One private synchronous engine handler retains exact
-ownership checks, queue retirement/handoff, paywall and terminal-disposition
-actions, feedback, and publication order. The current toolchain derives five
-image-specific observations covering dominant colors, color saturation,
-lighting, light contrast, and surface detail. They render as plain visible
-descriptions such as **Reviewing softly colored areas** and **Observing light
-and shadow areas**, not `Kind: detail` labels or internal statistical buckets
-such as “moderate” and “balanced.” Active visual live-to-queue handoff preserves
-the ephemeral contextual deck and in-memory carousel media only for an exact
-scan-and-attempt owner. Prepared visual work transfers generic copy without
-media; audio and Describe are typed nonvisual owners. That exact handoff also
-retains the canonical scan ID, selected carousel page, focus state, and
-time-derived analysis sweep through pending, uploading, staged, and inferencing
-queue states while none requires attention; ordinary queued scans animate only
-while inferencing. The trailing Insight toolbar slot stays mounted and fades in
-its queued delete action only after the durable ID is bound. The same visual
-cursor survives save and connectivity changes, while dismissal or Auth removes
+presentation, and post-success effects without issuing Supabase queries. The
+AppDI-owned `Inference/Services/InferenceReviewSnapshotService` separately
+performs the bounded, throwing SwiftData projection needed before confirmation
+or reset. Store failure returns before review presentation, action generations,
+local writes, or cloud work can change; a missing row remains an optional
+compatibility result. `Inference/Recovery` contains stateless
+interruption/failure classification and recovery presentation, including the
+existing visual/nonvisual decoding and telemetry differences. One private
+synchronous engine handler retains exact ownership checks, queue
+retirement/handoff, paywall and terminal-disposition actions, feedback, and
+publication order. The current toolchain derives five image-specific
+observations covering dominant colors, color saturation, lighting, light
+contrast, and surface detail. They render as plain visible descriptions such as
+**Reviewing softly colored areas** and **Observing light and shadow areas**, not
+`Kind: detail` labels or internal statistical buckets such as “moderate” and
+“balanced.” Active visual live-to-queue handoff preserves the ephemeral
+contextual deck and in-memory carousel media only for an exact scan-and-attempt
+owner. Prepared visual work transfers generic copy without media; audio and
+Describe are typed nonvisual owners. That exact handoff also retains the
+canonical scan ID, selected carousel page, focus state, and time-derived
+analysis sweep through pending, uploading, staged, and inferencing queue states
+while none requires attention; ordinary queued scans animate only while
+inferencing. The trailing Insight toolbar slot stays mounted and fades in its
+queued delete action only after the durable ID is bound. The same visual cursor
+survives save and connectivity changes, while dismissal or Auth removes
 contextual phrase/media exposure without blocking durable result recovery.
 Generative multimodal cues remain the stable-Xcode-27 milestone.
 

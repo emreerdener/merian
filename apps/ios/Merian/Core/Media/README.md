@@ -72,9 +72,16 @@ tokens; callbacks capture the observation, player, and item weakly.
 Do not add ad hoc observer arrays or rely on view disappearance alone to clean
 up a player. A new playback surface must retain this owner and explicitly call
 `observe(_:)` for replacement and `detach()` when its playback lifetime ends.
+`MerianTests/Core/Media/MediaPlaybackObservationTests.swift` verifies that
+replaced and detached player callbacks cannot mutate current observation state.
 
 ## Bounded media helpers
 
+- `ScanMediaPayloadPolicy` owns the shared staged-image, inference and restored-
+  publication audio, saved-video, and playback-video byte/dimension limits
+  consumed across Capture, Images, OfflineSync, Network, Profile, and Media. It
+  owns values only; staging item counts remain with `MediaStagingContract`, and
+  encoding dimensions remain with `ImagePreparationPolicy`.
 - `AudioBoostProcessor` creates capped temporary enhanced audio without changing
   or uploading the canonical recording.
 - `AudioSpectrogramSeekingPolicy` normalizes non-finite seeking inputs and
@@ -93,6 +100,12 @@ up a player. A new playback surface must retain this owner and explicitly call
 - `ImageCropProcessor` owns domain-neutral square-crop geometry and bounded
   WebP/JPEG encoding for Capture media preparation, Capture's interactive crop,
   and Profile avatar preparation. Feature views do not own its ImageIO work.
+
+`MerianTests/Core/Media/ScanMediaPayloadPolicyTests.swift` freezes every shared
+image, audio, and video budget above. The cross-domain
+`CorePolicyOwnershipArchitectureTests` separately enforces sole declaration
+ownership, an effect-free policy body, focused test placement, and the retired
+Utilities aggregate path.
 
 ## Media export
 

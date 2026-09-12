@@ -2,8 +2,8 @@
  * Canonical confidence threshold constants for the multimodal identify pipeline.
  *
  * These values are the server-side source of truth. The iOS client mirrors them
- * in `MerianConfig.flashConfidence` and `MerianConfig.proConfidence` — any change
- * here must be reflected there, and vice versa.
+ * in `InferenceConfidencePolicy.flash` and `InferenceConfidencePolicy.pro` —
+ * any change here must be reflected there, and vice versa.
  */
 
 export const FLASH_STRONG = 0.95;

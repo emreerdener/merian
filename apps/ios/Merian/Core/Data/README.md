@@ -31,14 +31,15 @@ serialization and delegates file adoption through narrow injected closures.
 `BackgroundDatabaseActor+SpeciesMetadata.swift` owns Wikipedia/reference-image
 patches, inference enrichment, lookalike-cache recovery, and identification
 review persistence. `BackgroundDatabaseActor+NonBiologicalRetention.swift` owns
-the non-biological erasure values, bounded retention purge, and atomic
-record/cloud-tombstone commit. Actor extensions perform no networking,
-authentication, direct file I/O, or UI work.
+the bounded retention purge and atomic record/cloud-tombstone commit;
+`NonBiologicalRetentionPolicy` owns its retention and batch values. Actor
+extensions perform no networking, authentication, direct file I/O, or UI work.
 
 `Database/HistoricalSync/` separates cloud-history request/DTO values,
 row-isolated decoding, the sole live Auth/PostgREST adapter, and actor-isolated
-SwiftData reconciliation. `ScanRepository` retains only ordering, pagination,
-account fencing, and app-event orchestration. See the
+SwiftData reconciliation. `HistoricalSyncPolicy` owns scan and collection page
+sizes plus the save-checkpoint interval. `ScanRepository` retains only ordering,
+pagination, account fencing, and app-event orchestration. See the
 [Historical Sync README](Database/HistoricalSync/README.md) for the layer
 invariants and canonical contract links.
 
@@ -72,6 +73,13 @@ generation-acknowledges tombstones and refetches local state after an upsert
 suspension before applying the earlier remote page. See the
 [Species Preferences README](SpeciesPreferences/README.md) for ownership and
 verification details.
+
+`FieldNotes/` owns the cross-feature SwiftData-first note reconciliation
+boundary. It reads active records before queued records and then the legacy
+defaults bridge, mirrors the bridge only after successful durable operations,
+and fails closed on fetch or save errors. Insight and Explore adapt this owner
+instead of independently coordinating the two stores. See the
+[Core Field Notes README](FieldNotes/README.md).
 
 Accepted account deletion routes through `ScanRepository.purgeAllData`, which
 explicitly deletes every model in `CurrentSchema` and then invokes the verified
@@ -651,6 +659,11 @@ retry. `ScanRepository` follows the same rule when reconciling scans,
 collections, memberships, and Favorites state, so a failed read cannot
 manufacture an empty local snapshot.
 
+`CoreIntegrationArchitectureTests` extends the same no-`try?` fetch rule across
+every Core domain. Inference's identification-review projection is the first
+non-Data consumer covered by that cross-domain guard; its throwing service keeps
+an unreadable store distinct from an absent review record.
+
 `OfflineSync/Persistence/OfflineQueueDurableAuthorityReader.swift` projects the
 mirrored scan/job error markers, retry attempts, and video count from one fresh,
 throwing `ModelContext`. Missing queue context is an error rather than an empty
@@ -792,6 +805,9 @@ oldest-first batch limiting. The companion architecture suite scans the complete
 production and test Swift trees for sole declaration and test ownership, narrow
 imports and dependencies, committed-count fencing, repository effect routing,
 and the 600-line focused-file ceilings.
+
+`NonBiologicalRetentionPolicyTests` separately freezes the unchanged 30-day
+window and 250-record purge limit.
 
 Cloud-deletion draining uses a process-local single-flight latch in addition to
 durable restartable job state. Competing scheduler, repository, and UI wake

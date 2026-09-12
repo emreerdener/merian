@@ -39,19 +39,16 @@ struct ExploreSharedArchitectureTests {
         let retiredProductionPath = repository.appendingPathComponent(
             "apps/ios/Merian/Core/Utilities/ExploreErrorFormatter.swift"
         )
-        let formerAggregatePath = repository.appendingPathComponent(
+        let retiredAggregatePath = repository.appendingPathComponent(
             "apps/ios/MerianTests/Core/Utilities/MerianConfigTests.swift"
         )
 
         #expect(FileManager.default.fileExists(atPath: productionPath.path))
         #expect(FileManager.default.fileExists(atPath: testPath.path))
         #expect(!FileManager.default.fileExists(atPath: retiredProductionPath.path))
+        #expect(!FileManager.default.fileExists(atPath: retiredAggregatePath.path))
 
         let focusedTests = try String(contentsOf: testPath, encoding: .utf8)
-        let formerAggregate = try String(
-            contentsOf: formerAggregatePath,
-            encoding: .utf8
-        )
         let focusedTestDeclaration = "struct ExploreError"
             + "FormatterTests"
         let testOwners = try DatabaseActorTestSupport.swiftSources(
@@ -64,8 +61,6 @@ struct ExploreSharedArchitectureTests {
 
         #expect(testOwners == [Self.errorFormatterTestPath])
         #expect(focusedTests.contains(focusedTestDeclaration))
-        #expect(!formerAggregate.contains("ExploreErrorFormatterTests"))
-        #expect(!formerAggregate.contains("ExploreErrorFormatter."))
     }
 
     @Test func productionFilesStayBounded() throws {

@@ -204,7 +204,7 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
     ) {
         preconditionOnCameraQueue()
         movieOutput.maxRecordedDuration = CMTime(seconds: max(maxDuration, 0.5), preferredTimescale: 600)
-        movieOutput.maxRecordedFileSize = Int64(MerianConfig.videoPayloadMaxBytes)
+        movieOutput.maxRecordedFileSize = Int64(ScanMediaPayloadPolicy.maxSavedVideoBytes)
         guard let connection = movieOutput.connection(with: .video) else { return }
 
         if let rotationAngle,
@@ -290,7 +290,7 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
             """
             Video recording start requested: \
             generation=\(generation.id.uuidString, privacy: .public), \
-            url=\(generation.outputURL.lastPathComponent, privacy: .public), \
+            url=\(generation.outputURL.lastPathComponent, privacy: .private), \
             maxDuration=\(maxDuration, privacy: .public), \
             preferredStabilizationMode=\(preferredStabilizationMode, privacy: .public)
             """
@@ -522,7 +522,7 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
             """
             Video recording started: \
             generation=\(startContext.generation.id.uuidString, privacy: .public), \
-            url=\(callbackURL.lastPathComponent, privacy: .public), \
+            url=\(callbackURL.lastPathComponent, privacy: .private), \
             activeStabilizationMode=\(activeStabilizationMode, privacy: .public)
             """
         )
@@ -586,7 +586,7 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
             """
             Video recording finished: \
             generation=\(result.generation.id.uuidString, privacy: .public), \
-            url=\(result.generation.outputURL.lastPathComponent, privacy: .public), \
+            url=\(result.generation.outputURL.lastPathComponent, privacy: .private), \
             duration=\(duration, privacy: .public)
             """
         )

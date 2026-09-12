@@ -194,7 +194,7 @@ struct QueuedContentView: View {
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(
-                        nanoseconds: MerianConfig.scanningPhaseRotationIntervalNs
+                        nanoseconds: ScanningPhrasePolicy.rotationIntervalNanoseconds
                     )
                 } catch {
                     return

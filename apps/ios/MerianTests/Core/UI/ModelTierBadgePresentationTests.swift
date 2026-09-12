@@ -22,7 +22,7 @@ struct ModelTierBadgePresentationTests {
 
     @Test("Free analysis offers an upgrade only in the eligible band")
     func freeAnalysisUsesConfidenceBand() {
-        let bands = MerianConfig.confidenceBands(
+        let bands = InferenceConfidencePolicy.bands(
             forInferenceTier: "free"
         )
         let eligibleScore = (bands.possible + bands.strong) / 2

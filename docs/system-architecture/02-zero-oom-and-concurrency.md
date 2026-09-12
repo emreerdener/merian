@@ -18,8 +18,9 @@ detached tasks evade Swift 6 Sendable boundaries and structured cancellation
 propagation. Merian now constrains detached work to narrow bridge points only:
 AVFoundation startup where mediaserverd IPC must not block the main actor, and
 pure CPU / file transforms over `Sendable` snapshots. High-level feature flows
-route those escapes through `DetachedWork`, while long-lived workflows are
-pushed into actors (`SearchFilterActor`, `FileIOActor`,
+route those escapes through `DetachedWork`; every call supplies a
+`DetachedWorkCategory` so exceptional uses remain classified and searchable.
+Long-lived workflows are pushed into actors (`SearchFilterActor`, `FileIOActor`,
 `InferenceProcessingActor`, `MediaExportProcessor`, `AudioSessionCoordinator`)
 so cancellation, serialization, and ownership stay explicit.
 
@@ -57,7 +58,7 @@ captures, exports, or swipes.
 The candidate-review "original capture" expansion follows the same rule.
 `OriginalCaptureExpandedView` must not call `UIImage(data:)` on
 `activeMedia.liveImageData`; it downscales through
-`ImageDownsampler.downsample(data:maxSize: MerianConfig.displayImageMaxSize)`
+`ImageDownsampler.downsample(data:maxSize: ImagePreparationPolicy.displayMaxDimension)`
 inside a detached `autoreleasepool` and only publishes the bounded `UIImage`
 back to SwiftUI. Full-resolution originals are never inflated just to support
 pinch-to-zoom.
@@ -643,13 +644,15 @@ these handles are extracted outside of `@MainActor` task executions to avoid
 rapid synchronous delegate fire-and-return OS suspension traps.
 
 A unified `BackgroundTaskWrapper` reference box secured with `NSLock` binds
-these background identifiers. To eliminate duplicated `#if os(iOS)` preprocessor
-macros and `endBackgroundTask` loops across `enqueueCapture`,
-`syncPendingScans`, and background URLSessions, the architecture uses a static
-abstraction: `BackgroundTaskWrapper.execute(name:operation:)`. This handles
-registering the active memory environment, tracking OS expiration callbacks, and
-invoking `.endBackgroundTask` inside a `defer` block, guaranteeing URLSession
-callbacks execute across thread boundaries safely.
+these background identifiers. Its focused owner is
+`Core/Data/OfflineSync/Services/BackgroundExecution/BackgroundTaskWrapper.swift`.
+To eliminate duplicated `#if os(iOS)` preprocessor macros and
+`endBackgroundTask` loops across queue admission, sync, and background
+URLSessions, the architecture uses
+`BackgroundTaskWrapper.execute(name:operation:)`. The factory registers the OS
+expiration callback, launches the requested task, and ends the exact identifier
+after either expiration or operation completion. `safeEnd()` atomically swaps
+the identifier to `.invalid`, making those competing paths idempotent.
 
 If a user taps the capture button and immediately locks their phone before the
 NVMe controller finishes writing `.jpg` bytes to disk, iOS suspends the thread,
@@ -1138,7 +1141,7 @@ let newUrls = try await speciesReferenceService
 ### `JSONEncoder` Hoist + Consolidated Date Parse in `ingestScans` (`HistoricalDatabaseActor`)
 
 `HistoricalDatabaseActor.ingestScans` processes up to
-`MerianConfig.historicalSyncPageSize` scan records per page call. Two
+`HistoricalSyncPolicy.scanPageSize` scan records per page call. Two
 per-iteration allocations compounded over bulk ingestion:
 
 1. **`JSONEncoder()` per scan** — `JSONEncoder` init touches multiple Obj-C
@@ -1502,10 +1505,9 @@ view contexts, creating subtle ordering hazards:
   replaced throughout with `Task { @MainActor in }`. This keeps all main-actor
   hops within the Swift concurrency runtime, enabling priority inheritance and
   avoiding the GCD/async interop pitfalls documented by SE-0297.
-- **`BackgroundTaskWrapper.safeEnd()`**:
-  `UIApplication.shared.endBackgroundTask()` requires the main actor. Previously
-  used `DispatchQueue.main.async`; replaced with `Task { @MainActor in }` for
-  the same reason.
+- **`BackgroundTaskWrapper.safeEnd()`**: the Offline Sync-owned wrapper uses an
+  `NSLock`-protected take-and-invalidate operation, so completion and expiration
+  cannot end one UIKit background-task identifier twice.
 
 **Rule:** Avoid adding `DispatchQueue.main.async` for actor hopping or
 `DispatchQueue.main.asyncAfter` for lifecycle/presentation coordination. Use
@@ -2227,12 +2229,12 @@ extracts the small metadata dictionary before bounded preparation.
 `StagedImage.displayData` is always a 2048 px re-encoded display payload, never
 the original mapped file bytes. The actor records `MediaPreparationMetrics` for
 output byte counts and pixel dimensions, and rejects any prepared still image
-that exceeds `MerianConfig.stagedImagePayloadMaxBytes`,
-`MerianConfig.inferenceImageMaxSize(isProActive:)`, or
-`MerianConfig.displayImageMaxSize`. The profile avatar crop preview uses
-`preparePreviewImage(fileURL:maxSize:)` and constructs `UIImage(cgImage:)` back
-on `@MainActor`; direct `UIImage(contentsOfFile:)` reads are not permitted for
-user-selected originals.
+that exceeds `ScanMediaPayloadPolicy.maxStagedImageBytes`,
+`ImagePreparationPolicy.inferenceMaxDimension(isProActive:)`, or
+`ImagePreparationPolicy.displayMaxDimension`. The profile avatar crop preview
+uses `preparePreviewImage(fileURL:maxSize:)` and constructs `UIImage(cgImage:)`
+back on `@MainActor`; direct `UIImage(contentsOfFile:)` reads are not permitted
+for user-selected originals.
 
 ### AVFoundation Sample Buffer Lifetime (`CaptureScanVideoAudioExtractor`)
 
@@ -2539,7 +2541,7 @@ callback from mutating a replacement even at the database boundary. Legacy
 in-flight work can populate only `nil` metadata once during upgrade; a non-`nil`
 generation is never adopted or replaced by a delayed callback.
 
-### Centralized Magic Numbers (`MerianConfig`)
+### Domain-Owned Resource Policies
 
 Batch sizes, fetch limits, pagination page sizes, and retention windows were
 previously scattered as literals across `OfflineQueueManager`, `ScanRepository`,
@@ -2547,22 +2549,28 @@ and `BackgroundDatabaseActor`. Divergence between these call sites introduced
 silent bugs (e.g., a fetch limit of 50 and a batch limit of 5 in different files
 with no linking comment).
 
-All policy constants are now consolidated in `MerianConfig.swift`
-(Core/Utilities/):
+Each policy family now has one focused owner beside the behavior it constrains:
 
 ```swift
-enum MerianConfig {
+enum OfflineQueueBatchPolicy {
     static let uploadBatchSize              = 5
     static let pendingScanFetchLimit        = 50
-    static let historicalSyncPageSize       = 200
-    static let collectionsSyncPageSize      = 100
+}
+
+enum HistoricalSyncPolicy {
+    static let scanPageSize                 = 200
+    static let collectionPageSize           = 100
     static let ingestCheckpointInterval     = 100
 }
 ```
 
-The focused OfflineSync media-upload services, `ScanRepository`, and
-`HistoricalDatabaseActor` reference these constants exclusively. Tuning any
-policy requires a change in exactly one place.
+OfflineSync count and storage policy lives under `Core/Data/OfflineSync`,
+historical pagination and checkpoints under `Core/Data/Database/HistoricalSync`,
+non-biological retention under `Core/Data/Database`, bounded image preparation
+under `Core/Data/Images`, shared scan-media byte limits under `Core/Media`, and
+inference thresholds, scanning cadence, and recovery versions under
+`Core/AI/Inference`. Their consumers reference these owners exclusively. The
+retired cross-domain Utilities aggregate must not return.
 
 ### Transactional Scan Deletion (`eradicateScan`)
 
@@ -3149,16 +3157,16 @@ as engineering intent:
 - Database actor tests verify local lookalike cache clearing walks batches and
   leaves non-biological records untouched.
 
-### WAL Flush Frequency (`MerianConfig.ingestCheckpointInterval`)
+### WAL Flush Frequency (`HistoricalSyncPolicy.ingestCheckpointInterval`)
 
-The `ingestCheckpointInterval` constant (used by `HistoricalDatabaseActor` to
-determine how often to call `modelContext.save()` during bulk historical
-ingestion) was raised from 50 to 100. Halving the save frequency reduces SQLite
-WAL flush operations by 50% during initial historical sync-down. The trade-off
-is that cancellation or a storage failure can roll back up to one unsaved
-100-record checkpoint batch instead of 50 records. Earlier committed checkpoints
-remain durable, and the throwing reconciliation boundary makes the next
-historical sync retry the incomplete page idempotently.
+`HistoricalSyncPolicy.ingestCheckpointInterval` tells `HistoricalDatabaseActor`
+how often to call `modelContext.save()` during bulk historical ingestion. It was
+raised from 50 to 100. Halving the save frequency reduces SQLite WAL flush
+operations by 50% during initial historical sync-down. The trade-off is that
+cancellation or a storage failure can roll back up to one unsaved 100-record
+checkpoint batch instead of 50 records. Earlier committed checkpoints remain
+durable, and the throwing reconciliation boundary makes the next historical sync
+retry the incomplete page idempotently.
 
 ### Resilient UI Polling (Skeleton Auto-Retry)
 

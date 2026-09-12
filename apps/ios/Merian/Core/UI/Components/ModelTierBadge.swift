@@ -27,7 +27,7 @@ struct ModelTierBadgePresentation: Equatable {
         }
 
         if !isProActive, let confidenceScore {
-            let bands = MerianConfig.confidenceBands(
+            let bands = InferenceConfidencePolicy.bands(
                 forInferenceTier: inferenceTier
             )
             if confidenceScore >= bands.possible,

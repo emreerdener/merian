@@ -49,7 +49,7 @@ struct AsyncLocalImageView: View {
             let image = await dependencies.loadImage(
                 path,
                 fallbackImageUrl,
-                Int(MerianConfig.displayImageMaxSize)
+                Int(ImagePreparationPolicy.displayMaxDimension)
             )
             guard !Task.isCancelled else { return }
             if let image {

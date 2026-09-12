@@ -43,7 +43,7 @@ struct FullscreenMediaLiveImageView: View {
             autoreleasepool {
                 ImageDownsampler.downsample(
                     data: imageData,
-                    maxSize: 2048
+                    maxSize: ImagePreparationPolicy.displayMaxDimension
                 )
                 .map { SendableCGImage(image: $0) }
             }

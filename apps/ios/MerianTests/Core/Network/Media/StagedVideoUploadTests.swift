@@ -174,9 +174,9 @@ struct StagedVideoUploadTests {
         defer { fixture.close() }
         let files = try NetworkMediaFileFixture()
         defer { files.close() }
-        let file = try files.sizedFile(kind == 1 ? MerianConfig.videoPayloadMaxBytes + 1 : 1)
+        let file = try files.sizedFile(kind == 1 ? ScanMediaPayloadPolicy.maxSavedVideoBytes + 1 : 1)
         let paths = kind == 0 ? [] : Array(
-            repeating: file.path, count: kind == 2 ? MerianConfig.mediaStagingMaxVideoFilesPerRequest + 1 : 1
+            repeating: file.path, count: kind == 2 ? MediaStagingContract.maxVideoItemsPerRequest + 1 : 1
         )
         await confirmation("No signing on invalid local plan", expectedCount: 0) { sent in
             fixture.transport.register(path: "/generate-upload-urls") { request in

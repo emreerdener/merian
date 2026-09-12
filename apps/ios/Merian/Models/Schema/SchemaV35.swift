@@ -84,7 +84,7 @@ enum MerianSchemaV35: VersionedSchema {
         var similarSpecies: [String]?
         var lookalikesData: Data?
         /// JSON-encoded `[IdentificationCandidate]` — the model's top alternative species when
-        /// `confidenceScore` fell below the tier-specific `MerianConfig.diagnosticTrigger` threshold.
+        /// `confidenceScore` fell below the tier-specific `InferenceConfidencePolicy.Bands.diagnosticTrigger` threshold.
         /// Nil for high-confidence scans and all scans captured before V28.
         @Attribute var candidatesData: Data?
 

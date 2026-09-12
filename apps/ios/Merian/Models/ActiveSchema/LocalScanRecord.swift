@@ -45,7 +45,7 @@ public final class LocalScanRecord {
     public var similarSpecies: [String]?
     public var lookalikesData: Data?
     /// JSON-encoded `[IdentificationCandidate]` — the model's top alternative species when
-    /// `confidenceScore` fell below the tier-specific `MerianConfig.diagnosticTrigger` threshold.
+    /// `confidenceScore` fell below the tier-specific `InferenceConfidencePolicy.Bands.diagnosticTrigger` threshold.
     /// Nil for high-confidence scans and all scans captured before V28.
     @Attribute public var candidatesData: Data?
 

@@ -120,7 +120,7 @@ actor AudioBoostProcessor {
 
     private static func validateSize(of url: URL) throws {
         let byteSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard byteSize <= MerianConfig.audioPayloadMaxBytes else {
+        guard byteSize <= ScanMediaPayloadPolicy.maxInferenceAudioBytes else {
             throw URLError(.dataLengthExceedsMaximum)
         }
     }

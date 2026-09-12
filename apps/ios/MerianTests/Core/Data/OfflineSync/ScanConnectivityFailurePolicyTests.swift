@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Merian
+import Testing
 
 @Suite("Scan connectivity failure policy")
 struct ScanConnectivityFailurePolicyTests {

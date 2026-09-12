@@ -27,10 +27,16 @@ mitigates it.
 Every capture produces **two independent downsampled images** from the same raw
 source buffer. The two paths serve different purposes and are sized accordingly.
 
-| Path          | Constant                                           | Size                                                      | Destination                                                                                                 |
-| ------------- | -------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **Inference** | `MerianConfig.inferenceImageMaxSize(isProActive:)` | **768 px** (Flash/free) or **1024 px** (Pro) longest edge | Base64-encoded and sent to Gemini; discarded after encoding (scan durability is owned by the offline queue) |
-| **Display**   | `MerianConfig.displayImageMaxSize`                 | 2048 px longest edge                                      | Written to disk by `FileIOActor`; read by the insight sheet carousel and scan library                       |
+| Path          | Constant                                                     | Size                                                      | Destination                                                                                                 |
+| ------------- | ------------------------------------------------------------ | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Inference** | `ImagePreparationPolicy.inferenceMaxDimension(isProActive:)` | **768 px** (Flash/free) or **1024 px** (Pro) longest edge | Base64-encoded and sent to Gemini; discarded after encoding (scan durability is owned by the offline queue) |
+| **Display**   | `ImagePreparationPolicy.displayMaxDimension`                 | 2048 px longest edge                                      | Written to disk by `FileIOActor`; read by the insight sheet carousel and scan library                       |
+
+The crop processor's default cap is
+`ImagePreparationPolicy.maximumInferenceDimension`, derived from the installed
+Flash and Pro caps rather than another literal. The manual display-crop rebuild
+and the live/full-screen in-memory renderers use `displayMaxDimension` directly,
+so future tuning cannot leave those paths at an obsolete size.
 
 For file-backed still images, `MediaPreparationActor` is the policy boundary.
 Gallery imports, refinement staging, and avatar crop previews send only file
@@ -400,8 +406,9 @@ macro-feature identification (bark texture, wing pattern, leaf shape). Pro tier
 uses 1024 px to preserve the fine morphological detail (feather barbs, gill
 spacing, lichen areolae) that subspecies and cultivar discrimination requires.
 Both payloads are well below the 5 MB guard (~100–250 KB base64 for 768 px;
-~200–500 KB for 1024 px). `MerianConfig.inferenceImageMaxSize(isProActive:)` is
-the single source of truth—Scan's injected entitlement action is evaluated by
+~200–500 KB for 1024 px).
+`ImagePreparationPolicy.inferenceMaxDimension(isProActive:)` is the single
+source of truth—Scan's injected entitlement action is evaluated by
 `CaptureWorkspaceViewModel+PhotoCapture` and carried in the still-preparation
 request before encoding. The gallery picker path evaluates the same live owner
 in `CaptureWorkspaceViewModel+Imports.swift`.
@@ -427,7 +434,7 @@ tier-correct size (768 px or 1024 px) during capture or gallery pick. Because
 `kCGImageDestinationImageMaxPixelSize` is a _maximum cap_ — never an upscale
 target — a free-tier 768 px source image passes through the 1024 px cap
 unchanged. No explicit tier lookup is needed at the crop boundary. Compression
-quality uses `MerianConfig.imageCompressionQuality` throughout (previously
+quality uses `ImagePreparationPolicy.compressionQuality` throughout (previously
 hardcoded at 0.7, now consistent with the capture path).
 
 When the user confirms a crop, `CropSheetModifier` updates both the inference
@@ -471,18 +478,19 @@ pixel buffer into RAM.
 inference and display payloads are encoded as lossy WebP via
 `CGImageDestinationCreateWithData` with `UTType.webP` and
 `kCGImageDestinationLossyCompressionQuality` set to
-`MerianConfig.imageCompressionQuality`. If `CGImageDestinationCreateWithData`
-returns nil for WebP (e.g., the iOS Simulator's host-macOS ImageIO stack does
-not support WebP writing on all platforms), the encoding automatically falls
-back to JPEG using the same quality setting. The actual format used is detected
-from the first image's magic bytes (`FF D8 FF` → `"image/jpeg"`, otherwise
-`"image/webp"`) inside `InferenceLiveRequestService` and forwarded to the Edge
-Function's `mimeType` field so Gemini receives the correct MIME label. The
-`CGImageDestination` API writes directly from the `CGImage` without an
-intermediate `UIImage`, reducing peak allocation by one full decoded-pixel
-buffer per encode. The toolbar thumbnail (`StagedImage.uiImage`) is separately
-created via `UIImage(cgImage:)` — a zero-copy reference wrap over the
-already-decoded `CGImage` — rather than by re-decoding the encoded bytes.
+`ImagePreparationPolicy.compressionQuality`. If
+`CGImageDestinationCreateWithData` returns nil for WebP (e.g., the iOS
+Simulator's host-macOS ImageIO stack does not support WebP writing on all
+platforms), the encoding automatically falls back to JPEG using the same quality
+setting. The actual format used is detected from the first image's magic bytes
+(`FF D8 FF` → `"image/jpeg"`, otherwise `"image/webp"`) inside
+`InferenceLiveRequestService` and forwarded to the Edge Function's `mimeType`
+field so Gemini receives the correct MIME label. The `CGImageDestination` API
+writes directly from the `CGImage` without an intermediate `UIImage`, reducing
+peak allocation by one full decoded-pixel buffer per encode. The toolbar
+thumbnail (`StagedImage.uiImage`) is separately created via `UIImage(cgImage:)`
+— a zero-copy reference wrap over the already-decoded `CGImage` — rather than by
+re-decoding the encoded bytes.
 
 **Profile avatar encoding**: `ProfileAvatarImagePreparer` reuses the same
 bounded ImageIO primitives for user-selected profile pictures. It downsamples
@@ -522,13 +530,13 @@ images that actually carry an alpha channel go through the compositing path —
 images already declared `.none`, `.noneSkipLast`, or `.noneSkipFirst` are
 returned unchanged.
 
-**`imageCompressionQuality` (0.85)**: Raised from 0.80 to preserve fine
-morphological detail (feather barbs, insect wing venation, leaf margins) that
-influences AI identification accuracy. File size increase is ~10–15%, well
-within the 5 MB payload limit. All WebP encoding paths use
-`MerianConfig.imageCompressionQuality` as a single source of truth — inference
-payload, display payload, and manual crop tool all apply the same quality
-setting.
+**`ImagePreparationPolicy.compressionQuality` (0.85)**: Raised from 0.80 to
+preserve fine morphological detail (feather barbs, insect wing venation, leaf
+margins) that influences AI identification accuracy. File size increase is
+~10–15%, well within the 5 MB payload limit. All WebP encoding paths use
+`ImagePreparationPolicy.compressionQuality` as a single source of truth —
+inference payload, display payload, and manual crop tool all apply the same
+quality setting.
 
 **Static `enum` methods**: `ImageDownsampler` is declared as
 `public enum ImageDownsampler` (not an `actor`). Both `downsample(url:maxSize:)`
@@ -600,7 +608,7 @@ await LocalImageLoader.shared.loadImage(
 await LocalImageLoader.shared.loadImage(
     fromPath: record.localImagePath,
     fallbackUrl: record.referenceImageUrl,
-    maxDimension: Int(MerianConfig.displayImageMaxSize)  // 2048
+    maxDimension: Int(ImagePreparationPolicy.displayMaxDimension)  // 2048
 )
 ```
 
@@ -810,11 +818,12 @@ the internal `Reference pending` state.
   - `ScanThumbnail`: `600` default (ScansGrid overrides with a computed
     cell-pixel size).
   - `AsyncLocalImageView` (cross-feature Core UI renderer; the Insight carousel
-    requests display-sized media): `Int(MerianConfig.displayImageMaxSize)`
-    = 2048. The 2048 px files are stored on disk; decoding them at full
-    resolution ensures crisp display on Pro Max (1290 px native width) and iPad
-    Pro (2048 px native width). Previously defaulted to 1024, producing visibly
-    soft full-screen images on large devices.
+    requests display-sized media):
+    `Int(ImagePreparationPolicy.displayMaxDimension)` = 2048. The 2048 px files
+    are stored on disk; decoding them at full resolution ensures crisp display
+    on Pro Max (1290 px native width) and iPad Pro (2048 px native width).
+    Previously defaulted to 1024, producing visibly soft full-screen images on
+    large devices.
 
 ### Display lifetime and feedback isolation
 

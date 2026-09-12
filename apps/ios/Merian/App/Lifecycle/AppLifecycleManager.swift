@@ -1,5 +1,5 @@
+import Foundation
 import SwiftData
-import SwiftUI
 
 /// Handles app lifecycle transitions (active, inactive, background),
 /// dispatching to the relevant core services.
@@ -65,7 +65,7 @@ final class AppLifecycleManager {
         container.pushNotificationManager.setupDelegate()
         container.pushNotificationManager.syncPermissionState()
         container.pushNotificationManager.registerForRemoteNotificationsIfAuthorized()
-        
+
         // Evaluate session timeout: if the app has been in the background for more than 5 minutes,
         // snap the UI back to a clean camera state.
         let lastBackgrounded = UserDefaults.standard.double(forKey: UserDefaultsKeys.lastBackgroundedDate)
@@ -77,7 +77,7 @@ final class AppLifecycleManager {
             }
             UserDefaults.standard.set(0.0, forKey: UserDefaultsKeys.lastBackgroundedDate)
         }
-        
+
         // Force cross-process settings reconciliation. UserDefaults updates made by
         // background delegates while suspended are not always observed by SwiftUI on resume.
         container.appSettings.refreshFromDefaults()

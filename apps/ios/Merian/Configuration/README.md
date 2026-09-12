@@ -37,3 +37,7 @@ registry, production defaults, installed DEBUG override keys, and the absence of
 a retired Events gate. `FeatureFlagsArchitectureTests.swift` enforces the sole
 configuration owner, the Field Trips-local sharing owner, retired Utilities
 paths, bounded source files, and the effect boundary.
+
+`MerianTests/Configuration/MerianEnvironmentTests.swift` owns the existing
+production-endpoint warning matrix. It was separated from the retired mixed Core
+Utilities policy suite; runtime configuration behavior is unchanged.

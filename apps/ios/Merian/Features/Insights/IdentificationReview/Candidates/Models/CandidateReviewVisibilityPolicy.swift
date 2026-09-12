@@ -29,7 +29,7 @@ enum CandidateReviewVisibilityPolicy {
             return false
         }
 
-        let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
+        let bands = InferenceConfidencePolicy.bands(forInferenceTier: inferenceTier)
         guard primaryConfidence < bands.diagnosticTrigger else { return false }
         if primaryConfidence < bands.strong { return true }
 
@@ -110,7 +110,7 @@ enum CandidateReviewVisibilityPolicy {
             return false
         }
 
-        let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
+        let bands = InferenceConfidencePolicy.bands(forInferenceTier: inferenceTier)
         guard primaryConfidence < bands.diagnosticTrigger else { return false }
         if primaryConfidence < bands.strong { return true }
 

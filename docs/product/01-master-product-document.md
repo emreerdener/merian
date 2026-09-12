@@ -1547,7 +1547,14 @@ repository-relative.
 - `project.yml`
 - `README.md`
 - `apps/ios/Merian/Models/Aliases.swift`
-- `apps/ios/Merian/Core/Utilities/MerianConfig.swift`
+- `apps/ios/Merian/Core/AI/Inference/LocalAnalysis/ScanningPhrasePolicy.swift`
+- `apps/ios/Merian/Core/AI/Inference/Recovery/InferenceLookalikeCachePolicy.swift`
+- `apps/ios/Merian/Core/AI/Inference/Result/InferenceConfidencePolicy.swift`
+- `apps/ios/Merian/Core/Data/Database/HistoricalSync/HistoricalSyncPolicy.swift`
+- `apps/ios/Merian/Core/Data/Database/NonBiologicalRetentionPolicy.swift`
+- `apps/ios/Merian/Core/Data/Images/Policies/ImagePreparationPolicy.swift`
+- `apps/ios/Merian/Core/Data/OfflineSync/Policies/`
+- `apps/ios/Merian/Core/Media/ScanMediaPayloadPolicy.swift`
 
 ## iOS application and capture
 

@@ -7,7 +7,7 @@ protocol ScanningPhraseSleeping: Sendable {
 struct ContinuousScanningPhraseSleeper: ScanningPhraseSleeping {
     func sleepUntilNextPhrase() async throws {
         try await Task.sleep(
-            nanoseconds: MerianConfig.scanningPhaseRotationIntervalNs
+            nanoseconds: ScanningPhrasePolicy.rotationIntervalNanoseconds
         )
     }
 }

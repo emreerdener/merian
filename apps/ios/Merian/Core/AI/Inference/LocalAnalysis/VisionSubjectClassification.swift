@@ -55,8 +55,8 @@ struct AppleVisionSubjectClassifier: VisionSubjectClassifying {
 enum VisionSubjectClassificationResolver {
     static func resolve(
         candidates: [VisionClassificationCandidate],
-        confidenceThreshold: Float = MerianConfig.visionConfidenceThreshold,
-        marginThreshold: Float = MerianConfig.visionMarginThreshold
+        confidenceThreshold: Float = ScanningPhrasePolicy.visionConfidenceThreshold,
+        marginThreshold: Float = ScanningPhrasePolicy.visionMarginThreshold
     ) -> VisionSubjectClassification {
         guard let top = candidates.first,
               top.confidence >= confidenceThreshold else {

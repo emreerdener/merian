@@ -123,6 +123,18 @@ cancelled before entry leaves the currently published heatmap state intact.
 `GBIFHeatmapMapView` retains only the base-map composition, overlay copy, and
 two-finger zoom/pan state.
 
+## Common-name presentation
+
+`Models/SpeciesCommonNamePresentation.swift` owns the established display-only
+normalization used by Insight and Explore name pickers. It lowercases, removes
+apostrophes, hyphens, whitespace, and one trailing plural `s`, then preserves
+the first spelling and order while removing fuzzy duplicates. Scientific-name
+identity and persistence remain separate and never use this display key.
+
+`SpeciesCommonNamePresentationTests` freezes those compatibility rules. The
+Utilities-wide architecture suite prevents the feature terminology and the
+retired unused generic deduplication extension from returning to Core Utilities.
+
 ## Verification
 
 Mirrored tests under `MerianTests/Features/SpeciesReference` cover local
@@ -132,7 +144,7 @@ state owners, cancellation after uncooperative dependencies, GBIF response and
 endpoint adaptation, fallback image ordering and races, ownership folders,
 Services-only live resolution, platform-neutral Models, absence of feature-
 owned unchecked sendability, private map helpers, aggregate removal, and the
-600-line ceiling.
+600-line ceiling. The suite also includes the common-name presentation tests.
 
 `MerianTests/Models/SpeciesDataTests.swift` separately owns lookalike identity
 filtering and the shared-common-name regression.

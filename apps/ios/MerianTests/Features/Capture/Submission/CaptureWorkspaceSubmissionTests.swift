@@ -313,7 +313,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         let uiImage = makeUIImage()
         let oversizedFrameData = Data(
             repeating: 0x7A,
-            count: Int(MerianConfig.offlineQueueSinglePayloadSoftLimitBytes) + 1
+            count: Int(OfflineQueueStoragePolicy.singlePayloadSoftLimitBytes) + 1
         )
         let stagedFrame = StagedImage(
             compressedData: oversizedFrameData,

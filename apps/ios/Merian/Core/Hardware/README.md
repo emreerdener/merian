@@ -247,6 +247,19 @@ fallback, and returning from the one-shot restores hundred-meter accuracy plus
 the 100 m distance filter. Record simulator and physical-device evidence
 separately.
 
+## Framework publisher bridge
+
+`Utilities/Publisher+MainActor.swift` owns the Combine bridge used by Apple and
+hardware publishers whose originating executor is unknown. It schedules onto the
+main queue, preserves publisher ordering, and enters the main actor through
+`MainActor.assumeIsolated`. Callers retain and cancel the returned cancellable.
+
+Do not use this helper for `AppEventPublisher`: the app bus is already
+synchronous and `@MainActor`-isolated, so an asynchronous hop would change its
+reentrancy contract. `FrameworkPublisherBridgeTests` verifies ordered main-actor
+delivery, while the routing architecture suite freezes the reviewed raw-sink
+allowlist. Media player observation remains owned by `Core/Media`.
+
 ## System notification boundary
 
 System authorization, APNs registration, local scheduling, typed push routing,

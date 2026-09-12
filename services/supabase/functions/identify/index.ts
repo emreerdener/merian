@@ -849,7 +849,7 @@ Deno.serve((req: Request) =>
     };
 
     // Strip candidates when confidence is at or above the tier's diagnosticTrigger threshold (0.99 both tiers).
-    // Mirrors MerianConfig.flashConfidence.diagnosticTrigger and MerianConfig.proConfidence.diagnosticTrigger.
+    // Mirrors InferenceConfidencePolicy.flash/pro.diagnosticTrigger on iOS.
     // Fallback to 0.0 (not 1.0) on a null score: a missing confidence_score means the
     // LLM returned a malformed response — preserve candidates rather than silently strip them.
     if ((parsedData.confidence_score ?? 0.0) >= diagnosticTrigger) {
