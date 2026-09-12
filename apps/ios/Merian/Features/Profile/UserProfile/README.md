@@ -54,6 +54,13 @@ Public-identity edits and username availability remain orchestrated by shared
 it does not move account state, editor feedback, or avatar signing/upload into
 this folder's Services.
 
+Startup recovery and configuration details arrive through the app-owned
+`startupRecoveryNotice` environment value. `ProfileTabView` keeps them inside a
+collapsed **Local library status** disclosure; they never appear as a workspace
+banner. Expanding the disclosure retains the existing Debug/TestFlight
+diagnostic sharing action. See the
+[startup recovery contract](../../../../../../docs/backend-and-data/08-startup-store-recovery.md).
+
 ## State Boundaries
 
 `ProfileTabViewModel` generation-fences local-stat and server Field trip

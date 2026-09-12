@@ -9,7 +9,7 @@ telemetry, and verification.
 
 | Area                         | File                                                                                                                                           | Responsibility                                                                                                                                                                                                                                                    |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App bootstrap                | `apps/ios/Merian/App/MerianApp.swift`                                                                                                          | Orchestrates startup, builds the model container, shows safe-mode/recovery notices, and emits recovery telemetry after analytics starts.                                                                                                                          |
+| App bootstrap                | `apps/ios/Merian/App/MerianApp.swift`                                                                                                          | Orchestrates startup, builds the model container, provides safe-mode/recovery details to Profile, and emits recovery telemetry after analytics starts.                                                                                                            |
 | Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`                                                                                              | Converts Objective-C `NSException`s raised by SwiftData/Core Data into Swift errors.                                                                                                                                                                              |
 | Store configuration façade   | `apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`                                                                  | Preserves the source-compatible production configuration and exact SwiftData-configured store URL.                                                                                                                                                                |
 | Models                       | `apps/ios/Merian/Core/Data/StoreRecovery/Models/`                                                                                              | Owns recent-source and V50 graph values, migration decisions, startup diagnostics/telemetry projection, the recovery-manifest format, and recovery-local deterministic JSON coding.                                                                               |
@@ -112,15 +112,17 @@ quarantine, rescue, and container creation must all refer to SwiftData's
 configured URL. Rescue-media lookup checks that configured directory first and
 also checks Application Support for archives produced by older builds.
 
-When a persistent or safe-mode container is available, its recovery notice is a
-dismissible top card so Capture and the rest of the workspace remain usable. The
-startup-blocked fallback remains a non-dismissible full-screen surface because
-there is no usable workspace behind it.
+When a persistent or safe-mode container is available, startup recovery and
+configuration notices never overlay Capture, Explore, Scans, or onboarding.
+Profile exposes the notice in a collapsed **Local library status** disclosure
+within its scrollable content. Recovery details and the existing
+Debug/TestFlight diagnostic sharing action appear only when the user expands it.
+The startup-blocked fallback remains a full-screen surface because there is no
+usable workspace or Profile page behind it.
 
 A successful persistent open or lossless migration is intentionally silent and
-returns no startup notice. Do not suppress the recovery card after an actual
-quarantine, rescue, or safe-mode fallback: prevent supported users from seeing
-it by making every released store graph migrate successfully.
+returns no startup notice. Quarantine, rescue, and safe-mode outcomes retain
+local diagnostics and telemetry, with their notice available on Profile.
 
 ## TestFlight Diagnostic Expectations
 

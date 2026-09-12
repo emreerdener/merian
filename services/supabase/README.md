@@ -53,10 +53,17 @@ access or mutation. The separate production job requires it before `db push`.
 The liked-feed invoker requires the forward repair
 `20260912045555_restore_explore_liked_feed_source_reads.sql` after its creation
 migration. It grants the service caller only the missing reads on
-`explore_post_likes`, `explore_observation_projection`, and `user_blocks`.
-`tests/explore_liked_feed.sql` checks the complete source-read chain, read-only
-repair privileges, RLS, client RPC denials, and a filtered service-role call
-with a nonzero limit.
+`explore_post_likes`, `explore_observation_projection`, and `user_blocks`. The
+subsequent `20260912141817_restore_explore_liked_feed_reference_reads.sql`
+grants `SELECT` on `species_reference_images` for the nested invoker thumbnail
+helper. Both repairs add only reads and preserve existing privileges, including
+the service writes needed by the separate block-user flow. The static migration
+contracts enforce that exact change; they do not impose a global write ban on
+shared tables. `tests/explore_liked_feed.sql` reports missing source/helper
+permissions by name and checks RLS, client RPC denials, and a populated filtered
+service-role result with reference imagery and media. It also checks viewer
+membership, category exclusion, and unshared-post denial. An empty feed alone
+does not exercise its nested thumbnail helper.
 
 `.github/workflows/supabase-candidate-validation.yml` is the reusable backend
 evidence gate. It reports a stable **Candidate readiness** result on every pull

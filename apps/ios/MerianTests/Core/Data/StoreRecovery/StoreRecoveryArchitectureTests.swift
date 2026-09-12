@@ -113,23 +113,30 @@ final class StoreRecoveryArchitectureTests: XCTestCase {
         XCTAssertEqual(testFiles, expectedTestFiles)
     }
 
-    func testUsableContainerRecoveryNoticeHasDismissControl() throws {
+    func testUsableContainerRecoveryNoticeIsConfinedToProfile() throws {
+        let appRoot = iosRoot.appendingPathComponent("Merian")
         let source = try String(
-            contentsOf: iosRoot
-                .appendingPathComponent("Merian")
-                .appendingPathComponent("App")
-                .appendingPathComponent("MerianApp.swift"),
+            contentsOf: appRoot.appendingPathComponent("App/MerianApp.swift"),
+            encoding: .utf8
+        )
+        let sceneStart = try XCTUnwrap(source.range(of: "// MARK: - Scene Hierarchy"))
+        let workspaceStart = try XCTUnwrap(
+            source.range(of: "if let container {", range: sceneStart.upperBound..<source.endIndex)
+        )
+        let workspaceEnd = try XCTUnwrap(
+            source.range(of: "                } else {", range: workspaceStart.upperBound..<source.endIndex)
+        )
+        let workspace = String(source[workspaceStart.lowerBound..<workspaceEnd.lowerBound])
+        let profile = try String(
+            contentsOf: appRoot.appendingPathComponent("Features/Profile/UserProfile/Views/ProfileTabView.swift"),
             encoding: .utf8
         )
 
-        XCTAssertTrue(source.contains("let onDismiss: (() -> Void)?"))
-        XCTAssertTrue(source.contains("Button(action: onDismiss)"))
-        XCTAssertTrue(source.contains("!isStartupRecoveryNoticeDismissed"))
-        XCTAssertTrue(
-            source.contains(
-                ".accessibilityLabel(\"Dismiss recovery notice\")"
-            )
-        )
+        XCTAssertFalse(workspace.contains("StartupRecoveryNoticeView("))
+        XCTAssertTrue(workspace.contains(".environment(\\.startupRecoveryNotice, startupRecoveryNotice)"))
+        XCTAssertTrue(profile.contains("DisclosureGroup(\"Local library status\")"))
+        XCTAssertTrue(profile.contains("StartupRecoveryNoticeView(notice: startupRecoveryNotice)"))
+        XCTAssertTrue(source.contains("title: \"Startup Blocked\""))
     }
 
     private var iosRoot: URL {

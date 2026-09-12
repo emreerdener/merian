@@ -50,3 +50,23 @@ Deno.test("Liked feed source repair grants only the missing service reads", asyn
     "The repair must not widen client access, add writes, or replace invoker routines",
   );
 });
+
+Deno.test("Liked feed reference repair adds only the nested helper read", async () => {
+  const sql = (await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260912141817_restore_explore_liked_feed_reference_reads.sql",
+      import.meta.url,
+    ),
+  )).replaceAll(/--[^\n]*/g, "").replaceAll(/\s+/g, " ").trim();
+  assertEquals(
+    sql.split(";").map((statement) => statement.trim()).filter(Boolean),
+    [
+      "SET lock_timeout = '10s'",
+      "SET statement_timeout = '2min'",
+      "GRANT SELECT ON TABLE public.species_reference_images TO service_role",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ],
+    "The repair must add only SELECT and preserve existing caller permissions",
+  );
+});

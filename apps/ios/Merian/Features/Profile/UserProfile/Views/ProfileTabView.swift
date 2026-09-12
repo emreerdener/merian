@@ -3,6 +3,7 @@ import SwiftUI
 /// Composes the primary Profile tab from prepared feature state.
 struct ProfileTabView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.startupRecoveryNotice) private var startupRecoveryNotice
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(RevenueCatManager.self) private var revenueCatManager
     @Environment(SupabaseManager.self) private var supabase
@@ -124,6 +125,14 @@ struct ProfileTabView: View {
                 // MARK: - Gamification Awards
                 if !visibleAwards.isEmpty {
                     Achievements(awards: visibleAwards)
+                }
+
+                if let startupRecoveryNotice {
+                    DisclosureGroup("Local library status") {
+                        StartupRecoveryNoticeView(notice: startupRecoveryNotice)
+                            .padding(.top, 8)
+                    }
+                    .accessibilityIdentifier("ProfileLocalLibraryStatus")
                 }
 
                 // MARK: - Share Naturebook

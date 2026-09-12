@@ -61,7 +61,16 @@ private struct StartupStoreStateKey: EnvironmentKey {
     static let defaultValue: StartupStoreState = .normal
 }
 
+private struct StartupRecoveryNoticeKey: EnvironmentKey {
+    static let defaultValue: StartupRecoveryNotice? = nil
+}
+
 extension EnvironmentValues {
+    var startupRecoveryNotice: StartupRecoveryNotice? {
+        get { self[StartupRecoveryNoticeKey.self] }
+        set { self[StartupRecoveryNoticeKey.self] = newValue }
+    }
+
     var startupStoreState: StartupStoreState {
         get { self[StartupStoreStateKey.self] }
         set { self[StartupStoreStateKey.self] = newValue }
@@ -982,7 +991,7 @@ enum TestExecutionCoordinator {
     }
 }
 
-struct StartupRecoveryNotice {
+struct StartupRecoveryNotice: Sendable {
     let title: String
     let message: String
     let diagnosticText: String?
@@ -1015,15 +1024,6 @@ struct ModelContainerBootstrapOutcome {
 
 struct StartupRecoveryNoticeView: View {
     let notice: StartupRecoveryNotice
-    let onDismiss: (() -> Void)?
-
-    init(
-        notice: StartupRecoveryNotice,
-        onDismiss: (() -> Void)? = nil
-    ) {
-        self.notice = notice
-        self.onDismiss = onDismiss
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1042,7 +1042,6 @@ struct StartupRecoveryNoticeView: View {
             }
         }
         .padding(12)
-        .padding(.trailing, onDismiss == nil ? 0 : 36)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -1050,26 +1049,12 @@ struct StartupRecoveryNoticeView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.orange.opacity(0.25), lineWidth: 1)
         )
-        .overlay(alignment: .topTrailing) {
-            if let onDismiss {
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.caption.weight(.bold))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Dismiss recovery notice")
-                .padding(2)
-            }
-        }
         .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
         .allowsHitTesting(hasInteractiveContent)
     }
 
     private var hasInteractiveContent: Bool {
-        onDismiss != nil ||
-            (notice.diagnosticText != nil && Self.shouldShowDiagnostics)
+        notice.diagnosticText != nil && Self.shouldShowDiagnostics
     }
 
     private static var shouldShowDiagnostics: Bool {
@@ -1167,7 +1152,6 @@ struct MerianApp: App {
     @State private var isShowingManualAppleRevocationNotice =
         ManualAppleRevocationNoticeStore.isPending()
     @State private var isAccountDeletionRecoveryPending: Bool
-    @State private var isStartupRecoveryNoticeDismissed = false
     
     // MARK: - App Dependencies
     let diContainer: AppDIContainer
@@ -1994,19 +1978,7 @@ struct MerianApp: App {
                     .modelContainer(container)
                     .injectAppDependencies(container: diContainer)
                     .environment(\.startupStoreState, startupStoreState)
-                    .overlay(alignment: .top) {
-                        if let startupRecoveryNotice,
-                           !isStartupRecoveryNoticeDismissed {
-                            StartupRecoveryNoticeView(
-                                notice: startupRecoveryNotice,
-                                onDismiss: {
-                                    isStartupRecoveryNoticeDismissed = true
-                                }
-                            )
-                                .padding(.horizontal, 16)
-                                .padding(.top, 12)
-                        }
-                    }
+                    .environment(\.startupRecoveryNotice, startupRecoveryNotice)
                 } else {
                     StartupRecoveryNoticeView(
                         notice: startupRecoveryNotice ?? StartupRecoveryNotice(
