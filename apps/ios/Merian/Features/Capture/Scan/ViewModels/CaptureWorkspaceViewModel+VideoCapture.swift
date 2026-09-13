@@ -54,7 +54,8 @@ extension CaptureWorkspaceViewModel {
                     }
                 recordedFileURL = recording.fileURL
                 guard !Task.isCancelled,
-                      self.scanOperationState.isCurrent(generation) else {
+                      self.scanOperationState.isCurrent(generation),
+                      self.hasAvailableStagedCaptureSlot else {
                     try? FileManager.default.removeItem(
                         at: recording.fileURL
                     )
@@ -79,7 +80,8 @@ extension CaptureWorkspaceViewModel {
                             self.dependencies.scan.canStartProScan()
                     ))
                 guard !Task.isCancelled,
-                      self.scanOperationState.isCurrent(generation) else {
+                      self.scanOperationState.isCurrent(generation),
+                      self.hasAvailableStagedCaptureSlot else {
                     self.discardPreparedVideo(preparedVideo)
                     throw CancellationError()
                 }

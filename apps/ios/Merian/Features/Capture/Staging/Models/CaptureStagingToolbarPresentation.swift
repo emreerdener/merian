@@ -19,7 +19,13 @@ struct CaptureStagingToolbarPresentation {
             return true
         }
 
-        if visibleNodes.count < stagedCaptureLimit {
+        if isRefining {
+            let slots = stagedCapture.availableEvidenceSlots(
+                limit: stagedCaptureLimit,
+                isRefining: true
+            )
+            photoSelectionCount = slots > 0 ? slots : nil
+        } else if visibleNodes.count < stagedCaptureLimit {
             photoSelectionCount = max(
                 1,
                 stagedCapture.availableSlots(limit: stagedCaptureLimit)

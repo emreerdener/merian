@@ -3,7 +3,9 @@
 `Capture/Staging` owns the ephemeral mixed-media draft that appears before one
 Capture submission. It preserves user order across up to two total photos,
 videos, audio clips, or descriptions without owning network, queue, or file
-deletion work.
+deletion work. Reanalysis permits one supplementary description beyond that
+two-item evidence budget; historical descriptions still count as original
+evidence.
 
 ## Ownership
 
@@ -60,6 +62,16 @@ and durable ownership is documented in the
 
 ## Behavioral Contracts
 
+Reanalysis uses the same evidence-capacity policy for capture/import admission,
+completed media, picker counts, and controls. Its supplementary description is
+marked only in the ephemeral `StagedObservationContext`; the marker never enters
+request or queue JSON. Adding description first leaves the additional media slot
+available. Adding both physical items first still leaves Describe's **+**
+available, including to update an existing supplement. The tray retains its
+existing styling and renders all three chronological items. When the refinement
+media row cannot fit, it scrolls horizontally inside the existing tray so Cancel
+and Analyze remain visible without shrinking the media buttons.
+
 Photo-library picks and one-photo document imports enter staging only after
 caller-scoped admission and remain required-crop items until confirmed or
 cancelled. A known denial presents the paywall before picker/file preparation;
@@ -79,15 +91,26 @@ reorder the user's evidence. Cancel, remove, replacement, timeout, and
 queue-rejection paths delete temporary audio/video files. Successful queue/live
 handoff clears references only because the durable owner has adopted them.
 
+The supplementary marker is local to the refinement session and does not alter
+`ObservationContext`, queue JSON, or the API. Supplement updates retain their
+insertion time. Explicit supplementary tray edits/removal supersede its pending
+Describe draft, while historical description edits preserve that draft. Starting
+another refinement clears the old evidence before loading its own original.
+
 ## Verification
 
 Mirrored tests live under `MerianTests/Features/Capture/Staging/`.
-`StagedCaptureTests` covers aggregate state, capacity, cleanup, ordering, stable
-node IDs, and image replacement. `CaptureStagingToolbarPresentationTests` locks
-mixed-media ordering, coverless-video filtering, the established filtered-tray
-capacity behavior, and Identify/Analyze state. `CaptureStagingArchitectureTests`
-enforces the Models/Services/Views/Components boundary, Submission ownership of
-wire/replay declarations, the single toolbar ordering source, effect isolation,
-retired Core path, and 600-line production-file guard. Paired Shell and
-Submission suites cover admission/presentation fences and timeline/projection
-contracts.
+`CaptureStagingToolbarPresentationTests` also covers the refinement-only
+supplement allowance, one remaining physical-media slot after adding text, and
+three chronological tray items with no further photo slot. Shell's refinement
+suite covers mutation, update/removal, and session reset. These model assertions
+do not replace simulator verification of the tray's overflow, hit targets,
+dictation, or mode switching. `StagedCaptureTests` covers aggregate state,
+capacity, cleanup, ordering, stable node IDs, and image replacement.
+`CaptureStagingToolbarPresentationTests` locks mixed-media ordering,
+coverless-video filtering, the established filtered-tray capacity behavior, and
+Identify/Analyze state. `CaptureStagingArchitectureTests` enforces the
+Models/Services/Views/Components boundary, Submission ownership of wire/replay
+declarations, the single toolbar ordering source, effect isolation, retired Core
+path, and 600-line production-file guard. Paired Shell and Submission suites
+cover admission/presentation fences and timeline/projection contracts.

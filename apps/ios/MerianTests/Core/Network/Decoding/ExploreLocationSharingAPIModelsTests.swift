@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 
+@testable import Merian
+
 @Suite("Explore Location Sharing API Models")
 struct ExploreLocationSharingAPIModelsTests {
     @Test func rawValuesAndCompatibilityDecodingRemainStable() throws {

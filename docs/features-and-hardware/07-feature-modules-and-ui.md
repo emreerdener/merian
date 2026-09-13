@@ -481,14 +481,18 @@ production Shell and Library file remains below the 600-line review guard.
   user-authored observation text. It stages the original media through
   `CaptureWorkspaceViewModel.startRefinementScan`. If the user adds live
   Describe notes and submits from the active scan toolbar, those notes are
-  consumed into the staged payload and the input draft is cleared before
-  analysis is sent. The original non-biological record remains unchanged until
-  the existing replacement pipeline produces a successful new result; only then
-  are notes, tags, and collections transferred and the old scan removed. This
-  scoped correction entry point bypasses only the Pro reanalysis feature lock so
-  free users can correct this specific failure mode, but the submitted
-  replacement scan still follows normal paid → complimentary → Flash selection
-  and applicable scan accounting.
+  automatically included as the reserved supplementary description, including
+  when original media and an added image/audio already occupy both evidence
+  slots. **+** and **Analyze** update the same supplement. The editor clears
+  only after successful staging; rejected nonempty text stays editable and
+  blocks submission. See the
+  [Describe contract](11-describe-and-voice-dictation.md). The original
+  non-biological record remains unchanged until the existing replacement
+  pipeline produces a successful new result; only then are notes, tags, and
+  collections transferred and the old scan removed. This scoped correction entry
+  point bypasses only the Pro reanalysis feature lock so free users can correct
+  this specific failure mode, but the submitted replacement scan still follows
+  normal paid → complimentary → Flash selection and applicable scan accounting.
 - **Compatibility Guards for Old Placeholders**: Historical records that were
   already converted into unresolved biological placeholders (`Unknown Subject` /
   `Taxonomy Unavailable`) stay protected locally. They suppress visible AI

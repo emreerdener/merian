@@ -88,24 +88,18 @@ struct CaptureWorkspacePresentationModifier: ViewModifier {
                         ? viewModel.stagedCapture.observationContexts[selectedIndex].context.freeText
                         : "",
                     onSave: { newText in
-                        guard viewModel.stagedCapture.observationContexts.indices.contains(selectedIndex) else { return }
-                        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if trimmed.isEmpty {
-                            viewModel.stagedCapture.observationContexts.remove(at: selectedIndex)
-                        } else {
-                            var updatedContext = viewModel.stagedCapture.observationContexts[selectedIndex].context
-                            updatedContext.freeText = trimmed
-                            let addedAt = viewModel.stagedCapture.observationContexts[selectedIndex].addedAt
-                            viewModel.stagedCapture.observationContexts[selectedIndex] = StagedObservationContext(
-                                context: updatedContext,
-                                addedAt: addedAt
-                            )
-                            stagedDescriptionEditIndex = nil
-                        }
+                        viewModel.saveStagedDescription(
+                            at: selectedIndex,
+                            text: newText,
+                            pendingDraft: &observationContext
+                        )
+                        stagedDescriptionEditIndex = nil
                     },
                     onRemove: {
-                        guard viewModel.stagedCapture.observationContexts.indices.contains(selectedIndex) else { return }
-                        viewModel.stagedCapture.observationContexts.remove(at: selectedIndex)
+                        viewModel.removeStagedDescription(
+                            at: selectedIndex,
+                            pendingDraft: &observationContext
+                        )
                         stagedDescriptionEditIndex = nil
                     }
                 )

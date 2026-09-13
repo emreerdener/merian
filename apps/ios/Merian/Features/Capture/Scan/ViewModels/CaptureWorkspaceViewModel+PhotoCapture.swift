@@ -65,6 +65,7 @@ extension CaptureWorkspaceViewModel {
                     ))
                 try self.requireCurrentStillCapture(generation)
 
+                guard self.hasAvailableStagedCaptureSlot else { return }
                 if let preparedCapture {
                     let fetchDeferredContext = self.dependencies.scan.context
                         .fetchDeferredContext

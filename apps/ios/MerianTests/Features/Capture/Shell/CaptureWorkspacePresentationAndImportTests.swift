@@ -94,10 +94,10 @@ extension CaptureWorkspaceViewModelRefinementTests {
             )
         ]
 
-        XCTAssertTrue(
+        XCTAssertEqual(
             viewModel.stagePendingDescribeDraftForActiveSubmission(
                 ObservationContext(freeText: "Small green subject on concrete")
-            )
+            ), .staged
         )
 
         XCTAssertEqual(viewModel.stagedCapture.observationContexts.count, 1)
@@ -126,10 +126,10 @@ extension CaptureWorkspaceViewModelRefinementTests {
             StagedObservationContext(context: ObservationContext(freeText: "Previous draft"))
         ]
 
-        XCTAssertTrue(
+        XCTAssertEqual(
             viewModel.stagePendingDescribeDraftForActiveSubmission(
                 ObservationContext(freeText: "Fresh draft for this analysis")
-            )
+            ), .staged
         )
 
         XCTAssertEqual(viewModel.stagedCapture.observationContexts.count, 1)

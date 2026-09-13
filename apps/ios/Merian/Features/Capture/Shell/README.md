@@ -76,6 +76,34 @@ clip can finish staging; a pending video admission or hardware start is
 cancelled. This prevents a late shutter or admission response from repopulating
 cleared state or auto-submitting behind another presentation.
 
+## Reanalysis draft ownership
+
+`StagedCapturePolicy` defines two evidence slots plus one supplementary
+description for refinement; `availableStagedCaptureSlots` reports evidence
+capacity and `canUseCaptureControls(in:)` keeps Describe available to add or
+update its supplement even when physical-media slots are full. Camera/video
+completion, imports, audio admission/completion, and picker counts share that
+policy. Ordinary single- and multi-capture limits remain unchanged.
+
+`submitActiveStagedCapture` snapshots the editor synchronously through
+Submission's `prepareActiveStagedSubmission(descriptionDraft:)`. Empty input
+preserves staged text; successful staging clears the editor; rejection retains
+text, presents the existing error toast, and prevents dispatch. **+** uses the
+same refinement supplement rather than adding another description. Shell's
+`saveStagedDescription` and `removeStagedDescription` reconcile supplementary
+tray changes with the live draft while preserving historical evidence and
+insertion times.
+
+Starting a refinement cancels previous preparation and discards the prior staged
+media, picker selection, and environment prefetch before installing the new
+context. Successful **+**/**Analyze**, tray-editor entry, and routed
+capture-mode changes stop dictation; Describe's binding rejects late transcripts
+after the request ends. The ordinary mode selector, labels, and media sizes are
+retained. Staging supplies horizontal media overflow only when the refinement
+tray cannot fit beside its action buttons.
+
+## Verification
+
 Tests mirror this boundary under `apps/ios/MerianTests/Features/Capture/Shell/`.
 The architecture suite enforces the live-service and deterministic Models
 boundaries, Capture ownership of the control surface, required ownership
@@ -94,7 +122,14 @@ haptic seams alongside feedback/prewarm and account lookup behavior.
 Operation-state and other presentation-policy suites exercise the remaining
 extracted deterministic behavior, and the existing
 `CaptureWorkspaceViewModelRefinementTests` selector remains stable across the
-responsibility-specific test files.
+responsibility-specific test files. `CaptureWorkspaceRefinementDescriptionTests`
+covers draft inclusion, both media insertion orders, plus/update deduplication,
+tray-edit/removal precedence, historical text, empty/rejected input, and actual
+replacement-session entry. Submission's `CaptureRefinementReplayTests` extends
+that same selector with three-item queue projection and HTTP request-body
+checks. See the
+[verification matrix](../../../../../../docs/development-guides/08-testing-strategy.md#reanalysis-description-verification)
+for runtime acceptance and local limitations.
 
 Cross-area declarations do not remain in Shell merely because the root supplies
 them. `Capture/Shared/Models` owns `CaptureMode`, the fixed control-row layout

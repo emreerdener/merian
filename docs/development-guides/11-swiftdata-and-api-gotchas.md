@@ -693,10 +693,14 @@ which executor escapes are intentional and which are accidental.
 - Add lint rules around feature-layer files so new raw `Task.detached` call
   sites do not creep back in unnoticed.
 
-**On live inference success**: `analyze()` calls `deleteQueuedScan` with a
-`ForegroundInferenceGenerationExpectation` for its exact durable owner. The
-queue manager validates that expectation before and after URLSession task
-enumeration, then cancels only matching work and removes the SwiftData record.
+**On live inference success**: After `analyze()` commits the observable result,
+`InferenceLiveCompletionCoordinator` asks `InferenceLiveAttemptCoordinator` to
+finalize its exact durable owner through `InferenceLiveQueueService`. The live
+adapter calls `deleteQueuedScan` with a
+`ForegroundInferenceGenerationExpectation`. The queue manager validates that
+expectation before and after URLSession task enumeration, then cancels only
+matching work and removes the SwiftData record. The attempt coordinator rechecks
+the complete local/durable tuple after deletion before authorizing follow-ups.
 If upload/recovery already won or a replacement owns the scan, deletion is an
 idempotent no-op. `ScanFinalizationCoordinator` and the durable generation check
 prevent a duplicate `LocalScanRecord`.
@@ -981,8 +985,9 @@ infinite oscillation.
 
 ## 19. `activeScanId` Stale Hydration Window
 
-`InferenceEngine.activeScanId` is set at the start of `analyze()` with a unique
-`activeLiveInferenceAttemptGeneration`. The background offline path
+`InferenceLiveAttemptCoordinator` owns the active scan ID exposed through
+`InferenceEngine.activeScanId` and pairs it at the start of `analyze()` with a
+unique `activeLiveInferenceAttemptGeneration`. The background offline path
 (`Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift`)
 may hydrate the live engine only when it still owns both values:
 
@@ -1003,30 +1008,38 @@ cooperatively cancelled live task could resume its error handler after
 background recovery published a result.
 
 **The fix**: every live task captures its presentation UUID and durable
-foreground generation. It checks the full owner at task entry, supplies that
-predicate to `InferenceLiveRequestService` across request-preparation suspension
-points and provider return, and checks again before result or failure side
-effects. Background recovery compares the exact UUID and absence of a new
-foreground owner, then atomically invalidates the live presentation slot before
-publishing and cancelling the old task. Explicit cancellation also clears
-`activeScanId` synchronously because its invalidated task defer no longer owns
-the slot:
+foreground generation. `InferenceLiveAttemptCoordinator` checks the full owner
+at task entry, supplies that predicate to `InferenceLiveRequestService` across
+request-preparation suspension points and provider return, and checks again
+before result or failure side effects. Background recovery compares the exact
+UUID and absence of a new foreground owner, then atomically invalidates the live
+presentation slot before publishing and cancelling the old task. Explicit
+cancellation also clears `activeScanId` synchronously because its invalidated
+task defer no longer owns the slot:
 
 ```swift
 defer {
-    if isLocalLiveInferenceAttemptCurrent(
+    if liveAttemptCoordinator.clearActiveAttemptIfCurrent(
         scanId: ownedScanId,
         attemptGeneration: attemptGeneration
     ) {
         isProcessing = false
-        activeScanId = nil
-        activeLiveInferenceAttemptGeneration = nil
     }
 }
 ```
 
-The hydration window is therefore bounded by ownership, not timing or
-cooperative cancellation.
+The coordinator accesses durable state through `InferenceLiveQueueService`,
+whose `+Live` adapter is the only Core AI owner that resolves
+`OfflineQueueManager` for the live-attempt lifecycle. Entitlement reconciliation
+retains its separate existing Offline Sync trigger in
+`InferenceResponsePreparationService`. The coordinator also rechecks scan,
+process-local UUID, and durable generation after awaited queue deletion,
+preventing a stale finalizer from clearing or retiring a same-scan replacement.
+The provider-ready fail-safe and request-body callback retain that coordinator
+independently, so durable upload release cannot disappear with the engine. Only
+the body-sent local-analysis update captures the engine weakly. The hydration
+window is therefore bounded by ownership, not timing or cooperative
+cancellation.
 
 Failure handlers must snapshot the full current-owner result before registering
 synchronous retirement. Only a proven current owner may then emit telemetry,

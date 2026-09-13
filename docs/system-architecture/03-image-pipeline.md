@@ -343,10 +343,12 @@ The successful path then passes both image `Data` arrays to
 `InferenceEngine.analyze(imageDatas:displayDatas:)`. The engine passes
 `imageDatas` to its injected `InferenceLiveRequestService`, which delegates
 base64 encoding to `InferenceProcessingActor` and retains no encoded request
-buffer after dispatch; durability is fully owned by the offline queue.
-`displayDatas.first` is assigned to `activeImageData: Data?` and wrapped into
-`activeMedia` as a single-frame preview used by the insight sheet carousel
-during the inference window. The full `displayDatas` array is forwarded through
+buffer after dispatch; durability is fully owned by the offline queue. The
+resolved display array is projected directly into `activeMedia` as ordered
+`MediaItem.liveImage` values, including a live video-poster fallback when the
+timeline requires one; no separate `activeImageData` property exists. That
+presentation state supplies the insight sheet carousel during the inference
+window. The task-scoped `displayDatas` array is also forwarded through
 `InferenceLiveResultService` to
 `InferenceProcessingActor.parseAndSave(displayDatas:)` and written to disk via
 `FileIOActor.writeTemporaryImages`; once saved, the persisted user timeline is
@@ -371,7 +373,8 @@ an opaque AI processing error; the guard prevents this at the source.
 `InferenceLiveRequestService.dispatchVisual` adds a second-layer filter: after
 `encodeBase64`, empty strings are removed from the encoded array. If every
 string is empty after filtering, the service returns without a network call and
-`InferenceEngine` retains the refund plus durable-owner retirement policy. The
+`InferenceEngine` retains the refund decision while
+`InferenceLiveAttemptCoordinator` performs exact durable-owner retirement. The
 Edge Function (`identify/index.ts`) applies a third-layer check: each element of
 `imageBase64s` is validated non-empty before being forwarded to Gemini,
 returning a clear `400 Bad Request` instead of an opaque AI error.
@@ -379,12 +382,11 @@ returning a clear `400 Bad Request` instead of an opaque AI error.
 **Cancel handler**: `ActiveScanToolbar`'s cancel action clears all staging
 buffers in `CaptureWorkspaceViewModel` via
 `clearStagedCaptureAndCropState(discardStagedMediaFiles: true)` and resets
-`InferenceEngine` via `cancelActiveRequest()`, which nils `activeImageData` and
-clears `activeMedia`. This clears `StagedCapture`, pending required gallery crop
-IDs, `imageToCrop`, and `editingCropIndex` together, and deletes temporary
-staged playback video/audio files through the file actor. Submit paths use
-reference-only clearing after queue acceptance so durable queue/live persistence
-retains media ownership.
+`InferenceEngine` via `cancelActiveRequest()`, which clears `activeMedia`. This
+clears `StagedCapture`, pending required gallery crop IDs, `imageToCrop`, and
+`editingCropIndex` together, and deletes temporary staged playback video/audio
+files through the file actor. Submit paths use reference-only clearing after
+queue acceptance so durable queue/live persistence retains media ownership.
 
 **Video-preparation cancellation boundary**: sampled-frame, playback-export, and
 companion-WAV work observe parent cancellation through `DetachedWork` and

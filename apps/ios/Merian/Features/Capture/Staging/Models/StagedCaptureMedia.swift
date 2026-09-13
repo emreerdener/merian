@@ -32,6 +32,8 @@ struct StagedVideo {
 
 /// A staged text observation context.
 struct StagedObservationContext {
-    let context: ObservationContext
+    var context: ObservationContext
     var addedAt: Date = Date()
+    /// Ephemeral refinement-session ownership; never serialized into the request or queue.
+    var isRefinementSupplement: Bool = false
 }

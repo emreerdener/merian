@@ -713,16 +713,20 @@ conditionally omitting notifications from `InferenceEngine` when the app was in
 the foreground prevented users from receiving alerts if they navigated away from
 the camera to browse their library.
 
-Now, `InferenceEngine` emits notifications unconditionally. Core Notifications'
-manager remains the delegate, while its pure policy determines foreground
-presentation. The callback executes synchronously by reading the persisted
-`suppressInferenceBanners` key because `willPresent` is nonisolated and must
-call its completion handler immediately. UI and view-model code mutate that
-persisted key through the `AppSettings.suppressInferenceBanners` typed boundary,
-instructing the delegate to suppress the banner only when the user is explicitly
-staring at the scanning overlay or insight sheet. This guarantees reliable 100%
-delivery for insight completions and achievements without triggering main-thread
-blocking or spamming the active viewfinder context.
+Now, the authorized live-completion path reaches notification scheduling through
+`InferenceLiveCompletionCoordinator+Live`. Once its notification-preference and
+coordinator-minted follow-up-permit gates pass, the adapter schedules without
+consulting application state. `OfflineQueueManager+InferenceCompletion` follows
+the same application-state policy after a durable background commit. Core
+Notifications' manager remains the delegate, while its pure policy determines
+foreground presentation. The callback executes synchronously by reading the
+persisted `suppressInferenceBanners` key because `willPresent` is nonisolated
+and must call its completion handler immediately. UI and view-model code mutate
+that persisted key through the `AppSettings.suppressInferenceBanners` typed
+boundary, instructing the delegate to suppress the banner only when the user is
+explicitly staring at the scanning overlay or insight sheet. This guarantees
+reliable delivery for insight completions and achievements without triggering
+main-thread blocking or spamming the active viewfinder context.
 
 ### Notification Permission, Registration, and Badge Fences
 
@@ -871,22 +875,21 @@ writes images to disk (see §10 of
 initially suppresses that row's background upload so it does not contend with
 the inline inference body; upload completion, a two-second fail-safe, request
 failure, connectivity loss, app backgrounding, or relaunch releases the durable
-row. `analyze()` receives images as `imageDatas` parameters, uses them for
-base64 encoding, and does not retain them as instance state — Swift ARC reclaims
-the memory after the call.
+row. The provider-ready fail-safe and body-sent callback retain only
+`InferenceLiveAttemptCoordinator` for that durable release; the body-sent local-
+analysis update keeps its weak engine capture. `analyze()` receives images as
+`imageDatas` parameters and uses them for base64 encoding without creating a
+second rescue copy on the engine.
 
-`activeImageData: Data?` is the only raw image buffer retained in
-`InferenceEngine` during the inference window. It holds a single 2048 px
-display-quality WebP frame that seeds `activeMedia` with a live preview while
-inference is in progress. Once `InferenceProcessingActor.parseAndSave`
-completes, the persisted user timeline is rebuilt into `activeMedia` and the
-carousel transitions from the in-memory preview to path-backed `MediaItem.image`
-entries — at which point `activeImageData` is still held but no longer the
-primary display source. It is released when `prepareForNewScan()` or
-`cancelActiveRequest()` fires. This two-phase design eliminates the previous
-`activeDisplayDatas: [Data]` array that held all display images (potentially
-multiple MB for multi-image captures) simultaneously in RAM for the full
-inference session.
+The active presentation still owns its bounded display buffers in
+`ActiveScanMedia.items` as `MediaItem.liveImage` values, including a live poster
+fallback when applicable. That is the carousel's retained in-memory presentation
+state, not a second `activeImageData` or `activeDisplayDatas` property; the
+task- scoped display array still feeds persistence. A successfully persisted
+result replaces the live items with path-backed `MediaItem.image` values, while
+`prepareForNewScan()` and `cancelActiveRequest()` clear the presentation. This
+two-phase design removes the former parallel rescue and display properties while
+preserving the live preview.
 
 Submission also bounds context-task retention. A queue rejection, queue-only or
 offline handoff, superseded scan, unavailable foreground generation, or lost
@@ -972,8 +975,8 @@ it; otherwise `isProcessing` can be left true with no live task to clear it. It:
 - Sets `isProcessing = true` and `speciesData = nil` atomically, so the router
   sees the correct `AnalyzingContentView` condition from the very first SwiftUI
   frame.
-- Clears all image and telemetry state (`activeMedia`, `activeImageData`, all
-  environmental telemetry fields).
+- Clears all image and telemetry state (`activeMedia` and all environmental
+  telemetry fields).
 
 `analyze()` subsequently overwrites the image and telemetry fields with the new
 scan's data once the async Task resolves. It also cancels all coordinator-owned
@@ -1316,10 +1319,14 @@ and routed through the `@ModelActor BackgroundDatabaseActor`, preserving
 isolated SQL boundaries.
 
 If the user rapidly triggers the capture shutter, `.analyze()` retires the old
-presentation and foreground owner before requesting cancellation of
-`inferenceTask`. Cancellation remains cooperative; exact-attempt checks prevent
-the displaced work from advancing to provider dispatch, persistence, or
-presentation effects even if a synchronous stage finishes first.
+presentation and asks `InferenceLiveAttemptCoordinator` to clear its local
+identity before releasing/retiring the durable owner, then requests cancellation
+of the coordinator's `inferenceTask`. Cancellation remains cooperative;
+exact-attempt checks prevent the displaced work from advancing to provider
+dispatch, persistence, or presentation effects even if a synchronous stage
+finishes first. An awaited queue deletion rechecks the scan, process-local UUID,
+and durable generation before clearing or retiring state, so a late finalizer
+cannot mutate a same-scan replacement.
 
 For historical scans, `InferenceHistoricalRecordProjection` captures serialized
 media values while the SwiftData record is live. Converting that snapshot to
@@ -2525,19 +2532,20 @@ Queue-backed foreground inference follows the same rule with a
 `ForegroundInferenceGenerationExpectation`. Submission creates the generation
 before enqueue and stores it in `OfflineJobRecord.metadataJSON` in the same save
 as `OfflineQueuedScan`; the in-memory dictionary is registered before sync or
-replay can start. `InferenceEngine` captures that generation rather than using
-only `activeScanId`, checks it at task entry, after external suspension points,
-immediately before provider dispatch, and at every side-effect boundary, and
-supplies a `LiveInferencePersistenceFence` to the database actor.
-`OfflineQueueManager` atomically consumes the generation before provider
-dispatch, making duplicate starts no-ops across engine instances. Cancellation
-and pre-provider exits register a tokenized retirement task synchronously before
-durable handoff begins. Registration immediately makes the attempt non-current
-for persistence, UI publication, and queue cleanup, even while its raw durable
-UUID remains present. Retirement retries transient durable-owner fetch/save
-failures with bounded backoff while retaining the marker, so the system neither
-admits a callback- equivalent replacement nor strands the queue behind an
-abandoned claim.
+replay can start. `InferenceLiveAttemptCoordinator` stores that generation with
+the active scan and process-local attempt UUID rather than relying on
+`activeScanId` alone. `InferenceEngine` invokes the coordinator's full-tuple
+validation at task entry, after external suspension points, immediately before
+provider dispatch, and at every side-effect boundary, and supplies a
+`LiveInferencePersistenceFence` to the database actor. `OfflineQueueManager`
+atomically consumes the generation before provider dispatch, making duplicate
+starts no-ops across engine instances. Cancellation and pre-provider exits
+register a tokenized retirement task synchronously before durable handoff
+begins. Registration immediately makes the attempt non-current for persistence,
+UI publication, and queue cleanup, even while its raw durable UUID remains
+present. Retirement retries transient durable-owner fetch/save failures with
+bounded backoff while retaining the marker, so the system neither admits a
+callback-equivalent replacement nor strands the queue behind an abandoned claim.
 
 Error presentation is a generation-owned commit, not harmless cleanup. A failure
 handler snapshots the full scan, presentation-attempt, and foreground generation
@@ -3271,6 +3279,15 @@ This ensures:
   token. `InferenceEngine.prepareForNewScan()` and `cancelActiveRequest()` both
   forward reset events that clear pending closures and invalidate stale write
   tasks so cancelled work cannot mutate the next scan session.
+- `InferenceLiveAttemptCoordinator` contains the non-observable foreground task,
+  scan, process-local attempt, durable generation, and recoverable scan on
+  `@MainActor`. Invalidation clears that local tuple before its injected queue
+  service releases upload or registers retirement. Awaited exact-generation
+  deletion rechecks the scan, local attempt, and durable generation before
+  clearing or retiring anything, so a stale finalizer cannot mutate a same-scan
+  replacement. The core service has no singleton access; only its live adapter
+  resolves `OfflineQueueManager` for this live-attempt lifecycle. Entitlement
+  reconciliation retains its separate existing Offline Sync trigger.
 
 - `AudioRecordingEngineController` and `SpeechManager` guarantee full teardown
   on startup cancellation and early failures: tap removal, engine stop, task

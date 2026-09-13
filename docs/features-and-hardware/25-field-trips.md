@@ -1202,16 +1202,17 @@ Scan target capsule use their own compact treatments instead of another progress
 ring.
 
 `ScanMilestoneCoordinator` is the single scan-completion notification boundary
-for both `InferenceEngine` foreground completion and `OfflineQueueManager`
-background completion. It is main-actor isolated and derives a trimmed,
-lowercase key from the final saved scan ID, then keys in-flight/recently
-resolved work by that value while preserving the trimmed caller ID for network
-and durable-store calls. Live and background races cannot enqueue the same batch
-twice even if a framework or server bridge changes UUID casing. Capture queues
-generate lowercase UUIDs while preserving an explicit caller-supplied stable ID.
-Progress resolution has three explicit outcomes: success, retryable failure, and
-terminal ingestion failure. Only success or a terminal failure finalizes Field
-trip processing and discards the preferred Capture goal. A retryable persistence
+reached through `InferenceLiveCompletionCoordinator+Live` after an authorized
+foreground commit and through `OfflineQueueManager` after background completion
+or recovery. It is main-actor isolated and derives a trimmed, lowercase key from
+the final saved scan ID, then keys in-flight/recently resolved work by that
+value while preserving the trimmed caller ID for network and durable-store
+calls. Live and background races cannot enqueue the same batch twice even if a
+framework or server bridge changes UUID casing. Capture queues generate
+lowercase UUIDs while preserving an explicit caller-supplied stable ID. Progress
+resolution has three explicit outcomes: success, retryable failure, and terminal
+ingestion failure. Only success or a terminal failure finalizes Field trip
+processing and discards the preferred Capture goal. A retryable persistence
 timeout, network failure, or cancellation preserves that goal, remains eligible
 for a later foreground/background callback, and schedules bounded automatic
 retries after 2, 5, and 15 seconds. At most 16 retry sleepers exist across

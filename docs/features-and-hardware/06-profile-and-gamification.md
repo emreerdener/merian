@@ -478,9 +478,10 @@ persists lightweight gamification state in `UserDefaults`:
 - `unlockedAchievements: Set<AchievementType>` — typed identities of all
   completed awards, persisted as raw string values
 
-`recordNewSpeciesDiscovered()` is called by `InferenceEngine` when
-`isNewDiscovery == true`. It increments `unlockedSpeciesCount`, persists it, and
-checks the firefly badge threshold.
+`recordNewSpeciesDiscovered()` is called for an accepted live discovery through
+`InferenceLiveCompletionCoordinator+Live` and for a durable background discovery
+through `OfflineQueueManager+InferenceCompletion`. It increments
+`unlockedSpeciesCount`, persists it, and checks the firefly badge threshold.
 
 These three values are account-derived compatibility state, not device
 preferences. Accepted account deletion removes their centralized

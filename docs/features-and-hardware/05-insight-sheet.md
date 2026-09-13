@@ -864,10 +864,15 @@ termination does not redundantly stop the already-ended shared session.
 Capture prepares `InferenceEngine` only after durable queue acceptance and
 immediately before opening the Insight sheet. A live task owns three identities:
 the stable scan ID, a process-local presentation UUID, and the foreground
-inference UUID persisted on the scan-ingestion job. Task defer clears
-`isProcessing` and the active fields only when its presentation UUID still owns
-the slot. Provider dispatch and every result or failure publication additionally
-require the durable foreground UUID to remain current.
+inference UUID persisted on the scan-ingestion job.
+`InferenceLiveAttemptCoordinator` stores that tuple and the task handle. Task
+defer clears `isProcessing` only when the coordinator atomically clears the
+still-current presentation UUID. Provider dispatch and every result or failure
+publication additionally require the durable foreground UUID to remain current.
+Live-attempt durable operations pass through `InferenceLiveQueueService`, whose
+`+Live` adapter is the only Core AI owner that resolves the queue singleton for
+that lifecycle. Entitlement reconciliation keeps its separate existing Offline
+Sync trigger in `InferenceResponsePreparationService`.
 
 If background URLSession recovery completes first,
 `commitRecoveredBackgroundResult` compares the exact scan, presentation UUID,
@@ -875,8 +880,10 @@ released foreground UUID, and absence of a replacement foreground owner. It
 atomically invalidates that presentation before committing recovered
 `speciesData`, then cooperatively cancels only the displaced live task. A stale
 completion for attempt A cannot hydrate, cancel, or publish over replacement B.
-Likewise, A's delayed failure handler cannot emit telemetry, update the circuit
-breaker, trigger an error haptic, or replace B with a timeout placeholder.
+Queue finalization also rechecks all three identities after awaited deletion, so
+A cannot clear or retire B when both use the same scan ID. Likewise, A's delayed
+failure handler cannot emit telemetry, update the circuit breaker, trigger an
+error haptic, or replace B with a timeout placeholder.
 
 `InsightContentView` observes the recovered state and leaves analyzing mode
 immediately. Correctness comes from the ownership transfer, not from assuming
@@ -1025,9 +1032,10 @@ If `true` (user is on the insight sheet), the notification is delivered silently
 (`completionHandler([])`). If `false` (user is elsewhere in the app), the banner
 is shown (`completionHandler([.banner, .sound, .list])`).
 
-Both notification call sites (`InferenceEngine` live path, `OfflineQueueManager`
-offline path) schedule notifications unconditionally — without an
-`applicationState != .active` guard. Foreground suppression is delegated
+Both enabled notification scheduling paths
+(`InferenceLiveCompletionCoordinator+Live` after an authorized live commit and
+`OfflineQueueManager+InferenceCompletion` after a durable background commit)
+omit an `applicationState != .active` guard. Foreground suppression is delegated
 entirely to `PushNotificationManager.willPresent`. When the app is backgrounded,
 `willPresent` is never called and the OS shows the notification automatically.
 
@@ -1670,6 +1678,15 @@ necessary, preflighted with AVFoundation, decoded through the bounded Core Audio
 converter, and materialized as a new local Int16 PCM WAV before refinement can
 enter the capture/queue pipeline. If every audio reference fails, the first
 saved description is staged as the safe fallback.
+
+Entering a new refinement cancels previous preparation and clears the prior
+Capture draft before loading this record's original evidence. Users may add one
+more evidence item and one supplementary description. **Analyze** includes the
+current nonempty description automatically, while **+** can stage it first; both
+update the same supplement. Historical description evidence remains separate,
+and a rejected draft prevents submission rather than being silently omitted. The
+[Describe contract](11-describe-and-voice-dictation.md) specifies tray editing,
+removal, dictation, and capacity behavior.
 
 **Confirmed state**: After a stack or grid confirm, `session.confirmedCandidate`
 is set, showing a green `checkmark.circle.fill` success screen for 1.5 s before

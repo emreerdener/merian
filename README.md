@@ -270,8 +270,12 @@ steps are tracked in the
   on the zoom meter.
 - Native hardware button capture via `AVCaptureEventInteraction` (volume
   buttons, Action button, iPhone 16 Camera Control).
-- Mixed-media staging mode — queue up to 2 total photos, short Pro video clips,
-  audio clips, or descriptions before submitting to inference.
+- Mixed-media staging mode — ordinary scans combine up to 2 total photos, short
+  Pro video clips, audio clips, or descriptions. Reanalysis also reserves one
+  supplementary description, allowing original media + added media + text.
+  **Analyze** includes the current description automatically; **+** remains
+  available to stage it explicitly. See the
+  [Describe and reanalysis guide](docs/features-and-hardware/11-describe-and-voice-dictation.md).
 - Share one photo from iOS Photos directly to Naturebook. The app opens through
   its image document association, preserves included EXIF date/location context,
   requires the normal gallery crop, and continues through the existing quota,

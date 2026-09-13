@@ -4,8 +4,9 @@ import SwiftData
 /// Adapts one live response to the existing parsing/persistence actor.
 ///
 /// The actor remains authoritative for durable completion. The engine supplies
-/// exact-attempt validation and retains presentation, queue retirement, discovery
-/// feedback, replacement metadata, and post-result effects.
+/// exact-attempt validation and retains presentation; the live-completion
+/// coordinator owns normalized discovery, replacement, telemetry, and follow-up
+/// effects, while the live-attempt coordinator owns exact queue lifecycle.
 struct InferenceLiveResultService {
     struct Dependencies {
         let parseAndSave:

@@ -2,9 +2,10 @@ import Foundation
 import SwiftData
 
 /// Makes replacement metadata durable before authorizing original-scan deletion.
-/// The engine immediately passes the returned record to ScanRepository for its
-/// existing local-deletion/cloud-outbox transaction. Failure can leave two scans,
-/// but must never leave neither a usable original nor its replacement metadata.
+/// The live completion adapter immediately passes the returned record to
+/// ScanRepository for its existing local-deletion/cloud-outbox transaction.
+/// Failure can leave two scans, but must never leave the user without either a
+/// usable original or durable replacement metadata.
 @MainActor
 enum InferenceScanReplacement {
     static func transferMetadata(

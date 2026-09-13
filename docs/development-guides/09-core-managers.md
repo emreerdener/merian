@@ -547,12 +547,12 @@ drifting apart.
   result. Native achievement notifications are also foreground-suppressed via
   `completionHandler([])` so the SwiftUI milestone banner owns active in-app
   unlock UX without stacking under an iOS banner. Background delivery bypasses
-  the delegate and remains native. **Both notification call sites
-  (`InferenceEngine` and `OfflineQueueManager+InferenceCompletion`) schedule
-  notifications unconditionally — without any `applicationState != .active`
-  guard.** Foreground suppression is delegated entirely to this `willPresent`
-  path; background delivery bypasses the delegate and is shown automatically by
-  the OS.
+  the delegate and remains native. **Both enabled notification scheduling paths
+  (`InferenceLiveCompletionCoordinator+Live` after an authorized live commit and
+  `OfflineQueueManager+InferenceCompletion` after a durable background commit)
+  omit any `applicationState != .active` guard.** Foreground suppression is
+  delegated entirely to this `willPresent` path; background delivery bypasses
+  the delegate and is shown automatically by the OS.
 - **App Icon Badge Synchronization**: Exposes `setBadgeCount(_:)` to mirror the
   application's `hasUnseenScan` state into the OS-level app icon badge count,
   seamlessly providing a visual indicator on the Home screen. This cleanly
@@ -593,6 +593,23 @@ See the focused
 ### `InferenceEngine`
 
 - The core processing unit in `apps/ios/Merian/Core/AI/`.
+- Retains observable presentation, benchmark placement, media construction, and
+  modality-specific hydration order while `InferenceLiveAttemptCoordinator` owns
+  the non-observable foreground task, scan, process-local attempt UUID, durable
+  generation, and recoverable scan. The coordinator reaches durable queue
+  operations only through the injected `InferenceLiveQueueService`; its `+Live`
+  adapter is Core AI's sole direct `OfflineQueueManager` owner for the
+  live-attempt lifecycle. The existing entitlement-reconciliation trigger
+  remains separately owned by `InferenceResponsePreparationService`.
+- Delegates the shared accepted-result workflow to
+  `InferenceLiveCompletionCoordinator`: discovery marking, replacement handoff,
+  circuit success, scan telemetry, committed biological events, exact queue
+  finalization, and notification/milestone authorization. Queue-backed
+  follow-ups require its coordinator-minted typed permit after the complete
+  local/durable tuple survives finalization; a retirement or replacement while
+  deletion is suspended fails closed. Queue-less nonvisual completion keeps a
+  synchronous path that accepts only the nil scan/durable identity. Only the
+  `+Live` adapter resolves concrete collaborators, captured once by AppDI.
 - Projects sensor and ordered-media state once, then delegates visual/nonvisual
   request mapping and provider dispatch to the injected
   `InferenceLiveRequestService`. That service forwards `CaptureTelemetry` —
@@ -607,9 +624,10 @@ See the focused
   into the parsed `SpeciesData` model, abstracting this detail from the Edge
   runtime and making it consistent across live and offline inference paths.
 - The payload is already durable in `OfflineQueueManager` before provider
-  dispatch. On network failure, the engine retires only its exact foreground
-  generation so background recovery can resume; it publishes Graceful
-  Degradation UI only if that full generation is still current.
+  dispatch. On network failure, the engine asks the attempt coordinator to
+  retire only its exact foreground generation so background recovery can resume;
+  it publishes Graceful Degradation UI only if that full generation is still
+  current.
 - **Server success fence**: Current `/identify-multimodal` `200` means
   moderation, required media promotion, primary species resolution, scan
   creation, and owner-scoped read-back have completed. Operational finalization
@@ -636,13 +654,15 @@ See the focused
 - **Inline/background upload handoff**: after optional staged-video upload,
   `InferenceLiveRequestService` signals provider readiness. `analyze()` installs
   its two-second fail-safe at that exact boundary, and the service forwards the
-  engine-owned request-body completion callback to `MerianNetworkClient`.
-  Network failure releases the row immediately. Every callback carries the
-  expected foreground generation, so a delayed callback is an idempotent no-op
-  after replacement. Progress, response fallback, failure, and timer races
-  cannot release another attempt's queue ownership. A separate foreground-
-  inference claim lets recovery media stage without allowing staged replay to
-  dispatch a duplicate primary identification.
+  request-body completion callback to `MerianNetworkClient`. Both release
+  closures retain `InferenceLiveAttemptCoordinator` independently of the engine;
+  only the callback's local-analysis update captures the engine weakly. Network
+  failure releases the row immediately. Every callback carries the expected
+  foreground generation, so a delayed callback is an idempotent no-op after
+  replacement. Progress, response fallback, failure, and timer races cannot
+  release another attempt's queue ownership. A separate foreground-inference
+  claim lets recovery media stage without allowing staged replay to dispatch a
+  duplicate primary identification.
 - **Post-inference carousel handoff**: On a successful result, the saved user
   media is rebuilt into `ActiveScanMedia` _before_ `speciesData` is assigned.
   This ensures the insight sheet carousel always has the user's saved
@@ -650,20 +670,26 @@ See the focused
   is never the only visible page when the sheet opens. After `speciesData` is
   set, the transient live image frame is cleared.
 - **Shared live-success finalization**: `analyze()` and `analyzeNonVisual()`
-  share private finalization helpers for new-discovery marking, achievement
-  notification refresh, reanalysis metadata transfer (`customTags`, collections,
-  field notes), exact-generation queued-scan flush/delete handoff, completion
-  notification delivery, and reference URL normalization. The helpers stay
-  inside `InferenceEngine` so they preserve `@MainActor` state ordering and the
-  `AppDIContainer` singleton boundaries while removing duplicated success-path
-  logic. The synchronous `InferenceScanReplacement` helper now requires a typed
-  persisted result and a distinct store-visible replacement, then saves user
-  metadata before authorizing repository deletion. No-record results, missing
-  records, or failed metadata saves preserve the original. Its rollback restores
-  only staged replacement fields, not unrelated pending edits. Repository
-  deletion returns an optional completion handle for post-commit file/cloud
-  cleanup; ordinary UI/engine callers keep the existing non-blocking behavior,
-  while tests await their own cleanup before restoring queue fixtures.
+  delegate their accepted-result workflow to
+  `InferenceLiveCompletionCoordinator`. Its singleton-free core normalizes the
+  typed outcome, sequences new-discovery marking, reanalysis metadata transfer,
+  circuit success, scan telemetry, and the committed biological event, then
+  delegates exact-generation queue completion to
+  `InferenceLiveAttemptCoordinator`. Notifications, milestones, and hydration
+  proceed only with the coordinator-minted permit returned after the complete
+  local/durable tuple remains current across deletion. The `+Live` adapter owns
+  concrete manager, repository, settings, analytics, event, notification, and
+  milestone bridging; AppDI captures those collaborators once. `InferenceEngine`
+  retains `@MainActor` observable publication, benchmark placement, media and
+  reference-URL presentation, and modality-specific hydration/effect order. The
+  synchronous `InferenceScanReplacement` helper requires a typed persisted
+  result and a distinct store-visible replacement, then saves user metadata
+  before authorizing repository deletion. No-record results, missing records, or
+  failed metadata saves preserve the original. Its rollback restores only staged
+  replacement fields, not unrelated pending edits. Repository deletion returns
+  an optional completion handle for post-commit file/cloud cleanup; ordinary
+  UI/engine callers keep the existing non-blocking behavior, while tests await
+  their own cleanup before restoring queue fixtures.
 - **Non-biological correction reanalysis**: Correction from the Non-biological
   collection is a scoped refinement entry point, not a record mutation. The old
   non-biological record stays unchanged until a replacement result succeeds.
@@ -692,23 +718,26 @@ See the focused
   `@MainActor [weak self]` guard unwrapping. If network tasks stall, the engine
   immediately releases all in-flight state, enabling dynamic RAM scavenging and
   eliminating implicit zombie executions bounding the `InferenceEngine` layer.
-- **Unconditional Local Notifications**: Dispatches a local "Analysis Complete"
-  push notification upon successful inference without any
-  `applicationState != .active` guard. `PushNotificationManager.willPresent`
-  handles foreground suppression by reading the persisted
-  `suppressInferenceBanners` key, while all UI/view-model mutation goes through
-  `AppSettings.suppressInferenceBanners`. This ensures notifications fire when
-  the user is in the library grid, but are silently delivered when the user is
-  already on the insight sheet viewing results.
+- **Application-state-independent local notifications**: After the typed
+  follow-up permit and notification-preference gates pass,
+  `InferenceLiveCompletionCoordinator+Live` schedules the local "Analysis
+  Complete" notification without an `applicationState != .active` guard.
+  `PushNotificationManager.willPresent` handles foreground suppression by
+  reading the persisted `suppressInferenceBanners` key, while all UI/view-model
+  mutation goes through `AppSettings.suppressInferenceBanners`. This ensures
+  notifications fire when the user is in the library grid, but are silently
+  delivered when the user is already on the insight sheet viewing results.
 - **Live presentation lifecycle**: `activeScanId` identifies the durable scan,
   while `activeLiveInferenceAttemptGeneration` identifies the current
   presentation and `activeForegroundInferenceGeneration` identifies its durable
-  queue owner. Task defer, provider dispatch, persistence, result/error
-  publication, and background hydration compare the appropriate full tuple.
-  Defer clears `isProcessing` and the active fields only when its presentation
-  UUID still owns the slot. Background recovery may replace only the exact
-  released presentation/foreground pair and invalidates that slot before
-  cooperatively cancelling the live task.
+  queue owner. These source-compatible engine accessors project values stored by
+  `InferenceLiveAttemptCoordinator`. Task defer, provider dispatch, persistence,
+  result/error publication, and background hydration compare the appropriate
+  full tuple. Defer clears `isProcessing` only when the coordinator atomically
+  clears the still-current presentation UUID. Background recovery may replace
+  only the exact released presentation/foreground pair and invalidates that slot
+  before cooperatively cancelling the live task. Suspended queue finalization
+  also rechecks the complete tuple before clearing or retiring ownership.
 - **Dedicated external API session (`SpeciesReferenceHydrationService`)**:
   Wikipedia and GBIF hydration calls use the service's private `externalSession`
   with its own `URLSessionConfiguration` (`timeoutIntervalForRequest = 5`,
@@ -745,6 +774,27 @@ See the focused
   action generations; shared identification serial tail; presentation
   generation; and Auth-transition quiescence fence. Mutable task handles do not
   escape this owner.
+- `Inference/State/InferenceLiveAttemptCoordinator.swift` — the private live
+  task and exact local/durable attempt-state owner. Full invalidation clears the
+  local tuple before release and retirement; exact-current retirement fences its
+  durable-generation slot before the callback while retaining the local
+  presentation identity for queue handoff. It revalidates the full tuple after
+  awaited queue deletion and reports stale success as unauthorized, preventing a
+  late finalizer from clearing, retiring, or authorizing follow-ups over a
+  same-scan replacement. `Inference/Services/InferenceLiveQueueService.swift`
+  defines its small initializer-injected durable boundary; only the `+Live`
+  adapter resolves the queue singleton for live-attempt lifecycle operations.
+  AppDI owns and injects that live value.
+- `Inference/Completion/InferenceLiveCompletionCoordinator.swift` — the
+  singleton-free accepted-result and post-commit authorization owner shared by
+  visual and nonvisual inference. Its file-scoped typed permit requires current
+  local ownership with no outstanding durable generation and, when queue-backed,
+  successful exact-generation deletion while the full tuple remains current.
+  Queue-less authorization requires the nil scan/durable pair. Its `+Live`
+  adapter bridges discovery, replacement, circuit, telemetry, event,
+  notification, and milestone effects; AppDI captures and injects the concrete
+  collaborators. The engine keeps state publication and modality-specific
+  timing.
 - `Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift` — the
   private classification, deterministic-trait, Foundation-cue, and phrase-
   rotation task owner. It contains the bounded derivative, provisional Vision
@@ -756,15 +806,16 @@ See the focused
   injected visual/nonvisual provider boundary. It owns base64 filtering, MIME
   detection, observation-context JSON, descriptor forwarding, staged-video
   upload, and one Identify invocation. The engine supplies exact-attempt
-  validation after each suspension boundary and retains queue, presentation, and
-  recovery effect execution.
+  validation after each suspension boundary and retains presentation/recovery
+  sequencing; the attempt coordinator executes durable queue effects.
 - `Inference/Result/InferenceLiveResultService.swift` — the injected live
   result/persistence adapter. It normalizes modality-specific actor inputs,
   preserves the canonical media and exact persistence fence, and maps the
   actor's completion proof into persisted, confidence-zero completed-without-
   record, or rejected outcomes. The engine validates its attempt before and
   after the actor call and retains discovery feedback, observable publication,
-  queue cleanup, and post-result effect ordering. Its synchronous
+  and post-result effect ordering while delegating exact-generation-queue
+  cleanup to the attempt coordinator. Its synchronous
   `Inference/Result/InferenceScanReplacement.swift` helper verifies the durable
   replacement and saves transferred metadata before the engine may request
   repository-owned deletion; no-record outcomes and failed saves keep the
@@ -774,9 +825,10 @@ See the focused
   status/code matching, modality-specific retirement reasons, and
   telemetry/circuit/feedback decisions. `InferenceFailurePresentation` creates
   unchanged typed error placeholders. Both catch paths use one private
-  synchronous engine handler; queue ownership, paywall and disposition actions,
-  logging, and observable commits remain there without a new suspension or task
-  owner.
+  synchronous engine handler. The engine retains handoff, paywall, logging,
+  feedback, and observable-commit order; the attempt coordinator performs exact
+  ownership validation, retirement, and terminal queue disposition through its
+  injected service, without a new suspension or task owner.
 - `Core/Network/Inference/InferenceIdentificationReviewService.swift` — the
   immutable initializer-injected adapter for exact-name Species Dictionary reads
   and the owned-scan identification-review RPC. Its live closures acquire an
@@ -2443,9 +2495,10 @@ consults that Keychain entry.
   expiry, `resetCircuit()` clears the trip and the counter.
 - **Reset logic**: `recordSuccess()` zeroes the counter and resets the circuit
   if it was tripped, allowing the next request to proceed normally.
-- **Usage**: Callers in `InferenceEngine` and `OfflineQueueManager` should call
-  `recordFailure()` on unrecoverable network errors and `recordSuccess()` on a
-  successful inference response. Gate new inference attempts behind
+- **Usage**: The exact-current live failure path in `InferenceEngine` records
+  eligible failures. `InferenceLiveCompletionCoordinator+Live` records an
+  accepted live success, and `OfflineQueueManager+InferenceCompletion` records a
+  durable background success. Gate new inference attempts behind
   `!circuitBreakerManager.isCircuitTripped`.
 
 ## Telemetry & Billing
@@ -2631,7 +2684,9 @@ consults that Keychain entry.
 - Lives at `Core/Analytics/GamificationManager.swift`. `@MainActor @Observable`
   singleton that persists lightweight gamification state in `UserDefaults`.
 - `unlockedSpeciesCount` — incremented each time `recordNewSpeciesDiscovered()`
-  is called (by `InferenceEngine` when `isNewDiscovery == true`).
+  is called. Authorized live discoveries arrive through
+  `InferenceLiveCompletionCoordinator+Live`; durable background discoveries
+  arrive through `OfflineQueueManager+InferenceCompletion`.
 - `hasFireflyBadge` — unlocked when `unlockedSpeciesCount >= 5`; persists the
   discovery milestone and triggers a selection haptic when first unlocked.
 - `unlockedAchievements: Set<AchievementType>` — typed identities of all
@@ -2674,26 +2729,28 @@ consults that Keychain entry.
   `.dictionary(.newToMerian)` for species-dictionary contribution milestones,
   plus `.fieldTrip(FieldTripMilestonePayload)` for standard outing and Seasonal
   Challenge progress.
-- `ScanMilestoneCoordinator` is the production scan-completion boundary shared
-  by foreground `InferenceEngine` and background `OfflineQueueManager` paths. It
-  deduplicates by a trimmed, lowercase coordination key while preserving the
-  caller's transport/store ID, awaits the existing persistence/progress attempt,
-  gathers achievements without presenting them immediately, evaluates
-  `SpeciesData.isNewToMerianDictionary`, and synchronously enqueues standard
-  Field trips, Seasonal Challenges, achievements, then **New to Naturebook**.
-  Identification corrections reapply progress through the same coordinator but
-  do not replay the original scan-achievement/dictionary batch. When Field trips
-  are disabled, the coordinator skips its progress resolver while ordinary scan
-  achievements and dictionary milestones continue normally. `.fieldTrips` is
-  currently enabled in `apps/ios/Merian/Configuration/FeatureFlags.swift`;
-  availability injection remains as a test seam and future emergency
-  client-build control. Retryable failures keep the selected-goal SwiftData row
-  as a durable outbox, release ordinary milestones through a separate
-  once-per-scan guard, and use the 2/5/15-second per-scan budget plus a global
-  cap of 16 sleeping in-process retries. Oldest overflow releases process-local
-  captures; `OfflineJobScheduler` replays leftover hints after relaunch; only
-  success, terminal ingestion failure, or disabled Field trips acknowledges and
-  removes the hint.
+- `ScanMilestoneCoordinator` is the production scan-completion boundary reached
+  through `InferenceLiveCompletionCoordinator+Live` after an authorized
+  foreground commit and through `OfflineQueueManager` after background
+  completion or recovery. It deduplicates by a trimmed, lowercase coordination
+  key while preserving the caller's transport/store ID, awaits the existing
+  persistence/progress attempt, gathers achievements without presenting them
+  immediately, evaluates `SpeciesData.isNewToMerianDictionary`, and
+  synchronously enqueues standard Field trips, Seasonal Challenges,
+  achievements, then **New to Naturebook**. Identification corrections reapply
+  progress through the same coordinator but do not replay the original
+  scan-achievement/dictionary batch. When Field trips are disabled, the
+  coordinator skips its progress resolver while ordinary scan achievements and
+  dictionary milestones continue normally. `.fieldTrips` is currently enabled in
+  `apps/ios/Merian/Configuration/FeatureFlags.swift`; availability injection
+  remains as a test seam and future emergency client-build control. Retryable
+  failures keep the selected-goal SwiftData row as a durable outbox, release
+  ordinary milestones through a separate once-per-scan guard, and use the
+  2/5/15-second per-scan budget plus a global cap of 16 sleeping in-process
+  retries. Oldest overflow releases process-local captures;
+  `OfflineJobScheduler` replays leftover hints after relaunch; only success,
+  terminal ingestion failure, or disabled Field trips acknowledges and removes
+  the hint.
 - Milestone `Models` and `Policies` are immutable/effect-free; `Presentation`
   owns only queue/host state; `Coordination` owns ordering, session fences, and
   retry lifetime. The small initializer-injected

@@ -56,6 +56,11 @@ extension CaptureWorkspaceViewModel {
     }
 
     private func startRefinementScan(with context: RefinementScanContext, initialDescription: String? = nil) {
+        cancelRefinementStaging()
+        clearStagedCaptureAndCropState(discardStagedMediaFiles: true)
+        selectedPhotoItems.removeAll()
+        preFetchTask?.cancel()
+        preFetchTask = nil
         self.refinementSubjectId = context.subjectId
         self.baseRefinementContext = context
         let trimmedDescription = initialDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -118,7 +123,7 @@ extension CaptureWorkspaceViewModel {
         scanId: String
     ) -> Bool {
         guard !audioReferences.isEmpty,
-              stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else {
+              hasAvailableStagedCaptureSlot else {
             return false
         }
 
@@ -169,7 +174,7 @@ extension CaptureWorkspaceViewModel {
                     await MainActor.run {
                         guard self.baseRefinementContext?.scanId == scanId else { return }
                         if let fallbackDescription,
-                           self.stagedCapture.availableSlots(limit: self.stagedCaptureLimit) > 0 {
+                           self.hasAvailableStagedCaptureSlot {
                             self.stagedCapture.observationContexts.append(
                                 StagedObservationContext(context: fallbackDescription)
                             )
@@ -185,7 +190,7 @@ extension CaptureWorkspaceViewModel {
 
                 let didStage = await MainActor.run { () -> Bool in
                     guard self.baseRefinementContext?.scanId == scanId,
-                          self.stagedCapture.availableSlots(limit: self.stagedCaptureLimit) > 0 else {
+                          self.hasAvailableStagedCaptureSlot else {
                         return false
                     }
                     self.stagedCapture.audios.append(
@@ -231,7 +236,7 @@ extension CaptureWorkspaceViewModel {
 
     @discardableResult
     private func stageHistoricalDescriptionForRefinement(_ descriptionContext: ObservationContext) -> Bool {
-        guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
+        guard hasAvailableStagedCaptureSlot else { return false }
         stagedCapture.observationContexts.append(StagedObservationContext(context: descriptionContext))
         return true
     }
@@ -244,7 +249,7 @@ extension CaptureWorkspaceViewModel {
         scanId: String
     ) -> Bool {
         guard !imageReferences.isEmpty,
-              stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else {
+              hasAvailableStagedCaptureSlot else {
             return false
         }
 
@@ -316,9 +321,7 @@ extension CaptureWorkspaceViewModel {
                     guard let self else { return }
                     let didCommit = await MainActor.run { () -> Bool in
                         guard self.baseRefinementContext?.scanId == plan.scanId,
-                              self.stagedCapture.availableSlots(
-                                limit: self.stagedCaptureLimit
-                              ) > 0 else {
+                              self.hasAvailableStagedCaptureSlot else {
                             return false
                         }
                         self.commitPreparedStagedImages([preparedRefinement])

@@ -1048,8 +1048,9 @@ A dedicated `PHPhotoLibrary` handler.
   image's magic bytes (`0xFF 0xD8 0xFF` → JPEG, otherwise WebP) inside
   `InferenceLiveRequestService`, which forwards the correct MIME type string
   (`"image/jpeg"` or `"image/webp"`) to the Edge Function so Gemini receives the
-  right label. `InferenceEngine.analyze` retains exact-attempt and result-policy
-  ownership around that injected request boundary.
+  right label. `InferenceLiveAttemptCoordinator` retains exact-attempt
+  ownership, while `InferenceEngine.analyze` retains result/presentation policy
+  around that injected request boundary.
 - **Photos Share-Sheet Import**: `Info.plist` registers the app as an alternate
   `public.image` viewer with in-place editing disabled. `MerianApp.onOpenURL`
   handles one incoming file after Google/Merian routing and before Supabase
@@ -1101,15 +1102,17 @@ A dedicated `PHPhotoLibrary` handler.
   crop state, and opens the next required gallery crop if one remains. During a
   normal/manual thumbnail crop, X only dismisses the editor and preserves the
   staged image. The delete action removes the image in both paths.
-- **Mixed-Media AI Context Appending**: Users can stage up to 2 total user items
-  into the inference pipeline across photos, short Pro video clips, audio clips,
-  and descriptions (for example, a macro leaf shot plus a short text note, a
-  short video, or two photos). `CaptureWorkspaceViewModel` handles
-  `PhotosPickerItem` interactions via `handlePhotoPickerSelection`, constructing
-  a `StagedImage` (compressed inference copy, 2048 px display copy, bounded
-  `UIImage` thumbnail, and crop/metadata bundle) and appending it to
-  `stagedCapture.images`, supporting mixed optical captures and library imports.
-  Video capture records a high-quality temporary `.mp4` with
+- **Mixed-Media AI Context Appending**: Ordinary scans can stage up to 2 total
+  user items across photos, short Pro video clips, audio clips, and
+  descriptions. Reanalysis reserves one supplementary description beyond its
+  two-item evidence budget, as detailed below. Standard combinations include a
+  macro leaf photo plus a short text note, a short video, or two photos.
+  `CaptureWorkspaceViewModel` handles `PhotosPickerItem` interactions via
+  `handlePhotoPickerSelection`, constructing a `StagedImage` (compressed
+  inference copy, 2048 px display copy, bounded `UIImage` thumbnail, and
+  crop/metadata bundle) and appending it to `stagedCapture.images`, supporting
+  mixed optical captures and library imports. Video capture records a
+  high-quality temporary `.mp4` with
   `AVCaptureMovieFileOutput.maxRecordedFileSize` capped at the existing 12 MB
   hard upload limit, requests native AVFoundation `.auto` stabilization for the
   active recording when the connection supports it, samples five ordered
@@ -1220,6 +1223,25 @@ A dedicated `PHPhotoLibrary` handler.
   image rather than suppressing reanalysis. `cancelRefinementStaging()` cancels
   pending image download or audio preparation, deletes an uncommitted audio
   sidecar, and clears the refinement context.
+- **Reanalysis Description Capacity**: Reanalysis retains the two-item evidence
+  budget and permits one supplementary description beyond it. Original media,
+  one added image/audio/video, and the description can be staged in either
+  order. Camera/import/recording admission and completion, picker counts, and
+  controls share that evidence limit; physical media cannot use the description
+  slot. **+** and **Analyze** stage or update the same supplementary
+  description, and Analyze includes current nonempty text even after switching
+  capture modes. Historical description evidence stays separate. Failed draft
+  staging retains the editor and aborts submission with the existing error
+  toast. Explicit supplementary tray edits/removal clear the associated pending
+  editor draft so Analyze cannot undo them; historical edits retain the pending
+  supplement. Successful submission/staging and tray-editor entry stop
+  dictation, with late transcripts ignored after the request ends. A replacement
+  refinement cancels prior preparation and clears the previous staged media,
+  pending picker selection, and environment lookup before loading its own
+  original. The tray retains existing styling; its media row scrolls when needed
+  to keep the action buttons visible. The local supplement marker never enters
+  the queue or network payload. See the
+  [Describe contract](11-describe-and-voice-dictation.md).
 - **Pinned Connection + Auth Pre-warm (`CaptureWorkspaceDependencies`)**: The
   live Shell service adapter refreshes auth and calls
   `MerianNetworkClient.prewarmInferenceEndpoint()` before the user composes a

@@ -33,8 +33,9 @@ composed string to `DescribeInputLifecycleObserver`; the observer alone mutates
 the binding. `DescribeInputView` receives the context as
 `@Binding var context: ObservationContext`.
 
-The context is intentionally not reset after submission, so users can swipe back
-to the Describe page and refine their input without losing their text.
+The editor resets after successful staging/submission through **+**, or after
+the toolbar successfully stages its live draft. Failed staging retains the text.
+The staged description remains available for review and editing in the tray.
 
 Describe is organized by responsibility:
 
@@ -77,9 +78,35 @@ foreground consumer cancels the lookup. A description-only scan can therefore
 produce the same privacy-filtered Explore location label as a visual or audio
 scan without making WeatherKit or geocoding a durability dependency.
 
-**Submission rule**: descriptions participate in the same 2-item total capacity
-as images and audio clips. Supported combinations are any one- or two-item
-mixture across those three modalities.
+**Submission rule**: ordinary scans retain the same 2-item total capacity across
+images, audio, video, and descriptions (subject to single-capture settings).
+Reanalysis reserves one supplementary description beyond its two-item evidence
+budget. The original media plus one additional image/audio/video and description
+can therefore form a three-item submission in either insertion order. Additional
+physical media cannot consume the reserved description allowance.
+
+In reanalysis, **+** stages or updates the supplementary description, and
+**Analyze** automatically stages any nonempty current draft before sending,
+including after switching capture modes. Both actions update the same supplement
+and preserve its original timeline position; historical description evidence
+remains separate. Saving or removing the supplementary item in the tray clears
+its pending editor draft, preventing Analyze from overwriting that edit or
+recreating a removed item. Historical evidence edits leave the supplementary
+draft intact. Empty drafts preserve staged descriptions. Removing the staged
+supplement or ending/replacing the refinement session clears its association.
+Starting another reanalysis also discards the previous session’s staged media
+before loading the replacement original. Rejected nonempty drafts remain in the
+editor and abort submission with the existing error toast: “Your description
+couldn’t be added. Please try again.” Successful **+**/**Analyze** actions and
+opening the tray's description editor stop dictation; transcript callbacks are
+ignored once the dictation request ends so late results cannot restore consumed
+text.
+
+Labels, capture-mode selection, and control styling and positioning stay the
+same. The refinement tray keeps the existing media row and uses horizontal
+scrolling when its items would otherwise crowd Cancel/Analyze on narrow screens.
+Automated coverage and the outstanding simulator acceptance checklist are in
+[reanalysis description verification](../development-guides/08-testing-strategy.md#reanalysis-description-verification).
 
 ---
 

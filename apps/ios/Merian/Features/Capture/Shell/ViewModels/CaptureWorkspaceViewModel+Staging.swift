@@ -129,6 +129,34 @@ extension CaptureWorkspaceViewModel {
         discardLocalMediaFiles(at: [removedAudio.filePath])
     }
 
+    /// A refinement editor draft updates the same supplementary item as the tray.
+    /// Saving or removing that item supersedes the draft so Analyze cannot undo the edit.
+    func saveStagedDescription(
+        at index: Int,
+        text: String,
+        pendingDraft: inout ObservationContext
+    ) {
+        guard stagedCapture.observationContexts.indices.contains(index) else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            removeStagedDescription(at: index, pendingDraft: &pendingDraft)
+            return
+        }
+        if baseRefinementContext != nil,
+           stagedCapture.observationContexts[index].isRefinementSupplement {
+            pendingDraft = ObservationContext()
+        }
+        stagedCapture.observationContexts[index].context.freeText = trimmed
+    }
+
+    func removeStagedDescription(at index: Int, pendingDraft: inout ObservationContext) {
+        guard stagedCapture.observationContexts.indices.contains(index) else { return }
+        let removed = stagedCapture.observationContexts.remove(at: index)
+        if baseRefinementContext != nil, removed.isRefinementSupplement {
+            pendingDraft = ObservationContext()
+        }
+    }
+
     func discardLocalMediaFiles(at paths: [String]) {
         let uniquePaths = Array(Set(paths.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }))
         guard !uniquePaths.isEmpty else { return }

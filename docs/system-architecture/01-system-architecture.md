@@ -277,11 +277,12 @@ orphaned object does not reconstruct its relational context.
   private `internal.server_api_request_headers(text)` helper, applied to both
   installed `pg_net` routines and persisted `pg_cron` command text.
 - Live cancellation and exact-attempt boundaries are split across the owning
-  layers: `InferenceEngine` validates pipeline and side-effect ownership, while
-  `InferenceLiveRequestService` invokes the supplied validator after image
-  encoding, optional staged-video upload, and provider return. If the iOS
-  Watchdog or the user cancels a processing scan, stale work cannot continue to
-  provider dispatch, persistence, or presentation effects.
+  layers: `InferenceLiveAttemptCoordinator` owns and validates the exact local
+  and durable tuple, `InferenceEngine` invokes that validation at pipeline and
+  side-effect boundaries, and `InferenceLiveRequestService` invokes the supplied
+  validator after image encoding, optional staged-video upload, and provider
+  return. If the iOS Watchdog or the user cancels a processing scan, stale work
+  cannot continue to provider dispatch, persistence, or presentation effects.
 
 **Edge Function Map:** The backend logic is strictly decoupled into modular,
 single-responsibility functions under `/services/supabase/functions/`.

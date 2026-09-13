@@ -77,6 +77,29 @@ including the space below the multiline field. `DescribeQuestionNavigation` and
 - Presentation-only 350 ms tag auto-advance and text focus remain view-owned so
   animation and keyboard timing are unchanged.
 
+## Reanalysis description handoff
+
+During reanalysis, **+** and the toolbar's **Analyze** stage or update the same
+supplementary description. Analyze includes the current nonempty typed or
+dictated draft regardless of the selected capture page. Updates preserve the
+supplement's insertion time and keep any historical description separate. Saving
+or removing the supplementary item through the tray clears its pending editor
+draft, so Analyze cannot undo the explicit tray edit. Editing historical
+evidence preserves a pending supplementary draft. Removing that staged item
+releases its association; replacing or cancelling the refinement session clears
+it. A new reanalysis clears the previous session's staged evidence before
+loading its own original media. Empty drafts preserve existing staged text.
+
+Successful **+**/**Analyze** actions and opening a staged-description editor
+stop the dictation request. The transcript binding checks that request before
+applying callbacks, so late speech results cannot repopulate a consumed or
+removed draft while asynchronous speech teardown finishes.
+
+Submission distinguishes an empty draft, successful staging, and rejection. The
+editor clears only after successful staging. Rejected nonempty text stays in the
+editor, presents the existing error toast, and prevents an incomplete
+submission.
+
 ## Verification
 
 `MerianTests/Features/Capture/Describe` mirrors this owner with prompt-state,
@@ -87,6 +110,17 @@ Models/Services/ViewModels/Views/Components, rejects the retired `Managers`
 folder and direct live-service resolution in presentation files, keeps Models
 platform-neutral, forbids concrete hardware-adapter construction in ViewModels,
 and caps every production Describe Swift file at 600 lines.
+
+Cross-owner regression coverage lives in
+`Shell/CaptureWorkspaceRefinementDescriptionTests.swift` and
+`Submission/CaptureRefinementReplayTests.swift` under
+`MerianTests/Features/Capture`. Both extend the
+`CaptureWorkspaceViewModelRefinementTests` XCTest selector. They cover draft
+staging, capacity, tray edits, session replacement, and durable/HTTP projection;
+they do not substitute for mounted-view dictation or simulator layout checks.
+See the
+[focused verification matrix](../../../../../../docs/development-guides/08-testing-strategy.md#reanalysis-description-verification)
+for commands and remaining manual checks.
 
 The canonical behavior contract is
 [`11-describe-and-voice-dictation.md`](../../../../../../docs/features-and-hardware/11-describe-and-voice-dictation.md).

@@ -6,6 +6,7 @@ extension CaptureWorkspaceViewModel {
 
     /// Routes the observation based on what else is staged.
     ///
+    /// - **Reanalysis**: adds or updates one supplementary description beyond the evidence budget.
     /// - **Multi-capture mode**: always stages the description so the user can compose up to
     ///   two total items before tapping Identify.
     /// - **Single-capture with images staged**: stages the description into
@@ -36,9 +37,10 @@ extension CaptureWorkspaceViewModel {
         let isRefining = baseRefinementContext != nil
 
         if isRefining {
-            guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
-            stagedCapture.observationContexts.append(StagedObservationContext(context: stagedContext))
-            return true
+            guard !isStagingRefinement, !isCheckingScanAdmission else { return false }
+            let result = stagePendingDescribeDraftForActiveSubmission(stagedContext)
+            if result == .rejected { presentDescriptionStagingError() }
+            return result == .staged
         } else if isMultiCaptureEnabled {
             guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
             stagedCapture.observationContexts.append(StagedObservationContext(context: stagedContext))
@@ -75,10 +77,25 @@ extension CaptureWorkspaceViewModel {
     /// showing a live text draft. Capture that draft into the staged payload when possible
     /// so the submitted analysis owns it and the input can reset cleanly afterward.
     @discardableResult
-    func stagePendingDescribeDraftForActiveSubmission(_ observationContext: ObservationContext) -> Bool {
-        guard !observationContext.isEmpty else { return false }
+    func stagePendingDescribeDraftForActiveSubmission(
+        _ observationContext: ObservationContext
+    ) -> CaptureDescriptionStagingResult {
+        guard !observationContext.isEmpty else { return .emptyDraft }
 
         let stagedContext = observationContext
+
+        if baseRefinementContext != nil {
+            guard stagedCapture.canStageRefinementDescription else { return .rejected }
+            if let index = stagedCapture.refinementSupplementIndex {
+                stagedCapture.observationContexts[index].context = stagedContext
+            } else {
+                stagedCapture.observationContexts.append(StagedObservationContext(
+                    context: stagedContext,
+                    isRefinementSupplement: true
+                ))
+            }
+            return .staged
+        }
 
         if let index = stagedCapture.observationContexts.indices.last {
             let addedAt = stagedCapture.observationContexts[index].addedAt
@@ -86,12 +103,32 @@ extension CaptureWorkspaceViewModel {
                 context: stagedContext,
                 addedAt: addedAt
             )
-            return true
+            return .staged
         }
 
-        guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
+        guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return .rejected }
         stagedCapture.observationContexts.append(StagedObservationContext(context: stagedContext))
-        return true
+        return .staged
+    }
+
+    /// The toolbar must not clear a rejected draft or submit evidence without it.
+    /// Synchronous preparation also snapshots text before asynchronous admission begins.
+    func prepareActiveStagedSubmission(descriptionDraft: inout ObservationContext) -> Bool {
+        guard !isCheckingScanAdmission, !isStagingRefinement else { return false }
+        switch stagePendingDescribeDraftForActiveSubmission(descriptionDraft) {
+        case .emptyDraft:
+            return true
+        case .staged:
+            descriptionDraft = ObservationContext()
+            return true
+        case .rejected:
+            presentDescriptionStagingError()
+            return false
+        }
+    }
+
+    private func presentDescriptionStagingError() {
+        offlineToastMessage = .error("Your description couldn’t be added. Please try again.")
     }
 
     // MARK: - Solo Describe Path (description only, no images)

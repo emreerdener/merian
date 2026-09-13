@@ -62,21 +62,18 @@ struct ActiveScanToolbar: View {
             }
 
             HStack(spacing: 16) {
-                CaptureStagingToolbarMediaRow(
-                    presentation: presentation,
-                    selectedPhotoItems: $selectedPhotoItems,
-                    isPhotoPickerPresented: $isPhotoPickerPresented,
-                    isCheckingPhotoImportAdmission:
-                        isCheckingPhotoImportAdmission,
-                    showTooltip: showTooltip,
-                    photoLibrary: dependencies.photoLibrary,
-                    onRequestPhotoPickerPresentation:
-                        requestPhotoPickerPresentation,
-                    onThumbnailTap: onThumbnailTap,
-                    onDescriptionTap: onDescriptionTap,
-                    onAudioTap: onAudioTap,
-                    onVideoTap: onVideoTap
-                )
+                if isRefining {
+                    ViewThatFits(in: .horizontal) {
+                        mediaRow.fixedSize(horizontal: true, vertical: false)
+                        ScrollView(.horizontal) {
+                            mediaRow
+                        }
+                        .scrollIndicators(.hidden)
+                        .frame(height: 48)
+                    }
+                } else {
+                    mediaRow
+                }
 
                 CaptureStagingSubmitButton(
                     title: presentation.submitTitle,
@@ -118,6 +115,24 @@ struct ActiveScanToolbar: View {
         .onDisappear {
             photoImportAdmissionTask?.cancel()
         }
+    }
+
+    private var mediaRow: some View {
+        CaptureStagingToolbarMediaRow(
+            presentation: presentation,
+            selectedPhotoItems: $selectedPhotoItems,
+            isPhotoPickerPresented: $isPhotoPickerPresented,
+            isCheckingPhotoImportAdmission:
+                isCheckingPhotoImportAdmission,
+            showTooltip: showTooltip,
+            photoLibrary: dependencies.photoLibrary,
+            onRequestPhotoPickerPresentation:
+                requestPhotoPickerPresentation,
+            onThumbnailTap: onThumbnailTap,
+            onDescriptionTap: onDescriptionTap,
+            onAudioTap: onAudioTap,
+            onVideoTap: onVideoTap
+        )
     }
 
     private var presentation: CaptureStagingToolbarPresentation {

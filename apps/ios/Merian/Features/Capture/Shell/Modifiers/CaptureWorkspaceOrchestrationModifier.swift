@@ -308,6 +308,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
         }
         .onChange(of: viewModel.requestedCaptureMode) { _, requested in
             guard let requested else { return }
+            coordinator.isDictationRequested = false
             captureMode = requested
             viewModel.requestedCaptureMode = nil
             observationContext = ObservationContext(
@@ -323,11 +324,16 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
             guard let fileName else { return }
 
             let willStageOnly = viewModel.stagedCapture.hasVisualMedia
+                || viewModel.baseRefinementContext != nil
                 || viewModel.isMultiCaptureFunctionallyEnabled
                 || appSettings.requiresScanConfirmation
                 || !viewModel.stagedCapture.observationContexts.isEmpty
 
             if willStageOnly {
+                guard viewModel.hasAvailableStagedCaptureSlot else {
+                    audioCaptureManager.restoreSubmissionForReview()
+                    return
+                }
                 viewModel.stagedCapture.audios.append(StagedAudio(filePath: fileName))
                 audioCaptureManager.reset()
             } else {

@@ -104,13 +104,15 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
     composition, and optional LiDAR/Vision physical-size estimation.
 - `Core/`: Foundational logic organized into subdirectories:
   - `AI/`: `InferenceEngine`, generated Edge DTOs, `InferenceProcessingActor`,
-    the stateless shared `Inference/Services` response-preparation boundary, the
-    private `Inference/Hydration` lifecycle and `Inference/State` write
-    coordinators, the injected `Inference/Request` live provider and
-    `Inference/Result` parse/save adaptation and synchronous reanalysis metadata
-    safety boundaries, stateless `Inference/Recovery` failure/presentation
-    policies, and the `Inference/LocalAnalysis` ephemeral model/cadence owner
-    plus its split classifier, image, trait, cue, and phrase policies
+    the shared response-preparation and injected live-attempt queue boundaries
+    under `Inference/Services`, the private `Inference/Hydration` lifecycle and
+    `Inference/State` write/live-attempt coordinators, the injected
+    `Inference/Request` live provider and `Inference/Result` parse/save
+    adaptation and synchronous reanalysis metadata-safety boundaries,
+    `Inference/Completion` accepted-result sequencing and typed post-commit
+    authorization, stateless `Inference/Recovery` failure/presentation policies,
+    and the `Inference/LocalAnalysis` ephemeral model/cadence owner plus its
+    split classifier, image, trait, cue, and phrase policies
   - `Data/Database/`: the declaration-only `BackgroundDatabaseActor`, its
     focused persistence extensions, scan-record factory and coordinators,
     `FileIOActor`, `ScanRepository`, and the focused

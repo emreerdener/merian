@@ -30,9 +30,7 @@ struct CaptureControlBar: View {
         return CaptureControlBarPresentation(
             captureMode: captureMode,
             totalStagedItems: viewModel.stagedCapture.totalItemCount,
-            availableStagedSlots: viewModel.stagedCapture.availableSlots(
-                limit: capacityLimit
-            ),
+            availableStagedSlots: viewModel.availableStagedCaptureSlots,
             capacityLimit: capacityLimit,
             hasStagedVisualMedia: viewModel.stagedCapture.hasVisualMedia,
             hasStagedAudio: !viewModel.stagedCapture.audios.isEmpty,
@@ -46,7 +44,8 @@ struct CaptureControlBar: View {
             hasPendingAudio: audioCaptureManager.pendingPlaybackPath != nil,
             isCheckingScanAdmission: viewModel.isCheckingScanAdmission,
             isStagingRefinement: viewModel.isStagingRefinement,
-            isDescriptionEmpty: observationContext.isEmpty
+            isDescriptionEmpty: observationContext.isEmpty,
+            canStageRefinementDescription: viewModel.stagedCapture.canStageRefinementDescription
         )
     }
 
@@ -309,10 +308,12 @@ struct CaptureControlBar: View {
     }
 
     private func requestAudioScanAdmission() async -> Bool {
-        await viewModel.requestScanAdmission(
+        guard viewModel.hasAvailableStagedCaptureSlot else { return false }
+        let route = await viewModel.requestScanAdmission(
             flashFallbackEligible: viewModel.stagedCapture.isEmpty
                 && viewModel.baseRefinementContext == nil
-        ) != nil
+        )
+        return route != nil && viewModel.hasAvailableStagedCaptureSlot
     }
 
     private func handleDescribeAction() {
@@ -323,6 +324,7 @@ struct CaptureControlBar: View {
                 modelContext: modelContext
             )
             if didSubmit {
+                coordinator.isDictationRequested = false
                 observationContext = ObservationContext()
             }
         }

@@ -281,8 +281,9 @@ as their permanent engineering identity.
   scans now reuse one primary-image derivative bounded to 512 px for injected
   Apple Vision classification, applying the accepted padded focus region when
   available. A private `InferenceLocalAnalysisCoordinator` owns that derivative,
-  local model tasks, and phrase cadence behind the engine's exact-session
-  predicate; AppDI injects the live providers and start feedback. The pill moves
+  local model tasks, and phrase cadence behind the
+  `InferenceLiveAttemptCoordinator` exact-session predicate supplied through the
+  engine; AppDI injects the live providers and start feedback. The pill moves
   from morphology-only generic copy to an immediate qualifying broad category,
   then advances no more often than every 2.3 seconds without returning to
   generic text. The normal inactive/background callback pair is idempotent, and
@@ -698,7 +699,11 @@ as their permanent engineering identity.
   — Describe capture mode: product-area ownership, `ObservationContext` state,
   deterministic prompt/text policy, generation-fenced subject and dictation
   lifecycle, serialized startup cancellation, Core `SpeechManager` AVAudioEngine
-  and SFSpeechRecognizer pipeline, and Swift 6 concurrency guarantees.
+  and SFSpeechRecognizer pipeline, and Swift 6 concurrency guarantees. Also owns
+  reanalysis's supplementary description allowance, automatic Analyze inclusion,
+  tray-edit/removal precedence, replacement cleanup, and late-transcript
+  handling; runtime acceptance is tracked in the
+  [reanalysis verification matrix](development-guides/08-testing-strategy.md#reanalysis-description-verification).
 - **[`/features-and-hardware/12-audio-listen-mode.md`](./features-and-hardware/12-audio-listen-mode.md)**
   — Audio Listen Mode: `SpectrogramActor` FFT/mel-scale DSP,
   `AudioCaptureManager` 15-second recording facade,

@@ -327,11 +327,21 @@ audioCaptureManager.audioFilePath)`
 fires after the user explicitly confirms a reviewed clip, or after a recording
 reaches the 15-second maximum while confirmation is disabled. Early completion
 and every confirmation-enabled recording enter review first. If the user already
-has staged images, videos, or descriptions, if multi-capture mode is enabled, or
-if explicit confirmation is required, the confirmed clip is appended to
-`stagedCapture.audios` and shares the same 2-item total mixed-media cap as
-images, videos, and descriptions. Otherwise the audio-only path calls
+has staged images, videos, or descriptions, if reanalysis or multi-capture mode
+is active, or if explicit confirmation is required, the confirmed clip is staged
+in `stagedCapture.audios`. Otherwise the audio-only path calls
 `submitAudio(...)` immediately.
+
+Ordinary scans retain the 2-item total mixed-media cap. Reanalysis keeps two
+evidence slots and a separately reserved supplementary description, so original
+media + new audio + text is valid regardless of insertion order. The control bar
+checks evidence capacity before and after admission, and completed recordings
+recheck it before staging. A clip that loses its slot returns to review instead
+of overflowing the draft. Describe text cannot consume an available reanalysis
+audio slot, and audio cannot consume the reserved description allowance.
+**Analyze** includes the current nonempty description even when Record is the
+selected page. See the
+[reanalysis description contract](11-describe-and-voice-dictation.md).
 
 When recording begins, `CaptureWorkspaceOrchestrationModifier` asks the
 workspace view model to `prepareNonVisualCaptureContext()`. This starts the same
@@ -407,8 +417,11 @@ for R2 staging). An offline or typed queue-only route shows a toast and stops
 without calling `InferenceEngine.prepareForNewScan()`. A still-online foreground
 route also persists a foreground inference UUID, then prepares the live engine,
 opens the insight sheet, and passes that UUID to
-`InferenceEngine.analyzeNonVisual(...)`. On live success, `deleteQueuedScan`
-preserves audio adopted by the final local scan and requires a matching
+`InferenceEngine.analyzeNonVisual(...)`. On live success, the engine commits the
+observable result and `InferenceLiveCompletionCoordinator` delegates exact queue
+finalization to `InferenceLiveAttemptCoordinator` through its injected queue
+service. The resulting `deleteQueuedScan` operation preserves audio adopted by
+the final local scan and requires a matching
 `ForegroundInferenceGenerationExpectation`, preventing stale cleanup or a
 redundant background Gemini call on the same file. If no live request can own
 the scan, the captured context task is cancelled. A timeout-losing task retains

@@ -1,5 +1,7 @@
 import Testing
 
+@testable import Merian
+
 @Suite("Explore Location Sharing Presentation")
 struct ExploreLocationSharingPresentationTests {
     @Test func casesRetainVisibleCopyAndSymbols() {

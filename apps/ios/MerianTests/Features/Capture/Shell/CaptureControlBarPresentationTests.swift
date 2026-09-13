@@ -2,6 +2,30 @@
 import XCTest
 
 final class CaptureControlBarPresentationTests: XCTestCase {
+    func testRefinementDescriptionPlusRemainsAvailableAtPhysicalMediaCapacity() {
+        let description = makePresentation(
+            captureMode: .describe,
+            totalStagedItems: 3,
+            availableStagedSlots: 0,
+            capacityLimit: 2,
+            isRefining: true,
+            isDescriptionEmpty: false
+        )
+        let photo = makePresentation(
+            captureMode: .visual,
+            totalStagedItems: 3,
+            availableStagedSlots: 0,
+            capacityLimit: 2,
+            isRefining: true
+        )
+        XCTAssertFalse(description.isAtCapacity)
+        XCTAssertFalse(description.isPrimaryActionDisabled)
+        XCTAssertTrue(description.willStageOnly)
+        XCTAssertTrue(description.showsDictation)
+        XCTAssertTrue(photo.isAtCapacity)
+        XCTAssertFalse(photo.isPhotoLibraryAvailable)
+    }
+
     func testVisualCapacityPreservesDisabledVisibleControls() {
         let presentation = makePresentation(
             captureMode: .visual,

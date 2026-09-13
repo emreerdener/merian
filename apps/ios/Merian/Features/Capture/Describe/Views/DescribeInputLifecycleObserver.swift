@@ -70,6 +70,9 @@ struct DescribeInputLifecycleObserver: View {
                     isRequested: coordinator.isDictationRequested,
                     baseText: context.freeText,
                     onTranscript: { composedText in
+                        // A submit or tray edit can stop the request before the
+                        // lifecycle task has drained the speech session.
+                        guard coordinator.isDictationRequested else { return }
                         context.freeText = composedText
                     },
                     onRequestEnded: {

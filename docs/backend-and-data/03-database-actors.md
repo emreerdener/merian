@@ -304,13 +304,16 @@ _Offline scan processing:_
   and clears the result identity so callers cannot publish ghost notifications
   or hydrate an engine without a committed UUID.
 - The background actor intentionally does **not** delete `OfflineQueuedScan`.
-  After a successful commit, the main actor calls `deleteQueuedScan` with
-  adopted media paths and the exact generation expectation. That produces a real
-  pending deletion in the main `ModelContext` for reliable `@Query`
-  reevaluation, removes queue-only inference frames, preserves media adopted by
-  the final record, and denies stale work deletion authority. The legacy
-  `wasCleaned` result name is a commit proof; it does not claim the queue row
-  was already removed.
+  After a successful background commit, `OfflineQueueManager` returns to the
+  main actor and calls `deleteQueuedScan` with adopted media paths and the exact
+  generation expectation. That produces a real pending deletion in the main
+  `ModelContext` for reliable `@Query` reevaluation, removes queue-only
+  inference frames, preserves media adopted by the final record, and denies
+  stale work deletion authority. The foreground path reaches the same guarded
+  deletion through `InferenceLiveCompletionCoordinator`,
+  `InferenceLiveAttemptCoordinator`, and `InferenceLiveQueueService+Live`. The
+  legacy `wasCleaned` result name is a commit proof; it does not claim the queue
+  row was already removed.
 - `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:videoFilePaths:mediaTimeline:persistenceFence:)`
   — persists a real-time scan result after live inference. Accepts the current
   media timeline and legacy-derived arrays. Queue-backed live callers also
@@ -589,7 +592,7 @@ post-inference award refresh:
 let actor = ProfileDatabaseActor(modelContainer: modelContainer)
 let payload = await actor.calculateAll()
 
-// InferenceEngine — post-inference award refresh only (long-lived shared instance)
+// ScanMilestoneLiveServices — post-inference award refresh
 // OfflineQueueManager.shared.resolvedProfileDbActor(container:) returns a cached
 // ProfileDatabaseActor, reusing the same ModelContext across consecutive inferences
 // instead of allocating a fresh actor per scan.
@@ -599,8 +602,8 @@ await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifica
 ```
 
 > **Why long-lived for `calculateAwards()`?** On a burst of offline scan
-> completions (or rapid successive live scans), `analyze()` calls
-> `calculateAwards()` after every result. Allocating a fresh
+> completions (or rapid successive live scans), `ScanMilestoneCoordinator` calls
+> its live achievement resolver after every result. Allocating a fresh
 > `ProfileDatabaseActor` — and with it a fresh `ModelContext` — per scan wastes
 > actor setup overhead and generates unnecessary SQLite context churn.
 > `resolvedProfileDbActor` maintains one actor per `ModelContainer` identity;

@@ -118,8 +118,11 @@ serialize finalization per scan id rather than relying on merge-policy behavior.
 Every scan — regardless of network state or what the user does after pressing
 the shutter — is made durable **at the moment of submission**, not on a
 best-effort rescue later. The durable unit is now a single ordered mixed-media
-timeline that can contain up to 2 total user items across photos, short Pro
-video clips, audio clips, and descriptions.
+timeline. Ordinary Capture composition permits up to 2 total user items across
+photos, short Pro video clips, audio clips, and descriptions. Reanalysis permits
+one supplementary description beyond the two-item evidence budget, allowing the
+original media, added media, and description to enter the same durable timeline.
+This is a client composition rule, not a new queue schema or server media limit.
 
 Timeline ordering comes from each staged wrapper's `addedAt` value. Images,
 audio, video, and `StagedObservationContext` own that composition-only metadata;
@@ -137,6 +140,16 @@ Source ownership follows that boundary. `Capture/Staging/Models` owns
 hand-written `Identify*` request/replay descriptors consumed by live inference
 and offline replay. Core queue/network code consumes those values but does not
 redefine their ordering or indexes.
+
+Before that durable handoff, `prepareActiveStagedSubmission(descriptionDraft:)`
+synchronously stages the current nonempty description or rejects the entire
+submission while retaining the draft. Reanalysis **+** and **Analyze** update
+the same supplementary item and preserve its `addedAt` ordering; historical
+observations stay separate. `isRefinementSupplement` is ephemeral staging
+ownership only: payload construction strips it and queues the unchanged
+text-only `ObservationContext` plus the existing owner timeline. Empty editor
+text does not remove staged descriptions. A failed later admission check retains
+an already-staged description for retry.
 
 When `CaptureWorkspaceViewModel.submitStagedCapture(modelContext:)` fires:
 
@@ -304,10 +317,13 @@ request body has finished sending:
 
 - **Deferred background start**: `OfflineQueueManager` excludes the active live
   `scanId` from normal pending batches. Each URLSession attempt's
-  `MerianRequestUploadDelegate` observes request-body progress and releases the
-  row when all bytes are sent. A two-second fail-safe handles transports that do
-  not provide progress callbacks. A replayed logical request may notify again on
-  a later attempt; generation-scoped queue release is intentionally idempotent.
+  `MerianRequestUploadDelegate` observes request-body progress and fires the
+  logical completion callback when all bytes are sent. `InferenceEngine`
+  sequences that callback and a two-second fail-safe; both retain
+  `InferenceLiveAttemptCoordinator` independently and enter Offline Sync through
+  `InferenceLiveQueueService+Live`. The callback's local-analysis update alone
+  captures the engine weakly. A replayed logical request may notify again on a
+  later attempt; generation-scoped queue release is intentionally idempotent.
 - **Single inference owner**: recovery media may stage after that handoff, but
   `foregroundInferenceGenerations[scanId]` prevents staged replay from
   dispatching a second identification while the exact foreground generation
@@ -343,14 +359,19 @@ scan by owner-row recovery.
 
 After handoff, either path can finish first:
 
-- **Live wins**: `analyze()` first persists through a
-  `LiveInferencePersistenceFence`, then calls `deleteQueuedScan` with the exact
+- **Live wins**: the live result service first persists through a
+  `LiveInferencePersistenceFence`, and `InferenceEngine` commits the observable
+  result. `InferenceLiveCompletionCoordinator` then delegates exact queue
+  finalization to `InferenceLiveAttemptCoordinator`, whose injected live queue
+  service calls `deleteQueuedScan` with the exact
   `ForegroundInferenceGenerationExpectation`. The generation is validated before
   and after URLSession task enumeration; only its current owner may cancel
   tasks, clear retry slots, remove the SwiftData queue row, preserve the goal
   hint as a durable progress outbox, delete queue-only inference frames, or
-  preserve media adopted by the final `LocalScanRecord`. Explicit cancellation
-  removes the hint instead of preserving it.
+  preserve media adopted by the final `LocalScanRecord`. The attempt coordinator
+  rechecks the complete local/durable tuple after deletion before the completion
+  coordinator authorizes notifications, milestones, or hydration. Explicit
+  cancellation removes the hint instead of preserving it.
 - **Background wins** (user backgrounded or dismissed): the upload completes via
   the OS-managed background URLSession, `dispatchInferenceDownloadTask` issues a
   background URLSession download task for inference, and the OS delivers the
@@ -1079,30 +1100,35 @@ additional callback fence, but they are not the persistence authority:
   registers the same in-memory owner before upload/replay can start. Provider
   preflight, `InferenceLiveRequestService` dispatch and completion, live local
   persistence, main-actor result or failure commit, and queue cleanup all carry
-  that UUID. `scanId` alone is never sufficient ownership. The UUID is
-  single-use: `OfflineQueueManager` atomically consumes an exact generation
-  before any engine instance dispatches its provider pipeline. Cancellation and
-  pre-provider exits register a tokenized retirement task synchronously so the
-  UUID cannot restart before asynchronous durable handoff completes. Transient
-  handoff fetch/save failures retain that registry slot and retry with bounded
-  backoff rather than reopening the UUID or permanently abandoning recovery
-  suppression. Merely registering retirement immediately makes the attempt
-  non-current, so delayed saves and UI/cleanup callbacks cannot act during the
-  durable handoff window. Failure handlers also compare the full scan,
-  presentation-attempt, and foreground generation before emitting telemetry,
-  recording a circuit-breaker failure, triggering a haptic, or publishing an
-  error placeholder. A current owner snapshots that proof immediately before
-  synchronous retirement and performs its terminal commit without another
-  suspension; a stale handler is an idempotent no-op. Confidence-zero responses
-  preserve their terminal no-record behavior, but queue-backed foreground and
-  generated background paths require the response to echo the exact scan ID
-  before cleanup is allowed. A mismatched or missing ID leaves the durable row
-  intact for recovery. App backgrounding, connectivity loss, failure, or
-  cancellation clears only the expected generation and then hands the durable
-  row to recovery. Replacing the insight presentation with a persisted library
-  record performs the same exact-generation handoff before changing
-  `activeScanId`; it never abandons the old foreground claim or deletes its
-  queued capture.
+  that UUID. `InferenceLiveAttemptCoordinator` contains the foreground task and
+  local tuple; it reaches durable operations only through the injected
+  `InferenceLiveQueueService`, whose `+Live` adapter resolves
+  `OfflineQueueManager`. `scanId` alone is never sufficient ownership. The UUID
+  is single-use: the adapter asks `OfflineQueueManager` to atomically consume an
+  exact generation before any engine instance dispatches its provider pipeline.
+  Cancellation and pre-provider exits register a tokenized retirement task
+  synchronously so the UUID cannot restart before asynchronous durable handoff
+  completes. Transient handoff fetch/save failures retain that registry slot and
+  retry with bounded backoff rather than reopening the UUID or permanently
+  abandoning recovery suppression. Merely registering retirement immediately
+  makes the attempt non-current, so delayed saves and UI/cleanup callbacks
+  cannot act during the durable handoff window. Failure handlers also compare
+  the full scan, presentation-attempt, and foreground generation before emitting
+  telemetry, recording a circuit-breaker failure, triggering a haptic, or
+  publishing an error placeholder. A current owner snapshots that proof
+  immediately before synchronous retirement and performs its terminal commit
+  without another suspension; a stale handler is an idempotent no-op.
+  Confidence-zero responses preserve their terminal no-record behavior, but
+  queue-backed foreground and generated background paths require the response to
+  echo the exact scan ID before cleanup is allowed. A mismatched or missing ID
+  leaves the durable row intact for recovery. Foreground finalization rechecks
+  the scan, process-local UUID, and durable generation after awaited deletion so
+  a late success or failure cannot clear or retire a same-scan replacement. App
+  backgrounding, connectivity loss, failure, or cancellation clears only the
+  expected generation and then hands the durable row to recovery. Replacing the
+  insight presentation with a persisted library record performs the same
+  exact-generation handoff before changing `activeScanId`; it never abandons the
+  old foreground claim or deletes its queued capture.
 - Retry accounting plus `.inferencing → .staged` is one persistence operation
   and succeeds only when the `OfflineJobRecord` still contains the expected
   generation. A stale callback therefore cannot consume retry budget or make a
@@ -1609,23 +1635,25 @@ This source split does not change the sequence:
   store. Post-inference `calculateAwards()` also invalidates its value
   projection before reading because inference can update an existing record
   without changing its count, latest ID, or timestamp.
-- **Step F**: `GamificationManager.shared.recordNewSpeciesDiscovered()` and the
-  inference-complete push notification fire immediately per completion. The
-  final database scan ID, decoded `SpeciesData`, and model container then enter
-  `ScanMilestoneCoordinator`, the same boundary used by foreground inference.
-  The server ingestion transaction has already attempted Field trip progress
-  before the scan becomes visible. The coordinator deduplicates
-  foreground/background races by final scan ID, waits for remote persistence,
-  retrieves the idempotent progress receipt through the Edge action, publishes
-  progress refresh events, calculates newly eligible achievements without
-  immediately presenting them, and atomically enqueues standard outing progress,
-  Seasonal Challenge progress, achievements, then **New to Naturebook**. A
-  failed or no-match progress attempt releases the later milestones only after
-  it finishes. Award calculation is per final scan rather than process-lifetime
-  burst-debounced, because strict notification ordering and scan-level
-  deduplication are now the contract. The Retryable progress failures leave the
-  SwiftData goal-hint outbox intact and schedule bounded in-process retries; a
-  later scheduler pass replays it after termination.
+- **Step F**: Background completion records a new discovery only when the
+  finalized result carries `isNewDiscovery`, and schedules the inference-
+  complete push only when the notification preference is enabled. The final
+  database scan ID, decoded `SpeciesData`, and model container then enter
+  `ScanMilestoneCoordinator`, the same boundary reached from an authorized live
+  completion through `InferenceLiveCompletionCoordinator+Live`. The server
+  ingestion transaction has already attempted Field trip progress before the
+  scan becomes visible. The coordinator deduplicates foreground/background races
+  by final scan ID, waits for remote persistence, retrieves the idempotent
+  progress receipt through the Edge action, publishes progress refresh events,
+  calculates newly eligible achievements without immediately presenting them,
+  and atomically enqueues standard outing progress, Seasonal Challenge progress,
+  achievements, then **New to Naturebook**. A failed or no-match progress
+  attempt releases the later milestones only after it finishes. Award
+  calculation is per final scan rather than process-lifetime burst-debounced,
+  because strict notification ordering and scan-level deduplication are now the
+  contract. The Retryable progress failures leave the SwiftData goal-hint outbox
+  intact and schedule bounded in-process retries; a later scheduler pass replays
+  it after termination.
   `Services/FieldTripProgress/OfflineQueueManager+FieldTripProgress.swift` owns
   goal-hint acknowledgement and that replay bridge; the milestone coordinator
   retains receipt and presentation semantics. `UserDefaultsKeys.hasUnseenScan`
@@ -1633,9 +1661,9 @@ This source split does not change the sequence:
   `suppressInferenceBanners` is `true` (the insight sheet is open and the user
   is watching the transition to results — setting the badge in that case would
   cause it to appear and immediately need clearing on sheet dismiss). The push
-  notification is scheduled unconditionally via
-  `PushNotificationManager.shared.sendInferenceCompleteNotification` —
-  foreground banner suppression is delegated to
+  notification, once enabled, is scheduled without an application-state guard
+  through `PushNotificationManager.sendInferenceCompleteNotification`.
+  Foreground banner suppression is delegated to
   `PushNotificationManager.willPresent`, which reads `suppressInferenceBanners`
   and either presents the banner or delivers silently based on whether the
   insight sheet is currently visible.

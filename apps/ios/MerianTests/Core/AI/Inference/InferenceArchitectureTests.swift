@@ -8,6 +8,8 @@ struct InferenceArchitectureTests {
     @Test func extractedOwnersRemainSmallAndExplicit() throws {
         for relativePath in [
             "State/InferenceWriteCoordinator.swift",
+            "Completion/InferenceLiveCompletionCoordinator.swift",
+            "Completion/InferenceLiveCompletionCoordinator+Live.swift",
             "Hydration/InferenceHydrationCoordinator.swift",
             "Hydration/InferenceSpeciesEnrichmentService.swift",
             "Hydration/InferenceSpeciesEnrichmentService+Live.swift",
@@ -22,7 +24,10 @@ struct InferenceArchitectureTests {
             "LocalAnalysis/ScanningPhrasePolicy.swift",
             "LocalAnalysis/ScanningPhraseCoordinator.swift",
             "Request/InferenceLiveRequestService.swift",
+            "Services/InferenceLiveQueueService.swift",
+            "Services/InferenceLiveQueueService+Live.swift",
             "Services/InferenceReviewSnapshotService.swift",
+            "State/InferenceLiveAttemptCoordinator.swift",
             "Result/InferenceLiveResultService.swift",
             "Result/InferenceConfidencePolicy.swift",
             "Result/InferenceScanReplacement.swift",
@@ -162,6 +167,8 @@ struct InferenceArchitectureTests {
         #expect(source.contains("private let localAnalysisCoordinator:"))
         #expect(source.contains("private let liveRequestService:"))
         #expect(source.contains("private let liveResultService:"))
+        #expect(source.contains("private let liveAttemptCoordinator:"))
+        #expect(source.contains("private let liveCompletionCoordinator:"))
         #expect(source.contains("private let identificationReviewService:"))
         #expect(
             source.contains(
@@ -209,6 +216,7 @@ struct InferenceArchitectureTests {
             "EdgeFunctionErrorPolicy.stableCode(",
             "MerianNetworkClient.isRecoverableInferenceConflict(",
             "SupabaseManager.shared",
+            "OfflineQueueManager.shared",
             ".from(\"",
             ".rpc("
         ] {
@@ -217,6 +225,114 @@ struct InferenceArchitectureTests {
                 "InferenceEngine reclaimed \(retiredToken)"
             )
         }
+    }
+
+    @Test func liveAttemptOwnerContainsStateAndDurableQueueAccess() throws {
+        let root = try repositoryRoot()
+        let engine = try contents(of: root.appendingPathComponent(
+            "apps/ios/Merian/Core/AI/InferenceEngine.swift"
+        ))
+        let coordinator = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "State/InferenceLiveAttemptCoordinator.swift"
+            )
+        )
+        let service = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Services/InferenceLiveQueueService.swift"
+            )
+        )
+        let liveService = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Services/InferenceLiveQueueService+Live.swift"
+            )
+        )
+        let appDI = try contents(of: root.appendingPathComponent(
+            "apps/ios/Merian/Core/AppDIContainer.swift"
+        ))
+
+        for token in [
+            "private(set) var task:",
+            "private(set) var activeScanId:",
+            "private(set) var activeAttemptGeneration:",
+            "private(set) var activeForegroundGeneration:",
+            "private(set) var recoverablePresentationScanId:",
+            "func invalidateActiveAttempt(",
+            "func completeQueuedInferenceIfNeeded(",
+            "return scanId == nil && foregroundGeneration == nil",
+            "func canCommitRecoveredBackgroundResult("
+        ] {
+            #expect(coordinator.contains(token))
+        }
+        #expect(coordinator.contains("private let queueService:"))
+        #expect(!coordinator.contains("OfflineQueueManager"))
+        #expect(!coordinator.contains("InferenceEngine"))
+
+        for token in [
+            "struct InferenceLiveQueueService {",
+            "struct Dependencies: Sendable",
+            "@MainActor @Sendable (String, UUID?, String) -> Void",
+            "@MainActor @Sendable (String, [String], UUID) async -> Bool"
+        ] {
+            #expect(service.contains(token))
+        }
+        for token in [
+            "OfflineQueueManager.shared", "InferenceEngine(", "SpeciesData",
+            "Task {", "Task.detached", "ModelContext"
+        ] {
+            #expect(!service.contains(token))
+        }
+
+        for token in [
+            "OfflineQueueManager.shared.releaseDeferredLiveUpload(",
+            "OfflineQueueManager.shared.retireForegroundInference(",
+            "OfflineQueueManager.shared.claimForegroundInferenceStart(",
+            ".isForegroundInferenceAttemptCurrent(",
+            ".foregroundInferenceGenerations[scanId]",
+            "preservePreferredGoalHint: true",
+            "ForegroundInferenceGenerationExpectation(",
+            "httpStatus: 400",
+            "needsAttention: false"
+        ] {
+            #expect(liveService.contains(token))
+        }
+        #expect(!engine.contains("OfflineQueueManager.shared"))
+        #expect(!engine.contains("foregroundInferenceGenerations["))
+        #expect(
+            engine.contains(
+                "let requestAttemptCoordinator = self.liveAttemptCoordinator"
+            )
+        )
+        #expect(!engine.contains("self?.liveAttemptCoordinator"))
+        #expect(engine.contains("liveAttemptCoordinator.activate("))
+        #expect(engine.contains("liveAttemptCoordinator.checkAttempt("))
+        #expect(
+            engine.contains(
+                "liveAttemptCoordinator.invalidateActiveAttempt("
+            )
+        )
+        #expect(appDI.contains("liveInferenceQueueService"))
+        #expect(appDI.contains("liveQueueService:"))
+
+        let invalidationStart = try #require(
+            coordinator.range(of: "func invalidateActiveAttempt(")
+        )
+        let retirementStart = try #require(
+            coordinator.range(
+                of: "func retireForegroundInferenceIfCurrent(",
+                range: invalidationStart.upperBound..<coordinator.endIndex
+            )
+        )
+        let invalidation = coordinator[
+            invalidationStart.lowerBound..<retirementStart.lowerBound
+        ]
+        let clear = try #require(
+            invalidation.range(of: "clearActiveAttempt()")
+        )
+        let durableRelease = try #require(
+            invalidation.range(of: "releaseAndRetire(")
+        )
+        #expect(clear.lowerBound < durableRelease.lowerBound)
     }
 
     @Test func sharedQueueFixturesKeepTheirCrossFrameworkLease() throws {

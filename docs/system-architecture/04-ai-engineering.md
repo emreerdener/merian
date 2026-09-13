@@ -15,12 +15,11 @@ its capture integration:
 
 - **`InferenceEngine.swift`**: The main engine. Coordinates upload confirmation,
   delegates live provider preparation/dispatch, and delivers results to
-  `CaptureWorkspaceViewModel`. Key `@ObservationIgnored` properties that track
-  in-flight state: `inferenceTask: Task<Void, Error>?` (the live `analyze`
-  task), `activeScanId: String?` (set to the `scanId` at the start of
-  `analyze(scanId:...)`), `activeLiveInferenceAttemptGeneration: UUID?` (the
-  presentation owner), and `activeForegroundInferenceGeneration: UUID?` (the
-  durable queue owner). The Background Inference completion owner calls
+  `CaptureWorkspaceViewModel`. Its source-compatible internal accessors project
+  the live task, active scan, process-local attempt UUID, durable foreground
+  UUID, and recoverable scan from `InferenceLiveAttemptCoordinator`; these
+  non-observable values are no longer independently stored in the engine. The
+  Background Inference completion owner calls
   `OfflineQueueManager.processInferenceDownloadResult`, which reads the full
   tuple to detect whether the background URLSession path has completed for the
   exact live attempt it may replace — see the
@@ -28,29 +27,34 @@ its capture integration:
   The `analyze` progression is mapped across 5 strict functional checkpoints
   enforcing UI hydration, image translation, and network payload dispatch
   gracefully. **`defer` race guard**: The `defer` block inside `analyze()`'s
-  `inferenceTask` captures the scan and presentation UUID before the task body
-  runs. It resets `isProcessing` and active ownership fields only when that
-  local tuple still owns the slot. The durable foreground UUID is separately
-  checked at provider and side-effect boundaries. Without both fences, a
-  cancelled task could race against a replacement for the same scan.
-  **Live-success helpers**: The visual and nonvisual success paths now share
-  private `@MainActor` helpers for new-discovery marking, achievement refresh,
-  completion notifications, queued-scan cleanup, reference URL normalization,
-  and post-inference hydration scheduling. These helpers do not merge
-  modality-specific request construction or media display setup.
-  **`targetEradicationScanId` (reanalysis path)**: Both `analyze` and
+  live task captures the scan and presentation UUID before the task body runs.
+  It resets `isProcessing` only when the coordinator atomically clears that
+  still-current local tuple. The durable foreground UUID is separately checked
+  at provider and side-effect boundaries. Without both fences, a cancelled task
+  could race against a replacement for the same scan. **Live-success
+  orchestration**: The visual and nonvisual success paths pass typed result
+  outcomes to `InferenceLiveCompletionCoordinator`. It owns discovery marking,
+  replacement handoff, circuit success, scan telemetry, the foreground
+  biological-completion event, exact queue-finalization authorization,
+  notifications, and milestone scheduling. Only the coordinator can construct
+  its typed permit. Queue-backed authorization requires the complete local/
+  durable tuple to survive deletion and leaves no outstanding durable
+  generation; synchronous queue-less authorization requires the nil scan/
+  durable pair. The engine retains observable publication, benchmark placement,
+  media construction, reference hydration, and each modality's reviewed effect
+  order. **`targetEradicationScanId` (reanalysis path)**: Both `analyze` and
   `analyzeNonVisual` accept `targetEradicationScanId: String?`, carrying the old
   scan's stable ID rather than retaining a managed record across inference
-  suspensions. `transferReplacementMetadataIfNeeded(...)` passes the typed
-  result outcome to `Inference/Result/InferenceScanReplacement.swift`. Only
-  `.persisted` with distinct non-empty IDs, a replacement resolved in a fresh
-  store context, and non-deleted original/replacement records may proceed. The
-  helper copies `customTags` and non-empty collection memberships. Non-empty old
-  field notes are copied only when the replacement's notes are empty. Review
-  state (`userIdentificationOverride`, `userConfirmedIdentification`,
-  `isFlagged`) is intentionally not transferred because this is a fresh
-  analysis. The metadata save must succeed before the engine delegates
-  old-record removal and queued cloud deletion to
+  suspensions. The live completion adapter passes the typed result outcome to
+  `Inference/Result/InferenceScanReplacement.swift`. Only `.persisted` with
+  distinct non-empty IDs, a replacement resolved in a fresh store context, and
+  non-deleted original/replacement records may proceed. The helper copies
+  `customTags` and non-empty collection memberships. Non-empty old field notes
+  are copied only when the replacement's notes are empty. Review state
+  (`userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`) is
+  intentionally not transferred because this is a fresh analysis. The metadata
+  save must succeed before the completion adapter delegates old-record removal
+  and queued cloud deletion to
   `ScanRepository.eradicateScan(record:modelContext:)`. On save failure, only
   the helper's staged fields are restored, preserving unrelated pending edits.
   Lookup failure, pending-only inserts, missing/same IDs, rejected persistence,
@@ -113,27 +117,63 @@ its capture integration:
   therefore stays the newest review-state writer without invalidating live or
   historical hydration for the same species. The engine supplies operations and
   lifecycle events but cannot mutate these registries.
+- **`Inference/State/InferenceLiveAttemptCoordinator.swift`**: The private
+  `@MainActor` owner for the foreground task handle, active scan, process-local
+  attempt UUID, optional durable foreground UUID, and recoverable presentation
+  scan. It validates the complete local/durable owner. Full invalidation clears
+  the local tuple before release and retirement; exact-current retirement clears
+  only its durable-generation slot before its callback and retains the local
+  presentation identity needed for queue handoff. It revalidates the complete
+  tuple after awaited queue deletion and reports a stale success as
+  unauthorized, so finalizer A cannot clear, retire, or authorize follow-ups
+  over same-scan replacement B.
+  `Inference/Services/InferenceLiveQueueService.swift` is the narrow injected
+  durable boundary; its core has no singleton access, and only its `+Live`
+  adapter resolves `OfflineQueueManager` for claim, current-owner lookup,
+  deferred-upload release, retirement, exact-generation deletion, and terminal
+  rejection. AppDI composes the live service. The engine retains observable
+  presentation.
+- **`Inference/Completion/InferenceLiveCompletionCoordinator.swift`**: The
+  private `@MainActor` accepted-result coordinator shared by visual and
+  nonvisual paths. It maps a typed persisted or confidence-zero no-record
+  outcome into one prepared completion; sequences new-discovery feedback,
+  replacement metadata/deletion, circuit success, and scan telemetry; emits the
+  foreground biological event only after the engine commits; and returns a typed
+  follow-up permit only after exact queue finalization and a local-owner
+  recheck. The permit initializer is file-scoped. Notification and milestone
+  APIs accept only that permit, while queue-less authorization accepts only the
+  nil scan/durable pair. Queue-less nonvisual work uses that synchronous method
+  to preserve its existing no-suspension timing. The core owns no singleton or
+  task. Its `+Live` adapter is the concrete manager/repository/settings/
+  analytics/event/notification/milestone bridge; AppDI captures those
+  collaborators once and injects the dependency value. Observable state
+  publication, media construction, benchmark logging, and modality-specific
+  hydration order remain engine-owned.
 - **`Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift`**: The
   private `@MainActor` owner for Vision classification, deterministic trait,
   future Foundation-cue, and phrase-rotation task slots; the bounded derivative
   and provisional classification; request-body gate; phrase cursor; and
   application-inactivity pause/resume state. `InferenceEngine` supplies a typed
-  scan/presentation/durable-generation session plus the authoritative
-  current-session predicate and receives only phrase values. Raw task handles,
-  the derivative, provisional candidates, and mutable phrase state do not escape
-  the coordinator or participate in durable Auth draining. Sibling files under
-  `Inference/LocalAnalysis/` own the classifier/category policy, image builder,
-  deterministic extractor, Foundation contract/validation/eligibility, and
-  phrase policy; each remains below 600 lines.
+  scan/presentation/durable-generation session plus the attempt coordinator's
+  authoritative current-session predicate and receives only phrase values. Raw
+  task handles, the derivative, provisional candidates, and mutable phrase state
+  do not escape the coordinator or participate in durable Auth draining. Sibling
+  files under `Inference/LocalAnalysis/` own the classifier/category policy,
+  image builder, deterministic extractor, Foundation
+  contract/validation/eligibility, and phrase policy; each remains below 600
+  lines.
 - **`Inference/Request/InferenceLiveRequestService.swift`**: The immutable,
   initializer-injected live request boundary shared by visual and nonvisual
   flows. It owns image base64 filtering and MIME detection, observation-context
   JSON, visual/audio/timeline descriptor forwarding, staged-video upload, and
   the single `/identify-multimodal` call. The engine supplies a main-actor
   exact-attempt validator after image encoding, staged-video upload, and
-  provider return. Provider-ready and request-body callbacks return ownership
-  effects to the engine; the service does not own presentation, queue
-  retirement, parsing, persistence, or recovery state.
+  provider return. Provider-ready and request-body callbacks return effect
+  timing to the engine, which delegates the durable action to the attempt
+  coordinator. Both callbacks retain that coordinator independently so durable
+  upload release survives engine teardown; only the local-analysis update in the
+  body-sent callback captures the engine weakly. The request service does not
+  own presentation, queue retirement, parsing, persistence, or recovery state.
 - **`Inference/Result/InferenceLiveResultService.swift`**: The injected live
   response-to-persistence adapter. It normalizes visual/nonvisual image
   requirements and optional audio/video paths while forwarding the original
@@ -147,12 +187,13 @@ its capture integration:
   `.persistenceRejected`; confidence alone cannot prove completion. Parser and
   validation errors propagate to the engine unchanged, without a service-owned
   retry or recovery policy. The model context remains a main-actor input to the
-  existing adapter, not a new Sendable value. AppDI owns the live request and
-  result service values; neither service retains mutable attempt/task state.
-  Observable commits, discovery feedback, queue cleanup, notifications,
-  milestones, and hydration ordering stay engine-owned. Reanalysis metadata
-  safety belongs to the synchronous `InferenceScanReplacement` helper described
-  above, not to this result adapter.
+  existing adapter, not a new Sendable value. AppDI owns the live request,
+  result, queue, and completion dependency values; neither request nor result
+  service retains mutable attempt/task state. Observable commits and hydration
+  ordering stay engine-owned; the completion coordinator owns shared accepted-
+  result effects and delegates exact queue cleanup to the attempt coordinator.
+  Reanalysis metadata safety belongs to the synchronous
+  `InferenceScanReplacement` helper described above, not to this result adapter.
 - **`Inference/Recovery/`**: `InferenceLiveFailurePolicy` owns pure
   interruption, error, retirement-reason, and telemetry/circuit/feedback
   decisions; `InferenceFailurePresentation` owns recovery copy and
@@ -162,8 +203,10 @@ its capture integration:
   transport cancellation, and connectivity handoff in that order, then rejects
   stale attempts before queue release and terminal publication. The policy never
   reads queue state or invokes a live service; it reuses the existing Network
-  stable-code helper and shared connectivity policy. The engine retains all
-  effects and introduces no suspension between the ownership snapshot and
+  stable-code helper and shared connectivity policy. The engine retains
+  observable and feedback effect order, while the attempt coordinator performs
+  exact validation, release, retirement, and terminal queue disposition. That
+  synchronous path introduces no suspension between the ownership snapshot and
   terminal commit. Known conflict, consent, admission, observation rejection,
   and visual decoding remain outside circuit failure; nonvisual decoding retains
   its generic service/circuit path and Describe-versus-audio telemetry. Quota
@@ -625,28 +668,45 @@ field inside the description payload:
    `public.scans.user_observation_context` on the cloud side.
 
 5. **Attempt ownership**: A queue-backed live request carries the foreground
-   generation created at submission. `InferenceEngine` compares it at task entry
-   and supplies the request service's validator after every request-preparation
-   suspension point and provider return. It also supplies the result service's
-   validator before and after parsing/persistence, then checks every result or
-   failure side-effect boundary. `BackgroundDatabaseActor` validates the same
-   generation in the scan-ingestion job while holding the per-scan persistence
-   coordinator. `OfflineQueueManager` atomically consumes the generation before
-   provider dispatch and owns tokenized retirement for cancellation and
-   pre-provider exits. Duplicate active or retiring generations therefore cannot
-   restart, even through a second engine instance. Result publication and queue
-   cleanup are owned by the single-use attempt UUID, not merely by the reusable
-   `scanId`. Retirement registration immediately fences persistence, UI, and
-   cleanup while raw durable release is pending. A transient durable-owner
-   handoff failure retains the registry slot and retries with bounded backoff
-   instead of reopening that UUID or indefinitely suppressing recovery. A
-   failure handler snapshots the full current owner before synchronous
-   retirement; only that owner may emit telemetry, update the circuit breaker,
-   trigger an error haptic, or publish an error placeholder. A replaced task
-   exits without observable failure effects. Confidence-zero is still a terminal
-   response that intentionally saves no local record, but queue-backed
-   foreground and generated background results must echo the exact scan ID
-   before that response can finalize the job.
+   generation created at submission. `InferenceLiveAttemptCoordinator` stores it
+   with the active scan and process-local attempt UUID, compares the complete
+   tuple at task entry, and supplies the request service's validator after every
+   request-preparation suspension point and provider return. It also supplies
+   the result service's validator before and after parsing/persistence. The
+   completion coordinator then authorizes shared success effects; failure
+   publication retains the same exact-attempt check in the engine.
+   `BackgroundDatabaseActor` validates the same generation in the scan-ingestion
+   job while holding the per-scan persistence coordinator. `OfflineQueueManager`
+   atomically consumes the generation before provider dispatch and owns
+   tokenized retirement for cancellation and pre-provider exits. The coordinator
+   accesses those operations only through the initializer-injected
+   `InferenceLiveQueueService`; the core service is deterministic, and its
+   `+Live` adapter is the sole Core AI owner of these live-attempt queue
+   operations. Entitlement reconciliation retains its separate existing Offline
+   Sync trigger through `InferenceResponsePreparationService`. Duplicate active
+   or retiring generations therefore cannot restart, even through a second
+   engine instance. Result publication and queue cleanup are fenced by the
+   single-use attempt UUID, not merely by the reusable `scanId`. Retirement
+   registration immediately fences persistence, UI, and cleanup while raw
+   durable release is pending. Full invalidation clears the local tuple before
+   release and retirement callbacks; exact-current retirement first fences its
+   local durable-generation slot while retaining scan and attempt identity for
+   the queue-presentation handoff. Queue finalization rechecks the full tuple
+   after deletion suspends, so a late completion cannot mutate or authorize
+   follow-ups over a same-scan replacement. A success that returns after its
+   durable generation was relinquished also fails closed. The completion
+   coordinator grants notifications, milestones, and hydration only through a
+   coordinator-minted typed permit produced after that finalization and local-
+   owner recheck; its synchronous queue-less path requires the nil scan/durable
+   pair. A transient durable-owner handoff failure retains the registry slot and
+   retries with bounded backoff instead of reopening that UUID or indefinitely
+   suppressing recovery. A failure handler snapshots the full current owner
+   before synchronous retirement; only that owner may emit telemetry, update the
+   circuit breaker, trigger an error haptic, or publish an error placeholder. A
+   replaced task exits without observable failure effects. Confidence-zero is
+   still a terminal response that intentionally saves no local record, but
+   queue-backed foreground and generated background results must echo the exact
+   scan ID before that response can finalize the job.
 
 **Offline resilience**: the queue stores the same ordered media timeline at
 enqueue time.

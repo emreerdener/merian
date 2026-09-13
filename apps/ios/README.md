@@ -703,6 +703,15 @@ boundaries, and the same 600-line ceiling.
 
 ## Capture Ownership
 
+Reanalysis composes the original evidence, one additional media item, and a
+reserved supplementary description. **+** stages text explicitly; **Analyze**
+automatically includes a nonempty draft. Tray edits/removal supersede pending
+supplementary text, and replacement sessions clear old evidence. This changes
+local composition only, preserving existing request and queue formats. See the
+[Describe behavior contract](../../docs/features-and-hardware/11-describe-and-voice-dictation.md)
+and
+[verification matrix](../../docs/development-guides/08-testing-strategy.md#reanalysis-description-verification).
+
 [Capture Shell](Merian/Features/Capture/Shell/README.md) owns the ordered
 Scan/Record/Describe pager, fixed capture chrome, root presentation and route
 handoffs, external-import recovery, and the root capture state owner. Its
@@ -1053,28 +1062,44 @@ resolution, and the 600-line production-file ceiling.
 
 `Merian/Core/AI/` owns remote inference orchestration and the ephemeral local
 analysis that improves foreground scanning copy. `InferenceEngine` remains the
-single observable state owner exposed to SwiftUI through `scanningPhaseText` and
-the authority for exact presentation identity. Its `Inference/Hydration`
-collaborator privately owns live, historical, and identification-review
-hydration task lifetime, Auth draining, request deduplication, the
-enriched-species TTL cache, and temporary backoff. GBIF work stays a structured
-child of the owning hydration task. `InferenceHistoricalRecordProjection`
-snapshots each persisted SwiftData record on `@MainActor` into value-only
-presentation, media, hydration plan, and deferred decode state, so the
-historical task never retains the managed record. Historical presentation
-replacement releases prior live-media buffers before constructing that
-projection. The immutable `InferenceSpeciesEnrichmentService` maps typed scoped
-responses into domain patches, and only its `+Live` adapter calls the Core
-Network enrichment endpoint. `InferenceHydrationPersistenceService` accepts
-already-admitted reference, metadata, and lookalike snapshots; only its `+Live`
-adapter constructs the database actor and encodes rich lookalikes off-main.
-`Inference/State` privately owns bounded background and ordered identification
-write sequencing; species-changing review hydration and same-species
-confirmation have independent action generations on the shared final-writer
-tail. The shared injected `Core/SpeciesReference/Services` boundary owns the
-isolated Wikipedia/GBIF session, wire parsing, and request construction used by
-Inference and thumbnail recovery. Presentation identity, persistence admission,
-and operation lifetime remain in the engine and its write coordinator.
+single observable state owner exposed to SwiftUI through `scanningPhaseText`.
+`Inference/State/InferenceLiveAttemptCoordinator` owns the non-observable
+foreground task, scan, process-local attempt, durable generation, and recovery
+identity; its injected `InferenceLiveQueueService` delegates every claim,
+current-owner lookup, deferred-upload release, retirement, exact-generation
+deletion, and terminal rejection to the sole `+Live` queue adapter. The
+`Inference/Completion/InferenceLiveCompletionCoordinator` owns the shared
+visual/nonvisual accepted-result boundary: discovery marking, replacement
+handoff, circuit success, scan telemetry, the biological completion event, and
+post-commit notification/milestone authorization. Queue-backed follow-ups
+require exact durable deletion while the full local/durable tuple remains
+current; retirement or replacement during deletion fails closed. Queue-less
+nonvisual completion retains a synchronous authorization path that accepts only
+the nil scan/durable identity, and only the coordinator can construct its typed
+permit. Its core resolves no singleton or task, while its `+Live` adapter
+bridges concrete dependencies captured by `AppDIContainer`. The engine retains
+observable publication, benchmark placement, media construction, and modality-
+specific hydration order. The `Inference/Hydration` sibling privately owns live,
+historical, and identification-review hydration task lifetime, Auth draining,
+request deduplication, the enriched-species TTL cache, and temporary backoff.
+GBIF work stays a structured child of the owning hydration task.
+`InferenceHistoricalRecordProjection` snapshots each persisted SwiftData record
+on `@MainActor` into value-only presentation, media, hydration plan, and
+deferred decode state, so the historical task never retains the managed record.
+Historical presentation replacement releases prior live-media buffers before
+constructing that projection. The immutable `InferenceSpeciesEnrichmentService`
+maps typed scoped responses into domain patches, and only its `+Live` adapter
+calls the Core Network enrichment endpoint.
+`InferenceHydrationPersistenceService` accepts already-admitted reference,
+metadata, and lookalike snapshots; only its `+Live` adapter constructs the
+database actor and encodes rich lookalikes off-main. `Inference/State` also
+privately owns bounded background and ordered identification write sequencing;
+species-changing review hydration and same-species confirmation have independent
+action generations on the shared final-writer tail. The shared injected
+`Core/SpeciesReference/Services` boundary owns the isolated Wikipedia/GBIF
+session, wire parsing, and request construction used by Inference and thumbnail
+recovery. Observable presentation, persistence admission, and hydration/write
+operation lifetime remain in the engine and its focused coordinators.
 `Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift` privately owns
 the classification, deterministic-trait, Foundation-cue, and phrase-clock task
 slots plus the bounded derivative, provisional classification, phrase cursor,
@@ -1089,10 +1114,13 @@ feedback. `Inference/Request/InferenceLiveRequestService.swift` is the injected
 visual/nonvisual request boundary. It owns base64 filtering, MIME selection,
 observation-context JSON, descriptor forwarding, staged-video upload, and the
 single provider invocation, while the engine supplies exact-attempt validation
-and retains queue callbacks, presentation, and recovery.
-`Inference/Result/InferenceLiveResultService.swift` normalizes visual/nonvisual
-inputs for the existing parse/save actor, forwards the exact persistence fence,
-and returns typed persisted, confidence-zero no-record, or rejected outcomes.
+and retains callback timing, presentation, and recovery sequencing. The
+provider-ready fail-safe and body-sent callback retain the attempt coordinator
+independently for durable queue release; only the local-analysis update captures
+the engine weakly. `Inference/Result/InferenceLiveResultService.swift`
+normalizes visual/nonvisual inputs for the existing parse/save actor, forwards
+the exact persistence fence, and returns typed persisted, confidence-zero
+no-record, or rejected outcomes.
 `Inference/Services/InferenceResponsePreparationService.swift` supplies both
 foreground and background completion with one stateless JSON decode, usable
 response validation, domain mapping, and entitlement/usage reconciliation
@@ -1100,13 +1128,13 @@ boundary. Background finalization calls it directly instead of waiting on the
 parse/save actor while holding a scan persistence fence. Its prepared value, the
 complete `SpeciesData` graph, and both finalization result carriers are
 compiler-checked `Sendable` values. The engine supplies attempt validation
-before and after persistence and keeps discovery feedback, queue completion, and
-follow-up ordering. It delegates reanalysis metadata safety to
+before and after persistence. The completion coordinator handles shared success
+effects and delegates exact-generation queue completion to the attempt
+coordinator; reanalysis metadata safety remains in
 `Inference/Result/InferenceScanReplacement.swift`: a replacement must be visible
 in a fresh store context and its metadata save must succeed before
 repository-owned deletion of the original. No-record results and failed saves
-keep the original. `AppDIContainer` owns the production request, result,
-enrichment, and hydration-persistence service values. Its immutable
+keep the original. The immutable
 `Core/Network/Inference/InferenceIdentificationReviewService` separately owns
 the exact-name Species Dictionary projection and owned-scan review RPC. Every
 live operation is fenced by an account-work lease; `InferenceEngine` retains
@@ -1116,15 +1144,17 @@ effects without issuing Supabase queries. The AppDI-owned
 bounded, throwing SwiftData projection needed before confirmation or reset.
 Store failure returns before review presentation, action generations, local
 writes, or cloud work can change; a missing row remains an optional
-compatibility result. `Inference/Recovery` contains stateless
-interruption/failure classification and recovery presentation, including the
-existing visual/nonvisual decoding and telemetry differences. One private
-synchronous engine handler retains exact ownership checks, queue
-retirement/handoff, paywall and terminal-disposition actions, feedback, and
-publication order. The current toolchain derives five image-specific
-observations covering dominant colors, color saturation, lighting, light
-contrast, and surface detail. They render as plain visible descriptions such as
-**Reviewing softly colored areas** and **Observing light and shadow areas**, not
+compatibility result. `AppDIContainer` owns the production request, result,
+queue, enrichment, hydration-persistence, review transport, and review-snapshot
+service values. `Inference/Recovery` contains stateless interruption/failure
+classification and recovery presentation, including the existing
+visual/nonvisual decoding and telemetry differences. One private synchronous
+engine handler retains handoff, paywall, feedback, and publication order; the
+attempt coordinator performs exact ownership checks, retirement, and terminal
+disposition. The current toolchain derives five image-specific observations
+covering dominant colors, color saturation, lighting, light contrast, and
+surface detail. They render as plain visible descriptions such as **Reviewing
+softly colored areas** and **Observing light and shadow areas**, not
 `Kind: detail` labels or internal statistical buckets such as “moderate” and
 “balanced.” Active visual live-to-queue handoff preserves the ephemeral
 contextual deck and in-memory carousel media only for an exact scan-and-attempt

@@ -88,7 +88,9 @@ final class CaptureWorkspaceViewModel {
     // MARK: - Refinement Flow
     /// The historical scan actively chosen by the user to be appended with new photographic context.
     /// Drives the multi-image composition path in `submitStagedCapture`.
-    var baseRefinementContext: RefinementScanContext?
+    var baseRefinementContext: RefinementScanContext? {
+        didSet { stagedCapture.clearRefinementDescriptionAssociation() }
+    }
     var refinementInitialDescriptionDraft: String?
     var refinementSubjectId: String?
     var isStagingRefinement: Bool = false
@@ -131,11 +133,21 @@ final class CaptureWorkspaceViewModel {
     }
 
     var availableStagedCaptureSlots: Int {
-        stagedCapture.availableSlots(limit: stagedCaptureLimit)
+        stagedCapture.availableEvidenceSlots(
+            limit: stagedCaptureLimit,
+            isRefining: baseRefinementContext != nil
+        )
     }
 
     var hasAvailableStagedCaptureSlot: Bool {
-        !stagedCapture.isAtCapacity(limit: stagedCaptureLimit)
+        availableStagedCaptureSlots > 0
+    }
+
+    func canUseCaptureControls(in mode: CaptureMode) -> Bool {
+        if mode == .describe, baseRefinementContext != nil {
+            return stagedCapture.canStageRefinementDescription
+        }
+        return hasAvailableStagedCaptureSlot
     }
 
     var shouldShowMediaModeToggle: Bool {

@@ -8,14 +8,16 @@ Capture observation is ready to analyze.
 This area normalizes staged media, admits it to the durable SwiftData queue
 (`OfflineQueuedScan`) before live work begins, coordinates visual and nonvisual
 foreground inference, and prepares the existing Insight or queued presentation.
-Shell owns the mounted UI and presentation timing; `InferenceEngine` owns exact
-live-attempt and presentation policy plus the concurrent on-device
-`VNClassifyImageRequest` status phrases. Its injected
+Shell owns the mounted UI and presentation timing; `InferenceEngine` owns
+observable presentation policy, while `InferenceLiveAttemptCoordinator` owns
+exact live-attempt identity and `InferenceLocalAnalysisCoordinator` owns the
+concurrent on-device `VNClassifyImageRequest` status phrases. The injected
 `InferenceLiveRequestService` owns live visual/nonvisual payload preparation,
 staged-video upload, and `/identify-multimodal` dispatch. The paired
 `InferenceLiveResultService` adapts the same canonical projection and exact
 attempt fence to the existing parse/save actor; typed completion returns to the
-engine for presentation and queue cleanup.
+engine for presentation sequencing and to the attempt coordinator for exact-
+generation queue cleanup through `InferenceLiveQueueService`.
 
 The canonical bounded-image and focus handoff is documented in the
 [image pipeline](../../../../../../docs/system-architecture/03-image-pipeline.md).
@@ -76,6 +78,26 @@ to Gemini. Audio-only and Describe submissions retain their established
 analyzing copy.
 
 ## Submission Contract
+
+Before toolbar submission, synchronous draft preparation stages nonempty
+Describe text and reports empty, staged, or rejected input. Reanalysis reserves
+one supplementary description beyond its two-item evidence budget, so original
+media, one added image/audio/video, and the current text share one ordered
+submission. Both **+** and **Analyze** update that same supplement without
+duplicating it or replacing historical description evidence. A rejection
+preserves the editor and staging buffers, presents the existing error toast, and
+aborts submission. An admitted draft remains staged if the later scan-admission
+check denies dispatch. The local supplement marker does not enter the payload or
+durable queue.
+
+`CaptureRefinementReplayTests` runs under the stable
+`CaptureWorkspaceViewModelRefinementTests` selector. It builds the actual
+multimodal request body for original + image/audio + description and checks the
+three owner entries, indexes, text, and media arrays against the staged and
+replayed projections. It does not send a provider request or replace
+Edge/runtime validation.
+[Local verification status and manual acceptance](../../../../../../docs/development-guides/08-testing-strategy.md#reanalysis-description-verification)
+remain explicit.
 
 `CaptureWorkspaceViewModel.submitStagedCapture(...)` starts the user-perceived
 clock when Analyze is tapped. The caller-scoped admission preview may suspend,
@@ -285,10 +307,12 @@ experience and ignores stale, unauthorized, completed, or nonmatching hints.
 
 The active live request temporarily owns the uplink. After any staged-video
 upload, `InferenceLiveRequestService` signals that provider dispatch is ready;
-`InferenceEngine` then starts the existing two-second fail-safe and supplies the
-request-body completion callback that the service forwards unchanged. Either
-release path opens the queue row for normal background upload only when the
-expected foreground generation still matches. Request failure, connectivity
+`InferenceEngine` then sequences the existing two-second fail-safe and supplies
+the request-body completion callback that the service forwards unchanged. Both
+release closures retain `InferenceLiveAttemptCoordinator` independently of the
+engine; only the body-sent local-analysis update captures the engine weakly.
+Either release path opens the queue row for normal background upload only when
+the expected foreground generation still matches. Request failure, connectivity
 loss, or app backgrounding synchronously retires that exact generation. A
 network replay may invoke the callback for more than one transport attempt, so
 both queue release and the local-analysis start gate remain idempotent for the

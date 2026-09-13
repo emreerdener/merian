@@ -7,6 +7,34 @@ import UIKit
 @MainActor
 @Suite("Capture staging toolbar presentation")
 struct CaptureStagingToolbarPresentationTests {
+    @Test("Refinement description reserves capacity without admitting a third physical item")
+    func refinementSupplementCapacityAndThreeItemTray() {
+        var capture = StagedCapture()
+        capture.images = [stagedImage(addedAt: Date(timeIntervalSince1970: 10))]
+        capture.observationContexts = [StagedObservationContext(
+            context: ObservationContext(freeText: "Compare the leaves"),
+            addedAt: Date(timeIntervalSince1970: 20),
+            isRefinementSupplement: true
+        )]
+        let withDescription = CaptureStagingToolbarPresentation(
+            stagedCapture: capture, isRefining: true, stagedCaptureLimit: 2
+        )
+        #expect(withDescription.photoSelectionCount == 1)
+        capture.audios = [StagedAudio(filePath: "call.wav", addedAt: Date(timeIntervalSince1970: 30))]
+        let full = CaptureStagingToolbarPresentation(
+            stagedCapture: capture, isRefining: true, stagedCaptureLimit: 2
+        )
+        #expect(full.visibleNodes.map(\.id) == ["img_0", "desc_0", "audio_0"])
+        #expect(full.photoSelectionCount == nil)
+        #expect(full.submitTitle == "Analyze")
+        #expect(!full.isSubmitDisabled)
+        #expect(capture.availableEvidenceSlots(limit: 2, isRefining: true) == 0)
+        #expect(capture.canStageRefinementDescription)
+        capture.audios.removeAll()
+        #expect(capture.availableEvidenceSlots(limit: 2, isRefining: false) == 0)
+        #expect(capture.availableEvidenceSlots(limit: 1, isRefining: false) == 0)
+    }
+
     @Test("Visible media retains canonical staging order")
     func visibleMediaRetainsCanonicalOrder() {
         var capture = StagedCapture()

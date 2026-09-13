@@ -129,7 +129,7 @@ Suggested first targets:
 
 | File                                                                                                                                               | Cleanup Direction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`                                                                                                    | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`                                                                                                    | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, live-attempt and durable-queue ownership, accepted-result completion effects, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`                                                                                           | Complete for this hygiene round. Eighteen endpoint owners cover the extracted feature, inference, publication, lifecycle, collection-sync, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport.                                                                                                                                                                                                                                                                                        |
 | `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                                                                                            | Retired. `Core/Preferences/UserDefaultsKeys.swift` owns the exact unchanged defaults strings; focused Preferences owners retain typed settings, compatibility stores, verified accepted-account-deletion cache inventory, and post-persistence runtime reset. `Core/Data/SpeciesPreferences` owns durable preferred-name state and synchronization. `Core/Security/KeychainKeys.swift` owns exact secure-key strings, and `Core/Security/AccountDeletion/{Models,Stores}` owns deletion recovery phases, manual-provider notice state, secure proof storage, and pre-Auth barrier restoration. Mirrored suites freeze every installed key string, declaration and test ownership, local-only effects, compatibility behavior, and the 600-line ceiling.                                                                                                                                                                                                                                                                                              |
 | `apps/ios/Merian/Core/Utilities/{ImageDownsampler,ImageFocusRegionDetector,SizeEstimator}.swift`                                                   | Retired. Shared stateless ImageIO downsampling lives in `Core/Data/Images`; Capture-only focus detection lives in `Features/Capture/Shared/Services`; and optional Capture telemetry size estimation lives in `Features/Capture/Submission/Services`. Mirrored suites and architecture guards freeze the new owners, retired paths, framework/effect boundaries, and 600-line ceilings.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -180,31 +180,34 @@ Implemented Core slices:
   `InferenceLocalAnalysisCoordinator`: classification, deterministic-trait,
   Foundation-cue, and phrase-rotation task slots; bounded derivative and
   provisional classification; request-body gate; phrase cursor; and inactivity
-  pause/resume. `InferenceEngine` retains exact presentation authority and
-  observable phrase publication through narrow callbacks. AppDI now supplies the
-  live light-impact start feedback while direct/default engine instances use an
-  inert default. The former `LocalVisualAnalysis.swift` aggregate was replaced
-  by focused classifier, bounded-image, deterministic-trait, Foundation
-  contract/validation/eligibility, phrase-policy, and lifecycle files, each
-  below 600 lines. A follow-up integration review made repeated
-  inactive/background callbacks idempotent so the normal scene transition
-  preserves only one pending exact-session cadence resume and cannot restart
-  completed local model work. The generic simulator build, focused and complete
-  `merianTests` suites, XcodeGen/source-membership checks, parsing, strict lint,
-  and documentation gates passed after that correction.
+  pause/resume. At that stage, `InferenceEngine` retained exact presentation
+  authority and observable phrase publication through narrow callbacks. AppDI
+  now supplies the live light-impact start feedback while direct/default engine
+  instances use an inert default. The former `LocalVisualAnalysis.swift`
+  aggregate was replaced by focused classifier, bounded-image,
+  deterministic-trait, Foundation contract/validation/eligibility,
+  phrase-policy, and lifecycle files, each below 600 lines. A follow-up
+  integration review made repeated inactive/background callbacks idempotent so
+  the normal scene transition preserves only one pending exact-session cadence
+  resume and cannot restart completed local model work. The generic simulator
+  build, focused and complete `merianTests` suites, XcodeGen/source-membership
+  checks, parsing, strict lint, and documentation gates passed after that
+  correction.
 - The fourth slice moved shared visual/nonvisual request preparation and live
   provider dispatch into the initializer-injected `InferenceLiveRequestService`.
   It owns base64 filtering, MIME detection, observation-context serialization,
   aligned descriptor forwarding, staged-video upload, and the single Identify
-  call. `InferenceEngine` supplies exact-attempt validation after encoding,
-  video upload, and provider return and retains its provider-ready timer,
-  request-body queue effects, presentation, response parsing, persistence, and
-  recovery policy. AppDI owns the production live value; tests inject three
-  narrow closures without a broad protocol or new singleton. No payload field,
-  request ordering, timeout, endpoint, callback, navigation, persistence schema,
-  or observable UI contract changed. A follow-up review restored MIME and
-  observation-context helpers to file-private visibility and added an explicit
-  stale-after-image-encoding fence test.
+  call. At that stage, `InferenceEngine` supplied exact-attempt validation after
+  encoding, video upload, and provider return and retained its provider-ready
+  timer, request-body queue effects, presentation, response parsing,
+  persistence, and recovery policy; the ninth slice below moved exact attempt
+  and queue-effect ownership into its coordinator and injected service. AppDI
+  owns the production live value; tests inject three narrow closures without a
+  broad protocol or new singleton. No payload field, request ordering, timeout,
+  endpoint, callback, navigation, persistence schema, or observable UI contract
+  changed. A follow-up review restored MIME and observation-context helpers to
+  file-private visibility and added an explicit stale-after-image-encoding fence
+  test.
 - The fifth slice added the injected `InferenceLiveResultService` for shared
   visual/nonvisual parse/save input normalization and typed result outcomes. At
   that stage, `InferenceProcessingActor` retained decoding, entitlement,
@@ -326,6 +329,91 @@ Implemented Core slices:
   pass. The required local Simulator build wrapper refused to start because this
   host cannot inspect whether another `xcodebuild` is active, so no
   current-candidate build or runtime test execution is claimed.
+- The ninth slice extracted foreground task and exact attempt identity into
+  `InferenceLiveAttemptCoordinator`, including the active scan, process-local
+  attempt UUID, optional durable generation, and recoverable-presentation scan.
+  The coordinator owns exact local/durable validation, full-invalidation
+  clear-before-callback ordering, durable-generation fencing before
+  exact-current retirement callbacks, duplicate admission, recovered-background
+  admission, and post-suspension queue-finalization fencing.
+  `InferenceLiveQueueService` supplies a small initializer-injected durable
+  boundary; only its `+Live` adapter resolves `OfflineQueueManager` for claim,
+  current-owner lookup, deferred-upload release, retirement, exact-generation
+  deletion, and terminal rejection. AppDI composes that live value, while
+  `InferenceEngine` retains its source-compatible accessors, observable
+  presentation, callback timing, and effect sequencing. The engine no longer
+  directly resolves the queue.
+- Focused service tests record every forwarded value and false result. Focused
+  coordinator tests cover queue-less and queue-backed identity, local clearing
+  before synchronous durable callbacks, exact-current durable-generation
+  fencing, re-entrant replacement preservation, failed-current retirement,
+  recovered-background gating, and successful and failed finalization that
+  resumes after a same-scan replacement. Architecture coverage freezes the
+  private state owner, singleton-free core/live-adapter split, AppDI wiring,
+  exact deletion/rejection policy, and 600-line ceiling. No payload, endpoint,
+  SwiftData schema, task description, feature flag, navigation, copy, or visible
+  behavior changes in this slice.
+- Ninth-slice verification status (2026-09-12): affected Swift parsing, strict
+  affected-source SwiftLint, strict-concurrency typechecking of the standalone
+  production core and live adapter, and focused frontend typechecking of both
+  new test suites pass. XcodeGen is byte-stable; project/resource and
+  source-membership checks, event-routing validation and adversarial tests, the
+  complete iOS CI-tooling regression suite, changed-Markdown formatting, and
+  `git diff --check` also pass. The final audit fences the local durable-
+  generation slot before exact-current retirement callbacks, preserves
+  re-entrant same-scan replacements, and retains the queue coordinator in
+  delayed and request-body callbacks so durable upload release does not depend
+  on engine lifetime. It also corrected documentation that had overstated the
+  adapter's scope: it is Core AI's sole direct queue owner for the live-attempt
+  lifecycle, while the pre-existing entitlement-reconciliation trigger remains
+  in `InferenceResponsePreparationService`. The canonical local build wrapper
+  refuses to start because this host cannot query `xcodebuild` process state
+  (`sysmond` is unavailable); no candidate Simulator build or runtime test
+  execution is claimed, and focused typechecking is not presented as a
+  substitute.
+- The tenth slice extracted the duplicated visual/nonvisual accepted-result
+  workflow into `InferenceLiveCompletionCoordinator`. The singleton-free core
+  normalizes persisted and confidence-zero no-record outcomes, applies
+  new-discovery state, sequences replacement metadata, circuit success, and
+  completion telemetry, emits the foreground biological event after observable
+  commit, and requires a typed follow-up permit for notifications and milestone
+  scheduling. Queue-backed permits require exact-generation deletion while the
+  complete local/durable tuple remains current and leave no outstanding durable
+  generation. Queue-less nonvisual completion uses a synchronous nil-identity
+  permit path so the extraction does not add a suspension. The `+Live` adapter
+  alone bridges the concrete managers, repository, settings, analytics, event
+  bus, push manager, and milestone coordinator; AppDI captures those
+  collaborators once and injects the dependency value. The engine retains public
+  signatures, observable publication, media construction, benchmark placement,
+  and modality-specific hydration/effect order.
+- Focused completion tests cover accepted-outcome normalization, exact shared-
+  effect order, rejected-persistence inertness, event and notification gating,
+  successful/failed durable finalization, partial durable-identity rejection,
+  and replacement or durable retirement during a suspended finalizer.
+  Architecture coverage freezes the core/live split, sealed permit construction,
+  AppDI wiring, retired engine singleton effects, both modality orders, and the
+  600-line production ceiling. No payload, endpoint, SwiftData schema,
+  persistence, feature flag, navigation, copy, or intended visible behavior
+  contract changed.
+- The second-pass audit closed a post-suspension authorization gap. A successful
+  queue deletion now authorizes follow-ups only if its complete scan, local
+  attempt, and durable generation still match when the deletion returns. A
+  same-attempt durable retirement therefore cannot receive stale notification,
+  milestone, or hydration work. Partial scan/generation pairs fail closed, the
+  permit initializer is file-scoped, and the synchronous queue-less path accepts
+  only a nil scan/durable pair. These changes strengthen stale-work rejection
+  without altering queue persistence, endpoint, payload, or presentation-
+  success ordering.
+- Tenth-slice verification status (2026-09-12): XcodeGen is byte-stable;
+  generated-project/resource and source-membership guards, event-routing
+  validation and adversarial tests, the complete iOS CI-tooling regression
+  suite, affected Swift parsing, strict affected-source SwiftLint, standalone
+  production-core and focused-test frontend typechecking, changed-Markdown
+  formatting, and whitespace validation pass. The required generic Simulator
+  `build-for-testing` was attempted through `make ios-local-build`, but the
+  safety wrapper refused before invoking Xcode because this sandbox cannot
+  inspect whether another `xcodebuild` is active. No fresh build or Simulator
+  runtime result is claimed for this slice.
 - Focused Core AI and Species Reference suites cover hydration replacement and
   stale-completion isolation, TTL/backoff policy, queue capacity and overflow,
   cancellation and Auth quiescence, ordered newest-action writes, public

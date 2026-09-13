@@ -1533,8 +1533,15 @@ The focused regression inventory includes:
   missing-job compatibility, cancellation fence release, throwing scan/job
   reads, orphan-batch preload, exact production consumers, and focused/residual
   size boundaries;
-- `InferenceEngineTests`, including visual and nonvisual transport/retirement
-  races;
+- `InferenceEngineTests`, including visual and nonvisual transport, handoff, and
+  presentation races;
+- `InferenceLiveQueueServiceTests` and `InferenceLiveAttemptCoordinatorTests`,
+  covering exact durable forwarding, local/durable identity, retirement fencing,
+  re-entrant replacement, and post-suspension finalization races;
+- `InferenceLiveCompletionCoordinatorTests` and
+  `InferenceLiveCompletionArchitectureTests`, covering accepted-result effect
+  order, sealed follow-up authorization, notification/milestone gating, and the
+  singleton-free core/live-adapter ownership split;
 - `InferenceEndpointTransportTests`, including queue-backed no-transient-
   transport-replay request count and bounded timing, pre-dispatch cancellation,
   header/body-free prewarm, plus the direct 90-second/replay control;

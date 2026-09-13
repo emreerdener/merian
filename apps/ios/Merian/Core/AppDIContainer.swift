@@ -27,6 +27,11 @@ import SwiftUI
     @ObservationIgnored
     let liveInferenceResultService: InferenceLiveResultService
     @ObservationIgnored
+    let liveInferenceQueueService: InferenceLiveQueueService
+    @ObservationIgnored
+    let liveInferenceCompletionDependencies:
+        InferenceLiveCompletionCoordinator.Dependencies
+    @ObservationIgnored
     let liveInferenceSpeciesEnrichmentService:
         InferenceSpeciesEnrichmentService
     @ObservationIgnored
@@ -94,6 +99,7 @@ import SwiftUI
             SystemFoundationCueEligibility()
         let liveInferenceRequestService = InferenceLiveRequestService.live
         let liveInferenceResultService = InferenceLiveResultService.live
+        let liveInferenceQueueService = InferenceLiveQueueService.live
         let liveInferenceSpeciesEnrichmentService =
             InferenceSpeciesEnrichmentService.live
         let liveInferenceHydrationPersistenceService =
@@ -105,6 +111,23 @@ import SwiftUI
         let appEventPublisher = AppEventPublisher()
         let milestoneToastClock = ContinuousMilestoneToastClock()
         let milestoneToastPresenter = MilestoneToastPresenter()
+        let milestoneToastHostRegistry = MilestoneToastHostRegistry()
+        let scanMilestoneCoordinator = ScanMilestoneCoordinator(
+            eventSender: appEventPublisher,
+            presenter: milestoneToastPresenter,
+            dependencies: .live
+        )
+        let liveInferenceCompletionDependencies =
+            InferenceLiveCompletionCoordinator.Dependencies.composed(
+                gamificationManager: GamificationManager.shared,
+                scanRepository: ScanRepository.shared,
+                circuitBreakerManager: CircuitBreakerManager.shared,
+                revenueCatManager: RevenueCatManager.shared,
+                appSettings: AppSettings.shared,
+                pushNotificationManager: PushNotificationManager.shared,
+                eventSender: appEventPublisher,
+                milestoneCoordinator: scanMilestoneCoordinator
+            )
         self.visionSubjectClassifier = visionSubjectClassifier
         self.localVisualTraitExtractor = localVisualTraitExtractor
         self.foundationVisualCueProvider = foundationVisualCueProvider
@@ -112,6 +135,9 @@ import SwiftUI
             foundationVisualCueEligibilityChecker
         self.liveInferenceRequestService = liveInferenceRequestService
         self.liveInferenceResultService = liveInferenceResultService
+        self.liveInferenceQueueService = liveInferenceQueueService
+        self.liveInferenceCompletionDependencies =
+            liveInferenceCompletionDependencies
         self.liveInferenceSpeciesEnrichmentService =
             liveInferenceSpeciesEnrichmentService
         self.liveInferenceHydrationPersistenceService =
@@ -121,6 +147,10 @@ import SwiftUI
         self.liveInferenceReviewSnapshotService =
             liveInferenceReviewSnapshotService
         self.appEventPublisher = appEventPublisher
+        self.milestoneToastClock = milestoneToastClock
+        self.milestoneToastPresenter = milestoneToastPresenter
+        self.milestoneToastHostRegistry = milestoneToastHostRegistry
+        self.scanMilestoneCoordinator = scanMilestoneCoordinator
         self.inferenceEngine = InferenceEngine(
             visionSubjectClassifier: visionSubjectClassifier,
             localVisualTraitExtractor: localVisualTraitExtractor,
@@ -132,6 +162,9 @@ import SwiftUI
             },
             liveRequestService: liveInferenceRequestService,
             liveResultService: liveInferenceResultService,
+            liveQueueService: liveInferenceQueueService,
+            liveCompletionDependencies:
+                liveInferenceCompletionDependencies,
             speciesEnrichmentService:
                 liveInferenceSpeciesEnrichmentService,
             hydrationPersistenceService:
@@ -140,14 +173,6 @@ import SwiftUI
                 liveInferenceIdentificationReviewService,
             identificationReviewSnapshotService:
                 liveInferenceReviewSnapshotService
-        )
-        self.milestoneToastClock = milestoneToastClock
-        self.milestoneToastPresenter = milestoneToastPresenter
-        self.milestoneToastHostRegistry = MilestoneToastHostRegistry()
-        self.scanMilestoneCoordinator = ScanMilestoneCoordinator(
-            eventSender: appEventPublisher,
-            presenter: milestoneToastPresenter,
-            dependencies: .live
         )
 
         if bindGlobalManagers {

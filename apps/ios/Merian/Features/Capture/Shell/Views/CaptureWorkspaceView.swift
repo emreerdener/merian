@@ -312,7 +312,7 @@ struct CaptureWorkspaceView: View {
                 // MARK: Fixed Overlay — Capture Controls (bottom, independent of toolbar)
                 // Pinned to a fixed absolute bottom offset so toolbar height changes
                 // (MainTabBar vs ActiveScanToolbar) never shift the shutter row.
-                if viewModel.hasAvailableStagedCaptureSlot {
+                if viewModel.canUseCaptureControls(in: captureMode) {
                     CaptureControlBar(
                         viewModel: viewModel,
                         captureMode: captureMode,
@@ -358,7 +358,10 @@ struct CaptureWorkspaceView: View {
                             onSubmit: {
                                 submitActiveStagedCapture()
                             },
-                            onDescriptionTap: { index in stagedDescriptionEditIndex = index },
+                            onDescriptionTap: { index in
+                                coordinator.isDictationRequested = false
+                                stagedDescriptionEditIndex = index
+                            },
                             onAudioTap: { index in stagedAudioReviewIndex = index },
                             onVideoTap: { index in stagedVideoReviewIndex = index },
                             dependencies: viewModel.dependencies.stagingToolbar
@@ -382,11 +385,11 @@ struct CaptureWorkspaceView: View {
 
     private func submitActiveStagedCapture() {
         CaptureWorkspaceKeyboardService.dismissKeyboard()
+        var draft = observationContext
+        guard viewModel.prepareActiveStagedSubmission(descriptionDraft: &draft) else { return }
+        coordinator.isDictationRequested = false
+        observationContext = draft
         Task { @MainActor in
-            _ = viewModel.stagePendingDescribeDraftForActiveSubmission(
-                observationContext
-            )
-            observationContext = ObservationContext()
             await viewModel.submitStagedCapture(
                 modelContext: modelContext,
                 preferredGoal: preferredFieldTripGoal

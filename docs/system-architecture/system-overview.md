@@ -54,20 +54,23 @@ begins this pipeline:
    job; the live provider, persistence, UI, and cleanup paths carry that exact
    owner. An eligible live-camera still scan is temporarily excluded from
    background upload so it does not compete with the inline request.
-3. **Biological Inference (`InferenceEngine.swift` and `Inference/Request/`)**:
-   `InferenceEngine` owns the exact live attempt, queue callbacks, presentation,
-   and synchronous recovery effects. Stateless `Inference/Recovery` policies
-   classify failures and prepare presentation without owning live state. Its
-   AppDI-injected `InferenceLiveRequestService` maps all current still, gallery,
-   audio, Describe, mixed-media, and video submissions and invokes the pinned
-   network client once for `/identify-multimodal`, keeping `GEMINI_PAID_API_KEY`
-   off the client. The eligible live-camera still path first gives
-   shutter-prefetched environmental context at most 150 ms. That grace bounds
-   context waiting, not all telemetry preparation or total dispatch latency.
-   Request-body completion then releases its durable queue source for
-   R2/background recovery. Late context is applied through
-   `/update-scan-context` without a second model call; a branch with no live
-   foreground owner cancels an unconsumed lookup.
+3. **Biological Inference (`InferenceEngine.swift` and `Inference/`)**:
+   `InferenceEngine` owns observable presentation and synchronous recovery
+   sequencing. `InferenceLiveAttemptCoordinator` owns the exact local/durable
+   attempt and delegates its queue callbacks through the injected
+   `InferenceLiveQueueService`; only that service's `+Live` adapter resolves the
+   queue singleton for live-attempt admission and lifecycle actions. Stateless
+   `Inference/Recovery` policies classify failures and prepare presentation
+   without owning live state. The AppDI-injected `InferenceLiveRequestService`
+   maps all current still, gallery, audio, Describe, mixed-media, and video
+   submissions and invokes the pinned network client once for
+   `/identify-multimodal`, keeping `GEMINI_PAID_API_KEY` off the client. The
+   eligible live-camera still path first gives shutter-prefetched environmental
+   context at most 150 ms. That grace bounds context waiting, not all telemetry
+   preparation or total dispatch latency. Request-body completion then releases
+   its durable queue source for R2/background recovery. Late context is applied
+   through `/update-scan-context` without a second model call; a branch with no
+   live foreground owner cancels an unconsumed lookup.
 4. **Durable First Result**: The Edge route verifies cached ES256 claims,
    performs one atomic ingestion-setup RPC, calls the unchanged tier model once,
    and uses at most one combined cached dictionary-hydration RPC for eligible
@@ -76,13 +79,14 @@ begins this pipeline:
    read-back before `200`. On iOS, the injected `InferenceLiveResultService`
    forwards canonical media and the exact attempt fence to the existing
    parsing/persistence actor. Typed persisted or confidence-zero no-record
-   completion may then reach the engine's result publication and queue cleanup;
-   rejected or stale results remain recoverable. Reanalysis additionally passes
-   through `InferenceScanReplacement`, which proves the replacement is durable
-   and saves the original's tags, collections, and notes before repository-owned
-   deletion. No-record results or failed metadata saves preserve the original.
-   Analytics, group tags, candidate enrichment, awards, and Field trips remain
-   secondary work.
+   completion may then reach the engine's result-publication sequence and the
+   attempt coordinator's exact-generation queue cleanup; rejected or stale
+   results remain recoverable. Reanalysis additionally passes through
+   `InferenceScanReplacement`, which proves the replacement is durable and saves
+   the original's tags, collections, and notes before repository-owned deletion.
+   No-record results or failed metadata saves preserve the original. Analytics,
+   group tags, candidate enrichment, awards, and Field trips remain secondary
+   work.
 5. **Offline Resilience**: If a user is off-grid, capture first makes a
    serialized account/scan funding claim, then writes media to
    `.documentDirectory` and inserts a `SwiftData` row with `scanStateRaw = 0`

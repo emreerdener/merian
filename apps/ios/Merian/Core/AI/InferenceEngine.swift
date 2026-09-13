@@ -34,22 +34,37 @@ import SwiftUI
     }
 
     // MARK: - Pipeline State
-    @ObservationIgnored var inferenceTask: Task<Void, Error>?
+    var inferenceTask: Task<Void, Error>? {
+        get { liveAttemptCoordinator.task }
+        set { liveAttemptCoordinator.replaceTask(newValue) }
+    }
     /// The client scan ID passed to `analyze()` — matches the `OfflineQueuedScan.id` for the
     /// same capture. Used by the background offline path to detect when it completes the same
     /// scan and should hydrate the engine instead of leaving `isProcessing = true` forever.
-    @ObservationIgnored var activeScanId: String?
+    var activeScanId: String? {
+        get { liveAttemptCoordinator.activeScanId }
+        set { liveAttemptCoordinator.setActiveScanId(newValue) }
+    }
     /// Unique owner of the current foreground pipeline. This is distinct from
     /// `activeScanId` because the same queued scan can be retried or replaced.
-    @ObservationIgnored var activeLiveInferenceAttemptGeneration: UUID?
+    var activeLiveInferenceAttemptGeneration: UUID? {
+        get { liveAttemptCoordinator.activeAttemptGeneration }
+        set { liveAttemptCoordinator.setActiveAttemptGeneration(newValue) }
+    }
     /// Durable generation written on the queued scan-ingestion job. `nil` only
     /// for direct queue-less API uses.
-    @ObservationIgnored var activeForegroundInferenceGeneration: UUID?
+    var activeForegroundInferenceGeneration: UUID? {
+        get { liveAttemptCoordinator.activeForegroundGeneration }
+        set { liveAttemptCoordinator.setActiveForegroundGeneration(newValue) }
+    }
     /// Exact queued scan whose live presentation ended with an ambiguous
     /// response. Retained after the active task's defer clears `activeScanId`
     /// so a later URLSession or status-recovery winner can replace the local
     /// error placeholder without overwriting a newer scan presentation.
-    @ObservationIgnored var recoverablePresentationScanId: String?
+    var recoverablePresentationScanId: String? {
+        get { liveAttemptCoordinator.recoverablePresentationScanId }
+        set { liveAttemptCoordinator.setRecoverablePresentationScanId(newValue) }
+    }
     /// Exact durable scan whose live request relinquished foreground ownership
     /// and should now use the queue-aware Insight presentation. Unlike
     /// `recoverablePresentationScanId`, this value is observable because the
@@ -97,6 +112,10 @@ import SwiftUI
         InferenceLiveRequestService
     @ObservationIgnored private let liveResultService:
         InferenceLiveResultService
+    @ObservationIgnored private let liveAttemptCoordinator:
+        InferenceLiveAttemptCoordinator
+    @ObservationIgnored private let liveCompletionCoordinator:
+        InferenceLiveCompletionCoordinator
     @ObservationIgnored private let requestPaywall: @MainActor () -> Void
     @ObservationIgnored private let speciesReferenceService:
         SpeciesReferenceHydrationService
@@ -126,6 +145,9 @@ import SwiftUI
         localAnalysisStartFeedback: @escaping @MainActor () -> Void = {},
         liveRequestService: InferenceLiveRequestService = .live,
         liveResultService: InferenceLiveResultService = .live,
+        liveQueueService: InferenceLiveQueueService = .live,
+        liveCompletionDependencies:
+            InferenceLiveCompletionCoordinator.Dependencies = .live,
         speciesReferenceService: SpeciesReferenceHydrationService = .live,
         speciesEnrichmentService:
             InferenceSpeciesEnrichmentService = .live,
@@ -153,6 +175,15 @@ import SwiftUI
         )
         self.liveRequestService = liveRequestService
         self.liveResultService = liveResultService
+        let liveAttemptCoordinator = InferenceLiveAttemptCoordinator(
+            queueService: liveQueueService
+        )
+        self.liveAttemptCoordinator = liveAttemptCoordinator
+        self.liveCompletionCoordinator =
+            InferenceLiveCompletionCoordinator(
+                attemptCoordinator: liveAttemptCoordinator,
+                dependencies: liveCompletionDependencies
+            )
         self.speciesReferenceService = speciesReferenceService
         self.speciesEnrichmentService = speciesEnrichmentService
         self.hydrationPersistenceService = hydrationPersistenceService
@@ -393,7 +424,7 @@ import SwiftUI
     ) {
         guard !writeCoordinator.isAuthTransitionFenceActive else { return }
         // Cancel all in-flight async work before the new scan claims the engine.
-        invalidateActiveLiveInferenceAttempt(
+        liveAttemptCoordinator.invalidateActiveAttempt(
             resumeBackground: true,
             reason: "live_scan_replaced"
         )
@@ -539,26 +570,6 @@ import SwiftUI
         return items
     }
 
-    private func applyNewDiscoveryIfNeeded(_ isNewDiscovery: Bool, to mappedData: inout SpeciesData) {
-        guard isNewDiscovery else { return }
-        mappedData.isNewDiscovery = true
-        GamificationManager.shared.recordNewSpeciesDiscovered()
-    }
-
-    private func transferReplacementMetadataIfNeeded(
-        from oldScanId: String?,
-        after outcome: InferenceLiveResultService.Outcome,
-        modelContext: ModelContext?
-    ) {
-        guard let context = modelContext,
-              let oldRecord = InferenceScanReplacement.transferMetadata(
-                  from: oldScanId,
-                  after: outcome,
-                  modelContext: context
-              ) else { return }
-        ScanRepository.shared.eradicateScan(record: oldRecord, modelContext: context)
-    }
-
     private func applyReferenceStateIfAvailable(from mappedData: SpeciesData) {
         guard !mappedData.shouldSuppressReferenceImages else {
             activeMedia.referenceState = .empty
@@ -582,10 +593,10 @@ import SwiftUI
         speciesData: SpeciesData,
         persistedMediaItems: [MediaItem]? = nil
     ) -> Bool {
-        guard isLiveInferenceAttemptCurrent(
+        guard liveAttemptCoordinator.isAttemptCurrent(
             scanId: ownedScanId,
             attemptGeneration: attemptGeneration,
-            foregroundInferenceGeneration: foregroundInferenceGeneration
+            foregroundGeneration: foregroundInferenceGeneration
         ) else {
             return false
         }
@@ -594,11 +605,8 @@ import SwiftUI
             speciesData,
             persistedMediaItems: persistedMediaItems
         )
-        if speciesData.isBiological, let completedScanId = speciesData.scanId {
-            AppDIContainer.shared.appEventPublisher.send(
-                .foregroundBiologicalScanCompleted(scanId: completedScanId)
-            )
-        }
+        liveCompletionCoordinator
+            .publishForegroundCompletionEventIfNeeded(for: speciesData)
         return true
     }
 
@@ -616,23 +624,18 @@ import SwiftUI
         expectedForegroundGeneration: UUID?,
         speciesData: SpeciesData
     ) -> Bool {
-        guard isLocalLiveInferenceAttemptCurrent(
+        guard liveAttemptCoordinator.canCommitRecoveredBackgroundResult(
             scanId: scanId,
-            attemptGeneration: replacingAttemptGeneration
-        ),
-              activeForegroundInferenceGeneration
-                == expectedForegroundGeneration,
-              OfflineQueueManager.shared
-                .foregroundInferenceGenerations[scanId] == nil else {
+            replacingAttemptGeneration: replacingAttemptGeneration,
+            expectedForegroundGeneration: expectedForegroundGeneration
+        ) else {
             return false
         }
 
         // Transfer the presentation slot before the caller cooperatively cancels
         // the old task. Otherwise that task can resume an error handler, still
         // pass its local UUID check, and overwrite this recovered result.
-        activeScanId = nil
-        activeLiveInferenceAttemptGeneration = nil
-        activeForegroundInferenceGeneration = nil
+        liveAttemptCoordinator.clearActiveAttempt()
         cancelLocalVisualAnalysis()
         publishSuccessfulResult(speciesData)
         return true
@@ -654,9 +657,7 @@ import SwiftUI
             return false
         }
 
-        activeScanId = nil
-        activeLiveInferenceAttemptGeneration = nil
-        activeForegroundInferenceGeneration = nil
+        liveAttemptCoordinator.clearActiveAttempt()
         recoverablePresentationScanId = nil
         cancelLocalVisualAnalysis()
         publishSuccessfulResult(speciesData)
@@ -700,170 +701,6 @@ import SwiftUI
         self.speciesData = speciesData
         applyReferenceStateIfAvailable(from: speciesData)
         isProcessing = false
-    }
-
-    private func isLocalLiveInferenceAttemptCurrent(
-        scanId: String?,
-        attemptGeneration: UUID
-    ) -> Bool {
-        activeScanId == scanId &&
-            activeLiveInferenceAttemptGeneration == attemptGeneration
-    }
-
-    private func isLiveInferenceAttemptCurrent(
-        scanId: String?,
-        attemptGeneration: UUID,
-        foregroundInferenceGeneration: UUID?
-    ) -> Bool {
-        guard isLocalLiveInferenceAttemptCurrent(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration
-        ) else {
-            return false
-        }
-        guard activeForegroundInferenceGeneration
-                == foregroundInferenceGeneration else {
-            return false
-        }
-        guard let scanId, let foregroundInferenceGeneration else {
-            return foregroundInferenceGeneration == nil
-        }
-        return OfflineQueueManager.shared
-            .isForegroundInferenceAttemptCurrent(
-                scanId: scanId,
-                generation: foregroundInferenceGeneration
-            )
-    }
-
-    private func checkLiveInferenceAttempt(
-        scanId: String?,
-        attemptGeneration: UUID,
-        foregroundInferenceGeneration: UUID?
-    ) throws {
-        try Task.checkCancellation()
-        guard isLiveInferenceAttemptCurrent(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundInferenceGeneration: foregroundInferenceGeneration
-        ) else {
-            throw CancellationError()
-        }
-    }
-
-    private func invalidateActiveLiveInferenceAttempt(
-        resumeBackground: Bool,
-        reason: String
-    ) {
-        let scanId = activeScanId
-        let foregroundGeneration = activeForegroundInferenceGeneration
-        activeScanId = nil
-        activeLiveInferenceAttemptGeneration = nil
-        activeForegroundInferenceGeneration = nil
-
-        guard let scanId, let foregroundGeneration else { return }
-        OfflineQueueManager.shared.releaseDeferredLiveUpload(
-            scanId: scanId,
-            foregroundInferenceGeneration: foregroundGeneration,
-            reason: reason
-        )
-        OfflineQueueManager.shared.retireForegroundInference(
-            scanId: scanId,
-            generation: foregroundGeneration,
-            resumeBackground: resumeBackground,
-            reason: reason
-        )
-    }
-
-    private func isDuplicateActiveForegroundAttempt(
-        scanId: String,
-        generation: UUID
-    ) -> Bool {
-        activeScanId == scanId &&
-            activeForegroundInferenceGeneration == generation &&
-            activeLiveInferenceAttemptGeneration != nil
-    }
-
-    private func retireForegroundInferenceIfCurrent(
-        scanId: String?,
-        attemptGeneration: UUID,
-        foregroundInferenceGeneration: UUID?,
-        resumeBackground: Bool,
-        reason: String
-    ) {
-        guard let scanId, let foregroundInferenceGeneration,
-              isLocalLiveInferenceAttemptCurrent(
-                  scanId: scanId,
-                  attemptGeneration: attemptGeneration
-              ),
-              activeForegroundInferenceGeneration
-                == foregroundInferenceGeneration else {
-            return
-        }
-
-        OfflineQueueManager.shared.retireForegroundInference(
-            scanId: scanId,
-            generation: foregroundInferenceGeneration,
-            resumeBackground: resumeBackground,
-            reason: reason
-        )
-        if isLocalLiveInferenceAttemptCurrent(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration
-        ) {
-            activeForegroundInferenceGeneration = nil
-        }
-    }
-
-    @discardableResult
-    private func completeQueuedLiveInferenceIfNeeded(
-        scanId: String?,
-        attemptGeneration: UUID,
-        foregroundInferenceGeneration: UUID?,
-        mediaPathsToKeep: [String]
-    ) async -> Bool {
-        guard let scanId, let foregroundInferenceGeneration else {
-            return true
-        }
-
-        // Queue removal, URLSession cancellation, and disk cleanup all compare
-        // the durable foreground generation under the per-scan persistence lock.
-        let didDelete = await OfflineQueueManager.shared.deleteQueuedScan(
-            scanId: scanId,
-            explicitlyAdoptedMediaPaths: mediaPathsToKeep,
-            preservePreferredGoalHint: true,
-            foregroundInferenceExpectation:
-                ForegroundInferenceGenerationExpectation(
-                    generation: foregroundInferenceGeneration
-                )
-        )
-        if didDelete {
-            if isLocalLiveInferenceAttemptCurrent(
-                scanId: scanId,
-                attemptGeneration: attemptGeneration
-            ) {
-                activeForegroundInferenceGeneration = nil
-            }
-            return true
-        }
-
-        retireForegroundInferenceIfCurrent(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundInferenceGeneration: foregroundInferenceGeneration,
-            resumeBackground: true,
-            reason: "live_cleanup_failed_or_replaced"
-        )
-        return false
-    }
-
-    private func sendInferenceCompleteNotificationIfEnabled(for mappedData: SpeciesData) {
-        guard AppSettings.shared.isPushNotificationsEnabled,
-              let scanId = mappedData.scanId else { return }
-
-        PushNotificationManager.shared.sendInferenceCompleteNotification(
-            speciesName: mappedData.commonName,
-            scanId: scanId
-        )
     }
 
     private func schedulePostInferenceHydrationIfNeeded(
@@ -1001,37 +838,21 @@ import SwiftUI
         userPerceivedStart: CFAbsoluteTime? = nil
     ) {
         guard !writeCoordinator.isAuthTransitionFenceActive else {
-            if let scanId, let foregroundInferenceGeneration {
-                OfflineQueueManager.shared.releaseDeferredLiveUpload(
-                    scanId: scanId,
-                    foregroundInferenceGeneration:
-                        foregroundInferenceGeneration,
-                    reason: "auth_transition_active"
-                )
-                OfflineQueueManager.shared.retireForegroundInference(
-                    scanId: scanId,
-                    generation: foregroundInferenceGeneration,
-                    resumeBackground: true,
-                    reason: "auth_transition_active"
-                )
-            }
+            liveAttemptCoordinator.releaseAndRetire(
+                scanId: scanId,
+                foregroundGeneration: foregroundInferenceGeneration,
+                resumeBackground: true,
+                reason: "auth_transition_active"
+            )
             return
         }
         guard !imageDatas.isEmpty else {
-            if let scanId, let foregroundInferenceGeneration {
-                OfflineQueueManager.shared.releaseDeferredLiveUpload(
-                    scanId: scanId,
-                    foregroundInferenceGeneration:
-                        foregroundInferenceGeneration,
-                    reason: "live_visual_payload_empty"
-                )
-                OfflineQueueManager.shared.retireForegroundInference(
-                    scanId: scanId,
-                    generation: foregroundInferenceGeneration,
-                    resumeBackground: true,
-                    reason: "live_visual_payload_empty"
-                )
-            }
+            liveAttemptCoordinator.releaseAndRetire(
+                scanId: scanId,
+                foregroundGeneration: foregroundInferenceGeneration,
+                resumeBackground: true,
+                reason: "live_visual_payload_empty"
+            )
             return
         }
         if let scanId {
@@ -1041,7 +862,7 @@ import SwiftUI
                 )
                 return
             }
-            guard !isDuplicateActiveForegroundAttempt(
+            guard !liveAttemptCoordinator.isDuplicateActiveForegroundAttempt(
                 scanId: scanId,
                 generation: foregroundInferenceGeneration
             ) else {
@@ -1050,10 +871,10 @@ import SwiftUI
                 )
                 return
             }
-            guard OfflineQueueManager.shared.claimForegroundInferenceStart(
-                        scanId: scanId,
-                        generation: foregroundInferenceGeneration
-                  ) else {
+            guard liveAttemptCoordinator.claimForegroundInferenceStart(
+                scanId: scanId,
+                generation: foregroundInferenceGeneration
+            ) else {
                 MerianLog.general.debug(
                     "analyze: rejected missing, stale, used, or retiring foreground owner scanId=\(scanId, privacy: .public)"
                 )
@@ -1065,7 +886,7 @@ import SwiftUI
             )
             return
         }
-        invalidateActiveLiveInferenceAttempt(
+        liveAttemptCoordinator.invalidateActiveAttempt(
             resumeBackground: true,
             reason: "live_scan_replaced_by_analyze"
         )
@@ -1105,10 +926,11 @@ import SwiftUI
         // queue-less online descriptions receive a process-local owner.
         let attemptGeneration =
             foregroundInferenceGeneration ?? UUID()
-        self.activeScanId = scanId
-        self.activeLiveInferenceAttemptGeneration = attemptGeneration
-        self.activeForegroundInferenceGeneration =
-            foregroundInferenceGeneration
+        liveAttemptCoordinator.activate(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundGeneration: foregroundInferenceGeneration
+        )
         self.preparedPresentationOwner = nil
         self.activePresentationOwner = AnalysisPresentationOwner(
             scanId: scanId,
@@ -1154,14 +976,11 @@ import SwiftUI
             // (leaving the insight sheet stuck in a done-but-empty state). Only reset when this Task
             // still owns the active slot.
             defer {
-                if self.isLocalLiveInferenceAttemptCurrent(
+                if self.liveAttemptCoordinator.clearActiveAttemptIfCurrent(
                     scanId: ownedScanId,
                     attemptGeneration: attemptGeneration
                 ) {
                     self.isProcessing = false
-                    self.activeScanId = nil
-                    self.activeLiveInferenceAttemptGeneration = nil
-                    self.activeForegroundInferenceGeneration = nil
                     if self.activePresentationOwner?.attemptGeneration
                         == attemptGeneration {
                         self.activePresentationOwner = nil
@@ -1176,16 +995,19 @@ import SwiftUI
             do {
                 // --- Step 1: Pre-flight Checks & Data Preparation ---
 
-                try self.checkLiveInferenceAttempt(
+                try self.liveAttemptCoordinator.checkAttempt(
                     scanId: ownedScanId,
                     attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
+                    foregroundGeneration:
                         ownedForegroundInferenceGeneration
                 )
                 if CircuitBreakerManager.shared.isCircuitTripped {
                     throw URLError(.notConnectedToInternet)
                 }
 
+                // Durable upload release must outlive this engine instance;
+                // only the local-analysis callback below remains weakly owned.
+                let requestAttemptCoordinator = self.liveAttemptCoordinator
                 var uploadFailSafe: Task<Void, Never>?
                 defer { uploadFailSafe?.cancel() }
                 let requestResponse = try await self.liveRequestService
@@ -1207,10 +1029,10 @@ import SwiftUI
                             pipelineStartedAt: pipelineStart
                         ),
                         validateAttempt: {
-                            try self.checkLiveInferenceAttempt(
+                            try self.liveAttemptCoordinator.checkAttempt(
                                 scanId: ownedScanId,
                                 attemptGeneration: attemptGeneration,
-                                foregroundInferenceGeneration:
+                                foregroundGeneration:
                                     ownedForegroundInferenceGeneration
                             )
                         },
@@ -1218,10 +1040,10 @@ import SwiftUI
                             uploadFailSafe = Task { @MainActor in
                                 try? await Task.sleep(for: .seconds(2))
                                 guard !Task.isCancelled else { return }
-                                OfflineQueueManager.shared
-                                    .releaseDeferredLiveUpload(
+                                requestAttemptCoordinator
+                                    .releaseDeferredUpload(
                                         scanId: resolvedClientScanId,
-                                        foregroundInferenceGeneration:
+                                        foregroundGeneration:
                                             ownedForegroundInferenceGeneration,
                                         reason:
                                             "inline_upload_two_second_failsafe"
@@ -1230,10 +1052,10 @@ import SwiftUI
                         },
                         onRequestBodySent: { [weak self] in
                             Task { @MainActor in
-                                OfflineQueueManager.shared
-                                    .releaseDeferredLiveUpload(
+                                requestAttemptCoordinator
+                                    .releaseDeferredUpload(
                                         scanId: resolvedClientScanId,
-                                        foregroundInferenceGeneration:
+                                        foregroundGeneration:
                                             ownedForegroundInferenceGeneration,
                                         reason: "inline_request_body_sent"
                                 )
@@ -1251,16 +1073,16 @@ import SwiftUI
                 guard let requestResponse else {
                     MerianLog.general.error("All base64 payloads are empty — corrupted capture data. Refunding scan.")
                     UsageManager.shared.refundScan(scanId: resolvedClientScanId)
-                    OfflineQueueManager.shared.releaseDeferredLiveUpload(
+                    self.liveAttemptCoordinator.releaseDeferredUpload(
                         scanId: resolvedClientScanId,
-                        foregroundInferenceGeneration:
+                        foregroundGeneration:
                             ownedForegroundInferenceGeneration,
                         reason: "live_visual_encoding_empty"
                     )
-                    self.retireForegroundInferenceIfCurrent(
+                    self.liveAttemptCoordinator.retireForegroundInferenceIfCurrent(
                         scanId: ownedScanId,
                         attemptGeneration: attemptGeneration,
-                        foregroundInferenceGeneration:
+                        foregroundGeneration:
                             ownedForegroundInferenceGeneration,
                         resumeBackground: true,
                         reason: "live_visual_encoding_empty"
@@ -1294,106 +1116,82 @@ import SwiftUI
                         }
                     ),
                     validateAttempt: {
-                        try self.checkLiveInferenceAttempt(
+                        try self.liveAttemptCoordinator.checkAttempt(
                             scanId: ownedScanId,
                             attemptGeneration: attemptGeneration,
-                            foregroundInferenceGeneration:
+                            foregroundGeneration:
                                 ownedForegroundInferenceGeneration
                         )
                     }
                 )
-                guard let completedResult = resultOutcome.completedResult else {
-                    self.retireForegroundInferenceIfCurrent(
+                guard let completion =
+                    self.liveCompletionCoordinator.prepare(
+                        outcome: resultOutcome,
+                        targetEradicationScanId: targetEradicationScanId,
+                        modelContext: modelContext
+                    ) else {
+                    self.liveAttemptCoordinator.retireForegroundInferenceIfCurrent(
                         scanId: ownedScanId,
                         attemptGeneration: attemptGeneration,
-                        foregroundInferenceGeneration:
+                        foregroundGeneration:
                             ownedForegroundInferenceGeneration,
                         resumeBackground: true,
                         reason: "live_result_persistence_rejected"
                     )
                     return
                 }
-                let savedImagePaths = completedResult.savedImagePaths
 
                 // --- Step 4: UI State Updates & Gamification ---
-                
-                var mappedData = completedResult.speciesData
-                applyNewDiscoveryIfNeeded(completedResult.isNewDiscovery, to: &mappedData)
-                transferReplacementMetadataIfNeeded(
-                    from: targetEradicationScanId,
-                    after: resultOutcome,
-                    modelContext: modelContext
-                )
 
-                CircuitBreakerManager.shared.recordSuccess()
-                AppTelemetry.trackScan(
-                    isPro: RevenueCatManager.shared.isProActive,
-                    isSubscribed: RevenueCatManager.shared.isSubscribed,
-                    inferenceTier: mappedData.inferenceTier,
-                    planUsed: completedResult.planUsed
-                )
                 let didCommitResult = self.commitSuccessfulResult(
                     for: ownedScanId,
                     attemptGeneration: attemptGeneration,
                     foregroundInferenceGeneration:
                         ownedForegroundInferenceGeneration,
-                    speciesData: mappedData,
+                    speciesData: completion.speciesData,
                     persistedMediaItems: self.mediaItems(
                         from: resolvedMediaTimeline,
                         liveImageDatas: nil,
-                        persistedImagePaths: savedImagePaths
+                        persistedImagePaths: completion.savedImagePaths
                     )
                 )
                 let stateCommittedAt = CFAbsoluteTimeGetCurrent()
                 MerianLog.general.debug(
                     "[⏱ BENCH] Response to first-result state: \(String(format: "%.3f", stateCommittedAt - responseReceivedAt), privacy: .public)s"
                 )
-                var didFinalizeQueue = true
-                if didCommitResult {
-                    didFinalizeQueue =
-                        await completeQueuedLiveInferenceIfNeeded(
-                            scanId: scanId,
-                            attemptGeneration: attemptGeneration,
-                            foregroundInferenceGeneration:
-                                ownedForegroundInferenceGeneration,
-                            mediaPathsToKeep:
-                                (mappedData.audioFilePaths ?? []) +
-                                (mappedData.videoFilePaths ?? [])
-                        )
-                }
-                let stillOwnsPresentation =
-                    self.isLocalLiveInferenceAttemptCurrent(
-                        scanId: ownedScanId,
-                        attemptGeneration: attemptGeneration
-                    )
-                if didCommitResult,
-                   didFinalizeQueue,
-                   stillOwnsPresentation {
-                    sendInferenceCompleteNotificationIfEnabled(
-                        for: mappedData
-                    )
+                let followUpPermit:
+                    InferenceLiveCompletionCoordinator.FollowUpPermit? =
+                    if didCommitResult {
+                        await self.liveCompletionCoordinator
+                            .finalizeQueueAndAuthorizeFollowUps(
+                                scanId: scanId,
+                                attemptGeneration: attemptGeneration,
+                                foregroundGeneration:
+                                    ownedForegroundInferenceGeneration,
+                                mediaPathsToKeep: completion.mediaPathsToKeep,
+                                speciesData: completion.speciesData,
+                                modelContainer: modelContext?.container
+                            )
+                    } else {
+                        nil
+                    }
+                if let followUpPermit {
+                    self.liveCompletionCoordinator
+                        .sendNotificationIfEnabled(followUpPermit)
                 }
 
                 MerianLog.general.debug("[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - postFlightStart), privacy: .public)s")
                 MerianLog.general.debug("[⏱ BENCH] Total pipeline: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
 
                 // --- Step 5: Post-Inference Background Hydration ---
-                if didCommitResult,
-                   didFinalizeQueue,
-                   stillOwnsPresentation {
+                if let followUpPermit {
                     schedulePostInferenceHydrationIfNeeded(
-                        for: mappedData,
+                        for: followUpPermit.speciesData,
                         modelContext: modelContext,
                         referencePolicy: .showLoadingWhenReferenceMissing
                     )
-                    Task { [mappedData] in
-                        guard let scanId = mappedData.scanId else { return }
-                        await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
-                            scanId: scanId,
-                            speciesData: mappedData,
-                            modelContainer: modelContext?.container
-                        )
-                    }
+                    self.liveCompletionCoordinator
+                        .scheduleMilestones(followUpPermit)
                 }
             } catch {
                 handleLiveInferenceFailure(
@@ -1425,20 +1223,12 @@ import SwiftUI
         userPerceivedStart: CFAbsoluteTime? = nil
     ) {
         guard !writeCoordinator.isAuthTransitionFenceActive else {
-            if let scanId, let foregroundInferenceGeneration {
-                OfflineQueueManager.shared.releaseDeferredLiveUpload(
-                    scanId: scanId,
-                    foregroundInferenceGeneration:
-                        foregroundInferenceGeneration,
-                    reason: "auth_transition_active"
-                )
-                OfflineQueueManager.shared.retireForegroundInference(
-                    scanId: scanId,
-                    generation: foregroundInferenceGeneration,
-                    resumeBackground: true,
-                    reason: "auth_transition_active"
-                )
-            }
+            liveAttemptCoordinator.releaseAndRetire(
+                scanId: scanId,
+                foregroundGeneration: foregroundInferenceGeneration,
+                resumeBackground: true,
+                reason: "auth_transition_active"
+            )
             return
         }
         let filteredAudioFilePaths = (audioFilePaths ?? []).filter { !$0.isEmpty }
@@ -1457,7 +1247,7 @@ import SwiftUI
 
         guard !resolvedMediaTimeline.isEmpty else {
             if let scanId, let foregroundInferenceGeneration {
-                OfflineQueueManager.shared.retireForegroundInference(
+                liveAttemptCoordinator.retireForegroundInference(
                     scanId: scanId,
                     generation: foregroundInferenceGeneration,
                     resumeBackground: true,
@@ -1473,7 +1263,7 @@ import SwiftUI
                 )
                 return
             }
-            guard !isDuplicateActiveForegroundAttempt(
+            guard !liveAttemptCoordinator.isDuplicateActiveForegroundAttempt(
                 scanId: scanId,
                 generation: foregroundInferenceGeneration
             ) else {
@@ -1482,10 +1272,10 @@ import SwiftUI
                 )
                 return
             }
-            guard OfflineQueueManager.shared.claimForegroundInferenceStart(
-                        scanId: scanId,
-                        generation: foregroundInferenceGeneration
-                  ) else {
+            guard liveAttemptCoordinator.claimForegroundInferenceStart(
+                scanId: scanId,
+                generation: foregroundInferenceGeneration
+            ) else {
                 MerianLog.general.debug(
                     "analyzeNonVisual: rejected stale, used, or retiring foreground owner scanId=\(scanId, privacy: .public)"
                 )
@@ -1513,10 +1303,11 @@ import SwiftUI
             ? "Identifying describe"
             : "Listening"
 
-        self.activeScanId = scanId
-        self.activeLiveInferenceAttemptGeneration = attemptGeneration
-        self.activeForegroundInferenceGeneration =
-            foregroundInferenceGeneration
+        liveAttemptCoordinator.activate(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundGeneration: foregroundInferenceGeneration
+        )
         self.activePresentationOwner = AnalysisPresentationOwner(
             scanId: scanId,
             attemptGeneration: attemptGeneration,
@@ -1549,14 +1340,11 @@ import SwiftUI
             let pipelineStart = CFAbsoluteTimeGetCurrent()
 
             defer {
-                if self.isLocalLiveInferenceAttemptCurrent(
+                if self.liveAttemptCoordinator.clearActiveAttemptIfCurrent(
                     scanId: ownedScanId,
                     attemptGeneration: attemptGeneration
                 ) {
                     self.isProcessing = false
-                    self.activeScanId = nil
-                    self.activeLiveInferenceAttemptGeneration = nil
-                    self.activeForegroundInferenceGeneration = nil
                     if self.activePresentationOwner?.attemptGeneration
                         == attemptGeneration {
                         self.activePresentationOwner = nil
@@ -1566,10 +1354,10 @@ import SwiftUI
             }
 
             do {
-                try self.checkLiveInferenceAttempt(
+                try self.liveAttemptCoordinator.checkAttempt(
                     scanId: ownedScanId,
                     attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
+                    foregroundGeneration:
                         ownedForegroundInferenceGeneration
                 )
                 if CircuitBreakerManager.shared.isCircuitTripped {
@@ -1587,10 +1375,10 @@ import SwiftUI
                                 ownedForegroundInferenceGeneration != nil
                         ),
                         validateAttempt: {
-                            try self.checkLiveInferenceAttempt(
+                            try self.liveAttemptCoordinator.checkAttempt(
                                 scanId: ownedScanId,
                                 attemptGeneration: attemptGeneration,
-                                foregroundInferenceGeneration:
+                                foregroundGeneration:
                                     ownedForegroundInferenceGeneration
                             )
                         }
@@ -1616,47 +1404,37 @@ import SwiftUI
                         }
                     ),
                     validateAttempt: {
-                        try self.checkLiveInferenceAttempt(
+                        try self.liveAttemptCoordinator.checkAttempt(
                             scanId: ownedScanId,
                             attemptGeneration: attemptGeneration,
-                            foregroundInferenceGeneration:
+                            foregroundGeneration:
                                 ownedForegroundInferenceGeneration
                         )
                     }
                 )
-                guard let completedResult = resultOutcome.completedResult else {
-                    self.retireForegroundInferenceIfCurrent(
+                guard let completion =
+                    self.liveCompletionCoordinator.prepare(
+                        outcome: resultOutcome,
+                        targetEradicationScanId: targetEradicationScanId,
+                        modelContext: modelContext
+                    ) else {
+                    self.liveAttemptCoordinator.retireForegroundInferenceIfCurrent(
                         scanId: ownedScanId,
                         attemptGeneration: attemptGeneration,
-                        foregroundInferenceGeneration:
+                        foregroundGeneration:
                             ownedForegroundInferenceGeneration,
                         resumeBackground: true,
                         reason: "live_nonvisual_persistence_rejected"
                     )
                     return
                 }
-                var mappedData = completedResult.speciesData
-                applyNewDiscoveryIfNeeded(completedResult.isNewDiscovery, to: &mappedData)
-                transferReplacementMetadataIfNeeded(
-                    from: targetEradicationScanId,
-                    after: resultOutcome,
-                    modelContext: modelContext
-                )
-
-                CircuitBreakerManager.shared.recordSuccess()
-                AppTelemetry.trackScan(
-                    isPro: RevenueCatManager.shared.isProActive,
-                    isSubscribed: RevenueCatManager.shared.isSubscribed,
-                    inferenceTier: mappedData.inferenceTier,
-                    planUsed: completedResult.planUsed
-                )
 
                 let didCommitResult = self.commitSuccessfulResult(
                     for: ownedScanId,
                     attemptGeneration: attemptGeneration,
                     foregroundInferenceGeneration:
                         ownedForegroundInferenceGeneration,
-                    speciesData: mappedData
+                    speciesData: completion.speciesData
                 )
                 let stateCommittedAt = CFAbsoluteTimeGetCurrent()
                 MerianLog.general.debug(
@@ -1668,40 +1446,37 @@ import SwiftUI
                 MerianLog.general.debug(
                     "[⏱ BENCH] Total pipeline: \(String(format: "%.3f", stateCommittedAt - pipelineStart), privacy: .public)s"
                 )
-                var didFinalizeQueue = true
+                let followUpPermit:
+                    InferenceLiveCompletionCoordinator.FollowUpPermit?
                 if didCommitResult, shouldFlushQueuedScan {
-                    didFinalizeQueue =
-                        await self.completeQueuedLiveInferenceIfNeeded(
+                    followUpPermit = await self.liveCompletionCoordinator
+                        .finalizeQueueAndAuthorizeFollowUps(
                             scanId: ownedScanId,
                             attemptGeneration: attemptGeneration,
-                            foregroundInferenceGeneration:
+                            foregroundGeneration:
                                 ownedForegroundInferenceGeneration,
-                            mediaPathsToKeep:
-                                (mappedData.audioFilePaths ?? []) +
-                                (mappedData.videoFilePaths ?? [])
-                        )
-                }
-                let stillOwnsPresentation =
-                    self.isLocalLiveInferenceAttemptCurrent(
-                        scanId: ownedScanId,
-                        attemptGeneration: attemptGeneration
-                    )
-                if didCommitResult,
-                   didFinalizeQueue,
-                   stillOwnsPresentation {
-                    Task { [mappedData] in
-                        guard let scanId = mappedData.scanId else { return }
-                        await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
-                            scanId: scanId,
-                            speciesData: mappedData,
+                            mediaPathsToKeep: completion.mediaPathsToKeep,
+                            speciesData: completion.speciesData,
                             modelContainer: modelContext?.container
                         )
-                    }
-                    self.sendInferenceCompleteNotificationIfEnabled(
-                        for: mappedData
-                    )
+                } else if didCommitResult {
+                    followUpPermit = self.liveCompletionCoordinator
+                        .authorizeQueueLessFollowUps(
+                            scanId: ownedScanId,
+                            attemptGeneration: attemptGeneration,
+                            speciesData: completion.speciesData,
+                            modelContainer: modelContext?.container
+                        )
+                } else {
+                    followUpPermit = nil
+                }
+                if let followUpPermit {
+                    self.liveCompletionCoordinator
+                        .scheduleMilestones(followUpPermit)
+                    self.liveCompletionCoordinator
+                        .sendNotificationIfEnabled(followUpPermit)
                     schedulePostInferenceHydrationIfNeeded(
-                        for: mappedData,
+                        for: followUpPermit.speciesData,
                         modelContext: modelContext,
                         referencePolicy: .none
                     )
@@ -1735,10 +1510,10 @@ import SwiftUI
         foregroundInferenceGeneration: UUID?,
         telemetry: CaptureTelemetry
     ) {
-        let stillOwnsAttempt = isLiveInferenceAttemptCurrent(
+        let stillOwnsAttempt = liveAttemptCoordinator.isAttemptCurrent(
             scanId: scanId,
             attemptGeneration: attemptGeneration,
-            foregroundInferenceGeneration: foregroundInferenceGeneration
+            foregroundGeneration: foregroundInferenceGeneration
         )
 
         switch InferenceLiveFailurePolicy.interruption(
@@ -1846,12 +1621,10 @@ import SwiftUI
         case .observationRejected:
             // Preserve release-before-disposition ordering. If this durable
             // transition fails, background recovery can apply the same rejection.
-            _ = OfflineQueueManager.shared.softDeleteQueuedScan(
+            _ = liveAttemptCoordinator.rejectQueuedScan(
                 scanId: scanId,
                 reason: InferenceFailurePresentation.observationRejected.reasoning,
-                errorCode: "observation_rejected",
-                httpStatus: 400,
-                needsAttention: false
+                errorCode: "observation_rejected"
             )
         default:
             break
@@ -1954,7 +1727,7 @@ import SwiftUI
                       scanId: normalizedScanId,
                       attemptGeneration: attemptGeneration
                   ),
-                  isLocalLiveInferenceAttemptCurrent(
+                  liveAttemptCoordinator.isLocalAttemptCurrent(
                       scanId: normalizedScanId,
                       attemptGeneration: attemptGeneration
                   ) else {
@@ -2017,7 +1790,7 @@ import SwiftUI
         foregroundInferenceGeneration: UUID?
     ) -> Bool {
         guard let scanId, let foregroundInferenceGeneration,
-              !OfflineQueueManager.shared.isForegroundInferenceAttemptCurrent(
+              !liveAttemptCoordinator.isDurableAttemptCurrent(
                   scanId: scanId,
                   generation: foregroundInferenceGeneration
               ) else {
@@ -2041,7 +1814,7 @@ import SwiftUI
     ) -> Bool {
         guard let scanId,
               foregroundInferenceGeneration != nil,
-              isLocalLiveInferenceAttemptCurrent(
+              liveAttemptCoordinator.isLocalAttemptCurrent(
                   scanId: scanId,
                   attemptGeneration: attemptGeneration
               ) else {
@@ -2072,15 +1845,15 @@ import SwiftUI
         reason: String
     ) {
         guard let scanId, let foregroundInferenceGeneration else { return }
-        OfflineQueueManager.shared.releaseDeferredLiveUpload(
+        liveAttemptCoordinator.releaseDeferredUpload(
             scanId: scanId,
-            foregroundInferenceGeneration: foregroundInferenceGeneration,
+            foregroundGeneration: foregroundInferenceGeneration,
             reason: reason
         )
-        retireForegroundInferenceIfCurrent(
+        liveAttemptCoordinator.retireForegroundInferenceIfCurrent(
             scanId: scanId,
             attemptGeneration: attemptGeneration,
-            foregroundInferenceGeneration: foregroundInferenceGeneration,
+            foregroundGeneration: foregroundInferenceGeneration,
             resumeBackground: true,
             reason: reason
         )
@@ -3042,7 +2815,7 @@ import SwiftUI
     /// resets to `isProcessing = false, speciesData = nil` — appropriate when the user
     /// dismisses the insight sheet with no new scan queued.
     func cancelActiveRequest(isUserInitiated: Bool = false) {
-        invalidateActiveLiveInferenceAttempt(
+        liveAttemptCoordinator.invalidateActiveAttempt(
             resumeBackground: true,
             reason: isUserInitiated
                 ? "live_scan_cancelled_by_user"
@@ -3148,7 +2921,7 @@ import SwiftUI
         // starting another capture does. Relinquish the exact foreground owner
         // before changing activeScanId, otherwise the old task can no longer
         // identify itself to release durable recovery suppression.
-        invalidateActiveLiveInferenceAttempt(
+        liveAttemptCoordinator.invalidateActiveAttempt(
             resumeBackground: true,
             reason: "persisted_scan_loaded"
         )
@@ -3358,10 +3131,10 @@ import SwiftUI
                 == session.attemptGeneration else {
             return false
         }
-        return isLiveInferenceAttemptCurrent(
+        return liveAttemptCoordinator.isAttemptCurrent(
             scanId: session.scanId,
             attemptGeneration: session.attemptGeneration,
-            foregroundInferenceGeneration: session.foregroundGeneration
+            foregroundGeneration: session.foregroundGeneration
         )
     }
 
@@ -3396,9 +3169,11 @@ import SwiftUI
     ) {
         cancelLocalVisualAnalysis()
         let attemptGeneration = UUID()
-        activeScanId = scanId
-        activeLiveInferenceAttemptGeneration = attemptGeneration
-        activeForegroundInferenceGeneration = nil
+        liveAttemptCoordinator.activate(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundGeneration: nil
+        )
         activePresentationOwner = AnalysisPresentationOwner(
             scanId: activeScanId,
             attemptGeneration: attemptGeneration,
@@ -3437,9 +3212,11 @@ import SwiftUI
         attemptGeneration: UUID = UUID()
     ) {
         cancelLocalVisualAnalysis()
-        activeScanId = scanId
-        activeLiveInferenceAttemptGeneration = attemptGeneration
-        activeForegroundInferenceGeneration = nil
+        liveAttemptCoordinator.activate(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundGeneration: nil
+        )
         activePresentationOwner = AnalysisPresentationOwner(
             scanId: scanId,
             attemptGeneration: attemptGeneration,
@@ -3472,9 +3249,11 @@ import SwiftUI
         attemptGeneration: UUID = UUID()
     ) -> Task<Void, Never>? {
         cancelLocalVisualAnalysis()
-        activeScanId = scanId
-        activeLiveInferenceAttemptGeneration = attemptGeneration
-        activeForegroundInferenceGeneration = nil
+        liveAttemptCoordinator.activate(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundGeneration: nil
+        )
         activePresentationOwner = AnalysisPresentationOwner(
             scanId: scanId,
             attemptGeneration: attemptGeneration,
@@ -3490,9 +3269,11 @@ import SwiftUI
     @discardableResult
     func debugTransitionProgressiveAnalyzingToQueue(scanId: String) -> Bool {
         let attemptGeneration = activeLiveInferenceAttemptGeneration ?? UUID()
-        activeScanId = scanId
-        activeLiveInferenceAttemptGeneration = attemptGeneration
-        activeForegroundInferenceGeneration = nil
+        liveAttemptCoordinator.activate(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundGeneration: nil
+        )
         activePresentationOwner = AnalysisPresentationOwner(
             scanId: scanId,
             attemptGeneration: attemptGeneration,
@@ -3510,9 +3291,11 @@ import SwiftUI
     ) -> UUID {
         cancelLocalVisualAnalysis()
         let attemptGeneration = UUID()
-        activeScanId = scanId
-        activeLiveInferenceAttemptGeneration = attemptGeneration
-        activeForegroundInferenceGeneration = nil
+        liveAttemptCoordinator.activate(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundGeneration: nil
+        )
         activePresentationOwner = AnalysisPresentationOwner(
             scanId: scanId,
             attemptGeneration: attemptGeneration,

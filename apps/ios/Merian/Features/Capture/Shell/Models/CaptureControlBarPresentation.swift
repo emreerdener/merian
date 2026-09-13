@@ -31,9 +31,12 @@ struct CaptureControlBarPresentation: Equatable {
         hasPendingAudio: Bool,
         isCheckingScanAdmission: Bool,
         isStagingRefinement: Bool,
-        isDescriptionEmpty: Bool
+        isDescriptionEmpty: Bool,
+        canStageRefinementDescription: Bool = true
     ) {
-        let isAtCapacity = totalStagedItems >= capacityLimit
+        let isAtCapacity = isRefining
+            ? (captureMode == .describe ? !canStageRefinementDescription : availableStagedSlots == 0)
+            : totalStagedItems >= capacityLimit
 
         self.isAtCapacity = isAtCapacity
         photoSelectionCount = capacityLimit > 1

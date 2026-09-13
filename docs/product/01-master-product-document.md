@@ -246,10 +246,28 @@ must not generate feedback.
 
 ## 4.2 Mixed-media submission model - Implemented
 
-A submission can contain up to two user-created timeline items across supported
-media. The shared cap applies to still photographs, eligible Pro video, audio
-clips, and descriptions. The interface should communicate the remaining capacity
-consistently across all modes.
+An ordinary submission can contain up to two user-created timeline items across
+still photographs, eligible Pro video, audio clips, and descriptions, subject to
+single-capture settings. Reanalysis keeps that evidence budget and reserves one
+additional supplementary description. Original media, one additional image/audio
+clip or eligible video, and the description can therefore form a three-item
+submission. Adding description first must not consume the additional media slot;
+physical media cannot use the reserved description allowance.
+
+During reanalysis, **+** explicitly stages the description and **Analyze**
+automatically includes any current nonempty draft, even after switching capture
+modes. Both actions update one supplementary description rather than appending
+duplicates. Historical description evidence remains separate. Explicit tray
+edits/removal supersede the pending supplementary draft; empty editor text
+leaves staged descriptions intact. Failed staging keeps the text and prevents an
+incomplete submission. Starting another reanalysis discards the previous
+session's staged evidence before loading the new original.
+
+The mode selector, button labels, media sizes, and styling stay unchanged. On
+narrow screens, the refinement media row scrolls inside the existing tray to
+keep Cancel and Analyze visible. The
+[Describe guide](../features-and-hardware/11-describe-and-voice-dictation.md)
+owns the detailed behavior and lifecycle contract.
 
 Mixed-media submissions route through the active multimodal identification
 function. Older single-purpose functions remain compatibility paths and should
@@ -320,7 +338,8 @@ presents a live and review spectrogram, classifies clipping and the rolling
 ambient-noise floor, and preprocesses inference input to mono 16 kHz audio.
 Stopping early always opens review. At the 15-second maximum, the confirmation
 setting selects review or the established automatic submission handoff. Audio
-consumes one item in the shared two-item submission cap.
+consumes one evidence item. Ordinary scans retain the two-item total cap;
+reanalysis can also carry its separately reserved supplementary description.
 
 The legacy `/audio-spec` route exists for compatibility; new mixed-media work
 should use `/identify-multimodal`.

@@ -2506,9 +2506,13 @@ every invocation after the first as a no-op.
 
 For eligible live-camera still-image analysis this callback releases the durable
 queue row for background upload after the inline body no longer competes for
-uplink capacity. The caller also installs a two-second fail-safe. Connectivity
-loss and app backgrounding release ownership through `OfflineQueueManager`
-directly.
+uplink capacity. `InferenceEngine` sequences the callback and two-second
+fail-safe, but both retain `InferenceLiveAttemptCoordinator` independently so
+durable upload release does not depend on engine lifetime. Only the callback's
+local-analysis update captures the engine weakly. These foreground callback
+paths reach `OfflineQueueManager` through `InferenceLiveQueueService+Live`;
+Offline Sync's connectivity monitor and Capture lifecycle retain their direct
+bulk-release responsibilities.
 
 ## Queue-backed Identify Foreground and Retry Ownership
 
@@ -2521,7 +2525,8 @@ one explicit per-call ownership policy:
   to `InferenceEngine`, after the idempotent body-sent callback releases the
   upload hold;
 - `InferenceEngine` changes the exact still-current Insight to **Queued for
-  later** and retires durable foreground ownership idempotently; and
+  later** and asks `InferenceLiveAttemptCoordinator` to retire durable
+  foreground ownership idempotently; and
 - durable replay or exact-ID status recovery decides when another provider
   attempt is eligible.
 
@@ -2566,9 +2571,11 @@ terminal and never starts that retry.
 
 Authentication failures propagate to callers; they are not converted to missing
 headers. TLS pin failures, invalid HTTPS URLs, and response validation failures
-remain fail-closed. Upload-completion callbacks release queue ownership on
-failure, but they do not delete the durable row; the existing live-success path
-alone performs queue cleanup and task cancellation.
+remain fail-closed. Upload-completion callbacks ask the live-attempt coordinator
+to release queue ownership on failure, but they do not delete the durable row;
+the existing live-success sequence alone asks that coordinator to perform exact-
+generation deletion through its injected queue service. Offline Sync retains the
+resulting queue-task cancellation and durable-row cleanup.
 
 Transport failures and returned `5xx` responses are ambiguous: the server may
 have committed before the connection failed. Foreground replay is therefore

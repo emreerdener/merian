@@ -1340,6 +1340,30 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   local override admission, the effective identity fence for enrichment and
   reference writes, destructive reset/identity replacement, and non-destructive
   historical override refresh.
+- **`Core/AI/Inference/InferenceLiveQueueServiceTests.swift`**: Executes the
+  injected foreground durable-queue boundary without resolving the live
+  singleton. It records exact optional-generation release, claim and
+  current-owner decisions, retirement values, generation lookup, adopted-media
+  deletion, terminal rejection, and false-result propagation.
+- **`Core/AI/Inference/InferenceLiveAttemptCoordinatorTests.swift`**: Executes
+  the contained foreground task/identity owner directly. It locks exact
+  local-plus-durable validation, queue-less attempts, full-invalidation and
+  exact-current retirement callback ordering, re-entrant replacement
+  preservation, failed-finalization retirement, recovered-background admission,
+  partial durable-identity rejection, and suspended same-scan replacement races.
+  Late successful deletion cannot clear or authorize replacement ownership, and
+  late failed deletion cannot retire it.
+- **`Core/AI/Inference/InferenceLiveCompletionCoordinatorTests.swift`**:
+  Executes the singleton-free accepted-result coordinator with recording
+  dependencies. It locks persisted and confidence-zero normalization, exact
+  discovery/replacement/circuit/telemetry order, rejected-persistence inertness,
+  biological event gating, coordinator-minted permits, synchronous nil-identity
+  queue-less authorization, notification preference gating, successful and
+  failed durable finalization, and local-owner replacement or durable-generation
+  retirement while deletion is suspended. The sibling
+  `InferenceLiveCompletionArchitectureTests` freezes AppDI composition, the
+  core/`+Live` dependency split, retired engine effects, visual/nonvisual
+  benchmark and follow-up order, and the 600-line production ceiling.
 - **`Core/AI/Inference/InferenceHydrationCoordinatorTests.swift`**: Executes the
   hydration lifecycle and request-policy owner with injected clocks and storage.
   It covers replacement-task retention, exact-task awaiting when a review is
@@ -1466,16 +1490,19 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   thumbnail recovery reuse this shared transport/parser instead of duplicating
   wire DTOs or sessions.
 - **`Core/AI/Inference/InferenceArchitectureTests.swift`**: Prevents mutable
-  write, hydration, or local-analysis registries, historical record mapping and
-  planning, live provider payload/dispatch, and shared reference wire state from
-  drifting back into `InferenceEngine`; requires private coordinator state and
-  AppDI-owned live request/result/enrichment/persistence injection; prevents
-  direct parse/save adaptation, enrichment endpoint calls, database actor
-  construction, and lookalike encoding from crossing their focused boundaries;
-  keeps request- format and result/enrichment-mapping helpers file-private;
-  requires stateless recovery policies and one private synchronous engine
-  failure handler with handoff-before-stale-guard and release-before-publication
-  ordering; rejects the retired `LocalVisualAnalysis.swift` aggregate; and keeps
+  write, hydration, live-attempt, or local-analysis registries, historical
+  record mapping and planning, live provider payload/dispatch, and shared
+  reference wire state from drifting back into `InferenceEngine`; requires
+  private coordinator state, a singleton-free queue core plus sole live adapter,
+  and AppDI-owned live request/result/queue/enrichment/persistence injection;
+  prevents direct parse/save adaptation, enrichment endpoint calls, database
+  actor construction, and lookalike encoding from crossing their focused
+  boundaries; keeps request- format and result/enrichment-mapping helpers
+  file-private; requires stateless recovery policies and one private synchronous
+  engine failure handler with handoff-before-stale-guard and
+  release-before-publication ordering; rejects the retired
+  `LocalVisualAnalysis.swift` aggregate; requires request-body durable release
+  to retain its coordinator independently of the weak engine callback; and keeps
   every extracted owner and split local-analysis policy file below 600 lines.
   The Species Reference architecture suite applies the same ceiling to the
   shared transport owner.
@@ -2432,10 +2459,11 @@ Dynamic Type; and light/dark appearance.
 
 ### Live inference request/result verification
 
-After changes to `Inference/Request`, `Inference/Result`, `Inference/Hydration`,
-`Inference/Recovery`, their AppDI wiring, either engine call site, reanalysis
-replacement safety, foreground lifecycle/scheduler dispatch, or the shared
-inference/queue test fixtures, run `make xcodegen`, `make validate-ios-project`,
+After changes to `Inference/Request`, `Inference/Result`, `Inference/Services`,
+`Inference/State`, `Inference/Hydration`, `Inference/Recovery`, their AppDI
+wiring, either engine call site, reanalysis replacement safety, foreground
+lifecycle/scheduler dispatch, or the shared inference/queue test fixtures, run
+`make xcodegen`, `make validate-ios-project`,
 `bash scripts/test-ios-project-source-membership.sh`,
 `make validate-ios-event-routing`, and `make test-ios-event-routing`. Follow
 with the generic iOS Simulator build and `build-for-testing`, with code signing
@@ -2458,6 +2486,10 @@ xcodebuild test-without-building \
   -only-testing:merianTests/InferenceMediaPolicyTests \
   -only-testing:merianTests/InferenceRequestPolicyTests \
   -only-testing:merianTests/InferenceNetworkArchitectureTests \
+  -only-testing:merianTests/InferenceLiveQueueServiceTests \
+  -only-testing:merianTests/InferenceLiveAttemptCoordinatorTests \
+  -only-testing:merianTests/InferenceLiveCompletionCoordinatorTests \
+  -only-testing:merianTests/InferenceLiveCompletionArchitectureTests \
   -only-testing:merianTests/InferenceLiveRequestServiceTests \
   -only-testing:merianTests/InferenceLiveResultServiceTests \
   -only-testing:merianTests/InferenceLiveResultIntegrationTests \
@@ -2568,6 +2600,50 @@ the
 Run strict SwiftLint on affected production sources when SourceKitten is
 functional, format changed Markdown with `deno fmt`, and finish with
 `make validate-markdown-format` and `git diff --check`.
+
+### Reanalysis description verification
+
+The production contract is in
+[Describe mode](../features-and-hardware/11-describe-and-voice-dictation.md).
+Ordinary capture limits remain unchanged; reanalysis permits two evidence items
+plus one supplementary description. The supplementary marker stays local to
+staging and is absent from HTTP and durable payloads.
+
+| Coverage                   | Owner and assertions                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Draft and session behavior | `CaptureWorkspaceRefinementDescriptionTests.swift`, under `CaptureWorkspaceViewModelRefinementTests`: direct Analyze, **+** then Analyze, updates without duplication/reordering, both image/audio insertion orders, blank/rejected drafts, busy submission, historical descriptions, tray edits/removal, and starting replacement reanalysis with only the new target's evidence. |
+| Capacity and controls      | `CaptureStagingToolbarPresentationTests` and `CaptureControlBarPresentationTests`: reserved description allowance, no third physical-media slot, Describe **+** remains usable at evidence capacity, and chronological three-item presentation.                                                                                                                                    |
+| Queue and request body     | `CaptureRefinementReplayTests.swift`, under the same workspace selector: original + image/audio + description persists three entries, replay matches the staged projection, and the actual HTTP body builder emits the expected media arrays, one text context, and exact owner-timeline indexes. This constructs JSON without contacting a provider.                              |
+| Speech lifecycle           | Existing `DescribeInputViewModelTests` cover cancellation and stale-session callbacks. The mounted transcript binding additionally ignores callbacks after the request ends; simulator checks must exercise successful **+**/**Analyze**, tray-editor entry, and replacement routing while dictation is active.                                                                    |
+
+After `make xcodegen` and `make validate-ios-project`, run the focused matrix on
+an available simulator through the checkout-local build wrapper. Replace
+`SIMULATOR_UDID` with a real local destination:
+
+```bash
+make ios-local-build ARGS='simulator -- test -configuration Debug -destination "platform=iOS Simulator,id=SIMULATOR_UDID" -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests -only-testing:merianTests/CaptureStagingToolbarPresentationTests -only-testing:merianTests/CaptureControlBarPresentationTests -only-testing:merianTests/DescribeInputViewModelTests -only-testing:merianTests/CaptureShellArchitectureTests -only-testing:merianTests/CaptureStagingArchitectureTests -only-testing:merianTests/CaptureSubmissionArchitectureTests -only-testing:merianTests/CaptureDescribeArchitectureTests'
+```
+
+Manual acceptance must cover typing on Describe, switching to Scan/Record, and
+tapping Analyze; adding text before and after an extra image/audio item; **+**
+followed by Analyze; editing/removing the supplement with a pending editor
+draft; and opening a different scan's reanalysis. Repeat the submission and
+tray-edit steps with dictation active to ensure late transcripts do not restore
+cleared text. On a narrow screen and with larger text, confirm the media row
+scrolls only when needed and Cancel/Analyze and all media review actions remain
+reachable.
+
+**Local handoff evidence (2026-09-12):** Swift parsing, changed-source
+SwiftLint, generated-project guardrails, and formatting for the feature
+documentation passed. The repository-wide Markdown gate reported formatting
+issues in unrelated working-tree edits to `25-field-trips.md`,
+`02-zero-oom-and-concurrency.md`, and `09-core-managers.md`; those edits were
+preserved. The local build wrapper refused to proceed because this session could
+not inspect running `xcodebuild` processes; CoreSimulator was also inaccessible.
+The added XCTest cases, full compilation, and simulator/manual acceptance have
+**not run** in this session. A passing parser or lint result is not compilation
+or runtime proof. Complete the focused matrix and the normal iOS CI gate before
+treating this change as verified for release.
 
 ### Camera verification
 

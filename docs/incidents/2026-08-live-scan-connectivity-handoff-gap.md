@@ -126,12 +126,12 @@ no quota and cannot override a cross-device decision.
 
 ### Durable ownership and local presentation were coupled
 
-`InferenceEngine.isLiveInferenceAttemptCurrent` requires both the local
-presentation generation and the queue manager's foreground generation to be
-current. When `OfflineQueueManager` observes an unsatisfied path, it calls
-`releaseAllForegroundInferenceClaims`. Retirement synchronously registers the
-generation in the retirement registry, making the full ownership check false
-before URLSession necessarily returns.
+`InferenceLiveAttemptCoordinator.isAttemptCurrent`, invoked by
+`InferenceEngine`, requires both the local presentation generation and the queue
+manager's foreground generation to be current. When `OfflineQueueManager`
+observes an unsatisfied path, it calls `releaseAllForegroundInferenceClaims`.
+Retirement synchronously registers the generation in the retirement registry,
+making the full ownership check false before URLSession necessarily returns.
 
 The later `URLError` catch therefore formerly exited at the stale-owner guard.
 Its defer path could stop processing and clear active identity without
