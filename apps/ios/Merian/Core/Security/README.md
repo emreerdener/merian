@@ -102,8 +102,17 @@ pin lifecycle. See the
   handoff errors, plus the source-compatible `ConsentManager.*` receipt, event,
   ledger, journal, restoration, and remote-state values. `Consent/Policies` owns
   value-only provider-head authority, account activation/rebinding, retry
-  delays, the synchronization context fence, and deterministic remote-state
-  merge results. `Consent/Coordinators/ConsentRealtimeCoordinator` owns the
+  delays, the synchronization context fence, deterministic remote-state merge
+  results, and state, cloud-readiness, pending-count, and analytics-permission
+  projection. `Consent/Coordinators/ConsentManagerRuntime` constructs the
+  focused owners and wires their narrow facade callbacks.
+  `Consent/Coordinators/ConsentCloudSessionCoordinator` owns account-work lease
+  and authenticated-session adoption, scheduled synchronization, inference cloud
+  admission, and verified Ghost evidence rebinding through injected closures. It
+  rechecks cancellation, lease ownership, and synchronization generation after
+  suspended inference synchronization before cloud absence can become
+  reapproval; a stale authorization context exits without changing reapproval
+  state. `Consent/Coordinators/ConsentRealtimeCoordinator` owns the
   account-scoped channel identity, listener/retry lifetime, generation fences,
   repair backoff, and deinitialization-triggered, coalesced removal through
   injected effects. `Consent/Coordinators/ConsentSynchronizationCoordinator`
@@ -117,71 +126,71 @@ pin lifecycle. See the
   retention, compare-before-clear completion, cancellation snapshot and drain,
   manual retry admission, and account, SDK-session, synchronization-generation,
   and caller-cancellation fences through injected effects. `Consent/Services`
-  owns the exact insert/RPC/read wire values, deterministic mapping and
-  ambiguous-write recovery, the sole live PostgREST/RPC adapter, and the
-  separate sole live analytics-consent Realtime adapter. Only those adapters
-  issue Consent PostgREST, RPC, or Realtime operations; both cores are
-  closure-injected. `ConsentManager` separately consults `SupabaseManager` as
-  the authenticated-session and account-work-lease authority for
-  synchronization, inference admission, and Ghost rebinding. Their
-  [ownership guide](Consent/README.md) freezes the boundary.
-  `Consent/Repositories/ConsentLedgerRepository` owns decoded local state,
-  independent storage uncertainty, verified ledger/journal transitions,
+  owns local evidence construction and privacy-sensitive write ordering, the
+  exact insert/RPC/read wire values, deterministic mapping and ambiguous-write
+  recovery, the sole live PostgREST/RPC adapter, the separate sole live
+  analytics-consent Realtime adapter, and the live adapter that supplies
+  Supabase Auth and account-work authority to the cloud-session coordinator.
+  Only the live adapters resolve those provider effects; their cores are
+  closure-injected. Their [ownership guide](Consent/README.md) freezes the
+  boundary. `Consent/Repositories/ConsentLedgerRepository` owns decoded local
+  state, independent storage uncertainty, verified ledger/journal transitions,
   recovery, activation, and rebinding over the injected raw-byte
-  `ConsentLedgerStore`. `ConsentManager` remains the observable facade for
-  mutation, session adoption, the restoration projection, derived gates, SDK
-  application, and account/session decisions that start or stop synchronization
-  and Realtime; it performs no synchronization pipeline, restoration retry state
-  machine, direct JSON, raw-store, table, RPC, channel, or listener work.
-  `ConsentLedgerStore` atomically replaces and read-back-verifies the
-  file-protected Application Support ledger bytes, migrates the former
-  `UserDefaults` copy before removing it, and stores the independent Keychain
-  withdrawal journal bytes. The repository records the exact immutable
-  revocation event in that journal before the main ledger; a failed ledger write
-  therefore remains fail-closed across restart and can be replayed without
-  changing its ID or timestamp. The journal retains multiple account-owned
-  withdrawals rather than overwriting one during account switching.
-  `ConsentManager` binds offline records to the first anonymous account,
-  synchronizes immutable account-owned rows, hydrates cross-device state, and
-  requires cloud-ready adult/Terms/Gemini evidence before iOS constructs an
-  inference request. After a confirmed provider-bound ghost handoff, it
-  generation-cancels stale sync work, asks the repository to atomically rebind
-  all four local ledgers, pushes target-owned pending actions, and refetches
-  before the durable handoff can be removed. Normal account restoration also
-  activates and flushes the target account before remote refetch while analytics
-  remains fail-closed. Synchronization preserves the order target activation →
-  all target-owned pending pushes → authoritative fetch → merge. AI and
-  analytics pending events name their observed provider-stream head. Their
-  authenticated RPC serializes the account against ghost merge and then the
-  provider stream, assigns a server-only `consentRevision`, rejects a delayed
-  grant whose parent is stale, and rebases a revocation to the locked current
-  head. Rejected grants remain locally marked as superseded and cannot authorize
-  either provider; accepted events retain the parent returned by the server.
-  Fetch-after-error recovery also compares every immutable payload field before
-  accepting an existing ID, while allowing the server-rebased parent of a
-  revocation. The authoritative fetch includes the all-version stream head so
-  subsequent local actions attach to the actual head. Local Gemini and PostHog
-  permissions also start from that same head: a revocation under any disclosure
-  version closes the gate, and only an exact current-version head grant may
-  authorize the current app. The merge itself performs a final synchronous fence
-  over task cancellation, the observed account, the Supabase SDK's current
-  session, and the synchronization generation before it can mutate or persist
-  the ledger or apply analytics. `ConsentRealtimeCoordinator` owns the
-  analytics-consent subscribed account independently, generation-fences stale
-  channels, and retries failures with foreground repair. Explicit stop, listener
-  completion, and coordinator deinitialization share one removal operation;
-  deinitialization initiates it without waiting for listener cancellation. OAuth
-  account replacement closes analytics before session installation and
-  reconciles the SDK's actual session before a current-disclosure grant at the
-  all-version head may reopen capture. The database quota boundary remains the
-  authoritative provider-dispatch gate. When that boundary returns exact
-  `403 ai_consent_required`, the manager immediately closes its process-local
-  cloud-ready gate and durably fences only the active account. A completed user
-  routes through authoritative restoration to Ready across relaunch. Reapproval
-  writes new adult, Terms, and Gemini evidence; the Gemini action extends the
-  provider head fetched after rejection, and another authoritative merge is
-  required before inference. A legacy ledger without the fence decodes as
-  unfenced, and account switching cannot inherit another user's marker.
+  `ConsentLedgerStore`. `ConsentManager` remains the observable compatibility
+  facade for mutable state, lifecycle entry points, merge publication, SDK
+  application, and the Auth-transition drain; it performs no mutation
+  construction, derived-state algorithm, cloud-session workflow, synchronization
+  pipeline, restoration retry state machine, direct JSON, raw-store, table, RPC,
+  channel, or listener work. `ConsentLedgerStore` atomically replaces and
+  read-back-verifies the file-protected Application Support ledger bytes,
+  migrates the former `UserDefaults` copy before removing it, and stores the
+  independent Keychain withdrawal journal bytes. The repository records the
+  exact immutable revocation event in that journal before the main ledger; a
+  failed ledger write therefore remains fail-closed across restart and can be
+  replayed without changing its ID or timestamp. The journal retains multiple
+  account-owned withdrawals rather than overwriting one during account
+  switching. The cloud-session coordinator binds offline records to the first
+  anonymous account, synchronizes immutable account-owned rows, hydrates
+  cross-device state, and requires cloud-ready adult/Terms/Gemini evidence
+  before iOS constructs an inference request. After a confirmed provider-bound
+  ghost handoff, it generation-cancels stale sync work, asks the repository to
+  atomically rebind all four local ledgers, pushes target-owned pending actions,
+  and refetches before the durable handoff can be removed. Normal account
+  restoration also activates and flushes the target account before remote
+  refetch while analytics remains fail-closed. Synchronization preserves the
+  order target activation → all target-owned pending pushes → authoritative
+  fetch → merge. AI and analytics pending events name their observed
+  provider-stream head. Their authenticated RPC serializes the account against
+  ghost merge and then the provider stream, assigns a server-only
+  `consentRevision`, rejects a delayed grant whose parent is stale, and rebases
+  a revocation to the locked current head. Rejected grants remain locally marked
+  as superseded and cannot authorize either provider; accepted events retain the
+  parent returned by the server. Fetch-after-error recovery also compares every
+  immutable payload field before accepting an existing ID, while allowing the
+  server-rebased parent of a revocation. The authoritative fetch includes the
+  all-version stream head so subsequent local actions attach to the actual head.
+  Local Gemini and PostHog permissions also start from that same head: a
+  revocation under any disclosure version closes the gate, and only an exact
+  current-version head grant may authorize the current app. The merge itself
+  performs a final synchronous fence over task cancellation, the observed
+  account, the Supabase SDK's current session, and the synchronization
+  generation before it can mutate or persist the ledger or apply analytics.
+  `ConsentRealtimeCoordinator` owns the analytics-consent subscribed account
+  independently, generation-fences stale channels, and retries failures with
+  foreground repair. Explicit stop, listener completion, and coordinator
+  deinitialization share one removal operation; deinitialization initiates it
+  without waiting for listener cancellation. OAuth account replacement closes
+  analytics before session installation and reconciles the SDK's actual session
+  before a current-disclosure grant at the all-version head may reopen capture.
+  The database quota boundary remains the authoritative provider-dispatch gate.
+  When that boundary returns exact `403 ai_consent_required`, the manager
+  immediately closes its process-local cloud-ready gate and durably fences only
+  the active account. A completed user routes through authoritative restoration
+  to Ready across relaunch. Reapproval writes new adult, Terms, and Gemini
+  evidence; the Gemini action extends the provider head fetched after rejection,
+  and another authoritative merge is required before inference. A legacy ledger
+  without the fence decodes as unfenced, and account switching cannot inherit
+  another user's marker.
 - `SocialGuardManager` centralizes block-state checks used by social surfaces.
   It retains optimistic blocking, haptics, live client resolution, and rollback;
   the `blockUser` request payload lives in
@@ -308,8 +317,10 @@ the current adult, Terms, and Gemini records moments later.
 automatic retry budget, UUID-keyed outstanding-task registry,
 account/session/generation and caller-cancellation fences, compare-before-clear
 completion, and cancellation snapshot/drain. The manager synchronously mirrors
-that state for root presentation, supplies the narrow live effects, and combines
-its drain snapshot with synchronization work before Auth replacement.
+that state for root presentation and combines its drain snapshot with
+synchronization work before Auth replacement. `ConsentManagerRuntime` supplies
+the coordinator's narrow context, synchronization, publication, and failure
+callbacks.
 
 | State                              | Meaning                                                                                                                                                                                                     |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

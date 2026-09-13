@@ -25,6 +25,22 @@ not a feature-owned presentation layer.
 - `Policies/ConsentSynchronizationMergePolicy.swift` performs the value-only
   remote-to-ledger upsert and derives required-consent, analytics-authority, and
   reapproval-head results without persistence or SDK effects.
+- `Policies/ConsentStateProjectionPolicy.swift` derives the current ledger
+  owner, required-consent and cloud-readiness gates, pending-upload count,
+  reapproval state, and fail-closed analytics SDK permission. It has no live
+  effects.
+- `Coordinators/ConsentManagerRuntime.swift` is the package composition root. It
+  constructs the repository, mutation service, and coordinators, then connects
+  their narrow callbacks to the observable facade without resolving live
+  singletons.
+- `Coordinators/ConsentCloudSessionCoordinator.swift` owns authenticated-session
+  adoption, ordinary and Auth-transition account-work authorization, scheduled
+  synchronization admission, inference cloud-readiness orchestration, and
+  verified Ghost evidence rebinding. Its injected closures preserve the exact
+  account lease, session, generation, and cancellation fences without a direct
+  Supabase dependency. After suspended inference synchronization it rechecks
+  cancellation, lease ownership, and generation before interpreting cloud proof;
+  cancellation or identity invalidation never creates a reapproval marker.
 - `Coordinators/ConsentRealtimeCoordinator.swift` owns the account-scoped
   subscription identity, listener and retry tasks, generation fences, bounded
   retry state, stale-event rejection, deinitialization-triggered teardown, and
@@ -68,6 +84,17 @@ not a feature-owned presentation layer.
 - `Services/ConsentRemoteService+Live.swift` is the sole direct PostgREST/RPC
   owner. It preserves the two receipt inserts, two causal append RPCs, four
   ID-scoped read-backs, and six concurrent authoritative reads.
+- `Services/ConsentMutationService.swift` constructs adult, Terms, Gemini, and
+  PostHog evidence and owns the privacy-sensitive local write ordering. Its
+  injected clock, UUID, and app metadata make mutation behavior deterministic;
+  it has no network, task, singleton, provider-SDK, or logging dependency.
+- `Services/ConsentMutationService+Live.swift` is the sole adapter from those
+  mutation dependencies to the process clock, UUID generation, and `Bundle.main`
+  app metadata.
+- `Services/ConsentCloudSessionCoordinator+Live.swift` is the sole adapter from
+  the cloud-session coordinator's dependencies to live Supabase Auth,
+  account-work leases, account-deletion cleanup state, test execution, and
+  bounded failure logging.
 - `Services/ConsentRealtimeCoordinator+Live.swift` is the sole direct
   analytics-consent Supabase Realtime owner. It constructs the owner-filtered
   `user_analytics_consent_events` INSERT stream, maps channel status,
@@ -76,22 +103,24 @@ not a feature-owned presentation layer.
 All extracted production owners stay below 600 lines. Models and policies
 contain no Supabase, Observation, URLSession, singleton, persistence, task,
 logging, or SDK effects; the repository contains no network, SDK, task, or
-singleton dependency; and the service core likewise has no Supabase or singleton
-dependency. The coordinators likewise contain no direct Supabase, singleton,
-logging, or SDK dependency. These owners remain `@MainActor` where their
-compatibility-nested model types require the manager's existing isolation.
+singleton dependency; and the service cores likewise have no Supabase or
+singleton dependency. The coordinator cores likewise contain no direct Supabase,
+singleton, logging, or SDK dependency. These owners remain `@MainActor` where
+their compatibility-nested model types require the manager's existing isolation.
 
 [`ConsentManager.swift`](../ConsentManager.swift) remains the live observable
-facade and owns consent mutation, session adoption, the observable restoration
-projection, derived admission state, PostHog application, lifecycle triggers,
-and the decision to request each durable transition. It assembles the
-repository, synchronization, restoration, remote-service, and Realtime owners
-and remains the account/session authority that starts repair or stops work
-before account replacement. Its Auth-transition barrier drains synchronization,
-restoration, and Realtime teardown before the session can change. It no longer
-owns synchronization or restoration retry task identity, restoration transitions
-and retry accounting, pending-push/fetch/merge mechanics, direct JSON,
-raw-store, PostgREST, RPC, channel, or listener work.
+facade and public compatibility boundary. It owns mutable observable state,
+PostHog application, lifecycle entry points, final synchronization-merge
+publication, and the Auth-transition drain. The runtime owns package assembly;
+the mutation service owns evidence construction and local write ordering; the
+state policy owns derived projections; and the cloud-session coordinator owns
+session/lease workflows, Ghost rebinding, and inference admission. The facade
+therefore no longer owns mutation construction, derived-state algorithms,
+cloud-session orchestration, synchronization or restoration retry task identity,
+restoration transitions and retry accounting, pending-push/fetch/merge
+mechanics, direct JSON, raw-store, PostgREST, RPC, channel, or listener work.
+Its Auth-transition barrier still drains synchronization, restoration, and
+Realtime teardown before the session can change.
 
 [`ConsentLedgerStore.swift`](../ConsentLedgerStore.swift) remains the throwing,
 fault-injectable raw-byte store for the atomic ledger file, legacy migration,
@@ -136,13 +165,26 @@ bounded failure escalation, manual retry reset, stale-account cancellation and
 exact cancellation drain even when sleep ignores cancellation, and
 replacement-task retention when an older retry completes. They also reuse an
 attempt number after manual retry and prove the canceled timer cannot reenter
-the state machine. `ConsentArchitectureTests` freezes the fifteen-file
-inventory, declaration and storage-call relocation, dependency exclusions,
-sole-facade repository/service/coordinator consumption, PostgREST/RPC and
-analytics-consent Realtime confinement to their respective live adapters,
-`ConsentRemoteWire` confinement to the three remote-service files,
-coordinator/merge-policy wiring and state ownership, and the 600-line review
-ceiling.
+the state machine. `ConsentStateProjectionPolicyTests` cover cold-start versus
+resolved-session ownership, fail-closed authority, account-qualified pending
+counts, and cloud-readiness projection. `ConsentMutationServiceTests` cover
+deterministic evidence metadata, privacy-close-before-write behavior, durable
+failure ordering, and no-op withdrawal restoration.
+`ConsentCloudSessionCoordinatorTests` cover account-work lease adoption and
+finishing, post-suspension stale-lease and stale-generation rejection,
+first-scan binding of complete unowned evidence through the real
+synchronization-service pipeline—pending pushes, receipt read-backs,
+authoritative fetch, durable merge, and cloud-ready projection—without admitting
+another account's persisted evidence. They also prove that an invalidated
+inference generation returns an account-change failure without persisting
+reapproval state, and cover Ghost rebinding through the runtime's actual
+repository with final-session verification. `ConsentArchitectureTests` freezes
+the exact twenty-one-file inventory, declaration and storage-call relocation,
+dependency exclusions, runtime composition, mutation/state/cloud owner
+boundaries, PostgREST/RPC, Auth-session, app-metadata, and analytics-consent
+Realtime confinement to their respective live adapters, `ConsentRemoteWire`
+confinement to the three remote-service files, and the 600-line review ceiling
+for every extracted owner and the facade.
 
 The product and presentation contract is documented in
 [`04-onboarding.md`](../../../../../../docs/features-and-hardware/04-onboarding.md#versioned-consent-evidence).

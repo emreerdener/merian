@@ -156,3 +156,9 @@ enum FieldTripProfilePresentation {
         itemCount(in: summaries) > 0
     }
 }
+
+extension FieldTripProfileSummaries {
+    var isEmpty: Bool {
+        active.isEmpty && pinned.isEmpty && published.isEmpty && challengeBadges.isEmpty
+    }
+}

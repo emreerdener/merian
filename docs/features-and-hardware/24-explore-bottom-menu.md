@@ -191,9 +191,10 @@ for the surface they are changing:
   compatibility and test boundaries. Its eight browsing/contribution wire
   operations live in
   `Core/Network/Endpoints/MerianNetworkClient+CommunityIdentification.swift`;
-  Codable responses and cursor values remain in `ExploreAPIModels.swift`. The
-  Core Network request executor owns logical retry and injected Auth effects;
-  its pinned transport and authenticated dispatcher own the sole session/TLS and
+  Codable responses and cursor values remain in
+  `Core/Network/Models/Explore/CommunityIdentificationAPIModels.swift`. The Core
+  Network request executor owns logical retry and injected Auth effects; its
+  pinned transport and authenticated dispatcher own the sole session/TLS and
   per-attempt Auth boundaries, and the main client injects both. Direct
   publication, owned-row compatibility recovery, and restored-media work live in
   the dedicated Core Network Endpoint, Recovery, and Media owners. Mirrored Core

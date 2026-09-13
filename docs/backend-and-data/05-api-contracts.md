@@ -219,28 +219,37 @@ exact request/result shape and the selected-row projections.
 `ConsentRemoteService.swift` owns result validation, mapping, and
 immutable-payload retry confirmation; `ConsentRemoteService+Live.swift` is the
 sole direct PostgREST/RPC adapter. `ConsentSynchronizationCoordinator` supplies
-the manager-provided account, Auth-session, cancellation, and generation fence
-across every suspended service phase; it sequences pending evidence before the
-authoritative read and persists a merged result before notifying the observable
-facade. `ConsentSynchronizationMergePolicy` performs the value-only evidence
-upsert and authority derivation. `ConsentLedgerRepository` publishes that result
-to local state only after a verified durable write.
+the runtime-wired observed-account, SDK-session, cancellation, and generation
+fence across every suspended service phase; it sequences pending evidence before
+the authoritative read and persists a merged result before notifying the
+observable facade. `ConsentCloudSessionCoordinator` separately owns ordinary and
+Auth-transition session/account-work authorization around session adoption,
+scheduled synchronization, inference admission, and Ghost rebinding. Its live
+adapter is the only owner that resolves Supabase Auth and account-work leases
+for those workflows. After suspended inference synchronization, the coordinator
+checks cancellation, the original lease, and synchronization generation before
+interpreting authoritative absence; a stale authorization context exits without
+writing a reapproval marker. `ConsentSynchronizationMergePolicy` performs the
+evidence upsert and authority derivation. `ConsentLedgerRepository` publishes
+that result to local state only after a verified durable write.
 `RequiredConsentRestorationCoordinator` owns the account- and generation-fenced
 restoration state and UUID-keyed retry lifetime, retains canceled handles
 through completion, independently rejects canceled retry callers after manual
 attempt-number reuse, and contributes the handles to Auth-transition draining;
-it has no wire or Supabase dependency. `ConsentManager` remains the sole
-observable account/session and SDK facade. `ConsentRealtimeCoordinator` owns the
-analytics channel/listener/retry lifecycle and retains started removals through
-exact completion for the Auth-transition drain. Its
+it has no wire or Supabase dependency. `ConsentManagerRuntime` composes these
+owners and wires narrow callbacks; `ConsentManager` remains the sole observable
+compatibility and SDK facade. `ConsentRealtimeCoordinator` owns the analytics
+channel/listener/retry lifecycle and retains started removals through exact
+completion for the Auth-transition drain. Its
 `ConsentRealtimeCoordinator+Live.swift` is the only direct analytics-consent
-Supabase Realtime adapter. `ConsentManager` supplies the current-account
-authority and lifecycle triggers. The owner-filtered INSERT stream requests an
-authoritative refetch; it is not an alternate append path. Explicit stop,
-listener completion, and coordinator deinitialization converge on one coalesced
-channel-removal operation, with deinitialization initiating cleanup
-independently of listener cancellation. Auth replacement cannot install another
-SDK session until the prior channel's retained removal completes.
+Supabase Realtime adapter. The runtime supplies the manager-backed
+current-account callback, and the facade retains lifecycle triggers. The
+owner-filtered INSERT stream requests an authoritative refetch; it is not an
+alternate append path. Explicit stop, listener completion, and coordinator
+deinitialization converge on one coalesced channel-removal operation, with
+deinitialization initiating cleanup independently of listener cancellation. Auth
+replacement cannot install another SDK session until the prior channel's
+retained removal completes.
 
 The schema, rollout, concurrency, and release-evidence requirements are defined
 in the [database schema](./04-database-schema.md),
@@ -5444,7 +5453,13 @@ activity pushes:
 
 The Explore iOS mapping, state, and presentation layers are:
 
-- `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
+- `apps/ios/Merian/Core/Network/Models/Explore/`
+- `apps/ios/Merian/Core/Network/Models/Explore/ExploreLocationSharingAPIModels.swift`
+  for the shared Codable/raw-value post-location contract; visible labels,
+  symbols, and explanatory copy remain in
+  `apps/ios/Merian/Features/Explore/Shared/Models/ExploreLocationSharingPresentation.swift`,
+  while cross-feature semantic-location redaction remains in
+  `apps/ios/Merian/Core/Models/ExploreLocationPrivacy.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`
   for the eight Feed/Map/post/detail/author/hashtag/species browsing payloads
@@ -5475,6 +5490,10 @@ The Explore iOS mapping, state, and presentation layers are:
   publication/upload/recovery orchestration remain outside this extension
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift`
   for Field Trips actions and typed response projections
+- `apps/ios/Merian/Core/Network/Models/FieldTrips/` for the eight focused Field
+  Trips network-model contract families; UI presentation, Insights route
+  projection, milestone policy, and preference persistence remain with their
+  owning domains
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Notifications.swift`
   for notification catalog/count/read-state and push-registration requests.
   Three methods decode existing DTOs; mark-read returns the count without
@@ -5577,7 +5596,7 @@ Feed views and components do not resolve endpoint clients. The Feed state owners
 invoke small initializer-injected closure groups; only their live
 implementations under `Feed/Services` bridge to `MerianNetworkClient`, Supabase
 realtime, identity/entitlement services, telemetry, or image loading. Wire DTOs
-and JSON contracts remain in `Core/Network/ExploreAPIModels.swift`.
+and JSON contracts remain in `Core/Network/Models/Explore/`.
 
 Insights Sharing follows the same boundary. Its views and components invoke
 initializer-injected closure values; only the live implementations under
@@ -5674,7 +5693,7 @@ The Explore map additionally uses:
 - `/get-explore-map-points` for cluster or waypoint payloads in the current
   visible region
 - `ExploreMapPointsResponse`, `ExploreMapCluster`, and `ExploreMapPost` from
-  `ExploreAPIModels.swift`
+  `Core/Network/Models/Explore/ExploreMapAPIModels.swift`
 - `ExplorePostStore` as the shared in-memory post state layer, so likes,
   unshares, reports, and blocks stay synchronized between the feed tab, map
   preview card, detail route, and notification-driven navigation
@@ -6221,7 +6240,12 @@ the metadata scope is in flight.
 
 The native `fetchEnrichment` request is owned by
 `Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift`.
-InferenceEngine keeps scope scheduling and stale-result/application policy;
+`Core/AI/Inference/Hydration/InferenceSpeciesEnrichmentService+Live.swift` is
+the sole Core AI endpoint adapter; the injected core resolves no live client
+directly and maps each scoped wire projection into a typed domain patch.
+`InferenceHydrationPersistenceService+Live.swift` owns local database effects
+and off-main lookalike encoding. `InferenceEngine` keeps scope admission,
+scheduling, retry, presentation application/fencing, and bounded write lifetime.
 `EnrichScanResponse` remains hand-written below the generated Identify block in
 `Core/AI/InferenceEdgeDTOs.swift`. The native client sends all five fields
 including `scope`, preserves its 30-second deadline, and serializes before
@@ -6345,14 +6369,16 @@ the join table at zero token cost before returning, using the same
 kingdom/order/family validation as fresh Flash output.
 
 **Independent Scoped Requests**: `InferenceEngine.fetchAndApplyEnrichment` uses
-a task group to request missing metadata and lookalikes separately. Each handler
-invocation performs only its own scope's work; there is no combined
-`Promise.all` generation branch. Provider calls use the model selected by the
-quota reservation, and lookalike generation requires usable primary taxonomy.
-After both initially requested scopes finish, iOS may retry only lookalikes once
-if the presentation is still current, no similar species are present, and usable
-taxonomy is now available. That retry disables further lookalike retries and
-remains subject to the existing hydration admission/backoff.
+a task group to ask `InferenceSpeciesEnrichmentService` for missing metadata and
+lookalikes separately. The service's live adapter makes one endpoint call for
+the typed scope; each handler invocation performs only its own scope's work, and
+there is no combined `Promise.all` generation branch. Provider calls use the
+model selected by the quota reservation, and lookalike generation requires
+usable primary taxonomy. After both initially requested scopes finish, iOS may
+retry only lookalikes once if the presentation is still current, no similar
+species are present, and usable taxonomy is now available. That retry disables
+further lookalike retries and remains subject to the existing hydration
+admission/backoff.
 
 ### Response Schema
 
@@ -6446,17 +6472,24 @@ compatibility details are unchanged by the native endpoint extraction.
 **iOS mapping**: The array is decoded as
 `[EnrichScanResponse.SimilarSpeciesEntry]` (snake_case Codable DTO in
 `InferenceEdgeDTOs.swift`) and mapped to the domain `SimilarSpecies` struct
-(camelCase, in `SpeciesData.swift`). `InferenceEngine.fetchAndApplyEnrichment`
-then JSON-encodes `[SimilarSpeciesEntry]` via `JSONEncoder` into a `Data` blob
-and persists it as `LocalScanRecord.lookalikesData` (added in `MerianSchemaV27`)
-— the primary SwiftData storage for rich lookalike data. The legacy
-`LocalScanRecord.similarSpecies: [String]?` field is retained as a
-backwards-compatible fallback for pre-V27 records where `lookalikesData` is nil.
-`InferenceEngine.load(from:)` also supports a one-time local cache reset version
-so previously poisoned `lookalikesData` blobs are ignored and refreshed through
-the hardened backend validation path. `SimilarSpeciesGallery` always labels
-validated entries as "Similar species"; identification uncertainty is handled by
-the separate candidates/review surface.
+(camelCase, in `SpeciesData.swift`) by the initializer-injected
+`InferenceSpeciesEnrichmentService`, whose core has no direct live-client
+dependency. The engine applies that typed patch only to its current
+presentation, then submits an immutable snapshot through its bounded write
+coordinator. `InferenceHydrationPersistenceService+Live` encodes
+`[SimilarSpeciesEntry]` off-main and delegates the admitted mutation to
+`BackgroundDatabaseActor`, which persists the `Data` blob as
+`LocalScanRecord.lookalikesData` (added in `MerianSchemaV27`) — the primary
+SwiftData storage for rich lookalike data. The metadata mapping crosses the
+persistence boundary as domain `TaxonomyData`; wire DTOs do not enter the
+database actor. The legacy `LocalScanRecord.similarSpecies: [String]?` field is
+retained as a backwards-compatible fallback for pre-V27 records where
+`lookalikesData` is nil. `InferenceHistoricalRecordProjection`, invoked by
+`InferenceEngine.load(from:)`, owns that fallback plus the one-time local cache
+reset decision so previously poisoned `lookalikesData` blobs are ignored and
+refreshed through the hardened backend validation path. `SimilarSpeciesGallery`
+always labels validated entries as "Similar species"; identification uncertainty
+is handled by the separate candidates/review surface.
 
 **Authoritative quota**: Cache hits perform no paid provider work and consume no
 AI quota. A cache miss reserves either `scan_overview_enrichment` or
@@ -10020,11 +10053,12 @@ version/build/OS values become null, and blank/absent platform defaults to
 `ios`. Invalid values return `400` through the shared error boundary.
 
 `Core/Network/Endpoints/MerianNetworkClient+ProductFeedback.swift` owns the
-native request. `CommunityFeedbackSubmission` in `ExploreAPIModels.swift`
-retains constructor trimming, metadata, and CodingKeys; Identify Services and
-its view model retain validation and submission presentation. The native method
-keeps its 30-second timeout, ignores successful HTTP bodies, and adds no
-idempotency key or ambiguous-failure replay. `ProductFeedbackEndpointTests` and
+native request. `CommunityFeedbackSubmission` in
+`Core/Network/Models/Explore/CommunityFeedbackAPIModels.swift` retains
+constructor trimming, metadata, and CodingKeys; Identify Services and its view
+model retain validation and submission presentation. The native method keeps its
+30-second timeout, ignores successful HTTP bodies, and adds no idempotency key
+or ambiguous-failure replay. `ProductFeedbackEndpointTests` and
 `EnrichmentExportFeedbackTransportTests` cover this boundary in the
 [native matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
 This documents the existing route; it introduces no new field or server policy.

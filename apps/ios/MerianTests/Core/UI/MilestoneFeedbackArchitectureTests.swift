@@ -248,6 +248,8 @@ struct MilestoneFeedbackArchitectureTests {
         feedbackRoot + "/Models/MilestoneToastModels.swift"
     ]
     private static let policyPaths = [
+        feedbackRoot + "/Policies/FirstFieldTripAchievementPolicy.swift",
+        feedbackRoot + "/Policies/FieldTripProgressPresentation.swift",
         feedbackRoot + "/Policies/MilestoneToastPolicy.swift",
         feedbackRoot + "/Policies/ScanMilestonePolicy.swift"
     ]
@@ -263,6 +265,18 @@ struct MilestoneFeedbackArchitectureTests {
         "SupabaseManager.shared"
     ]
     private static let declarationOwners = [
+        (
+            name: "FirstFieldTripAchievementPolicy",
+            signature: "enum FirstFieldTripAchievementPolicy {",
+            owner: feedbackRoot
+                + "/Policies/FirstFieldTripAchievementPolicy.swift"
+        ),
+        (
+            name: "FieldTripProgressPresentation",
+            signature: "enum FieldTripProgressPresentation {",
+            owner: feedbackRoot
+                + "/Policies/FieldTripProgressPresentation.swift"
+        ),
         (
             name: "MilestoneToastPayload",
             signature: "enum MilestoneToastPayload:",
@@ -312,7 +326,8 @@ struct MilestoneFeedbackArchitectureTests {
         "completedAchievementUnlockReturnsTypedPresentationPayloadWhenEnabled",
         "legacyDomesticPetAchievementCompletionIsPersistedWithoutToast",
         "firstFieldTripAchievementNotificationIsDeduplicated",
-        "firstFieldTripAchievementProgressCachesPerAccountAndMergesAward"
+        "firstFieldTripAchievementProgressMergesAward",
+        "fieldTripProgressPresentationPrefersCreditedLevelCounts"
     ]
     private static let policyTestNames = [
         "progressMappingKeepsStandardBeforeChallengeAndUsesGoalPrompt",

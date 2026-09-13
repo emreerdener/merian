@@ -181,7 +181,8 @@ notifications feed remains complete and continues to include mention rows.
 
 ## iOS Touchpoints
 
-- DTOs: `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
+- DTOs:
+  `apps/ios/Merian/Core/Network/Models/Explore/ExploreCommentAPIModels.swift`
 - Comment/reply/mention request mapping and response projection:
   `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift`;
   private transport remains in

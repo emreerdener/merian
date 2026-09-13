@@ -461,11 +461,13 @@ dependency audit, tests, type-check, and production build; preserve the required
   inaccessible. Always test behavior through public/internal interfaces (e.g.,
   `DeviceIdentityManager.shared.deviceId` instead of the private
   `getOrGeneratePersistentIDFV()`).
-- **Do not assert `validHistoricImagePaths` synchronously in unit tests.**
-  `InferenceEngine.load(from:)` populates this property inside a `Task { ... }`
-  that calls `FileIOActor.shared.validPaths(from:)`, which filters out
-  non-existent disk paths. Paths that don't exist in the simulator sandbox
-  return empty — assert `speciesData` properties instead.
+- **Test historical media through the value projection.**
+  `InferenceEngine.load(from:)` snapshots
+  `LocalScanRecord.capturedMediaSnapshot` synchronously through
+  `InferenceHistoricalRecordProjection` and publishes its `ActiveScanMedia`
+  before starting deferred hydration. Projection tests may assert serialized
+  media items directly without creating files; filesystem resolution behavior
+  belongs to `SerializedMediaItemTests`.
 - **No `await` needed for `ImageDownsampler` in tests.** `ImageDownsampler` is a
   `public enum` with static methods. Call
   `ImageDownsampler.downsample(data:maxSize:)` directly — no actor isolation, no

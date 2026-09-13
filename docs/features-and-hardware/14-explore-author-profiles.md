@@ -344,8 +344,10 @@ Primary files:
 - `apps/ios/Merian/Features/Explore/FieldTrips/ViewModels/ActiveFieldTripsProfileViewModel.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/Components/Profile/`
 - `apps/ios/Merian/Features/Explore/FieldTrips/Views/FieldTripPublicationDetailView.swift`
-- `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
-- `apps/ios/Merian/Core/Network/FieldTripAPIModels.swift`
+- `apps/ios/Merian/Core/Network/Models/Explore/ExploreAuthorProfileAPIModels.swift`
+- `apps/ios/Merian/Core/Network/Models/Explore/ExploreBrowsingAPIModels.swift`
+- `apps/ios/Merian/Core/Network/Models/Explore/ExploreBrowsingQueryModels.swift`
+- `apps/ios/Merian/Core/Network/Models/FieldTrips/`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift`
@@ -528,6 +530,9 @@ iOS:
   shared identity-state tests remain in `ProfileViewModelTests`.
 - `apps/ios/MerianTests/Core/Network/FieldTripAPIModelsTests.swift` covers Field
   trip DTO decoding used by profile modules and publication detail.
+- `apps/ios/MerianTests/Features/Explore/AuthorProfile/ExploreAuthorProfilePresentationTests.swift`
+  covers public first-Field-trip award projection without a private route,
+  alongside author-profile navigation and display policy.
 - `apps/ios/MerianTests/Features/Explore/FieldTrips/FieldTripProfilePresentationTests.swift`
   owns `ActiveFieldTripProfilePresentationTests` and
   `EarnedFieldTripPatchPresentationTests`, covering profile visibility,

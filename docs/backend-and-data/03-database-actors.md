@@ -408,22 +408,25 @@ no request DTO, endpoint call, Auth lease, file access, or UI presentation.
   — persists species-dictionary data fetched for an identification override or
   reset so the corrected fields survive sheet dismissal and reopen.
   Intentionally excludes `scientificName` — that column is preserved as the
-  original-AI identifier and is reused as `aiScientificName` in
-  `InferenceEngine.load(from:)`. Interactive replacement passes `true` to clear
-  prior taxonomy/lookalikes; historical refresh passes `false` so a sparse row
-  preserves valid same-species values.
+  original-AI identifier and is projected as `aiScientificName` by
+  `InferenceHistoricalRecordProjection`. Interactive replacement passes `true`
+  to clear prior taxonomy/lookalikes; historical refresh passes `false` so a
+  sparse row preserves valid same-species values.
 - `updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:alternativeCommonNames:expectedScientificName:)`
   — retroactively persists enrichment data returned by the `enrich-scan` Edge
-  Function. Called by `InferenceEngine.fetchAndApplyEnrichment` after the async
-  enrichment call completes. Updates `habitatDescription`, `gbifTaxonKey`,
-  `lookalikesData` (a JSON-encoded `[SimilarSpeciesEntry]` blob, added in
-  `MerianSchemaV27`), and taxonomic ranks (`Kingdom` through `Genus`) on
-  `LocalScanRecord`. When `alternativeCommonNames` is non-nil, the method also
-  writes it to `record.alternativeCommonNames` on the `LocalScanRecord`. The
-  caller is responsible for encoding `[SimilarSpeciesEntry]` to `Data` via
-  `JSONEncoder` before calling this method. A supplied `expectedScientificName`
-  must match the record's original AI scientific name, preventing a stale
-  enrichment response from mutating a replacement record.
+  Function. The live `InferenceHydrationPersistenceService` calls this actor
+  only after the engine's bounded write owner admits an immutable snapshot.
+  Updates `habitatDescription`, `gbifTaxonKey`, `lookalikesData` (a JSON-encoded
+  `[SimilarSpeciesEntry]` blob, added in `MerianSchemaV27`), and taxonomic ranks
+  (`Kingdom` through `Genus`) on `LocalScanRecord`. When
+  `alternativeCommonNames` is non-nil, the method also writes it to
+  `record.alternativeCommonNames` on the `LocalScanRecord`. The persistence
+  service encodes `[SimilarSpeciesEntry]` to `Data` off-main before calling this
+  method and supplies taxonomy as domain `TaxonomyData`; the database actor has
+  no dependency on the enrichment wire DTO. A supplied `expectedScientificName`
+  must match the record's effective override-or-original scientific name,
+  preventing either a stale original-species response or a stale override
+  response from mutating the active identification.
 - `clearAllLocalLookalikesCache()` — recovery path for stale similar-species
   caches. Fetches only biological records with `lookalikesData` or
   `similarSpecies` present, in 200-record batches, saving after each batch. Save
@@ -449,7 +452,7 @@ no request DTO, endpoint call, Auth lease, file access, or UI presentation.
 `SpeciesMetadataArchitectureTests` inventories every Swift file in the iOS
 production and test trees, requiring each of the seven extracted persistence
 methods and each rehomed behavior test to have exactly one focused owner. It
-also locks the private helper boundary, exact framework imports, dependency
+also locks the private helper boundaries, exact framework imports, dependency
 exclusions, and 600-line ceilings.
 
 **When to create**: Two patterns — ad-hoc for most operations, long-lived for
@@ -857,7 +860,7 @@ payload unless a future explicit conversion feature creates normal collections.
 | Validate scan media paths                                          | `FileIOActor.shared`                                                                                                                                                                                                                                                           |
 | Commit non-biological bulk deletion or retention purge             | Fresh `BackgroundDatabaseActor`; focused persistence lives in `BackgroundDatabaseActor+NonBiologicalRetention.swift`                                                                                                                                                           |
 | Project/commit a collection sync                                   | Fresh `BackgroundDatabaseActor` instances through `CollectionSyncService`; Core Network owns the Edge request                                                                                                                                                                  |
-| Persist enrichment data after enrich-scan returns                  | `BackgroundDatabaseActor` (ad-hoc)                                                                                                                                                                                                                                             |
+| Persist admitted enrichment/reference hydration                    | `InferenceHydrationPersistenceService+Live` through a fresh `BackgroundDatabaseActor`; the service owns immutable snapshots and lookalike encoding                                                                                                                             |
 
 ## 2026-04 Hardening Updates
 

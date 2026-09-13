@@ -29,6 +29,49 @@ corresponding request boundaries. The main application has no ATS exception; see
 the
 [iOS App Transport Security Contract](../../../../../docs/development-guides/17-ios-transport-security.md).
 
+## Explore model ownership
+
+[`Models/Explore/`](Models/Explore/README.md) owns the focused Codable response
+and request-value families shared by Explore endpoints and their cross-feature
+consumers. The former `ExploreAPIModels.swift` aggregate is retired. Browsing,
+Community Identification, author profile, Map, post-detail, comments, sharing,
+media-incident, notification, public-profile, and Community-feedback contracts
+now have separate owners, each below the 600-line review ceiling.
+
+This is a source-ownership split only. Type names, access levels, Codable
+conformances, coding keys, defaults, compatibility fallbacks, endpoint
+signatures, and JSON shapes are unchanged. The cross-feature
+`ExploreLocationPrivacy` redaction policy lives in
+[`Core/Models/ExploreLocationPrivacy.swift`](../Models/ExploreLocationPrivacy.swift)
+because environment context, inference/recovery, Explore, Insights, and Profile
+all consume it; no wire model owns that privacy policy.
+
+`ExploreNetworkModelArchitectureTests` freezes the thirteen-file inventory, sole
+representative declaration ownership, retired aggregate, effect exclusions,
+privacy-policy placement, and line ceiling. It also keeps the Codable
+`ExplorePostLocationSharing` contract in Core Network while its labels, symbols,
+and explanatory copy remain in Explore Shared presentation. Wire decoding and
+endpoint tests remain with their existing Core Network suites, while feature
+presentation and state tests retain their feature owners.
+
+## Field Trips model ownership
+
+[`Models/FieldTrips/`](Models/FieldTrips/README.md) owns eight focused Codable
+and request-value families for achievement, capture, catalog, Events, community
+queries, profile, progress, and publications. The former
+`FieldTripAPIModels.swift` aggregate is retired; all 49 network-model
+declarations retain their names, access, conformances, coding behavior,
+fallbacks, endpoint signatures, and JSON shapes.
+
+Feature presentation extensions live in `Features/Explore/FieldTrips/Models`.
+Insights Shell owns contribution-route projection, Core UI Feedback owns
+milestone/progress policy, and Core Preferences owns the account-qualified
+achievement cache. `FieldTripNetworkModelArchitectureTests` freezes those
+boundaries, production-wide exact declaration ownership, the retired aggregate,
+effect exclusions, and the 600-line model ceiling. Existing Field Trips
+decoding, endpoint, feature, Insights, feedback, and preference suites retain
+behavior coverage.
+
 ## Supabase Auth cold-start adoption
 
 `MerianSupabaseClientFactory` enables `emitLocalSessionAsInitialSession`. The
@@ -179,12 +222,13 @@ then enters the existing authenticated transport through the appropriate bridge.
 actions and typed response projections, including cross-feature capture,
 profile, achievement, and feed callers.
 
-Codable Field Trips contracts remain in `FieldTripAPIModels.swift`;
-`Features/Explore/FieldTrips/Services` retains feature dependency adapters and
-presentation-facing endpoint values. Existing client methods, argument defaults,
-actions, optional/null fields, cursor rules, and timeouts are unchanged. Request
-filters reuse Core's `String.trimmedNonEmptyValue`; publication and comment text
-is still forwarded without transport-level trimming.
+Codable Field Trips contracts live in eight focused owners under
+`Models/FieldTrips/`; `Features/Explore/FieldTrips/Services` retains feature
+dependency adapters and presentation-facing endpoint values. Existing client
+methods, argument defaults, actions, optional/null fields, cursor rules, and
+timeouts are unchanged. Request filters reuse Core's
+`String.trimmedNonEmptyValue`; publication and comment text is still forwarded
+without transport-level trimming.
 
 `MerianTests/Core/Network/Endpoints/FieldTripEndpointTests.swift` exercises
 these methods with a private client and scoped mock session per case, covering
@@ -195,8 +239,9 @@ order but preserve Boolean/number/string and null/omission distinctions.
 transport boundary. Run the canonical
 [Field Trips verification matrix](../../../../../docs/features-and-hardware/25-field-trips.md#verification)
 and the complete `merianTests` target; DTO decoding remains in
-`FieldTripAPIModelsTests` and feature state/presentation tests stay
-feature-owned.
+`FieldTripAPIModelsTests`; `FieldTripNetworkModelArchitectureTests` freezes the
+model boundary; `FirstFieldTripProgressStoreTests` owns the compatibility cache;
+and feature state/presentation tests stay feature-owned.
 
 ### Inference endpoints, payloads, and policies
 
@@ -242,11 +287,11 @@ cannot access mutable transport state or create another session. See the
 
 `Endpoints/MerianNetworkClient+CommunityIdentification.swift` owns the eight
 request feed, activity feed, detail, request-editing, taxonomy-search, and
-submit/withdraw/restore operations. Codable DTOs and cursor wire values remain
-in `ExploreAPIModels.swift`. Identify and Insight Sharing Services retain their
-live adapters. The two `requestCommunityIdentification` scan-publication
-overloads are intentionally separate in the scan-publication and owned-recovery
-owners described below.
+submit/withdraw/restore operations. Codable DTOs and cursor wire values live in
+`Models/Explore/CommunityIdentificationAPIModels.swift`. Identify and Insight
+Sharing Services retain their live adapters. The two
+`requestCommunityIdentification` scan-publication overloads are intentionally
+separate in the scan-publication and owned-recovery owners described below.
 
 This split preserves the 30-second timeout, snake-case projection, explicit null
 note/reasoning fields, optional taxonomy version, and raw caller text. Cursors
@@ -350,9 +395,9 @@ cursors even on empty pages. `ExploreBrowsingEndpointTransportTests.swift`
 checks malformed success, handler denials without refresh, one auth-refresh
 replay, bounded network/503 replays, failed replays, and pre-dispatch
 cancellation for every route. These suites reuse the isolated shared fixture;
-standalone Explore DTO decoding remains in Core Network, while presentation and
-state tests retain their feature owners. The architecture suite guards the exact
-eight-method inventory and private transport boundary.
+standalone Explore DTO decoding remains in `Models/Explore/`, while presentation
+and state tests retain their feature owners. The architecture suite guards the
+exact eight-method inventory and private transport boundary.
 
 ### Explore interaction endpoints
 
@@ -665,8 +710,12 @@ endpoint file:
 - [`MerianNetworkClient+ScanEnrichment.swift`](Endpoints/MerianNetworkClient+ScanEnrichment.swift)
   owns `updateDeferredScanContext` and `fetchEnrichment`. Capture Submission
   retains local persistence and its single delayed context retry;
-  InferenceEngine retains enrichment scheduling, result application, and
-  stale-result checks. `EnrichScanResponse` remains hand-written below the
+  `InferenceSpeciesEnrichmentService+Live` is Core AI's sole endpoint adapter,
+  its injected core resolves no live client directly and maps scoped domain
+  patches, and `InferenceHydrationPersistenceService+Live` owns admitted local
+  writes and off-main lookalike encoding. `InferenceEngine` retains enrichment
+  admission, scheduling, result application, retry, stale-result checks, and
+  bounded write lifetime. `EnrichScanResponse` remains hand-written below the
   generated Identify block in
   [`Core/AI/InferenceEdgeDTOs.swift`](../AI/InferenceEdgeDTOs.swift).
 - [`MerianNetworkClient+Exports.swift`](Endpoints/MerianNetworkClient+Exports.swift)
@@ -678,12 +727,12 @@ endpoint file:
 - [`MerianNetworkClient+ProductFeedback.swift`](Endpoints/MerianNetworkClient+ProductFeedback.swift)
   owns survey and Community feedback submission. `FeedbackSurveySubmission`
   remains in Settings Feedback Models; `CommunityFeedbackSubmission` remains in
-  `ExploreAPIModels.swift`. Their existing constructors retain trimming and
-  metadata construction, and JSONEncoder retains wire keys, enum values, array
-  order, and empty fields. Community's model is still constructed before
-  endpoint configuration is checked. Feature Services/ViewModels retain
-  validation, drafts, single-flight submission, error feedback, and
-  prompt/cooldown policy.
+  `Models/Explore/CommunityFeedbackAPIModels.swift`. Their existing constructors
+  retain trimming and metadata construction, and JSONEncoder retains wire keys,
+  enum values, array order, and empty fields. Community's model is still
+  constructed before endpoint configuration is checked. Feature
+  Services/ViewModels retain validation, drafts, single-flight submission, error
+  feedback, and prompt/cooldown policy.
 
 Deferred context checks configuration before its no-context return. Only nonnil
 elevation, weather condition, temperature, and semantic location are forwarded,
@@ -941,13 +990,9 @@ workflow, `purchasePrincipalMigrationContract.test.ts` requires readiness to
 reread both durable purchase journals and fail closed, and
 `ghostProfileMergeClientContract.test.ts` reads `SupabaseManager`, the extracted
 Ghost storage, policy, workflow, policy test, and endpoint-adapter test, plus
-`ConsentManager`, `ConsentSynchronizationCoordinator`,
-`ConsentSynchronizationMergePolicy`, `ConsentRealtimeCoordinator`,
-`ConsentRealtimeCoordinator+Live`, `RequiredConsentRestorationCoordinator`,
-`ConsentLedgerRepository`, `ConsentRetryPolicy`, `ConsentManagerAuthorityTests`,
-`ConsentSynchronizationCoordinatorTests`, `ConsentRealtimeCoordinatorTests`, and
-`ConsentRestorationCoordinatorTests`. A file or suite rehome must update its
-Deno path in the same change.
+the Consent facade, runtime, cloud-session core/live adapter, state projection,
+synchronization, restoration, Realtime, repository, retry, merge, and focused
+tests. A file or suite rehome must update its Deno path in the same change.
 
 The final policy-boundary review replaced its async refresh closure with the
 value-only `UnauthorizedRefreshTarget`. The request-scoped executor now switches
@@ -1214,6 +1259,9 @@ xcodebuild test \
   -only-testing:merianTests/StagedVideoUploadPlanTests \
   -only-testing:merianTests/MediaUploadTests \
   -only-testing:merianTests/StagedVideoUploadTests \
+  -only-testing:merianTests/ExploreLocationSharingAPIModelsTests \
+  -only-testing:merianTests/ExploreLocationSharingPresentationTests \
+  -only-testing:merianTests/ExploreNetworkModelArchitectureTests \
   -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/ExploreFeedViewModelTests \
@@ -2350,10 +2398,11 @@ normative wire and rollout contract is
 
 ## Field trip completion evidence
 
-`FieldTripAPIModels.swift` owns Codable DTOs and wire-compatibility fallbacks.
-Catalog filtering, lifecycle display, dates, artwork, profile policy, and other
-UI presentation belong to `Features/Explore/FieldTrips/Models`; do not add
-SwiftUI-facing state or display extensions to the network model file.
+`Models/FieldTrips/` owns Codable DTOs, request values, and wire-compatibility
+fallbacks in eight focused contract-family files. Catalog filtering, lifecycle
+display, dates, artwork, profile policy, and other UI presentation belong to
+`Features/Explore/FieldTrips/Models`; do not add SwiftUI-facing state or display
+extensions to the network model directory.
 
 Catalog and template-detail checklist items may decode an optional private
 `completed_scan_id` into `FieldTripChecklistItem.completedScanId`. The ID is the
@@ -2751,12 +2800,13 @@ screen.
 
 `ConsentRealtimeCoordinator` owns the requested channel user and confirmed
 subscriber independently of session observation. Failed subscriptions retain an
-account-owned bounded retry, while `ConsentManager` session adoption and
-foreground repair triggers ensure the current channel without allowing a stale
-retry to attach to a new account. Only the coordinator's live adapter touches
-analytics-consent Supabase Realtime. Explicit stop, listener completion, and
-coordinator deinitialization converge on one coalesced removal operation;
-deinitialization initiates removal independently of listener cancellation.
+account-owned bounded retry, while `ConsentCloudSessionCoordinator` owns session
+adoption and the `ConsentManager` facade retains foreground repair triggers that
+ensure the current channel without allowing a stale retry to attach to a new
+account. Only the coordinator's live adapter touches analytics-consent Supabase
+Realtime. Explicit stop, listener completion, and coordinator deinitialization
+converge on one coalesced removal operation; deinitialization initiates removal
+independently of listener cancellation.
 
 ## OAuth account replacement
 

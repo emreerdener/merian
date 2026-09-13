@@ -680,8 +680,13 @@ See the focused
   they keep the same quiet reference-loading behavior they had before the helper
   extraction. Public Wikipedia/GBIF transport and parsing are delegated to the
   injected `SpeciesReferenceHydrationService`; presentation identity, media
-  mutation, and persistence stay in the engine. The same neutral Core service
-  supplies scan-thumbnail recovery without owning either caller's policy.
+  mutation, admission, and write scheduling stay in the engine. Immutable
+  reference/enrichment snapshots cross the injected
+  `InferenceHydrationPersistenceService`, whose live adapter owns database actor
+  construction and lookalike encoding. Scoped `enrich-scan` response mapping is
+  delegated to `InferenceSpeciesEnrichmentService`; its live adapter is Core
+  AI's sole endpoint caller. The same neutral Species Reference service supplies
+  scan-thumbnail recovery without owning either caller's policy.
 - **TaskGroup Retain Cycles (`InferenceEngine`)**: Replaced implicit, strong
   `[self]` captures across `withTaskGroup` blocks with robust
   `@MainActor [weak self]` guard unwrapping. If network tasks stall, the engine
@@ -721,6 +726,20 @@ See the focused
   admission/drain owner; bounded Wikipedia-success and historical-attempt
   histories; persisted enrichment TTL; and temporary backoff policy. Wikipedia,
   enrichment, and GBIF work stay structured inside the registered slot.
+- `Inference/Hydration/InferenceHistoricalRecordProjection.swift` — the
+  value-only `@MainActor` snapshot and mapping boundary for a historical
+  `LocalScanRecord`. It returns initial `SpeciesData`, media, hydration
+  decisions, and deferred `Sendable` decode inputs without owning a task,
+  network call, database write, or observable state.
+- `Inference/Hydration/InferenceSpeciesEnrichmentService.swift` — typed scoped
+  request, injected fetch seam, and response-to-domain patch mapping. Its
+  `+Live` sibling is Core AI's sole `MerianNetworkClient.fetchEnrichment`
+  adapter. The engine retains independent loading, retry, and
+  current-presentation application.
+- `Inference/Hydration/InferenceHydrationPersistenceService.swift` — immutable
+  reference, metadata, and lookalike persistence snapshots. Its `+Live` sibling
+  constructs the database actor and encodes rich lookalikes off-main only after
+  the engine's bounded write owner admits the operation.
 - `Inference/State/InferenceWriteCoordinator.swift` — the private bounded
   background-write FIFO; independent review, confirmation, and legacy-flag
   action generations; shared identification serial tail; presentation
@@ -1718,14 +1737,14 @@ consults that Keychain entry.
   `performAuthenticatedJSONPost` overloads. Typed results use the existing
   decoder; five interaction `Void` methods, push registration, and unshare
   ignore successful bodies without adding JSON validation. Codable contracts
-  remain in `FieldTripAPIModels.swift` and `ExploreAPIModels.swift`, and feature
-  Services retain their injected presentation adapters. Direct scan publication
-  uses `MerianNetworkClient+ScanPublication.swift`; owned-row orchestration
-  lives in `Recovery/`, and publication-media restoration lives in `Media/`.
-  Shared retry policy stays private; existing per-endpoint payload normalization
-  stays with its endpoint owner. The typed bridge forwards an optional
-  idempotency key and can replace decoding failures only after transport
-  succeeds, with nil defaults for both options.
+  remain in `Models/FieldTrips/` and `Models/Explore/`, and feature Services
+  retain their injected presentation adapters. Direct scan publication uses
+  `MerianNetworkClient+ScanPublication.swift`; owned-row orchestration lives in
+  `Recovery/`, and publication-media restoration lives in `Media/`. Shared retry
+  policy stays private; existing per-endpoint payload normalization stays with
+  its endpoint owner. The typed bridge forwards an optional idempotency key and
+  can replace decoding failures only after transport succeeds, with nil defaults
+  for both options.
 - `MerianNetworkClient+FieldChat.swift` owns 17 Insight, Explore-post, and
   Species Dictionary chat methods. The eighth endpoint owner preserves the three
   source-specific request keys and existing timeout/idempotency policies through
@@ -1791,9 +1810,11 @@ consults that Keychain entry.
   `performAuthenticatedPreparedJSONPost` bridge forwards unchanged bytes. Plain
   enrichment-response decoding and its optional fields remain unchanged. The
   other four operations ignore 2xx bodies and add no ambiguous replay.
-  Capture/AI/Settings/Identify retain scheduling, persistence, validation, and
-  interaction state; hand-written enrichment DTOs and feature-owned survey
-  models stay in place. See the
+  Capture/Settings/Identify retain scheduling, persistence, validation, and
+  interaction state. Core AI uses the focused live enrichment endpoint adapter
+  and live hydration persistence adapter while the engine keeps admission,
+  scheduling, application, and write-lifetime policy. Hand-written enrichment
+  DTOs and feature-owned survey models stay in place. See the
   [ownership guide](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-product-feedback-endpoints)
   and
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
@@ -2008,10 +2029,10 @@ consults that Keychain entry.
   only from exact-host HTTPS `media.merian.app`, refuses a redirect away from
   that host before following it, and revalidates the final response URL. Remote
   preview downsampling remains file-backed through `URLSession.download` and
-  ImageIO. `SimilarSpeciesImageService`, `InferenceEngine`, and
-  `GBIFHeatmapTileService` declare isolated external sessions (10 s / 30 s
-  timeouts) for Wikipedia/GBIF best-effort enrichment fetches. Their SwiftUI
-  consumers own no `URLSession`.
+  ImageIO. `SimilarSpeciesImageService`, `SpeciesReferenceHydrationService`, and
+  `GBIFHeatmapTileService` declare isolated external sessions with bounded
+  request/resource timeouts for Wikipedia/GBIF best-effort enrichment fetches.
+  Their SwiftUI consumers own no `URLSession`.
 - **TLS certificate pinning (`MerianTLSDelegate`)**: A private
   `URLSessionDelegate` validates the server certificate chain for `supabase.co`
   and its true subdomains. The check walks the full chain (leaf → intermediate →
@@ -2749,19 +2770,20 @@ ledger, journal, restoration, and remote-state values, storage and handoff
 errors, plus the exact policy versions, provider identifiers, and evidence copy.
 `Consent/Policies` owns deterministic all-version provider-head authority,
 account activation and ghost-evidence rebinding, retry delays, the
-synchronization context fence, and value-only remote-state merge results.
-`Consent/Repositories` owns decoded ledger and withdrawal-journal state,
-independent storage uncertainty, verified writes, write-ahead recovery,
-activation, and rebinding. `Consent/Services` owns the exact receipt and
-causal-event wire values, deterministic wire-to-ledger mapping, strict append
-result validation, exact immutable receipt/event read-back confirmation,
-malformed-present-row rejection, and ambiguous-write recovery. Its core is
-closure-injected; only `ConsentRemoteService+Live.swift` performs direct
-PostgREST table and RPC calls. `ConsentRealtimeCoordinator` separately owns
-subscription identity, listener/retry tasks, generation fences, and bounded
-repair plus deinitialization-triggered, coalesced exactly-once removal through
-injected effects. A UUID-keyed teardown registry retains removals until exact
-completion for the Auth-transition drain; only
+synchronization context fence, value-only remote-state merge results, and
+current owner, admission, pending-count, cloud-readiness, and analytics SDK
+permission projection. `Consent/Repositories` owns decoded ledger and
+withdrawal-journal state, independent storage uncertainty, verified writes,
+write-ahead recovery, activation, and rebinding. `Consent/Services` owns the
+exact receipt and causal-event wire values, deterministic wire-to-ledger
+mapping, strict append result validation, exact immutable receipt/event
+read-back confirmation, malformed-present-row rejection, and ambiguous-write
+recovery. Its core is closure-injected; only `ConsentRemoteService+Live.swift`
+performs direct PostgREST table and RPC calls. `ConsentRealtimeCoordinator`
+separately owns subscription identity, listener/retry tasks, generation fences,
+and bounded repair plus deinitialization-triggered, coalesced exactly-once
+removal through injected effects. A UUID-keyed teardown registry retains
+removals until exact completion for the Auth-transition drain; only
 `ConsentRealtimeCoordinator+Live.swift` touches Supabase Realtime for analytics
 consent. `ConsentSynchronizationCoordinator` owns the scheduled/active task
 identities, same-account coalescing, generation invalidation, and retention and
@@ -2779,19 +2801,38 @@ transition. Its timing, synchronization, context, publication, and
 failure-reporting effects are injected. An older cancellation-uncooperative
 retry therefore remains tracked through completion and cannot cross an account
 replacement, regain admission after manual attempt-number reuse, or clear a
-newer retry task when it eventually completes. `ConsentManager` remains the
-`@MainActor` observable state facade, triggers synchronization and Realtime
-repair or shutdown, and retains session adoption, the observable restoration
-projection, SDK effects, and the timing of requested repository transitions.
+newer retry task when it eventually completes. `ConsentManagerRuntime` composes
+the repository, mutation service, and coordinators and wires their narrow facade
+callbacks. `ConsentMutationService` owns evidence construction and the exact
+privacy-sensitive local write order; its live adapter alone supplies the clock,
+UUIDs, and `Bundle.main` app metadata. `ConsentCloudSessionCoordinator` owns
+ordinary and transition-owned account authorization, session adoption, scheduled
+synchronization, verified Ghost rebinding, and inference cloud admission through
+injected dependencies; its live adapter alone resolves Supabase Auth and
+account-work leases for those workflows. `ConsentManager` remains the
+`@MainActor` observable compatibility facade, triggers lifecycle repair or
+shutdown, publishes synchronization merges and restoration state, applies SDK
+permission, and drains account-bound work before Auth replacement.
 `ConsentLedgerStore` remains the raw durable-byte boundary.
 
 - `ensureCloudConsentForInference()` is the new-account and returning-account
-  provider gate. It resolves the current Supabase account, pushes pending
-  adult/Terms/Gemini evidence, performs a fresh remote fetch, and opens its
-  process-local cloud-ready marker only when that fetched state contains the
-  same account's current adult and Terms rows plus a current granted all-version
-  Gemini stream head. Persisted `syncedUserId` fields are never sufficient by
-  themselves.
+  provider gate exposed by the facade and implemented by
+  `ConsentCloudSessionCoordinator`. The coordinator resolves the current
+  Supabase account through its live dependency adapter. It snapshots complete
+  unowned required evidence before adopting a newly initialized anonymous
+  session so adoption cannot temporarily hide the evidence that synchronization
+  must bind. It then pushes pending adult/Terms/Gemini evidence, performs a
+  fresh remote fetch, and opens the facade's process-local cloud-ready marker
+  only when that fetched state contains the same account's current adult and
+  Terms rows plus a current granted all-version Gemini stream head. Persisted
+  `syncedUserId` fields are never sufficient by themselves, and evidence already
+  owned by another account is never eligible for this first-session binding
+  path. Lease and synchronization-generation checks run again after suspended
+  work before the result may be accepted. Cancellation exits as cancellation; a
+  lost lease or changed generation exits as
+  `ConsentHandoffError.activeAccountChanged`. None of those stale-context exits
+  persists reapproval. Only a still-authorized synchronization that completes
+  without authoritative current proof can enter the durable reapproval path.
 - `requireCurrentConsentReapprovalAfterServerRejection()` converts an exact
   server `403 ai_consent_required` into durable account state. It closes the
   process-local gate before persistence, stores the affected user ID, resets the
@@ -2856,18 +2897,18 @@ projection, SDK effects, and the timing of requested repository transitions.
   identity-fenced authoritative grant can reach `PostHogManager`; remote
   absence, revocation, fetch failure, and persistence failure stay closed.
 - AI and analytics actions record the provider event observed at creation.
-  `ConsentManager` records the durable action and triggers synchronization;
-  `ConsentSynchronizationCoordinator` sequences pending actions through
-  `ConsentRemoteService`, whose live adapter is the sole caller of the
-  authenticated causal append RPCs. The service maps the returned accepted
-  parent and server-issued revision, marks stale grant rejections as superseded
-  local evidence, and fetches the all-version stream head before a new action
-  can extend it. The RPC rebases revocations to the locked head so withdrawal
-  wins a concurrent grant. Local and remote permission checks also evaluate that
-  all-version head first: any head revocation closes the provider regardless of
-  disclosure version, and only the exact head grant may be checked against
-  current policy. A fetch-before-push reorder is not an acceptable substitute
-  for that atomic database decision.
+  `ConsentManager` asks `ConsentMutationService` to construct and durably record
+  the action, then triggers synchronization; `ConsentSynchronizationCoordinator`
+  sequences pending actions through `ConsentRemoteService`, whose live adapter
+  is the sole caller of the authenticated causal append RPCs. The service maps
+  the returned accepted parent and server-issued revision, marks stale grant
+  rejections as superseded local evidence, and fetches the all-version stream
+  head before a new action can extend it. The RPC rebases revocations to the
+  locked head so withdrawal wins a concurrent grant. Local and remote permission
+  checks also evaluate that all-version head first: any head revocation closes
+  the provider regardless of disclosure version, and only the exact head grant
+  may be checked against current policy. A fetch-before-push reorder is not an
+  acceptable substitute for that atomic database decision.
 - Tracks `isConfigured: Bool` set at the end of `configure()`. `identifyUser()`
   buffers only a consented pending user ID if a call races setup.
 - PostHog's dedicated session carries a configured-host-only `URLProtocol`

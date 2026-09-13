@@ -75,4 +75,17 @@ final class ExploreAuthorProfilePresentationTests: XCTestCase {
             ["first", "second"]
         )
     }
+
+    func testPublicFirstFieldTripAwardDoesNotExposePrivateDestination() throws {
+        let publicAward = ExploreAuthorProfileAward(
+            type: "first_field_trip",
+            currentCount: 1,
+            lastInteractionAt: "2026-07-18T14:00:00Z"
+        )
+        let award = try XCTUnwrap(publicAward.awardPayload)
+
+        XCTAssertEqual(award.type, .firstFieldTrip)
+        XCTAssertTrue(award.isCompleted)
+        XCTAssertNil(award.destination)
+    }
 }

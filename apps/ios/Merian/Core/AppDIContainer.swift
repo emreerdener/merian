@@ -27,6 +27,12 @@ import SwiftUI
     @ObservationIgnored
     let liveInferenceResultService: InferenceLiveResultService
     @ObservationIgnored
+    let liveInferenceSpeciesEnrichmentService:
+        InferenceSpeciesEnrichmentService
+    @ObservationIgnored
+    let liveInferenceHydrationPersistenceService:
+        InferenceHydrationPersistenceService
+    @ObservationIgnored
     let liveInferenceIdentificationReviewService:
         InferenceIdentificationReviewService
     @ObservationIgnored
@@ -88,6 +94,10 @@ import SwiftUI
             SystemFoundationCueEligibility()
         let liveInferenceRequestService = InferenceLiveRequestService.live
         let liveInferenceResultService = InferenceLiveResultService.live
+        let liveInferenceSpeciesEnrichmentService =
+            InferenceSpeciesEnrichmentService.live
+        let liveInferenceHydrationPersistenceService =
+            InferenceHydrationPersistenceService.live
         let liveInferenceIdentificationReviewService =
             InferenceIdentificationReviewService.live
         let liveInferenceReviewSnapshotService =
@@ -102,6 +112,10 @@ import SwiftUI
             foundationVisualCueEligibilityChecker
         self.liveInferenceRequestService = liveInferenceRequestService
         self.liveInferenceResultService = liveInferenceResultService
+        self.liveInferenceSpeciesEnrichmentService =
+            liveInferenceSpeciesEnrichmentService
+        self.liveInferenceHydrationPersistenceService =
+            liveInferenceHydrationPersistenceService
         self.liveInferenceIdentificationReviewService =
             liveInferenceIdentificationReviewService
         self.liveInferenceReviewSnapshotService =
@@ -118,6 +132,10 @@ import SwiftUI
             },
             liveRequestService: liveInferenceRequestService,
             liveResultService: liveInferenceResultService,
+            speciesEnrichmentService:
+                liveInferenceSpeciesEnrichmentService,
+            hydrationPersistenceService:
+                liveInferenceHydrationPersistenceService,
             identificationReviewService:
                 liveInferenceIdentificationReviewService,
             identificationReviewSnapshotService:

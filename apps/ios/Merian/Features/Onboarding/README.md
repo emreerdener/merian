@@ -33,20 +33,16 @@ the line ceiling. Consent ledger, restoration, authority, reapproval, and
 lifecycle tests live with their Core owner under
 `MerianTests/Core/Security/Consent`.
 
-The Supabase Ghost merge client contract reads `ConsentManager.swift`,
-`ConsentSynchronizationCoordinator.swift`,
-`ConsentSynchronizationMergePolicy.swift`, `ConsentRealtimeCoordinator.swift`,
-`ConsentRealtimeCoordinator+Live.swift`,
-`RequiredConsentRestorationCoordinator.swift`, `ConsentLedgerRepository.swift`,
-`ConsentRetryPolicy.swift`, `ConsentManagerAuthorityTests.swift`,
-`ConsentSynchronizationCoordinatorTests.swift`,
-`ConsentRealtimeCoordinatorTests.swift`, and
-`ConsentRestorationCoordinatorTests.swift` from Core Security to lock current
-synchronization context, owner-filtered Realtime construction, generation/retry
-fencing, complete synchronization-task draining, UUID-keyed restoration retry
-retention through exact completion and the combined Auth-transition drain,
-canceled-retry admission after manual attempt-number reuse, stale-account
-rejection, verified persistence before state publication, remote fetch after
-pending consent flush, and authoritative merge before analytics application. A
-future owner or test rehome must update that cross-surface source contract in
-the same change.
+The Supabase Ghost merge client contract reads the Core Security facade,
+runtime, cloud-session coordinator and live adapter, synchronization, merge,
+Realtime, restoration, repository, retry, and state-projection owners together
+with their focused authority, cloud-session, synchronization, Realtime, and
+restoration tests. It locks current-session and account-work lease admission,
+owner-filtered Realtime construction, generation/retry fencing, complete
+synchronization-task draining, UUID-keyed restoration retry retention through
+exact completion and the combined Auth-transition drain, canceled-retry
+admission after manual attempt-number reuse, stale-account rejection, verified
+persistence before state publication, remote fetch after pending consent flush,
+and authoritative merge before analytics application. Every direct source URL is
+listed in `ghostProfileMergeClientContract.test.ts`; a future owner or test
+rehome must update that cross-surface contract in the same change.

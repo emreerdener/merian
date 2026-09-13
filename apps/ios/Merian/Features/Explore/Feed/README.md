@@ -90,7 +90,13 @@ publication, owned-row recovery, and media restoration use the dedicated Core
 Network Endpoint, Recovery, and Media owners. The
 [post-management matrix](../../../Core/Network/README.md#explore-post-management-verification)
 covers wire/retry behavior separately from Feed state. Codable wire models
-remain in Core Network.
+remain under `Core/Network/Models/Explore/`.
+
+The shared `ExplorePostLocationSharing` Codable/raw-value contract lives in
+`Core/Network/Models/Explore/ExploreLocationSharingAPIModels.swift`; its visible
+labels, symbols, and explanatory copy live in
+`../Shared/Models/ExploreLocationSharingPresentation.swift`. Feed composer
+models retain only Feed-owned draft and media-selection state.
 
 Keep existing Feed-tab, hashtag-route, post-detail, composer, and card
 initializer signatures stable. Preserve visible copy, accessibility values, hit
@@ -397,6 +403,11 @@ Focused tests mirror their production owners:
   `ExplorePostFieldChatPresentationPolicyTests`, and the rehomed formatting,
   route, location-privacy, store-merge, and share-copy suites cover their
   Feed-owned pure policies.
+- `ExploreLocationSharingAPIModelsTests` locks location-sharing raw values and
+  compatibility decoding; `ExploreLocationSharingPresentationTests` locks
+  visible labels, symbols, and detail copy; and
+  `ExploreNetworkModelArchitectureTests` prevents the wire contract from
+  returning to the Feed composer model.
 - `MerianTests/Features/Explore/ExploreAudioBoostTests.swift` remains one level
   higher because it exercises Explore preferences and playback policy together
   with the shared Core boost/seeking implementation. Insight-specific pill,
@@ -422,6 +433,9 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/ExplorePostDetailViewModelTests \
   -only-testing:merianTests/ExploreReplyLoadingStateTests \
   -only-testing:merianTests/ExploreCommentAuthorPresentationTests \
+  -only-testing:merianTests/ExploreLocationSharingAPIModelsTests \
+  -only-testing:merianTests/ExploreLocationSharingPresentationTests \
+  -only-testing:merianTests/ExploreNetworkModelArchitectureTests \
   -only-testing:merianTests/ExploreCommentMentionTextTests \
   -only-testing:merianTests/ExploreHashtagSuggestionTests \
   -only-testing:merianTests/ExplorePostFieldChatPolicyTests test

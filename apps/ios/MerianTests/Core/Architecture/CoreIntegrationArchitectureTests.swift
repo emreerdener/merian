@@ -228,10 +228,7 @@ struct CoreIntegrationArchitectureTests {
 
     private static let trackedOversizedOwners: Set<String> = [
         "AI/InferenceEngine.swift",
-        "Network/ExploreAPIModels.swift",
-        "Network/FieldTripAPIModels.swift",
-        "Network/SupabaseManager.swift",
-        "Security/ConsentManager.swift"
+        "Network/SupabaseManager.swift"
     ]
 
     private static let liveEffectTokens = [

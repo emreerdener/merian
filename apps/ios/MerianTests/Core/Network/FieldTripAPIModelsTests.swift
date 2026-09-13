@@ -74,12 +74,9 @@ struct FieldTripAPIModelsTests {
         #expect(response.data[0].estimatedDurationMinutes == 30)
         #expect(response.data[0].guideWhereToLook == "Look near flowers.")
         #expect(response.data[0].activeProgress?.completedCount == 1)
-        #expect(response.data[0].activeProgress?.fractionComplete == 0.25)
         #expect(response.data[0].levels[0].items[0].guideTip == "Listen before scanning.")
         #expect(response.data[0].levels[0].items[0].guide?.whereToLook == "Check shrubs, feeders, and tree canopies.")
         #expect(response.data[0].levels[0].items[0].guide?.scanSafely == "Use zoom and stay away from nests.")
-        #expect(response.data[0].levels[0].items[0].hasGuide)
-        #expect(response.data[0].levels[0].items[0].guidePreview == "Check shrubs, feeders, and tree canopies.")
         #expect(response.data[0].levels[0].items[0].completedCommonName == "Northern Cardinal")
         #expect(response.data[0].levels[0].items[0].completedScanId == "scan-1")
     }
@@ -126,10 +123,9 @@ struct FieldTripAPIModelsTests {
 
         #expect(response.data.activeProgress?.publicationId == "publication-1")
         #expect(response.data.activeProgress?.publishedAt == "2026-07-08T01:05:00Z")
-        #expect(response.data.activeProgress?.isPublished == true)
     }
 
-    @Test func templateDetailDecodesStoppedProgressAsSavedViewerProgress() throws {
+    @Test func templateDetailDecodesStoppedProgress() throws {
         let json = Data("""
         {
           "data": {
@@ -172,13 +168,11 @@ struct FieldTripAPIModelsTests {
         let response = try decoder.decode(FieldTripTemplateDetailResponse.self, from: json)
 
         #expect(response.data.activeProgress == nil)
-        #expect(response.data.isStopped)
-        #expect(response.data.viewerProgress?.completedCount == 2)
-        #expect(response.data.viewerProgress?.stoppedAt == "2026-07-08T00:30:00Z")
-        #expect(response.data.catalogState == .inProgress)
+        #expect(response.data.stoppedProgress?.completedCount == 2)
+        #expect(response.data.stoppedProgress?.stoppedAt == "2026-07-08T00:30:00Z")
     }
 
-    @Test func legacyProgressWithoutPublicationStatusDecodesAsPrivate() throws {
+    @Test func legacyProgressWithoutPublicationFieldsDecodes() throws {
         let json = Data("""
         {
           "user_field_trip_id": "trip-1",
@@ -195,26 +189,6 @@ struct FieldTripAPIModelsTests {
 
         #expect(progress.publicationId == nil)
         #expect(progress.publishedAt == nil)
-        #expect(!progress.isPublished)
-    }
-
-    @Test func checklistItemUsesLegacyGuideTipAsFallback() {
-        let item = FieldTripChecklistItem(
-            itemId: "item-legacy",
-            prompt: "Butterfly",
-            matchType: "taxonomy",
-            guideTip: "Look near sunny flowers.",
-            guide: nil,
-            referenceSpecies: nil,
-            isCompleted: false,
-            completedAt: nil,
-            completedCommonName: nil,
-            completedScientificName: nil,
-            completedScanId: nil
-        )
-
-        #expect(item.hasGuide)
-        #expect(item.guidePreview == "Look near sunny flowers.")
     }
 
     @Test func checklistItemDecodesOrderedReferenceSpeciesCandidates() throws {
@@ -300,10 +274,8 @@ struct FieldTripAPIModelsTests {
 
         #expect(response.data.count == 1)
         #expect(response.data[0].publicationId == "publication-1")
-        #expect(response.data[0].publicAuthorDisplayName == "Ari")
         #expect(response.data[0].publishedAt == "2026-07-08T01:00:00Z")
         #expect(response.data[0].rankBucket == 0)
-        #expect(response.data[0].communityReasonLabel == "Following")
     }
 
     @Test func fieldTripActivityNotificationDecodesPublicationRoute() throws {
@@ -504,10 +476,10 @@ struct FieldTripAPIModelsTests {
 
         let response = try decoder.decode(FieldTripChallengesCatalogResponse.self, from: json)
 
-        #expect(response.data[0].isLive)
-        #expect(response.data[0].viewerParticipation?.fractionComplete == 0.25)
+        #expect(response.data[0].status == "live")
+        #expect(response.data[0].viewerParticipation?.completedCount == 1)
+        #expect(response.data[0].viewerParticipation?.targetCount == 4)
         #expect(response.data[0].suggestedHashtags == ["summerpollinators"])
-        #expect(response.data[0].entries[0].publicAuthorDisplayName == "Ari")
     }
 
     @Test func challengeProgressResponseDecodesOptionalChallengeUpdates() throws {
@@ -548,8 +520,6 @@ struct FieldTripAPIModelsTests {
         #expect(response.challengeUpdates[0].suggestedHashtags == ["summerpollinators"])
         #expect(response.challengeUpdates[0].newlyCompletedItems[0].commonName == "Monarch")
         #expect(response.challengeUpdates[0].creditedCompletedCount == nil)
-        #expect(response.challengeUpdates[0].toastCompletedCount == 2)
-        #expect(response.challengeUpdates[0].toastTargetCount == 4)
     }
 
     @Test func progressResponseUsesCreditedLevelCountsAfterAdvancement() throws {
@@ -592,8 +562,6 @@ struct FieldTripAPIModelsTests {
         #expect(update.completedCount == 0)
         #expect(update.creditedLevelNumber == 1)
         #expect(update.creditedLevelTitle == "Level 1")
-        #expect(update.toastCompletedCount == 4)
-        #expect(update.toastTargetCount == 4)
     }
 
     @Test func progressResponseDecodesCorrectionInvalidationMetadata() throws {
@@ -627,7 +595,7 @@ struct FieldTripAPIModelsTests {
         #expect(response.data.first?.removedItemIds == ["item-before-correction"])
     }
 
-    @Test func scanContributionsDecodeTypedStandardAndEventDestinations() throws {
+    @Test func scanContributionsDecodeStandardAndEventRouteInputs() throws {
         let json = Data("""
         {
           "data": [
@@ -684,18 +652,14 @@ struct FieldTripAPIModelsTests {
         let response = try decoder.decode(FieldTripScanContributionsResponse.self, from: json)
 
         #expect(response.data.count == 2)
-        #expect(
-            response.data[0].destination == .fieldTrip(
-                templateId: "template-1",
-                checklistItemId: "item-1"
-            )
-        )
-        #expect(
-            response.data[1].destination == .fieldTripChallenge(challengeId: "challenge-1")
-        )
+        #expect(response.data[0].sourceKind == .standardOuting)
+        #expect(response.data[0].destinationTemplateId == "template-1")
+        #expect(response.data[0].destinationChecklistItemId == "item-1")
+        #expect(response.data[1].sourceKind == .event)
+        #expect(response.data[1].destinationChallengeId == "challenge-1")
     }
 
-    @Test func progressResponseDecodesStandardAchievementDestination() throws {
+    @Test func progressResponseDecodesStandardAchievement() throws {
         let json = Data("""
         {
           "data": [],
@@ -714,12 +678,12 @@ struct FieldTripAPIModelsTests {
         let progress = try #require(response.firstFieldTripAchievement)
 
         #expect(response.firstFieldTripAchievementNewlyUnlocked)
-        #expect(progress.destination == .fieldTripTemplate(slug: "backyard_safari"))
-        #expect(progress.awardPayload?.type == .firstFieldTrip)
-        #expect(progress.awardPayload?.currentCount == 1)
+        #expect(progress.kind == .standardOuting)
+        #expect(progress.templateSlug == "backyard_safari")
+        #expect(progress.challengeId == nil)
     }
 
-    @Test func seasonalAchievementDestinationDecodes() throws {
+    @Test func seasonalAchievementDecodes() throws {
         let json = Data("""
         {
           "data": {
@@ -733,24 +697,9 @@ struct FieldTripAPIModelsTests {
         let response = try decoder.decode(FirstFieldTripAwardResponse.self, from: json)
         let progress = try #require(response.data)
 
-        #expect(progress.destination == .fieldTripChallenge(challengeId: "challenge-1"))
-    }
-
-    @Test func publicFirstFieldTripAwardDecodesWithoutPrivateDestination() throws {
-        let json = Data("""
-        {
-          "type": "first_field_trip",
-          "current_count": 1,
-          "last_interaction_at": "2026-07-18T14:00:00Z"
-        }
-        """.utf8)
-
-        let publicAward = try decoder.decode(ExploreAuthorProfileAward.self, from: json)
-        let award = try #require(publicAward.awardPayload)
-
-        #expect(award.type == .firstFieldTrip)
-        #expect(award.isCompleted)
-        #expect(award.destination == nil)
+        #expect(progress.kind == .seasonalChallenge)
+        #expect(progress.challengeId == "challenge-1")
+        #expect(progress.completedAt == "2026-07-18T14:00:00.123Z")
     }
 
     @Test func profileSummariesDecodeChallengeBadges() throws {
@@ -782,7 +731,6 @@ struct FieldTripAPIModelsTests {
         let response = try decoder.decode(FieldTripProfileSummariesResponse.self, from: json)
 
         #expect(response.data.challengeBadges.count == 1)
-        #expect(!response.data.isEmpty)
         #expect(response.data.challengeBadges[0].challengeTitle == "Summer Pollinator Watch")
     }
 

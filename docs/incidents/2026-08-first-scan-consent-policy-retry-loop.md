@@ -107,22 +107,35 @@ revoked.
 ### Authoritative first-scan preflight
 
 Before an Identify request body is constructed, `MerianNetworkClient` now awaits
-`ConsentManager.ensureCloudConsentForInference()`. The manager orchestrates the
-following owners:
+`ConsentManager.ensureCloudConsentForInference()`. The observable facade
+delegates that preflight to `ConsentCloudSessionCoordinator`, which orchestrates
+the following focused owners:
 
 1. resolves the active Supabase session;
-2. sequences pending adult, Terms, and Gemini evidence for that account through
+2. preserves the eligibility of complete unowned required evidence across
+   anonymous-session adoption, while rejecting evidence already owned by another
+   account;
+3. sequences pending adult, Terms, and Gemini evidence for that account through
    `ConsentRemoteService`;
-3. asks the remote service to fetch the current adult and Terms rows plus the
+4. asks the remote service to fetch the current adult and Terms rows plus the
    all-version Gemini stream head;
-4. asks `ConsentLedgerRepository` to persist the identity- and generation-fenced
+5. asks `ConsentLedgerRepository` to persist the identity- and generation-fenced
    merge; and
-5. opens a process-local cloud-ready gate only when the fetched state itself is
+6. opens a process-local cloud-ready gate only when the fetched state itself is
    authoritative.
 
 Persisted local synchronization markers alone cannot open inference. A failed
-fetch, empty proof, account change, canceled generation, or failed ledger write
+fetch, empty proof, account change, changed generation, or failed ledger write
 leaves the gate closed.
+
+The preflight classifies those exits in a strict order after synchronization:
+task cancellation first, then the original account-work lease and
+synchronization generation, and only then authoritative cloud readiness. A lost
+lease or changed generation returns `ConsentHandoffError.activeAccountChanged`;
+cancellation remains cancellation. Neither stale-context path writes in-memory
+or durable reapproval state. Only a still-authorized account whose completed
+authoritative synchronization lacks current proof enters
+`MerianError.aiConsentRequired` and the reapproval flow.
 
 ### Exact policy transition
 
@@ -196,9 +209,16 @@ Repository regressions cover:
 - one post-approval resume for only the newest exact-account, exact-scan funded
   row, with released, deferred, mismatched, and cross-account rows left paused;
 - legacy-ledger decode without an accidental fence;
-- per-account fence isolation; and
+- per-account fence isolation;
 - authoritative proof from freshly fetched adult, Terms, and Gemini stream-head
-  rows for the same account.
+  rows for the same account;
+- first-scan unowned evidence traversing the actual pending-push, receipt
+  read-back, authoritative-fetch, durable-merge, and cloud-ready projection
+  pipeline across anonymous-session adoption without admitting another account's
+  persisted evidence; and
+- post-suspension lease and synchronization-generation invalidation rejecting
+  stale completion before cloud readiness can be accepted, with the generation
+  overlap regression also proving no durable reapproval marker is written.
 
 The complete iOS production and unit-test source sets type-check in the source
 environment. Runtime XCTest could not run because CoreSimulatorService was

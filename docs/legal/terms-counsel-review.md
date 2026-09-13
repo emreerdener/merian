@@ -104,12 +104,15 @@ Migrations `20260804020351_record_legal_consent_receipts.sql` and
 `20260806144105_authorize_consent_from_provider_stream_heads.sql`, and
 `Core/Security/Consent/Models/ConsentPolicy.swift`,
 `Core/Security/Consent/Policies/ConsentAuthorityPolicy.swift`,
+`Core/Security/Consent/Policies/ConsentStateProjectionPolicy.swift`,
 `Core/Security/Consent/Policies/ConsentSynchronizationMergePolicy.swift`,
+`Core/Security/Consent/Coordinators/ConsentManagerRuntime.swift`,
+`Core/Security/Consent/Coordinators/ConsentCloudSessionCoordinator.swift`,
 `Core/Security/Consent/Coordinators/ConsentRealtimeCoordinator.swift`,
 `Core/Security/Consent/Coordinators/ConsentSynchronizationCoordinator.swift`,
 `Core/Security/Consent/Coordinators/RequiredConsentRestorationCoordinator.swift`,
 `Core/Security/Consent/Repositories/ConsentLedgerRepository.swift`,
-`Core/Security/Consent/Services/{ConsentRemoteModels,ConsentRemoteService,ConsentRemoteService+Live,ConsentRealtimeCoordinator+Live}.swift`,
+`Core/Security/Consent/Services/{ConsentMutationService,ConsentRemoteModels,ConsentRemoteService,ConsentRemoteService+Live,ConsentRealtimeCoordinator+Live,ConsentCloudSessionCoordinator+Live}.swift`,
 and `Core/Security/ConsentManager.swift` establish the intended evidence
 boundary. Before the workspace opens, the app appends local adult-confirmation,
 Terms, and Gemini actions with separate policy versions, exact displayed copy,
@@ -119,18 +122,20 @@ Supabase tables with server-controlled timestamps and no client update/delete
 path; the synchronization coordinator retains the account, SDK-session,
 generation, and cancellation fences, the restoration coordinator owns the
 bounded restoration retry state plus UUID-keyed cancellation drain and rejects
-canceled retry callers after manual attempt-number reuse, and the manager
-retains account authority and transition timing. The repository owns verified
-ledger/journal persistence, recovery, and rebinding. Existing installs with the
-old onboarding flag but no current local evidence remain on a neutral
-restoration surface until the initial session establishes no active account or
-an identity-fenced authoritative merge persists. An authenticated account enters
-this disclosure only when that successful merge establishes absence. A cached
-session with an expired access token remains a known account during refresh and
-cannot temporarily mount the disclosure. Fetch, decoding, pending consent
-upload, and verified-ledger-write failures retain the neutral surface with
-bounded automatic and explicit retry; they do not ask the user to consent again
-or constitute evidence that consent is absent.
+canceled retry callers after manual attempt-number reuse, the cloud-session
+coordinator owns lease/session adoption and Ghost/inference workflows, the
+mutation service owns evidence construction and write ordering, and the manager
+retains the observable compatibility boundary and transition timing. The
+repository owns verified ledger/journal persistence, recovery, and rebinding.
+Existing installs with the old onboarding flag but no current local evidence
+remain on a neutral restoration surface until the initial session establishes no
+active account or an identity-fenced authoritative merge persists. An
+authenticated account enters this disclosure only when that successful merge
+establishes absence. A cached session with an expired access token remains a
+known account during refresh and cannot temporarily mount the disclosure. Fetch,
+decoding, pending consent upload, and verified-ledger-write failures retain the
+neutral surface with bounded automatic and explicit retry; they do not ask the
+user to consent again or constitute evidence that consent is absent.
 
 Gemini and optional PostHog actions also carry the provider event observed when
 the action was created. Direct client inserts are forbidden. The authenticated
@@ -190,7 +195,8 @@ after a separate optional grant. The user-facing switch says “Share usage and
 diagnostics to help improve Naturebook”; it does not name PostHog or display an
 “Optional” suffix. Replay, automatic screen views, element interactions,
 surveys, swizzling, and push capture are explicitly disabled. `ConsentManager`
-stores immutable account-wide grants and revocations; absence means off.
+requests immutable account-wide grants and revocations through
+`ConsentMutationService` and `ConsentLedgerRepository`; absence means off.
 Settings exposes **Analytics & diagnostics** without changing core
 functionality. Edge telemetry checks the same latest account event before every
 PostHog request and does not send auth email or name.

@@ -26,6 +26,15 @@ struct ConsentArchitectureTests {
         let synchronizationMergePolicy = try consentSource(
             "Policies/ConsentSynchronizationMergePolicy.swift"
         )
+        let stateProjectionPolicy = try consentSource(
+            "Policies/ConsentStateProjectionPolicy.swift"
+        )
+        let managerRuntime = try consentSource(
+            "Coordinators/ConsentManagerRuntime.swift"
+        )
+        let cloudSessionCoordinator = try consentSource(
+            "Coordinators/ConsentCloudSessionCoordinator.swift"
+        )
         let realtimeCoordinator = try consentSource(
             "Coordinators/ConsentRealtimeCoordinator.swift"
         )
@@ -49,6 +58,15 @@ struct ConsentArchitectureTests {
         )
         let liveRealtimeCoordinator = try consentSource(
             "Services/ConsentRealtimeCoordinator+Live.swift"
+        )
+        let liveCloudSessionCoordinator = try consentSource(
+            "Services/ConsentCloudSessionCoordinator+Live.swift"
+        )
+        let mutationService = try consentSource(
+            "Services/ConsentMutationService.swift"
+        )
+        let liveMutationService = try consentSource(
+            "Services/ConsentMutationService+Live.swift"
         )
 
         for declaration in [
@@ -83,6 +101,18 @@ struct ConsentArchitectureTests {
         #expect(authority.contains("enum ConsentAuthorityPolicy"))
         #expect(ownership.contains("enum ConsentLedgerOwnershipPolicy"))
         #expect(retry.contains("enum ConsentRetryPolicy"))
+        #expect(
+            stateProjectionPolicy.contains(
+                "enum ConsentStateProjectionPolicy"
+            )
+        )
+        #expect(managerRuntime.contains("final class ConsentManagerRuntime"))
+        #expect(
+            cloudSessionCoordinator.contains(
+                "final class ConsentCloudSessionCoordinator"
+            )
+        )
+        #expect(mutationService.contains("final class ConsentMutationService"))
         #expect(
             synchronizationMergePolicy.contains(
                 "enum ConsentSynchronizationMergePolicy"
@@ -125,16 +155,17 @@ struct ConsentArchitectureTests {
             )
         )
         #expect(!realtimeCoordinator.contains("self.subscription?.id"))
+        #expect(manager.contains("private let runtime: ConsentManagerRuntime"))
         #expect(
-            manager.contains(
-                "private let realtimeCoordinator: ConsentRealtimeCoordinator"
+            managerRuntime.contains(
+                "let realtimeCoordinator: ConsentRealtimeCoordinator"
             )
         )
         #expect(
             occurrences(
                 of: "realtimeCoordinator.ensureUpdates(for: userId)",
                 in: manager
-            ) == 3
+            ) == 2
         )
         #expect(manager.contains("realtimeCoordinator.stopUpdates()"))
         #expect(
@@ -151,8 +182,8 @@ struct ConsentArchitectureTests {
             )
         )
         #expect(
-            manager.contains(
-                "private let synchronizationCoordinator:"
+            managerRuntime.contains(
+                "let synchronizationCoordinator: ConsentSynchronizationCoordinator"
             )
         )
         #expect(
@@ -162,13 +193,13 @@ struct ConsentArchitectureTests {
         )
         #expect(restorationCoordinator.contains("struct Dependencies"))
         #expect(
-            manager.contains(
-                "private let restorationCoordinator:"
+            managerRuntime.contains(
+                "let restorationCoordinator: RequiredConsentRestorationCoordinator"
             )
         )
         #expect(
             manager.contains(
-                "self?.requiredConsentRestorationState = state"
+                "requiredConsentRestorationState = state"
             )
         )
         #expect(
@@ -219,7 +250,7 @@ struct ConsentArchitectureTests {
                 "retryTasks: Array(retryTasks.values)"
             )
         )
-        #expect(manager.contains("await restoration.wait()"))
+        #expect(managerRuntime.contains("await restoration.wait()"))
         #expect(!restorationCoordinator.contains("import Supabase"))
         #expect(!restorationCoordinator.contains("SupabaseManager"))
         #expect(!restorationCoordinator.contains(".shared"))
@@ -370,7 +401,11 @@ struct ConsentArchitectureTests {
                 "private var pendingAnalyticsRevocationJournal:"
             )
         )
-        #expect(manager.contains("ConsentLedgerRepository(store: ledgerStore)"))
+        #expect(
+            managerRuntime.contains(
+                "ConsentLedgerRepository(store: ledgerStore)"
+            )
+        )
         #expect(!ledgerRepository.contains("import Supabase"))
         #expect(!ledgerRepository.contains("import Observation"))
         #expect(!ledgerRepository.contains("SupabaseManager"))
@@ -444,6 +479,80 @@ struct ConsentArchitectureTests {
         #expect(liveRemoteService.contains("SupabaseManager.shared"))
         #expect(liveRemoteService.contains("async let"))
 
+        for ownedFunction in [
+            "confirmRequiredConsent",
+            "setAnalyticsEnabled",
+            "withdrawGeminiPermission",
+            "appendAnalyticsConsentEventIfNeeded"
+        ] {
+            #expect(mutationService.contains("func \(ownedFunction)("))
+        }
+        #expect(!mutationService.contains("SupabaseManager"))
+        #expect(!mutationService.contains("PostHogManager"))
+        #expect(!mutationService.contains(".shared"))
+        #expect(!mutationService.contains("Task"))
+        #expect(!mutationService.contains("MerianLog"))
+        #expect(!mutationService.contains("Bundle.main"))
+        #expect(liveMutationService.contains("static let live = Self("))
+        #expect(liveMutationService.contains("Bundle.main.object("))
+        #expect(!manager.contains("func appendAnalyticsConsentEventIfNeeded("))
+
+        for ownedFunction in [
+            "currentOwnerUserId",
+            "currentState",
+            "requiredConsentEvidence",
+            "hasCurrentRequiredConsent",
+            "pendingCloudRecordCount",
+            "hasCloudReadyCurrentConsent",
+            "analyticsPermission"
+        ] {
+            #expect(stateProjectionPolicy.contains("func \(ownedFunction)("))
+        }
+        #expect(!stateProjectionPolicy.contains("SupabaseManager"))
+        #expect(!stateProjectionPolicy.contains("PostHogManager"))
+        #expect(!stateProjectionPolicy.contains(".shared"))
+        #expect(!stateProjectionPolicy.contains("Task"))
+
+        #expect(managerRuntime.contains("let ledgerRepository:"))
+        #expect(managerRuntime.contains("let mutationService:"))
+        #expect(managerRuntime.contains("func connect(to manager:"))
+        #expect(!managerRuntime.contains("SupabaseManager"))
+        #expect(!managerRuntime.contains("PostHogManager"))
+        #expect(!managerRuntime.contains(".shared"))
+        #expect(!managerRuntime.contains("MerianLog"))
+
+        #expect(cloudSessionCoordinator.contains("struct Dependencies"))
+        #expect(
+            cloudSessionCoordinator.contains(
+                "func ensureCloudConsentForInference("
+            )
+        )
+        #expect(
+            cloudSessionCoordinator.contains(
+                "func rebindAndSynchronizeGhostEvidence("
+            )
+        )
+        #expect(
+            cloudSessionCoordinator.contains(
+                "func scheduleSynchronization("
+            )
+        )
+        #expect(
+            cloudSessionCoordinator.contains(
+                "manager.hasBindableUnownedRequiredConsent()"
+            )
+        )
+        #expect(!cloudSessionCoordinator.contains("SupabaseManager"))
+        #expect(!cloudSessionCoordinator.contains(".shared"))
+        #expect(!cloudSessionCoordinator.contains("MerianLog"))
+        #expect(!cloudSessionCoordinator.contains("TestExecutionCoordinator"))
+        #expect(liveCloudSessionCoordinator.contains("SupabaseManager.shared"))
+        #expect(
+            liveCloudSessionCoordinator.contains(
+                "AccountDeletionLocalCleanupStore.isPending()"
+            )
+        )
+
         for contractName in [
             "user_adult_eligibility_receipts",
             "user_terms_acceptance_receipts",
@@ -484,6 +593,11 @@ struct ConsentArchitectureTests {
 
     @Test func extractedOwnersRemainSmallAndPolicyLayerInfrastructureFree() throws {
         let consentRoot = try securityRoot().appendingPathComponent("Consent")
+        let manager = try securitySource("ConsentManager.swift")
+        #expect(
+            lineCount(manager) <= 600,
+            "ConsentManager.swift exceeded the Consent review ceiling"
+        )
         for file in try swiftFiles(below: consentRoot) {
             let source = try String(contentsOf: file, encoding: .utf8)
             #expect(
@@ -512,14 +626,20 @@ struct ConsentArchitectureTests {
         "Models/ConsentErrors.swift",
         "Models/ConsentModels.swift",
         "Models/ConsentPolicy.swift",
+        "Coordinators/ConsentCloudSessionCoordinator.swift",
+        "Coordinators/ConsentManagerRuntime.swift",
         "Coordinators/ConsentRealtimeCoordinator.swift",
         "Coordinators/RequiredConsentRestorationCoordinator.swift",
         "Coordinators/ConsentSynchronizationCoordinator.swift",
         "Policies/ConsentAuthorityPolicy.swift",
         "Policies/ConsentLedgerOwnershipPolicy.swift",
         "Policies/ConsentRetryPolicy.swift",
+        "Policies/ConsentStateProjectionPolicy.swift",
         "Policies/ConsentSynchronizationMergePolicy.swift",
         "Repositories/ConsentLedgerRepository.swift",
+        "Services/ConsentCloudSessionCoordinator+Live.swift",
+        "Services/ConsentMutationService+Live.swift",
+        "Services/ConsentMutationService.swift",
         "Services/ConsentRealtimeCoordinator+Live.swift",
         "Services/ConsentRemoteModels.swift",
         "Services/ConsentRemoteService+Live.swift",
@@ -573,6 +693,10 @@ struct ConsentArchitectureTests {
             "apps/ios/Merian"
         )
         let managerPath = "Core/Security/ConsentManager.swift"
+        let managerRuntimePath =
+            "Core/Security/Consent/Coordinators/ConsentManagerRuntime.swift"
+        let cloudSessionCoordinatorPath =
+            "Core/Security/Consent/Coordinators/ConsentCloudSessionCoordinator.swift"
         let realtimeCoordinatorPath =
             "Core/Security/Consent/Coordinators/ConsentRealtimeCoordinator.swift"
         let restorationCoordinatorPath =
@@ -581,14 +705,23 @@ struct ConsentArchitectureTests {
             "Core/Security/Consent/Coordinators/ConsentSynchronizationCoordinator.swift"
         let synchronizationMergePolicyPath =
             "Core/Security/Consent/Policies/ConsentSynchronizationMergePolicy.swift"
+        let stateProjectionPolicyPath =
+            "Core/Security/Consent/Policies/ConsentStateProjectionPolicy.swift"
+        let mutationServicePath =
+            "Core/Security/Consent/Services/ConsentMutationService.swift"
+        let liveMutationServicePath =
+            "Core/Security/Consent/Services/ConsentMutationService+Live.swift"
+        let liveCloudSessionCoordinatorPath =
+            "Core/Security/Consent/Services/ConsentCloudSessionCoordinator+Live.swift"
         let liveRealtimeCoordinatorPath =
             "Core/Security/Consent/Services/ConsentRealtimeCoordinator+Live.swift"
         let ledgerRepositoryPath =
             "Core/Security/Consent/Repositories/ConsentLedgerRepository.swift"
         let policyAllowedPaths: [String: Set<String>] = [
             "ConsentAuthorityPolicy": [
-                managerPath,
                 "Core/Security/Consent/Policies/ConsentAuthorityPolicy.swift",
+                stateProjectionPolicyPath,
+                mutationServicePath,
                 synchronizationMergePolicyPath
             ],
             "ConsentLedgerOwnershipPolicy": [
@@ -596,7 +729,6 @@ struct ConsentArchitectureTests {
                 "Core/Security/Consent/Policies/ConsentLedgerOwnershipPolicy.swift"
             ],
             "ConsentRetryPolicy": [
-                managerPath,
                 realtimeCoordinatorPath,
                 restorationCoordinatorPath,
                 synchronizationCoordinatorPath,
@@ -610,11 +742,15 @@ struct ConsentArchitectureTests {
         ]
         let ledgerRepositoryAllowedPaths: Set<String> = [
             managerPath,
+            managerRuntimePath,
+            cloudSessionCoordinatorPath,
             ledgerRepositoryPath,
+            mutationServicePath,
             synchronizationCoordinatorPath
         ]
         let serviceAllowedPaths: Set<String> = [
             managerPath,
+            managerRuntimePath,
             synchronizationCoordinatorPath,
             "Core/Security/Consent/Services/ConsentRemoteService.swift",
             "Core/Security/Consent/Services/ConsentRemoteService+Live.swift"
@@ -626,12 +762,34 @@ struct ConsentArchitectureTests {
         ]
         let realtimeCoordinatorAllowedPaths: Set<String> = [
             managerPath,
+            managerRuntimePath,
             realtimeCoordinatorPath,
             liveRealtimeCoordinatorPath
         ]
         let synchronizationCoordinatorAllowedPaths: Set<String> = [
             managerPath,
+            managerRuntimePath,
+            cloudSessionCoordinatorPath,
             synchronizationCoordinatorPath
+        ]
+        let stateProjectionPolicyAllowedPaths: Set<String> = [
+            managerPath,
+            stateProjectionPolicyPath,
+            mutationServicePath
+        ]
+        let mutationServiceAllowedPaths: Set<String> = [
+            managerRuntimePath,
+            liveMutationServicePath,
+            mutationServicePath
+        ]
+        let cloudSessionCoordinatorAllowedPaths: Set<String> = [
+            managerRuntimePath,
+            cloudSessionCoordinatorPath,
+            liveCloudSessionCoordinatorPath
+        ]
+        let managerRuntimeAllowedPaths: Set<String> = [
+            managerPath,
+            managerRuntimePath
         ]
 
         for file in try swiftFiles(below: applicationRoot) {
@@ -677,6 +835,30 @@ struct ConsentArchitectureTests {
                         in: source
                     ),
                     "\(relativePath) bypasses the Consent synchronization coordinator"
+                )
+            }
+            if !stateProjectionPolicyAllowedPaths.contains(relativePath) {
+                #expect(
+                    !containsToken("ConsentStateProjectionPolicy", in: source),
+                    "\(relativePath) bypasses the Consent state projection policy"
+                )
+            }
+            if !mutationServiceAllowedPaths.contains(relativePath) {
+                #expect(
+                    !containsToken("ConsentMutationService", in: source),
+                    "\(relativePath) bypasses the Consent mutation service"
+                )
+            }
+            if !cloudSessionCoordinatorAllowedPaths.contains(relativePath) {
+                #expect(
+                    !containsToken("ConsentCloudSessionCoordinator", in: source),
+                    "\(relativePath) bypasses the Consent cloud-session coordinator"
+                )
+            }
+            if !managerRuntimeAllowedPaths.contains(relativePath) {
+                #expect(
+                    !containsToken("ConsentManagerRuntime", in: source),
+                    "\(relativePath) bypasses the Consent runtime composition root"
                 )
             }
         }

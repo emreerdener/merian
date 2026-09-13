@@ -722,7 +722,11 @@ All persistence operations in this section live in
 `Database/BackgroundDatabaseActor+SpeciesMetadata.swift`. Its shared
 fetch-mutate-save helper and identification-presentation replacement helper are
 private implementation details; moving them out of the aggregate does not widen
-mutable state or alter the existing method signatures.
+mutable state. Enrichment writes arrive through the live
+`Core/AI/Inference/Hydration/InferenceHydrationPersistenceService` after the
+engine's bounded write admission. Existing actor method names and argument
+labels remain stable; the enrichment taxonomy value now crosses this boundary as
+domain `TaxonomyData`, keeping the Edge wire DTO out of persistence.
 
 Identification review changes species identity without changing
 `LocalScanRecord.scientificName`, which remains the original AI reset key.
@@ -745,12 +749,13 @@ collections when the Species Dictionary row is sparse. These are data
 replacements only; they add no SwiftData field or migration.
 
 `SpeciesMetadataPersistenceTests` owns the matching actor behavior, including
-the stale-identification fence, complete enrichment-field persistence, bounded
-lookalike-cache clearing, override/reset replacement, sparse historical refresh,
-confirmation, and legacy unflagging. The companion species-metadata architecture
-suite scans every Swift file under `Merian` and `MerianTests` to freeze sole
-declaration and test ownership. It also locks narrow imports, private helpers,
-and the 600-line focused-file ceiling.
+the effective override-or-original stale-identification fence, complete
+enrichment-field persistence, bounded lookalike-cache clearing, override/reset
+replacement, sparse historical refresh, confirmation, and legacy unflagging. The
+companion species-metadata architecture suite scans every Swift file under
+`Merian` and `MerianTests` to freeze sole declaration and test ownership. It
+also locks narrow imports, private helpers, and the 600-line focused-file
+ceiling.
 
 ## Long-Lived Actor Cache Boundaries
 

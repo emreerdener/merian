@@ -66,11 +66,13 @@ struct SpeciesMetadataPersistenceTests {
         ))
         try context.save()
 
-        let taxonomy = try JSONDecoder().decode(
-            EdgeResponse.Taxonomy.self,
-            from: Data(
-                #"{"kingdom":"Animalia","phylum":"Arthropoda","class":"Insecta","order":"Lepidoptera","family":"Nymphalidae","genus":"Danaus"}"#.utf8
-            )
+        let taxonomy = TaxonomyData(
+            kingdom: "Animalia",
+            phylum: "Arthropoda",
+            className: "Insecta",
+            order: "Lepidoptera",
+            family: "Nymphalidae",
+            genus: "Danaus"
         )
         let lookalikesData = Data(#"[{"scientificName":"Danaus gilippus"}]"#.utf8)
         let actor = BackgroundDatabaseActor(modelContainer: container)
@@ -160,6 +162,73 @@ struct SpeciesMetadataPersistenceTests {
             persisted.referenceImageUrl
                 == "https://images.example.org/reference.webp"
         )
+    }
+
+    @Test func enrichmentUpdateUsesEffectiveIdentification() async throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer()
+        let context = ModelContext(container)
+        let scanId = "enrichment_override_fence_\(UUID().uuidString.lowercased())"
+        let record = LocalScanRecord(
+            id: scanId,
+            speciesId: "original-species",
+            scientificName: "Lagerstroemia speciosa",
+            commonName: "Crape myrtle",
+            isBiological: true,
+            isLiveCapture: false
+        )
+        record.userIdentificationOverride = "Lagerstroemia indica"
+        context.insert(record)
+        try context.save()
+
+        let staleLookalikes = Data("stale".utf8)
+        let overrideLookalikes = Data("override".utf8)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        await actor.updateScanWithEnrichment(
+            scanId: scanId,
+            habitatDescription: "Stale habitat",
+            gbifTaxonKey: 1,
+            similarSpeciesJsonData: staleLookalikes,
+            taxonomy: nil,
+            expectedScientificName: "Lagerstroemia speciosa"
+        )
+        let afterStale = try #require(
+            ModelContext(container).fetch(descriptor).first
+        )
+        #expect(afterStale.habitatDescription == nil)
+        #expect(afterStale.gbifTaxonKey == nil)
+        #expect(afterStale.lookalikesData == nil)
+
+        await actor.updateScanWithEnrichment(
+            scanId: scanId,
+            habitatDescription: "Active override habitat",
+            gbifTaxonKey: 3_180_313,
+            similarSpeciesJsonData: overrideLookalikes,
+            taxonomy: TaxonomyData(
+                kingdom: "Plantae",
+                phylum: "Tracheophyta",
+                className: "Magnoliopsida",
+                order: "Myrtales",
+                family: "Lythraceae",
+                genus: "Lagerstroemia"
+            ),
+            alternativeCommonNames: ["Crepe myrtle"],
+            expectedScientificName: "Lagerstroemia indica"
+        )
+
+        let verificationContext = ModelContext(container)
+        let persisted = try #require(
+            verificationContext.fetch(descriptor).first
+        )
+        #expect(persisted.habitatDescription == "Active override habitat")
+        #expect(persisted.gbifTaxonKey == 3_180_313)
+        #expect(persisted.lookalikesData == overrideLookalikes)
+        #expect(persisted.taxonomyKingdom == "Plantae")
+        #expect(persisted.taxonomyGenus == "Lagerstroemia")
+        #expect(persisted.alternativeCommonNames == ["Crepe myrtle"])
     }
 
     @Test func testClearAllLocalLookalikesCacheClearsBiologicalRecordsAcrossBatchesOnly() async throws {

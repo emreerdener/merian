@@ -10,6 +10,13 @@ This area houses definitions that don't belong strictly to a single feature
 by `Scans`, it should live in `Features/Scans/Models`. But if it's passed
 between `Explore`, `Scans`, and `Profile`, it belongs here in `Core/Models`.
 
+`ExploreLocationPrivacy.swift` owns the cross-feature semantic-location
+redaction policy used by Explore presentation, Profile achievements, Insights,
+environment context, inference payload construction, and owned-scan recovery. It
+rejects coordinate pairs and address- or landmark-level values before returning
+a bounded city/region label. Codable Explore contracts remain under
+`Core/Network/Models/Explore/`; network DTOs do not own this privacy policy.
+
 ## Reference media identity
 
 `ActiveScanMedia.swift` owns the shared reference-image deduplication boundary

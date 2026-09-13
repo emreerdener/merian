@@ -24,18 +24,9 @@ extension BackgroundDatabaseActor {
         }
         guard let record else { return false }
 
-        let trimmedOverride = record.userIdentificationOverride?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let effectiveScientificName = if let trimmedOverride,
-                                         !trimmedOverride.isEmpty {
-            trimmedOverride
-        } else {
-            record.scientificName.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
-        }
         guard expectedScientificName.map({
-            effectiveScientificName.caseInsensitiveCompare($0) == .orderedSame
+            effectiveScientificName(for: record).caseInsensitiveCompare($0)
+                == .orderedSame
         }) ?? true else {
             return false
         }
@@ -70,6 +61,19 @@ extension BackgroundDatabaseActor {
         }
     }
 
+    private func effectiveScientificName(
+        for record: LocalScanRecord
+    ) -> String {
+        let trimmedOverride = record.userIdentificationOverride?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedOverride, !trimmedOverride.isEmpty {
+            return trimmedOverride
+        }
+        return record.scientificName.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+    }
+
     // MARK: - Record Mutation
 
     /// Fetches a single `LocalScanRecord` by ID, applies `mutation`, and saves.
@@ -92,7 +96,7 @@ extension BackgroundDatabaseActor {
         }
         guard let record,
               expectedScientificName.map({
-                  record.scientificName.caseInsensitiveCompare($0)
+                  effectiveScientificName(for: record).caseInsensitiveCompare($0)
                       == .orderedSame
               }) ?? true else {
             return
@@ -113,7 +117,7 @@ extension BackgroundDatabaseActor {
         habitatDescription: String?,
         gbifTaxonKey: Int?,
         similarSpeciesJsonData: Data?,
-        taxonomy: EdgeResponse.Taxonomy?,
+        taxonomy: TaxonomyData?,
         alternativeCommonNames: [String]? = nil,
         expectedScientificName: String? = nil
     ) {
@@ -127,7 +131,7 @@ extension BackgroundDatabaseActor {
             if let tax = taxonomy {
                 record.taxonomyKingdom = tax.kingdom
                 record.taxonomyPhylum = tax.phylum
-                record.taxonomyClass = tax.`class`
+                record.taxonomyClass = tax.className
                 record.taxonomyOrder = tax.order
                 record.taxonomyFamily = tax.family
                 record.taxonomyGenus = tax.genus

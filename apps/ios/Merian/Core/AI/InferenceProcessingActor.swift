@@ -27,9 +27,9 @@ actor InferenceProcessingActor {
 
     /// Decodes the edge function response, persists the scan record, and returns the mapped data.
     ///
-    /// Returns the saved local image paths alongside the result so the caller can populate
-    /// `InferenceEngine.validHistoricImagePaths` before clearing `activeLiveCaptureDatas`,
-    /// ensuring the carousel always has the user's image available immediately after inference.
+    /// Returns the saved local image paths alongside the result so the caller can publish
+    /// persisted carousel media before committing `speciesData`, ensuring the user's image is
+    /// available on the first completed-result render.
     ///
     /// - Parameters:
     ///   - compressedDatas: Tier-bounded inference images used for base64 encoding only.

@@ -23,26 +23,26 @@ versioned consent receipts, and the three-part required completion gate.
 
 ## Architecture
 
-| Owner                                                                 | Role                                                                                                                                                       |
-| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `App/MerianApp.swift`                                                 | Applies the three-state root presentation policy and injects the selected app-scoped managers into Onboarding                                              |
-| `Steps/Models/OnboardingStep.swift`                                   | Defines the four steps in order                                                                                                                            |
-| `Shell/Services/OnboardingDependencies.swift`                         | Narrow live adapters for completion state, consent, telemetry, queue recovery, and hardware-animation policy                                               |
-| `Shell/ViewModels/OnboardingViewModel.swift`                          | `@Observable @MainActor` state owner for ordered progression, expected-step guarding, and completion effect sequencing                                     |
-| `Shell/Views/OnboardingView.swift`                                    | Root composition; owns transitions and consent-save feedback, and supplies each advancing callback's expected source step                                  |
-| `Shell/Components/OnboardingAmbientGradient.swift`                    | Shell-only ambient rendering; consumes injected hardware-animation policy and view-owned Reduce Motion                                                     |
-| `Steps/Welcome`, `Steps/CameraPermission`, `Steps/LocationPermission` | Permission rationale and action views; receive request closures and contain no native permission calls                                                     |
-| `Steps/Ready/{Models,ViewModels,Components}`                          | Deterministic consent presentation, editable consent projection, and shared toggle-row rendering                                                           |
-| `Steps/Shared`                                                        | Shared step layout, action-button chrome, and illustration presentation                                                                                    |
-| `Permissions/Services/OnboardingPermissionDependencies.swift`         | Adapts AVFoundation and the retained location delegate into injected completion closures                                                                   |
-| `Permissions/Location/LocationPermissionDelegate.swift`               | One-shot `@MainActor` location owner; re-enters the actor before reading state from a nonisolated delegate callback                                        |
-| `Core/Security/Consent/Models`                                        | Exact policy versions/evidence copy and source-compatible receipt, event, ledger, journal, restoration, and remote-state values                            |
-| `Core/Security/Consent/Policies`                                      | Value-only provider-head authority, account activation/rebinding, bounded retry, synchronization-context decisions, and remote-state merge results         |
-| `Core/Security/Consent/Coordinators`                                  | Injected synchronization single-flight/generation/push/fetch/merge/drain ownership, restoration retry registry/drain, and Realtime listener/retry teardown |
-| `Core/Security/Consent/Repositories`                                  | Decoded local state, independent storage uncertainty, verified ledger/journal transitions, recovery, activation, and rebinding                             |
-| `Core/Security/Consent/Services`                                      | Exact consent wire values, deterministic remote mapping/recovery, and separate sole live consent PostgREST/RPC and analytics-consent Realtime adapters     |
-| `Core/Security/ConsentManager.swift`                                  | Live observable mutation, session adoption, lifecycle triggers, launch restoration, durable-transition timing, SDK gates, and admission                    |
-| `Core/Security/ConsentLedgerStore.swift`                              | Throwing, fault-injectable raw-byte boundary: atomic verified ledger file, legacy migration, and independent Keychain withdrawal journal                   |
+| Owner                                                                 | Role                                                                                                                                                 |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `App/MerianApp.swift`                                                 | Applies the three-state root presentation policy and injects the selected app-scoped managers into Onboarding                                        |
+| `Steps/Models/OnboardingStep.swift`                                   | Defines the four steps in order                                                                                                                      |
+| `Shell/Services/OnboardingDependencies.swift`                         | Narrow live adapters for completion state, consent, telemetry, queue recovery, and hardware-animation policy                                         |
+| `Shell/ViewModels/OnboardingViewModel.swift`                          | `@Observable @MainActor` state owner for ordered progression, expected-step guarding, and completion effect sequencing                               |
+| `Shell/Views/OnboardingView.swift`                                    | Root composition; owns transitions and consent-save feedback, and supplies each advancing callback's expected source step                            |
+| `Shell/Components/OnboardingAmbientGradient.swift`                    | Shell-only ambient rendering; consumes injected hardware-animation policy and view-owned Reduce Motion                                               |
+| `Steps/Welcome`, `Steps/CameraPermission`, `Steps/LocationPermission` | Permission rationale and action views; receive request closures and contain no native permission calls                                               |
+| `Steps/Ready/{Models,ViewModels,Components}`                          | Deterministic consent presentation, editable consent projection, and shared toggle-row rendering                                                     |
+| `Steps/Shared`                                                        | Shared step layout, action-button chrome, and illustration presentation                                                                              |
+| `Permissions/Services/OnboardingPermissionDependencies.swift`         | Adapts AVFoundation and the retained location delegate into injected completion closures                                                             |
+| `Permissions/Location/LocationPermissionDelegate.swift`               | One-shot `@MainActor` location owner; re-enters the actor before reading state from a nonisolated delegate callback                                  |
+| `Core/Security/Consent/Models`                                        | Exact policy versions/evidence copy and source-compatible receipt, event, ledger, journal, restoration, and remote-state values                      |
+| `Core/Security/Consent/Policies`                                      | Value-only provider-head authority, account activation/rebinding, bounded retry, synchronization merge, and derived state/admission projection       |
+| `Core/Security/Consent/Coordinators`                                  | Runtime composition; injected cloud-session/lease/Ghost/inference workflows; synchronization, restoration, and Realtime task ownership               |
+| `Core/Security/Consent/Repositories`                                  | Decoded local state, independent storage uncertainty, verified ledger/journal transitions, recovery, activation, and rebinding                       |
+| `Core/Security/Consent/Services`                                      | Deterministic local mutations and remote mapping plus sole live PostgREST/RPC, Realtime, and cloud-session dependency adapters                       |
+| `Core/Security/ConsentManager.swift`                                  | 597-line observable compatibility facade for mutable state, lifecycle entry points, SDK application, merge publication, and Auth-transition draining |
+| `Core/Security/ConsentLedgerStore.swift`                              | Throwing, fault-injectable raw-byte boundary: atomic verified ledger file, legacy migration, and independent Keychain withdrawal journal             |
 
 ---
 
@@ -240,6 +240,8 @@ Naturebook does not collect a birth date or exact age.
 
 `ConsentManager` requests each local transition immediately, including while the
 first anonymous Supabase session is still being created.
+`ConsentMutationService` constructs the evidence and owns the exact
+privacy-sensitive write sequence through the repository.
 `ConsentLedgerRepository` encodes and publishes the append-only ledger only
 after `ConsentLedgerStore` verifies the durable write. Production storage uses
 the file-protected `Application Support/Naturebook/Consent/ledger-v1.json`,
@@ -247,8 +249,8 @@ atomically replaces it, and verifies the exact bytes before the candidate
 becomes live. The store migrates and removes the former
 `UserDefaultsKeys.legalConsentLedger` copy only after verifying the file. Tests
 can inject a deterministic store and independent read/write/cleanup faults. The
-manager later asks the repository to bind unowned records to the active account
-and synchronizes them to:
+synchronization coordinator later asks the repository to bind unowned records to
+the active account and synchronizes them to:
 
 - `public.user_adult_eligibility_receipts`;
 - `public.user_terms_acceptance_receipts`;
@@ -286,17 +288,17 @@ events are in the owner-scoped Realtime publication. The client tracks the
 channel owner and confirmed subscriber separately from auth-session assignment.
 `ConsentRealtimeCoordinator` fences stale listeners by generation and retries
 failed subscriptions for the same account with bounded backoff; its live adapter
-alone constructs and removes the Supabase channel. `ConsentManager` supplies the
-current-account check, synchronization callback, and auth/foreground/session
-lifecycle triggers. Explicit stop, listener completion, and coordinator
-deinitialization converge on one coalesced channel-removal operation;
-deinitialization starts it independently of listener cancellation. Foreground
-refetch remains the recovery path for a missed event. When returning to an
-account, auth observation first moves analytics into an explicit
-remote-authority wait state, before cached ledger state is refreshed or applied
-to the SDK. Synchronization then activates that account's local ledger and
-pushes its pending evidence before refetching remote state. That order is safe
-because each AI/analytics append atomically locks and resolves its observed
+alone constructs and removes the Supabase channel. `ConsentManagerRuntime`
+supplies the manager-backed current-account check and synchronization callback;
+the facade retains auth/foreground/session lifecycle triggers. Explicit stop,
+listener completion, and coordinator deinitialization converge on one coalesced
+channel-removal operation; deinitialization starts it independently of listener
+cancellation. Foreground refetch remains the recovery path for a missed event.
+When returning to an account, auth observation first moves analytics into an
+explicit remote-authority wait state, before cached ledger state is refreshed or
+applied to the SDK. Synchronization then activates that account's local ledger
+and pushes its pending evidence before refetching remote state. That order is
+safe because each AI/analytics append atomically locks and resolves its observed
 causal parent: grants compare it with the current head, while revocations rebase
 to that head. Merely fetching first would not close a concurrent cross-device
 race. The refetch includes both the current disclosure state and the all-version
@@ -321,9 +323,20 @@ A first-time user does not receive an implicit consent exception. Selecting
 while the required local gate is complete. Before that user's first provider
 request, the client must bind any unowned evidence to the active anonymous
 Supabase account, push the pending rows, fetch them back, and verify the
-all-version Gemini provider head. The first scan waits for this synchronization;
-an onboarding-complete preference or locally cached synchronization marker is
-not sufficient.
+all-version Gemini provider head. Session adoption snapshots whether the
+complete required evidence is still unowned before changing the local owner
+projection, so the newly created session cannot hide the evidence that the same
+account-work lease must bind. Evidence already owned by another account is not
+eligible. The first scan waits for this synchronization; an onboarding-complete
+preference or locally cached synchronization marker is not sufficient.
+
+After the awaited synchronization returns, the client checks task cancellation,
+the exact account-work lease, and synchronization generation before interpreting
+the fetched proof. Cancellation or identity/generation drift closes admission
+and exits without recording reapproval. Only the still-current account context
+may classify an authoritative missing proof as consent reapproval. A stale
+first-scan completion therefore cannot route the replacement account to Ready or
+alter its durable consent state.
 
 This prerequisite is independent of scan entitlement. Although the database
 function is named `reserve_ai_quota`, `403 ai_consent_required` is not a
@@ -432,14 +445,11 @@ suites live under `MerianTests/Core/Security/Consent`. Moving those tests does
 not move or weaken the root-presentation and consent invariants they cover.
 `ghostProfileMergeClientContract.test.ts` deliberately reads `SupabaseManager`,
 the extracted Ghost merge store, policy, workflow, policy test, and
-endpoint-adapter test together with `ConsentManager`,
-`ConsentSynchronizationCoordinator`, `ConsentSynchronizationMergePolicy`,
-`ConsentRealtimeCoordinator`, `ConsentRealtimeCoordinator+Live`,
-`RequiredConsentRestorationCoordinator`, `ConsentLedgerRepository`,
-`ConsentRetryPolicy`, `ConsentManagerAuthorityTests`,
-`ConsentSynchronizationCoordinatorTests`, `ConsentRealtimeCoordinatorTests`, and
-`ConsentRestorationCoordinatorTests`. It enforces verified device-only proof
-persistence, terminal-only retirement, cancellation/proof-removal ordering,
+endpoint-adapter test together with the Consent facade, runtime, cloud-session
+coordinator and live adapter, synchronization, merge, state-projection,
+Realtime, restoration, repository, and retry owners and their focused tests. It
+enforces verified device-only proof persistence, terminal-only retirement,
+cancellation/proof-removal ordering, account-work lease/session adoption,
 complete scheduled and active synchronization-task draining, restoration retry
 retention through exact completion and the combined Auth-transition drain,
 canceled-retry admission after manual attempt-number reuse, verified consent

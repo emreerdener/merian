@@ -11,7 +11,8 @@ the canonical
   template, publication, Event, and Event-entry routes consumed by Explore,
   Profile, Feed, Author Profile, and Insights.
   `FieldTripSharingAvailability.swift` owns the staged standard-outing sharing
-  policy. Codable wire DTOs remain in `Core/Network/FieldTripAPIModels.swift`.
+  policy. Codable wire DTOs and request values live in the focused owners under
+  `Core/Network/Models/FieldTrips/`.
 - `Services/` adapts `MerianNetworkClient` operations into small, typed closure
   endpoints. It is the only feature layer that supplies live networking
   closures.
@@ -64,8 +65,8 @@ behind one narrow JSON POST bridge. See the
   stable. Keep selection, gallery, focus, scroll-proxy, highlight, and other
   animation-sensitive state in the owning view.
 - Do not move presentation state or filtering extensions back into
-  `Core/Network/FieldTripAPIModels.swift`. That file owns Codable DTOs and wire
-  compatibility only.
+  `Core/Network/Models/FieldTrips/`. That directory owns Codable DTOs, request
+  values, and wire compatibility only.
 - This organization boundary does not change API actions, JSON payloads,
   SwiftData or persistence schemas, feature flags, navigation contracts, or
   Outings/Events behavior.
@@ -77,6 +78,15 @@ Add presentation, policy, dependency-adapter, and view-model tests under
 `MerianTests/Features/Explore/FieldTrips`. Shared fixtures belong in
 `FieldTripTestFixtures.swift`. Keep only JSON decoding and wire-contract
 compatibility coverage in `FieldTripAPIModelsTests`.
+`FieldTripNetworkModelArchitectureTests` freezes the eight-file model inventory,
+effect exclusions, production-wide declaration ownership, relocated
+responsibilities, retired aggregate, and 600-line ceiling.
+`FieldTripModelPresentationTests` owns the lifecycle, guide, community-label,
+publication-author, and profile-summary accessors formerly asserted by the Core
+wire suite. `FirstFieldTripProgressStoreTests` owns normalized account
+isolation, persistence round trips, and invalid cached-value rejection for the
+Core Preferences compatibility store. Milestone projection and credited-progress
+fallback remain covered by `MilestoneAchievementPolicyTests`.
 
 `MerianTests/Core/Network/Endpoints/FieldTripEndpointTests.swift` owns request
 mapping, typed response, error, refresh, replay, and cancellation coverage with

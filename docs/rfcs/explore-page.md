@@ -1185,7 +1185,7 @@ Recommended additions:
 - `apps/ios/Merian/Features/Explore/Map/Models/`
 - `apps/ios/Merian/Features/Explore/Map/Services/ExploreMapViewModelDependencies.swift`
 - `apps/ios/Merian/Features/Explore/Map/Components/`
-- `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
+- `apps/ios/Merian/Core/Network/Models/Explore/ExploreMapAPIModels.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Interactions.swift`
 
 The shipped iOS owner is now split by responsibility. Map-only focus/request
@@ -1194,7 +1194,7 @@ live under `Models/`; the live map-points closure lives under `Services/`; the
 `@MainActor @Observable` view model owns asynchronous spatial state; and
 network-free views/components retain MapKit rendering plus camera, annotation,
 carousel, and drag timing. Codable DTOs and wire compatibility remain in
-`Core/Network/ExploreAPIModels.swift`.
+`Core/Network/Models/Explore/ExploreMapAPIModels.swift`.
 
 Current shipped state on `ExploreMapViewModel`:
 
@@ -1387,7 +1387,10 @@ Recommended feature module:
 - `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotificationRowPresentation.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotificationReplyThreadRoute.swift`
-- `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
+- `apps/ios/Merian/Core/Network/Models/Explore/`
+- `apps/ios/Merian/Core/Network/Models/Explore/ExploreLocationSharingAPIModels.swift`
+- `apps/ios/Merian/Core/Models/ExploreLocationPrivacy.swift`
+- `apps/ios/Merian/Features/Explore/Shared/Models/ExploreLocationSharingPresentation.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Core/Network/Endpoints/`
 - `apps/ios/Merian/Core/Notifications/`
@@ -1403,6 +1406,12 @@ Recommended feature module:
 - `apps/ios/Merian/Features/Explore/Notifications/Components/ReplyThread/ExploreNotificationReplyThreadContent.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationsSheet.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationReplyThreadSheet.swift`
+
+The post-level location mode is a shared Codable/raw-value contract under Core
+Network. Explore Shared adds only its labels, SF Symbols, and explanatory copy;
+the Feed composer and Insights publication adapters consume those layers without
+declaring a second contract. Cross-feature semantic-location sanitization is a
+separate Core Models privacy policy rather than a DTO or presentation concern.
 
 Stateless wire construction and response projection live in
 `Core/Network/Endpoints/`; Core Network Transport owns authenticated dispatch,

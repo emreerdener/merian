@@ -162,26 +162,26 @@ Edge, and iOS tests cover their source contracts, and
 schedules. `ghostProfileMergeClientContract.test.ts` reads `SupabaseManager`,
 `GhostProfileMergeStore`, `GhostProfileMergePolicy`,
 `GhostProfileMergeWorkflow`, the policy test, and the endpoint-adapter test,
-plus `ConsentManager`, `ConsentSynchronizationCoordinator`,
-`ConsentSynchronizationMergePolicy`, `ConsentRealtimeCoordinator`,
-`ConsentRealtimeCoordinator+Live`, `RequiredConsentRestorationCoordinator`,
-`ConsentLedgerRepository`, `ConsentRetryPolicy`, `ConsentManagerAuthorityTests`,
-`ConsentSynchronizationCoordinatorTests`, `ConsentRealtimeCoordinatorTests`, and
-`ConsentRestorationCoordinatorTests`. It pins proof persistence before the
-session switch, retry on permanent-session restoration, cancellation fences
-around each asynchronous finalization phase, provider sync before local evidence
-rebind, verified consent persistence before state publication, owner-filtered
-Realtime construction and retry fencing, complete synchronization-task draining,
-UUID-keyed restoration-task retention through exact completion and the combined
-Auth-transition drain, canceled-retry admission after manual retry reuses an
-attempt number, stale-account rejection, proof removal last, device-only
-Keychain storage, terminal-only deletion, and target-consent synchronization
-order. It also pins the shared OAuth replacement boundary: cancellation is
-checked before analytics suppression and again before SDK session installation,
-with source-session reconciliation when the second check fails. Do not deploy or
-enable the existing-account conflict fallback until the production workflow's
-exact-CLI disposable replay, complete catalog and Edge suites, two-session
-schedules, strict lint, and advisors clear the release hold in the
+plus the Consent facade, runtime, cloud-session coordinator and live adapter,
+synchronization, merge, state-projection, Realtime, restoration, repository, and
+retry owners and their focused tests. It pins proof persistence before the
+session switch, account-work lease/session adoption, retry on permanent-session
+restoration, first-scan unowned-evidence synchronization through authoritative
+fetch, stale inference-generation rejection without reapproval, cancellation
+fences around each asynchronous finalization phase, provider sync before local
+evidence rebind, verified consent persistence before state publication,
+owner-filtered Realtime construction and retry fencing, complete
+synchronization-task draining, UUID-keyed restoration-task retention through
+exact completion and the combined Auth-transition drain, canceled-retry
+admission after manual retry reuses an attempt number, stale-account rejection,
+proof removal last, device-only Keychain storage, terminal-only deletion, and
+target-consent synchronization order. It also pins the shared OAuth replacement
+boundary: cancellation is checked before analytics suppression and again before
+SDK session installation, with source-session reconciliation when the second
+check fails. Do not deploy or enable the existing-account conflict fallback
+until the production workflow's exact-CLI disposable replay, complete catalog
+and Edge suites, two-session schedules, strict lint, and advisors clear the
+release hold in the
 [deployment runbook](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
 ## Operations

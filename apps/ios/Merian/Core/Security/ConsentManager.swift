@@ -4,16 +4,6 @@ import Observation
 @MainActor
 @Observable
 final class ConsentManager {
-    private struct CancelledConsentWork {
-        let synchronization: ConsentSynchronizationCoordinator.CancelledWork
-        let restoration: RequiredConsentRestorationCoordinator.CancelledWork
-
-        func wait() async {
-            await synchronization.wait()
-            await restoration.wait()
-        }
-    }
-
     static let shared = ConsentManager()
 
     private(set) var currentSessionUserId: UUID?
@@ -25,13 +15,15 @@ final class ConsentManager {
         RequiredConsentRestorationState = .awaitingInitialSession
 
     var hasCurrentRequiredConsent: Bool {
-        let accountMatches = currentSessionUserId == nil
-            || ledger.activeUserId == nil
-            || currentSessionUserId == ledger.activeUserId
-        return accountMatches
-            && hasConfirmedCurrentAdultEligibility
-            && hasAcceptedCurrentTerms
-            && hasGrantedCurrentGeminiProcessing
+        ConsentStateProjectionPolicy.hasCurrentRequiredConsent(
+            currentSessionUserId: currentSessionUserId,
+            ledgerActiveUserId: ledger.activeUserId,
+            hasConfirmedAdultEligibility:
+                hasConfirmedCurrentAdultEligibility,
+            hasAcceptedTerms: hasAcceptedCurrentTerms,
+            hasGrantedGeminiProcessing:
+                hasGrantedCurrentGeminiProcessing
+        )
     }
 
     var isRestoringRequiredConsent: Bool {
@@ -47,56 +39,10 @@ final class ConsentManager {
     }
 
     var pendingCloudRecordCount: Int {
-        let activeUserId = ledger.activeUserId
-        let pendingAdultReceipts = ledger.adultEligibilityReceipts.filter {
-            guard $0.ownerUserId == activeUserId else { return false }
-            if let activeUserId {
-                return $0.syncedUserId != activeUserId
-            }
-            return true
-        }.count
-        let pendingTerms = ledger.termsReceipts.filter {
-            guard $0.ownerUserId == activeUserId else { return false }
-            if let activeUserId {
-                return $0.syncedUserId != activeUserId
-            }
-            return true
-        }.count
-        let pendingEvents = ledger.aiConsentEvents.filter {
-            guard $0.ownerUserId == activeUserId else { return false }
-            guard $0.supersededByEventId == nil,
-                  $0.supersededByRevision == nil else { return false }
-            if let activeUserId {
-                return $0.syncedUserId != activeUserId
-            }
-            return true
-        }.count
-        let pendingAnalyticsEvents = ledger.analyticsConsentEvents.filter {
-            guard $0.ownerUserId == activeUserId else { return false }
-            guard $0.supersededByEventId == nil,
-                  $0.supersededByRevision == nil else { return false }
-            if let activeUserId {
-                return $0.syncedUserId != activeUserId
-            }
-            return true
-        }.count
-        return pendingAdultReceipts
-            + pendingTerms
-            + pendingEvents
-            + pendingAnalyticsEvents
+        ConsentStateProjectionPolicy.pendingCloudRecordCount(in: ledger)
     }
 
-    @ObservationIgnored private let ledgerRepository: ConsentLedgerRepository
-    @ObservationIgnored private let synchronizationCoordinator:
-        ConsentSynchronizationCoordinator
-    @ObservationIgnored private let restorationCoordinator:
-        RequiredConsentRestorationCoordinator
-    @ObservationIgnored private let realtimeCoordinator: ConsentRealtimeCoordinator
-    @ObservationIgnored private let currentSDKUserIdProvider: @MainActor () -> UUID?
-    @ObservationIgnored private let analyticsPermissionApplier: @MainActor (
-        Bool,
-        String?
-    ) -> Void
+    @ObservationIgnored private let runtime: ConsentManagerRuntime
     @ObservationIgnored private var hasObservedSession = false
     @ObservationIgnored private var cloudReadyRequiredConsentUserId: UUID?
     @ObservationIgnored private var requiredConsentReapprovalBasisUserId: UUID?
@@ -108,6 +54,22 @@ final class ConsentManager {
     @ObservationIgnored private var analyticsAccountTransitionGeneration: UInt = 0
     @ObservationIgnored private(set) var analyticsCloudAuthorityState:
         AnalyticsCloudAuthorityState = .localOnly
+
+    private var ledgerRepository: ConsentLedgerRepository {
+        runtime.ledgerRepository
+    }
+
+    private var synchronizationCoordinator: ConsentSynchronizationCoordinator {
+        runtime.synchronizationCoordinator
+    }
+
+    private var restorationCoordinator: RequiredConsentRestorationCoordinator {
+        runtime.restorationCoordinator
+    }
+
+    private var realtimeCoordinator: ConsentRealtimeCoordinator {
+        runtime.realtimeCoordinator
+    }
 
     private var ledger: LocalLedger {
         ledgerRepository.ledger
@@ -156,223 +118,59 @@ final class ConsentManager {
         synchronizationOperation: (
             @MainActor (UUID, UInt) async throws -> Void
         )? = nil,
-        realtimeCoordinator: ConsentRealtimeCoordinator? = nil
+        realtimeCoordinator: ConsentRealtimeCoordinator? = nil,
+        cloudSessionDependencies:
+            ConsentCloudSessionCoordinator.Dependencies? = nil
     ) {
-        let ledgerRepository = ConsentLedgerRepository(store: ledgerStore)
-        let synchronizationCoordinator = ConsentSynchronizationCoordinator(
-            ledgerRepository: ledgerRepository,
+        let runtime = ConsentManagerRuntime(
+            ledgerStore: ledgerStore,
             remoteService: remoteService ?? .live,
-            customSynchronizationOperation: synchronizationOperation
-        )
-        let restorationCoordinator = RequiredConsentRestorationCoordinator(
-            dependencies: .init(
-                shouldScheduleAutomaticRetry: {
-                    !TestExecutionCoordinator.isRunningTests
-                },
-                sleep: { delay in
-                    try await Task.sleep(for: .seconds(delay))
-                }
-            )
-        )
-        let realtimeCoordinator = realtimeCoordinator
-            ?? ConsentRealtimeCoordinator(dependencies: .live)
-        self.ledgerRepository = ledgerRepository
-        self.synchronizationCoordinator = synchronizationCoordinator
-        self.restorationCoordinator = restorationCoordinator
-        self.realtimeCoordinator = realtimeCoordinator
-        self.currentSDKUserIdProvider = currentSDKUserIdProvider
-        self.analyticsPermissionApplier = analyticsPermissionApplier
-        ledgerRepository.setStateChangeHandler { [weak self] in
-            self?.refreshDerivedState()
-        }
-        restorationCoordinator.setHandlers(
-            contextProvider: { [weak self] in
-                guard let self else { return nil }
-                return RequiredConsentRestorationCoordinator.Context(
-                    synchronizationGeneration:
-                        self.synchronizationCoordinator.generation,
-                    observedUserId: self.currentSessionUserId,
-                    sdkUserId: self.currentSDKUserIdProvider(),
-                    hasCurrentRequiredConsent: self.hasCurrentRequiredConsent
-                )
+            currentSDKUserIdProvider: currentSDKUserIdProvider,
+            analyticsPermissionApplier: analyticsPermissionApplier,
+            synchronizationOperation: synchronizationOperation,
+            realtimeCoordinator: realtimeCoordinator
+                ?? ConsentRealtimeCoordinator(dependencies: .live),
+            cloudSessionDependencies: cloudSessionDependencies ?? .live,
+            shouldScheduleAutomaticRetry: {
+                !TestExecutionCoordinator.isRunningTests
             },
-            stateChangeHandler: { [weak self] state in
-                self?.requiredConsentRestorationState = state
+            sleep: { delay in
+                try await Task.sleep(for: .seconds(delay))
             },
-            synchronizationHandler: { [weak self] in
-                guard let self else { throw CancellationError() }
-                try await self.synchronizeWithCurrentSession()
-            },
-            failureReporter: { error in
+            restorationFailureReporter: { error in
                 MerianLog.auth.error(
                     "Required consent restoration failed and remains unresolved; kind=\(MerianLog.errorKind(error), privacy: .public)."
                 )
             }
         )
-        synchronizationCoordinator.setHandlers(
-            observedUserIdProvider: { [weak self] in
-                self?.currentSessionUserId
-            },
-            sdkUserIdProvider: { [weak self] in
-                self?.currentSDKUserIdProvider()
-            },
-            didBindUnownedRecords: { [weak self] in
-                self?.applyAnalyticsPermissionToSDK()
-            },
-            willMergeRemoteState: { [weak self] in
-                self?.cloudReadyRequiredConsentUserId = nil
-            },
-            didMergeRemoteState: { [weak self] result, userId in
-                self?.applySynchronizationMerge(result, for: userId)
-            },
-            failureHandler: { [weak self] error, userId, generation in
-                self?.restorationCoordinator.handleSynchronizationFailure(
-                    error,
-                    for: userId,
-                    generation: generation
-                )
-            }
-        )
-        realtimeCoordinator.setHandlers(
-            currentUserIdProvider: { [weak self] in
-                self?.currentSessionUserId
-            },
-            synchronizationHandler: { [weak self] userId in
-                guard let self else { return }
-                try? await self.synchronize(for: userId)
-            }
-        )
+        self.runtime = runtime
+        runtime.connect(to: self)
         refreshDerivedState()
     }
 
     func confirmAdultAndAcceptCurrentTermsAndGrantGemini(
         analyticsEnabled: Bool
     ) throws {
-        try ledgerRepository.ensureLedgerStorageAvailable()
-        if analyticsEnabled {
-            try ledgerRepository.ensureRevocationIntentStorageAvailable()
-        }
-
-        let now = Date()
         let ownerUserId = currentSessionUserId
-        var candidate = ledgerRepository
-            .ledgerByApplyingPendingAnalyticsRevocation(to: ledger)
-        if candidate.activeUserId != ownerUserId {
-            candidate.activeUserId = ownerUserId
-        }
-
         let requiresReapproval = requiresRequiredConsentReapproval(
             for: ownerUserId
         )
-        let reapprovalAIStreamHeadId: UUID?
-        if requiresReapproval {
-            // A fresh approval must be based on the provider head fetched
-            // after the server rejection. Replaying a cached grant could
-            // repair a missing row but could never supersede a legitimate
-            // newer revocation from another device.
-            guard let ownerUserId,
-                  requiredConsentReapprovalBasisUserId == ownerUserId else {
-                throw MerianError.aiConsentRequired
+        let result = try runtime.mutationService.confirmRequiredConsent(
+            analyticsEnabled: analyticsEnabled,
+            context: .init(
+                ownerUserId: ownerUserId,
+                requiresReapproval: requiresReapproval,
+                reapprovalBasisUserId:
+                    requiredConsentReapprovalBasisUserId,
+                reapprovalAIStreamHeadId:
+                    requiredConsentReapprovalAIStreamHeadId
+            ),
+            refreshAnalyticsPermission: { [unowned self] in
+                applyAnalyticsPermissionToSDK()
             }
-            reapprovalAIStreamHeadId =
-                requiredConsentReapprovalAIStreamHeadId
-            candidate.requiredConsentReapprovalUserIds.remove(ownerUserId)
-        } else {
-            reapprovalAIStreamHeadId = nil
-        }
-
-        if requiresReapproval
-            || currentAdultEligibilityReceipt(ownerUserId: ownerUserId) == nil {
-            candidate.adultEligibilityReceipts.append(AdultEligibilityReceipt(
-                id: UUID(),
-                ownerUserId: ownerUserId,
-                syncedUserId: nil,
-                policyVersion: ConsentPolicy.adultEligibilityVersion,
-                confirmedAt: now,
-                confirmationMethod: .selfAttestation,
-                confirmationText: ConsentPolicy.adultConfirmationText,
-                platform: "ios",
-                appVersion: Self.appVersion,
-                appBuild: Self.appBuild,
-                recordedAt: nil
-            ))
-        }
-
-        if requiresReapproval
-            || currentTermsReceipt(ownerUserId: ownerUserId) == nil {
-            candidate.termsReceipts.append(TermsAcceptanceReceipt(
-                id: UUID(),
-                ownerUserId: ownerUserId,
-                syncedUserId: nil,
-                termsVersion: ConsentPolicy.termsVersion,
-                acceptedAt: now,
-                acceptanceText: ConsentPolicy.combinedAcceptanceText,
-                platform: "ios",
-                appVersion: Self.appVersion,
-                appBuild: Self.appBuild,
-                recordedAt: nil
-            ))
-        }
-
-        if requiresReapproval
-            || currentAIConsentEvent(ownerUserId: ownerUserId)?.eventKind
-                != .granted {
-            candidate.aiConsentEvents.append(AIConsentEvent(
-                id: UUID(),
-                ownerUserId: ownerUserId,
-                syncedUserId: nil,
-                provider: ConsentPolicy.geminiProvider,
-                disclosureVersion: ConsentPolicy.geminiDisclosureVersion,
-                eventKind: .granted,
-                occurredAt: now,
-                disclosureText: ConsentPolicy.geminiDisclosureText,
-                actionText: ConsentPolicy.combinedAcceptanceText,
-                platform: "ios",
-                appVersion: Self.appVersion,
-                appBuild: Self.appBuild,
-                recordedAt: nil,
-                causalParentId: requiresReapproval
-                    ? reapprovalAIStreamHeadId
-                    : ConsentAuthorityPolicy.currentAIConsentStreamHead(
-                        ownerUserId: ownerUserId,
-                        in: candidate
-                    )?.id
-            ))
-        }
-
-        let analyticsEvent = appendAnalyticsConsentEventIfNeeded(
-            to: &candidate,
-            enabled: analyticsEnabled,
-            ownerUserId: ownerUserId,
-            occurredAt: now
         )
-
-        let persistenceEvent: AnalyticsConsentEvent?
-        if let analyticsEvent {
-            persistenceEvent = analyticsEvent
-        } else if analyticsEnabled,
-                  ledgerRepository.hasPendingAnalyticsRevocationJournal {
-            persistenceEvent = ConsentAuthorityPolicy.currentAnalyticsConsentEvent(
-                ownerUserId: ownerUserId,
-                in: candidate
-            )
-        } else if !analyticsEnabled {
-            persistenceEvent = ledgerRepository.pendingAnalyticsRevocationEvent(
-                for: ownerUserId
-            )
-        } else {
-            persistenceEvent = nil
-        }
-        if persistenceEvent?.eventKind == .revoked {
-            ledgerRepository.setAnalyticsWithdrawalInProgress(true)
-            applyAnalyticsPermissionToSDK()
-        }
-        try ledgerRepository.persistConsentChange(
-            candidate,
-            analyticsEvent: persistenceEvent
-        )
-        if requiresReapproval, let ownerUserId {
-            inMemoryRequiredConsentReapprovalUserIds.remove(ownerUserId)
+        if let resolvedUserId = result.resolvedReapprovalUserId {
+            inMemoryRequiredConsentReapprovalUserIds.remove(resolvedUserId)
             cloudReadyRequiredConsentUserId = nil
             requiredConsentReapprovalBasisUserId = nil
             requiredConsentReapprovalAIStreamHeadId = nil
@@ -388,7 +186,7 @@ final class ConsentManager {
     @discardableResult
     func requireCurrentConsentReapprovalAfterServerRejection() throws -> Bool {
         guard let userId = currentSessionUserId,
-              currentSDKUserIdProvider() == userId else {
+              runtime.currentSDKUserIdProvider() == userId else {
             return false
         }
 
@@ -424,90 +222,26 @@ final class ConsentManager {
     }
 
     func setPostHogAnalyticsEnabled(_ enabled: Bool) throws {
-        try ledgerRepository.ensureLedgerStorageAvailable()
-        if enabled {
-            try ledgerRepository.ensureRevocationIntentStorageAvailable()
-        } else {
-            // Privacy withdrawal is effective in-process before either durable
-            // boundary is touched.
-            ledgerRepository.setAnalyticsWithdrawalInProgress(true)
-            applyAnalyticsPermissionToSDK()
-        }
-
         let ownerUserId = currentSessionUserId ?? ledger.activeUserId
-        var candidate = ledgerRepository
-            .ledgerByApplyingPendingAnalyticsRevocation(to: ledger)
-        if candidate.activeUserId != ownerUserId {
-            candidate.activeUserId = ownerUserId
-        }
-
-        let analyticsEvent = appendAnalyticsConsentEventIfNeeded(
-            to: &candidate,
-            enabled: enabled,
+        let result = try runtime.mutationService.setAnalyticsEnabled(
+            enabled,
             ownerUserId: ownerUserId,
-            occurredAt: Date()
+            refreshAnalyticsPermission: { [unowned self] in
+                applyAnalyticsPermissionToSDK()
+            }
         )
-
-        let recoveryEvent: AnalyticsConsentEvent?
-        if enabled,
-           analyticsEvent == nil,
-           ledgerRepository.hasPendingAnalyticsRevocationJournal {
-            recoveryEvent = ConsentAuthorityPolicy.currentAnalyticsConsentEvent(
-                ownerUserId: ownerUserId,
-                in: candidate
-            )
-        } else if !enabled,
-           analyticsEvent == nil,
-           let pendingEvent = ledgerRepository.pendingAnalyticsRevocationEvent(
-               for: ownerUserId
-           ) {
-            recoveryEvent = pendingEvent
-        } else {
-            recoveryEvent = analyticsEvent
-        }
-
-        guard candidate != ledger || recoveryEvent != nil else {
-            ledgerRepository.setAnalyticsWithdrawalInProgress(false)
-            applyAnalyticsPermissionToSDK()
-            return
-        }
-
-        try ledgerRepository.persistConsentChange(
-            candidate,
-            analyticsEvent: recoveryEvent
-        )
+        guard result == .persisted else { return }
         applyAnalyticsPermissionToSDK()
         scheduleSynchronization(createAnonymousSessionIfNeeded: enabled)
     }
 
     func withdrawGeminiPermission() throws {
-        guard hasGrantedCurrentGeminiProcessing else { return }
-        try ledgerRepository.ensureLedgerStorageAvailable()
-
         let ownerUserId = currentSessionUserId ?? ledger.activeUserId
-        var candidate = ledger
-        candidate.activeUserId = ownerUserId
-        candidate.aiConsentEvents.append(AIConsentEvent(
-            id: UUID(),
+        guard try runtime.mutationService.withdrawGeminiPermission(
+            hasGrantedGeminiProcessing:
+                hasGrantedCurrentGeminiProcessing,
             ownerUserId: ownerUserId,
-            syncedUserId: nil,
-            provider: ConsentPolicy.geminiProvider,
-            disclosureVersion: ConsentPolicy.geminiDisclosureVersion,
-            eventKind: .revoked,
-            occurredAt: Date(),
-            disclosureText: ConsentPolicy.geminiDisclosureText,
-            actionText: ConsentPolicy.geminiWithdrawalText,
-            platform: "ios",
-            appVersion: Self.appVersion,
-            appBuild: Self.appBuild,
-            recordedAt: nil,
-            causalParentId: ConsentAuthorityPolicy.currentAIConsentStreamHead(
-                ownerUserId: ownerUserId,
-                in: candidate
-            )?.id
-        ))
-
-        try ledgerRepository.persistLedger(candidate)
+        ) else { return }
         scheduleSynchronization(createAnonymousSessionIfNeeded: false)
     }
 
@@ -591,114 +325,22 @@ final class ConsentManager {
         from ghostUserId: UUID,
         to permanentUserId: UUID
     ) async throws {
-        setAnalyticsSuppressedForGhostHandoff(true)
-        try Task.checkCancellation()
-
-        let session = try await SupabaseManager.shared.client.auth.session
-        try Task.checkCancellation()
-        guard !session.user.isAnonymous,
-              session.user.id == permanentUserId,
-              currentSessionUserId == permanentUserId,
-              SupabaseManager.shared.currentUser?.id == permanentUserId else {
-            throw ConsentHandoffError.activeAccountChanged
-        }
-        invalidateSynchronizationWork()
-
-        try ledgerRepository.rebindPendingAnalyticsRevocationJournal(
-            from: ghostUserId,
-            to: permanentUserId
-        )
-        do {
-            try ledgerRepository.rebindLedger(
+        try await runtime.cloudSessionCoordinator
+            .rebindAndSynchronizeGhostEvidence(
                 from: ghostUserId,
-                to: permanentUserId
+                to: permanentUserId,
+                manager: self
             )
-        } catch {
-            throw ConsentHandoffError.ledgerPersistenceFailed
-        }
-        if ledgerRepository.hasPendingAnalyticsRevocationJournal {
-            try ledgerRepository.recoverPendingAnalyticsRevocation()
-        }
-        applyAnalyticsPermissionToSDK()
-
-        try await synchronize(for: permanentUserId)
-        let finalSession = try await SupabaseManager.shared.client.auth.session
-        try Task.checkCancellation()
-        guard !finalSession.user.isAnonymous,
-              finalSession.user.id == permanentUserId,
-              currentSessionUserId == permanentUserId,
-              SupabaseManager.shared.currentUser?.id == permanentUserId else {
-            throw ConsentHandoffError.activeAccountChanged
-        }
     }
 
     func ensureCloudConsentForInference() async throws {
-        guard hasCurrentRequiredConsent else {
-            throw MerianError.aiConsentRequired
-        }
-
-        if !SupabaseManager.shared.isAuthenticated {
-            guard await SupabaseManager.shared.initializeGhostSession() != nil
-            else {
-                throw SupabaseAuthTransitionError.signOutInProgress
-            }
-        }
-        let accountWorkLease = try SupabaseManager.shared
-            .beginUnownedAccountBoundWork()
-        defer {
-            SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
-        }
-        let adoptionGeneration = synchronizationCoordinator.generation
-        let userId = accountWorkLease.session.userID
-        try Task.checkCancellation()
-        guard synchronizationCoordinator.generation == adoptionGeneration,
-              SupabaseManager.shared
-                .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
-            throw ConsentHandoffError.activeAccountChanged
-        }
-        if hasObservedSession,
-           let currentSessionUserId,
-           currentSessionUserId != userId {
-            throw ConsentHandoffError.activeAccountChanged
-        }
-        currentSessionUserId = userId
-        requireAuthoritativeAnalyticsRefresh(for: userId)
-        refreshDerivedState()
-        applyAnalyticsPermissionToSDK()
-        realtimeCoordinator.ensureUpdates(for: userId)
-
-        guard hasCurrentRequiredConsent else {
-            throw MerianError.aiConsentRequired
-        }
-
-        try await synchronize(for: userId)
-        guard SupabaseManager.shared
-                .isAccountBoundWorkLeaseCurrent(accountWorkLease),
-              hasCloudReadyCurrentConsent(for: userId) else {
-            do {
-                try requireCurrentConsentReapprovalAfterServerRejection()
-            } catch {
-                MerianLog.auth.error(
-                    "Required consent reapproval could not be persisted; the in-memory gate remains closed; kind=\(MerianLog.errorKind(error), privacy: .public)."
-                )
-            }
-            throw MerianError.aiConsentRequired
-        }
+        try await runtime.cloudSessionCoordinator
+            .ensureCloudConsentForInference(manager: self)
     }
 
     func synchronizeWithCurrentSession() async throws {
-        let supabaseManager = SupabaseManager.shared
-        let accountWorkLease = try supabaseManager
-            .beginUnownedAccountBoundWork()
-        defer {
-            supabaseManager.finishAccountBoundWork(accountWorkLease)
-        }
-        try await synchronizeWithCurrentSession(
-            authorizationIsCurrent: {
-                supabaseManager
-                    .isAccountBoundWorkLeaseCurrent(accountWorkLease)
-            }
-        )
+        try await runtime.cloudSessionCoordinator
+            .synchronizeWithCurrentSession(manager: self)
     }
 
     /// Auth-transition owners use the same consent adoption path without
@@ -708,84 +350,18 @@ final class ConsentManager {
     func synchronizeWithCurrentSession(
         ownedBy transition: AuthTransitionToken
     ) async throws {
-        let supabaseManager = SupabaseManager.shared
-        try await synchronizeWithCurrentSession(
-            authorizationIsCurrent: {
-                supabaseManager.currentSessionMatchesAuthTransition(transition)
-            }
-        )
-    }
-
-    private func synchronizeWithCurrentSession(
-        authorizationIsCurrent: @MainActor () -> Bool
-    ) async throws {
-        guard !TestExecutionCoordinator.isRunningTests else { return }
-        try Task.checkCancellation()
-        guard authorizationIsCurrent() else {
-            throw ConsentHandoffError.activeAccountChanged
-        }
-        let adoptionGeneration = synchronizationCoordinator.generation
-        do {
-            let userId = try await SupabaseManager.shared.client.auth.session.user.id
-            try Task.checkCancellation()
-            guard authorizationIsCurrent(),
-                  synchronizationCoordinator.generation == adoptionGeneration else {
-                throw ConsentHandoffError.activeAccountChanged
-            }
-            guard SupabaseManager.shared.client.auth.currentSession?.user.id
-                    == userId else {
-                throw ConsentHandoffError.activeAccountChanged
-            }
-            if hasObservedSession,
-               let currentSessionUserId,
-               currentSessionUserId != userId {
-                throw ConsentHandoffError.activeAccountChanged
-            }
-            currentSessionUserId = userId
-            requireAuthoritativeAnalyticsRefresh(for: userId)
-            refreshDerivedState()
-            applyAnalyticsPermissionToSDK()
-            realtimeCoordinator.ensureUpdates(for: userId)
-            try await synchronize(for: userId)
-            guard authorizationIsCurrent() else {
-                throw ConsentHandoffError.activeAccountChanged
-            }
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            if let userId = currentSessionUserId {
-                restorationCoordinator.handleSynchronizationFailure(
-                    error,
-                    for: userId,
-                    generation: adoptionGeneration
-                )
-            }
-            throw error
-        }
+        try await runtime.cloudSessionCoordinator
+            .synchronizeWithCurrentSession(
+                manager: self,
+                ownedBy: transition
+            )
     }
 
     private func scheduleSynchronization(createAnonymousSessionIfNeeded: Bool) {
-        guard !TestExecutionCoordinator.isRunningTests else { return }
-        guard !SupabaseManager.shared.isAuthTransitionInProgress,
-              !AccountDeletionLocalCleanupStore.isPending() else {
-            return
-        }
-        synchronizationCoordinator.schedule { @MainActor [weak self] in
-            guard let self else { return }
-            guard !Task.isCancelled else { return }
-            if createAnonymousSessionIfNeeded {
-                await SupabaseManager.shared.initializeGhostSession()
-            }
-            guard !Task.isCancelled else { return }
-            do {
-                try await self.synchronizeWithCurrentSession()
-            } catch is CancellationError {
-                return
-            } catch {
-                // synchronizeWithCurrentSession records a retryable restoration
-                // failure while the identity and generation still match.
-            }
-        }
+        runtime.cloudSessionCoordinator.scheduleSynchronization(
+            manager: self,
+            createAnonymousSessionIfNeeded: createAnonymousSessionIfNeeded
+        )
     }
 
     func synchronize(for userId: UUID) async throws {
@@ -806,7 +382,7 @@ final class ConsentManager {
         )
     }
 
-    private func applySynchronizationMerge(
+    func applySynchronizationMerge(
         _ result: ConsentSynchronizationMergePolicy.Result,
         for userId: UUID
     ) {
@@ -819,6 +395,32 @@ final class ConsentManager {
         analyticsCloudAuthorityState = result.analyticsCloudAuthorityState
         applyAnalyticsPermissionToSDK()
         restorationCoordinator.resolveIfNeeded(for: userId)
+    }
+
+    func handleConsentLedgerStateChange() {
+        refreshDerivedState()
+    }
+
+    func requiredConsentRestorationContext(
+        synchronizationGeneration: UInt,
+        sdkUserId: UUID?
+    ) -> RequiredConsentRestorationCoordinator.Context {
+        RequiredConsentRestorationCoordinator.Context(
+            synchronizationGeneration: synchronizationGeneration,
+            observedUserId: currentSessionUserId,
+            sdkUserId: sdkUserId,
+            hasCurrentRequiredConsent: hasCurrentRequiredConsent
+        )
+    }
+
+    func publishRequiredConsentRestorationState(
+        _ state: RequiredConsentRestorationState
+    ) {
+        requiredConsentRestorationState = state
+    }
+
+    func prepareForConsentSynchronizationMerge() {
+        cloudReadyRequiredConsentUserId = nil
     }
 
     static let maximumAutomaticRestorationRetries =
@@ -846,102 +448,61 @@ final class ConsentManager {
         analyticsCloudAuthorityState = .awaitingRemote(userId: userId)
     }
 
-    private func hasCloudReadyCurrentConsent(for userId: UUID) -> Bool {
-        guard cloudReadyRequiredConsentUserId == userId,
-              ledger.activeUserId == userId,
-              currentAdultEligibilityReceipt(ownerUserId: userId)?.syncedUserId == userId,
-              currentTermsReceipt(ownerUserId: userId)?.syncedUserId == userId,
-              let event = currentAIConsentEvent(ownerUserId: userId) else {
+    func canAdoptCloudSession(_ userId: UUID) -> Bool {
+        guard hasObservedSession,
+              let currentSessionUserId else {
+            return true
+        }
+        return currentSessionUserId == userId
+    }
+
+    func hasBindableUnownedRequiredConsent() -> Bool {
+        guard !isLedgerStorageUncertain,
+              ledger.activeUserId == nil else {
             return false
         }
-        return event.eventKind == .granted && event.syncedUserId == userId
+        return ConsentStateProjectionPolicy.requiredConsentEvidence(
+            for: nil,
+            ledger: ledger,
+            inMemoryUserIds: inMemoryRequiredConsentReapprovalUserIds
+        ).isComplete
     }
 
-    private func currentTermsReceipt(ownerUserId: UUID?) -> TermsAcceptanceReceipt? {
-        ledger.termsReceipts
-            .filter {
-                $0.ownerUserId == ownerUserId
-                    && $0.termsVersion == ConsentPolicy.termsVersion
-            }
-            .max { lhs, rhs in
-                (lhs.recordedAt ?? lhs.acceptedAt) < (rhs.recordedAt ?? rhs.acceptedAt)
-            }
+    func adoptCloudSession(_ userId: UUID) {
+        currentSessionUserId = userId
+        requireAuthoritativeAnalyticsRefresh(for: userId)
+        refreshDerivedState()
+        applyAnalyticsPermissionToSDK()
+        realtimeCoordinator.ensureUpdates(for: userId)
     }
 
-    private func currentAdultEligibilityReceipt(
-        ownerUserId: UUID?
-    ) -> AdultEligibilityReceipt? {
-        ledger.adultEligibilityReceipts
-            .filter {
-                $0.ownerUserId == ownerUserId
-                    && $0.policyVersion == ConsentPolicy.adultEligibilityVersion
-            }
-            .max { lhs, rhs in
-                (lhs.recordedAt ?? lhs.confirmedAt) < (rhs.recordedAt ?? rhs.confirmedAt)
-            }
+    func prepareForGhostEvidenceRebind() {
+        invalidateSynchronizationWork()
     }
 
-    private func currentAIConsentEvent(ownerUserId: UUID?) -> AIConsentEvent? {
-        ConsentAuthorityPolicy.currentAIConsentEvent(
-            ownerUserId: ownerUserId,
-            in: ledger
+    func handleConsentSynchronizationFailure(
+        _ error: Error,
+        for userId: UUID,
+        generation: UInt
+    ) {
+        restorationCoordinator.handleSynchronizationFailure(
+            error,
+            for: userId,
+            generation: generation
         )
     }
 
-    private func currentAnalyticsConsentEvent(
-        ownerUserId: UUID?
-    ) -> AnalyticsConsentEvent? {
-        ConsentAuthorityPolicy.currentAnalyticsConsentEvent(
-            ownerUserId: ownerUserId,
-            in: ledger
+    func hasCloudReadyCurrentConsent(for userId: UUID) -> Bool {
+        ConsentStateProjectionPolicy.hasCloudReadyCurrentConsent(
+            for: userId,
+            cloudReadyUserId: cloudReadyRequiredConsentUserId,
+            ledger: ledger
         )
-    }
-
-    @discardableResult
-    private func appendAnalyticsConsentEventIfNeeded(
-        to candidate: inout LocalLedger,
-        enabled: Bool,
-        ownerUserId: UUID?,
-        occurredAt: Date
-    ) -> AnalyticsConsentEvent? {
-        let currentEvent = ConsentAuthorityPolicy.currentAnalyticsConsentEvent(
-            ownerUserId: ownerUserId,
-            in: candidate
-        )
-        let currentlyEnabled = currentEvent?.eventKind == .granted
-        guard currentlyEnabled != enabled else { return nil }
-
-        // No event is needed for the privacy-safe default state.
-        guard enabled || currentEvent != nil else { return nil }
-
-        let event = AnalyticsConsentEvent(
-            id: UUID(),
-            ownerUserId: ownerUserId,
-            syncedUserId: nil,
-            provider: ConsentPolicy.analyticsProvider,
-            disclosureVersion: ConsentPolicy.analyticsDisclosureVersion,
-            eventKind: enabled ? .granted : .revoked,
-            occurredAt: occurredAt,
-            disclosureText: ConsentPolicy.analyticsDisclosureText,
-            actionText: enabled
-                ? ConsentPolicy.analyticsDisclosureText
-                : ConsentPolicy.analyticsWithdrawalText,
-            platform: "ios",
-            appVersion: Self.appVersion,
-            appBuild: Self.appBuild,
-            recordedAt: nil,
-            causalParentId: ConsentAuthorityPolicy.currentAnalyticsConsentStreamHead(
-                ownerUserId: ownerUserId,
-                in: candidate
-            )?.id
-        )
-        candidate.analyticsConsentEvents.append(event)
-        return event
     }
 
     @discardableResult
     private func invalidateSynchronizationWork()
-        -> CancelledConsentWork {
+        -> ConsentManagerRuntime.CancelledWork {
         let currentUserId = currentSessionUserId
         let hadCurrentRequiredConsent = hasCurrentRequiredConsent
         let synchronizationWork = synchronizationCoordinator.invalidate()
@@ -952,7 +513,7 @@ final class ConsentManager {
             currentUserId: currentUserId,
             hasCurrentRequiredConsent: hadCurrentRequiredConsent
         )
-        return CancelledConsentWork(
+        return ConsentManagerRuntime.CancelledWork(
             synchronization: synchronizationWork,
             restoration: restorationWork
         )
@@ -972,82 +533,65 @@ final class ConsentManager {
     private func requiresRequiredConsentReapproval(
         for ownerUserId: UUID?
     ) -> Bool {
-        guard let ownerUserId else { return false }
-        return ledger.requiredConsentReapprovalUserIds.contains(ownerUserId)
-            || inMemoryRequiredConsentReapprovalUserIds.contains(ownerUserId)
+        ConsentStateProjectionPolicy.requiresRequiredConsentReapproval(
+            for: ownerUserId,
+            ledger: ledger,
+            inMemoryUserIds: inMemoryRequiredConsentReapprovalUserIds
+        )
     }
 
     private func refreshDerivedState() {
-        let ownerUserId: UUID?
-        if let currentSessionUserId {
-            ownerUserId = currentSessionUserId
-        } else if hasObservedSession {
-            // Once auth has explicitly resolved to no session, never expose a
-            // prior account's choices. Nil still permits a newly completed,
-            // not-yet-bound local action to remain effective until ghost auth
-            // assigns it an account UUID.
-            ownerUserId = nil
-        } else {
-            // During cold-start auth restoration, use the persisted account
-            // evidence provisionally. The first auth event either confirms it
-            // or immediately closes every gate for a different account.
-            ownerUserId = ledger.activeUserId
-        }
-        let requiresReapproval = requiresRequiredConsentReapproval(
-            for: ownerUserId
+        let ownerUserId = ConsentStateProjectionPolicy.currentOwnerUserId(
+            currentSessionUserId: currentSessionUserId,
+            hasObservedSession: hasObservedSession,
+            ledgerActiveUserId: ledger.activeUserId
         )
-        hasConfirmedCurrentAdultEligibility = !requiresReapproval
-            && currentAdultEligibilityReceipt(ownerUserId: ownerUserId) != nil
-        hasAcceptedCurrentTerms = !requiresReapproval
-            && currentTermsReceipt(ownerUserId: ownerUserId) != nil
-        hasGrantedCurrentGeminiProcessing = !requiresReapproval
-            && currentAIConsentEvent(ownerUserId: ownerUserId)?.eventKind == .granted
-        let hasStoredAnalyticsGrant =
-            currentAnalyticsConsentEvent(ownerUserId: ownerUserId)?.eventKind == .granted
-        hasGrantedCurrentPostHogAnalytics = !isLedgerStorageUncertain
-            && !isRevocationIntentStorageUncertain
-            && !isAnalyticsWithdrawalInProgress
-            && !ledgerRepository.pendingAnalyticsRevocationApplies(
-                to: ownerUserId
-            )
-            && hasStoredAnalyticsGrant
-    }
-
-    private func applyAnalyticsPermissionToSDK() {
-        let ownerUserId = ledger.activeUserId
-        let accountMatches: Bool
-        if let ownerUserId {
-            accountMatches = currentSessionUserId == ownerUserId
-        } else {
-            accountMatches = currentSessionUserId == nil
-        }
-
-        let shouldEnable = !isAnalyticsSuppressedForGhostHandoff
-            && !isAnalyticsSuppressedForAccountTransition
-            && analyticsCloudAuthorityState.allowsCapture(
-                for: currentSessionUserId
-            )
-            && !isLedgerStorageUncertain
-            && !isRevocationIntentStorageUncertain
-            && !isAnalyticsWithdrawalInProgress
-            && !ledgerRepository.pendingAnalyticsRevocationApplies(
-                to: currentSessionUserId ?? ownerUserId
-            )
-            && accountMatches
-            && hasGrantedCurrentPostHogAnalytics
-        analyticsPermissionApplier(
-            shouldEnable,
-            shouldEnable
-                ? (currentSessionUserId ?? ownerUserId)?.uuidString
-                : nil
+        let state = ConsentStateProjectionPolicy.currentState(
+            ledger: ledger,
+            ownerUserId: ownerUserId,
+            inMemoryReapprovalUserIds:
+                inMemoryRequiredConsentReapprovalUserIds,
+            isLedgerStorageUncertain: isLedgerStorageUncertain,
+            isRevocationIntentStorageUncertain:
+                isRevocationIntentStorageUncertain,
+            isAnalyticsWithdrawalInProgress:
+                isAnalyticsWithdrawalInProgress,
+            pendingAnalyticsRevocationApplies: ledgerRepository
+                .pendingAnalyticsRevocationApplies(to: ownerUserId)
         )
+        hasConfirmedCurrentAdultEligibility =
+            state.hasConfirmedAdultEligibility
+        hasAcceptedCurrentTerms = state.hasAcceptedTerms
+        hasGrantedCurrentGeminiProcessing =
+            state.hasGrantedGeminiProcessing
+        hasGrantedCurrentPostHogAnalytics =
+            state.hasGrantedPostHogAnalytics
     }
 
-    private static var appVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-    }
-
-    private static var appBuild: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+    func applyAnalyticsPermissionToSDK() {
+        let permission = ConsentStateProjectionPolicy.analyticsPermission(
+            ledgerActiveUserId: ledger.activeUserId,
+            currentSessionUserId: currentSessionUserId,
+            isSuppressedForGhostHandoff:
+                isAnalyticsSuppressedForGhostHandoff,
+            isSuppressedForAccountTransition:
+                isAnalyticsSuppressedForAccountTransition,
+            cloudAuthorityState: analyticsCloudAuthorityState,
+            isLedgerStorageUncertain: isLedgerStorageUncertain,
+            isRevocationIntentStorageUncertain:
+                isRevocationIntentStorageUncertain,
+            isAnalyticsWithdrawalInProgress:
+                isAnalyticsWithdrawalInProgress,
+            pendingAnalyticsRevocationApplies: ledgerRepository
+                .pendingAnalyticsRevocationApplies(
+                    to: currentSessionUserId ?? ledger.activeUserId
+                ),
+            hasGrantedPostHogAnalytics:
+                hasGrantedCurrentPostHogAnalytics
+        )
+        runtime.analyticsPermissionApplier(
+            permission.isEnabled,
+            permission.ownerUserId?.uuidString
+        )
     }
 }

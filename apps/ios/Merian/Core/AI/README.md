@@ -23,8 +23,32 @@ This README maps that contract to native source and test ownership.
   bounded request histories, 24-hour enriched-species cache, and temporary
   rate-limit deadline. Wikipedia, enrichment, and GBIF work remain structured
   children of the owning slot instead of creating a second task owner. The
-  engine retains presentation identity, observable mutation, endpoint
-  invocation, and persistence decisions.
+  engine retains presentation identity, observable mutation, admission,
+  independent loading state, and bounded retry decisions.
+- `Inference/Hydration/InferenceHistoricalRecordProjection.swift` snapshots one
+  persisted `LocalScanRecord` on `@MainActor` into immutable presentation,
+  media, hydration-plan, and deferred-decode values before any suspension. It
+  owns the complete persisted-record-to-`SpeciesData` mapping, override/original
+  identity projection, Human/unresolved suppression, reference admission, rich
+  and legacy lookalike precedence, and candidate decoding. The engine retains
+  presentation replacement, observable commits, task lifetime, network
+  hydration, and persistence admission.
+- `Inference/Hydration/InferenceSpeciesEnrichmentService.swift` owns typed
+  metadata/lookalike response normalization. It trims nonblank habitat, maps
+  wire taxonomy into `TaxonomyData`, keeps raw alternate names for persistence
+  while returning sanitized presentation names, and maps every lookalike field
+  into `SimilarSpeciesEntry`. Its `+Live` adapter is the sole Core AI bridge to
+  `MerianNetworkClient.fetchEnrichment`; the endpoint extension remains the
+  wire-contract owner. The immutable `Sendable` service has no observable,
+  task-lifetime, retry, or persistence effects.
+- `Inference/Hydration/InferenceHydrationPersistenceService.swift` owns the
+  admitted reference, metadata, and lookalike persistence snapshots. Its `+Live`
+  adapter constructs `BackgroundDatabaseActor` and JSON-encodes mapped
+  lookalikes in a utility-priority detached task before the actor write.
+  `InferenceEngine` and `InferenceWriteCoordinator` retain presentation and
+  review-generation fencing, queue bounds, cancellation, and Auth quiescence.
+  `AppDIContainer` composes both live hydration services; tests inject only
+  their narrow closures.
 - `Inference/State/InferenceWriteCoordinator.swift` privately owns the bounded
   background-write queue, presentation generations, Auth-transition fence, and
   ordered identification writes. Species-changing review work, same-species AI
@@ -95,7 +119,8 @@ This README maps that contract to native source and test ownership.
 - `Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift` owns
   the shared public Wikipedia/GBIF session, request construction, wire DTOs, and
   off-main parsing used by Inference and thumbnail recovery. The engine still
-  owns presentation identity, observable mutations, and persistence.
+  owns presentation identity and observable mutations; admitted inference-side
+  reference writes pass through `InferenceHydrationPersistenceService`.
 - `InferenceProcessingActor` owns off-main image encoding and the foreground
   parse-to-persistence workflow. It delegates response decoding, success
   validation, domain mapping, and entitlement/usage reconciliation to the
@@ -547,8 +572,14 @@ uploads its retained local media again.
 Loading a persisted library record is also a presentation replacement.
 `load(from:)` invalidates the exact live UUID, releases its deferred-upload
 hold, cancels live provider/hydration work, and schedules durable handoff before
-assigning the historical `activeScanId`. The queued capture remains intact for
-background recovery.
+assigning the historical `activeScanId`. It then releases prior live-media
+buffers before building the historical projection, avoiding overlapping large
+live and persisted presentations in memory. The queued capture remains intact
+for background recovery. Before registering new historical work, it builds an
+`InferenceHistoricalRecordProjection` while the SwiftData record is live on
+`@MainActor`; the coordinator task captures only that immutable value. Rich
+lookalikes are decoded once for refresh planning, while legacy lookalike names
+and candidate bytes are converted in one awaited detached decode.
 
 ## Verification
 
@@ -568,6 +599,21 @@ installed cache-reset version, tier fallback, and phrase cadence.
 task retention, exact-task awaiting for review replacements, Auth admission and
 drain behavior, stale completion isolation, bounded request histories, persisted
 TTL pruning, and backoff expiry/reset.
+`Core/AI/Inference/InferenceHistoricalRecordProjectionTests.swift` covers the
+complete persisted presentation mapping, active-override identity, Human and
+unresolved suppression, rich/legacy lookalike planning, cache-reset and metadata
+scope independence, candidate decoding after source-record deletion, and
+malformed-data compatibility.
+`Core/AI/Inference/InferenceSpeciesEnrichmentServiceTests.swift` covers exact
+request/scope forwarding, metadata trimming and taxonomy mapping, raw-versus-
+sanitized alternate names, missing-field preservation, complete lookalike
+mapping, empty payloads, and error propagation without live networking.
+`Core/AI/Inference/InferenceHydrationPersistenceServiceTests.swift` covers exact
+snapshot/container forwarding, live reference and domain-taxonomy metadata
+writes, and the live adapter's lookalike encode, persist, and decode round trip
+in the existing SwiftData blob. `SpeciesMetadataPersistenceTests` locks the
+effective override-or-original identity fence for both reference and enrichment
+writes. Architecture coverage separately freezes the detached encoding boundary.
 `Core/AI/Inference/InferenceWriteCoordinatorTests.swift` covers queue bounds,
 Auth quiescence, reset cancellation, action-history eviction, ordered stale
 write rejection, confirmation/review generation independence, and the shared
@@ -624,11 +670,14 @@ Wikipedia/GBIF requests, response parsing, missing-description compatibility,
 and failure behavior. Its architecture suite prevents either consumer from
 reclaiming the shared transport, while `InferenceArchitectureTests.swift` locks
 all three extracted task-state boundaries, injected request and result
-boundaries, stateless recovery policies and synchronous engine failure commits,
-file-private format/mapping helpers, the retired local-analysis aggregate, and
-the 600-line local-analysis ceiling. Network timing and request-upload handoff
-coverage lives under `MerianTests/Core/Network/`; the full server generation
-invariants are enforced by the Deno tests beside `identify-multimodal`.
+boundaries, the enrichment mapper/live endpoint adapter and hydration
+persistence/live database adapter, the value-only historical record projection,
+its pre-projection live-media release order and no-managed-record task capture,
+stateless recovery policies and synchronous engine failure commits, file-private
+format/mapping helpers, the retired local-analysis aggregate, and
+extracted-owner ceilings. Network timing and request-upload handoff coverage
+lives under `MerianTests/Core/Network/`; the full server generation invariants
+are enforced by the Deno tests beside `identify-multimodal`.
 `Core/AI/InferenceEngineTests.swift` retains the integration proofs for Auth
 quiescence, closed-fence review rejection, stale confirmation rejection after an
 override, and presentation-reset hydration cancellation.

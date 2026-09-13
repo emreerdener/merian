@@ -540,16 +540,22 @@ single-responsibility functions under `/services/supabase/functions/`.
   across all disclosure versions, `ConsentSynchronizationCoordinator` account-
   and generation-fences the remote phases and persists the merged result through
   `ConsentLedgerRepository`, and `ConsentManager` applies that result to the SDK
-  only after the verified durable write. `RequiredConsentRestorationCoordinator`
-  independently owns the account- and generation-fenced launch-restoration retry
-  registry, retains canceled handles through completion, contributes them to
-  Auth-transition draining, rejects canceled retry callers after manual
-  attempt-number reuse, and publishes only its presentation state back through
-  the manager. `ConsentRealtimeCoordinator` likewise retains started channel
-  removals until the manager's combined Auth-transition drain completes; the
-  Edge helper independently applies the same authorization rule. Any head
-  revocation rejects capture; only a head grant with the current analytics
-  disclosure may configure or deliver to PostHog.
+  only after the verified durable write. `ConsentStateProjectionPolicy` derives
+  that SDK permission without live effects, `ConsentMutationService` owns local
+  evidence construction and write sequencing, and `ConsentManagerRuntime` wires
+  the focused owners to the facade. `ConsentCloudSessionCoordinator` owns
+  account-work lease/session admission, scheduled synchronization, Ghost
+  rebinding, and inference cloud readiness through a sole live Supabase
+  dependency adapter. `RequiredConsentRestorationCoordinator` independently owns
+  the account- and generation-fenced launch-restoration retry registry, retains
+  canceled handles through completion, contributes them to Auth-transition
+  draining, rejects canceled retry callers after manual attempt-number reuse,
+  and publishes only its presentation state back through the manager.
+  `ConsentRealtimeCoordinator` likewise retains started channel removals until
+  the manager's combined Auth-transition drain completes; the Edge helper
+  independently applies the same authorization rule. Any head revocation rejects
+  capture; only a head grant with the current analytics disclosure may configure
+  or deliver to PostHog.
 - The app privacy manifest conservatively declares the potential linked
   analytics categories while declaring no tracking. That declaration is not an
   analytics grant and does not change the closed-by-default transport. Its

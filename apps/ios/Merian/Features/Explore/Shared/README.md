@@ -17,6 +17,12 @@ The root components own keyboard dismissal, unavailable-state presentation, and
 the Explore onboarding prompt. `Models/ExploreCommentAuthorPresentation.swift`
 owns secure comment-avatar fallback shared by Feed and Notifications.
 
+`Models/ExploreLocationSharingPresentation.swift` owns the labels, SF Symbols,
+and explanatory copy for the Explore post-location modes used by Feed and the
+Insights adapters that publish into Explore. The Codable/raw-value contract
+lives in `Core/Network/Models/Explore/ExploreLocationSharingAPIModels.swift`, so
+Core Network never depends on a feature-owned composer model.
+
 `Models/ExploreErrorFormatter.swift` owns customer-safe error presentation for
 Explore experiences and for non-Explore adapters that publish into or present
 those experiences. It is a pure mapping boundary over caller-supplied errors;
@@ -70,7 +76,11 @@ Notifications avatar regression. Error-presentation changes require
 `ExploreErrorFormatterTests` and `ExploreSharedArchitectureTests`, plus focused
 regression of Feed, Author Profile, Map, Identify, Field Trips, Notifications,
 Shell, Insights sharing, Scans publication, Species Dictionary, and
-observation-statistics consumers. The architecture suite also pins the
-formatter's Foundation-only, effect-free boundary and keeps every Explore Shared
-production file at or below 600 lines. The detailed media matrix lives in the
+observation-statistics consumers. Location-sharing contract/presentation changes
+require `ExploreLocationSharingAPIModelsTests`,
+`ExploreLocationSharingPresentationTests`, and
+`ExploreNetworkModelArchitectureTests`. The architecture suites also pin the
+formatter's Foundation-only, effect-free boundary, layered location-sharing
+ownership, and every Explore Shared production file at or below 600 lines. The
+detailed media matrix lives in the
 [Feed README](../Feed/README.md#focused-tests).

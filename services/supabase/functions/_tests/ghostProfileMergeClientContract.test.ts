@@ -28,6 +28,14 @@ const consentManagerUrl = new URL(
   "../../../../apps/ios/Merian/Core/Security/ConsentManager.swift",
   import.meta.url,
 );
+const consentManagerRuntimeUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/Consent/Coordinators/ConsentManagerRuntime.swift",
+  import.meta.url,
+);
+const consentCloudSessionCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/Consent/Coordinators/ConsentCloudSessionCoordinator.swift",
+  import.meta.url,
+);
 const consentLedgerRepositoryUrl = new URL(
   "../../../../apps/ios/Merian/Core/Security/Consent/Repositories/ConsentLedgerRepository.swift",
   import.meta.url,
@@ -56,6 +64,14 @@ const consentRealtimeLiveAdapterUrl = new URL(
   "../../../../apps/ios/Merian/Core/Security/Consent/Services/ConsentRealtimeCoordinator+Live.swift",
   import.meta.url,
 );
+const consentCloudSessionLiveAdapterUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/Consent/Services/ConsentCloudSessionCoordinator+Live.swift",
+  import.meta.url,
+);
+const consentStateProjectionPolicyUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/Consent/Policies/ConsentStateProjectionPolicy.swift",
+  import.meta.url,
+);
 const consentRealtimeTestsUrl = new URL(
   "../../../../apps/ios/MerianTests/Core/Security/Consent/ConsentRealtimeCoordinatorTests.swift",
   import.meta.url,
@@ -70,6 +86,10 @@ const consentSynchronizationTestsUrl = new URL(
 );
 const requiredConsentRestorationTestsUrl = new URL(
   "../../../../apps/ios/MerianTests/Core/Security/Consent/ConsentRestorationCoordinatorTests.swift",
+  import.meta.url,
+);
+const consentCloudSessionCoordinatorTestsUrl = new URL(
+  "../../../../apps/ios/MerianTests/Core/Security/Consent/ConsentCloudSessionCoordinatorTests.swift",
   import.meta.url,
 );
 
@@ -290,8 +310,10 @@ Deno.test("iOS deletes Ghost proofs only for invalid or expired handoffs", async
 Deno.test("iOS flushes target-owned pending consent before account refetch", async () => {
   const [
     source,
+    runtimeSource,
     synchronizationCoordinatorSource,
     synchronizationMergePolicySource,
+    stateProjectionPolicySource,
     ledgerRepositorySource,
     retryPolicySource,
     authorityTestSource,
@@ -300,8 +322,10 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
     restorationTestSource,
   ] = await Promise.all([
     Deno.readTextFile(consentManagerUrl).then(compact),
+    Deno.readTextFile(consentManagerRuntimeUrl).then(compact),
     Deno.readTextFile(consentSynchronizationCoordinatorUrl).then(compact),
     Deno.readTextFile(consentSynchronizationMergePolicyUrl).then(compact),
+    Deno.readTextFile(consentStateProjectionPolicyUrl).then(compact),
     Deno.readTextFile(consentLedgerRepositoryUrl).then(compact),
     Deno.readTextFile(consentRetryPolicyUrl).then(compact),
     Deno.readTextFile(consentAuthorityTestsUrl).then(compact),
@@ -383,7 +407,7 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
     "didMergeRemoteState(result, userId)",
   );
   const mergeApplicationStart = source.indexOf(
-    "private func applySynchronizationMerge(",
+    "func applySynchronizationMerge(",
   );
   const mergeApplicationEnd = source.indexOf(
     "static let maximumAutomaticRestorationRetries",
@@ -465,8 +489,8 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
     "activeTasks: Array(activeTasks.values)",
   );
   assertStringIncludes(
-    source,
-    "private let restorationCoordinator: RequiredConsentRestorationCoordinator",
+    runtimeSource,
+    "let restorationCoordinator: RequiredConsentRestorationCoordinator",
   );
   assertStringIncludes(
     restorationCoordinatorSource,
@@ -481,7 +505,7 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
     "retryTasks: Array(retryTasks.values)",
   );
   assertStringIncludes(
-    source,
+    runtimeSource,
     "await restoration.wait()",
   );
   assertStringIncludes(
@@ -539,8 +563,8 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
     "Account restoration must keep analytics closed until authoritative merge succeeds",
   );
   assertStringIncludes(
-    source,
-    "analyticsCloudAuthorityState.allowsCapture( for: currentSessionUserId )",
+    stateProjectionPolicySource,
+    "cloudAuthorityState.allowsCapture(for: currentSessionUserId)",
   );
   assertStringIncludes(
     authorityTestSource,
@@ -592,6 +616,110 @@ Deno.test("iOS flushes target-owned pending consent before account refetch", asy
   );
 });
 
+Deno.test("iOS fences cloud-session adoption through injected account authority", async () => {
+  const [
+    source,
+    cloudSessionCoordinator,
+    cloudSessionLiveAdapter,
+    cloudSessionTests,
+  ] = await Promise.all([
+    Deno.readTextFile(consentManagerUrl).then(compact),
+    Deno.readTextFile(consentCloudSessionCoordinatorUrl).then(compact),
+    Deno.readTextFile(consentCloudSessionLiveAdapterUrl).then(compact),
+    Deno.readTextFile(consentCloudSessionCoordinatorTestsUrl).then(compact),
+  ]);
+  const adoptionStart = source.indexOf(
+    "func adoptCloudSession(_ userId: UUID)",
+  );
+  const adoptionEnd = source.indexOf(
+    "func prepareForGhostEvidenceRebind()",
+    adoptionStart,
+  );
+  const adoption = source.slice(adoptionStart, adoptionEnd);
+
+  assertStringIncludes(
+    adoption,
+    "realtimeCoordinator.ensureUpdates(for: userId)",
+  );
+  assertStringIncludes(
+    cloudSessionCoordinator,
+    "beginUnownedAccountBoundWork()",
+  );
+  assertStringIncludes(
+    cloudSessionCoordinator,
+    "finishAccountBoundWork(accountWorkLease)",
+  );
+  assertStringIncludes(
+    cloudSessionCoordinator,
+    "isAccountBoundWorkLeaseCurrent(accountWorkLease)",
+  );
+  assertStringIncludes(
+    cloudSessionCoordinator,
+    "ownedBy transition: AuthTransitionToken",
+  );
+  assertStringIncludes(
+    cloudSessionCoordinator,
+    "currentSessionMatchesAuthTransition(transition)",
+  );
+  assertStringIncludes(
+    cloudSessionCoordinator,
+    "manager.adoptCloudSession(session.userID)",
+  );
+  assertStringIncludes(
+    cloudSessionCoordinator,
+    "manager.hasBindableUnownedRequiredConsent()",
+  );
+  assertStringIncludes(
+    cloudSessionCoordinator,
+    "synchronizationCoordinator.generation == adoptionGeneration",
+  );
+  assert(
+    !cloudSessionCoordinator.includes("SupabaseManager"),
+    "The cloud-session coordinator must consume injected account authority",
+  );
+  assertStringIncludes(
+    cloudSessionLiveAdapter,
+    "SupabaseManager.shared.beginUnownedAccountBoundWork()",
+  );
+  assertStringIncludes(
+    cloudSessionLiveAdapter,
+    "SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(lease)",
+  );
+  assertStringIncludes(
+    cloudSessionTests,
+    "testSynchronizationAdoptsLeaseSessionAndFinishesLease",
+  );
+  assertStringIncludes(
+    cloudSessionTests,
+    "testSynchronizationRejectsLeaseThatExpiresAfterRemoteWork",
+  );
+  assertStringIncludes(
+    cloudSessionTests,
+    "testSynchronizationRejectsGenerationInvalidatedByRemoteWork",
+  );
+  assertStringIncludes(
+    cloudSessionTests,
+    "testInferenceSynchronizesBindableUnownedConsentAfterAdoption",
+  );
+  assertStringIncludes(
+    cloudSessionTests,
+    "remoteService: remoteService.service",
+  );
+  assertStringIncludes(cloudSessionTests, '"authoritative-fetch"');
+  assertStringIncludes(
+    cloudSessionTests,
+    "testInferenceDoesNotBindAnotherAccountsPersistedConsent",
+  );
+  assertStringIncludes(
+    cloudSessionTests,
+    "testInferenceRejectsInvalidatedGenerationWithoutReapproval",
+  );
+  assertStringIncludes(
+    cloudSessionTests,
+    "testGhostRebindUsesRuntimeRepositoryAndVerifiesFinalSession",
+  );
+});
+
 Deno.test("iOS independently owns and retries analytics-consent Realtime", async () => {
   const [source, coordinator, liveAdapter, tests] = await Promise.all([
     Deno.readTextFile(consentManagerUrl).then(compact),
@@ -605,14 +733,6 @@ Deno.test("iOS independently owns and retries analytics-consent Realtime", async
     observeStart,
   );
   const observe = source.slice(observeStart, observeEnd);
-  const foregroundStart = source.indexOf(
-    "func synchronizeWithCurrentSession() async throws",
-  );
-  const foregroundEnd = source.indexOf(
-    "private func scheduleSynchronization(",
-    foregroundStart,
-  );
-  const foreground = source.slice(foregroundStart, foregroundEnd);
 
   assertStringIncludes(
     coordinator,
@@ -625,30 +745,6 @@ Deno.test("iOS independently owns and retries analytics-consent Realtime", async
   assertStringIncludes(
     observe,
     "realtimeCoordinator.ensureUpdates(for: userId)",
-  );
-  assertStringIncludes(
-    foreground,
-    "realtimeCoordinator.ensureUpdates(for: userId)",
-  );
-  assertStringIncludes(
-    foreground,
-    "beginUnownedAccountBoundWork()",
-  );
-  assertStringIncludes(
-    foreground,
-    "finishAccountBoundWork(accountWorkLease)",
-  );
-  assertStringIncludes(
-    foreground,
-    "isAccountBoundWorkLeaseCurrent(accountWorkLease)",
-  );
-  assertStringIncludes(
-    foreground,
-    "func synchronizeWithCurrentSession( ownedBy transition: AuthTransitionToken ) async throws",
-  );
-  assertStringIncludes(
-    foreground,
-    "currentSessionMatchesAuthTransition(transition)",
   );
   assertStringIncludes(
     coordinator,

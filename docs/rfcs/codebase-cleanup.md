@@ -262,6 +262,70 @@ Implemented Core slices:
   Direct engine/current-app compilation also stops at the environment's Apple
   macro sandbox restrictions. Focused and full runtime acceptance remain
   outstanding at that slice's handoff; the integration audit below follows it.
+- The seventh slice extracted progressive species-enrichment transport
+  adaptation and local hydration persistence from `InferenceEngine`.
+  `InferenceSpeciesEnrichmentService` owns typed scope/request values, an
+  injected fetch seam, and deterministic metadata/lookalike mapping; its `+Live`
+  adapter is Core AI's sole `fetchEnrichment` caller.
+  `InferenceHydrationPersistenceService` owns immutable reference, metadata, and
+  lookalike snapshots; its `+Live` adapter owns `BackgroundDatabaseActor`
+  construction and off-main rich-lookalike encoding. `AppDIContainer` composes
+  both live values, while direct engine construction retains source-compatible
+  live defaults. The engine still owns hydration admission, independent loading,
+  task-group scheduling, current-presentation application, bounded retry, and
+  write/review generations. Metadata now reaches the actor as domain
+  `TaxonomyData`, so the Edge wire DTO no longer crosses into persistence. No
+  request/response payload, SwiftData schema, endpoint, feature flag,
+  navigation, visible copy, or UI behavior changed.
+- Seventh-slice verification status (2026-09-12): XcodeGen is byte-stable;
+  project/resource and source-membership checks, event-routing guards and
+  adversarial tests, affected Swift parsing, strict affected-source SwiftLint,
+  bounded production/test frontend typechecking against cached unchanged
+  dependencies, changed-Markdown formatting, the recursive Supabase formatter
+  check, and `git diff --check` pass. The canonical generic Simulator
+  `build-for-testing` could not start because the required local build wrapper
+  was denied process inspection and therefore refused to determine whether
+  another `xcodebuild` was active. No current-candidate Simulator test execution
+  ran; the bounded typechecks are supplemental evidence, not a full-target build
+  or runtime substitute.
+- A same-day follow-up review fixed the persistence fence for enrichment on an
+  identification override. Metadata and lookalike writes now validate the
+  record's effective override-or-original species, matching the reference-write
+  boundary. The regression rejects a stale original-species payload while the
+  override is active and admits the override payload, including taxonomy,
+  alternate names, and the rich lookalike blob.
+- The eighth slice extracted historical SwiftData snapshotting, initial
+  `SpeciesData` construction, hydration planning, override/original identity,
+  reference admission, and rich/legacy lookalike plus candidate decoding into
+  `InferenceHistoricalRecordProjection`. Its `@MainActor` initializer consumes
+  the live `LocalScanRecord` before suspension and returns only immutable
+  `Sendable` values; an awaited detached operation converts deferred legacy and
+  candidate content. `InferenceEngine.load(from:)` retains live-presentation
+  replacement, observable publication, the replaceable historical task, network
+  hydration, retry, and write admission. No schema, payload, endpoint, route,
+  feature flag, copy, or visible behavior changed.
+- A same-day follow-up restored the pre-extraction memory ordering: historical
+  identity is assigned and prior live-media buffers are released before the
+  projection faults persisted fields or rebuilds historical media. Architecture
+  coverage locks that order and proves the deferred task captures no managed
+  record; focused coverage also decodes the value snapshot after its source
+  record is deleted. Coordinator replacement fences all later effects, while a
+  synchronous decoder already running may finish before observing cancellation.
+- Eighth-slice verification status (2026-09-12): an independent read-only
+  concurrency/parity review found no behavior regression and identified the
+  cancellation wording and managed-record-lifetime hardening closed above. The
+  primary follow-up audit found and restored the live-media release order.
+  Documentation now names the concrete projection owner across the repository,
+  records that release order and cooperative-cancellation boundary, routes
+  identification-review transport to its injected Network service, and lists the
+  complete persisted candidate value shape. XcodeGen is byte-stable;
+  project/resource and source-membership checks, event-routing guards and
+  adversarial tests, affected Swift parsing, focused production/test iOS
+  frontend typechecking, strict affected-source SwiftLint, changed-Markdown
+  formatting, the recursive Supabase formatter check, and `git diff --check`
+  pass. The required local Simulator build wrapper refused to start because this
+  host cannot inspect whether another `xcodebuild` is active, so no
+  current-candidate build or runtime test execution is claimed.
 - Focused Core AI and Species Reference suites cover hydration replacement and
   stale-completion isolation, TTL/backoff policy, queue capacity and overflow,
   cancellation and Auth quiescence, ordered newest-action writes, public
@@ -5278,7 +5342,8 @@ coverage, policy boundaries and exact local-input exceptions, the Core-wide ban
 on `try?` SwiftData fetches, and privacy-safe diagnostic interpolation. Its
 privacy patterns self-test raw errors, multiline localized descriptions, server
 messages, and local paths while permitting bounded error kinds and fixed safe
-messages. It also records the exact residual production files above the 600-line
+messages. At that audit checkpoint, before the later Phase 3 network-model
+splits, it recorded these exact residual production files above the 600-line
 review ceiling:
 
 - `Core/AI/InferenceEngine.swift`
@@ -5287,8 +5352,11 @@ review ceiling:
 - `Core/Network/SupabaseManager.swift`
 - `Core/Security/ConsentManager.swift`
 
-The inventory prevents silent growth or drift; it does not exempt these owners
-from later behavior-preserving splits. This audit changes no endpoint, JSON,
+That checkpoint inventory prevented silent growth or drift; it did not exempt
+the owners from later behavior-preserving splits. The Explore and Field Trips
+aggregates are retired below, and subsequent slices reduce the current
+large-owner inventory to `InferenceEngine.swift` and `SupabaseManager.swift` in
+the Core README and codebase map. This audit changed no endpoint, JSON,
 SwiftData schema, migration, persistence state, route, entitlement, copy,
 layout, or deployment contract.
 
@@ -5352,6 +5420,160 @@ After the large files are split, move code to clearer long-term homes:
   at least two features use them. Process-local cross-feature event and root
   route infrastructure belongs in `Core/Routing`.
 
+### Explore network model ownership
+
+The first Phase 3 slice retires the 1,978-line
+`Core/Network/ExploreAPIModels.swift` aggregate. Its unchanged declarations now
+live in focused contract-family files under `Core/Network/Models/Explore/`:
+browsing data and query values, Community Identification, author profile, Map,
+post detail, comments, sharing, media incidents, notifications, public profile,
+and Community feedback. Every focused production owner stays below 600 lines.
+
+The cross-feature `ExploreLocationPrivacy` policy moves to
+`Core/Models/ExploreLocationPrivacy.swift`, reflecting its use by environment
+context, inference/recovery, Explore, Insights, and Profile rather than treating
+semantic-location redaction as a network concern. Type names, access levels,
+Codable conformances, coding keys, defaults, compatibility decoding, endpoint
+signatures, JSON contracts, UI state, and presentation behavior are unchanged.
+
+The second-pass audit also removed an inverted dependency that the aggregate had
+masked. The Codable/raw-value `ExplorePostLocationSharing` contract moved from
+Feed's composer model into its own Core Network model, while the existing
+labels, SF Symbols, and explanatory copy moved to an Explore Shared presentation
+extension. Core DTOs no longer depend on Feed's composer model for that wire
+enum, and visible copy plus decode behavior remain unchanged. The resulting
+focused inventory has thirteen files.
+
+`ExploreNetworkModelArchitectureTests` freezes the thirteen-file inventory,
+representative single declaration ownership, the retired aggregate, effect
+exclusions, privacy placement, layered post-location-sharing ownership, and the
+600-line ceiling. Core Network's integration guard now applies the same ceiling
+to `Models/`; the Core-wide residual-large-owner inventory no longer includes
+the retired aggregate.
+
+Candidate verification passed byte-stable XcodeGen output, generated-project and
+source-membership validation, event-routing validation and adversarial tests,
+Swift parsing, focused iOS SDK typechecking including the Swift Testing macros,
+strict SwiftLint with zero violations across 1,215 files, the complete iOS
+CI-tooling regression suite, changed-Markdown formatting, and whitespace
+validation. The declaration inventory and a whitespace-insensitive
+reconstruction of the retired aggregate also matched the focused owners exactly.
+The required unsigned generic iOS Simulator `build-for-testing` was attempted
+through `make ios-local-build`, but the safety wrapper exited before invoking
+Xcode because this sandbox denied the process inspection needed to prove that no
+other `xcodebuild` was active. No new build or Simulator-runtime result is
+claimed for this slice.
+
+### Field Trips network model ownership
+
+The second Phase 3 slice retires the 928-line
+`Core/Network/FieldTripAPIModels.swift` aggregate. Its 49 unchanged
+network-model declarations now live in eight focused contract-family owners
+under `Core/Network/Models/FieldTrips/`: achievement, capture, catalog, Events,
+community queries, profile, progress, and publications. Backend `Challenge`
+names, type access, Codable conformances, coding behavior, default values, and
+endpoint signatures remain unchanged; every focused production owner is below
+600 lines.
+
+Responsibilities hidden by the aggregate now sit with their actual consumers.
+Field Trips feature models own community labels, guide fallback, lifecycle, and
+publication presentation. Insights Shell owns scan-contribution route mapping.
+Core UI Feedback owns credited-progress fallback and first-Field-trip milestone
+projection/merging. Core Preferences owns the exact account-qualified
+`UserDefaults` compatibility store. The move changes no JSON, action, request,
+response, persistence key, SwiftData schema, navigation, copy, or visible
+behavior.
+
+`FieldTripNetworkModelArchitectureTests` freezes the eight-file inventory, all
+49 production-wide declaration owners, effect exclusions, relocated non-wire
+responsibilities, retired aggregate, and 600-line ceiling. At this checkpoint,
+the Core-wide residual-large-owner inventory contained `InferenceEngine.swift`,
+`SupabaseManager.swift`, and `ConsentManager.swift`. Field Trips decoding and
+endpoint behavior remain covered by their existing suites;
+`FieldTripModelPresentationTests` owns the relocated feature accessors, while
+Insights, UI Feedback, Preferences, and Author Profile tests retain their domain
+behavior coverage. The dedicated `FirstFieldTripProgressStoreTests` suite owns
+normalized account isolation, persistence round trips, and invalid-value
+rejection.
+
+Candidate verification passed byte-stable XcodeGen, generated-project/resource
+and source-membership guards, event-routing validation and adversarial tests,
+the complete iOS CI-tooling suite, recursive app/test Swift parsing, focused
+iOS-SDK source and test typechecks, exact 49-declaration and architecture
+mirrors, and strict SwiftLint with zero violations across the complete iOS app
+and test source paths. Changed Markdown formatting and whitespace validation
+also passed. The required generic iOS Simulator `build-for-testing` was
+attempted through `make ios-local-build`, but the safety wrapper refused before
+invoking Xcode because this sandbox could not inspect whether another
+`xcodebuild` was active. No fresh build or Simulator runtime result is claimed
+for this slice.
+
+### Consent facade completion
+
+The final Core Security Consent slice reduces `ConsentManager.swift` from 1,050
+to 597 lines and removes it from the residual large-owner inventory. The public
+initializer and method surface, nested compatibility types, observable state,
+policy copy and versions, durable ledger and Keychain formats, table/RPC and
+Realtime contracts, Auth-transition drain, inference gate, and lifecycle timing
+remain unchanged.
+
+Four focused owners receive the responsibilities that had remained in the
+facade. `ConsentManagerRuntime` constructs the repository, mutation service, and
+coordinators and wires their narrow callbacks. `ConsentMutationService` creates
+adult, Terms, Gemini, and PostHog evidence and preserves the exact
+privacy-close-before-write and journal recovery ordering through deterministic
+clock, UUID, and app-metadata dependencies; its separate live adapter owns those
+process and `Bundle.main` values. `ConsentStateProjectionPolicy` derives account
+ownership, required-consent and cloud-readiness gates, account-qualified pending
+counts, reapproval, and fail-closed analytics SDK permission.
+`ConsentCloudSessionCoordinator` owns ordinary and transition-authorized session
+adoption, account-work lease fencing, scheduled synchronization, inference cloud
+admission, and verified Ghost evidence rebinding. Its separate live dependency
+adapter is the only owner that resolves Supabase Auth, account-work leases,
+account-deletion cleanup state, and bounded failure logging for those workflows.
+
+All twenty-one extracted production owners and the observable facade remain at
+or below the 600-line review ceiling. `ConsentStateProjectionPolicyTests`,
+`ConsentMutationServiceTests`, and `ConsentCloudSessionCoordinatorTests` add
+deterministic coverage for the new boundaries. `ConsentArchitectureTests`
+freezes the exact inventory, type ownership, runtime wiring, effect confinement,
+and line ceiling. The cross-language Ghost client contract now reads the facade,
+runtime, cloud-session core/live adapter, state projection, and focused tests in
+addition to the existing synchronization, restoration, Realtime, repository, and
+retry owners, so the relocated lease and session fences cannot silently leave
+that contract.
+
+The completion audit closed one first-scan admission race exposed by the new
+state owner. Creating an anonymous session could publish the session before the
+coordinator decided whether the previously unowned required evidence remained
+eligible, causing the owner projection to hide that evidence before
+synchronization could bind it. The coordinator now snapshots complete unowned
+required evidence before adoption, admits it only when no ledger account already
+owns it, and rechecks the account-work lease plus synchronization generation
+after suspended work. Cancellation and stale lease/generation exits are resolved
+before missing proof is interpreted, so an invalidated first-scan task cannot
+persist or publish reapproval for the replacement context. Focused tests cover
+the successful first-scan path through the real synchronization-service
+pipeline, cross-account rejection, stale lease, stale generation without
+reapproval, and final-session Ghost rebind verification.
+
+The slice changes no API payload, SwiftData schema, database migration, RLS or
+grant, persistence key or format, policy statement/version, provider, feature
+flag, navigation, copy, layout, or release control. The current Core residual
+inventory is `InferenceEngine.swift` and `SupabaseManager.swift`.
+
+Candidate verification passed byte-stable XcodeGen output, generated-project,
+resource, source-membership, event-routing, and adversarial routing guards,
+Swift parsing, focused iOS-SDK source and test typechecks, strict
+affected-source SwiftLint, the complete iOS CI-tooling suite, the focused Ghost
+and legal-consent contracts, all 1,944 Edge Function tests, the complete
+Supabase function/script format check, changed-Markdown formatting,
+documentation contracts including local links, and whitespace validation. The
+required unsigned generic iOS Simulator `build-for-testing` was attempted
+through `make ios-local-build`, but the safety wrapper exited before invoking
+Xcode because this sandbox could not inspect whether another `xcodebuild` was
+active. No fresh build or Simulator runtime result is claimed for this slice.
+
 ## Validation Gates
 
 Every cleanup PR should run the narrowest relevant checks, plus the full app
@@ -5359,7 +5581,7 @@ build for moved Swift files:
 
 ```bash
 git diff --check
-xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+make ios-local-build ARGS='simulator -- build-for-testing -configuration Debug -destination "generic/platform=iOS Simulator"'
 ```
 
 For web changes:

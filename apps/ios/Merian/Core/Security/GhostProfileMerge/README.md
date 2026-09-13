@@ -47,20 +47,16 @@ architecture suite prevents these declarations and storage rules from drifting
 back into the aggregate manager.
 `services/supabase/functions/_tests/ghostProfileMergeClientContract.test.ts`
 reads `SupabaseManager`, the exact store, policy, workflow, policy test, and
-endpoint-adapter test, plus `ConsentManager`,
-`ConsentSynchronizationCoordinator`, `ConsentSynchronizationMergePolicy`,
-`ConsentRealtimeCoordinator`, `ConsentRealtimeCoordinator+Live`,
-`RequiredConsentRestorationCoordinator`, `ConsentLedgerRepository`,
-`ConsentRetryPolicy`, `ConsentManagerAuthorityTests`,
-`ConsentSynchronizationCoordinatorTests`, `ConsentRealtimeCoordinatorTests`, and
-`ConsentRestorationCoordinatorTests`. Those direct source inputs keep this
-native split joined to the Edge completion, verified consent persistence,
-complete synchronization-task draining, UUID-keyed restoration retry retention
-through exact completion and the combined Auth-transition drain, canceled-retry
-admission after manual attempt-number reuse, stale-account fencing, Realtime
-ownership/retry, and target-consent ordering contracts. Moving any of them
-requires updating the cross-language path and running the focused Deno contract
-in the same change.
+endpoint-adapter test, plus the Consent facade, runtime, cloud-session core/live
+adapter, state projection, synchronization, restoration, Realtime, repository,
+retry, merge, and focused tests. Those direct source inputs keep this native
+split joined to the Edge completion, verified consent persistence, account-work
+lease/session adoption, complete synchronization-task draining, UUID-keyed
+restoration retry retention through exact completion and the combined
+Auth-transition drain, canceled-retry admission after manual attempt-number
+reuse, stale-account fencing, Realtime ownership/retry, and target-consent
+ordering contracts. Moving any of them requires updating the cross-language path
+and running the focused Deno contract in the same change.
 
 See the canonical
 [Keychain contract](../../../../../../docs/development-guides/05-keychain-and-secrets.md),

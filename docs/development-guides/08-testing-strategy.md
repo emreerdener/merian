@@ -1321,11 +1321,10 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     `reference_image_url`, `iucn_red_list_status`). Asserts sparse entries (only
     `scientific_name`) decode with `nil` optional fields. Asserts absent
     `similar_species` key decodes as `nil`, not empty array.
-  - **`load(from:)` path**: Asserts that
-    `LocalScanRecord.similarSpecies: [String]?` strings are wrapped into
-    `SimilarSpeciesEntry` instances with `nil` enrichment fields (historical
-    record path). Asserts nil `similarSpecies` on the record produces `nil` (not
-    an empty `SimilarSpecies` struct) on `speciesData`.
+  - **`load(from:)` integration**: Retains public-engine coverage for historical
+    task replacement, reference-state publication, enrichment scheduling, and
+    review-state restoration. Exact persisted-field mapping and hydration-plan
+    decisions belong to `InferenceHistoricalRecordProjectionTests` below.
   - **Inference tier**: Validates Flash vs Pro confidence band thresholds via
     `InferenceConfidencePolicy.bands(forInferenceTier:)`. Asserts nil tier
     resolves to Flash for safety. The exact values and fallback are owned by
@@ -1338,8 +1337,9 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   cancellation-ignoring Auth quiescence, ordered review writes, stale-action
   rejection, confirmation/review generation independence, and bounded per-scan
   action history. `SpeciesMetadataPersistenceTests` separately locks atomic
-  local override admission, destructive reset/identity replacement, and
-  non-destructive historical override refresh.
+  local override admission, the effective identity fence for enrichment and
+  reference writes, destructive reset/identity replacement, and non-destructive
+  historical override refresh.
 - **`Core/AI/Inference/InferenceHydrationCoordinatorTests.swift`**: Executes the
   hydration lifecycle and request-policy owner with injected clocks and storage.
   It covers replacement-task retention, exact-task awaiting when a review is
@@ -1351,6 +1351,28 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   and rejected-override field-clearing integrations. The architecture suite
   rejects a detached/duplicate GBIF owner and verifies that historical override
   hydration uses the displayed species.
+- **`Core/AI/Inference/InferenceHistoricalRecordProjectionTests.swift`**:
+  Executes the value-only historical-load boundary directly. It locks the full
+  persisted `SpeciesData` and media projection, override/original identity,
+  Human/unresolved suppression, reference admission, rich/legacy lookalike
+  precedence, independent metadata/lookalike/Wikipedia planning, cache-reset
+  behavior, candidate decoding after deleting the source record, and
+  malformed-candidate compatibility without networking or a retained SwiftData
+  model. `InferenceArchitectureTests` separately locks identity assignment and
+  live-media release before projection, then rejects any managed-record capture
+  inside the deferred task.
+- **`Core/AI/Inference/InferenceSpeciesEnrichmentServiceTests.swift`**: Injects
+  a recording scoped fetch dependency and locks exact request forwarding,
+  metadata trimming, wire-taxonomy-to-domain mapping, raw persistence versus
+  sanitized presentation names, absent-field preservation, explicit name
+  clearing, complete lookalike field mapping, empty payloads, and
+  transport-error propagation without networking or SwiftData effects.
+- **`Core/AI/Inference/InferenceHydrationPersistenceServiceTests.swift`**:
+  Executes the injected persistence boundary with isolated current-schema
+  stores. `InferenceHydrationPersistenceTests` locks exact immutable snapshot
+  and `ModelContainer` forwarding; its live-adapter cases prove reference and
+  domain-taxonomy metadata writes plus rich-lookalike encode/persist/decode in
+  the existing blob without invoking the enrichment endpoint.
 - **`Core/AI/Inference/InferenceLiveRequestServiceTests.swift`**: Executes the
   injected live request boundary without networking. It locks visual and
   nonvisual provider fields, inline-image staging-key omission, JPEG/WebP
@@ -1444,20 +1466,22 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   thumbnail recovery reuse this shared transport/parser instead of duplicating
   wire DTOs or sessions.
 - **`Core/AI/Inference/InferenceArchitectureTests.swift`**: Prevents mutable
-  write, hydration, or local-analysis registries, live provider
-  payload/dispatch, and shared reference wire state from drifting back into
-  `InferenceEngine`; requires private coordinator state and AppDI-owned live
-  request/result injection; prevents direct parse/save adaptation or engine side
-  effects from crossing the result boundary; keeps request-format and
-  result-mapping helpers file-private; requires stateless recovery policies and
-  one private synchronous engine failure handler with handoff-before-stale-guard
-  and release-before-publication ordering; rejects the retired
-  `LocalVisualAnalysis.swift` aggregate; and keeps every extracted owner and
-  split local-analysis policy file below 600 lines. The Species Reference
-  architecture suite applies the same ceiling to the shared transport owner.
+  write, hydration, or local-analysis registries, historical record mapping and
+  planning, live provider payload/dispatch, and shared reference wire state from
+  drifting back into `InferenceEngine`; requires private coordinator state and
+  AppDI-owned live request/result/enrichment/persistence injection; prevents
+  direct parse/save adaptation, enrichment endpoint calls, database actor
+  construction, and lookalike encoding from crossing their focused boundaries;
+  keeps request- format and result/enrichment-mapping helpers file-private;
+  requires stateless recovery policies and one private synchronous engine
+  failure handler with handoff-before-stale-guard and release-before-publication
+  ordering; rejects the retired `LocalVisualAnalysis.swift` aggregate; and keeps
+  every extracted owner and split local-analysis policy file below 600 lines.
+  The Species Reference architecture suite applies the same ceiling to the
+  shared transport owner.
 - **`Core/Architecture/CoreIntegrationArchitectureTests.swift`**: Freezes the
   complete Core domain and root-file inventory, requires each domain README,
-  tracks the five remaining production files above 600 lines, keeps Policies
+  tracks the two remaining production files above 600 lines, keeps Policies
   stateless with an exact allowlist for documented file/clock/jitter inputs,
   keeps shared UI components free of transport/persistence, rejects `try?`
   SwiftData fetches across Core, and self-validates the patterns that prevent
@@ -1641,15 +1665,16 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
 - **`Core/Data/Database/SpeciesMetadataPersistenceTests.swift`**: Owns the
   extracted species-metadata actor behavior. It verifies stale Wikipedia and
   enrichment work cannot overwrite a replacement identification; all supplied
-  enrichment fields persist; Wikipedia uses the effective override identity and
-  reports no-op writes; lookalike recovery clears biological rows across batches
-  only; and identification override, reset, confirmation, sparse historical
-  refresh, and legacy unflagging preserve their prior semantics.
-  `SpeciesMetadataArchitectureTests` scans every Swift file under the production
-  `Merian` and `MerianTests` trees, requiring one focused owner for each of the
-  seven extracted methods and each mirrored behavior test. It also freezes both
-  private helper boundaries, exact framework imports, forbidden dependencies,
-  and the 600-line ceilings for production and behavior-test files.
+  enrichment fields persist; Wikipedia and enrichment use the effective
+  override-or-original identity; Wikipedia reports no-op writes; lookalike
+  recovery clears biological rows across batches only; and identification
+  override, reset, confirmation, sparse historical refresh, and legacy
+  unflagging preserve their prior semantics. `SpeciesMetadataArchitectureTests`
+  scans every Swift file under the production `Merian` and `MerianTests` trees,
+  requiring one focused owner for each of the seven extracted methods and each
+  mirrored behavior test. It also freezes both private helper boundaries, exact
+  framework imports, forbidden dependencies, and the 600-line ceilings for
+  production and behavior-test files.
 - **`Core/Data/Database/NonBiologicalRetentionPersistenceTests.swift`**: Owns
   the extracted non-biological retention actor behavior. It proves database
   commit precedes local-path return, an existing cloud-deletion task is reused,
@@ -2407,10 +2432,10 @@ Dynamic Type; and light/dark appearance.
 
 ### Live inference request/result verification
 
-After changes to `Inference/Request`, `Inference/Result`, `Inference/Recovery`,
-their AppDI wiring, either engine call site, reanalysis replacement safety,
-foreground lifecycle/scheduler dispatch, or the shared inference/queue test
-fixtures, run `make xcodegen`, `make validate-ios-project`,
+After changes to `Inference/Request`, `Inference/Result`, `Inference/Hydration`,
+`Inference/Recovery`, their AppDI wiring, either engine call site, reanalysis
+replacement safety, foreground lifecycle/scheduler dispatch, or the shared
+inference/queue test fixtures, run `make xcodegen`, `make validate-ios-project`,
 `bash scripts/test-ios-project-source-membership.sh`,
 `make validate-ios-event-routing`, and `make test-ios-event-routing`. Follow
 with the generic iOS Simulator build and `build-for-testing`, with code signing
@@ -2443,6 +2468,9 @@ xcodebuild test-without-building \
   -only-testing:merianTests/InferenceIntegrationAuditTests \
   -only-testing:merianTests/SharedProcessStateGateTests \
   -only-testing:merianTests/InferenceHydrationCoordinatorTests \
+  -only-testing:merianTests/InferenceHistoricalRecordProjectionTests \
+  -only-testing:merianTests/InferenceSpeciesEnrichmentServiceTests \
+  -only-testing:merianTests/InferenceHydrationPersistenceTests \
   -only-testing:merianTests/InferenceWriteCoordinatorTests \
   -only-testing:merianTests/InferenceReviewSnapshotServiceTests \
   -only-testing:merianTests/LocalVisualAnalysisTests \
@@ -3173,19 +3201,19 @@ import, and permission-denial UI require the physical-device checklist in
   protects the cross-slice inventory after the focused endpoint extractions. It
   requires exactly 18 endpoint owners, rejects duplicate endpoint entry points
   in `MerianNetworkClient.swift`, applies the 600-line ceiling to every Swift
-  owner in `Auth/`, `Endpoints/`, `Inference/`, `Media/`, `Recovery/`, and
-  `Transport/` plus the client façade. It requires the exact nine Auth
-  foundation paths, relocated declarations and helper functions, absence of
-  current and legacy aggregate account-deletion, purchase-safe sign-out, and
-  ghost-merge helpers, one main-actor task owner, and no provider SDK imports or
-  singleton resolution. It separately freezes the Core Security ghost-merge and
-  purchase-handoff model/store owners, exact persisted fields, device-only
-  verified persistence, and 600-line boundaries. It also requires exactly six
-  Transport files: three stateless policies, one request-scoped executor, one
-  pinned session, and one authenticated dispatcher. The suite freezes the
-  disjoint safe-read and idempotency-aware ambiguous-replay sets, requires
-  exactly one endpoint owner for each classified route, and records the exact
-  owners allowed to acquire the pinned session, private transport, request
+  owner in `Auth/`, `Endpoints/`, `Inference/`, `Media/`, `Models/`,
+  `Recovery/`, and `Transport/` plus the client façade. It requires the exact
+  nine Auth foundation paths, relocated declarations and helper functions,
+  absence of current and legacy aggregate account-deletion, purchase-safe
+  sign-out, and ghost-merge helpers, one main-actor task owner, and no provider
+  SDK imports or singleton resolution. It separately freezes the Core Security
+  ghost-merge and purchase-handoff model/store owners, exact persisted fields,
+  device-only verified persistence, and 600-line boundaries. It also requires
+  exactly six Transport files: three stateless policies, one request-scoped
+  executor, one pinned session, and one authenticated dispatcher. The suite
+  freezes the disjoint safe-read and idempotency-aware ambiguous-replay sets,
+  requires exactly one endpoint owner for each classified route, and records the
+  exact owners allowed to acquire the pinned session, private transport, request
   executor, consent/profile context, Auth manager, recovery Species Dictionary
   query, or detached preparation bridge. The eleven policy tests own
   URL/route/error classification, unavailable-route scheduling, retry account
@@ -3282,7 +3310,10 @@ import, and permission-denial UI require the physical-device checklist in
   shared client's session or use the legacy `MockURLProtocol.mockEndpoints`
   registry. `MerianNetworkArchitectureTests.swift` guards endpoint ownership and
   the private transport boundary. DTO decoding remains in
-  `FieldTripAPIModelsTests`, and view-model/presentation behavior remains in
+  `FieldTripAPIModelsTests`; `FieldTripNetworkModelArchitectureTests` freezes
+  the eight focused network-model owners, production-wide declaration
+  uniqueness, their effect exclusions, the retired aggregate, and relocated
+  non-wire responsibilities. View-model/presentation behavior remains in
   `Features/Explore/FieldTrips`. Run the canonical
   [Field Trips focused matrix](../features-and-hardware/25-field-trips.md#verification)
   and the complete `merianTests` target after changing this boundary. Its
@@ -3295,9 +3326,17 @@ import, and permission-denial UI require the physical-device checklist in
   the configuration guard must follow the complete
   [Core Network verification requirements](../../apps/ios/Merian/Core/Network/README.md#endpoint-verification),
   including `NetworkEndpointTestSupportTests` and every linked endpoint matrix.
-  Exact-source macOS checks of pure Foundation/architecture behavior and focused
-  frontend typechecking are supplemental evidence; neither executes the hosted
-  iOS client or replaces candidate-build runtime tests. The
+  `ExploreNetworkModelArchitectureTests.swift` separately freezes the thirteen
+  focused `Models/Explore/` owners, representative declaration uniqueness,
+  effect exclusions, the retired aggregate, cross-feature location-redaction
+  placement, the layered Core-wire/Explore-presentation ownership of post
+  location sharing, and the 600-line model ceiling.
+  `ExploreLocationSharingAPIModelsTests.swift` locks raw values,
+  case-insensitive decode, legacy `hidden`, and fail-safe unknown-value
+  decoding; `ExploreLocationSharingPresentationTests.swift` locks visible copy
+  and SF Symbols. Exact-source macOS checks of pure Foundation/architecture
+  behavior and focused frontend typechecking are supplemental evidence; neither
+  executes the hosted iOS client or replaces candidate-build runtime tests. The
   [cleanup record](../rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits)
   separates those checks from the unrun local iOS matrix and accepted earlier
   merged-CI baseline.
@@ -3352,6 +3391,11 @@ import, and permission-denial UI require the physical-device checklist in
   and complete `merianTests` target. Shared bridge/helper changes require every
   focused matrix and the helper suite listed in that guide; cached-module
   typechecking or native Foundation checks never count as iOS runtime execution.
+  `ExploreNetworkModelArchitectureTests.swift` additionally freezes the focused
+  `Core/Network/Models/Explore/` inventory, sole representative declaration
+  ownership, retired aggregate, effect exclusions, cross-feature
+  `ExploreLocationPrivacy` placement, layered post-location-sharing ownership,
+  and the 600-line ceiling.
 - **Explore interaction endpoint boundary**:
   `Core/Network/Endpoints/ExploreInteractionEndpointTests.swift` owns 41
   independent request cases across 12 comment/reply/mention, like/follow,
@@ -3740,37 +3784,50 @@ import, and permission-denial UI require the physical-device checklist in
   older retry completes after its replacement starts. They also force manual
   retry to reuse the same attempt number, resume the canceled prior timer, and
   require caller-cancellation admission to reject it. `ConsentArchitectureTests`
-  freezes the exact fifteen-file
+  freezes the exact twenty-one-file
   Models/Policies/Coordinators/Repositories/Services inventory, declaration and
-  raw-storage relocation, 600-line review ceiling, infrastructure exclusions for
-  deterministic owners, PostgREST/RPC and analytics-consent Realtime confinement
-  to their separate live Supabase adapters, all three coordinator state/wiring
-  boundaries, synchronization merge-policy ownership, and `ConsentManager` as
-  the only production synchronization-coordinator facade. The module-internal
-  wire namespace is separately confined to the remote models, service core, and
-  live adapter. These deterministic regressions do not claim the exact-SHA
-  new-account release transaction described above has run.
+  raw-storage relocation, 600-line review ceiling for every extracted owner and
+  the facade, infrastructure exclusions for deterministic owners, runtime
+  composition, and mutation, state-projection, cloud-session, synchronization,
+  restoration, and Realtime boundaries. PostgREST/RPC, account-session,
+  app-metadata, and analytics-consent Realtime effects remain confined to their
+  separate live adapters, while `ConsentManager` remains the public observable
+  compatibility facade. `ConsentStateProjectionPolicyTests` cover cold-start and
+  resolved Auth ownership, pending-count isolation, cloud readiness, and
+  fail-closed analytics permission. `ConsentMutationServiceTests` cover
+  deterministic evidence values, privacy-close-before-write ordering, failure
+  behavior, and no-op withdrawal restoration.
+  `ConsentCloudSessionCoordinatorTests` cover lease adoption and completion,
+  post-suspension stale-lease and stale-generation rejection, first-scan binding
+  of unowned required evidence through pending receipt/event pushes, exact
+  read-back, authoritative fetch, durable merge, and cloud-ready projection,
+  plus rejection of another account's persisted evidence. A separate overlap
+  regression invalidates the synchronization generation during inference and
+  requires `activeAccountChanged` with an empty durable reapproval set. The
+  suite also covers runtime-repository Ghost rebinding with final-session
+  verification. The module-internal wire namespace is separately confined to the
+  remote models, service core, and live adapter. These deterministic regressions
+  do not claim the exact-SHA new-account release transaction described above has
+  run.
 - **`ghostProfileMergeClientContract.test.ts` cross-language owner references**:
   The Deno client contract directly reads `SupabaseManager`,
   `GhostProfileMergeStore`, `GhostProfileMergePolicy`,
   `GhostProfileMergeWorkflow`, `GhostProfileMergePolicyTests`, and
   `GhostProfileMergeEndpointErrorAdapterTests` to pin verified device-only
   persistence, restoration retry, terminal-only retirement, cancellation fences,
-  and proof-removal-last ordering. It also reads `ConsentManager`,
-  `ConsentSynchronizationCoordinator`, `ConsentSynchronizationMergePolicy`,
-  `ConsentRealtimeCoordinator`, `ConsentRealtimeCoordinator+Live`,
-  `ConsentRealtimeCoordinatorTests`, `RequiredConsentRestorationCoordinator`,
-  `ConsentLedgerRepository`, `ConsentRetryPolicy`,
-  `ConsentManagerAuthorityTests`, `ConsentSynchronizationCoordinatorTests`, and
-  `ConsentRestorationCoordinatorTests` to pin current-account synchronization,
-  owner-filtered Realtime construction, generation/retry fencing, retention and
-  Auth-transition drain of every scheduled and active task handle and started
-  channel removal, verified restoration-retry retention through exact completion
-  and the combined drain, canceled-retry admission after manual attempt-number
-  reuse, verified persistence before in-memory publication, pending-consent
-  flush before remote refetch, and authoritative merge before analytics
-  application. Moving any direct Swift input requires an atomic contract-path
-  update and the focused Deno contract run.
+  and proof-removal-last ordering. It also reads the Consent facade, runtime,
+  cloud-session coordinator and live adapter, synchronization, merge,
+  state-projection, Realtime, restoration, repository, and retry owners plus
+  their focused authority, cloud-session, synchronization, Realtime, and
+  restoration tests to pin current-account synchronization, account-work lease
+  adoption, owner-filtered Realtime construction, generation/retry fencing,
+  retention and Auth-transition drain of every scheduled and active task handle
+  and started channel removal, verified restoration-retry retention through
+  exact completion and the combined drain, canceled-retry admission after manual
+  attempt-number reuse, verified persistence before in-memory publication,
+  pending-consent flush before remote refetch, and authoritative merge before
+  analytics application. Moving any direct Swift input requires an atomic
+  contract-path update and the focused Deno contract run.
 - **`AuthTransitionPolicyTests.swift` auth-adoption coverage**: Locks the three
   cold-start classifications: nil is signed out, a current session is
   authenticated, and an expired cached session is awaiting refresh rather than
@@ -4137,8 +4194,12 @@ paths that require separate coverage:
 
 `EnrichScanResponse.SimilarSpeciesEntry` (Codable DTO, snake_case) is decoded
 from the `/enrich-scan` JSON payload and mapped to the domain
-`SimilarSpeciesEntry` (camelCase) by `InferenceEngine.fetchAndApplyEnrichment`.
-Tests:
+`SimilarSpeciesEntry` (camelCase) by the initializer-injected
+`InferenceSpeciesEnrichmentService`. `InferenceEngine` owns only current-
+presentation application and admitted write scheduling; the live persistence
+adapter owns off-main encoding into the rich SwiftData blob. Wire decoding is
+covered by `InferenceEngineTests`, while exact domain mapping is covered by
+`InferenceSpeciesEnrichmentServiceTests`:
 
 ```swift
 // Verify flat array decodes with all four optional fields
@@ -4157,9 +4218,12 @@ Key assertions: absent key decodes as `nil` (not `[]`); sparse entries (only
 
 ### 2. Historical path (`load(from:)`)
 
-When opening a scan from the library, `InferenceEngine.load(from:)` reads
-`LocalScanRecord.similarSpecies: [String]?` (bare scientific name strings) and
-wraps each into a `SimilarSpeciesEntry` with `nil` enrichment fields:
+When opening a scan from the library, `InferenceHistoricalRecordProjection`
+snapshots `LocalScanRecord.similarSpecies: [String]?` (bare scientific name
+strings), and its awaited deferred decoder wraps each into a
+`SimilarSpeciesEntry` with `nil` enrichment fields.
+`InferenceEngine.load(from:)` publishes that returned value only while its
+replaceable historical operation remains current:
 
 ```swift
 // LocalScanRecord.similarSpecies = ["Procyon cancrivorus", "Bassariscus astutus"]
@@ -5043,19 +5107,16 @@ layers:
   fencing, and live effect assembly without exposing proof values.
   `_tests/ghostProfileMergeClientContract.test.ts` must read `SupabaseManager`,
   the exact Ghost store, policy, workflow, policy test, and endpoint-adapter
-  test, plus `ConsentManager`, `ConsentRealtimeCoordinator`,
-  `ConsentRealtimeCoordinator+Live`, `ConsentRealtimeCoordinatorTests`,
-  `ConsentSynchronizationCoordinator`, `ConsentSynchronizationMergePolicy`,
-  `RequiredConsentRestorationCoordinator`, `ConsentLedgerRepository`,
-  `ConsentRetryPolicy`, `ConsentManagerAuthorityTests`,
-  `ConsentSynchronizationCoordinatorTests`, and
-  `ConsentRestorationCoordinatorTests`. Together those inputs pin persistence
-  before session replacement, verified consent persistence before local state
-  publication, cancellation fences, provider/local completion before proof
-  removal, terminal-only retirement, complete synchronization-task draining,
-  restoration retry retention through exact completion, the combined
-  Auth-transition drain, stale-account and canceled-attempt-reuse rejection, and
-  current-context consent flush before remote account refetch.
+  test, plus the Consent facade, runtime, cloud-session coordinator and live
+  adapter, state projection, Realtime, synchronization, restoration, repository,
+  retry, merge, and focused authority/coordinator tests. Together those inputs
+  pin persistence before session replacement, verified consent persistence
+  before local state publication, account-work lease adoption, cancellation
+  fences, provider/local completion before proof removal, terminal-only
+  retirement, complete synchronization-task draining, restoration retry
+  retention through exact completion, the combined Auth-transition drain,
+  stale-account and canceled-attempt-reuse rejection, and current-context
+  consent flush before remote account refetch.
 - `_tests/ghostProfileMergeMigrationContract.test.ts` must statically lock the
   source-controlled policy manifest, pre-mutation topology assertion,
   scan-first/derived-ledger order, guarded orchestrator rewrite, private helper
@@ -5968,11 +6029,15 @@ renamed, or retired. `FieldTripCaptureContextModelsTests` covers capture-context
 decoding, while `FieldTripAPIModelsTests` is limited to wire behavior: the
 optional completing scan ID used by catalog/detail thumbnails, ordered
 reference-species media, published status, optional removed-item metadata, and
-standard/Event contribution decoding plus typed destinations. A separate
-legacy-payload test ensures absent publication fields decode as Private during
-rollout. `FieldTripPresentationTests` and the suites in
+standard/Event contribution decoding. A separate legacy-payload test ensures
+absent publication fields decode as Private during rollout.
+`FieldTripPresentationTests` and the suites in
 `FieldTripProfilePresentationTests.swift` own feature display, filtering,
-lifecycle, profile, patch, and artwork policies. `FieldTripsViewModelTests`,
+lifecycle, profile, patch, and artwork policies.
+`FieldTripModelPresentationTests` specifically owns lifecycle/guide/community,
+publication-author, and profile-summary accessors relocated out of the Core wire
+suite. `FirstFieldTripProgressStoreTests` owns normalized account-qualified
+cache round trips and invalid-value rejection. `FieldTripsViewModelTests`,
 `FieldTripTemplateDetailViewModelTests`,
 `FieldTripChallengeDetailViewModelTests`,
 `ActiveFieldTripsProfileViewModelTests`, and
@@ -6231,14 +6296,14 @@ override keys and reset behavior, and the absence of an Events gate.
 standard-outing sharing policy with Field Trips rather than treating it as an
 app-wide gate. `FeatureFlagsArchitectureTests` enforces those two owners and the
 retired Utilities paths. `FieldTripAPIModelsTests`,
-`FieldTripPresentationTests`, the profile presentation suites in
-`FieldTripProfilePresentationTests.swift`, the Field Trips view-model suites,
-`ActiveCaptureGoalStoreTests`, the milestone feedback suites, and
-`InsightFieldTripContributionTests` verify that Event sections, badges,
-progress, typed routes, publications, profiles, and scan contributions are part
-of the normal client path. Manually test a physical signed-in account, a
-physical ghost account, and a simulator build; all must see the Events segment
-and be able to exercise the server-authorized flow.
+`FieldTripNetworkModelArchitectureTests`, `FieldTripPresentationTests`, the
+profile presentation suites in `FieldTripProfilePresentationTests.swift`, the
+Field Trips view-model suites, `ActiveCaptureGoalStoreTests`, the milestone
+feedback suites, and `InsightFieldTripContributionTests` verify that Event
+sections, badges, progress, typed routes, publications, profiles, and scan
+contributions are part of the normal client path. Manually test a physical
+signed-in account, a physical ghost account, and a simulator build; all must see
+the Events segment and be able to exercise the server-authorized flow.
 
 Manual refactor-parity QA must also switch Outings/Events while their catalog
 requests load, fail, retry, and refresh independently; combine difficulty and

@@ -409,18 +409,19 @@ reads the result back, and compares the exact bytes. A one-time migration writes
 and verifies this file before removing `UserDefaultsKeys.legalConsentLedger`, so
 an older stale grant cannot become the fallback authority.
 
-Analytics withdrawal uses two independent boundaries. `ConsentManager` closes
-capture in memory first and requests one repository transition.
-`ConsentLedgerRepository` writes the exact revocation event to
-`Merian_AnalyticsRevocationIntent_v1` before replacing the main ledger through
-`ConsentLedgerStore`. The Keychain payload is a journal, not a single slot:
-simultaneous offline actions for different accounts remain distinct. A failed
-main write leaves the journal in place across restart; repository recovery
-appends the same IDs, text, versions, and timestamps to the ledger and only then
-verifies journal removal. If both writes fail, the current process remains off
-and the Settings surface reports that the withdrawal still needs durable
-storage. The repository does not publish or notify observers about a candidate
-ledger until the store has verified its durable bytes.
+Analytics withdrawal uses two independent boundaries. `ConsentManager` delegates
+the requested transition to `ConsentMutationService`, which closes capture in
+memory before asking `ConsentLedgerRepository` to persist it. The repository
+writes the exact revocation event to `Merian_AnalyticsRevocationIntent_v1`
+before replacing the main ledger through `ConsentLedgerStore`. The Keychain
+payload is a journal, not a single slot: simultaneous offline actions for
+different accounts remain distinct. A failed main write leaves the journal in
+place across restart; repository recovery appends the same IDs, text, versions,
+and timestamps to the ledger and only then verifies journal removal. If both
+writes fail, the current process remains off and the Settings surface reports
+that the withdrawal still needs durable storage. The repository does not publish
+or notify observers about a candidate ledger until the store has verified its
+durable bytes.
 
 ---
 

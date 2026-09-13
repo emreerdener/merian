@@ -97,6 +97,11 @@ struct MilestoneAchievementPolicyTests {
             return
         }
 
+        #expect(progress.completionDate != nil)
+        #expect(progress.destination == .fieldTripTemplate(slug: "backyard_safari"))
+        #expect(award.currentCount == 1)
+        #expect(award.destination == .fieldTripTemplate(slug: "backyard_safari"))
+
         let first = GamificationManager.shared.evaluateAchievementsForNotifications(
             awards: [award]
         )
@@ -108,34 +113,12 @@ struct MilestoneAchievementPolicyTests {
         #expect(duplicate.isEmpty)
     }
 
-    @Test func firstFieldTripAchievementProgressCachesPerAccountAndMergesAward() throws {
+    @Test func firstFieldTripAchievementProgressMergesAward() {
         let progress = FirstFieldTripAchievementProgress(
             kind: .seasonalChallenge,
             completedAt: "2026-07-18T14:00:00.123Z",
             templateSlug: nil,
             challengeId: "challenge-1"
-        )
-        let suiteName = "FirstFieldTripAchievementProgressStoreTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        FirstFieldTripAchievementProgressStore.save(
-            progress,
-            accountId: "ACCOUNT-A",
-            userDefaults: defaults
-        )
-
-        #expect(
-            FirstFieldTripAchievementProgressStore.load(
-                accountId: "account-a",
-                userDefaults: defaults
-            ) == progress
-        )
-        #expect(
-            FirstFieldTripAchievementProgressStore.load(
-                accountId: "account-b",
-                userDefaults: defaults
-            ) == nil
         )
 
         let locked = AwardPayload(
@@ -150,5 +133,49 @@ struct MilestoneAchievementPolicyTests {
             merged[0].destination
                 == .fieldTripChallenge(challengeId: "challenge-1")
         )
+    }
+
+    @Test func fieldTripProgressPresentationPrefersCreditedLevelCounts() {
+        let standard = FieldTripProgressUpdate(
+            userFieldTripId: "outing-1",
+            templateId: "template-1",
+            slug: "backyard_safari",
+            title: "Backyard Safari",
+            currentLevelNumber: 2,
+            currentLevelTitle: "Level 2",
+            completedCount: 0,
+            targetCount: 6,
+            isComplete: false,
+            creditedLevelNumber: 1,
+            creditedLevelTitle: "Level 1",
+            creditedCompletedCount: 4,
+            creditedTargetCount: 4,
+            newlyCompletedItems: [],
+            removedItemIds: nil
+        )
+        let event = FieldTripChallengeProgressUpdate(
+            participationId: "participation-1",
+            challengeId: "challenge-1",
+            slug: "summer_watch",
+            title: "Summer Watch",
+            currentLevelNumber: 1,
+            currentLevelTitle: "Level 1",
+            completedCount: 2,
+            targetCount: 5,
+            isComplete: false,
+            badgeAwardedAt: nil,
+            suggestedHashtags: [],
+            creditedLevelNumber: nil,
+            creditedLevelTitle: nil,
+            creditedCompletedCount: nil,
+            creditedTargetCount: nil,
+            newlyCompletedItems: [],
+            removedItemIds: nil
+        )
+
+        #expect(standard.toastCompletedCount == 4)
+        #expect(standard.toastTargetCount == 4)
+        #expect(event.toastCompletedCount == 2)
+        #expect(event.toastTargetCount == 5)
     }
 }

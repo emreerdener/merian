@@ -9,6 +9,11 @@ struct InferenceArchitectureTests {
         for relativePath in [
             "State/InferenceWriteCoordinator.swift",
             "Hydration/InferenceHydrationCoordinator.swift",
+            "Hydration/InferenceSpeciesEnrichmentService.swift",
+            "Hydration/InferenceSpeciesEnrichmentService+Live.swift",
+            "Hydration/InferenceHydrationPersistenceService.swift",
+            "Hydration/InferenceHydrationPersistenceService+Live.swift",
+            "Hydration/InferenceHistoricalRecordProjection.swift",
             "LocalAnalysis/InferenceLocalAnalysisCoordinator.swift",
             "LocalAnalysis/VisionSubjectClassification.swift",
             "LocalAnalysis/LocalVisualAnalysisImageBuilder.swift",
@@ -40,6 +45,108 @@ struct InferenceArchitectureTests {
         }
     }
 
+    @Test func historicalRecordProjectionOwnsMappingAndHydrationPlanning() throws {
+        let projection = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceHistoricalRecordProjection.swift"
+            )
+        )
+        let engine = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/Merian/Core/AI/InferenceEngine.swift"
+            )
+        )
+        let focusedTests = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/MerianTests/Core/AI/Inference/InferenceHistoricalRecordProjectionTests.swift"
+            )
+        )
+
+        for token in [
+            "struct InferenceHistoricalRecordProjection: Sendable",
+            "struct HydrationPlan: Equatable, Sendable",
+            "struct DeferredContent: Sendable",
+            "@MainActor\n    init(",
+            "record.hasResolvedBiologicalIdentification",
+            "record.shouldSuppressReferenceImages",
+            "taxonomy?.hasUsableLookalikeValidation != true",
+            "Task.detached(priority: .userInitiated)",
+            "ExternalReferenceImagePolicy.allowedURLStrings("
+        ] {
+            #expect(projection.contains(token))
+        }
+        for token in [
+            "MerianNetworkClient", "BackgroundDatabaseActor", "ModelContext",
+            "URLSession", "UserDefaults", "@unchecked Sendable", "Task {"
+        ] {
+            #expect(!projection.contains(token))
+        }
+
+        let loadStart = try #require(
+            engine.range(of: "// MARK: - Local Record Loading")
+        )
+        let localAnalysisStart = try #require(
+            engine.range(
+                of: "// MARK: - On-Device Subject Study",
+                range: loadStart.upperBound..<engine.endIndex
+            )
+        )
+        let loadSection = engine[
+            loadStart.lowerBound..<localAnalysisStart.lowerBound
+        ]
+        #expect(
+            loadSection.contains("InferenceHistoricalRecordProjection(")
+        )
+        let identityAssignment = try #require(
+            loadSection.range(of: "self.activeScanId = record.id")
+        )
+        let liveMediaRelease = try #require(
+            loadSection.range(of: "self.activeMedia = ActiveScanMedia()")
+        )
+        let projectionCreation = try #require(
+            loadSection.range(of: "let projection = InferenceHistoricalRecordProjection(")
+        )
+        let historicalMediaPublication = try #require(
+            loadSection.range(
+                of: "self.activeMedia = projection.mediaSnapshot.activeScanMedia"
+            )
+        )
+        #expect(identityAssignment.lowerBound < liveMediaRelease.lowerBound)
+        #expect(liveMediaRelease.lowerBound < projectionCreation.lowerBound)
+        #expect(
+            projectionCreation.lowerBound <
+                historicalMediaPublication.lowerBound
+        )
+
+        let historicTaskStart = try #require(
+            loadSection.range(
+                of: "hydrationCoordinator.replaceTask(in: .historic)"
+            )
+        )
+        let historicTask = loadSection[
+            historicTaskStart.lowerBound..<loadSection.endIndex
+        ]
+        #expect(!historicTask.contains("record."))
+        for retiredToken in [
+            "SpeciesData(", "record.candidatesData", "record.lookalikesData",
+            "record.similarSpecies", "JSONDecoder()", "Task.detached"
+        ] {
+            #expect(!loadSection.contains(retiredToken))
+        }
+
+        #expect(
+            focusedTests.contains(
+                "struct InferenceHistoricalRecordProjectionTests"
+            )
+        )
+        #expect(
+            focusedTests.split(
+                separator: "\n",
+                omittingEmptySubsequences: false
+            ).count <= 600
+        )
+    }
+
     @Test func engineDoesNotReclaimExtractedMutableOrWireState() throws {
         let source = try contents(
             of: try repositoryRoot().appendingPathComponent(
@@ -48,6 +155,8 @@ struct InferenceArchitectureTests {
         )
 
         #expect(source.contains("private let speciesReferenceService:"))
+        #expect(source.contains("private let speciesEnrichmentService:"))
+        #expect(source.contains("private let hydrationPersistenceService:"))
         #expect(source.contains("private let hydrationCoordinator:"))
         #expect(source.contains("private let writeCoordinator"))
         #expect(source.contains("private let localAnalysisCoordinator:"))
@@ -216,6 +325,104 @@ struct InferenceArchitectureTests {
         )
         #expect(appDISource.contains("liveInferenceResultService"))
         #expect(appDISource.contains("liveResultService:"))
+    }
+
+    @Test func enrichmentMappingAndPersistenceHaveFocusedOwners() throws {
+        let enrichment = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceSpeciesEnrichmentService.swift"
+            )
+        )
+        let liveEnrichment = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceSpeciesEnrichmentService+Live.swift"
+            )
+        )
+        let persistence = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceHydrationPersistenceService.swift"
+            )
+        )
+        let livePersistence = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceHydrationPersistenceService+Live.swift"
+            )
+        )
+        let engine = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/Merian/Core/AI/InferenceEngine.swift"
+            )
+        )
+        let appDI = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/Merian/Core/AppDIContainer.swift"
+            )
+        )
+
+        for token in [
+            "struct MetadataPatch: Sendable",
+            "struct LookalikesPatch: Sendable",
+            "SpeciesData.sanitizeAlternativeNames(",
+            "private static func mapLookalike("
+        ] {
+            #expect(enrichment.contains(token))
+        }
+        for token in [
+            "MerianNetworkClient", "BackgroundDatabaseActor", "ModelContext",
+            "ModelContainer", "Task {", "Task.detached", "JSONEncoder"
+        ] {
+            #expect(!enrichment.contains(token))
+        }
+        #expect(
+            liveEnrichment.contains(
+                "MerianNetworkClient.shared.fetchEnrichment("
+            )
+        )
+        #expect(liveEnrichment.contains("scope: scope.rawValue"))
+        #expect(!liveEnrichment.contains("BackgroundDatabaseActor"))
+
+        for token in [
+            "struct ReferenceSnapshot: Equatable, Sendable",
+            "struct MetadataSnapshot: Sendable",
+            "struct LookalikesSnapshot: Sendable"
+        ] {
+            #expect(persistence.contains(token))
+        }
+        for token in [
+            "MerianNetworkClient", "BackgroundDatabaseActor", "Task.detached",
+            "JSONEncoder"
+        ] {
+            #expect(!persistence.contains(token))
+        }
+        #expect(livePersistence.contains("BackgroundDatabaseActor("))
+        #expect(livePersistence.contains("Task.detached("))
+        #expect(livePersistence.contains("JSONEncoder().encode(entries)"))
+        #expect(!livePersistence.contains("MerianNetworkClient"))
+
+        let hydrationStart = try #require(
+            engine.range(of: "// MARK: - Wikipedia Background Hydration")
+        )
+        let reviewStart = try #require(
+            engine.range(
+                of: "// MARK: - Identification Override",
+                range: hydrationStart.upperBound..<engine.endIndex
+            )
+        )
+        let hydration = engine[
+            hydrationStart.lowerBound..<reviewStart.lowerBound
+        ]
+        for token in [
+            "MerianNetworkClient.shared", "BackgroundDatabaseActor(",
+            "Task.detached", "JSONEncoder"
+        ] {
+            #expect(!hydration.contains(token))
+        }
+        #expect(hydration.contains("speciesEnrichmentService"))
+        #expect(hydration.contains("hydrationPersistenceService"))
+        #expect(appDI.contains("liveInferenceSpeciesEnrichmentService"))
+        #expect(appDI.contains("speciesEnrichmentService:"))
+        #expect(appDI.contains("liveInferenceHydrationPersistenceService"))
+        #expect(appDI.contains("hydrationPersistenceService:"))
     }
 
     @Test func identificationReviewServicesOwnNetworkAndPersistenceBoundaries() throws {

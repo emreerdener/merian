@@ -85,6 +85,7 @@ struct PreferencesArchitectureTests {
         "AccountScopedRuntimeState.swift",
         "AppSettings.swift",
         "Stores/ExploreShareStateStore.swift",
+        "Stores/FirstFieldTripAchievementProgressStore.swift",
         "Stores/FieldNotesStore.swift",
         "Stores/SpeciesPreferredNameStore.swift",
         "UserDefaultsKeys.swift"
@@ -99,6 +100,7 @@ struct PreferencesArchitectureTests {
             "import UIKit"
         ],
         "Stores/ExploreShareStateStore.swift": ["import Foundation"],
+        "Stores/FirstFieldTripAchievementProgressStore.swift": ["import Foundation"],
         "Stores/FieldNotesStore.swift": ["import Foundation"],
         "Stores/SpeciesPreferredNameStore.swift": ["import Foundation"],
         "UserDefaultsKeys.swift": []
@@ -113,6 +115,8 @@ struct PreferencesArchitectureTests {
             "apps/ios/Merian/Core/Preferences/AppSettings.swift",
         "enum ExploreShareStateStore":
             "apps/ios/Merian/Core/Preferences/Stores/ExploreShareStateStore.swift",
+        "enum FirstFieldTripAchievementProgressStore":
+            "apps/ios/Merian/Core/Preferences/Stores/FirstFieldTripAchievementProgressStore.swift",
         "enum FieldNotesStore":
             "apps/ios/Merian/Core/Preferences/Stores/FieldNotesStore.swift",
         "struct SpeciesPreferredNameSyncDiagnostics":

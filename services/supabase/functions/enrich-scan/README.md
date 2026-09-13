@@ -12,8 +12,13 @@ defines request validation, scoped responses, quota attribution, and legacy
 null/placeholder behavior. Native request ownership and focused checks live in
 the
 [Core Network guide](../../../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification);
-InferenceEngine retains scheduling, bounded lookalike retry, and stale-result
-suppression.
+`InferenceSpeciesEnrichmentService+Live` is the sole Core AI adapter to that
+endpoint, while the injected core resolves no live client directly and maps
+scoped responses into domain patches.
+`InferenceHydrationPersistenceService+Live` owns admitted local writes and
+off-main lookalike encoding. `InferenceEngine` retains hydration admission,
+scheduling, bounded lookalike retry, presentation application and stale-result
+suppression, and bounded write lifetime.
 
 ## Directory Structure
 

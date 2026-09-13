@@ -97,6 +97,11 @@ response is exactly HTTP `403` with code `ai_consent_required`.
   body. A first-time account must push pending adult, Terms, and Gemini evidence
   and fetch those account rows plus the all-version Gemini head before its first
   request.
+- A task canceled during that preflight remains cancellation. A lost
+  account-work lease or synchronization generation is an active-account change,
+  not `aiConsentRequired`; it aborts without persisting a reapproval fence. Only
+  a still-current account whose authoritative synchronization completes without
+  the required proof enters the consent-policy transition.
 - Foreground and background paths durably fence only the active account,
   invalidate its cloud-ready marker, and return a completed user to the Ready
   disclosure after restoration resolves.

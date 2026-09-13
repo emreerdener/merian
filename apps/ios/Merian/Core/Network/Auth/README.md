@@ -171,16 +171,13 @@ The Edge client-source contracts deliberately read these extracted owners.
 `AccountDeletionWorkflow`; `purchasePrincipalMigrationContract.test.ts` pins the
 two-journal fail-closed readiness reread; and
 `ghostProfileMergeClientContract.test.ts` reads `SupabaseManager`, the Ghost
-store, policy, workflow, policy test, and endpoint-error adapter test, plus
-`ConsentManager`, `ConsentSynchronizationCoordinator`,
-`ConsentSynchronizationMergePolicy`, `ConsentRealtimeCoordinator`,
-`ConsentRealtimeCoordinator+Live`, `RequiredConsentRestorationCoordinator`,
-`ConsentLedgerRepository`, `ConsentRetryPolicy`, `ConsentManagerAuthorityTests`,
-`ConsentSynchronizationCoordinatorTests`, `ConsentRealtimeCoordinatorTests`, and
-`ConsentRestorationCoordinatorTests` to pin Ghost completion, verified consent
-persistence before publication, owner-filtered Realtime construction and retry
-fencing, complete synchronization-task draining, UUID-keyed restoration retry
-retention through exact completion and the combined Auth-transition drain,
+store, policy, workflow, policy test, and endpoint-error adapter test, plus the
+Consent facade, runtime, cloud-session core/live adapter, state projection,
+synchronization, restoration, Realtime, repository, retry, merge, and focused
+tests to pin Ghost completion, verified consent persistence before publication,
+account-work lease/session adoption, owner-filtered Realtime construction and
+retry fencing, complete synchronization-task draining, UUID-keyed restoration
+retry retention through exact completion and the combined Auth-transition drain,
 canceled-retry admission after manual retry reuses an attempt number,
 stale-account rejection, and target-consent ordering. Any owner or test rehome
 must update the corresponding Deno path and focused contract atomically.

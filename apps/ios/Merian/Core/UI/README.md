@@ -203,7 +203,8 @@ Milestone feedback is split by responsibility under `Feedback/`:
 - `Models` owns immutable toast payloads, queue items, outcomes, and session
   tokens.
 - `Policies` owns account/scan normalization, payload deduplication, Field trip
-  receipt mapping, and **New to Naturebook** eligibility.
+  receipt mapping, credited-progress display fallback, first-Field-trip
+  achievement projection/merging, and **New to Naturebook** eligibility.
 - `Presentation` owns the bounded FIFO presenter and nested-host registry.
 - `Coordination` owns session control plus foreground/background scan completion
   sequencing, retry lifetime, and event publication.

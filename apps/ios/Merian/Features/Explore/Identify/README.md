@@ -139,7 +139,7 @@ generation.
 - `Models/` owns typed routes, root modes, filters, preview/page-size policy,
   independent dashboard load state, and feature-local request values passed to
   dependency closures. Codable response DTOs and cursor wire models remain in
-  `Core/Network/ExploreAPIModels.swift`.
+  `Core/Network/Models/Explore/CommunityIdentificationAPIModels.swift`.
 - `Services/` adapts `MerianNetworkClient`, current account/device identity,
   haptics, error formatting, and typed app events into small live `Dependencies`
   values. It is the only Identify layer that calls the network client.
@@ -153,8 +153,8 @@ generation.
 - `Components/` owns feature UI grouped by Catalog, Activity, Detail, Taxonomy,
   and Shared presentation. Views and components do not call the network client
   directly.
-- `Core/Network/ExploreAPIModels.swift` owns request/activity response DTOs,
-  item types, and cursor models.
+- `Core/Network/Models/Explore/CommunityIdentificationAPIModels.swift` owns
+  request/activity response DTOs, item types, and cursor models.
 - `Core/Network/Endpoints/MerianNetworkClient+CommunityIdentification.swift`
   constructs the eight request/activity/detail/edit/search and
   submit/withdraw/restore payloads and projects their typed responses through
@@ -173,9 +173,9 @@ generation.
   do not replay ambiguous failures.
 - `Core/Network/Endpoints/MerianNetworkClient+ProductFeedback.swift` owns
   `submitCommunityFeedback`. Its existing `CommunityFeedbackSubmission` model
-  retains trimming, metadata, and wire keys in `ExploreAPIModels.swift`;
-  Identify's Services/ViewModel retain draft validation and submission state.
-  The
+  retains trimming, metadata, and wire keys in
+  `Core/Network/Models/Explore/CommunityFeedbackAPIModels.swift`; Identify's
+  Services/ViewModel retain draft validation and submission state. The
   [Network matrix](../../../Core/Network/README.md#enrichment-export-and-feedback-verification)
   verifies the 30-second request, ignored success body, and replay refusal.
 - `Explore/Shared/Models/ExploreErrorFormatter.swift` owns generic and Recent

@@ -143,6 +143,12 @@ struct InsightFieldTripContributionTests {
 
         let destination = InsightFieldTripOverviewDestination(contribution: standard)
 
+        #expect(
+            standard.destination == .fieldTrip(
+                templateId: "template-trip-1",
+                checklistItemId: "item-trip-1"
+            )
+        )
         #expect(destination == .standardOuting(templateId: "template-trip-1"))
     }
 
@@ -155,6 +161,10 @@ struct InsightFieldTripContributionTests {
 
         let destination = InsightFieldTripOverviewDestination(contribution: event)
 
+        #expect(
+            event.destination
+                == .fieldTripChallenge(challengeId: "challenge-participation-1")
+        )
         #expect(destination == .event(challengeId: "challenge-participation-1"))
     }
 

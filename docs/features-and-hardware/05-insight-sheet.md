@@ -502,10 +502,10 @@ bound. `SpeciesPreferredNameStore.syncDiagnostics(ownerUserID:)` records the
 latest attempt/success/status/message plus pushed/pulled counts for support.
 Explore feed, map, detail, comments, and share text resolve display names
 through an `ExploreFeedViewModel` cache hydrated from the SwiftData-backed
-repository using the current `ModelContext`. The network DTOs in
-`ExploreAPIModels` stay pure decode models and never read `UserDefaults`
-directly; `SpeciesPreferredNameStore` remains only as the fail-closed legacy
-cleanup, account-qualified cloud-delete staging, and diagnostics owner.
+repository using the current `ModelContext`. The network DTO owners under
+`Core/Network/Models/Explore/` never read `UserDefaults` directly;
+`SpeciesPreferredNameStore` remains only as the fail-closed legacy cleanup,
+account-qualified cloud-delete staging, and diagnostics owner.
 
 Pet labels are not species preferences. They are scan-level metadata decoded
 from `SpeciesData.petIdentification` / `LocalScanRecord.petIdentificationData`
@@ -737,10 +737,14 @@ eventual `LocalScanRecord` counterpart.
 
 Historical completed scans follow the same value-boundary rule.
 `InferenceEngine.load(from:)` may receive a live `LocalScanRecord`, but async
-hydration must operate on copied scalar values. Reference-image URLs, candidate
-blobs, taxonomy primitives, and IDs are snapshotted before the hydration `Task`
-starts; the task must not read the live model after suspension, because the scan
-can be deleted or detached while the Insight sheet is dismissing.
+hydration operates only on the immutable `InferenceHistoricalRecordProjection`.
+The engine releases the previous live-media buffers before it constructs that
+projection, preventing the old live presentation and the persisted media
+snapshot from overlapping in memory. Media, reference-image URLs, candidate
+blobs, taxonomy primitives, review state, and IDs are snapshotted on
+`@MainActor` before the hydration task starts; the task must not read the live
+model after suspension, because the scan can be deleted or detached while the
+Insight sheet is dismissing.
 
 ### Queued Retry Presentation and Wake
 
@@ -1360,15 +1364,18 @@ without usable habitat preserves any existing description for the same species.
 ### Loading Flow (historical scans)
 
 When `InferenceEngine.load(from:)` loads an eligible resolved non-Human
-`LocalScanRecord` that has missing or blank `habitatDescription`, or is missing
-`gbifTaxonKey` or `lookalikesData`, it automatically fires
-`fetchAndApplyEnrichment`. Human and unresolved records skip this path and load
-without stale candidates, lookalikes, GBIF keys, or external reference imagery.
-For eligible species, metadata remains species-cache-aware, but lookalikes are
-still fetched per scan whenever the record lacks rich local lookalike data. This
-gap-fills enrichment for older resolved scans (even those that already have flat
-`similarSpecies` string arrays) to retrieve rich image and common-name JSON
-payloads from the V27 pipeline.
+`LocalScanRecord`, `InferenceHistoricalRecordProjection` requests metadata when
+habitat is missing/blank, the GBIF key is missing, or taxonomy is unusable. It
+requests lookalikes when the cache-reset policy applies, the rich blob is
+missing, or every decoded rich entry lacks a common name. The engine then fires
+only the required `fetchAndApplyEnrichment` scopes. Human and unresolved records
+skip this path and load without stale candidates, lookalikes, GBIF keys, or
+external reference imagery. For eligible species, metadata remains
+species-cache-aware, but lookalikes are still fetched per scan whenever the
+record lacks rich local lookalike data. This gap-fills enrichment for older
+resolved scans (even those that already have flat `similarSpecies` string
+arrays) to retrieve rich image and common-name JSON payloads from the V27
+pipeline.
 
 ### States
 
@@ -1513,8 +1520,8 @@ threshold, or when a Strong primary has a genuinely competitive alternative.
 4. **SwiftData persistence** (`candidatesData: Data?`, `MerianSchemaV28`): The
    iOS client JSON-encodes `[IdentificationCandidate]` via `JSONEncoder` and
    stores the blob in `LocalScanRecord.candidatesData`.
-   `InferenceEngine.load(from:)` snapshots the blob before async hydration and
-   decodes it back via `JSONDecoder` for historical scans.
+   `InferenceHistoricalRecordProjection` snapshots the blob before async
+   hydration and decodes it back via `JSONDecoder` for historical scans.
 5. **Historical sync** (`ScanRepository.syncHistoricalScansDown`): The
    service-owned scan projection includes the `candidates` column. A
    `CloudIdentificationCandidate` DTO
@@ -1783,8 +1790,9 @@ which:
    authoritative original-AI identifier reused as `aiScientificName` on
    `load(from:)`, so reset does not require another schema field.
 
-**Re-opening an overridden scan**: `InferenceEngine.load(from:)` applies two
-rules when `record.userIdentificationOverride != nil`:
+**Re-opening an overridden scan**: `InferenceHistoricalRecordProjection`,
+invoked by `InferenceEngine.load(from:)`, applies two rules when
+`record.userIdentificationOverride != nil`:
 
 - Sets `speciesData.scientificName` to `record.userIdentificationOverride` (the
   override name) rather than `record.scientificName` (the original AI name).
@@ -1973,8 +1981,10 @@ Extended ecological media data is loaded in three passes:
    `InferenceEngine.fetchGBIFImagesAndHydrate(for:)`. The same injected service
    queries `api.gbif.org/v1/occurrence/search`, selects the first still image
    from each of at most four occurrences off the main actor, and returns only
-   URL strings. The engine then applies identity, URL, carousel, and persistence
-   policy.
+   URL strings. The engine then applies identity, URL, and carousel policy and
+   submits an immutable reference snapshot through its bounded write owner; the
+   live `InferenceHydrationPersistenceService` performs the admitted local
+   mutation.
 
 Hydration may append a URL that also exists in the scan's own media timeline.
 Callers must expose hydrated references through

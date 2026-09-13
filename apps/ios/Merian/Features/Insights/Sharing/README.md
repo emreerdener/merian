@@ -33,6 +33,14 @@ Wire DTOs, strict response validation, and recovery transport remain in
 `Core/Network`; this refactor does not change an endpoint, payload, persistence,
 feature flag, or navigation contract.
 
+The post-location mode follows the same layered boundary. The Codable/raw-value
+contract lives in
+[`Core/Network/Models/Explore/ExploreLocationSharingAPIModels.swift`](../../../Core/Network/Models/Explore/ExploreLocationSharingAPIModels.swift),
+while labels, SF Symbols, and explanatory copy live in
+[`Explore/Shared/Models/ExploreLocationSharingPresentation.swift`](../../Explore/Shared/Models/ExploreLocationSharingPresentation.swift).
+Sharing consumes those owners through its injected publication state instead of
+declaring a second wire enum or copy mapping.
+
 `InsightSharingDependencies.loadExplorePostDetail` adapts `getExplorePostDetail`
 from
 [Core Network's Explore browsing extension](../../../Core/Network/README.md#explore-browsing-endpoints).
@@ -349,6 +357,9 @@ xcodebuild -project merian.xcodeproj -scheme Merian \
   -only-testing:merianTests/InsightExploreSharingViewModelTests \
   -only-testing:merianTests/InsightSharingCacheRefreshTests \
   -only-testing:merianTests/InsightSharingArchitectureTests \
+  -only-testing:merianTests/ExploreLocationSharingAPIModelsTests \
+  -only-testing:merianTests/ExploreLocationSharingPresentationTests \
+  -only-testing:merianTests/ExploreNetworkModelArchitectureTests \
   -only-testing:merianTests/InsightShellPresentationTests test
 ```
 
@@ -358,6 +369,10 @@ aggregate removal, and the 600-line production-file ceiling.
 `InsightSharingCacheRefreshTests` owns missing-cache clearing and preservation
 of a restored Community request; those assertions no longer live in the Field
 Notes state suite.
+
+The three location-sharing suites freeze the raw contract and compatibility
+decoding, visible copy and symbols, and the Core-wire/Explore-presentation
+ownership split consumed by this feature.
 
 For shared post-detail transport changes, also run the
 [Core Network browsing matrix](../../../Core/Network/README.md#endpoint-verification).

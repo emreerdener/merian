@@ -420,6 +420,9 @@ struct InferenceEngineTests {
             speciesId: "species_abc",
             scientificName: "Danaus plexippus",
             commonName: "Monarch Butterfly",
+            capturedMediaJSON: CapturedMediaSnapshot(
+                items: [.image(.documents("monarch.webp"))]
+            ).jsonString,
             semanticTags: ["butterfly", "insect"],
             hazardType: "poisonous",
             isBiological: true,
@@ -459,9 +462,7 @@ struct InferenceEngineTests {
         #expect(resultingData.insightData.hazardType == "poisonous")
         #expect(resultingData.insightData.aiReasoning.contains("Nymphalidae"))
         #expect(resultingData.taxonomy?.genus == "Danaus")
-
-        // Note: validHistoricImagePaths is populated asynchronously by FileIOActor.validPaths(from:)
-        // which filters out non-existent disk paths — cannot assert file paths in the unit test sandbox.
+        #expect(engine.activeMedia.items == [.image("monarch.webp")])
 
         #expect(engine.isProcessing == false, "Processing state should return to false synchronously")
         #expect(completedScanIds.isEmpty, "Viewing historical scan data must not publish a foreground completion")

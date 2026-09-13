@@ -113,21 +113,23 @@ The safe pattern is to copy every scalar needed by the task while still on the
 owning actor, then pass only those value types across the suspension point:
 
 ```swift
-let recordId = record.id
-let referenceImageUrl = record.referenceImageUrl
-let candidatesData = record.candidatesData
+let projection = InferenceHistoricalRecordProjection(
+    record: record,
+    resetLocalLookalikes: shouldResetLocalLookalikes
+)
 
-hydrationTask = Task { [weak self] in
+hydrationTask = Task { [weak self, projection] in
     guard let self else { return }
-    let refUrls = Self.normalizedReferenceURLs(from: referenceImageUrl)
+    let refUrls = projection.referenceURLs
     // Never touch `record` here.
 }
 ```
 
-`InferenceEngine.load(from:)` follows this rule for historical reference images.
-The same rule applies to sheet routes, share/export flows, delete confirmations,
-refinement setup, and any `Task.detached` or `Task {}` that can outlive the
-source SwiftUI view.
+`InferenceEngine.load(from:)` follows this rule through its dedicated historical
+projection, including media, reference images, taxonomy, review state,
+lookalikes, and candidates. The same rule applies to sheet routes, share/export
+flows, delete confirmations, refinement setup, and any `Task.detached` or
+`Task {}` that can outlive the source SwiftUI view.
 
 ---
 
@@ -1109,11 +1111,20 @@ escaping into another task. `InferenceWriteCoordinator` owns the bounded
 best-effort write queue and ordered identification-write tail. Species-changing
 review hydration, same-species confirmation, and legacy flagging use independent
 bounded action generations, so confirmation cannot strand valid historical
-hydration. `InferenceEngine` applies returned values only after its scan,
-species, presentation-generation, and optional review-action checks pass. An
-override-data persistence call must explicitly distinguish an identity
-replacement (clear stale taxonomy/collections) from a historical refresh
-(preserve valid same-species values when the row is sparse).
+hydration. `InferenceHistoricalRecordProjection` owns the complete synchronous
+SwiftData-to-presentation snapshot and deferred decode inputs for the historical
+load path. `InferenceSpeciesEnrichmentService` owns scoped response-to-domain
+mapping, while `InferenceHydrationPersistenceService` accepts only immutable
+reference, metadata, and lookalike snapshots after write admission.
+`InferenceEngine` applies returned values only after its scan, species,
+presentation-generation, and optional review-action checks pass. Each snapshot
+also carries the expected scientific name; the database actor compares it with
+the record's effective override-or-original identity before committing. This
+second fence prevents a late original-species response from overwriting an
+active identification override and prevents a stale override response after a
+later replacement. An override-data persistence call must explicitly distinguish
+an identity replacement (clear stale taxonomy/collections) from a historical
+refresh (preserve valid same-species values when the row is sparse).
 
 ### Why This Matters for Live UI
 

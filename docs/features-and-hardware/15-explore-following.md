@@ -168,7 +168,8 @@ follower-list browsers, friend states, DMs, or private scan access.
 
 Primary files:
 
-- `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
+- `apps/ios/Merian/Core/Network/Models/Explore/ExploreAuthorProfileAPIModels.swift`
+- `apps/ios/Merian/Core/Network/Models/Explore/ExploreBrowsingAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+ExploreInteractions.swift`

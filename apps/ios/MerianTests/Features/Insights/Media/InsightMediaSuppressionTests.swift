@@ -165,7 +165,7 @@ struct InsightMediaSuppressionTests {
         engine.activeMedia = ActiveScanMedia(items: [.liveImage(Data())])
         #expect(viewModel.activeMedia.liveImageData != nil, "hasLive should be true when activeImageData is present")
 
-        // 2. Simulate background task populating validHistoricImagePaths (the previous bug trigger)
+        // 2. Simulate persisted media joining the active carousel (the previous bug trigger).
         engine.activeMedia.items.append(.image("sandbox/UUID.webp"))
 
         // 3. Assert the Carousel structural teardown is prevented

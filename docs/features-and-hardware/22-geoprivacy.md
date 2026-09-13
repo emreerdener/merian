@@ -58,6 +58,19 @@ coordinate trigger and public-label trigger:
 Local owner-facing privacy uses `ProfileViewModel.defaultGeoprivacy` for
 visibility decisions:
 
+Three related iOS owners remain deliberately separate:
+
+- [`ExploreLocationPrivacy`](../../apps/ios/Merian/Core/Models/ExploreLocationPrivacy.swift)
+  sanitizes server-provided semantic location text for cross-feature display. It
+  is a privacy policy, not a wire DTO.
+- [`ExplorePostLocationSharing`](../../apps/ios/Merian/Core/Network/Models/Explore/ExploreLocationSharingAPIModels.swift)
+  owns the Codable/raw-value contract used by Explore publication and editing,
+  including compatibility decoding for legacy and unknown values.
+- [`ExploreLocationSharingPresentation`](../../apps/ios/Merian/Features/Explore/Shared/Models/ExploreLocationSharingPresentation.swift)
+  owns the customer-visible labels, symbols, and explanatory copy used by Feed
+  and Insights publication UI. Core Network does not own presentation copy, and
+  Feed composer models do not own the shared wire enum.
+
 - Settings presents that shared value optimistically. Its
   `GeoprivacySettingsViewModel` serializes writes and coalesces rapid selections
   to the latest option. `GeoprivacySettingsDependencies.live` captures the
@@ -177,6 +190,12 @@ The iOS interaction contract is covered by
 It verifies serialized writes, latest-selection coalescing, and
 persist-before-hardware-reconciliation ordering without resolving live account
 or hardware owners.
+
+Post-level Explore location sharing is additionally covered by
+`ExploreLocationSharingAPIModelsTests`, which freezes raw values and
+compatibility decoding; `ExploreLocationSharingPresentationTests`, which freezes
+visible copy and SF Symbols; and `ExploreNetworkModelArchitectureTests`, which
+enforces the Core-wire versus Explore-presentation ownership boundary.
 
 Use `deno test`, `deno check`, `deno lint`, `swiftlint lint`, and an Xcode build
 for implementation changes. `geoprivacyDb.test.ts` requires a running local

@@ -135,7 +135,8 @@ withholds location fields without hiding an otherwise visible tagged post.
 
 ## iOS Touchpoints
 
-- Wire DTOs: `Core/Network/ExploreAPIModels.swift`
+- Wire DTOs: `Core/Network/Models/Explore/ExploreBrowsingAPIModels.swift` and
+  `Core/Network/Models/Explore/ExploreBrowsingQueryModels.swift`
 - Hashtag browse request mapping:
   `Core/Network/Endpoints/MerianNetworkClient+ExploreBrowsing.swift`
 - Direct share request mapping and strict success validation:

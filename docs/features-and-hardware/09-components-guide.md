@@ -408,8 +408,9 @@ A horizontally scrolling carousel of ecologically similar lookalike species,
 rendered in `BiologicalView` at card entrance index 8. Sourced from
 `speciesData.similarSpecies` (a `SimilarSpecies` struct with an
 `entries: [SimilarSpeciesEntry]` array), which is populated asynchronously by
-`fetchAndApplyEnrichment` and persisted to
-`LocalScanRecord.lookalikesData: Data?`.
+`fetchAndApplyEnrichment`. `InferenceSpeciesEnrichmentService` owns wire-to-
+domain mapping, and the admitted `InferenceHydrationPersistenceService+Live`
+write stores it in `LocalScanRecord.lookalikesData: Data?`.
 
 - **Visibility gate**: Shown when `inferenceEngine.speciesData?.similarSpecies`
   contains at least one displayable entry after identity filtering. While the

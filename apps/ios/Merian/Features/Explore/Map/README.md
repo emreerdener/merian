@@ -13,7 +13,8 @@ before changing either boundary.
 
 - `Models/` owns focus targets, feature request values, presentation and camera
   policy, local filtering, region math, and the bounded in-memory response
-  cache. Codable map DTOs remain in `Core/Network/ExploreAPIModels.swift`.
+  cache. Codable map DTOs remain in
+  `Core/Network/Models/Explore/ExploreMapAPIModels.swift`.
 - `Services/` supplies the live `MerianNetworkClient` closure for
   `ExploreMapViewModel.Dependencies`. It is the only Map layer that calls the
   network client.

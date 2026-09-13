@@ -35,14 +35,28 @@ The post-refactor integration guard intentionally tracks the remaining Core
 production files above the 600-line review ceiling:
 
 - `AI/InferenceEngine.swift`
-- `Network/ExploreAPIModels.swift`
-- `Network/FieldTripAPIModels.swift`
 - `Network/SupabaseManager.swift`
-- `Security/ConsentManager.swift`
 
 This is a residual inventory, not an exemption for new growth. Split these
 owners in behavior-preserving slices, update the inventory in the same change,
 and keep wire DTOs separate from UI policy.
+
+The retired `Network/ExploreAPIModels.swift` aggregate is now split under
+`Network/Models/Explore/`; the cross-feature semantic-location redaction policy
+lives in `Models/ExploreLocationPrivacy.swift`. Focused architecture coverage
+locks both ownership boundaries and the 600-line model ceiling.
+
+The retired `Network/FieldTripAPIModels.swift` aggregate is split into eight
+network-model contract-family owners under `Network/Models/FieldTrips/`.
+Presentation extensions remain feature-owned, Insights owns contribution-route
+projection, UI Feedback owns milestone projection, and Preferences owns the
+account-qualified compatibility store.
+
+`Security/ConsentManager.swift` is now a 597-line observable compatibility
+facade. Runtime composition, cloud-session and account-lease orchestration,
+local mutation construction, and derived state projection live in focused owners
+under `Security/Consent/`; every production owner there remains at or below 600
+lines.
 
 ## Verification
 

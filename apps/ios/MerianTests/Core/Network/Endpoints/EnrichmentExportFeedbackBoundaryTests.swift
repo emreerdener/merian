@@ -117,7 +117,11 @@ struct EnrichmentExportFeedbackBoundaryTests {
         #expect(!feedback.contains("struct FeedbackSurveySubmission") && !feedback.contains("struct CommunityFeedbackSubmission"))
         let models = try source("apps/ios/Merian/Features/Profile/Settings/Feedback/Models/FeedbackSurveyModels.swift")
         #expect(models.contains("struct FeedbackSurveySubmission: Encodable"))
-        #expect(try networkSource("ExploreAPIModels.swift").contains("struct CommunityFeedbackSubmission: Encodable"))
+        #expect(
+            try networkSource(
+                "Models/Explore/CommunityFeedbackAPIModels.swift"
+            ).contains("struct CommunityFeedbackSubmission: Encodable")
+        )
     }
 
     @Test func preparedBodyBridgeDoesNotWidenTransportOrAddPolicy() throws {

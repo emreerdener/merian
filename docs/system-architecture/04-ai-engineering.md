@@ -64,13 +64,13 @@ its capture integration:
   `let capturedScanId = scanId` before the async `enrich-scan` network call.
   Both write sites — the enrichment scope write
   (`speciesData.habitatDescription`, taxonomy) and the lookalikes scope write
-  (`speciesData.similarSpecies`) — gate on
-  `self.speciesData?.scanId == capturedScanId` before mutating state. Without
-  this guard, a slow enrichment Task started for scan A that completes after the
-  user has already moved to scan B would overwrite scan B's `speciesData` with
-  scan A's habitat description and lookalikes. The engine decides whether a
-  write still matches the visible scan; it delegates task storage and ordering
-  to `InferenceWriteCoordinator`.
+  (`speciesData.similarSpecies`) — gate on the captured scan, displayed
+  scientific name, presentation generation, and review-action generation before
+  mutating state. Without this guard, a slow enrichment Task started for scan A
+  that completes after the user has already moved to scan B would overwrite scan
+  B's `speciesData` with scan A's habitat description and lookalikes. The engine
+  decides whether a result still matches the visible scan; it delegates task
+  storage and ordering to `InferenceWriteCoordinator`.
 - **`Inference/Hydration/InferenceHydrationCoordinator.swift`**: The private
   `@MainActor` owner for replaceable live, historical, and identification-review
   task slots; cancellation-ignoring task retention; Auth-transition admission
@@ -78,8 +78,29 @@ its capture integration:
   the persisted 24-hour enriched-species cache; and the temporary enrichment
   backoff. GBIF work is a structured child of the slot that resolved or loaded
   its taxon key. The engine supplies operations and decides presentation
-  identity, observable mutation, and persistence. Raw hydration handles do not
-  escape the coordinator.
+  identity, observable mutation, and write admission. Raw hydration handles do
+  not escape the coordinator.
+- **`Inference/Hydration/InferenceHistoricalRecordProjection.swift`**: The
+  immutable historical-load boundary. Its `@MainActor` initializer snapshots
+  every required `LocalScanRecord` value, projects the initial `SpeciesData`,
+  computes reference and enrichment eligibility, and retains only `Sendable`
+  deferred lookalike/candidate inputs. It owns override/original display
+  identity and Human/unresolved suppression but no task, network, persistence,
+  or observable state. The engine registers the resulting value with the
+  historical task owner and remains the sole presentation/effect coordinator.
+- **`Inference/Hydration/InferenceSpeciesEnrichmentService.swift`**: The
+  immutable, initializer-injected scoped enrichment boundary. Its core resolves
+  no live client directly and maps metadata and lookalike wire values into
+  domain patches. Its `+Live` sibling is Core AI's sole
+  `MerianNetworkClient.fetchEnrichment` caller. `InferenceEngine` retains
+  independent loading, retry, current-presentation application, and error
+  feedback.
+- **`Inference/Hydration/InferenceHydrationPersistenceService.swift`**: The
+  immutable, initializer-injected persistence boundary for already-admitted
+  reference, metadata, and lookalike snapshots. Its `+Live` sibling constructs
+  `BackgroundDatabaseActor` and encodes rich lookalikes off-main. The engine and
+  write coordinator retain presentation/review fences and operation lifetime;
+  the service owns neither admission nor mutable task state.
 - **`Inference/State/InferenceWriteCoordinator.swift`**: The private
   `@MainActor` owner for presentation generations, the Auth-transition write
   fence, and all best-effort/review write handles. It permits at most eight
@@ -380,8 +401,14 @@ behavior.
 After an eligible biological scan or historical load, `InferenceEngine`
 coordinates the required scopes through `fetchAndApplyEnrichment`.
 `Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift` owns the
-stateless HTTP methods, while the engine and its hydration/write coordinators
-retain admission, scheduling, presentation, and persistence. The hand-written
+stateless HTTP methods.
+`Inference/Hydration/InferenceSpeciesEnrichmentService+Live.swift` is the sole
+Core AI bridge to that endpoint; the injected core resolves no live client
+directly and normalizes scoped responses into domain patches.
+`InferenceHydrationPersistenceService+Live.swift` owns the local database and
+off-main lookalike-encoding effects. The engine and its hydration/write
+coordinators retain admission, scheduling, independent loading state,
+presentation fencing, bounded retry, and write lifetime. The hand-written
 `EnrichScanResponse` remains below the generated Identify block in
 `InferenceEdgeDTOs.swift`. See the
 [native ownership and verification guide](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
@@ -389,29 +416,33 @@ retain admission, scheduling, presentation, and persistence. The hand-written
 1. Sets the requested scope's `isEnrichmentLoading` or `isLookalikesLoading`
    flag. Metadata and similar-species loading remain independent.
    `HabitatAndDistributionCard` observes the engine's metadata state.
-2. A task group calls
-   `MerianNetworkClient.shared.fetchEnrichment(scanId:scientificName:confidenceScore:inferenceTier:scope:)`
-   once per required scope. The endpoint serializes before UUID-key validation,
-   then preserves the existing 30-second private transport and plain decoder.
-3. As each scope resolves for the current scan/species/presentation, collects
-   its mutations into a local `var updated = speciesData` copy, then assigns
+2. A task group asks `InferenceSpeciesEnrichmentService` for metadata and/or
+   lookalike patches once per required scope. The live adapter forwards the
+   exact scan ID, scientific name, confidence, tier, and typed scope to
+   `MerianNetworkClient.shared.fetchEnrichment`. The endpoint serializes before
+   UUID-key validation, then preserves the existing 30-second private transport
+   and plain decoder.
+3. The mapping service trims nonblank habitat, maps wire taxonomy into
+   `TaxonomyData`, retains the raw optional alternate-name array for
+   persistence, and separately sanitizes names for presentation. As metadata
+   resolves for the current scan/species/presentation, the engine applies that
+   patch to a local `var updated = speciesData` copy, then assigns
    `self.speciesData = updated` in a single write on `@MainActor`. This
    preserves the established full-value update pattern for observation and live
-   `HabitatAndDistributionCard` rendering. Metadata fields patched include
-   nonblank `habitatDescription`, non-nil `gbifTaxonKey`, `taxonomy`, and
-   sanitized `alternativeCommonNames`.
-4. The lookalike child maps nonempty `data.similar_species` (a
+   `HabitatAndDistributionCard` rendering.
+4. The mapping service converts nonempty `data.similar_species` (a
    `[EnrichScanResponse.SimilarSpeciesEntry]` array, including `species_id` when
-   the entry is dictionary-backed) to a local `mappedEntries` array, assigns it
-   to `updated.similarSpecies = SimilarSpecies(entries: mappedEntries)`, then
-   commits with `self.speciesData = updated` — same single-write pattern —
-   triggering a live `SimilarSpeciesGallery` UI update. No confidence threshold
-   gate — enrichment always sets the data, and the gallery renders validated
-   entries with the stable "Similar species" label. Lookalikes are sourced from
-   the validated `species_lookalikes` / `species_dictionary` path when
-   available. The wire formatter also retains the legacy TEXT[] fallback
-   described in the API contract; historical hydration separately supports old
-   local string arrays.
+   the entry is dictionary-backed) into domain `SimilarSpeciesEntry` values. The
+   engine applies the resulting patch to
+   `updated.similarSpecies = SimilarSpecies(entries:)`, then commits with
+   `self.speciesData = updated` — the same single-write pattern — triggering a
+   live `SimilarSpeciesGallery` UI update. No confidence threshold gate —
+   enrichment always sets the data, and the gallery renders validated entries
+   with the stable "Similar species" label. Lookalikes are sourced from the
+   validated `species_lookalikes` / `species_dictionary` path when available.
+   The wire formatter also retains the legacy TEXT[] fallback described in the
+   API contract; historical hydration separately supports old local string
+   arrays.
    - **Client-side filtering:** `SimilarSpeciesGallery` removes the active
      species and duplicates by canonical species UUID when available, then by
      normalized scientific name. A shared common name is not an identity match.
@@ -471,15 +502,20 @@ retain admission, scheduling, presentation, and persistence. The hand-written
    legacy empty successes and exhausted failures with no nonrejected relation
    one versioned queue attempt. The marker is written only when the new worker
    claims the job, so the migration can safely precede the worker deployment.
-5. Each child queues only its own field snapshots through
-   `executeSpeciesMetadataWrite` and
-   `BackgroundDatabaseActor.updateScanWithEnrichment`. The lookalike child
-   JSON-encodes its mapped entries off-main into a `Data` blob; an encoding
-   failure supplies nil rather than invalid JSON. The blob's existing native
-   destination is `LocalScanRecord.lookalikesData` (`MerianSchemaV27`).
-   `InferenceWriteCoordinator` retains bounded write scheduling and the
-   scan/species/presentation/review-action fences. A presentation reset advances
-   the write generation, drops queued operations, and cancels active work.
+5. Each child queues only its own immutable snapshot through
+   `executeSpeciesMetadataWrite` and `InferenceHydrationPersistenceService`. The
+   live persistence adapter delegates metadata/reference mutations to
+   `BackgroundDatabaseActor` and JSON-encodes mapped lookalikes off-main into a
+   `Data` blob; an encoding failure supplies nil rather than invalid JSON. The
+   blob's existing native destination is `LocalScanRecord.lookalikesData`
+   (`MerianSchemaV27`). `InferenceWriteCoordinator` retains bounded write
+   scheduling and the scan/species/presentation/review-action fences. A
+   presentation reset advances the write generation, drops queued operations,
+   and cancels active work. Every snapshot also carries the expected scientific
+   name. At commit time, the database actor rechecks it against the record's
+   effective override-or-original identity, rejecting both stale original-
+   species enrichment after an override and stale override enrichment after a
+   later replacement.
 6. Each child's `defer` clears only its own loading flag, and only while the
    same presentation still owns that state.
 
@@ -493,10 +529,13 @@ For eligible historical records, `load(from:)` requests metadata when habitat is
 blank/missing, the GBIF key is missing, or taxonomy is unusable. It requests
 lookalikes for the local reset policy, a missing rich blob, or a nonempty
 decoded set whose common names are all nil. Scope planning also retains the
-existing species-level hydration cache and backoff. The `lookalikesData` blob is
-decoded once on `@MainActor` for the gate check and the resulting
-`SimilarSpecies` value is captured by the coordinator-owned `.historic`
-operation — no second `JSONDecoder` pass on the same data.
+existing species-level hydration cache and backoff.
+`InferenceHistoricalRecordProjection` owns these decisions. Its initializer
+decodes the small `lookalikesData` blob once on `@MainActor` for the gate check,
+and the resulting `SimilarSpecies` plus raw legacy/candidate values are captured
+by the coordinator-owned `.historic` operation. The latter values are converted
+by one awaited detached decode; the live SwiftData record never crosses that
+suspension.
 
 Additionally, `load(from:)` asks `InferenceHydrationCoordinator` to record the
 displayed hydration scientific name—the active override when present, otherwise
@@ -510,8 +549,11 @@ written when `speciesData?.habitatDescription != nil` — a transient failure th
 returns without populating `habitatDescription` remains retryable.
 
 **Historical record load path** (`load(from:)`): When opening a scan from the
-library, `InferenceEngine.load(from:)` reconstructs `speciesData.similarSpecies`
-via a two-layer decode:
+library, the engine assigns the persisted identity and clears prior live-media
+buffers before it faults and projects historical state, avoiding overlapping
+large presentations in memory. `InferenceHistoricalRecordProjection`
+reconstructs `speciesData.similarSpecies` via a two-layer decode, then
+`InferenceEngine` publishes the returned value and coordinates follow-up work:
 
 1. **Rich path** (preferred): If `LocalScanRecord.lookalikesData` is non-nil,
    `JSONDecoder` decodes it as `[SimilarSpeciesEntry]` and wraps the array in
@@ -1091,25 +1133,29 @@ provider dispatch:
       `enrichOnCacheMiss: false` and leaves the single enrichment/GBIF sequence
       to its enclosing `.historic` operation.
     - `syncIdentificationReviewToCloud(scanId:override:confirmed:confirmedSpeciesId:userReviewState:)`:
-      Private IDOR-guarded PATCH that sends `user_identification_override`,
+      Private engine orchestration that builds an
+      `InferenceIdentificationReviewMutation` and delegates the IDOR-guarded RPC
+      to the injected `InferenceIdentificationReviewService`. The Network owner
+      serializes `user_identification_override`,
       `user_confirmed_identification`, `confirmed_species_id`, and
-      `user_review_state` together within a single `ReviewSyncPayload` Encodable
-      struct. Accepts nil properties (encodes as JSON null → SQL NULL). Called
-      by `applyIdentificationOverride`, `confirmAIIdentification`, and
-      `resetIdentificationReview`.
-  - `InferenceEngine.load(from:)` restores review state from `LocalScanRecord`
-    on historical opens. When `userIdentificationOverride` is non-nil, two rules
-    apply: (1) `speciesData.scientificName` is set to
-    `userIdentificationOverride` (the override name) rather than
-    `record.scientificName` (the original AI name), making the correct species
-    title immediately visible without waiting for any async step; (2)
-    `InsightData.aiReasoning` is suppressed, since the AI's vision reasoning was
-    written for the original species and is misleading under the override name.
-    `record.scientificName` is always used as `aiScientificName` — it is never
-    overwritten — so `resetIdentificationReview` can recover the original name
-    across any number of reopens. The coordinator-owned historical operation's
-    Step 3 still fires `fetchAndPatchOverrideData` asynchronously as a freshness
-    refresh (re-patching the same species data from the network), but display
+      `user_review_state` together, including JSON nulls for reset paths. After
+      a successful call, the engine retains Explore invalidation and milestone
+      sequencing. Called by `applyIdentificationOverride`,
+      `confirmAIIdentification`, and `resetIdentificationReview`.
+  - `InferenceHistoricalRecordProjection` restores review state from
+    `LocalScanRecord` when `InferenceEngine.load(from:)` opens a historical
+    scan. When `userIdentificationOverride` is non-nil, two rules apply: (1)
+    `speciesData.scientificName` is set to `userIdentificationOverride` (the
+    override name) rather than `record.scientificName` (the original AI name),
+    making the correct species title immediately visible without waiting for any
+    async step; (2) `InsightData.aiReasoning` is suppressed, since the AI's
+    vision reasoning was written for the original species and is misleading
+    under the override name. `record.scientificName` is always used as
+    `aiScientificName` — it is never overwritten — so
+    `resetIdentificationReview` can recover the original name across any number
+    of reopens. The coordinator-owned historical operation's Step 3 still fires
+    `fetchAndPatchOverrideData` asynchronously as a freshness refresh
+    (re-patching the same species data from the network), but display
     correctness no longer depends on this call completing.
 - **Telemetry Pruning**: Legacy ephemeral fields (`cameraPitchDegrees`,
   `compassHeading`, `relativeHumidity`, `uvIndex`, `isFlashFired`) have been

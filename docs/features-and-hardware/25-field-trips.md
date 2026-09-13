@@ -955,8 +955,9 @@ The feature-local ownership contract lives in
 split by responsibility:
 
 - `Models/` owns UI-only catalog, detail, date, artwork, featured-media,
-  publication, and profile presentation policy. Codable Field trip DTOs and wire
-  compatibility remain in `Core/Network/FieldTripAPIModels.swift`.
+  publication, and profile presentation policy. Codable Field trip DTOs, request
+  values, and wire compatibility live in eight focused owners under
+  `Core/Network/Models/FieldTrips/`.
 - `Services/` is the only feature layer that creates live `MerianNetworkClient`
   closures. It also owns the capture-goal adapter and the typed outing/Event
   publication and publish endpoints.
@@ -1004,7 +1005,8 @@ Primary files:
 - `apps/ios/Merian/Features/Capture/Shell/Modifiers/CameraSheetRouter.swift`
 - `apps/ios/Merian/Core/AppDIContainer.swift`
 - `apps/ios/Merian/Core/Models/CaptureGoalContext.swift`
-- `apps/ios/Merian/Core/Network/FieldTripAPIModels.swift`
+- `apps/ios/Merian/Core/Network/Models/FieldTrips/`
+- `apps/ios/Merian/Core/Preferences/Stores/FirstFieldTripAchievementProgressStore.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift`
 - `apps/ios/Merian/Core/UI/Feedback/{Models,Policies,Presentation,Coordination,Services}/`
@@ -1408,16 +1410,20 @@ iOS:
 make xcodegen
 make validate-ios-project
 bash scripts/test-ios-project-source-membership.sh
-xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
-xcodebuild -scheme Merian -project Merian.xcodeproj \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+make ios-local-build ARGS='simulator -- build-for-testing -configuration Debug -destination "generic/platform=iOS Simulator"'
+set -- \
   -only-testing:merianTests/FieldTripAPIModelsTests \
+  -only-testing:merianTests/FieldTripNetworkModelArchitectureTests \
+  -only-testing:merianTests/CoreIntegrationArchitectureTests \
+  -only-testing:merianTests/CoreNetworkIntegrationArchitectureTests \
+  -only-testing:merianTests/PreferencesArchitectureTests \
   -only-testing:merianTests/FieldTripCaptureContextModelsTests \
   -only-testing:merianTests/FieldTripEndpointTests \
   -only-testing:merianTests/NetworkEndpointTestSupportTests \
   -only-testing:merianTests/MerianNetworkArchitectureTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/FieldTripPresentationTests \
+  -only-testing:merianTests/FieldTripModelPresentationTests \
   -only-testing:merianTests/ActiveFieldTripProfilePresentationTests \
   -only-testing:merianTests/EarnedFieldTripPatchPresentationTests \
   -only-testing:merianTests/FieldTripsViewModelTests \
@@ -1429,6 +1435,7 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/ExploreShellNavigationPolicyTests \
   -only-testing:merianTests/CaptureSubmissionPolicyTests \
   -only-testing:merianTests/OfflineQueuedScanDeletionTests \
+  -only-testing:merianTests/FirstFieldTripProgressStoreTests \
   -only-testing:merianTests/MilestoneToastPresenterTests \
   -only-testing:merianTests/MilestoneAchievementPolicyTests \
   -only-testing:merianTests/ScanMilestoneCoordinatorTests \
@@ -1439,14 +1446,16 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/InsightMediaCarouselArchitectureTests \
   -only-testing:merianTests/InsightFieldTripContributionTests \
   -only-testing:merianTests/MigrationPlanTests \
-  -only-testing:merianTests/AppTelemetryTests test
-xcodebuild -scheme Merian -project Merian.xcodeproj \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
-  -only-testing:merianTests test
+  -only-testing:merianTests/AppTelemetryTests
+make ios-local-build ARGS="simulator -- test-without-building -configuration Debug -destination \"platform=iOS Simulator,name=iPhone 17 Pro,OS=latest\" $*"
+make ios-local-build ARGS='simulator -- test-without-building -configuration Debug -destination "platform=iOS Simulator,name=iPhone 17 Pro,OS=latest" -only-testing:merianTests'
 swiftlint lint --strict --no-cache \
   apps/ios/Merian/Features/Explore/FieldTrips \
   apps/ios/MerianTests/Features/Explore/FieldTrips \
-  apps/ios/Merian/Core/Network/FieldTripAPIModels.swift \
+  apps/ios/Merian/Core/Network/Models/FieldTrips \
+  apps/ios/MerianTests/Core/Network/Decoding/FieldTripNetworkModelArchitectureTests.swift \
+  apps/ios/Merian/Core/Preferences/Stores/FirstFieldTripAchievementProgressStore.swift \
+  apps/ios/MerianTests/Core/Preferences/FirstFieldTripProgressStoreTests.swift \
   apps/ios/Merian/Core/Network/MerianNetworkClient.swift \
   apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+FieldTrips.swift \
   apps/ios/Merian/Core/UI/Feedback \
@@ -1465,12 +1474,22 @@ one does not replace the other. Run the SwiftLint command only when the local
 SourceKitten installation is functional, and report the limitation if it cannot
 run.
 
-`Core/Network/Endpoints/FieldTripEndpointTests.swift` owns wire request mapping
-and the extracted endpoint's response/error/refresh/cancellation coverage;
-`MerianNetworkArchitectureTests.swift` keeps transport internals private.
-`FieldTripAPIModelsTests` remains the Codable contract suite, while feature
-presentation and interaction tests stay under
-`MerianTests/Features/Explore/FieldTrips/`.
+`MerianTests/Core/Network/Endpoints/FieldTripEndpointTests.swift` owns wire
+request mapping and the extracted endpoint's response/error/refresh/cancellation
+coverage; `MerianNetworkArchitectureTests.swift` keeps transport internals
+private. `FieldTripAPIModelsTests` remains the Codable contract suite, while
+`FieldTripModelPresentationTests` owns the lifecycle, guide, community-label,
+publication-author, and profile-summary accessors relocated from the wire
+aggregate. `FieldTripNetworkModelArchitectureTests` freezes the exact eight-file
+model inventory, production-wide declaration ownership, effect exclusions,
+relocated non-wire responsibilities, retired aggregate, and 600-line ceiling.
+The Core-wide, Core Network, and Preferences architecture suites freeze the
+corresponding cross-domain inventories. Feature presentation and interaction
+tests stay under `MerianTests/Features/Explore/FieldTrips/`; Insights
+contribution routing and milestone achievement/progress policy stay with their
+owning feature/Core suites. The dedicated Core Preferences behavior suite owns
+normalized account isolation, cache round trips, and invalid cached-value
+rejection.
 
 `Core/Network/Endpoints/NetworkEndpointTestSupport.swift` under `MerianTests`
 owns the isolated client/session fixture, handler-marked mock responses, and

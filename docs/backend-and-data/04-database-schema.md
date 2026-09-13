@@ -5185,10 +5185,10 @@ historical scan:
 - `aiScientificName: String` — always set to `LocalScanRecord.scientificName`
   (the AI's original identification). Preserved immutably (`let`) so the UI can
   display "AI originally suggested X" after an override. Derived in
-  `InferenceEngine.load(from:)` as `record.scientificName`.
+  `InferenceHistoricalRecordProjection` as `record.scientificName`.
 - `userIdentificationOverride: String?` — mirrors
   `LocalScanRecord.userIdentificationOverride`. When non-nil,
-  `InferenceEngine.load(from:)` sets `speciesData.scientificName` to the
+  `InferenceHistoricalRecordProjection` sets `speciesData.scientificName` to the
   override name directly (not via an async patch), so the correct title is
   immediately visible on sheet open. All accompanying species-dict fields
   (`commonName`, `hazardType`, `taxonomy`, etc.) first receive an atomic cleared
@@ -5550,15 +5550,17 @@ Tracks locally synchronized species scans for the Scans library.
   identified subject. Renamed from `diagnosticLookalikes` in `MerianSchemaV26`
   (backfilled via `migrateV25toV26`). Retained as a backwards-compatible
   fallback — the richer persistence path is `lookalikesData` (see below). When
-  `lookalikesData` is nil (historical record), `InferenceEngine.load(from:)`
-  wraps each entry in a `SimilarSpeciesEntry` with nil enrichment fields.
+  `lookalikesData` is nil (historical record),
+  `InferenceHistoricalRecordProjection` wraps each entry in a
+  `SimilarSpeciesEntry` with nil enrichment fields.
 - `candidatesData`: Data? (Added in `MerianSchemaV28`. JSON-encoded
-  `[IdentificationCandidate]` blob — each entry is
-  `{ scientificName, confidenceScore }`. Written by
+  `[IdentificationCandidate]` blob — each entry carries `scientificName`,
+  optional `commonName`, `confidenceScore`, and optional
+  `distinguishingFeature`. Written by
   `BackgroundDatabaseActor.saveLiveScanRecord` from the live `/identify`
   response, and by `HistoricalDatabaseActor.ingestScans` / `updateExistingScans`
-  on historical cloud sync. `InferenceEngine.load(from:)` decodes this field
-  back to `[IdentificationCandidate]` via `JSONDecoder` and sets it as
+  on historical cloud sync. `InferenceHistoricalRecordProjection` decodes this
+  field back to `[IdentificationCandidate]` via `JSONDecoder` and returns it for
   `speciesData.candidates`. `nil` for scans at or above the diagnostic trigger
   where the server stripped candidates, and for all scans captured before V28. A
   lightweight migration (`migrateV27toV28`) handles the version bump — no data
@@ -5611,12 +5613,14 @@ Tracks locally synchronized species scans for the Scans library.
   `scientificName`, `commonName`, `referenceImageUrl`, `iucnRedListStatus`, and
   optional relation metadata such as `reason`, `visualTraits`, `confidence`,
   source/review fields, direction marker, and `sortOrder` — through the
-  SwiftData layer. Written by `InferenceEngine.fetchAndApplyEnrichment` after
-  decoding the `/enrich-scan` response. `InferenceEngine.load(from:)` decodes
-  this field first; if nil, it falls back to the flat
-  `similarSpecies: [String]?` array. A lightweight migration (`migrateV26toV27`)
-  handles the version bump — no data transform is required since the field is
-  optional with a nil default on existing records.)
+  SwiftData layer. The initializer-injected `InferenceSpeciesEnrichmentService`
+  maps the `/enrich-scan` response; after engine/write-coordinator admission,
+  `InferenceHydrationPersistenceService+Live` encodes the entries off-main and
+  delegates the mutation to `BackgroundDatabaseActor`.
+  `InferenceHistoricalRecordProjection` decodes this field first; if nil, it
+  falls back to the flat `similarSpecies: [String]?` array. A lightweight
+  migration (`migrateV26toV27`) handles the version bump — no data transform is
+  required since the field is optional with a nil default on existing records.)
 - ~~`diagnosticPrimaryRationale`~~: Removed in `MerianSchemaV26`. Previously
   stored the primary identification rationale for low-confidence scans (added in
   `MerianSchemaV9`).
@@ -5642,9 +5646,10 @@ Tracks locally synchronized species scans for the Scans library.
   data point is currently edge-and-cloud-only for diagnostic and hallucination
   telemetry.)
 - `habitatDescription`: String? (Added in `MerianSchemaV15`. Populated
-  asynchronously by `BackgroundDatabaseActor.updateScanWithEnrichment` after
-  `enrich-scan` returns. Loads 2–3 seconds after each biological scan completes
-  via `InferenceEngine.fetchAndApplyEnrichment`. Displayed in
+  asynchronously through `InferenceHydrationPersistenceService+Live` and
+  `BackgroundDatabaseActor.updateScanWithEnrichment` after `enrich-scan`
+  returns. Loads 2–3 seconds after each biological scan completes via
+  `InferenceEngine.fetchAndApplyEnrichment`. Displayed in
   `HabitatAndDistributionCard` inside `BiologicalView`.)
 - ~~`globalDistributionRegionsJson`~~: Removed in `MerianSchemaV19`. Was added
   in `MerianSchemaV15` to cache AI-generated region codes, but proved

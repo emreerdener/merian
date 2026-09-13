@@ -74,8 +74,8 @@ Use the narrowest owner that fits:
 [`Core/README.md`](Merian/Core/README.md) defines the root and cross-domain
 guardrails. The Core root contains only dependency composition and logging;
 domain READMEs and architecture suites own the detailed boundaries. The
-Core-wide audit tracks the five residual production files above 600 lines
-instead of treating their current size as a permanent exemption.
+Core-wide audit tracks the two residual production files above 600 lines instead
+of treating their current size as a permanent exemption.
 
 Examples:
 
@@ -502,18 +502,29 @@ machine, retry budget, UUID-keyed outstanding-task retention,
 compare-before-clear completion, cancellation snapshot and exact drain, manual
 retry admission, and account, SDK-session, generation, and caller-cancellation
 fences through injected effects. A canceled timer cannot regain admission if a
-manual retry reuses the same attempt number. `ConsentManager` remains the sole
-observable facade and retains account/session adoption, the restoration
-projection, derived admission gates, PostHog application, the timing of durable
-transitions, and lifecycle decisions that start or stop synchronization and
-Realtime. `ConsentRealtimeCoordinator` owns channel/listener/retry lifetime
-through injected effects. Explicit stop, listener completion, and coordinator
-deinitialization converge on one coalesced removal operation; deinitialization
-starts cleanup even if a listener suspension ignores cancellation. Started
-removals remain retained until exact completion, and the manager drains them
-with synchronization and restoration before Auth session replacement. Its live
-adapter is the sole analytics-consent Supabase Realtime owner. The extraction
-changes no API, persisted ledger, Keychain, provider, or release contract.
+manual retry reuses the same attempt number. `ConsentManagerRuntime` composes
+the focused owners and their narrow facade callbacks.
+`ConsentCloudSessionCoordinator` owns account-work lease and session adoption,
+scheduled synchronization, Ghost rebinding, and inference cloud admission; only
+its live dependency adapter resolves Supabase for those workflows. Inference
+snapshots complete bindable unowned evidence before session adoption and
+revalidates cancellation, lease ownership, and synchronization generation after
+remote work before it may interpret missing cloud proof; a stale authorization
+context never persists reapproval. `ConsentMutationService` owns local evidence
+construction and privacy-sensitive write ordering; its separate live adapter
+alone reads the process clock, generates UUIDs, and resolves `Bundle.main` app
+metadata. `ConsentStateProjectionPolicy` owns derived gates and SDK permission
+projection. `ConsentManager` remains the sole observable facade and retains
+mutable presentation state, lifecycle entry points, PostHog application, merge
+publication, and the Auth-transition drain. `ConsentRealtimeCoordinator` owns
+channel/listener/retry lifetime through injected effects. Explicit stop,
+listener completion, and coordinator deinitialization converge on one coalesced
+removal operation; deinitialization starts cleanup even if a listener suspension
+ignores cancellation. Started removals remain retained until exact completion,
+and the manager drains them with synchronization and restoration before Auth
+session replacement. Its live adapter is the sole analytics-consent Supabase
+Realtime owner. The extraction changes no API, persisted ledger, Keychain,
+provider, or release contract.
 
 ## Core Purchase Identity Ownership
 
@@ -1047,13 +1058,23 @@ the authority for exact presentation identity. Its `Inference/Hydration`
 collaborator privately owns live, historical, and identification-review
 hydration task lifetime, Auth draining, request deduplication, the
 enriched-species TTL cache, and temporary backoff. GBIF work stays a structured
-child of the owning hydration task. `Inference/State` privately owns bounded
-background and ordered identification write sequencing; species-changing review
-hydration and same-species confirmation have independent action generations on
-the shared final-writer tail. The shared injected
-`Core/SpeciesReference/Services` boundary owns the isolated Wikipedia/GBIF
-session, wire parsing, and request construction used by Inference and thumbnail
-recovery. Presentation identity and persistence decisions remain in the engine.
+child of the owning hydration task. `InferenceHistoricalRecordProjection`
+snapshots each persisted SwiftData record on `@MainActor` into value-only
+presentation, media, hydration plan, and deferred decode state, so the
+historical task never retains the managed record. Historical presentation
+replacement releases prior live-media buffers before constructing that
+projection. The immutable `InferenceSpeciesEnrichmentService` maps typed scoped
+responses into domain patches, and only its `+Live` adapter calls the Core
+Network enrichment endpoint. `InferenceHydrationPersistenceService` accepts
+already-admitted reference, metadata, and lookalike snapshots; only its `+Live`
+adapter constructs the database actor and encodes rich lookalikes off-main.
+`Inference/State` privately owns bounded background and ordered identification
+write sequencing; species-changing review hydration and same-species
+confirmation have independent action generations on the shared final-writer
+tail. The shared injected `Core/SpeciesReference/Services` boundary owns the
+isolated Wikipedia/GBIF session, wire parsing, and request construction used by
+Inference and thumbnail recovery. Presentation identity, persistence admission,
+and operation lifetime remain in the engine and its write coordinator.
 `Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift` privately owns
 the classification, deterministic-trait, Foundation-cue, and phrase-clock task
 slots plus the bounded derivative, provisional classification, phrase cursor,
@@ -1084,16 +1105,17 @@ follow-up ordering. It delegates reanalysis metadata safety to
 `Inference/Result/InferenceScanReplacement.swift`: a replacement must be visible
 in a fresh store context and its metadata save must succeed before
 repository-owned deletion of the original. No-record results and failed saves
-keep the original. `AppDIContainer` owns both production service values. Its
-immutable `Core/Network/Inference/InferenceIdentificationReviewService`
-separately owns the exact-name Species Dictionary projection and owned-scan
-review RPC. Every live operation is fenced by an account-work lease;
-`InferenceEngine` retains review task generations, local persistence,
-presentation, and post-success effects without issuing Supabase queries. The
-AppDI-owned `Inference/Services/InferenceReviewSnapshotService` separately
-performs the bounded, throwing SwiftData projection needed before confirmation
-or reset. Store failure returns before review presentation, action generations,
-local writes, or cloud work can change; a missing row remains an optional
+keep the original. `AppDIContainer` owns the production request, result,
+enrichment, and hydration-persistence service values. Its immutable
+`Core/Network/Inference/InferenceIdentificationReviewService` separately owns
+the exact-name Species Dictionary projection and owned-scan review RPC. Every
+live operation is fenced by an account-work lease; `InferenceEngine` retains
+review task generations, local persistence, presentation, and post-success
+effects without issuing Supabase queries. The AppDI-owned
+`Inference/Services/InferenceReviewSnapshotService` separately performs the
+bounded, throwing SwiftData projection needed before confirmation or reset.
+Store failure returns before review presentation, action generations, local
+writes, or cloud work can change; a missing row remains an optional
 compatibility result. `Inference/Recovery` contains stateless
 interruption/failure classification and recovery presentation, including the
 existing visual/nonvisual decoding and telemetry differences. One private

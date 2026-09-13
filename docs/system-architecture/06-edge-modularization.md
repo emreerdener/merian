@@ -641,17 +641,20 @@ Responses include `data.scope` and only the selected fields:
 | `"enrichment"` | `habitat_description`, `gbif_taxon_key`, `taxonomy`, `alternative_common_names` | `fetchStaticEncyclopedicData` |
 | `"lookalikes"` | `similar_species`                                                               | `fetchSimilarSpecies`         |
 
-When both scopes are needed, `InferenceEngine.fetchAndApplyEnrichment` issues
-two independent requests through a task group and applies each result as it
-arrives. The stateless
-`Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift` extension owns
-request construction and plain decoding of the hand-written
-`EnrichScanResponse`; `Core/Network/Transport/` owns replay decisions, while the
-request-scoped executor owns timeout/retry state and applies injected Auth
-effects. Its pinned transport owns the sole session/TLS boundary, its
-authenticated dispatcher owns per-attempt Auth/session dispatch, and the client
-façade injects both. Scheduling, result application, and stale-presentation
-checks stay in the engine and its hydration/write coordinators.
+When both scopes are needed, `InferenceEngine.fetchAndApplyEnrichment` asks the
+injected `InferenceSpeciesEnrichmentService` for two independent domain patches
+through a task group and applies each result as it arrives. The service's live
+adapter is Core AI's sole caller of the stateless endpoint method.
+`Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift` owns request
+construction and plain decoding of the hand-written `EnrichScanResponse`;
+`Core/Network/Transport/` owns replay decisions, while the request-scoped
+executor owns timeout/retry state and applies injected Auth effects. Its pinned
+transport owns the sole session/TLS boundary, its authenticated dispatcher owns
+per-attempt Auth/session dispatch, and the client façade injects both. The
+injected service core maps each response without resolving a live client
+directly, and the live hydration persistence adapter owns admitted
+database/encoding effects. Scheduling, result application, and stale-
+presentation checks stay in the engine and its hydration/write coordinators.
 
 The engine keeps separate `isEnrichmentLoading` and `isLookalikesLoading` flags
 for the metadata and gallery surfaces. Historical `load(from:)` derives

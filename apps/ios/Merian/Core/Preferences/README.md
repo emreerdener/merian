@@ -17,6 +17,10 @@ synchronization, authentication, networking, or feature presentation.
 - `Stores/FieldNotesStore.swift` owns the legacy per-scan field-note bridge.
   `Core/Data/FieldNotes/FieldNotesRepository.swift` remains the SwiftData-first
   reconciliation authority.
+- `Stores/FirstFieldTripAchievementProgressStore.swift` owns the exact
+  account-qualified first-Field-trip achievement envelope. It preserves the
+  installed key derivation and rejects values that cannot project to a valid
+  milestone award.
 - `Stores/SpeciesPreferredNameStore.swift` owns fail-closed cleanup of legacy
   device-global preferred-name keys plus account-qualified pending-delete
   timestamps and `SpeciesPreferredNameSyncDiagnostics` values. It normalizes
@@ -78,6 +82,8 @@ Mirrored tests live in `MerianTests/Core/Preferences/`:
   reloads, and external-change observation.
 - `KeyedPreferenceStoreTests.swift` covers normalization, clearing, and prefix
   isolation for Explore share and field-note bridges.
+- `FirstFieldTripProgressStoreTests.swift` covers first-Field-trip cache round
+  trips, normalized account isolation, and invalid-value rejection.
 - `SpeciesPreferredNameStoreTests.swift` covers account isolation, prefix-safe
   legacy removal, all-partition cleanup, pending-delete normalization and
   monotonicity, conditional acknowledgement, and sync diagnostics.

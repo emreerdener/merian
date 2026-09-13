@@ -39,7 +39,8 @@ struct CoreNetworkIntegrationArchitectureTests {
     @Test func extractedOwnersStayBelowTheReviewCeiling() throws {
         let root = try networkRoot()
         for directoryName in [
-            "Auth", "Endpoints", "Inference", "Media", "Recovery", "Transport"
+            "Auth", "Endpoints", "Inference", "Media", "Models", "Recovery",
+            "Transport"
         ] {
             let directory = root.appendingPathComponent(directoryName)
             for file in try swiftFiles(below: directory) {

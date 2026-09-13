@@ -100,6 +100,10 @@ import SwiftUI
     @ObservationIgnored private let requestPaywall: @MainActor () -> Void
     @ObservationIgnored private let speciesReferenceService:
         SpeciesReferenceHydrationService
+    @ObservationIgnored private let speciesEnrichmentService:
+        InferenceSpeciesEnrichmentService
+    @ObservationIgnored private let hydrationPersistenceService:
+        InferenceHydrationPersistenceService
     @ObservationIgnored private let identificationReviewService:
         InferenceIdentificationReviewService
     @ObservationIgnored private let identificationReviewSnapshotService:
@@ -123,6 +127,10 @@ import SwiftUI
         liveRequestService: InferenceLiveRequestService = .live,
         liveResultService: InferenceLiveResultService = .live,
         speciesReferenceService: SpeciesReferenceHydrationService = .live,
+        speciesEnrichmentService:
+            InferenceSpeciesEnrichmentService = .live,
+        hydrationPersistenceService:
+            InferenceHydrationPersistenceService = .live,
         identificationReviewService:
             InferenceIdentificationReviewService = .live,
         identificationReviewSnapshotService:
@@ -146,6 +154,8 @@ import SwiftUI
         self.liveRequestService = liveRequestService
         self.liveResultService = liveResultService
         self.speciesReferenceService = speciesReferenceService
+        self.speciesEnrichmentService = speciesEnrichmentService
+        self.hydrationPersistenceService = hydrationPersistenceService
         self.identificationReviewService = identificationReviewService
         self.identificationReviewSnapshotService =
             identificationReviewSnapshotService
@@ -2138,19 +2148,24 @@ import SwiftUI
 
             if let context = modelContext {
                 let container = context.container
-                executeSpeciesMetadataWrite(
-                    scanId: scanId,
-                    scientificName: species,
-                    presentationGeneration: presentationGeneration,
-                    reviewActionGeneration: reviewActionGeneration
-                ) { [safeImageUrlToPersist] in
-                    let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                    await dbActor.updateScanWithWikipedia(
+                let persistence = hydrationPersistenceService
+                let snapshot = InferenceHydrationPersistenceService
+                    .ReferenceSnapshot(
                         scanId: scanId,
                         extract: descriptionText,
                         url: webUrl,
                         imageUrl: safeImageUrlToPersist,
                         expectedScientificName: species
+                    )
+                executeSpeciesMetadataWrite(
+                    scanId: scanId,
+                    scientificName: species,
+                    presentationGeneration: presentationGeneration,
+                    reviewActionGeneration: reviewActionGeneration
+                ) {
+                    await persistence.persistReference(
+                        snapshot,
+                        in: container
                     )
                 }
             }
@@ -2209,19 +2224,24 @@ import SwiftUI
 
             if let context = modelContext, let finalUrls = persistUrls {
                 let container = context.container
+                let persistence = hydrationPersistenceService
+                let snapshot = InferenceHydrationPersistenceService
+                    .ReferenceSnapshot(
+                        scanId: scanId,
+                        extract: nil,
+                        url: nil,
+                        imageUrl: finalUrls,
+                        expectedScientificName: scientificName
+                    )
                 executeSpeciesMetadataWrite(
                     scanId: scanId,
                     scientificName: scientificName,
                     presentationGeneration: presentationGeneration,
                     reviewActionGeneration: reviewActionGeneration
                 ) {
-                    let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                    await dbActor.updateScanWithWikipedia(
-                        scanId: scanId,
-                        extract: nil,
-                        url: nil,
-                        imageUrl: finalUrls,
-                        expectedScientificName: scientificName
+                    await persistence.persistReference(
+                        snapshot,
+                        in: container
                     )
                 }
             }
@@ -2267,6 +2287,12 @@ import SwiftUI
         let capturedConfidence = data.confidenceScore
         let capturedTier = data.inferenceTier ?? "flash"
         let capturedPresentationGeneration = writeCoordinator.generation
+        let request = InferenceSpeciesEnrichmentService.Request(
+            scanId: capturedScanId,
+            scientificName: capturedScientificName,
+            confidenceScore: capturedConfidence,
+            inferenceTier: capturedTier
+        )
 
         await withTaskGroup(of: Void.self) { group in
             if needsMetadata {
@@ -2283,14 +2309,11 @@ import SwiftUI
                         }
                     }
                     do {
-                        let response = try await MerianNetworkClient.shared.fetchEnrichment(
-                            scanId: capturedScanId,
-                            scientificName: capturedScientificName,
-                            confidenceScore: capturedConfidence,
-                            inferenceTier: capturedTier,
-                            scope: "enrichment"
-                        )
-                        guard let enrichData = response.data else { return }
+                        guard let patch = try await self
+                            .speciesEnrichmentService
+                            .fetchMetadata(for: request) else {
+                            return
+                        }
 
                         // Collect all enrichment mutations into a local copy, then assign once.
                         // Individual optional-chain mutations (self.speciesData?.field = x) do not
@@ -2305,49 +2328,33 @@ import SwiftUI
                                presentationGeneration: capturedPresentationGeneration,
                                reviewActionGeneration: reviewActionGeneration
                            ) {
-                            if let habitat = enrichData.habitat_description?.trimmedNonEmptyValue {
-                                updated.habitatDescription = habitat
-                            }
-                            if let tax = enrichData.taxonomy {
-                                updated.taxonomy = TaxonomyData(
-                                    kingdom: tax.kingdom,
-                                    phylum: tax.phylum,
-                                    className: tax.`class`,
-                                    order: tax.order,
-                                    family: tax.family,
-                                    genus: tax.genus
-                                )
-                            }
-                            if let key = enrichData.gbif_taxon_key {
-                                updated.gbifTaxonKey = key
-                            }
-                            if let names = enrichData.alternative_common_names {
-                                updated.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(names)
-                            }
+                            updated = patch.applying(to: updated)
                             self.speciesData = updated  // Single @Observable-triggering assignment
                         }
                         if let context = modelContext {
                             let container = context.container
-                            let habitatSnapshot = enrichData.habitat_description?.trimmedNonEmptyValue
-                            let gbifSnapshot = enrichData.gbif_taxon_key
-                            let taxonomySnapshot = enrichData.taxonomy
-                            let altNamesSnapshot = enrichData.alternative_common_names
+                            let persistence = self.hydrationPersistenceService
+                            let snapshot = InferenceHydrationPersistenceService
+                                .MetadataSnapshot(
+                                    scanId: capturedScanId,
+                                    habitatDescription:
+                                        patch.habitatDescription,
+                                    gbifTaxonKey: patch.gbifTaxonKey,
+                                    taxonomy: patch.taxonomy,
+                                    alternativeCommonNames:
+                                        patch.persistedAlternativeCommonNames,
+                                    expectedScientificName:
+                                        capturedScientificName
+                                )
                             self.executeSpeciesMetadataWrite(
                                 scanId: capturedScanId,
                                 scientificName: capturedScientificName,
                                 presentationGeneration: capturedPresentationGeneration,
                                 reviewActionGeneration: reviewActionGeneration
                             ) {
-                                let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                                await dbActor.updateScanWithEnrichment(
-                                    scanId: capturedScanId,
-                                    habitatDescription: habitatSnapshot,
-                                    gbifTaxonKey: gbifSnapshot,
-                                    similarSpeciesJsonData: nil,
-                                    taxonomy: taxonomySnapshot,
-                                    alternativeCommonNames: altNamesSnapshot,
-                                    expectedScientificName:
-                                        capturedScientificName
+                                await persistence.persistMetadata(
+                                    snapshot,
+                                    in: container
                                 )
                             }
                         }
@@ -2379,70 +2386,45 @@ import SwiftUI
                         }
                     }
                     do {
-                        let response = try await MerianNetworkClient.shared.fetchEnrichment(
-                            scanId: capturedScanId,
-                            scientificName: capturedScientificName,
-                            confidenceScore: capturedConfidence,
-                            inferenceTier: capturedTier,
-                            scope: "lookalikes"
-                        )
-                        guard let enrichData = response.data else { return }
+                        guard let patch = try await self
+                            .speciesEnrichmentService
+                            .fetchLookalikes(for: request) else {
+                            return
+                        }
 
-                        if let entries = enrichData.similar_species, !entries.isEmpty {
-                            let mappedEntries = entries.map {
-                                let splitCommonName = $0.common_name?.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines)
-                                return SimilarSpeciesEntry(
-                                    scientificName: $0.scientific_name,
-                                    commonName: splitCommonName,
-                                    referenceImageUrl: $0.reference_image_url,
-                                    iucnRedListStatus: $0.iucn_red_list_status,
-                                    speciesId: $0.species_id,
-                                    similarityReason: $0.reason,
-                                    visualTraits: $0.visual_traits ?? [],
-                                    similarityConfidence: $0.confidence,
-                                    relationshipSource: $0.source,
-                                    reviewStatus: $0.review_status,
-                                    isBidirectional: $0.is_bidirectional,
-                                    sortOrder: $0.sort_order
-                                )
-                            }
-                            // Single full-value replacement — see enrichment scope comment above.
-                            // Guard on scanId: a stale lookalikes task completing after a new scan
-                            // has set speciesData must not overwrite the new scan's similar species.
-                            if var updated = self.speciesData,
-                               self.isLiveSpeciesPresentation(
-                                   scanId: capturedScanId,
-                                   scientificName: capturedScientificName,
-                                   presentationGeneration: capturedPresentationGeneration,
-                                   reviewActionGeneration: reviewActionGeneration
-                               ) {
-                                updated.similarSpecies = SimilarSpecies(entries: mappedEntries)
-                                self.speciesData = updated
-                            }
-                            if let context = modelContext {
-                                let container = context.container
-                                let entriesToEncode: [SimilarSpeciesEntry]? = mappedEntries
-                                self.executeSpeciesMetadataWrite(
+                        // Single full-value replacement — see enrichment scope comment above.
+                        // Guard on scanId: a stale lookalikes task completing after a new scan
+                        // has set speciesData must not overwrite the new scan's similar species.
+                        if var updated = self.speciesData,
+                           self.isLiveSpeciesPresentation(
+                               scanId: capturedScanId,
+                               scientificName: capturedScientificName,
+                               presentationGeneration: capturedPresentationGeneration,
+                               reviewActionGeneration: reviewActionGeneration
+                           ) {
+                            updated = patch.applying(to: updated)
+                            self.speciesData = updated
+                        }
+                        if let context = modelContext {
+                            let container = context.container
+                            let persistence = self.hydrationPersistenceService
+                            let snapshot = InferenceHydrationPersistenceService
+                                .LookalikesSnapshot(
                                     scanId: capturedScanId,
-                                    scientificName: capturedScientificName,
-                                    presentationGeneration: capturedPresentationGeneration,
-                                    reviewActionGeneration: reviewActionGeneration
-                                ) {
-                                    // Encode off @MainActor — JSONEncoder is CPU-bound.
-                                    let encodedLookalikes: Data? = await Task.detached(priority: .utility) {
-                                        entriesToEncode.flatMap { try? JSONEncoder().encode($0) }
-                                    }.value
-                                    let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                                    await dbActor.updateScanWithEnrichment(
-                                        scanId: capturedScanId,
-                                        habitatDescription: nil,
-                                        gbifTaxonKey: nil,
-                                        similarSpeciesJsonData: encodedLookalikes,
-                                        taxonomy: nil,
-                                        expectedScientificName:
-                                            capturedScientificName
-                                    )
-                                }
+                                    entries: patch.entries,
+                                    expectedScientificName:
+                                        capturedScientificName
+                                )
+                            self.executeSpeciesMetadataWrite(
+                                scanId: capturedScanId,
+                                scientificName: capturedScientificName,
+                                presentationGeneration: capturedPresentationGeneration,
+                                reviewActionGeneration: reviewActionGeneration
+                            ) {
+                                await persistence.persistLookalikes(
+                                    snapshot,
+                                    in: container
+                                )
                             }
                         }
                     } catch let error as MerianError {
@@ -3155,10 +3137,11 @@ import SwiftUI
 
     /// Rehydrates engine state from a persisted `LocalScanRecord` for the insight sheet.
     ///
-    /// All async work (path validation, JSON decoding, network hydration) runs
-    /// inside the hydration coordinator's single current historic slot so that
-    /// navigating to a different scan immediately cancels the previous scan's
-    /// outstanding work.
+    /// The record is first projected into value-only state on `@MainActor`.
+    /// Deferred decoding and network hydration then run inside the hydration
+    /// coordinator's single current historic slot. Replacing that slot fences
+    /// stale state and effects immediately; a synchronous decoder already in
+    /// progress can finish before it observes cancellation.
     func load(from record: LocalScanRecord) {
         guard !writeCoordinator.isAuthTransitionFenceActive else { return }
         // Loading a persisted record replaces the live presentation just as
@@ -3184,172 +3167,62 @@ import SwiftUI
         pendingFirstRenderMetric = nil
 
         self.activeScanId = record.id
+        // Release any large live-capture buffers before projecting historical
+        // fields and media so both presentations are not retained at once.
         self.activeMedia = ActiveScanMedia()
-        self.activeMedia = record.capturedMediaSnapshot.activeScanMedia
 
-        let recordHasResolvedBiologicalIdentification = record.hasResolvedBiologicalIdentification
-        let recordAllowsSpeciesHydration = recordHasResolvedBiologicalIdentification && !record.isHumanSubject
-        let recordAllowsReferenceImages = recordAllowsSpeciesHydration && !record.shouldSuppressReferenceImages
-        let candidatesRawData: Data? = recordAllowsSpeciesHydration ? record.candidatesData : nil
-        let petIdentification = recordAllowsSpeciesHydration ? record.petIdentification : nil
-        let overrideName: String? = record.userIdentificationOverride
-        // When a manual override is active, display the override scientific name as the title.
-        // record.scientificName is preserved as the original-AI identifier and reused below
-        // as aiScientificName so that resetIdentificationReview can recover it without a new
-        // schema field.
-        let displayScientificName: String = overrideName ?? record.scientificName
-        // Suppress AI reasoning when an override is active — it was written for the originally
-        // predicted species and is misleading when displayed under the override species name.
-        let displayAiReasoning: String = overrideName == nil ? (record.aiReasoning ?? "") : ""
-        let recordScientificName = record.scientificName
-        let hydrationScientificName = displayScientificName
-        let recordId = record.id
         let safeContext = record.modelContext
-        let shouldResetLocalLookalikes = recordAllowsSpeciesHydration && shouldResetLocalLookalikesCache()
-        if shouldResetLocalLookalikes {
+        let projection = InferenceHistoricalRecordProjection(
+            record: record,
+            resetLocalLookalikes: shouldResetLocalLookalikesCache()
+        )
+        if projection.hydrationPlan.shouldResetLocalLookalikes {
             scheduleLocalLookalikesCacheResetIfNeeded(modelContext: safeContext)
         }
-        let lookalikesJsonData: Data? = recordAllowsSpeciesHydration && !shouldResetLocalLookalikes
-            ? record.lookalikesData
-            : nil
-        let lookalikesLegacyArray: [String]? = recordAllowsSpeciesHydration && !shouldResetLocalLookalikes
-            ? record.similarSpecies
-            : nil
-        let gbifKey = record.gbifTaxonKey
-        let needsWiki = recordAllowsSpeciesHydration && (
-            record.wikipediaOverview == nil ||
-                (recordAllowsReferenceImages &&
-                    (record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty))
-        )
-        let recordTaxonomy = recordAllowsSpeciesHydration
-            ? TaxonomyData(
-                kingdom: record.taxonomyKingdom,
-                phylum: record.taxonomyPhylum,
-                className: record.taxonomyClass,
-                order: record.taxonomyOrder,
-                family: record.taxonomyFamily,
-                genus: record.taxonomyGenus
-            )
-            : nil
-        // Decode lookalikesData once here on @MainActor — the blob is small (3 entries × 4 fields).
-        // The result is reused for both the needsEnrichment gate check and the UI decode step
-        // inside the historic hydration task, avoiding a second JSONDecoder
-        // allocation on the same data.
-        let preDecodedSimilar: SimilarSpecies? = lookalikesJsonData.flatMap {
-            (try? JSONDecoder().decode([SimilarSpeciesEntry].self, from: $0))
-                .map { SimilarSpecies(entries: $0) }
-        }
-        // A scan needs enrichment when any of the three key fields are absent, OR when
-        // lookalikesData exists but every decoded entry has a nil commonName — indicating
-        // the join table was populated before the common-name back-fill pipeline was added.
-        let lookalikesHaveNoCommonNames: Bool = preDecodedSimilar.map {
-            !$0.entries.isEmpty && $0.entries.allSatisfy { $0.commonName == nil }
-        } ?? false
-        // Split enrichment needs by scope so each concurrent call is fired only when required.
-        let needsMetadata = recordAllowsSpeciesHydration &&
-            (record.habitatDescription?.trimmedNonEmptyValue == nil || record.gbifTaxonKey == nil || !hasUsableLookalikeTaxonomy(recordTaxonomy))
-        let needsLookalikes = recordAllowsSpeciesHydration &&
-            (shouldResetLocalLookalikes || record.lookalikesData == nil || lookalikesHaveNoCommonNames)
-        let needsEnrichment = needsMetadata || needsLookalikes
-        let recordReferenceImageUrl = recordAllowsReferenceImages ? record.referenceImageUrl : nil
-
-        // Set speciesData immediately with nil for blob-decoded fields.
-        // similarSpecies and candidates are populated by the task below to avoid
-        // blocking @MainActor with synchronous JSONDecoder calls on large datasets.
-        self.speciesData = SpeciesData(
-            scanId: record.id,
-            commonName: record.commonName,
-            scientificName: displayScientificName,
-            insightData: InsightData(aiReasoning: displayAiReasoning, hazardType: record.hazardType),
-            confidenceScore: record.confidenceScore ?? 0.0,
-            blurScore: nil,
-            similarSpecies: nil,
-            wikipediaUrl: record.wikipediaUrl,
-            wikipediaOverview: record.wikipediaOverview,
-            referenceImageUrl: recordReferenceImageUrl,
-            isBiological: record.isBiological,
-            isLiveCapture: record.isLiveCapture,
-            isInvasive: record.isInvasive,
-            invasiveStatusRegion: record.invasiveStatusRegion,
-            invasiveRationale: record.invasiveRationale,
-            invasiveConfidence: record.invasiveConfidence,
-            ecologyType: record.ecologyType,
-            taxonomy: recordTaxonomy,
-            locationName: record.locationName,
-            weatherCondition: record.weatherCondition,
-            weatherTemperatureF: record.weatherTemperatureF,
-            gpsElevation: record.gpsElevation,
-            gpsLatitude: record.gpsLatitude,
-            gpsLongitude: record.gpsLongitude,
-            colors: nil,
-            groupTags: nil,
-            iucnRedListStatus: record.iucnRedListStatus,
-            zoomFactor: record.zoomFactor,
-            estimatedSizeCm: record.estimatedSizeCm,
-            lifeStage: record.lifeStage,
-            reproductiveCondition: record.reproductiveCondition,
-            sex: record.sex,
-            sexConfidence: record.sexConfidence,
-            sexEvidence: record.sexEvidence,
-            individualCount: record.individualCount,
-            ecologicalInteractions: record.ecologicalInteractions,
-            aiReasoning: record.aiReasoning,
-            habitatDescription: record.habitatDescription,
-            gbifTaxonKey: recordAllowsSpeciesHydration ? record.gbifTaxonKey : nil,
-            inferenceTier: record.inferenceTier,
-            alternativeCommonNames: recordAllowsSpeciesHydration ? record.alternativeCommonNames : nil,
-            petIdentification: petIdentification,
-            candidates: nil,
-            imageQualityScore: record.imageQualityScore,
-            aiScientificName: recordScientificName,
-            userIdentificationOverride: record.userIdentificationOverride,
-            userConfirmedIdentification: record.userConfirmedIdentification,
-            isFlagged: record.isFlagged
-        )
+        self.activeMedia = projection.mediaSnapshot.activeScanMedia
+        self.speciesData = projection.speciesData
         self.isProcessing = false
         let historicPresentationGeneration = writeCoordinator.generation
         let reviewActionGeneration =
-            beginIdentificationReviewAction(scanId: recordId)
+            beginIdentificationReviewAction(scanId: projection.scanId)
 
         hydrationCoordinator.replaceTask(in: .historic) { [weak self] in
             guard let self else { return }
 
             // Step 1: Determine initial reference image loading state.
             guard !Task.isCancelled else { return }
-            let refUrls = Self.normalizedReferenceURLs(from: recordReferenceImageUrl)
-            let shouldLoadImages = recordAllowsReferenceImages && refUrls.isEmpty && (gbifKey != nil || needsEnrichment)
-            self.activeMedia.referenceState = shouldLoadImages ? .loading : (refUrls.isEmpty ? .empty : .loaded(refUrls))
+            let referenceURLs = projection.referenceURLs
+            let shouldLoadImages =
+                projection.hydrationPlan.allowsReferenceImages &&
+                referenceURLs.isEmpty &&
+                (projection.gbifTaxonKey != nil ||
+                    projection.hydrationPlan.needsEnrichment)
+            self.activeMedia.referenceState = shouldLoadImages
+                ? .loading
+                : (referenceURLs.isEmpty
+                    ? .empty
+                    : .loaded(referenceURLs))
 
             // Step 2: Resolve similar species and decode candidates off @MainActor (CPU-bound).
-            // similarSpecies reuses the pre-decoded result from the gate check above —
-            // no second JSONDecoder pass on lookalikesData. Candidates are decoded here
-            // since they were not needed for any @MainActor gate.
-            let (parsedSimilar, parsedCandidates) = await Task.detached(priority: .userInitiated) {
-                let similar: SimilarSpecies? = preDecodedSimilar
-                    ?? lookalikesLegacyArray.flatMap { arr in
-                        arr.isEmpty ? nil : SimilarSpecies(entries: arr.map {
-                            SimilarSpeciesEntry(scientificName: $0, commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)
-                        })
-                    }
-                let candidates: [IdentificationCandidate]? = candidatesRawData.flatMap {
-                    try? JSONDecoder().decode([IdentificationCandidate].self, from: $0)
-                }
-                return (similar, candidates)
-            }.value
+            // The projection reuses its gate-decoded rich lookalikes and owns
+            // the awaited off-main legacy/candidate conversion.
+            let decodedContent = await InferenceHistoricalRecordProjection
+                .decodeDeferredContent(projection.deferredContent)
 
             guard !Task.isCancelled else { return }
             if var updated = self.speciesData {
-                updated.similarSpecies = parsedSimilar
-                updated.candidates = parsedCandidates
+                updated.similarSpecies = decodedContent.similarSpecies
+                updated.candidates = decodedContent.candidates
                 self.speciesData = updated
             }
 
             // Step 3: If an identification override is active, patch in the override species data.
-            if let override = overrideName, recordAllowsSpeciesHydration {
+            if let override = projection.overrideScientificName,
+               projection.hydrationPlan.allowsSpeciesHydration {
                 guard !Task.isCancelled else { return }
                 await self.fetchAndPatchOverrideData(
                     scientificName: override,
-                    scanId: recordId,
+                    scanId: projection.scanId,
                     modelContext: safeContext,
                     enrichOnCacheMiss: false,
                     replacingSpeciesIdentity: false,
@@ -3360,13 +3233,13 @@ import SwiftUI
             // Steps 4 & 5: Retroactive Wikipedia hydration, Enrichment, and GBIF-image hydration.
             // Run Wikipedia and Enrichment concurrently. GBIF images run sequentially after Enrichment.
             await withTaskGroup(of: Void.self) { group in
-                if needsWiki {
+                if projection.hydrationPlan.needsWikipedia {
                     group.addTask { @MainActor [weak self] in
                         guard let self else { return }
                         guard !Task.isCancelled else { return }
                         await self.fetchWikipediaAndHydrate(
-                            for: hydrationScientificName,
-                            scanId: recordId,
+                            for: projection.displayedScientificName,
+                            scanId: projection.scanId,
                             presentationGeneration: historicPresentationGeneration,
                             reviewActionGeneration: reviewActionGeneration,
                             modelContext: safeContext
@@ -3376,12 +3249,16 @@ import SwiftUI
 
                 group.addTask { @MainActor [weak self] in
                     guard let self else { return }
-                    var taxonKeyToUse = gbifKey
+                    var taxonKeyToUse = projection.gbifTaxonKey
                     let speciesIsEnriched = self.hydrationCoordinator
-                        .isSpeciesEnriched(hydrationScientificName)
+                        .isSpeciesEnriched(
+                            projection.displayedScientificName
+                        )
                     let plannedScopes = Self.plannedEnrichmentScopes(
-                        needsMetadata: needsMetadata,
-                        needsLookalikes: needsLookalikes,
+                        needsMetadata:
+                            projection.hydrationPlan.needsMetadata,
+                        needsLookalikes:
+                            projection.hydrationPlan.needsLookalikes,
                         speciesIsEnriched: speciesIsEnriched
                     )
 
@@ -3389,7 +3266,9 @@ import SwiftUI
                     // unless the record already has rich local lookalike data persisted.
                     if (plannedScopes.metadata || plannedScopes.lookalikes)
                         && self.hydrationCoordinator
-                        .beginHistoricEnrichmentAttempt(scanId: recordId) {
+                        .beginHistoricEnrichmentAttempt(
+                            scanId: projection.scanId
+                        ) {
                         guard !Task.isCancelled else { return }
                         await self.fetchAndApplyEnrichment(
                             modelContext: safeContext,
@@ -3401,24 +3280,27 @@ import SwiftUI
                            self.speciesData?.habitatDescription?.trimmedNonEmptyValue != nil,
                            self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
                             self.hydrationCoordinator.markSpeciesEnriched(
-                                hydrationScientificName
+                                projection.displayedScientificName
                             )
                         }
                         taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
                     }
 
-                    if let key = taxonKeyToUse, recordAllowsReferenceImages {
+                    if let key = taxonKeyToUse,
+                       projection.hydrationPlan.allowsReferenceImages {
                         guard !Task.isCancelled else { return }
                         guard let currentScientificName = self.speciesData?.scientificName,
                               currentScientificName.caseInsensitiveCompare(
-                                  hydrationScientificName
+                                  projection.displayedScientificName
                               ) == .orderedSame,
-                              self.speciesData?.scanId?.caseInsensitiveCompare(recordId) == .orderedSame else {
+                              self.speciesData?.scanId?.caseInsensitiveCompare(
+                                  projection.scanId
+                              ) == .orderedSame else {
                             return
                         }
                         await self.fetchGBIFImagesAndHydrate(
                             for: key,
-                            scanId: recordId,
+                            scanId: projection.scanId,
                             scientificName: currentScientificName,
                             presentationGeneration: historicPresentationGeneration,
                             reviewActionGeneration: reviewActionGeneration,
