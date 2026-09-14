@@ -113,23 +113,33 @@ The safe pattern is to copy every scalar needed by the task while still on the
 owning actor, then pass only those value types across the suspension point:
 
 ```swift
+let modelContainer = record.modelContext?.container
 let projection = InferenceHistoricalRecordProjection(
     record: record,
     resetLocalLookalikes: shouldResetLocalLookalikes
 )
 
-hydrationTask = Task { [weak self, projection] in
-    guard let self else { return }
-    let refUrls = projection.referenceURLs
-    // Never touch `record` here.
-}
+historicalHydrationCoordinator.scheduleHydration(
+    .init(
+        projection: projection,
+        modelContainer: modelContainer,
+        presentationGeneration: presentationGeneration,
+        reviewActionGeneration: reviewActionGeneration
+    ),
+    callbacks: historicalCallbacks
+)
+// The registered operation captures `projection`, never `record`.
 ```
 
-`InferenceEngine.load(from:)` follows this rule through its dedicated historical
-projection, including media, reference images, taxonomy, review state,
-lookalikes, and candidates. The same rule applies to sheet routes, share/export
-flows, delete confirmations, refinement setup, and any `Task.detached` or
-`Task {}` that can outlive the source SwiftUI view.
+`InferenceEngine.load(from:)` delegates this boundary to
+`InferenceHistoricalLoadCoordinator`. It snapshots the optional model container
+before constructing the historical projection, including media, reference
+images, taxonomy, review state, lookalikes, and candidates. It publishes the
+initial projection synchronously; `InferenceHistoricalHydrationCoordinator`
+registers all deferred follow-up work using only those immutable values and
+narrow callbacks. The same rule applies to sheet routes, share/export flows,
+delete confirmations, refinement setup, and any `Task.detached` or `Task {}`
+that can outlive the source SwiftUI view.
 
 ---
 
@@ -590,7 +600,9 @@ Offline queued-only visual and non-visual submissions must not call
 `InferenceEngine.prepareForNewScan()`. That method intentionally sets
 `isProcessing = true` so the insight sheet routes to the analyzing skeleton. If
 the device is offline and the code returns after enqueueing, no live inference
-task exists to clear that state.
+task exists to clear that state. The facade delegates the reset to
+`InferenceSessionLifecycleCoordinator`; callers must still cross the same
+online-admission boundary before invoking it.
 
 ### ✅ The Pattern: Prepare Only After Online Confirmation
 
@@ -727,7 +739,11 @@ Do not hold `ScanInferencePersistenceCoordinator` and then await
 `InferenceProcessingActor`: a foreground parse can already be waiting for the
 same scan fence. `BackgroundInferenceFinalizationService` instead calls the
 stateless `InferenceResponsePreparationService`, then invokes the fresh
-persistence actor. The architecture test freezes that dependency direction.
+persistence actor. Response preparation must stay effect-free: compare the
+provider `scan_id` with the expected queue owner before persistence, and carry
+any normalized funding settlement back as an immutable value. Apply that value
+only after the exact main-context queue deletion commits. The architecture test
+freezes that dependency direction and ordering.
 
 **On live inference cancellation or network failure**: the exact foreground
 generation is synchronously retired and the background path resumes. A
@@ -986,20 +1002,24 @@ infinite oscillation.
 ## 19. `activeScanId` Stale Hydration Window
 
 `InferenceLiveAttemptCoordinator` owns the active scan ID exposed through
-`InferenceEngine.activeScanId` and pairs it at the start of `analyze()` with a
-unique `activeLiveInferenceAttemptGeneration`. The background offline path
+`InferenceEngine.activeScanId`. `InferenceLivePipelineCoordinator.admit` returns
+a session with a unique attempt generation before
+`InferenceLiveSubmissionCoordinator` stages the presentation and activates both
+the live-attempt and presentation owners. The background offline path
 (`Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift`)
 may hydrate the live engine only when it still owns both values:
 
+Cross-owner invalidation, task cancellation, presentation reset, and queue
+handoff are sequenced by `InferenceSessionLifecycleCoordinator`; the attempt
+coordinator remains the sole identity/task owner.
+
 ```swift
-if engine.commitRecoveredBackgroundResult(
+_ = engine.commitRecoveredBackgroundResult(
     for: scanId,
     replacingAttemptGeneration: presentationGeneration,
     expectedForegroundGeneration: releasedForegroundGeneration,
     speciesData: speciesData
-) {
-    engine.inferenceTask?.cancel()
-}
+)
 ```
 
 **The bug (fixed)**: scan ID alone left an ABA window. A delayed background
@@ -1007,53 +1027,64 @@ completion could target a replacement attempt for the same scan; conversely, the
 cooperatively cancelled live task could resume its error handler after
 background recovery published a result.
 
-**The fix**: every live task captures its presentation UUID and durable
-foreground generation. `InferenceLiveAttemptCoordinator` checks the full owner
-at task entry, supplies that predicate to `InferenceLiveRequestService` across
+**The fix**: every live pipeline session captures its presentation UUID and
+durable foreground generation. `InferenceLivePipelineCoordinator` asks
+`InferenceLiveAttemptCoordinator` to check the full owner at task entry,
+supplies that predicate to `InferenceLiveRequestService` across
 request-preparation suspension points and provider return, and checks again
-before result or failure side effects. Background recovery compares the exact
-UUID and absence of a new foreground owner, then atomically invalidates the live
-presentation slot before publishing and cancelling the old task. Explicit
-cancellation also clears `activeScanId` synchronously because its invalidated
-task defer no longer owns the slot:
+before result or failure side effects. `InferenceSessionLifecycleCoordinator`
+compares the exact UUID and absence of a new foreground owner for background
+recovery, then atomically invalidates the live presentation slot before
+publishing. The attempt owner detaches, retains, and cancels the exact displaced
+task as part of that synchronous ownership transfer. The stable engine method
+only forwards the immutable recovery inputs; Offline Sync must not re-read and
+cancel `engine.inferenceTask` afterward because a synchronous presentation
+observer may already have installed a replacement. Explicit cancellation also
+clears `activeScanId` synchronously because its invalidated task defer no longer
+owns the slot:
 
 ```swift
-defer {
-    if liveAttemptCoordinator.clearActiveAttemptIfCurrent(
-        scanId: ownedScanId,
-        attemptGeneration: attemptGeneration
-    ) {
-        isProcessing = false
-    }
-}
+defer { finish(session, callback: callbacks.finish) }
+
+guard attemptCoordinator.clearActiveAttemptIfCurrent(
+    scanId: session.scanId,
+    attemptGeneration: session.attemptGeneration
+) else { return }
+callback(session)
 ```
 
 The coordinator accesses durable state through `InferenceLiveQueueService`,
 whose `+Live` adapter is the only Core AI owner that resolves
-`OfflineQueueManager` for the live-attempt lifecycle. Entitlement reconciliation
-retains its separate existing Offline Sync trigger in
-`InferenceResponsePreparationService`. The coordinator also rechecks scan,
-process-local UUID, and durable generation after awaited queue deletion,
-preventing a stale finalizer from clearing or retiring a same-scan replacement.
-The provider-ready fail-safe and request-body callback retain that coordinator
+`OfflineQueueManager` for the live-attempt lifecycle. The coordinator rechecks
+scan, process-local UUID, durable generation, task cancellation, and its
+dedicated Auth follow-up epoch after awaited queue deletion, preventing a stale
+or cancellation-ignoring finalizer from clearing, retiring, or settling a same-
+scan replacement. Entitlement and advisory-usage effects belong to Offline
+Sync's inference-settlement owner and start only after that exact deletion. The
+provider-ready fail-safe and request-body callback retain that coordinator
 independently, so durable upload release cannot disappear with the engine. Only
 the body-sent local-analysis update captures the engine weakly. The hydration
 window is therefore bounded by ownership, not timing or cooperative
 cancellation.
 
-Failure handlers must snapshot the full current-owner result before registering
-synchronous retirement. Only a proven current owner may then emit telemetry,
-record a circuit-breaker failure, trigger an error haptic, or assign an error
-placeholder, with no intervening `await`. Rechecking only the process-local scan
-ID or presentation UUID is insufficient: a durable foreground owner may already
-have been retired or replaced while those local values still match.
+Route both pipeline catch paths through `InferenceLiveFailureCoordinator`. It
+must snapshot the full current-owner result before any synchronous release or
+retirement and recheck local scan and attempt identity after release,
+retirement, or rejection callbacks. Only the still-current invocation may then
+emit telemetry, record a circuit-breaker failure, trigger an error haptic, or
+return a narrow error-presentation action for the engine to apply, with no
+intervening `await`. Rechecking only the process-local scan ID or presentation
+UUID is insufficient: a durable foreground owner may already have been retired
+or replaced while those local values still match.
 
-`load(from:)` must follow the same replacement protocol before assigning a
-historical record ID. Merely overwriting `activeScanId` makes the old live task
-fail its local checks without giving it a way to relinquish the durable
-foreground generation, which can suppress recovery indefinitely. The method
-therefore invalidates and retires the live UUID first, cancels its provider and
-hydration tasks, and leaves the queued row for background replay.
+`InferenceHistoricalLoadCoordinator`, behind `load(from:)`, must follow the same
+replacement protocol before assigning a historical record ID. Merely overwriting
+`activeScanId` makes the old live task fail its local checks without giving it a
+way to relinquish the durable foreground generation, which can suppress recovery
+indefinitely. The load coordinator therefore asks
+`InferenceSessionLifecycleCoordinator` to invalidate and retire the live UUID
+first, cancel its provider and hydration tasks, and leave the queued row for
+background replay.
 
 ---
 
@@ -1101,57 +1132,77 @@ if var updated = self.speciesData {
 }
 ```
 
-### Affected Sites in `InferenceEngine.swift`
+### Affected Inference Presentation Sites
 
-All write paths in `InferenceEngine` that modify `speciesData` follow this
-pattern:
+All write paths that modify the engine's `speciesData` follow this pattern,
+including coordinator publications through the injected callback:
 
-| Function                                | Fields written                                                                                                                                               |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `fetchAndApplyEnrichment`               | `habitatDescription`, `gbifTaxonKey`, `taxonomy`, `similarSpecies`                                                                                           |
-| `fetchWikipediaAndHydrate`              | `wikipediaOverview`, `wikipediaUrl`, `referenceImageUrl`                                                                                                     |
-| `fetchAndPatchOverrideData` (cache hit) | `commonName`, `insightData`, `taxonomy`, `iucnRedListStatus`, `habitatDescription`, `gbifTaxonKey`, `referenceImageUrl`, `wikipediaOverview`, `wikipediaUrl` |
-| `applyIdentificationOverride` (wipe)    | All contextual fields reset to nil + override identity fields                                                                                                |
-| Historical load path                    | `similarSpecies`, `candidates`                                                                                                                               |
+| Function                                                                 | Fields written                                                                                                                                               |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `InferenceSpeciesEnrichmentCoordinator.fetchAndApplyEnrichment`          | `habitatDescription`, `gbifTaxonKey`, `taxonomy`, `similarSpecies`                                                                                           |
+| `InferenceSpeciesHydrationCoordinator.hydrateWikipedia`                  | `wikipediaOverview`, `wikipediaUrl`, `referenceImageUrl`                                                                                                     |
+| `InferenceReviewWorkflowCoordinator.resolveDisplayedSpecies` (cache hit) | `commonName`, `insightData`, `taxonomy`, `iucnRedListStatus`, `habitatDescription`, `gbifTaxonKey`, `referenceImageUrl`, `wikipediaOverview`, `wikipediaUrl` |
+| `applyIdentificationOverride` (wipe)                                     | All contextual fields reset to nil + override identity fields                                                                                                |
+| Historical load path                                                     | `similarSpecies`, `candidates`                                                                                                                               |
 
-These are engine-owned observable mutation sites, not transport or task-storage
-owners. `SpeciesReferenceHydrationService` constructs and decodes the public
+These are `InferencePresentationState` values exposed through the engine facade,
+not transport or task-storage effects. Hydration coordinators construct full-
+value replacements and publish them through a narrow species-presentation
+callback. `SpeciesReferenceHydrationService` constructs and decodes the public
 Wikipedia mobile-sections and GBIF taxon-key requests, while
 `InferenceHydrationCoordinator` owns live, historical, and identification-review
-task lifetime plus request deduplication/TTL/backoff state. GBIF work is awaited
-by the live, historical, or review operation that resolved its key rather than
-escaping into another task. `InferenceWriteCoordinator` owns the bounded
-best-effort write queue and ordered identification-write tail. Species-changing
-review hydration, same-species confirmation, and legacy flagging use independent
-bounded action generations, so confirmation cannot strand valid historical
-hydration. `InferenceHistoricalRecordProjection` owns the complete synchronous
+task lifetime plus request deduplication/TTL/backoff state.
+`InferenceSpeciesHydrationCoordinator` owns the complete live Wikipedia,
+enrichment, and GBIF sequence plus the shared exact-presentation operations
+invoked by historical/review flows. `InferenceHistoricalHydrationCoordinator`
+owns historical deferred decoding, override refresh, Wikipedia/enrichment
+concurrency, and enrichment-before-GBIF ordering.
+`InferenceHistoricalLoadCoordinator` owns the synchronous admission,
+persisted-record projection and publication, generation/callback capture, and
+registered follow-up scheduling behind the stable engine facade.
+`InferenceReviewWorkflowCoordinator` owns review-action sequencing, registered
+review hydration, and displayed-override resolution. The engine retains its
+stable facade; `InferenceSpeciesPresentationCoordinator` owns synchronous
+publication, and its one hydration callback bundle is the sole source of current
+species, presentation generation, exact-identity checks, and write-admission
+routing for the workflow. GBIF remains awaited by the operation that resolved
+its key rather than escaping into another task. Registered live, historical, and
+review operations validate exact presentation identity before provider work and
+after external suspension. A historical loader with no usable provider result
+terminates as empty only while that same presentation remains current.
+`InferenceWriteCoordinator` owns the bounded best-effort write queue and ordered
+identification-write tail. Species-changing review hydration, same-species
+confirmation, and legacy flagging use independent bounded action generations, so
+confirmation cannot strand valid historical hydration.
+`InferenceHistoricalRecordProjection` owns the complete synchronous
 SwiftData-to-presentation snapshot and deferred decode inputs for the historical
 load path. `InferenceSpeciesEnrichmentService` owns scoped response-to-domain
-mapping, while `InferenceHydrationPersistenceService` accepts only immutable
-reference, metadata, and lookalike snapshots after write admission.
-`InferenceEngine` applies returned values only after its scan, species,
-presentation-generation, and optional review-action checks pass. Each snapshot
-also carries the expected scientific name; the database actor compares it with
-the record's effective override-or-original identity before committing. This
-second fence prevents a late original-species response from overwriting an
-active identification override and prevents a stale override response after a
-later replacement. An override-data persistence call must explicitly distinguish
-an identity replacement (clear stale taxonomy/collections) from a historical
-refresh (preserve valid same-species values when the row is sparse).
+mapping, while its coordinator owns independent loading and patch publication.
+`InferenceHydrationPersistenceService` accepts only immutable reference,
+metadata, and lookalike snapshots after write admission. Coordinator callbacks
+apply returned values only after scan, species, presentation-generation, and
+optional review-action checks pass. Each snapshot also carries the expected
+scientific name; the database actor compares it with the record's effective
+override-or-original identity before committing. This second fence prevents a
+late original-species response from overwriting an active identification
+override and prevents a stale override response after a later replacement. An
+override-data persistence call must explicitly distinguish an identity
+replacement (clear stale taxonomy/collections) from a historical refresh
+(preserve valid same-species values when the row is sparse).
 
 ### Why This Matters for Live UI
 
-The insight sheet is open while background hydration tasks
-(`fetchWikipediaAndHydrate`, `fetchAndApplyEnrichment`,
-`fetchAndPatchOverrideData`) complete asynchronously. If these tasks use
-optional-chain mutations, the cards (`HabitatAndDistributionCard`,
-`TaxonomyCard`, `SimilarSpeciesGallery`) will not update live — the user sees
-empty or skeleton states until the sheet is dismissed and reopened. Full-value
-replacement ensures cards populate in real time without any user interaction.
-`ImagesCarousel` receives its data through `InsightSheetViewModel` computed
-properties, so the same full-value-replacement rule applies at the engine level
-— the viewModel's observation chain propagates changes correctly only when
-`speciesData` itself is replaced, not field-mutated.
+The insight sheet is open while background hydration operations
+(`hydrateWikipedia`, `fetchAndApplyEnrichment`, and review workflow displayed-
+species resolution) complete asynchronously. If these operations use optional-
+chain mutations, the cards (`HabitatAndDistributionCard`, `TaxonomyCard`,
+`SimilarSpeciesGallery`) will not update live — the user sees empty or skeleton
+states until the sheet is dismissed and reopened. Full-value replacement ensures
+cards populate in real time without any user interaction. `ImagesCarousel`
+receives its data through `InsightSheetViewModel` computed properties, so the
+same full-value-replacement rule applies at the engine level — the viewModel's
+observation chain propagates changes correctly only when `speciesData` itself is
+replaced, not field-mutated.
 
 Transient image failures are deliberately absent from the table:
 `ImagesCarousel` owns them as scan-scoped presentation state and never edits

@@ -227,7 +227,6 @@ struct CoreIntegrationArchitectureTests {
     ]
 
     private static let trackedOversizedOwners: Set<String> = [
-        "AI/InferenceEngine.swift",
         "Network/SupabaseManager.swift"
     ]
 

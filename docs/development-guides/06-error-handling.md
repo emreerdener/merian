@@ -137,7 +137,11 @@ missing or malformed preview data, authentication/TLS failure, and server
 failure preserve staged input and show retry feedback instead of bypassing
 admission.
 
-`InferenceEngine.analyze` handles errors in this priority order:
+The live pipeline coordinator routes both `InferenceEngine.analyze` entry points
+through the synchronous `InferenceLiveFailureCoordinator` boundary in this
+priority order. The failure coordinator owns queue handoff and terminal-effect
+sequencing; `InferenceLivePresentationCoordinator` applies only its narrow
+observable presentation actions.
 
 1. **`CancellationError`** (or `URLError.cancelled`) — inference was cancelled
    (user navigated away or backgrounded). Do not refund the scan token. Do not

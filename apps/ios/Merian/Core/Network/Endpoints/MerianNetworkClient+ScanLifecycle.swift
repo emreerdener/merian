@@ -55,7 +55,12 @@ extension MerianNetworkClient {
         }
         let data = try await performAuthenticatedJSONDataPost(
             function: "check-scan-status",
-            payload: ["scans": scans]
+            payload: ["scans": scans],
+            // Funding reconciliation is the sole production owner of this
+            // bulk probe and already retains an outer account-work lease.
+            // A 401 must return to that durable retry owner; starting ordinary
+            // Auth recovery here would wait for this same task to quiesce.
+            allowsUnauthorizedSessionRecovery: false
         )
         return try ScanLifecycleResponseDecoder.statuses(from: data, expectedScanIDs: expectedScanIDs)
     }

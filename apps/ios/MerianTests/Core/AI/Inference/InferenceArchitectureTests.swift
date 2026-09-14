@@ -7,15 +7,29 @@ import Testing
 struct InferenceArchitectureTests {
     @Test func extractedOwnersRemainSmallAndExplicit() throws {
         for relativePath in [
+            "Assembly/InferenceEngineAssembly.swift",
+            "Facade/InferenceEngineCompatibility.swift",
+            "Diagnostics/InferenceEngineDebugSupport.swift",
+            "Diagnostics/InferenceEngine+Debug.swift",
             "State/InferenceWriteCoordinator.swift",
             "Completion/InferenceLiveCompletionCoordinator.swift",
             "Completion/InferenceLiveCompletionCoordinator+Live.swift",
             "Hydration/InferenceHydrationCoordinator.swift",
             "Hydration/InferenceSpeciesEnrichmentService.swift",
             "Hydration/InferenceSpeciesEnrichmentService+Live.swift",
+            "Hydration/InferenceSpeciesHydrationModels.swift",
+            "Hydration/InferenceSpeciesHydrationCoordinator.swift",
+            "Hydration/InferenceSpeciesHydrationCoordinator+Live.swift",
+            "Hydration/InferenceSpeciesPresentationCoordinator.swift",
+            "Hydration/InferenceSpeciesEnrichmentCoordinator.swift",
+            "Hydration/InferenceLookalikeCacheResetService.swift",
+            "Hydration/InferenceLookalikeCacheResetService+Live.swift",
             "Hydration/InferenceHydrationPersistenceService.swift",
             "Hydration/InferenceHydrationPersistenceService+Live.swift",
             "Hydration/InferenceHistoricalRecordProjection.swift",
+            "Hydration/InferenceHistoricalHydrationCoordinator.swift",
+            "Hydration/InferenceHistoricalLoadCoordinator.swift",
+            "Lifecycle/InferenceSessionLifecycleCoordinator.swift",
             "LocalAnalysis/InferenceLocalAnalysisCoordinator.swift",
             "LocalAnalysis/VisionSubjectClassification.swift",
             "LocalAnalysis/LocalVisualAnalysisImageBuilder.swift",
@@ -23,17 +37,30 @@ struct InferenceArchitectureTests {
             "LocalAnalysis/FoundationVisualCues.swift",
             "LocalAnalysis/ScanningPhrasePolicy.swift",
             "LocalAnalysis/ScanningPhraseCoordinator.swift",
+            "Pipeline/InferenceLivePipelineModels.swift",
+            "Pipeline/InferenceLivePipelineCoordinator.swift",
+            "Pipeline/InferenceLivePipelineCoordinator+Live.swift",
+            "Pipeline/InferenceLivePresentationCoordinator.swift",
+            "Media/InferenceLiveMediaProjector.swift",
+            "Presentation/InferencePresentationState.swift",
+            "Presentation/InferencePresentationCoordinator.swift",
             "Request/InferenceLiveRequestService.swift",
             "Services/InferenceLiveQueueService.swift",
             "Services/InferenceLiveQueueService+Live.swift",
-            "Services/InferenceReviewSnapshotService.swift",
+            "IdentificationReview/InferenceReviewSnapshotService.swift",
             "State/InferenceLiveAttemptCoordinator.swift",
             "Result/InferenceLiveResultService.swift",
             "Result/InferenceConfidencePolicy.swift",
             "Result/InferenceScanReplacement.swift",
             "Recovery/InferenceLookalikeCachePolicy.swift",
             "Recovery/InferenceLiveFailurePolicy.swift",
-            "Recovery/InferenceFailurePresentation.swift"
+            "Recovery/InferenceFailurePresentation.swift",
+            "Recovery/InferenceLiveFailureCoordinator.swift",
+            "Recovery/InferenceLiveFailureCoordinator+Live.swift",
+            "IdentificationReview/InferenceIdentificationReviewCoordinator.swift",
+            "IdentificationReview/InferenceIdentificationReviewCoordinator+Live.swift",
+            "IdentificationReview/InferenceReviewWorkflowCoordinator.swift",
+            "IdentificationReview/IdentificationReviewPresentation.swift"
         ] {
             let file = try sourceRoot().appendingPathComponent(relativePath)
             #expect(
@@ -50,10 +77,320 @@ struct InferenceArchitectureTests {
         }
     }
 
+    @Test func observablePresentationStateOwnsValueTransitions() throws {
+        let state = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Presentation/InferencePresentationState.swift"
+            )
+        )
+        let engine = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/Merian/Core/AI/InferenceEngine.swift"
+            )
+        )
+        let lifecycle = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Lifecycle/InferenceSessionLifecycleCoordinator.swift"
+            )
+        )
+        let livePresentation = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Pipeline/InferenceLivePresentationCoordinator.swift"
+            )
+        )
+        let historicalLoad = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceHistoricalLoadCoordinator.swift"
+            )
+        )
+        let focusedTests = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/MerianTests/Core/AI/Inference/InferencePresentationStateTests.swift"
+            )
+        )
+
+        for token in [
+            "@Observable\nfinal class InferencePresentationState",
+            "private(set) var queuedPresentationScanId:",
+            "private(set) var activeMedia = ActiveScanMedia()",
+            "private(set) var speciesData: SpeciesData?",
+            "func prepareForNewScan(",
+            "func publishSuccessfulResult(",
+            "func finishCancellation(",
+            "func beginHistoricalLoad(",
+            "func publishHistoricalProjection(",
+            "activeDistanceInMeters = nil"
+        ] {
+            #expect(state.contains(token))
+        }
+        for token in [
+            "URLSession", "ModelContext", "LocalScanRecord", "Task {",
+            "Task.detached", "MerianLog", "FileManager", ".shared",
+            "InferenceLiveAttemptCoordinator", "InferenceHydrationCoordinator"
+        ] {
+            #expect(!state.contains(token))
+        }
+
+        for token in [
+            "@ObservationIgnored private let presentationState:",
+            "@ObservationIgnored private let sessionLifecycleCoordinator:",
+            "get { presentationState.isProcessing }",
+            "get { presentationState.activeMedia }",
+            "get { presentationState.speciesData }",
+            "sessionLifecycleCoordinator.prepareForNewScan(",
+            "historicalLoadCoordinator.load(from: record)"
+        ] {
+            #expect(engine.contains(token))
+        }
+        for token in [
+            "sessionLifecycleCoordinator.beginHistoricalLoad()",
+            "presentationState.publishHistoricalProjection("
+        ] {
+            #expect(historicalLoad.contains(token))
+            #expect(!engine.contains(token))
+        }
+        for token in [
+            "presentationState.prepareForNewScan(",
+            "presentationState.publishSuccessfulResult(",
+            "presentationState.beginHistoricalLoad()",
+            "presentationState.finishCancellation("
+        ] {
+            #expect(lifecycle.contains(token))
+        }
+        #expect(
+            livePresentation.contains(
+                "sessionLifecycleCoordinator.publishSuccessfulResult("
+            )
+        )
+        for token in [
+            "var isProcessing: Bool = false",
+            "var scanningPhaseText: String =",
+            "var activeMedia = ActiveScanMedia()",
+            "private var activeDeviceLocale:",
+            "private var activeCurrentMonth:",
+            "private var activeTimeOfDay:",
+            "private func applyReferenceStateIfAvailable("
+        ] {
+            #expect(!engine.contains(token))
+        }
+
+        let successStart = try #require(
+            state.range(of: "func publishSuccessfulResult(")
+        )
+        let successEnd = try #require(
+            state.range(
+                of: "func beginQueueHandoff(",
+                range: successStart.upperBound..<state.endIndex
+            )
+        )
+        let successBody = state[successStart.lowerBound..<successEnd.lowerBound]
+        let queuedClear = try #require(
+            successBody.range(of: "queuedPresentationScanId = nil")
+        )
+        let mediaPublish = try #require(
+            successBody.range(of: "activeMedia.items = persistedMediaItems")
+        )
+        let speciesPublish = try #require(
+            successBody.range(of: "speciesData = data")
+        )
+        let referencePublish = try #require(
+            successBody.range(of: "applyReferenceStateIfAvailable(from: data)")
+        )
+        let processingFinish = try #require(
+            successBody.range(of: "isProcessing = false")
+        )
+        #expect(queuedClear.lowerBound < mediaPublish.lowerBound)
+        #expect(mediaPublish.lowerBound < speciesPublish.lowerBound)
+        #expect(speciesPublish.lowerBound < referencePublish.lowerBound)
+        #expect(referencePublish.lowerBound < processingFinish.lowerBound)
+
+        for token in [
+            "prepareForNewScanClearsPresentationAndEveryTelemetryValue",
+            "nonVisualTelemetryCannotInheritVisualDistance",
+            "successfulResultPublishesPersistedMediaAndReferenceState",
+            "queueHandoffPreservesMediaWhileEndingResultPresentation",
+            "cancellationReturnsPresentationToCleanIdleState",
+            "historicalProjectionReplacesReleasedLiveMedia",
+            "engineReadThroughRetainsSwiftObservationInvalidation"
+        ] {
+            #expect(focusedTests.contains(token))
+        }
+    }
+
+    @Test func liveMediaProjectorOwnsInputAndCarouselMapping() throws {
+        let projector = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Media/InferenceLiveMediaProjector.swift"
+            )
+        )
+        let engine = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/Merian/Core/AI/InferenceEngine.swift"
+            )
+        )
+        let submission = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Pipeline/InferenceLiveSubmissionCoordinator.swift"
+            )
+        )
+        let focusedTests = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/MerianTests/Core/AI/Inference/InferenceLiveMediaProjectorTests.swift"
+            )
+        )
+
+        for token in [
+            "struct InferenceLiveMediaProjector",
+            "private let dependencies: Dependencies",
+            "func projectVisual(",
+            "func projectNonVisual(",
+            "func persistedMediaItems(",
+            "timelineWasExplicit:",
+            "posterImageIndex == imageIndex",
+            "SecureTransportPolicy.httpsURL(from:"
+        ] {
+            #expect(projector.contains(token))
+        }
+        for token in [
+            "@Observable", "URLSession", "Task {", "Task.detached",
+            "ModelContext", "SpeciesData", ".shared"
+        ] {
+            #expect(!projector.contains(token))
+        }
+
+        for token in [
+            "private let mediaProjector:",
+            "mediaProjector.projectVisual(",
+            "mediaProjector.projectNonVisual(",
+            "mediaProjector.persistedMediaItems("
+        ] {
+            #expect(submission.contains(token))
+        }
+        #expect(!engine.contains("private let liveMediaProjector:"))
+        #expect(!engine.contains("liveMediaProjector.projectVisual("))
+        #expect(!engine.contains("liveMediaProjector.projectNonVisual("))
+        #expect(!engine.contains("liveMediaProjector.persistedMediaItems("))
+        for token in [
+            "private func resolvedAudioPath(",
+            "private func resolvedVideoPath(",
+            "private func mediaItems(",
+            "FileManager.default"
+        ] {
+            #expect(!engine.contains(token))
+        }
+        for token in [
+            "visualDefaultTimelineUsesDisplayImagesAndFiltersContexts",
+            "explicitTimelinePreservesOwnerOrderAndVideoPosterPolicy",
+            "persistedRemappingRetainsPosterAndTimelineOrder",
+            "adjacentStillIsNotMistakenForVideoPoster",
+            "localPathResolutionPreservesCompatibilityFallbacks",
+            "nonVisualDefaultProjectionFiltersEmptyLegacyInputs",
+            "explicitTimelineDoesNotInventLegacyAudioModality"
+        ] {
+            #expect(focusedTests.contains(token))
+        }
+    }
+
+    @Test func presentationLifecycleOwnsEphemeralIdentityOnly() throws {
+        let coordinator = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Presentation/InferencePresentationCoordinator.swift"
+            )
+        )
+        let engine = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/Merian/Core/AI/InferenceEngine.swift"
+            )
+        )
+        let lifecycle = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Lifecycle/InferenceSessionLifecycleCoordinator.swift"
+            )
+        )
+        let submission = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Pipeline/InferenceLiveSubmissionCoordinator.swift"
+            )
+        )
+        let focusedTests = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/MerianTests/Core/AI/Inference/InferencePresentationCoordinatorTests.swift"
+            )
+        )
+
+        for token in [
+            "final class InferencePresentationCoordinator",
+            "private var preparedOwner:",
+            "private var activeOwner:",
+            "private var queuedVisualScanId:",
+            "private var firstRenderMetric:",
+            "func transitionToQueue(",
+            "func finishActivePresentation(",
+            "func rebindFirstRenderMetric(",
+            "func consumeFirstRenderStart("
+        ] {
+            #expect(coordinator.contains(token))
+        }
+        for token in [
+            "@Observable", "SpeciesData", "ActiveScanMedia", "MerianLog",
+            "FileManager", "URLSession", "Task {", "Task.detached", ".shared"
+        ] {
+            #expect(!coordinator.contains(token))
+        }
+
+        for token in [
+            "private let presentationLifecycleCoordinator:",
+            "sessionLifecycleCoordinator.prepareForNewScan(",
+            "sessionLifecycleCoordinator.transitionToQueue(",
+            "sessionLifecycleCoordinator.dismissAnalyzingPresentation()"
+        ] {
+            #expect(engine.contains(token))
+        }
+        for token in [
+            "presentationCoordinator.prepare(",
+            "presentationCoordinator.transitionToQueue(",
+            "presentationCoordinator.reset()"
+        ] {
+            #expect(lifecycle.contains(token))
+        }
+        #expect(submission.contains("presentationCoordinator.activate("))
+        for token in [
+            "struct AnalysisPresentationOwner",
+            "preparedPresentationOwner",
+            "activePresentationOwner",
+            "queuedVisualPresentationScanId",
+            "queuedPresentationCarriesLiveMedia",
+            "queuedPresentationScanningPhrases",
+            "pendingFirstRenderMetric"
+        ] {
+            #expect(!engine.contains(token))
+        }
+        for token in [
+            "preparedVisualHandoffUsesGenericPhrasesWithoutLiveMedia",
+            "activeVisualHandoffRequiresExactOwnerAndCurrentAttempt",
+            "nonVisualHandoffNeverCarriesVisualContext",
+            "firstRenderMetricIsExactAndConsumedOnce",
+            "firstRenderMetricRebindRequiresItsExactSource",
+            "authAdmissionClearsOwnersWhilePreservingRenderTiming"
+        ] {
+            #expect(focusedTests.contains(token))
+        }
+    }
+
     @Test func historicalRecordProjectionOwnsMappingAndHydrationPlanning() throws {
         let projection = try contents(
             of: sourceRoot().appendingPathComponent(
                 "Hydration/InferenceHistoricalRecordProjection.swift"
+            )
+        )
+        let historicalHydration = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceHistoricalHydrationCoordinator.swift"
+            )
+        )
+        let historicalLoad = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceHistoricalLoadCoordinator.swift"
             )
         )
         let engine = try contents(
@@ -64,6 +401,16 @@ struct InferenceArchitectureTests {
         let focusedTests = try contents(
             of: try repositoryRoot().appendingPathComponent(
                 "apps/ios/MerianTests/Core/AI/Inference/InferenceHistoricalRecordProjectionTests.swift"
+            )
+        )
+        let orchestrationTests = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/MerianTests/Core/AI/Inference/InferenceHistoricalHydrationCoordinatorTests.swift"
+            )
+        )
+        let loadTests = try contents(
+            of: try repositoryRoot().appendingPathComponent(
+                "apps/ios/MerianTests/Core/AI/Inference/InferenceHistoricalLoadCoordinatorTests.swift"
             )
         )
 
@@ -86,58 +433,159 @@ struct InferenceArchitectureTests {
         ] {
             #expect(!projection.contains(token))
         }
+        for token in [
+            "final class InferenceHistoricalHydrationCoordinator",
+            "taskCoordinator.replaceTask(in: .historic)",
+            "await dependencies.decodeDeferredContent(",
+            "await callbacks.hydrateDisplayedOverride(override)",
+            "await withTaskGroup(of: Void.self)",
+            "await self.hydrateEnrichmentAndGBIF(",
+            "taskCoordinator.beginHistoricEnrichmentAttempt(",
+            "await speciesHydrationCoordinator.hydrateGBIF(",
+            "callbacks.speciesHydration.isPresentationCurrent(identity)",
+            "callbacks.speciesHydration.currentReferenceState() == .loading",
+            "callbacks.speciesHydration.publishReferenceState(.empty)"
+        ] {
+            #expect(historicalHydration.contains(token))
+        }
+        for token in [
+            "LocalScanRecord", "record.", "MerianNetworkClient", "URLSession",
+            "UserDefaults", "BackgroundDatabaseActor", ".shared",
+            "@unchecked Sendable"
+        ] {
+            #expect(!historicalHydration.contains(token))
+        }
 
-        let loadStart = try #require(
-            engine.range(of: "// MARK: - Local Record Loading")
-        )
-        let localAnalysisStart = try #require(
-            engine.range(
-                of: "// MARK: - On-Device Subject Study",
-                range: loadStart.upperBound..<engine.endIndex
+        for token in [
+            "final class InferenceHistoricalLoadCoordinator",
+            "private let attemptCoordinator:",
+            "private let sessionLifecycleCoordinator:",
+            "private let presentationState:",
+            "private let writeCoordinator:",
+            "private let speciesPresentationCoordinator:",
+            "private let historicalHydrationCoordinator:",
+            "private let lookalikeCacheResetService:",
+            "private let reviewWorkflowCoordinator:",
+            "func load(from record: LocalScanRecord)"
+        ] {
+            #expect(historicalLoad.contains(token))
+        }
+        for token in [
+            "MerianNetworkClient", "BackgroundDatabaseActor", "URLSession",
+            "UserDefaults", "MerianLog", "FileManager", ".shared",
+            "Task {", "Task.detached", "private var ", "@Observable"
+        ] {
+            #expect(!historicalLoad.contains(token))
+        }
+
+        let loadStart = try #require(historicalLoad.range(
+            of: "func load(from record: LocalScanRecord)"
+        ))
+        let loadSection = historicalLoad[loadStart.lowerBound...]
+        let admission = try #require(
+            loadSection.range(
+                of: "sessionLifecycleCoordinator.beginHistoricalLoad()"
             )
         )
-        let loadSection = engine[
-            loadStart.lowerBound..<localAnalysisStart.lowerBound
-        ]
-        #expect(
-            loadSection.contains("InferenceHistoricalRecordProjection(")
-        )
         let identityAssignment = try #require(
-            loadSection.range(of: "self.activeScanId = record.id")
+            loadSection.range(
+                of: "attemptCoordinator.setActiveScanId(record.id)"
+            )
         )
         let liveMediaRelease = try #require(
-            loadSection.range(of: "self.activeMedia = ActiveScanMedia()")
+            loadSection.range(of: "presentationState.releaseLiveMedia()")
+        )
+        let containerSnapshot = try #require(
+            loadSection.range(
+                of: "let modelContainer = record.modelContext?.container"
+            )
         )
         let projectionCreation = try #require(
             loadSection.range(of: "let projection = InferenceHistoricalRecordProjection(")
         )
+        let compatibilityReset = try #require(
+            loadSection.range(
+                of: "lookalikeCacheResetService.scheduleIfNeeded(in: modelContainer)"
+            )
+        )
         let historicalMediaPublication = try #require(
             loadSection.range(
-                of: "self.activeMedia = projection.mediaSnapshot.activeScanMedia"
+                of: "presentationState.publishHistoricalProjection("
             )
         )
-        #expect(identityAssignment.lowerBound < liveMediaRelease.lowerBound)
-        #expect(liveMediaRelease.lowerBound < projectionCreation.lowerBound)
-        #expect(
-            projectionCreation.lowerBound <
-                historicalMediaPublication.lowerBound
+        let presentationGeneration = try #require(
+            loadSection.range(
+                of: "let presentationGeneration = writeCoordinator.generation"
+            )
         )
-
+        let reviewAction = try #require(
+            loadSection.range(
+                of: "speciesPresentationCoordinator.beginReviewAction("
+            )
+        )
+        let reviewCallbacks = try #require(
+            loadSection.range(
+                of: "let reviewCallbacks = speciesPresentationCoordinator"
+            )
+        )
         let historicTaskStart = try #require(
             loadSection.range(
-                of: "hydrationCoordinator.replaceTask(in: .historic)"
+                of: "historicalHydrationCoordinator.scheduleHydration("
             )
         )
+        #expect(admission.lowerBound < identityAssignment.lowerBound)
+        #expect(identityAssignment.lowerBound < liveMediaRelease.lowerBound)
+        #expect(liveMediaRelease.lowerBound < containerSnapshot.lowerBound)
+        #expect(containerSnapshot.lowerBound < projectionCreation.lowerBound)
+        #expect(projectionCreation.lowerBound < compatibilityReset.lowerBound)
+        #expect(
+            compatibilityReset.lowerBound <
+                historicalMediaPublication.lowerBound
+        )
+        #expect(
+            historicalMediaPublication.lowerBound <
+                presentationGeneration.lowerBound
+        )
+        #expect(presentationGeneration.lowerBound < reviewAction.lowerBound)
+        #expect(reviewAction.lowerBound < reviewCallbacks.lowerBound)
+        #expect(reviewCallbacks.lowerBound < historicTaskStart.lowerBound)
+
         let historicTask = loadSection[
             historicTaskStart.lowerBound..<loadSection.endIndex
         ]
         #expect(!historicTask.contains("record."))
         for retiredToken in [
             "SpeciesData(", "record.candidatesData", "record.lookalikesData",
-            "record.similarSpecies", "JSONDecoder()", "Task.detached"
+            "record.similarSpecies", "JSONDecoder()", "Task.detached",
+            "withTaskGroup", "decodeDeferredContent(",
+            "beginHistoricEnrichmentAttempt(", ".hydrateGBIF("
         ] {
             #expect(!loadSection.contains(retiredToken))
         }
+        for token in [
+            "sessionLifecycleCoordinator.beginHistoricalLoad()",
+            "InferenceHistoricalRecordProjection(",
+            "presentationState.releaseLiveMedia()",
+            "presentationState.publishHistoricalProjection(",
+            "historicalHydrationCoordinator.scheduleHydration("
+        ] {
+            #expect(!engine.contains(token))
+        }
+        let engineLoadStart = try #require(
+            engine.range(of: "func load(from record: LocalScanRecord)")
+        )
+        let engineLoadEnd = try #require(engine.range(
+            of: "func handleApplicationActiveStateChange(",
+            range: engineLoadStart.upperBound..<engine.endIndex
+        ))
+        let engineLoad = engine[
+            engineLoadStart.lowerBound..<engineLoadEnd.lowerBound
+        ]
+        #expect(
+            engineLoad.contains(
+                "historicalLoadCoordinator.load(from: record)"
+            )
+        )
 
         #expect(
             focusedTests.contains(
@@ -146,6 +594,32 @@ struct InferenceArchitectureTests {
         )
         #expect(
             focusedTests.split(
+                separator: "\n",
+                omittingEmptySubsequences: false
+            ).count <= 600
+        )
+        #expect(
+            orchestrationTests.contains(
+                "struct HistoricalHydrationCoordinatorTests"
+            )
+        )
+        #expect(
+            orchestrationTests.split(
+                separator: "\n",
+                omittingEmptySubsequences: false
+            ).count <= 600
+        )
+        for token in [
+            "struct InferenceHistoricalLoadCoordinatorTests",
+            "publishesProjectionBeforeDeferredHydrationCompletes",
+            "authFenceRejectsLoadWithoutChangingPresentation",
+            "replacementRejectsCancellationIgnoringPriorDecode",
+            "schedulesRequiredLookalikeResetWithRecordContainer"
+        ] {
+            #expect(loadTests.contains(token))
+        }
+        #expect(
+            loadTests.split(
                 separator: "\n",
                 omittingEmptySubsequences: false
             ).count <= 600
@@ -159,25 +633,43 @@ struct InferenceArchitectureTests {
             )
         )
 
-        #expect(source.contains("private let speciesReferenceService:"))
-        #expect(source.contains("private let speciesEnrichmentService:"))
-        #expect(source.contains("private let hydrationPersistenceService:"))
+        #expect(source.contains("private let speciesPresentationCoordinator:"))
+        #expect(!source.contains("private let speciesHydrationCoordinator:"))
+        #expect(
+            source.contains("private let historicalLoadCoordinator:")
+        )
+        #expect(!source.contains("private let historicalHydrationCoordinator:"))
+        #expect(!source.contains("private let lookalikeCacheResetService:"))
+        #expect(!source.contains("private let speciesReferenceService:"))
+        #expect(!source.contains("private let speciesEnrichmentService:"))
+        #expect(!source.contains("private let hydrationPersistenceService:"))
         #expect(source.contains("private let hydrationCoordinator:"))
         #expect(source.contains("private let writeCoordinator"))
         #expect(source.contains("private let localAnalysisCoordinator:"))
-        #expect(source.contains("private let liveRequestService:"))
-        #expect(source.contains("private let liveResultService:"))
         #expect(source.contains("private let liveAttemptCoordinator:"))
-        #expect(source.contains("private let liveCompletionCoordinator:"))
-        #expect(source.contains("private let identificationReviewService:"))
+        #expect(!source.contains("private let liveCompletionCoordinator:"))
+        #expect(!source.contains("private let livePipelineCoordinator:"))
+        #expect(!source.contains("private let liveMediaProjector:"))
+        #expect(source.contains("private let liveSubmissionCoordinator:"))
         #expect(
             source.contains(
-                "private let identificationReviewSnapshotService:"
+                "private let livePipelinePresentationCoordinator:"
             )
         )
-        #expect(source.contains("resetEnrichmentRateLimit()"))
-        #expect(source.contains("replaceAndAwaitTask("))
-        #expect(source.contains("in: .review"))
+        #expect(!source.contains("private let liveRequestService:"))
+        #expect(!source.contains("private let liveResultService:"))
+        #expect(!source.contains("private let liveFailureCoordinator:"))
+        #expect(!source.contains("private let identificationReviewCoordinator:"))
+        #expect(
+            source.contains(
+                "private let identificationReviewWorkflowCoordinator:"
+            )
+        )
+        #expect(!source.contains("private let identificationReviewService:"))
+        #expect(!source.contains("private let identificationReviewSnapshotService:"))
+        #expect(!source.contains("resetEnrichmentRateLimit()"))
+        #expect(!source.contains("replaceAndAwaitTask("))
+        #expect(!source.contains("in: .review"))
         #expect(!source.contains("in: .gbif"))
         for retiredToken in [
             "externalAPISession",
@@ -194,6 +686,12 @@ struct InferenceArchitectureTests {
             "enrichmentAttemptedScanIds",
             "enrichmentRateLimitedUntil",
             "private var enrichedSpeciesTimestamps",
+            "fetchWikipediaAndHydrate(",
+            "fetchGBIFImagesAndHydrate(",
+            "hydrateMissingReviewReferenceImages(",
+            "fetchAndPatchOverrideData(",
+            "shouldResetLocalLookalikesCache(",
+            "scheduleLocalLookalikesCacheResetIfNeeded(",
             "localClassificationTask",
             "localVisualTraitTask",
             "foundationVisualCueTask",
@@ -215,6 +713,14 @@ struct InferenceArchitectureTests {
             "MerianNetworkClient.stableEdgeErrorCode(",
             "EdgeFunctionErrorPolicy.stableCode(",
             "MerianNetworkClient.isRecoverableInferenceConflict(",
+            "publishLiveInferenceFailure(",
+            "logLiveInferenceFailure(",
+            "publishQueuedRecoveryHandoffIfNeeded(",
+            "publishQueuedRetiredOwnershipHandoffIfNeeded(",
+            "releaseQueueBackedLiveInferenceForRecovery(",
+            "CircuitBreakerManager.shared",
+            "UsageManager.shared",
+            "refundScan(scanId:",
             "SupabaseManager.shared",
             "OfflineQueueManager.shared",
             ".from(\"",
@@ -247,6 +753,21 @@ struct InferenceArchitectureTests {
                 "Services/InferenceLiveQueueService+Live.swift"
             )
         )
+        let pipeline = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Pipeline/InferenceLivePipelineCoordinator.swift"
+            )
+        )
+        let submission = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Pipeline/InferenceLiveSubmissionCoordinator.swift"
+            )
+        )
+        let lifecycle = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Lifecycle/InferenceSessionLifecycleCoordinator.swift"
+            )
+        )
         let appDI = try contents(of: root.appendingPathComponent(
             "apps/ios/Merian/Core/AppDIContainer.swift"
         ))
@@ -257,13 +778,36 @@ struct InferenceArchitectureTests {
             "private(set) var activeAttemptGeneration:",
             "private(set) var activeForegroundGeneration:",
             "private(set) var recoverablePresentationScanId:",
+            "private var displacedTasks:",
+            "private var displacedTaskWaiters:",
+            "private var followUpAuthorizationGeneration:",
+            "private var activeFollowUpAuthorizationGeneration:",
+            "func cancelAllTasks()",
+            "func awaitQuiescence() async",
+            "func cancelAndClearActiveAttempt()",
+            "func invalidateFollowUpAuthorization()",
+            "func canAuthorizeFollowUps(",
             "func invalidateActiveAttempt(",
             "func completeQueuedInferenceIfNeeded(",
             "return scanId == nil && foregroundGeneration == nil",
+            "guard !Task.isCancelled,",
+            "followUpAuthorizationIsCurrent,",
             "func canCommitRecoveredBackgroundResult("
         ] {
             #expect(coordinator.contains(token))
         }
+        let completionStart = try #require(coordinator.range(
+            of: "func completeQueuedInferenceIfNeeded("
+        ))
+        let recoveryStart = try #require(coordinator.range(
+            of: "func canCommitRecoveredBackgroundResult(",
+            range: completionStart.upperBound..<coordinator.endIndex
+        ))
+        let completion = coordinator[
+            completionStart.lowerBound..<recoveryStart.lowerBound
+        ]
+        #expect(completion.contains("isLocalAttemptCurrent("))
+        #expect(!completion.contains("canAuthorizeFollowUps("))
         #expect(coordinator.contains("private let queueService:"))
         #expect(!coordinator.contains("OfflineQueueManager"))
         #expect(!coordinator.contains("InferenceEngine"))
@@ -298,21 +842,59 @@ struct InferenceArchitectureTests {
         }
         #expect(!engine.contains("OfflineQueueManager.shared"))
         #expect(!engine.contains("foregroundInferenceGenerations["))
+        #expect(!engine.contains("requestAttemptCoordinator"))
+        #expect(!engine.contains("livePipelineCoordinator.activate("))
+        #expect(!engine.contains("livePipelineCoordinator.admit("))
+        #expect(submission.contains("pipelineCoordinator.activate("))
+        #expect(submission.contains("pipelineCoordinator.admit("))
         #expect(
-            engine.contains(
-                "let requestAttemptCoordinator = self.liveAttemptCoordinator"
-            )
-        )
-        #expect(!engine.contains("self?.liveAttemptCoordinator"))
-        #expect(engine.contains("liveAttemptCoordinator.activate("))
-        #expect(engine.contains("liveAttemptCoordinator.checkAttempt("))
-        #expect(
-            engine.contains(
+            !engine.contains(
                 "liveAttemptCoordinator.invalidateActiveAttempt("
             )
         )
+        #expect(
+            lifecycle.contains(
+                "attemptCoordinator.invalidateActiveAttempt("
+            )
+        )
+        #expect(
+            pipeline.contains(
+                "let durableAttemptCoordinator = attemptCoordinator"
+            )
+        )
+        #expect(pipeline.contains("attemptCoordinator.activate("))
+        #expect(pipeline.contains("attemptCoordinator.checkAttempt("))
+        #expect(pipeline.contains("clearActiveAttemptIfCurrent("))
         #expect(appDI.contains("liveInferenceQueueService"))
         #expect(appDI.contains("liveQueueService:"))
+
+        let cancellationStart = try #require(
+            coordinator.range(of: "func cancelAndClearActiveAttempt()")
+        )
+        let scanSetterStart = try #require(
+            coordinator.range(
+                of: "func setActiveScanId(",
+                range: cancellationStart.upperBound..<coordinator.endIndex
+            )
+        )
+        let cancellation = coordinator[
+            cancellationStart.lowerBound..<scanSetterStart.lowerBound
+        ]
+        let detachTask = try #require(
+            cancellation.range(of: "task = nil")
+        )
+        let clear = try #require(
+            cancellation.range(of: "clearActiveAttempt()")
+        )
+        let retainTask = try #require(
+            cancellation.range(of: "retainUntilCompletion(displacedTask)")
+        )
+        let cancelTask = try #require(
+            cancellation.range(of: "displacedTask.cancel()")
+        )
+        #expect(detachTask.lowerBound < clear.lowerBound)
+        #expect(clear.lowerBound < retainTask.lowerBound)
+        #expect(retainTask.lowerBound < cancelTask.lowerBound)
 
         let invalidationStart = try #require(
             coordinator.range(of: "func invalidateActiveAttempt(")
@@ -326,13 +908,13 @@ struct InferenceArchitectureTests {
         let invalidation = coordinator[
             invalidationStart.lowerBound..<retirementStart.lowerBound
         ]
-        let clear = try #require(
-            invalidation.range(of: "clearActiveAttempt()")
+        let localCancellation = try #require(
+            invalidation.range(of: "cancelAndClearActiveAttempt()")
         )
         let durableRelease = try #require(
             invalidation.range(of: "releaseAndRetire(")
         )
-        #expect(clear.lowerBound < durableRelease.lowerBound)
+        #expect(localCancellation.lowerBound < durableRelease.lowerBound)
     }
 
     @Test func sharedQueueFixturesKeepTheirCrossFrameworkLease() throws {
@@ -464,6 +1046,46 @@ struct InferenceArchitectureTests {
                 "Hydration/InferenceHydrationPersistenceService+Live.swift"
             )
         )
+        let hydrationCoordinator = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceSpeciesHydrationCoordinator.swift"
+            )
+        )
+        let enrichmentCoordinator = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceSpeciesEnrichmentCoordinator.swift"
+            )
+        )
+        let hydrationModels = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceSpeciesHydrationModels.swift"
+            )
+        )
+        let speciesPresentation = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceSpeciesPresentationCoordinator.swift"
+            )
+        )
+        let liveHydrationCoordinator = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceSpeciesHydrationCoordinator+Live.swift"
+            )
+        )
+        let cacheReset = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceLookalikeCacheResetService.swift"
+            )
+        )
+        let liveCacheReset = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceLookalikeCacheResetService+Live.swift"
+            )
+        )
+        let historicalLoad = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceHistoricalLoadCoordinator.swift"
+            )
+        )
         let engine = try contents(
             of: try repositoryRoot().appendingPathComponent(
                 "apps/ios/Merian/Core/AI/InferenceEngine.swift"
@@ -515,40 +1137,88 @@ struct InferenceArchitectureTests {
         #expect(livePersistence.contains("JSONEncoder().encode(entries)"))
         #expect(!livePersistence.contains("MerianNetworkClient"))
 
-        let hydrationStart = try #require(
-            engine.range(of: "// MARK: - Wikipedia Background Hydration")
+        for source in [
+            hydrationCoordinator,
+            enrichmentCoordinator,
+            hydrationModels,
+            speciesPresentation,
+            cacheReset
+        ] {
+            for token in [
+                "MerianNetworkClient", "MerianLog", "UserDefaults",
+                "BackgroundDatabaseActor", "Task.detached"
+            ] {
+                #expect(!source.contains(token))
+            }
+        }
+        for token in [
+            "func scheduleLiveHydration(", "func hydrateWikipedia(",
+            "func hydrateGBIF(", "func hydrateMissingReferenceImages(",
+            "replaceTask(in: .live)"
+        ] {
+            #expect(hydrationCoordinator.contains(token))
+        }
+        #expect(
+            enrichmentCoordinator.contains("await withTaskGroup(of: Void.self)")
         )
-        let reviewStart = try #require(
-            engine.range(
-                of: "// MARK: - Identification Override",
-                range: hydrationStart.upperBound..<engine.endIndex
+        #expect(
+            enrichmentCoordinator.contains("recordEnrichmentRateLimit()")
+        )
+        #expect(liveHydrationCoordinator.contains("MerianLog.general.debug("))
+        #expect(cacheReset.contains("struct InferenceLookalikeCacheResetService"))
+        #expect(liveCacheReset.contains("UserDefaults.standard"))
+        #expect(liveCacheReset.contains("BackgroundDatabaseActor("))
+        #expect(liveCacheReset.contains("Task.detached("))
+        #expect(engine.contains("private let speciesPresentationCoordinator:"))
+        #expect(!engine.contains("private let speciesHydrationCoordinator:"))
+        #expect(!engine.contains("private let lookalikeCacheResetService:"))
+        #expect(
+            historicalLoad.contains(
+                "private let lookalikeCacheResetService:"
             )
         )
-        let hydration = engine[
-            hydrationStart.lowerBound..<reviewStart.lowerBound
-        ]
-        for token in [
-            "MerianNetworkClient.shared", "BackgroundDatabaseActor(",
-            "Task.detached", "JSONEncoder"
-        ] {
-            #expect(!hydration.contains(token))
-        }
-        #expect(hydration.contains("speciesEnrichmentService"))
-        #expect(hydration.contains("hydrationPersistenceService"))
+        #expect(!engine.contains("private let speciesReferenceService:"))
+        #expect(!engine.contains("private let speciesEnrichmentService:"))
+        #expect(!engine.contains("private let hydrationPersistenceService:"))
+        #expect(appDI.contains("liveInferenceSpeciesReferenceService"))
         #expect(appDI.contains("liveInferenceSpeciesEnrichmentService"))
         #expect(appDI.contains("speciesEnrichmentService:"))
         #expect(appDI.contains("liveInferenceHydrationPersistenceService"))
         #expect(appDI.contains("hydrationPersistenceService:"))
+        #expect(appDI.contains("liveInferenceSpeciesHydrationDependencies"))
+        #expect(appDI.contains("speciesHydrationDependencies:"))
+        #expect(appDI.contains("liveInferenceLookalikeCacheResetService"))
+        #expect(appDI.contains("lookalikeCacheResetService:"))
     }
 
-    @Test func identificationReviewServicesOwnNetworkAndPersistenceBoundaries() throws {
+    @Test func identificationReviewOwnersKeepEffectsAtLiveBoundary() throws {
         let root = try repositoryRoot()
         let service = try contents(of: root.appendingPathComponent(
             "apps/ios/Merian/Core/Network/Inference/InferenceIdentificationReviewService.swift"
         ))
         let snapshotService = try contents(
             of: sourceRoot().appendingPathComponent(
-                "Services/InferenceReviewSnapshotService.swift"
+                "IdentificationReview/InferenceReviewSnapshotService.swift"
+            )
+        )
+        let coordinator = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "IdentificationReview/InferenceIdentificationReviewCoordinator.swift"
+            )
+        )
+        let liveCoordinator = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "IdentificationReview/InferenceIdentificationReviewCoordinator+Live.swift"
+            )
+        )
+        let workflow = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "IdentificationReview/InferenceReviewWorkflowCoordinator.swift"
+            )
+        )
+        let presentation = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "IdentificationReview/IdentificationReviewPresentation.swift"
             )
         )
         let engine = try contents(of: root.appendingPathComponent(
@@ -561,6 +1231,12 @@ struct InferenceArchitectureTests {
         for token in [
             "struct InferenceSpeciesDictionaryRecord",
             "struct InferenceIdentificationReviewMutation",
+            "let userReviewState: UserReviewState",
+            "static func userOverride(",
+            "static func aiConfirmation(",
+            "static func reset(scanID:",
+            "private init(",
+            "container.encode(userReviewState.rawValue",
             "beginUnownedAccountBoundWork()",
             "finishAccountBoundWork(lease)",
             "isAccountBoundWorkLeaseCurrent(lease)",
@@ -569,6 +1245,7 @@ struct InferenceArchitectureTests {
         ] {
             #expect(service.contains(token))
         }
+        #expect(!service.contains("let userReviewState: String"))
         for token in ["SupabaseManager.shared", ".from(\"", ".rpc("] {
             #expect(!engine.contains(token))
         }
@@ -582,29 +1259,147 @@ struct InferenceArchitectureTests {
         #expect(!snapshotService.contains("try?"))
         #expect(!engine.contains("try? context.fetch"))
 
-        let confirmationStart = try #require(engine.range(
-            of: "func confirmAIIdentification("
+        for token in [
+            "beginReviewAction(scanId:",
+            "enqueueOverrideAdmission(",
+            "enqueueReviewMutation(",
+            "enqueueFlagReset(",
+            "enqueueSpeciesPatch(",
+            "reviewService.syncReview(mutation)",
+            "mutation.userReviewState",
+            "dependencies.sendPostRefresh(postID)",
+            "dependencies.processIdentificationUpdate(mutation.scanID)"
+        ] {
+            #expect(coordinator.contains(token))
+        }
+        #expect(!coordinator.contains("localReviewState:"))
+        for token in [
+            "BackgroundDatabaseActor", "AppDIContainer",
+            "ExploreShareStateStore", "Task.detached", "@unchecked Sendable",
+            ".from(\"", ".rpc("
+        ] {
+            #expect(!coordinator.contains(token))
+        }
+        #expect(
+            coordinator.range(
+                of: #"\.shared\b"#,
+                options: .regularExpression
+            ) == nil
+        )
+        for token in [
+            "func applyOverride(",
+            "func confirm(",
+            "func reset(",
+            "func hydrateDisplayedSpecies(",
+            "resolveDisplayedSpecies(",
+            "enqueueOverrideAdmission(",
+            "enqueueReviewMutation(",
+            "enqueueFlagReset(",
+            "enqueueSpeciesPatch(",
+            "replaceAndAwaitTask(in: .review)",
+            "callbacks.applyPresentation(",
+            "callbacks.speciesHydration"
+        ] {
+            #expect(workflow.contains(token))
+        }
+        #expect(
+            !workflow.contains("let currentSpeciesData:"),
+            "The workflow must use the hydration callback bundle's single presentation source"
+        )
+        #expect(
+            !workflow.contains("let currentPresentationGeneration:"),
+            "The workflow must use the hydration callback bundle's single generation source"
+        )
+        #expect(
+            workflow.contains(
+                "callbacks.speciesHydration.currentSpeciesData()"
+            )
+        )
+        #expect(
+            workflow.contains(
+                "callbacks.speciesHydration\n            .currentPresentationGeneration()"
+            )
+        )
+        for token in [
+            "BackgroundDatabaseActor", "AppDIContainer",
+            "ExploreShareStateStore", "Task.detached", "@unchecked Sendable",
+            "MerianNetworkClient", ".from(\"", ".rpc(", ".shared"
+        ] {
+            #expect(!workflow.contains(token))
+        }
+        for token in [
+            "BackgroundDatabaseActor(",
+            "ExploreShareStateStore.sharedPostId(for:",
+            "AppDIContainer.shared.appEventPublisher",
+            "AppDIContainer.shared.scanMilestoneCoordinator",
+            "static func composed("
+        ] {
+            #expect(liveCoordinator.contains(token))
+        }
+        for token in [
+            "MerianNetworkClient", "BackgroundDatabaseActor", "ModelContext",
+            "AppDIContainer", "ExploreShareStateStore", "Task {",
+            "Task.detached", "await ", ".shared"
+        ] {
+            #expect(!presentation.contains(token))
+        }
+
+        let reviewSectionStart = try #require(engine.range(
+            of: "// MARK: - Identification Override"
         ))
-        let resetStart = try #require(engine.range(
-            of: "func resetIdentificationReview("
+        let reviewSectionEnd = try #require(engine.range(
+            of: "// MARK: - Pipeline Modifiers",
+            range: reviewSectionStart.upperBound..<engine.endIndex
         ))
-        let confirmation = engine[
+        let reviewSection = engine[
+            reviewSectionStart.lowerBound..<reviewSectionEnd.lowerBound
+        ]
+        for token in [
+            "BackgroundDatabaseActor(", "AppDIContainer.shared",
+            "ExploreShareStateStore", "identificationReviewService.",
+            "identificationReviewSnapshotService.",
+            "syncIdentificationReviewToCloud(",
+            "IdentificationReviewPresentation.",
+            "identificationReviewCoordinator.",
+            "InferenceIdentificationReviewMutation(",
+            ".userOverride(",
+            ".aiConfirmation(",
+            ".reset(scanID:",
+            "replaceAndAwaitTask("
+        ] {
+            #expect(!reviewSection.contains(token))
+        }
+        for delegation in [
+            "identificationReviewWorkflowCoordinator.applyOverride(",
+            "identificationReviewWorkflowCoordinator.confirm(",
+            "identificationReviewWorkflowCoordinator.reset("
+        ] {
+            #expect(reviewSection.contains(delegation))
+        }
+
+        let confirmationStart = try #require(workflow.range(
+            of: "func confirm("
+        ))
+        let resetStart = try #require(workflow.range(
+            of: "func reset("
+        ))
+        let confirmation = workflow[
             confirmationStart.lowerBound..<resetStart.lowerBound
         ]
         let confirmationRead = try #require(confirmation.range(
-            of: "identificationReviewSnapshotService"
+            of: "reviewCoordinator.loadSnapshot("
         ))
         let confirmationMutation = try #require(confirmation.range(
-            of: "beginIdentificationConfirmationAction("
+            of: "reviewCoordinator.beginConfirmationAction("
         ))
         #expect(confirmationRead.lowerBound < confirmationMutation.lowerBound)
 
-        let reset = engine[resetStart.lowerBound...]
+        let reset = workflow[resetStart.lowerBound...]
         let resetRead = try #require(reset.range(
-            of: "identificationReviewSnapshotService"
+            of: "reviewCoordinator.loadSnapshot("
         ))
         let resetMutation = try #require(reset.range(
-            of: "beginIdentificationReviewAction("
+            of: "reviewCoordinator.beginReviewAction("
         ))
         #expect(resetRead.lowerBound < resetMutation.lowerBound)
 
@@ -617,7 +1412,24 @@ struct InferenceArchitectureTests {
         )
         #expect(appDI.contains("identificationReviewSnapshotService:"))
         #expect(
+            appDI.contains(
+                "liveInferenceIdentificationReviewDependencies"
+            )
+        )
+        #expect(appDI.contains("identificationReviewDependencies:"))
+        #expect(
+            appDI.contains(
+                "InferenceIdentificationReviewCoordinator.Dependencies.composed("
+            )
+        )
+        #expect(
             service.split(
+                separator: "\n",
+                omittingEmptySubsequences: false
+            ).count <= 600
+        )
+        #expect(
+            workflow.split(
                 separator: "\n",
                 omittingEmptySubsequences: false
             ).count <= 600
@@ -644,43 +1456,6 @@ struct InferenceArchitectureTests {
         ))
         #expect(policy.contains("private static func providerPolicyFailure("))
         #expect(policy.contains("ScanConnectivityFailurePolicy.isDurableRecoveryFailure(error)"))
-    }
-
-    @Test func liveFailureCommitKeepsOneSynchronousExactOwner() throws {
-        let source = try contents(of: repositoryRoot().appendingPathComponent(
-            "apps/ios/Merian/Core/AI/InferenceEngine.swift"
-        ))
-        // Two call sites and one private declaration; no second failure owner.
-        #expect(source.components(separatedBy: "handleLiveInferenceFailure(").count == 4)
-        let handlerStart = try #require(source.range(of: "private func handleLiveInferenceFailure("))
-        let publishStart = try #require(source.range(of: "private func publishLiveInferenceFailure("))
-        let logStart = try #require(source.range(of: "private func logLiveInferenceFailure("))
-        let handler = source[handlerStart.lowerBound..<publishStart.lowerBound]
-        let publication = source[publishStart.lowerBound..<logStart.lowerBound]
-        for body in [handler, publication] {
-            #expect(!body.contains("await "))
-            #expect(!body.contains("Task {"))
-            #expect(!body.contains("Task.detached"))
-        }
-
-        let snapshot = try #require(handler.range(of: "let stillOwnsAttempt ="))
-        let interruption = try #require(handler.range(of: "InferenceLiveFailurePolicy.interruption("))
-        let retiredHandoff = try #require(handler.range(of: "publishQueuedRetiredOwnershipHandoffIfNeeded("))
-        let connectivity = try #require(handler.range(of: "InferenceLiveFailurePolicy.isConnectivityFailure(error)"))
-        let ownerGuard = try #require(handler.range(of: "guard stillOwnsAttempt else { return }"))
-        let retirement = try #require(handler.range(of: "reason: mode.failureReason"))
-        let classification = try #require(handler.range(of: "InferenceLiveFailurePolicy.failure(for: error, mode: mode)"))
-        let publicationCall = try #require(handler.range(of: "publishLiveInferenceFailure("))
-        #expect(snapshot.lowerBound < interruption.lowerBound)
-        #expect(retiredHandoff.lowerBound < connectivity.lowerBound)
-        #expect(connectivity.lowerBound < ownerGuard.lowerBound)
-        #expect(ownerGuard.lowerBound < retirement.lowerBound)
-        #expect(retirement.lowerBound < classification.lowerBound)
-        #expect(classification.lowerBound < publicationCall.lowerBound)
-        #expect(publication.components(separatedBy: "recordFailure()").count == 2)
-        #expect(publication.contains("failure.recordsCircuitFailure"))
-        #expect(publication.contains("failure.triggersErrorFeedback"))
-        #expect(publication.contains("presentation.speciesData(telemetry: telemetry)"))
     }
 
     @Test func coordinatorKeepsItsMutableTaskStatePrivate() throws {
@@ -778,80 +1553,164 @@ struct InferenceArchitectureTests {
     }
 
     @Test func hydrationOrchestrationKeepsReferenceWorkStructured() throws {
-        let source = try contents(
+        let engine = try contents(
             of: try repositoryRoot().appendingPathComponent(
                 "apps/ios/Merian/Core/AI/InferenceEngine.swift"
             )
         )
-        let enrichmentStart = try #require(
-            source.range(of: "func fetchAndApplyEnrichment(")
-        )
-        let reviewStart = try #require(
-            source.range(
-                of: "// MARK: - Identification Override",
-                range: enrichmentStart.upperBound..<source.endIndex
+        let hydration = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceSpeciesHydrationCoordinator.swift"
             )
         )
-        let enrichmentSource = source[
+        let speciesPresentation = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceSpeciesPresentationCoordinator.swift"
+            )
+        )
+        let historicalHydration = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceHistoricalHydrationCoordinator.swift"
+            )
+        )
+        let reviewWorkflow = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "IdentificationReview/InferenceReviewWorkflowCoordinator.swift"
+            )
+        )
+        let enrichment = try contents(
+            of: sourceRoot().appendingPathComponent(
+                "Hydration/InferenceSpeciesEnrichmentCoordinator.swift"
+            )
+        )
+        let enrichmentStart = try #require(
+            engine.range(of: "func fetchAndApplyEnrichment(")
+        )
+        let reviewStart = try #require(
+            engine.range(
+                of: "// MARK: - Identification Override",
+                range: enrichmentStart.upperBound..<engine.endIndex
+            )
+        )
+        let enrichmentFacade = engine[
             enrichmentStart.lowerBound..<reviewStart.lowerBound
         ]
         let liveHydrationStart = try #require(
-            source.range(of: "func schedulePostInferenceHydrationIfNeeded(")
-        )
-        let liveAnalysisStart = try #require(
-            source.range(
-                of: "func analyze(",
-                range: liveHydrationStart.upperBound..<source.endIndex
+            speciesPresentation.range(
+                of: "func scheduleLiveHydrationIfNeeded("
             )
         )
-        let liveHydrationSource = source[
-            liveHydrationStart.lowerBound..<liveAnalysisStart.lowerBound
+        let enrichmentDelegateStart = try #require(
+            speciesPresentation.range(
+                of: "func fetchAndApplyEnrichment(",
+                range:
+                    liveHydrationStart.upperBound..<speciesPresentation.endIndex
+            )
+        )
+        let liveHydrationFacade = speciesPresentation[
+            liveHydrationStart.lowerBound..<enrichmentDelegateStart.lowerBound
         ]
 
-        #expect(!enrichmentSource.contains("fetchGBIFImagesAndHydrate("))
         #expect(
-            !liveHydrationSource.split(separator: "\n").contains {
+            enrichmentFacade.contains(
+                "speciesPresentationCoordinator.fetchAndApplyEnrichment("
+            )
+        )
+        #expect(!enrichmentFacade.contains("withTaskGroup"))
+        #expect(
+            liveHydrationFacade.contains(
+                "speciesHydrationCoordinator.scheduleLiveHydration("
+            )
+        )
+        #expect(
+            !liveHydrationFacade.split(separator: "\n").contains {
                 $0.trimmingCharacters(in: .whitespaces)
                     .hasPrefix("Task {")
             }
         )
-        #expect(!liveHydrationSource.contains("MainActor.run"))
-        #expect(source.contains("let hydrationScientificName = displayScientificName"))
-        #expect(source.contains("for: hydrationScientificName"))
-        #expect(source.contains("enrichOnCacheMiss: false"))
-        #expect(source.contains("replacingSpeciesIdentity: false"))
-        #expect(source.contains("channel: .confirmation"))
+        #expect(!liveHydrationFacade.contains("MainActor.run"))
         #expect(
-            source.contains(
-                "let imageUrl = ExternalReferenceImagePolicy.sanitizedURL("
+            speciesPresentation.contains(
+                "InferenceSpeciesHydrationCoordinator.Callbacks("
             )
         )
-        #expect(source.contains("let newUrls = fetchedURLs.compactMap"))
+        #expect(!engine.contains("InferenceSpeciesHydrationCoordinator.Callbacks("))
+        #expect(hydration.contains("replaceTask(in: .live)"))
+        #expect(hydration.contains("await self.fetchAndApplyEnrichment("))
+        #expect(hydration.contains("await self.hydrateGBIF("))
+        #expect(hydration.contains("recordWikipediaHydrationSuccess("))
         #expect(
-            source.contains(
-                "ExternalReferenceImagePolicy.sanitizedURLList("
+            hydration.contains(
+                "callbacks.isPresentationCurrent(identity),"
             )
         )
+        #expect(
+            historicalHydration.contains(
+                "taskCoordinator.replaceTask(in: .historic)"
+            )
+        )
+        #expect(
+            historicalHydration.contains("await withTaskGroup(of: Void.self)")
+        )
+        #expect(
+            historicalHydration.contains(
+                "await callbacks.hydrateDisplayedOverride(override)"
+            )
+        )
+        let enrichmentCall = try #require(
+            historicalHydration.range(
+                of: "await speciesHydrationCoordinator.fetchAndApplyEnrichment("
+            )
+        )
+        let gbifCall = try #require(
+            historicalHydration.range(
+                of: "await speciesHydrationCoordinator.hydrateGBIF("
+            )
+        )
+        #expect(enrichmentCall.lowerBound < gbifCall.lowerBound)
+        #expect(enrichment.contains("await withTaskGroup(of: Void.self)"))
+        #expect(enrichment.contains("allowLookalikesRetry"))
+        #expect(
+            hydration.contains(
+                "ExternalReferenceImagePolicy.sanitizedURL("
+            )
+        )
+        #expect(
+            hydration.contains(
+                "ExternalReferenceImagePolicy.allowedURLStrings("
+            )
+        )
+        #expect(!engine.contains("func fetchWikipediaAndHydrate("))
+        #expect(!engine.contains("func fetchGBIFImagesAndHydrate("))
+        #expect(!engine.contains("func hydrateMissingReviewReferenceImages("))
+        #expect(!engine.contains("replaceTask(in: .historic)"))
+        #expect(!engine.contains("beginHistoricEnrichmentAttempt("))
+        #expect(!engine.contains("enrichOnCacheMiss:"))
+        #expect(!engine.contains("replacingSpeciesIdentity:"))
+        #expect(!engine.contains("channel: .confirmation"))
+        #expect(reviewWorkflow.contains("enrichOnCacheMiss: false"))
+        #expect(reviewWorkflow.contains("replacingSpeciesIdentity: false"))
+        #expect(reviewWorkflow.contains("channel: .confirmation"))
     }
 
     @Test func identificationReviewKeepsAdmissionAndHydrationOrdering() throws {
         let source = try contents(
-            of: try repositoryRoot().appendingPathComponent(
-                "apps/ios/Merian/Core/AI/InferenceEngine.swift"
+            of: sourceRoot().appendingPathComponent(
+                "IdentificationReview/InferenceReviewWorkflowCoordinator.swift"
             )
         )
         let applyStart = try #require(
-            source.range(of: "func applyIdentificationOverride(")
+            source.range(of: "func applyOverride(")
         )
         let confirmStart = try #require(
             source.range(
-                of: "func confirmAIIdentification(",
+                of: "func confirm(",
                 range: applyStart.upperBound..<source.endIndex
             )
         )
         let resetStart = try #require(
             source.range(
-                of: "func resetIdentificationReview(",
+                of: "func reset(",
                 range: confirmStart.upperBound..<source.endIndex
             )
         )
@@ -859,12 +1718,15 @@ struct InferenceArchitectureTests {
             applyStart.lowerBound..<confirmStart.lowerBound
         ]
         let admissionAwait = try #require(
-            applySource.range(of: "await localOverrideAdmission?.value")
+            applySource.range(of: "await admission?.value")
         )
         let hydrationStart = try #require(
             applySource.range(of: "replaceAndAwaitTask(")
         )
-        #expect(applySource.contains("beginScanIdentificationOverride("))
+        let admissionStart = try #require(
+            applySource.range(of: "enqueueOverrideAdmission(")
+        )
+        #expect(admissionStart.lowerBound < admissionAwait.lowerBound)
         #expect(admissionAwait.lowerBound < hydrationStart.lowerBound)
 
         let confirmationSource = source[
@@ -873,11 +1735,30 @@ struct InferenceArchitectureTests {
         #expect(confirmationSource.contains("channel: .confirmation"))
         #expect(
             confirmationSource.contains(
-                "speciesData?.userIdentificationOverride == nil"
+                "current.userIdentificationOverride == nil"
             )
         )
         #expect(
-            !confirmationSource.contains("beginIdentificationReviewAction(")
+            !confirmationSource.contains("beginReviewAction(")
+        )
+
+        let fallbackStart = try #require(
+            source.range(
+                of: "let speciesID = await reviewCoordinator.loadSpeciesIDIfAvailable("
+            )
+        )
+        let fallbackReturn = try #require(
+            source.range(
+                of: "return speciesID",
+                range: fallbackStart.upperBound..<source.endIndex
+            )
+        )
+        let postFallbackFence = source[
+            fallbackStart.lowerBound..<fallbackReturn.lowerBound
+        ]
+        #expect(postFallbackFence.contains("guard !Task.isCancelled,"))
+        #expect(
+            postFallbackFence.contains("isCurrent(identity, callbacks: callbacks)")
         )
     }
 

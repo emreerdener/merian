@@ -92,6 +92,7 @@ struct CaptureWorkspaceView: View {
         workspaceContent
             .modifier(CaptureWorkspaceOrchestrationModifier(
                 viewModel: viewModel,
+                coordinator: coordinator,
                 captureMode: $captureMode,
                 observationContext: $observationContext,
                 describePromptViewModel: describePromptViewModel,

@@ -166,6 +166,36 @@ struct OfflineScanProcessingResult: Sendable {
     /// in a presented sheet (SwiftData platform limitation: background context saves do not
     /// reliably propagate to `@Query` in open sheets via remote change notifications).
     let wasCleaned: Bool
+    let fundingSettlement: InferenceResponseSettlement?
+
+    init(
+        resolvedSpeciesName: String?,
+        isNewDiscovery: Bool,
+        finalScanId: String?,
+        speciesData: SpeciesData?,
+        wasCleaned: Bool,
+        fundingSettlement: InferenceResponseSettlement? = nil
+    ) {
+        self.resolvedSpeciesName = resolvedSpeciesName
+        self.isNewDiscovery = isNewDiscovery
+        self.finalScanId = finalScanId
+        self.speciesData = speciesData
+        self.wasCleaned = wasCleaned
+        self.fundingSettlement = fundingSettlement
+    }
+
+    func withFundingSettlement(
+        _ fundingSettlement: InferenceResponseSettlement?
+    ) -> Self {
+        Self(
+            resolvedSpeciesName: resolvedSpeciesName,
+            isNewDiscovery: isNewDiscovery,
+            finalScanId: finalScanId,
+            speciesData: speciesData,
+            wasCleaned: wasCleaned,
+            fundingSettlement: fundingSettlement
+        )
+    }
 
     static let notProcessed = OfflineScanProcessingResult(
         resolvedSpeciesName: nil,

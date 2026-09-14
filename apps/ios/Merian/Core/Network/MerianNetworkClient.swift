@@ -319,11 +319,14 @@ final class MerianNetworkClient {
     }
 
     /// Returns JSON response bytes for endpoint-owned explicit-key decoding.
-    /// Account binding, Auth leases, replay, and cancellation remain in the private transport.
+    /// Account binding, Auth leases, replay, and cancellation remain in the
+    /// private transport. A durable caller with an outer quiescence-owned lease
+    /// may return classified 401s to its own retry boundary.
     func performAuthenticatedJSONDataPost(
         function: String,
         payload: [String: Any],
-        expectedAuthUserID: UUID? = nil
+        expectedAuthUserID: UUID? = nil,
+        allowsUnauthorizedSessionRecovery: Bool = true
     ) async throws -> Data {
         let url = try endpointURL(function)
         let body = try JSONSerialization.data(withJSONObject: payload)
@@ -331,6 +334,8 @@ final class MerianNetworkClient {
             url: url,
             method: "POST",
             body: body,
+            allowsUnauthorizedSessionRecovery:
+                allowsUnauthorizedSessionRecovery,
             expectedAuthUserID: expectedAuthUserID
         )
         return data

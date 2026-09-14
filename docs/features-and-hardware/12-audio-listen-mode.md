@@ -417,16 +417,17 @@ for R2 staging). An offline or typed queue-only route shows a toast and stops
 without calling `InferenceEngine.prepareForNewScan()`. A still-online foreground
 route also persists a foreground inference UUID, then prepares the live engine,
 opens the insight sheet, and passes that UUID to
-`InferenceEngine.analyzeNonVisual(...)`. On live success, the engine commits the
-observable result and `InferenceLiveCompletionCoordinator` delegates exact queue
-finalization to `InferenceLiveAttemptCoordinator` through its injected queue
-service. The resulting `deleteQueuedScan` operation preserves audio adopted by
-the final local scan and requires a matching
-`ForegroundInferenceGenerationExpectation`, preventing stale cleanup or a
-redundant background Gemini call on the same file. If no live request can own
-the scan, the captured context task is cancelled. A timeout-losing task retains
-only the deferred-context service and bounded telemetry values for its late
-merge, not the workspace view model.
+`InferenceEngine.analyzeNonVisual(...)`. On live success,
+`InferenceLivePresentationCoordinator` fences the exact local/durable attempt
+and commits the observable result through the lifecycle and presentation-state
+owners. `InferenceLiveCompletionCoordinator` delegates exact queue finalization
+to `InferenceLiveAttemptCoordinator` through its injected queue service. The
+resulting `deleteQueuedScan` operation preserves audio adopted by the final
+local scan and requires a matching `ForegroundInferenceGenerationExpectation`,
+preventing stale cleanup or a redundant background Gemini call on the same file.
+If no live request can own the scan, the captured context task is cancelled. A
+timeout-losing task retains only the deferred-context service and bounded
+telemetry values for its late merge, not the workspace view model.
 
 ---
 
@@ -507,11 +508,12 @@ the same non-visual entry point as description-only captures:
    `submitNonVisualCapture(...)`.
 2. `InferenceEngine.analyzeNonVisual(...)` establishes the exact attempt and
    passes `audioFilePaths`, any `observationContexts`, and the ordered timeline
-   projection to its injected `InferenceLiveRequestService`.
+   projection to `InferenceLivePipelineCoordinator`.
 3. `InferenceLiveRequestService` serializes the nonvisual context and performs
-   the one live Identify call. `MerianNetworkClient.buildMultiModalRequest(...)`
-   sends live foreground WAVs as size-preflighted `audioBase64s`; queued replay
-   sends R2-backed `audioR2ObjectKeys`.
+   the one live Identify call when invoked by that pipeline.
+   `MerianNetworkClient.buildMultiModalRequest(...)` sends live foreground WAVs
+   as size-preflighted `audioBase64s`; queued replay sends R2-backed
+   `audioR2ObjectKeys`.
 4. `InferenceLiveResultService` preserves the canonical audio/timeline order and
    exact persistence fence while selecting the no-image actor input.
    `InferenceProcessingActor.parseAndSave(...)` then routes the result through
@@ -1140,7 +1142,7 @@ decision valid for that request.
 | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `/identify-multimodal` audio path                | **Complete** — live and replay audio route here                                                                                   |
 | `/audio-spec` compatibility ledger               | **Complete** — staged legacy audio rows can recover through `/identify-multimodal`; inline legacy audio remains client-retry only |
-| `InferenceEngine.analyzeNonVisual` live path     | **Complete** — in `InferenceEngine.swift`; audio shares the non-visual path with describe captures                                |
+| `InferenceEngine.analyzeNonVisual` live path     | **Complete** — stable entry point in `InferenceEngine`; shared execution in `Inference/Pipeline`; audio shares the Describe path  |
 | iOS live audio request via inline `audioBase64s` | **Complete** — byte-preflighted in `MerianNetworkClient.buildMultiModalRequest`                                                   |
 | Offline replay audio dispatch path               | **Complete** — queued audio uploads to R2 and replays as `audioR2ObjectKeys`                                                      |
 | Two-phase R2 audio upload                        | **Complete for queued replay** — foreground live audio remains inline by design                                                   |

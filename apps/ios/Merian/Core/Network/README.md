@@ -187,7 +187,10 @@ adds a retry or task owner or exposes mutable transport state.
 `performAuthenticatedJSONDataPost` serializes an untyped JSON body and returns
 bytes for scan lifecycle's explicit-key decoder. Its optional expected Auth user
 ID flows into the same private transport, keeping recovery account-bound without
-exposing Auth leases, constructing a second session, or catching errors.
+exposing Auth leases, constructing a second session, or catching errors. Like
+the encoded bridge, it permits an endpoint whose durable caller already owns an
+outer account-work lease to return a classified `401` to that caller instead of
+starting recursive Auth recovery.
 
 `performAuthenticatedPreparedJSONPost` forwards an already-serialized JSON body,
 timeout, and optional idempotency key without changing bytes or adding
@@ -272,9 +275,18 @@ lifetime.
 `species_dictionary` reads and the `update_owned_scan_identification_review`
 RPC. Its immutable injected closures acquire one account-work lease per
 operation, verify that lease after the network suspension, and expose only typed
-records/mutations to `InferenceEngine`. The engine retains review task ordering,
-local persistence, presentation, and post-success effects and performs no direct
-Supabase query.
+records/mutations to `InferenceIdentificationReviewCoordinator`. Review
+mutations can be built only through coherent override, confirmation, and reset
+factories. Their typed `UserReviewState` encodes the existing raw enum string,
+including the existing explicit nulls, without changing the wire contract. The
+Core AI review workflow owns registered review-task ordering, while the
+action/effect coordinator sequences local persistence before this transport and
+its live adapter owns post-success effects. `InferenceEngine` retains stable
+public entry points. `InferenceSpeciesPresentationCoordinator` owns observable
+commits and supplies current species, presentation generation, exact-identity
+checks, and write admission through the workflow's one hydration callback
+bundle; neither owner contains interactive review timing or a direct Supabase
+query.
 
 `Transport/` owns pure endpoint URL, classification, account-binding, and
 value-only recovery/replay decisions plus the request-scoped executor that
@@ -667,8 +679,11 @@ Boolean `success: true`. Malformed or unconfirmed success remains
 `MerianError.invalidResponse`, not proof of remote erasure. Status requests
 retain the existing single ambiguous-failure replay allowance even though
 server-side reconciliation can mutate job/quota/staging state. Deletion retains
-ambiguous-replay refusal and adds no idempotency key. Both keep the shared
-classified-401 refresh, Auth lease, and cancellation behavior.
+ambiguous-replay refusal and adds no idempotency key. Single status,
+compatibility status, and deletion keep the shared classified-401 refresh. The
+bulk status request instead returns a classified `401` to its sole production
+caller, whose funding task already retains an outer Auth-quiescence lease. All
+four keep the shared per-attempt Auth lease and cancellation behavior.
 
 `Recovery/` owns `OwnedScanRecoveryPayload`, missing-row classification, and the
 record-based publication and Field Chat compatibility flows. `Media/` owns
@@ -687,11 +702,13 @@ owns the authenticated `/sync-collections` request. It maps immutable
 `created_at`, `is_deleted`, and `scan_ids` keys, uses an explicit 30-second
 client deadline, adds no idempotency key, and intentionally ignores successful
 response bytes. Because the durable collection task and its outer account-work
-lease are themselves drained before an Auth transition can advance, this one
+lease are themselves drained before an Auth transition can advance, this
 endpoint returns a classified `401` to the durable retry owner without starting
-nested session recovery. Other endpoints retain the default classified-401
-recovery behavior. The endpoint owns no SwiftData access, scheduling,
-Auth-transition lifecycle, or local acknowledgement policy.
+nested session recovery. The bulk funding-status probe is the other narrowly
+reviewed opt-out; endpoints without a quiescence-owned outer lease retain the
+default classified-401 recovery behavior. The collection endpoint owns no
+SwiftData access, scheduling, Auth-transition lifecycle, or local
+acknowledgement policy.
 
 Core Data retains those responsibilities: `CollectionSyncService` holds the
 outer account-work lease across snapshot, request, and commit; the focused
@@ -713,10 +730,13 @@ endpoint file:
   `InferenceSpeciesEnrichmentService+Live` is Core AI's sole endpoint adapter,
   its injected core resolves no live client directly and maps scoped domain
   patches, and `InferenceHydrationPersistenceService+Live` owns admitted local
-  writes and off-main lookalike encoding. `InferenceEngine` retains enrichment
-  admission, scheduling, result application, retry, stale-result checks, and
-  bounded write lifetime. `EnrichScanResponse` remains hand-written below the
-  generated Identify block in
+  writes and off-main lookalike encoding. The species-hydration coordinator and
+  its private-state enrichment sub-coordinator retain scope scheduling, result
+  application, retry, and stale-result checks; `InferenceHydrationCoordinator`
+  owns task lifetime and backoff, while
+  `InferenceSpeciesPresentationCoordinator` exposes observable callbacks and
+  bounded write admission behind the stable engine facade. `EnrichScanResponse`
+  remains hand-written below the generated Identify block in
   [`Core/AI/InferenceEdgeDTOs.swift`](../AI/InferenceEdgeDTOs.swift).
 - [`MerianNetworkClient+Exports.swift`](Endpoints/MerianNetworkClient+Exports.swift)
   owns `requestDwcAExport`. Settings retains presentation and the launch-gated
@@ -1686,8 +1706,9 @@ reject those three protected integrity results if reported under the old
 aggregate suite. `ScanLifecycleNetworkEndpointTests` adds 18 independent request
 cases, bulk ordering/raw-key projection, empty/invalid bulk short circuits, and
 recovery encoding failures. `ScanLifecycleNetworkTransportTests` covers handler
-denials, classified refresh, bounded status replay, deletion replay refusal,
-identical single-read request snapshots, and pre-dispatch/in-flight/independent
+denials, ordinary classified refresh, the bulk funding probe's durable-owner
+`401` deferral, bounded status replay, deletion replay refusal, identical
+single-read request snapshots, and pre-dispatch/in-flight/independent
 cancellation. Every case uses a private client and scoped transport.
 
 `ScanLifecycleAPIModelsTests` owns wire/legacy/optional decoding;
@@ -2378,7 +2399,11 @@ responses. When present, the generated DTO contains `user_id`, `plan_used`,
 balance identity, and monotonic `entitlement_version`; it never infers a trial
 or Flash fallback from local dates. `get_my_entitlement()` establishes the
 current-launch baseline before buffered response metadata can unlock
-complimentary access.
+complimentary access. Response decoding copies the generated DTO into a domain
+settlement without mutating account state. Offline Sync applies it only after
+successful local persistence and any required exact queue deletion, then keeps
+the account-work lease in `InferenceFundingReconciliationOwner` until the
+coalesced follow-up finishes or Auth cancellation drains it.
 
 Local funding completion uses `plan_used` and `credit_consumed` together.
 `pro_complimentary` with `credit_consumed = true` settles the local blocker as
@@ -2388,7 +2413,10 @@ because paid access may have won before final settlement. Bulk
 ordering, but that state-only response cannot prove the installed entitlement
 snapshot includes terminal settlement. The scheduler performs an authoritative
 entitlement refresh before it reopens capacity or removes a terminal consumed
-blocker.
+blocker. Because this bulk probe runs only inside the retained funding
+reconciliation owner, it declines inline classified-`401` recovery. The failure
+returns to durable scheduling; otherwise recovery would try to quiesce the task
+and account lease that initiated it.
 
 The server—not the request payload—classifies whether a single-evidence capture
 can use the separate daily Flash policy after complimentary exhaustion. Video,
@@ -2506,13 +2534,13 @@ every invocation after the first as a no-op.
 
 For eligible live-camera still-image analysis this callback releases the durable
 queue row for background upload after the inline body no longer competes for
-uplink capacity. `InferenceEngine` sequences the callback and two-second
-fail-safe, but both retain `InferenceLiveAttemptCoordinator` independently so
-durable upload release does not depend on engine lifetime. Only the callback's
-local-analysis update captures the engine weakly. These foreground callback
-paths reach `OfflineQueueManager` through `InferenceLiveQueueService+Live`;
-Offline Sync's connectivity monitor and Capture lifecycle retain their direct
-bulk-release responsibilities.
+uplink capacity. `InferenceLivePipelineCoordinator` sequences the callback and
+two-second fail-safe, but both retain `InferenceLiveAttemptCoordinator`
+independently so durable upload release does not depend on engine lifetime. Only
+the callback's local-analysis update captures the engine weakly. These
+foreground callback paths reach `OfflineQueueManager` through
+`InferenceLiveQueueService+Live`; Offline Sync's connectivity monitor and
+Capture lifecycle retain their direct bulk-release responsibilities.
 
 ## Queue-backed Identify Foreground and Retry Ownership
 
@@ -2522,11 +2550,11 @@ one explicit per-call ownership policy:
 
 - queue-backed `identifyMultiModal` gets one 15-second foreground attempt and
   returns its first transient `URLError` through `InferenceLiveRequestService`
-  to `InferenceEngine`, after the idempotent body-sent callback releases the
-  upload hold;
-- `InferenceEngine` changes the exact still-current Insight to **Queued for
-  later** and asks `InferenceLiveAttemptCoordinator` to retire durable
-  foreground ownership idempotently; and
+  to `InferenceLivePipelineCoordinator`, after the idempotent body-sent callback
+  releases the upload hold;
+- `InferenceLiveFailureCoordinator` asks `InferenceLiveAttemptCoordinator` to
+  retire durable foreground ownership idempotently and returns the exact queue-
+  transition action for `InferenceEngine` to apply as **Queued for later**; and
 - durable replay or exact-ID status recovery decides when another provider
   attempt is eligible.
 
@@ -2546,14 +2574,15 @@ handoff, not scan loss.
 **Current source status (2026-08-10): remediated; release acceptance pending.**
 `performAuthenticatedRequest` carries `allowsTransientTransportRetry` through
 transport, auth-refresh, route-propagation, and handler retry recursion.
-`identifyMultiModal` exposes `durableQueueOwnsRecovery`; the engine includes the
-ownership decision in `InferenceLiveRequestService`'s request value, and the
-service forwards it unchanged. Queue-backed calls therefore couple the 15-second
-bound with no inline retry, while queue-less calls keep the 90-second/replay
-default. Protected request-policy regressions assert both request deadlines, one
+`identifyMultiModal` exposes `durableQueueOwnsRecovery`; the admitted pipeline
+session derives that ownership decision and includes it in
+`InferenceLiveRequestService`'s request value, which the service forwards
+unchanged. Queue-backed calls therefore couple the 15-second bound with no
+inline retry, while queue-less calls keep the 90-second/replay default.
+Protected request-policy regressions assert both request deadlines, one
 immediate queue-backed failure, and one stable-key queue-less replay. The engine
-regression also proves that a deadline timeout can retire the active owner
-without a prior path-monitor callback. Exact-SHA hosted and physical
+integration regression also proves that a deadline timeout can retire the active
+owner without a prior path-monitor callback. Exact-SHA hosted and physical
 connectivity evidence remain release blockers in the
 [live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
@@ -2887,14 +2916,15 @@ sync, and ordinary authenticated HTTP attempt acquires an exact-session
 account-work lease in `AuthenticatedTransportDispatcher`. The transition closes
 admission synchronously, snapshots, cancels, and awaits every outstanding
 scheduled and active consent synchronization handle—including superseded and
-previously invalidated work—closes `InferenceEngine` write admission, cancels
-and awaits even non-cooperative presentation/metadata tasks, waits for all
-admitted leases and collection work, and only then mutates the Auth SDK session.
-Ordinary HTTP retries release their per-attempt lease before 401 recovery so
-recovery cannot deadlock on its initiating request. Collection sync is the
-narrow exception because its service retains a separate outer lease across
-snapshot, request, and commit; that endpoint returns the classified `401` to its
-durable retry owner instead of entering recovery. Payloads that embed an Auth
+previously invalidated work—closes inference write admission through the
+session- lifecycle/write coordinator boundary, cancels and awaits even
+non-cooperative presentation/metadata tasks, waits for all admitted leases and
+collection work, and only then mutates the Auth SDK session. Ordinary HTTP
+retries release their per-attempt lease before 401 recovery so recovery cannot
+deadlock on its initiating request. Collection sync and the bulk funding-status
+probe are the narrow exceptions because their services retain separate outer
+leases across the request; those endpoints return a classified `401` to their
+durable retry owners instead of entering recovery. Payloads that embed an Auth
 UUID also pass that UUID as an expected owner and fail before dispatch if the
 live account differs. Every recursive transport, route, refresh, and service
 retry remains pinned to the account that initiated the request; an unowned

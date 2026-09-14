@@ -26,17 +26,17 @@ state-transition contracts live under `OfflineSync/Policies`. The
 keeps the complete ownership inventory discoverable without coupling unrelated
 declarations in one aggregate file:
 
-| Type                                  | Purpose                                                                                                                                                                                                                                                                                                |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PendingScanPayload`                  | Minimal snapshot of a queued scan returned by `fetchPendingScans(limit:)`, including local image, audio, and video paths. Safe to pass across actor boundaries.                                                                                                                                        |
-| `CollectionSyncSnapshot`              | Immutable desired state projected from a non-Favorites collection and its direct scan relationships. Core Network maps it to the private wire DTO.                                                                                                                                                     |
-| `ScanUploadItem`                      | One local media file ready for a presigned R2 PUT — `scanId`, per-scan `uploadIndex`, `mediaKind`, `fileName`, `fileURL`, `contentType`, and expected `objectKey`.                                                                                                                                     |
-| `ExtractedScanData`                   | Full `OfflineQueuedScan` snapshot captured on the main actor for handoff to background inference. Carries the canonical ordered `capturedMediaItems: [SerializedMediaItem]` timeline, from which image paths, audio paths, prompt text, and serialized observation contexts are derived on demand.     |
-| `OfflineQueueDurableAuthority`        | Immutable projection of mirrored scan/job error codes, attempt counts, and required-video count read through one fresh throwing context.                                                                                                                                                               |
-| `OfflineScanProcessingResult`         | Result of `BackgroundInferenceFinalizationService.processAndCleanupOfflineScan` — species name, discovery flag, `speciesData` for engine hydration, and `wasCleaned` commit proof controlling main-actor queue deletion.                                                                               |
-| `ScanStagingTransitionOutcome`        | Durable result of upload-manifest promotion: committed staging, matching serialized advance, retry required, or discarded non-runnable work. It lives beside the focused upload-lifecycle persistence methods.                                                                                         |
-| `ScanFinalizationCoordinator`         | Per-scan async lock used by live visual, live non-visual, and background URLSession finalizers before they write `LocalScanRecord.id`. Prevents Core Data unique-constraint merge policy from merging no-inverse media relationships when the two inference paths complete the same scan concurrently. |
-| `ScanInferencePersistenceCoordinator` | Per-scan async lock shared by every `BackgroundDatabaseActor` instance and the main-actor queue deletion path. It keeps the durable inference-generation check, URLSession cancellation, retry retreat/finalization, and SwiftData save inside one compare-before-mutate critical section.             |
+| Type                                  | Purpose                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PendingScanPayload`                  | Minimal snapshot of a queued scan returned by `fetchPendingScans(limit:)`, including local image, audio, and video paths. Safe to pass across actor boundaries.                                                                                                                                                    |
+| `CollectionSyncSnapshot`              | Immutable desired state projected from a non-Favorites collection and its direct scan relationships. Core Network maps it to the private wire DTO.                                                                                                                                                                 |
+| `ScanUploadItem`                      | One local media file ready for a presigned R2 PUT — `scanId`, per-scan `uploadIndex`, `mediaKind`, `fileName`, `fileURL`, `contentType`, and expected `objectKey`.                                                                                                                                                 |
+| `ExtractedScanData`                   | Full `OfflineQueuedScan` snapshot captured on the main actor for handoff to background inference. Carries the canonical ordered `capturedMediaItems: [SerializedMediaItem]` timeline, from which image paths, audio paths, prompt text, and serialized observation contexts are derived on demand.                 |
+| `OfflineQueueDurableAuthority`        | Immutable projection of mirrored scan/job error codes, attempt counts, and required-video count read through one fresh throwing context.                                                                                                                                                                           |
+| `OfflineScanProcessingResult`         | Result of `BackgroundInferenceFinalizationService.processAndCleanupOfflineScan` — species name, discovery flag, `speciesData` for engine hydration, `wasCleaned` commit proof controlling main-actor queue deletion, and an optional immutable funding settlement that remains inert until that deletion succeeds. |
+| `ScanStagingTransitionOutcome`        | Durable result of upload-manifest promotion: committed staging, matching serialized advance, retry required, or discarded non-runnable work. It lives beside the focused upload-lifecycle persistence methods.                                                                                                     |
+| `ScanFinalizationCoordinator`         | Per-scan async lock used by live visual, live non-visual, and background URLSession finalizers before they write `LocalScanRecord.id`. Prevents Core Data unique-constraint merge policy from merging no-inverse media relationships when the two inference paths complete the same scan concurrently.             |
+| `ScanInferencePersistenceCoordinator` | Per-scan async lock shared by every `BackgroundDatabaseActor` instance and the main-actor queue deletion path. It keeps the durable inference-generation check, URLSession cancellation, retry retreat/finalization, and SwiftData save inside one compare-before-mutate critical section.                         |
 
 Both per-scan coordinators live in `ScanPersistenceCoordinators.swift` beside
 `BackgroundDatabaseActor`, while the process-local generation task registry
@@ -290,11 +290,13 @@ _Offline scan processing:_
   the top-level background orchestration boundary. It acquires
   `ScanInferencePersistenceCoordinator`, asks the injected persistence actor to
   validate or adopt the exact durable generation, delegates decode, success
-  validation, domain mapping, and entitlement reconciliation to
-  `InferenceResponsePreparationService`, rejects a mismatched provider scan ID,
-  then hands prepared `SpeciesData` to the actor. It does not await
-  `InferenceProcessingActor`, preventing a lock/actor dependency cycle with
-  foreground parsing.
+  validation, exact response-ID comparison, domain mapping, and immutable
+  funding-settlement projection to `InferenceResponsePreparationService`, then
+  hands only a matching prepared `SpeciesData` value to the actor. Preparation
+  performs no account or queue effect. A successful actor commit carries the
+  settlement back to Offline Sync, which applies it only after exact main-
+  context queue deletion. The service does not await `InferenceProcessingActor`,
+  preventing a lock/actor dependency cycle with foreground parsing.
 - `persistOfflineScanResultAssumingPersistenceLock(...)` — the focused
   actor-isolated commit. It resolves species identity, acquires
   `ScanFinalizationCoordinator`, rechecks for an existing record after any wait,
@@ -418,18 +420,19 @@ no request DTO, endpoint call, Auth lease, file access, or UI presentation.
 - `updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:alternativeCommonNames:expectedScientificName:)`
   — retroactively persists enrichment data returned by the `enrich-scan` Edge
   Function. The live `InferenceHydrationPersistenceService` calls this actor
-  only after the engine's bounded write owner admits an immutable snapshot.
-  Updates `habitatDescription`, `gbifTaxonKey`, `lookalikesData` (a JSON-encoded
-  `[SimilarSpeciesEntry]` blob, added in `MerianSchemaV27`), and taxonomic ranks
-  (`Kingdom` through `Genus`) on `LocalScanRecord`. When
-  `alternativeCommonNames` is non-nil, the method also writes it to
-  `record.alternativeCommonNames` on the `LocalScanRecord`. The persistence
-  service encodes `[SimilarSpeciesEntry]` to `Data` off-main before calling this
-  method and supplies taxonomy as domain `TaxonomyData`; the database actor has
-  no dependency on the enrichment wire DTO. A supplied `expectedScientificName`
-  must match the record's effective override-or-original scientific name,
-  preventing either a stale original-species response or a stale override
-  response from mutating the active identification.
+  only after `InferenceSpeciesPresentationCoordinator` admits an immutable
+  snapshot through the bounded write owner. Updates `habitatDescription`,
+  `gbifTaxonKey`, `lookalikesData` (a JSON-encoded `[SimilarSpeciesEntry]` blob,
+  added in `MerianSchemaV27`), and taxonomic ranks (`Kingdom` through `Genus`)
+  on `LocalScanRecord`. When `alternativeCommonNames` is non-nil, the method
+  also writes it to `record.alternativeCommonNames` on the `LocalScanRecord`.
+  The persistence service encodes `[SimilarSpeciesEntry]` to `Data` off-main
+  before calling this method and supplies taxonomy as domain `TaxonomyData`; the
+  database actor has no dependency on the enrichment wire DTO. A supplied
+  `expectedScientificName` must match the record's effective
+  override-or-original scientific name, preventing either a stale
+  original-species response or a stale override response from mutating the
+  active identification.
 - `clearAllLocalLookalikesCache()` — recovery path for stale similar-species
   caches. Fetches only biological records with `lookalikesData` or
   `similarSpecies` present, in 200-record batches, saving after each batch. Save

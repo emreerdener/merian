@@ -35,6 +35,14 @@ collaborators are organized by responsibility:
   and focus gestures. `Carousel/Animation/` owns the time-derived analysis
   session and sweep policy.
 
+This feature consumes prepared `ActiveScanMedia`; it does not rebuild Capture's
+submission timeline. For a foreground scan,
+`Core/AI/Inference/Media/InferenceLiveMediaProjector` maps the explicit Capture
+timeline to live and persisted media. A video cover remains attached to its
+video as fallback and is omitted as a duplicate page only when the timeline's
+`posterImageIndex` explicitly names that image. A distinct still adjacent to the
+video remains a normal carousel page.
+
 The domain-neutral pager, page value, zoom host, pagination dots, hero
 scroll-edge treatment, fullscreen gallery, audio page, and reusable video chrome
 live in `Core/UI/Components/MediaCarousel`. Audio-session restoration, the
@@ -113,10 +121,11 @@ Subject eligibility is applied before reference pages or hydration work.
 `SpeciesData.shouldSuppressReferenceImages` and the matching persisted-record
 policy remove reference imagery for Human aliases and unresolved biological
 subjects while retaining the user's captured audio/video/image media.
-`InferenceEngine` does not schedule live or historical Wikipedia/GBIF hydration
-for either state and clears stale reference/candidate enrichment while loading a
-guarded historical record. Canonical `Homo sapiens`, malformed `Homo sapien`,
-and Human common-name aliases receive the same protection.
+`InferenceSpeciesPresentationCoordinator` does not schedule live Wikipedia/GBIF
+hydration for either state, while the historical hydration plan likewise rejects
+them and clears stale reference/candidate enrichment during guarded projection.
+Canonical `Homo sapiens`, malformed `Homo sapien`, and Human common-name aliases
+receive the same protection.
 
 Image-load availability is tracked per scan and distinguishes captured user
 photos from reference imagery. Failed visual pages are excluded once no usable

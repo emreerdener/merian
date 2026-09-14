@@ -1049,8 +1049,10 @@ A dedicated `PHPhotoLibrary` handler.
   `InferenceLiveRequestService`, which forwards the correct MIME type string
   (`"image/jpeg"` or `"image/webp"`) to the Edge Function so Gemini receives the
   right label. `InferenceLiveAttemptCoordinator` retains exact-attempt
-  ownership, while `InferenceEngine.analyze` retains result/presentation policy
-  around that injected request boundary.
+  ownership, `InferenceLivePipelineCoordinator` retains result/failure
+  sequencing, `InferenceLiveSubmissionCoordinator` owns media staging, and
+  `InferencePresentationState` owns observable values behind the stable
+  `InferenceEngine.analyze` entry point.
 - **Photos Share-Sheet Import**: `Info.plist` registers the app as an alternate
   `public.image` viewer with in-place editing disabled. `MerianApp.onOpenURL`
   handles one incoming file after Google/Merian routing and before Supabase
@@ -1140,27 +1142,32 @@ A dedicated `PHPhotoLibrary` handler.
   prevents post-commit cancellation without shortening source-file lifetime.
   Scan lists, widgets, sharing previews, and Explore compact surfaces use that
   poster thumbnail; the Insight carousel opens the video item itself.
-  Submission-owned `IdentifyVisualMediaItem` and `IdentifyAudioMediaItem`
-  metadata travel with the sampled frames/audio so `/identify-multimodal` can
-  label still photos, ordered video frames, and accompanying video audio
-  accurately for AI. Offline queue persistence keeps sampled video frames in
-  `inferenceImagePaths` and stores only the playback video item plus thumbnail
-  in the captured-media timeline, so UI/share surfaces never treat inference
-  frames as user-selected photos. `handlePhotoPickerSelection` skips any
-  actor-prepared still image whose encoded payloads fail the byte or dimension
-  budgets, rather than appending empty `Data()`, which would base64-encode to an
-  empty string and cause Gemini to reject the request with an opaque AI
-  processing error. `CaptureScanStillMediaPreparer` and
-  `CaptureScanVideoMediaPreparer` apply the matching camera/video-frame guard.
-  Cancel, remove, replace, and queue-rejection paths call the discard helper so
-  temporary playback `.mp4` files and companion WAV files are deleted through
-  `FileIOActor`; submit paths use reference-only clearing after queue acceptance
-  so durable queue/live persistence keeps ownership. All per-image copies inside
-  each `StagedImage` (compressed inference data, 2048 px display data, bounded
-  `UIImage` thumbnail, and crop/metadata bundle) are released with the same
-  value reset — index mismatches between parallel arrays are impossible because
-  media stays co-located in typed staging models. `submitStagedCapture(...)`
-  extracts `historicalContext` from `stagedCapture.images[0]` (via the
+  `CaptureSubmissionPayload` places that cover in its display-image collection
+  and records the exact index on the video timeline item without creating a
+  separate image timeline item. Core AI suppresses only that explicitly indexed
+  cover from the carousel. A separately staged still immediately before the
+  video is retained as its own page. Submission-owned `IdentifyVisualMediaItem`
+  and `IdentifyAudioMediaItem` metadata travel with the sampled frames/audio so
+  `/identify-multimodal` can label still photos, ordered video frames, and
+  accompanying video audio accurately for AI. Offline queue persistence keeps
+  sampled video frames in `inferenceImagePaths` and stores only the playback
+  video item plus thumbnail in the captured-media timeline, so UI/share surfaces
+  never treat inference frames as user-selected photos.
+  `handlePhotoPickerSelection` skips any actor-prepared still image whose
+  encoded payloads fail the byte or dimension budgets, rather than appending
+  empty `Data()`, which would base64-encode to an empty string and cause Gemini
+  to reject the request with an opaque AI processing error.
+  `CaptureScanStillMediaPreparer` and `CaptureScanVideoMediaPreparer` apply the
+  matching camera/video-frame guard. Cancel, remove, replace, and
+  queue-rejection paths call the discard helper so temporary playback `.mp4`
+  files and companion WAV files are deleted through `FileIOActor`; submit paths
+  use reference-only clearing after queue acceptance so durable queue/live
+  persistence keeps ownership. All per-image copies inside each `StagedImage`
+  (compressed inference data, 2048 px display data, bounded `UIImage` thumbnail,
+  and crop/metadata bundle) are released with the same value reset — index
+  mismatches between parallel arrays are impossible because media stays
+  co-located in typed staging models. `submitStagedCapture(...)` extracts
+  `historicalContext` from `stagedCapture.images[0]` (via the
   `StagedImage.original` bundle) before reference-only staging reset to preserve
   EXIF location data from library uploads.
 - **Video Upload Signing Shape**: One video scan signs six staged media files:
@@ -1193,11 +1200,13 @@ A dedicated `PHPhotoLibrary` handler.
   delegate, `CameraManager` wraps `AVCapturePhoto.fileDataRepresentation()` in
   an `autoreleasepool` so transient AVFoundation buffers are released before the
   continuation resumes.
-- **Analyzing Mode Phase Rotation**: `InferenceEngine.analyze()` fires
-  `classifySubjectLocally(from:)` at the start of the inference pipeline to
-  drive the foreground status pill through `AnalyzingContentView` and shared
-  `ScanningExperienceView`. Phrases advance every 2.3 seconds. Queued server
-  inference reuses the generic phrase deck in the same visible component. See
+- **Analyzing Mode Phase Rotation**: `InferenceEngine.analyze()` delegates to
+  `InferenceLiveSubmissionCoordinator`, which starts the exact visual session in
+  `InferenceLocalAnalysisCoordinator` at the beginning of the inference
+  pipeline. The local-analysis owner drives the foreground status pill through
+  `AnalyzingContentView` and shared `ScanningExperienceView`. Phrases advance
+  every 2.3 seconds. Queued server inference reuses the generic phrase deck in
+  the same visible component. See
   [AI Engineering → On-Device Pre-Classification](../system-architecture/04-ai-engineering.md)
   for qualification, confidence, margin, identity, and phrase-ownership details.
 - **Reanalysis / Refinement Scan (`startRefinementScan(from:)`)**: Tapping

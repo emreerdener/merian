@@ -56,6 +56,7 @@ network_client_source="$repo_root/apps/ios/Merian/Core/Network/MerianNetworkClie
 pinned_network_transport_source="$repo_root/apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift"
 inference_endpoint_source="$repo_root/apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Inference.swift"
 inference_engine_source="$repo_root/apps/ios/Merian/Core/AI/InferenceEngine.swift"
+inference_pipeline_source="$repo_root/apps/ios/Merian/Core/AI/Inference/Pipeline/InferenceLivePipelineCoordinator.swift"
 scan_admission_source="$repo_root/apps/ios/Merian/Core/Security/ScanAdmissionManager.swift"
 capture_analysis_source="$repo_root/apps/ios/Merian/Features/Capture/Submission/ViewModels/CaptureWorkspaceViewModel+VisualSubmission.swift"
 image_cropper_source="$repo_root/apps/ios/Merian/Core/UI/Components/ImageCropperView.swift"
@@ -790,22 +791,26 @@ assert_file_count \
   "allowsInlineTransportRetry"
 assert_file_count \
   "$inference_engine_source" \
+  0 \
+  "durableQueueOwnsRecovery:"
+assert_file_count \
+  "$inference_pipeline_source" \
   2 \
   "durableQueueOwnsRecovery:"
 durable_queue_generation_bindings="$(
   awk '
     index($0, "durableQueueOwnsRecovery:") {
       if (getline > 0 \
-          && index($0, "ownedForegroundInferenceGeneration != nil")) {
+          && index($0, "session.durableQueueOwnsRecovery")) {
         count += 1
       }
     }
     END { print count + 0 }
-  ' "$inference_engine_source"
+  ' "$inference_pipeline_source"
 )"
 [[ "$durable_queue_generation_bindings" == "2" ]] \
   || fail \
-    "Both live Identify call sites must bind durable queue recovery to foreground generation ownership."
+    "Both live pipeline request call sites must derive durable queue recovery from the admitted foreground owner."
 assert_file_contains \
   "$inference_endpoint_transport_test_source" \
   "request.timeoutInterval == 15"

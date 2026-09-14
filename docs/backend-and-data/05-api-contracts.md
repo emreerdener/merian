@@ -6244,8 +6244,11 @@ The native `fetchEnrichment` request is owned by
 the sole Core AI endpoint adapter; the injected core resolves no live client
 directly and maps each scoped wire projection into a typed domain patch.
 `InferenceHydrationPersistenceService+Live.swift` owns local database effects
-and off-main lookalike encoding. `InferenceEngine` keeps scope admission,
-scheduling, retry, presentation application/fencing, and bounded write lifetime.
+and off-main lookalike encoding. `InferenceSpeciesEnrichmentCoordinator` keeps
+scope scheduling, retry, and current-presentation application/fencing;
+`InferenceHydrationCoordinator` owns task admission, lifetime, and backoff.
+`InferenceSpeciesPresentationCoordinator` exposes observable-state callbacks and
+retains bounded write admission behind the stable `InferenceEngine` facade.
 `EnrichScanResponse` remains hand-written below the generated Identify block in
 `Core/AI/InferenceEdgeDTOs.swift`. The native client sends all five fields
 including `scope`, preserves its 30-second deadline, and serializes before
@@ -6368,16 +6371,18 @@ legacy name strings (populated by older pipeline versions), they are resolved to
 the join table at zero token cost before returning, using the same
 kingdom/order/family validation as fresh Flash output.
 
-**Independent Scoped Requests**: `InferenceEngine.fetchAndApplyEnrichment` uses
-a task group to ask `InferenceSpeciesEnrichmentService` for missing metadata and
-lookalikes separately. The service's live adapter makes one endpoint call for
-the typed scope; each handler invocation performs only its own scope's work, and
-there is no combined `Promise.all` generation branch. Provider calls use the
-model selected by the quota reservation, and lookalike generation requires
-usable primary taxonomy. After both initially requested scopes finish, iOS may
-retry only lookalikes once if the presentation is still current, no similar
-species are present, and usable taxonomy is now available. That retry disables
-further lookalike retries and remains subject to the existing hydration
+**Independent Scoped Requests**: The stable
+`InferenceEngine.fetchAndApplyEnrichment` facade delegates through the species-
+presentation bridge to the species-hydration owner. Its private-state enrichment
+sub-coordinator uses a task group to ask `InferenceSpeciesEnrichmentService` for
+missing metadata and lookalikes separately. The service's live adapter makes one
+endpoint call for the typed scope; each handler invocation performs only its own
+scope's work, and there is no combined `Promise.all` generation branch. Provider
+calls use the model selected by the quota reservation, and lookalike generation
+requires usable primary taxonomy. After both initially requested scopes finish,
+iOS may retry only lookalikes once if the presentation is still current, no
+similar species are present, and usable taxonomy is now available. That retry
+disables further lookalike retries and remains subject to the existing hydration
 admission/backoff.
 
 ### Response Schema
@@ -6474,22 +6479,29 @@ compatibility details are unchanged by the native endpoint extraction.
 `InferenceEdgeDTOs.swift`) and mapped to the domain `SimilarSpecies` struct
 (camelCase, in `SpeciesData.swift`) by the initializer-injected
 `InferenceSpeciesEnrichmentService`, whose core has no direct live-client
-dependency. The engine applies that typed patch only to its current
-presentation, then submits an immutable snapshot through its bounded write
-coordinator. `InferenceHydrationPersistenceService+Live` encodes
-`[SimilarSpeciesEntry]` off-main and delegates the admitted mutation to
-`BackgroundDatabaseActor`, which persists the `Data` blob as
-`LocalScanRecord.lookalikesData` (added in `MerianSchemaV27`) — the primary
-SwiftData storage for rich lookalike data. The metadata mapping crosses the
-persistence boundary as domain `TaxonomyData`; wire DTOs do not enter the
-database actor. The legacy `LocalScanRecord.similarSpecies: [String]?` field is
-retained as a backwards-compatible fallback for pre-V27 records where
-`lookalikesData` is nil. `InferenceHistoricalRecordProjection`, invoked by
-`InferenceEngine.load(from:)`, owns that fallback plus the one-time local cache
-reset decision so previously poisoned `lookalikesData` blobs are ignored and
-refreshed through the hardened backend validation path. `SimilarSpeciesGallery`
-always labels validated entries as "Similar species"; identification uncertainty
-is handled by the separate candidates/review surface.
+dependency. The enrichment coordinator applies that typed patch only to the
+current presentation through the species-presentation callback, then submits an
+immutable snapshot through the bridge's bounded write admission.
+`InferenceHydrationPersistenceService+Live` encodes `[SimilarSpeciesEntry]`
+off-main and delegates the admitted mutation to `BackgroundDatabaseActor`, which
+persists the `Data` blob as `LocalScanRecord.lookalikesData` (added in
+`MerianSchemaV27`) — the primary SwiftData storage for rich lookalike data. The
+metadata mapping crosses the persistence boundary as domain `TaxonomyData`; wire
+DTOs do not enter the database actor. The legacy
+`LocalScanRecord.similarSpecies: [String]?` field is retained as a
+backwards-compatible fallback for pre-V27 records where `lookalikesData` is nil.
+`InferenceHistoricalRecordProjection`, constructed by
+`InferenceHistoricalLoadCoordinator` behind `InferenceEngine.load(from:)`, owns
+that fallback and turns the injected reset decision into a value-only hydration
+plan. The load coordinator publishes the initial projection and registers
+`InferenceHistoricalHydrationCoordinator`, which submits only the projected
+metadata and lookalike scopes through the shared species coordinator.
+`InferenceLookalikeCacheResetService` owns reset admission; only its live
+adapter reads/writes the installed `UserDefaults` version and schedules the
+coalesced database-actor wipe. Previously poisoned `lookalikesData` blobs are
+therefore ignored and refreshed through the hardened backend validation path.
+`SimilarSpeciesGallery` always labels validated entries as "Similar species";
+identification uncertainty is handled by the separate candidates/review surface.
 
 **Authoritative quota**: Cache hits perform no paid provider work and consume no
 AI quota. A cache miss reserves either `scan_overview_enrichment` or
@@ -8999,7 +9011,11 @@ Current iOS clients do not PATCH `public.scans` directly:
 - `update_owned_scan_identification_review(p_scan_id, p_override, p_confirmed,
   p_confirmed_species_id, p_user_review_state)`
   validates one coherent `unreviewed`, `ai_confirmed`, or `user_overridden`
-  state and updates all four review fields atomically.
+  state and updates all four review fields atomically. The iOS Network mutation
+  can be created only through coherent override, confirmation, and reset
+  factories; it encodes the same typed `UserReviewState` used for local
+  persistence as the exact existing raw enum string and preserves explicit JSON
+  nulls for cleared values.
 
 Both SECURITY DEFINER routines have an empty fixed `search_path`, derive the
 owner from `auth.uid()`, return the same permission failure for a foreign or

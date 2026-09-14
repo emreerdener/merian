@@ -19,7 +19,7 @@ import Supabase
 
     @ObservationIgnored private var sessionUserID: UUID?
     @ObservationIgnored private var sessionGeneration = UUID()
-    @ObservationIgnored private var pendingScanSnapshot: EntitlementSnapshotDTO?
+    @ObservationIgnored private var pendingScanSnapshot: EntitlementStateSnapshot?
     @ObservationIgnored private var fundingReservations:
         [String: ScanFundingReservation] = [:]
     @ObservationIgnored private var complimentaryStates:
@@ -408,7 +408,10 @@ import Supabase
     @discardableResult
     func apply(_ snapshot: EntitlementSnapshotDTO, for userID: UUID? = nil) -> Bool {
         if let userID, userID != sessionUserID { return false }
-        guard sessionUserID != nil, installVerified(snapshot) else { return false }
+        guard sessionUserID != nil,
+              installVerified(EntitlementStateSnapshot(snapshot)) else {
+            return false
+        }
 
         // A scan may finish while the launch-baseline RPC is in flight. Buffer
         // that response until this server proof arrives, then apply it only if
@@ -425,26 +428,57 @@ import Supabase
         guard let userID = UUID(uuidString: metadata.userID) else {
             return false
         }
-        guard userID == sessionUserID,
-              Self.isValid(metadata.entitlementAfter) else {
-            return false
-        }
+        return applyScanSnapshot(
+            EntitlementStateSnapshot(metadata.entitlementAfter),
+            for: userID
+        )
+    }
+
+    @discardableResult
+    func applyScanSnapshot(
+        _ snapshot: EntitlementStateSnapshot,
+        for userID: UUID
+    ) -> Bool {
+        guard acceptsScanSnapshot(snapshot, for: userID) else { return false }
 
         // Stored idempotent replay envelopes retain their original entitlement
         // snapshot. They must never establish current-launch proof on their
         // own; wait for get_my_entitlement() to establish the current version.
         guard isVerifiedForCurrentLaunch else {
             if let pendingScanSnapshot {
-                if metadata.entitlementAfter.entitlementVersion >=
+                if snapshot.entitlementVersion >=
                     pendingScanSnapshot.entitlementVersion {
-                    self.pendingScanSnapshot = metadata.entitlementAfter
+                    self.pendingScanSnapshot = snapshot
                 }
             } else {
-                pendingScanSnapshot = metadata.entitlementAfter
+                pendingScanSnapshot = snapshot
             }
             return false
         }
-        return installVerified(metadata.entitlementAfter)
+        return installVerified(snapshot)
+    }
+
+    /// Validates the account and bounded snapshot independently of whether the
+    /// current-launch baseline is ready. Accepted pre-baseline metadata is
+    /// buffered by `apply(_:)`, so callers may safely settle the exact scan
+    /// without treating that intentional buffer as an account mismatch.
+    func acceptsScanMetadataForCurrentSession(
+        _ metadata: ScanEntitlementMetadataDTO
+    ) -> Bool {
+        guard let userID = UUID(uuidString: metadata.userID) else {
+            return false
+        }
+        return acceptsScanSnapshot(
+            EntitlementStateSnapshot(metadata.entitlementAfter),
+            for: userID
+        )
+    }
+
+    func acceptsScanSnapshot(
+        _ snapshot: EntitlementStateSnapshot,
+        for userID: UUID
+    ) -> Bool {
+        userID == sessionUserID && Self.isValid(snapshot)
     }
 
     func handleSignOut() {
@@ -477,7 +511,7 @@ import Supabase
     }
 
     @discardableResult
-    private func installVerified(_ snapshot: EntitlementSnapshotDTO) -> Bool {
+    private func installVerified(_ snapshot: EntitlementStateSnapshot) -> Bool {
         guard Self.isValid(snapshot),
               snapshot.entitlementVersion >= entitlementVersion else {
             return false
@@ -495,7 +529,7 @@ import Supabase
         return true
     }
 
-    private static func isValid(_ snapshot: EntitlementSnapshotDTO) -> Bool {
+    private static func isValid(_ snapshot: EntitlementStateSnapshot) -> Bool {
         let plans = Set(["free", "pro_paid", "pro_trial", "pro_complimentary"])
         guard plans.contains(snapshot.currentPlan),
               snapshot.currentTier == "free" || snapshot.currentTier == "pro",

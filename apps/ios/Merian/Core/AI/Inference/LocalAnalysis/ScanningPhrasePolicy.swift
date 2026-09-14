@@ -1,4 +1,18 @@
 enum ScanningPhrasePolicy {
+    /// Existing cloud-analysis deck shared by queued, audio-only, and Describe
+    /// presentations. Foreground visual analysis uses its focused morphology
+    /// deck in `ScanningPhraseCoordinator`.
+    static let cloudAnalysisPhrases = [
+        "Scanning subject...",
+        "Analyzing subject morphology",
+        "Analyzing biological traits",
+        "Analyzing structural patterns",
+        "Checking taxonomic data",
+        "Checking species records",
+        "Checking habitat context",
+        "Identifying species..."
+    ]
+
     /// Minimum Vision confidence required for a subject-specific phrase deck.
     static let visionConfidenceThreshold: Float = 0.65
 

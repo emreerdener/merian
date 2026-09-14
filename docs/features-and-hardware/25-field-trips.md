@@ -1016,6 +1016,8 @@ Primary files:
 - `apps/ios/Merian/Core/Routing/Coordination/AppEventPublisher.swift`
 - `apps/ios/Merian/Core/Routing/Coordination/AppRouteCoordinator.swift`
 - `apps/ios/Merian/Core/AI/InferenceEngine.swift`
+- `apps/ios/Merian/Core/AI/Inference/Pipeline/`
+- `apps/ios/Merian/Core/AI/Inference/Completion/`
 - `apps/ios/Merian/Core/Data/OfflineSync/README.md`
 - `apps/ios/Merian/Core/Data/OfflineSync/Services/CaptureAdmission/OfflineQueueManager+CaptureEnqueue.swift`
 - `apps/ios/Merian/Core/Data/OfflineSync/Persistence/ModelContext+FieldTripGoalHints.swift`

@@ -96,6 +96,7 @@ struct BackgroundInferenceArchitectureTests {
         ))
         #expect(completion.contains("processAndCleanupOfflineScan("))
         #expect(completion.contains("deleteQueuedScan("))
+        #expect(completion.contains("commitInferenceResponseSettlement("))
         #expect(!completion.contains("MerianNetworkClient"))
         #expect(!completion.contains("backgroundSession"))
         #expect(!completion.contains("func handleInferenceRetry("))
@@ -218,6 +219,10 @@ struct BackgroundInferenceArchitectureTests {
         let queueDeletion = try #require(result.range(
             of: "didDeleteQueuedScan = await OfflineQueueManager.shared.deleteQueuedScan("
         ))
+        let fundingSettlement = try #require(result.range(
+            of: "commitInferenceResponseSettlement(fundingSettlement)",
+            range: queueDeletion.upperBound..<result.endIndex
+        ))
 
         #expect(resultFileCleanup.lowerBound < claim.lowerBound)
         #expect(claim.lowerBound < completionFence.lowerBound)
@@ -226,6 +231,7 @@ struct BackgroundInferenceArchitectureTests {
         #expect(completionFence.lowerBound < durableFinalization.lowerBound)
         #expect(durableFinalization.lowerBound < ownershipRevalidation.lowerBound)
         #expect(ownershipRevalidation.lowerBound < queueDeletion.lowerBound)
+        #expect(queueDeletion.lowerBound < fundingSettlement.lowerBound)
 
         let failureClaim = try #require(failure.range(
             of: "guard let generation = claimInferenceGeneration("

@@ -2,8 +2,8 @@ import Foundation
 
 /// Owns the ephemeral on-device analysis session that enriches foreground
 /// scanning copy. The coordinator never owns durable inference, persistence,
-/// or presentation identity; `InferenceEngine` supplies an exact-session
-/// predicate before any result can be published.
+/// or presentation identity; `InferenceLiveSubmissionCoordinator` supplies an
+/// exact-session predicate before any result can be published.
 @MainActor
 final class InferenceLocalAnalysisCoordinator {
     struct Session: Sendable, Equatable {

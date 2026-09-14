@@ -113,19 +113,21 @@ object, or image-token charge.
 
 ### Foreground local-analysis derivative
 
-For a foreground visual scan, `InferenceEngine` starts an exact typed session in
+For a foreground visual scan, the stable `InferenceEngine.analyze` facade
+delegates to `InferenceLiveSubmissionCoordinator`. After exact attempt and
+presentation activation, that owner starts a typed session in
 `InferenceLocalAnalysisCoordinator` with only the first inference image and the
-first visual item's accepted focus region. The coordinator passes those bounded
-inputs to `LocalVisualAnalysisImageBuilder`. The builder downsamples that square
-image to at most 512 px, then crops the derivative to the already-padded
-top-left focus rectangle when one exists. An absent or invalid region keeps the
-full bounded square. Vision and the future on-device Foundation Models provider
-reuse this single derivative. The current `AppleImageVisualTraitExtractor` also
-samples it at 32×32 pixels to derive five bounded dominant-color,
-saturation-distribution, lighting-distribution, light-contrast, and
-surface-detail cues; no additional capture is decoded for local analysis.
-User-facing wording describes the visible result rather than the extractor's
-numeric buckets.
+first visual item's accepted focus region. The local-analysis coordinator passes
+those bounded inputs to `LocalVisualAnalysisImageBuilder`. The builder
+downsamples that square image to at most 512 px, then crops the derivative to
+the already-padded top-left focus rectangle when one exists. An absent or
+invalid region keeps the full bounded square. Vision and the future on-device
+Foundation Models provider reuse this single derivative. The current
+`AppleImageVisualTraitExtractor` also samples it at 32×32 pixels to derive five
+bounded dominant-color, saturation-distribution, lighting-distribution,
+light-contrast, and surface-detail cues; no additional capture is decoded for
+local analysis. User-facing wording describes the visible result rather than the
+extractor's numeric buckets.
 
 This derivative is ephemeral, privately owned by the coordinator, and
 independent of the remote image pipeline. It does not replace, crop, reorder, or
@@ -340,23 +342,31 @@ releases ownership. This prevents the durability path from creating a duplicate
 primary model call.
 
 The successful path then passes both image `Data` arrays to
-`InferenceEngine.analyze(imageDatas:displayDatas:)`. The engine passes
-`imageDatas` to its injected `InferenceLiveRequestService`, which delegates
+`InferenceEngine.analyze(imageDatas:displayDatas:)`. The stable facade delegates
+to `InferenceLiveSubmissionCoordinator`, which asks
+`InferenceLiveMediaProjector` to normalize the timeline and submission values,
+publishes its ordered `ActiveScanMedia` projection through
+`InferencePresentationState`, and immediately registers the staged request with
+the sole live-attempt task owner. `InferenceLivePipelineCoordinator` then
+invokes the injected `InferenceLiveRequestService`; that service delegates
 base64 encoding to `InferenceProcessingActor` and retains no encoded request
-buffer after dispatch; durability is fully owned by the offline queue. The
-resolved display array is projected directly into `activeMedia` as ordered
-`MediaItem.liveImage` values, including a live video-poster fallback when the
-timeline requires one; no separate `activeImageData` property exists. That
-presentation state supplies the insight sheet carousel during the inference
-window. The task-scoped `displayDatas` array is also forwarded through
-`InferenceLiveResultService` to
+buffer after dispatch. Durability is fully owned by the offline queue. The
+projector selects the resolved display array for ordered `MediaItem.liveImage`
+values, includes a live video-poster fallback when the timeline requires one,
+and suppresses an adjacent image only when its index explicitly matches that
+poster. A distinct still immediately before video remains visible. No separate
+`activeImageData` property exists. That presentation state supplies the insight
+sheet carousel during the inference window. The task-scoped `displayDatas` array
+is also forwarded through `InferenceLiveResultService` to
 `InferenceProcessingActor.parseAndSave(displayDatas:)` and written to disk via
-`FileIOActor.writeTemporaryImages`; once saved, the persisted user timeline is
-rebuilt into `activeMedia` and the carousel switches from the live preview to
-on-disk `MediaItem.image` entries. The parsed and persisted `speciesData` is
-committed immediately; awards and Field trips follow asynchronously and
-therefore cannot delay the first result render. The AI never receives the larger
-display-image payload.
+`FileIOActor.writeTemporaryImages`; once saved,
+`InferenceLivePresentationCoordinator` revalidates the exact local/durable
+attempt before invoking the projector to remap the original timeline onto those
+paths. The lifecycle and presentation-state owners publish the resulting media
+before the parsed `speciesData`. The carousel therefore switches from the live
+preview to on-disk `MediaItem.image` entries in the same commit order. Awards
+and Field trips follow asynchronously and cannot delay the first result render.
+The AI never receives the larger display-image payload.
 
 **Empty-payload guard (both paths)**: The camera shutter path's
 `CaptureScanStillMediaPreparer` rejects an absent or empty encoded inference
@@ -373,7 +383,7 @@ an opaque AI processing error; the guard prevents this at the source.
 `InferenceLiveRequestService.dispatchVisual` adds a second-layer filter: after
 `encodeBase64`, empty strings are removed from the encoded array. If every
 string is empty after filtering, the service returns without a network call and
-`InferenceEngine` retains the refund decision while
+`InferenceLivePipelineCoordinator` applies its injected refund decision while
 `InferenceLiveAttemptCoordinator` performs exact durable-owner retirement. The
 Edge Function (`identify/index.ts`) applies a third-layer check: each element of
 `imageBase64s` is validated non-empty before being forwarded to Gemini,
@@ -688,15 +698,18 @@ cancellation. Retryable HTTP and transport failures plus bounded backoff live in
 required multimodal finalization boundary so the durable scan row can reference
 a server species row. That work does not mutate the already validated model
 response, so the initial result may still omit `reference_image_url`. The iOS
-client (`InferenceEngine`) follows with `/enrich-scan`; once it receives
-`gbif_taxon_key`, it may query `api.gbif.org/v1/occurrence/search` to hydrate
-the legacy comma-separated `fallbackUrl` with 3–4 high-quality field
-observations from networks such as iNaturalist. The shared dictionary upsert
-path also normalizes those URLs into `species_reference_images`. Public Species
-Dictionary and Explore detail readers prefer normalized rows and fall back to
-the legacy cache. On Cache Hits, stored URLs are returned immediately. Group
-tags and candidate-species enrichment remain optional background work and are
-not part of the owner-row durability guarantee.
+species-hydration coordinator follows with `/enrich-scan` through its injected
+endpoint adapter; once it receives `gbif_taxon_key`, its shared reference
+service may query `api.gbif.org/v1/occurrence/search` to hydrate the legacy
+comma-separated `fallbackUrl` with 3–4 high-quality field observations from
+networks such as iNaturalist. `InferenceSpeciesPresentationCoordinator` supplies
+exact-presentation publication and bounded-write admission callbacks behind the
+stable `InferenceEngine` facade for this live sequence. The shared dictionary
+upsert path also normalizes those URLs into `species_reference_images`. Public
+Species Dictionary and Explore detail readers prefer normalized rows and fall
+back to the legacy cache. On Cache Hits, stored URLs are returned immediately.
+Group tags and candidate-species enrichment remain optional background work and
+are not part of the owner-row durability guarantee.
 
 Insight hydration applies subject eligibility before any of those reference
 paths. Live and historical Human aliases—including malformed `Homo sapien`—and

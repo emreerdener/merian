@@ -165,12 +165,17 @@ an exact-session lease before direct Supabase or authenticated HTTP I/O. A
 transition closes new admission, snapshots, cancels, and awaits every
 outstanding scheduled and active consent synchronization handle—including
 superseded and previously invalidated work—every registered consent-restoration
-retry, and every started consent Realtime removal. It then drains
-`InferenceEngine` presentation/metadata tasks (including cancellation-ignoring
-tails), collection work, and every lease before changing the SDK session. The
-engine delegates live, historical, and identification-review hydration
-admission/task retention to `InferenceHydrationCoordinator`; GBIF requests stay
-inside those owning operations. It delegates bounded persistence/review work to
+retry, and every started consent Realtime removal. It then drains the Inference
+subsystem's live-attempt, hydration, and bounded-write tasks (including
+cancellation-ignoring tails), collection work, and every lease before changing
+the SDK session. `InferenceLiveAttemptCoordinator` owns the current foreground
+task plus cancelled displaced handles retained until termination; Auth cancels
+and awaits both sets. `InferenceHydrationCoordinator` owns live, historical, and
+identification-review hydration admission and task retention; GBIF requests stay
+inside those owning operations. `InferenceHistoricalHydrationCoordinator`
+sequences the historical slot's deferred decode, override refresh, and reference
+work without owning another handle. The review action/effect coordinator
+delegates bounded persistence and review work to the engine-shared
 `InferenceWriteCoordinator`; both fences remain closed until the transition
 finishes. Background upload and inference tasks are terminal-owned rather than
 resume-owned: their Auth UUID and generation are persisted in both job metadata

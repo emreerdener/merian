@@ -44,7 +44,7 @@ struct ScanLifecycleNetworkTransportTests {
         #expect(refreshes.withLock { $0 } == 0)
     }
 
-    @Test(arguments: ScanLifecycleNetworkRequestCase.operations, [200, 401, 503])
+    @Test(arguments: ScanLifecycleNetworkRequestCase.authRecoveringOperations, [200, 401, 503])
     func classifiedAuthRefreshKeepsOneReplayAndTheSameBody(
         _ testCase: ScanLifecycleNetworkRequestCase, replayStatus: Int
     ) async {
@@ -81,6 +81,38 @@ struct ScanLifecycleNetworkTransportTests {
         }
         #expect(attempts.withLock { $0 } == 2)
         #expect(requests.withLock { $0.count == 2 && $0[0] == $0[1] })
+    }
+
+    @Test func bulkStatusDefersClassifiedUnauthorizedToFundingOwner() async {
+        let testCase = ScanLifecycleNetworkRequestCase.bulk
+        let fixture = NetworkEndpointFixture()
+        defer { fixture.close() }
+        let attempts = OSAllocatedUnfairLock(initialState: 0)
+        let refreshes = OSAllocatedUnfairLock(initialState: 0)
+        fixture.client.overridingAuthSessionRefresh = {
+            refreshes.withLock { $0 += 1 }
+            return true
+        }
+        fixture.transport.register(path: testCase.path) { request in
+            _ = try testCase.expectRequest(request)
+            attempts.withLock { $0 += 1 }
+            return try NetworkEndpointTestSupport.response(
+                to: request,
+                status: 401,
+                json: #"{"code":"invalid_session_token","error":"Synthetic invalid session"}"#
+            )
+        }
+
+        do {
+            try await testCase.invoke(fixture.client)
+            Issue.record("Durable bulk status work must surface a classified 401")
+        } catch MerianError.httpError(let status, _) {
+            #expect(status == 401)
+        } catch {
+            Issue.record("Unexpected error type: \(type(of: error))")
+        }
+        #expect(attempts.withLock { $0 } == 1)
+        #expect(refreshes.withLock { $0 } == 0)
     }
 
     @Test(arguments: ScanLifecycleNetworkRequestCase.statusOperations, ScanLifecycleReplayScenario.allCases)

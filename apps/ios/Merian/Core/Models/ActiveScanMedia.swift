@@ -27,7 +27,7 @@ enum MediaItem: Equatable {
     case description(ObservationContext)
 }
 
-enum ReferenceState: Equatable {
+enum ReferenceState: Equatable, Sendable {
     case empty
     case loading
     case loaded([String])

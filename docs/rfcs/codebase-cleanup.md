@@ -129,7 +129,7 @@ Suggested first targets:
 
 | File                                                                                                                                               | Cleanup Direction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`                                                                                                    | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Request/result adaptation, live-attempt and durable-queue ownership, accepted-result completion effects, recovery, hydration, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`                                                                                                    | Integration audit and scoped safety fixes merged; user-confirmed GitHub Actions pass accepted as the baseline. Live visual/nonvisual execution, request/result adaptation, live media timeline/provider/carousel projection, live-attempt and durable-queue ownership, accepted-result completion effects, synchronous failure/queue-handoff coordination, cross-owner session and recovered-presentation transitions, identification-review action/effect/workflow/presentation mapping, species hydration/reference merging/scoped enrichment, hydration-presentation callback and write routing, synchronous historical-load startup, registered historical hydration orchestration, ephemeral presentation-lifecycle identity, stored observable presentation values, legacy lookalike-cache reset, bounded writes, reference transport, and local-analysis ownership are split.                                                                                                                                                                 |
 | `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`                                                                                           | Complete for this hygiene round. Eighteen endpoint owners cover the extracted feature, inference, publication, lifecycle, collection-sync, enrichment, feedback/export, storage, and account-deletion operations. Stateless inference policy lives in `Inference/`; signed transfers and publication-media restoration live in `Media/`; owned-row recovery lives in `Recovery/`; route/error/replay policy, the request-scoped executor, the sole pinned session/TLS owner, and the per-attempt authenticated dispatcher live in `Transport/`. The client stays below the 600-line façade ceiling, injects those focused owners, and retains endpoint configuration, shared response/cache bridges, and capability-only account-deletion recovery transport.                                                                                                                                                                                                                                                                                        |
 | `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                                                                                            | Retired. `Core/Preferences/UserDefaultsKeys.swift` owns the exact unchanged defaults strings; focused Preferences owners retain typed settings, compatibility stores, verified accepted-account-deletion cache inventory, and post-persistence runtime reset. `Core/Data/SpeciesPreferences` owns durable preferred-name state and synchronization. `Core/Security/KeychainKeys.swift` owns exact secure-key strings, and `Core/Security/AccountDeletion/{Models,Stores}` owns deletion recovery phases, manual-provider notice state, secure proof storage, and pre-Auth barrier restoration. Mirrored suites freeze every installed key string, declaration and test ownership, local-only effects, compatibility behavior, and the 600-line ceiling.                                                                                                                                                                                                                                                                                              |
 | `apps/ios/Merian/Core/Utilities/{ImageDownsampler,ImageFocusRegionDetector,SizeEstimator}.swift`                                                   | Retired. Shared stateless ImageIO downsampling lives in `Core/Data/Images`; Capture-only focus detection lives in `Features/Capture/Shared/Services`; and optional Capture telemetry size estimation lives in `Features/Capture/Submission/Services`. Mirrored suites and architecture guards freeze the new owners, retired paths, framework/effect boundaries, and 600-line ceilings.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -212,18 +212,18 @@ Implemented Core slices:
   visual/nonvisual parse/save input normalization and typed result outcomes. At
   that stage, `InferenceProcessingActor` retained decoding, entitlement,
   storage, media cleanup, and durable-completion rules; the later Core Data
-  finalization slice moved shared decoding/mapping/entitlement semantics into
-  `InferenceResponsePreparationService`. The result service forwards the exact
-  model context, canonical media, original observation-context JSON, and
-  persistence fence; the engine supplies attempt validation before/after the
-  actor call. Both persisted and confidence-zero no-record completion keep the
-  original engine publication/queue path. Rejected or stale results cannot enter
-  it. Discovery feedback, replacement metadata, notifications, milestones,
-  hydration, failure policy, and their existing ordering remain in the engine.
-  Mirrored service and integration suites use injected dependencies and
-  continuation gates, with architecture checks preventing direct parse/save
-  mapping from returning to the engine. No DTO, payload, schema, endpoint, or
-  presentation contract changed.
+  finalization slice moved shared decoding, mapping, and immutable entitlement-
+  settlement projection into `InferenceResponsePreparationService`. The result
+  service forwards the exact model context, canonical media, original
+  observation-context JSON, and persistence fence; the engine supplies attempt
+  validation before/after the actor call. Both persisted and confidence-zero
+  no-record completion keep the original engine publication/queue path. Rejected
+  or stale results cannot enter it. Discovery feedback, replacement metadata,
+  notifications, milestones, hydration, failure policy, and their existing
+  ordering remain in the engine. Mirrored service and integration suites use
+  injected dependencies and continuation gates, with architecture checks
+  preventing direct parse/save mapping from returning to the engine. No DTO,
+  payload, schema, endpoint, or presentation contract changed.
 - Fifth-slice verification status (2026-09-02): XcodeGen is byte-stable;
   project/source membership, event-routing guards and adversarial tests, Swift
   parsing, strict affected-source lint, isolated result-service typechecking
@@ -241,30 +241,32 @@ Implemented Core slices:
   Interruption precedence, retired-owner/connectivity handoff before the stale
   guard, exact retirement before terminal effects, known HTTP policy matching,
   all copy, and visual/nonvisual decoding and telemetry differences remain
-  unchanged. Queue mutation, paywall requests, circuit accounting, logging,
-  haptics, and observable publication stay engine-owned. The engine shrank by
-  337 lines in this slice; both new production files remain below 600 lines.
-  Pure policy/presentation suites and queue-less engine integration cases cover
-  those decisions, known conflicts, decoding, and non-cooperative stale or
-  cancelled failures. Result/recovery fixtures now share contained test support
-  and a continuation gate instead of duplicating setup. Circuit-breaker XCTest
-  unit cases now use a fresh manager instead of resetting the singleton used by
-  Swift Testing integration suites. The architecture suite locks the effect-free
-  policies and synchronous ownership-to-commit boundary. Parsing, strict
-  affected-source lint, byte-stable XcodeGen, project/source membership,
-  event-routing and workflow-contract checks, and isolated policy/presentation
-  source and test typechecking against cached dependencies passed. A follow-up
-  review (2026-09-02) found no additional code fixes necessary. All new
-  result/recovery service and integration tests, shared fixtures, policy and
-  presentation tests, architecture tests, and the isolated circuit XCTest passed
-  focused frontend typechecking against the exact current engine/result/recovery
-  declarations and cached unchanged dependencies. That verifies test bodies, not
-  full engine compilation or runtime behavior. Simulator discovery is available
-  again, but the generic Simulator build and `build-for-testing` still stop at
-  denied SwiftPM manifest-cache writes, before candidate tests can execute.
-  Direct engine/current-app compilation also stops at the environment's Apple
-  macro sandbox restrictions. Focused and full runtime acceptance remain
-  outstanding at that slice's handoff; the integration audit below follows it.
+  unchanged. At that stage, queue mutation, paywall requests, circuit
+  accounting, logging, haptics, and observable publication stayed engine-owned;
+  the eleventh slice below subsequently extracted all but the observable
+  presentation commits. The engine shrank by 337 lines in this slice; both new
+  production files remain below 600 lines. Pure policy/presentation suites and
+  queue-less engine integration cases cover those decisions, known conflicts,
+  decoding, and non-cooperative stale or cancelled failures. Result/recovery
+  fixtures now share contained test support and a continuation gate instead of
+  duplicating setup. Circuit-breaker XCTest unit cases now use a fresh manager
+  instead of resetting the singleton used by Swift Testing integration suites.
+  The architecture suite locks the effect-free policies and synchronous
+  ownership-to-commit boundary. Parsing, strict affected-source lint,
+  byte-stable XcodeGen, project/source membership, event-routing and
+  workflow-contract checks, and isolated policy/presentation source and test
+  typechecking against cached dependencies passed. A follow-up review
+  (2026-09-02) found no additional code fixes necessary. All new result/recovery
+  service and integration tests, shared fixtures, policy and presentation tests,
+  architecture tests, and the isolated circuit XCTest passed focused frontend
+  typechecking against the exact current engine/result/recovery declarations and
+  cached unchanged dependencies. That verifies test bodies, not full engine
+  compilation or runtime behavior. Simulator discovery is available again, but
+  the generic Simulator build and `build-for-testing` still stop at denied
+  SwiftPM manifest-cache writes, before candidate tests can execute. Direct
+  engine/current-app compilation also stops at the environment's Apple macro
+  sandbox restrictions. Focused and full runtime acceptance remain outstanding
+  at that slice's handoff; the integration audit below follows it.
 - The seventh slice extracted progressive species-enrichment transport
   adaptation and local hydration persistence from `InferenceEngine`.
   `InferenceSpeciesEnrichmentService` owns typed scope/request values, an
@@ -303,10 +305,18 @@ Implemented Core slices:
   `InferenceHistoricalRecordProjection`. Its `@MainActor` initializer consumes
   the live `LocalScanRecord` before suspension and returns only immutable
   `Sendable` values; an awaited detached operation converts deferred legacy and
-  candidate content. `InferenceEngine.load(from:)` retains live-presentation
-  replacement, observable publication, the replaceable historical task, network
-  hydration, retry, and write admission. No schema, payload, endpoint, route,
-  feature flag, copy, or visible behavior changed.
+  candidate content. At this slice, `InferenceEngine.load(from:)` retained
+  live-presentation replacement, observable publication, the replaceable
+  historical task, network hydration, retry, and write admission. The fourteenth
+  slice subsequently moved shared network hydration and enrichment retry into
+  the species coordinator; the fifteenth moved registered historical ordering
+  into its own coordinator; the sixteenth moved identification-review workflow
+  sequencing into its own coordinator; the seventeenth and nineteenth separated
+  presentation identity and observable values; the twentieth extracted session
+  transition order; and the twenty-first moved synchronous species publication,
+  hydration callbacks, exact identity, and bounded write admission into the
+  species-presentation bridge. No schema, payload, endpoint, route, feature
+  flag, copy, or visible behavior changed.
 - A same-day follow-up restored the pre-extraction memory ordering: historical
   identity is assigned and prior live-media buffers are released before the
   projection faults persisted fields or rebuilds historical media. Architecture
@@ -365,12 +375,16 @@ Implemented Core slices:
   delayed and request-body callbacks so durable upload release does not depend
   on engine lifetime. It also corrected documentation that had overstated the
   adapter's scope: it is Core AI's sole direct queue owner for the live-attempt
-  lifecycle, while the pre-existing entitlement-reconciliation trigger remains
-  in `InferenceResponsePreparationService`. The canonical local build wrapper
-  refuses to start because this host cannot query `xcodebuild` process state
-  (`sysmond` is unavailable); no candidate Simulator build or runtime test
-  execution is claimed, and focused typechecking is not presented as a
-  substitute.
+  lifecycle. A later integrity review moved accepted-result entitlement effects
+  from response preparation to an exact-post-deletion Offline Sync settlement
+  owner backed by an injected, retained funding-reconciliation coordinator. It
+  also preserved the queue-less nonvisual server-assigned scan-ID contract and
+  corrected the post-deletion authorization check to rely on the deletion's
+  exact durable proof rather than requiring the now-retired durable generation.
+  The canonical local build wrapper refuses to start because this host cannot
+  query `xcodebuild` process state (`sysmond` is unavailable); no candidate
+  Simulator build or runtime test execution is claimed, and focused typechecking
+  is not presented as a substitute.
 - The tenth slice extracted the duplicated visual/nonvisual accepted-result
   workflow into `InferenceLiveCompletionCoordinator`. The singleton-free core
   normalizes persisted and confidence-zero no-record outcomes, applies
@@ -384,8 +398,10 @@ Implemented Core slices:
   alone bridges the concrete managers, repository, settings, analytics, event
   bus, push manager, and milestone coordinator; AppDI captures those
   collaborators once and injects the dependency value. The engine retains public
-  signatures, observable publication, media construction, benchmark placement,
-  and modality-specific hydration/effect order.
+  signatures and observable media publication. Later slices moved media
+  construction into `InferenceLiveMediaProjector`, benchmark placement and
+  modality-specific effect order into `InferenceLivePipelineCoordinator`, and
+  hydration sequencing into its focused coordinators.
 - Focused completion tests cover accepted-outcome normalization, exact shared-
   effect order, rejected-persistence inertness, event and notification gating,
   successful/failed durable finalization, partial durable-identity rejection,
@@ -414,6 +430,691 @@ Implemented Core slices:
   safety wrapper refused before invoking Xcode because this sandbox cannot
   inspect whether another `xcodebuild` is active. No fresh build or Simulator
   runtime result is claimed for this slice.
+- The eleventh slice extracted duplicated visual/nonvisual failure recovery and
+  durable queue-handoff sequencing into `InferenceLiveFailureCoordinator`. Its
+  singleton-free main-actor core takes an initial exact local/durable ownership
+  snapshot, preserves task/logical/transport cancellation precedence, rechecks
+  durable state for retired-owner handoff, handles connectivity handoff before
+  the stale guard, and sequences release, retirement, recoverable-ID retention,
+  terminal rejection, telemetry, circuit, logging, paywall, feedback, and typed
+  failure creation without a task or suspension. It rechecks local ownership
+  after synchronous release, retirement, and rejection callbacks so a callback-
+  installed replacement cannot receive stale handoff, feedback, or failure
+  presentation. The engine now applies only three synchronous observable
+  actions: retain a recoverable scan ID, transition the current presentation to
+  the queue, or publish the failure value. The `+Live` adapter alone bridges the
+  concrete effect managers, and AppDI captures and injects those collaborators;
+  direct engine construction preserves its existing paywall closure through a
+  lazy fallback adapter.
+- Focused coordinator tests lock exact terminal order, queue-less fallback,
+  stale suppression, cancellation, retired-owner/transport/connectivity handoff,
+  quota, observation rejection, and re-entrant queue callback replacement
+  against injected queue/effect seams. A dedicated architecture suite freezes
+  the core/live split, AppDI wiring, three narrow engine actions,
+  post-retirement ownership guard, retired engine helpers/effects, no-suspension
+  boundary, and 600-line production ceiling. No endpoint, JSON payload,
+  SwiftData schema, persistence, feature flag, navigation, copy, accessibility,
+  layout, or intended visible behavior contract changed.
+- Eleventh-slice verification status (2026-09-13): XcodeGen is byte-stable;
+  generated-project/resource and source-membership guards, event-routing
+  validation and adversarial tests, the complete iOS CI-tooling regression
+  suite, affected Swift parsing, strict affected-source SwiftLint, standalone
+  production-core and focused-test frontend typechecking against cached iOS
+  dependencies, changed-Markdown formatting, and whitespace validation pass. The
+  required generic Simulator `build-for-testing` was attempted through
+  `make ios-local-build`, but the safety wrapper refused before invoking Xcode
+  because this sandbox cannot inspect whether another `xcodebuild` is active.
+  Cached-dependency typechecking is not a full current-target compile, and no
+  fresh build or Simulator runtime result is claimed for this slice. A same-day
+  follow-up review found that an injected synchronous queue callback could
+  install a replacement after the initial ownership snapshot. Post-release,
+  post-retirement, and post-rejection local-owner guards now suppress stale
+  handoff, feedback, and failure presentation, with deterministic re-entrancy
+  coverage and an architecture order guard. The executable checks above passed
+  again after this correction; the local-build wrapper retained the same
+  pre-Xcode process-inspection refusal.
+- The twelfth slice extracted identification-review action and effect sequencing
+  into `Inference/IdentificationReview`. The singleton-free
+  `InferenceIdentificationReviewCoordinator` delegates replacement, final-
+  writer, and Auth fencing to the shared write coordinator; preflights the
+  bounded throwing snapshot read; classifies Species Dictionary lookup results;
+  serializes local persistence before the account-fenced review RPC; and emits
+  an Explore refresh before milestone processing only after transport succeeds.
+  Its `+Live` adapter alone constructs `BackgroundDatabaseActor`, maps a scan to
+  its shared post, logs failures, and binds AppDI-captured event and milestone
+  collaborators. The snapshot service moved beside that owner.
+- `IdentificationReviewPresentation` now returns pure full-value actions for the
+  override placeholder, confirmation, reset, and Species Dictionary hydration,
+  including the matching typed persistence patch. `InferenceEngine` retains the
+  three public method signatures, current scan/presentation guards, observable
+  `SpeciesData` and reference-media commits, and the replaceable review
+  hydration slot. The review section no longer constructs a database actor,
+  invokes its Network service directly, resolves AppDI/shared-post state, or
+  owns cross-feature post-success effects. `UserReviewState` gained compiler-
+  checked `Sendable` conformance so the persistence dependency remains typed
+  instead of round-tripping through an unchecked or fallible raw string.
+- Deterministic coordinator tests lock local-before-cloud and refresh-before-
+  milestone order, transport-failure suppression, replacement and Auth-fence
+  rejection, typed snapshot/lookup failures, and the silent species-ID fallback.
+  Pure presentation tests lock the complete field wipe/restoration, dictionary
+  normalization, secure reference admission, and paired durable patch. The
+  architecture suite freezes the core/live split, AppDI composition, engine
+  effect boundary, source ordering, and the 600-line ceiling. No endpoint, JSON
+  payload, SwiftData schema, persistence semantics, feature flag, navigation,
+  copy, accessibility, layout, or intended visible behavior contract changed.
+- Twelfth-slice verification status (2026-09-13): XcodeGen is byte-stable;
+  generated-project/resource and source-membership guards, event-routing
+  validation and adversarial tests, the complete iOS CI-tooling regression
+  suite, affected Swift parsing, strict production and focused-test SwiftLint,
+  focused review owner/test and architecture frontend typechecking against
+  cached iOS dependencies, changed-Markdown formatting, and whitespace
+  validation pass. The required generic Simulator `build-for-testing` was
+  attempted through `make ios-local-build`, but the safety wrapper refused
+  before invoking Xcode because this environment cannot verify whether another
+  `xcodebuild` is active. Cached-dependency typechecking is not a complete
+  current-target compile; no fresh full-target build or Simulator runtime result
+  is claimed for this slice.
+- A same-day review removed the remaining opportunity for local and cloud review
+  state to diverge: the Network mutation now owns one typed `UserReviewState`,
+  exposes only coherent override, confirmation, and reset factories, and encodes
+  that same value to the unchanged RPC raw string. Coordinator persistence now
+  derives from the mutation instead of receiving a second state argument.
+  Focused payload coverage locks all three factory shapes and exact null/raw
+  encoding. The architecture guard now detects the singleton token with a word
+  boundary so an ordinary member such as `sharedPostID` does not create a false
+  positive, while still rejecting an actual `.shared` access. All non-Xcode
+  checks listed above passed again after these corrections, including strict-
+  concurrency frontend typechecking of the current coordinator core and its
+  focused test source plus native execution of all three payload encodings. The
+  local-build wrapper retained the same pre-Xcode process-inspection refusal.
+- The thirteenth slice extracted the live visual/nonvisual execution bodies into
+  `Inference/Pipeline/InferenceLivePipelineCoordinator`. Its singleton-free
+  main-actor core owns exact admission and activation, circuit gating, request
+  and result service sequencing, completion preparation, benchmark placement,
+  durable finalization, modality-specific follow-up order, synchronous failure
+  dispatch, and exact-owner cleanup. The engine retains the stable method
+  signatures, preflight and presentation staging, source-compatible task
+  accessor, observable/media commits, local-analysis callback, and hydration
+  scheduling callback. The pipeline's `+Live` adapter alone binds circuit,
+  quota-refund, and logging effects, while AppDI captures the concrete managers.
+- The parity review kept queue-less nonvisual follow-up authorization
+  synchronous after commit; only the queue-backed branch awaits durable
+  finalization. It also preserved the visual notification-before-timing and
+  hydration-before-milestone order, the nonvisual timing-before-authorization
+  and milestone-before-notification/hydration order, the two-second upload
+  release fail-safe, empty-encoding refund/retirement, and exact stale-owner
+  cleanup. Focused pipeline and architecture suites cover admission, visual
+  empty encoding, queue-less visual/nonvisual success order, durable nonvisual
+  finalization, durable visual deletion-before-follow-up order, circuit failure,
+  suspended replacement, live-effect confinement, engine delegation, and the
+  600-line Pipeline ceiling. No endpoint, payload, SwiftData schema,
+  persistence, feature flag, navigation, copy, accessibility, layout, or
+  intended visible behavior contract changed.
+- The Pass 13 verification caught and corrected one stale CI ownership check:
+  `scripts/test-ios-build-and-test-workflow.sh` now requires both durable-
+  recovery bindings at the pipeline provider-dispatch owner and rejects those
+  bindings in the engine façade. Queue and completion live defaults now resolve
+  inside the main-actor engine initializer, removing the two default-argument
+  isolation warnings without changing call-site labels or production
+  composition. The complete production Swift source set compiled without
+  diagnostics against the cached iOS Simulator SDK; focused pipeline and
+  architecture test sources typechecked; changed Swift parsing, strict
+  SwiftLint, byte-stable XcodeGen, project/resource membership, event routing,
+  iOS CI tooling, Supabase tooling and executable documentation contracts,
+  Markdown formatting, and whitespace validation passed. The required local
+  build wrapper was attempted again but refused before invoking Xcode because
+  this environment cannot verify whether another `xcodebuild` is active, so no
+  fresh linked target or Simulator-runtime result is claimed.
+- The documentation follow-up aligned the app/Core ownership guides, system
+  overview, agent directory guide, codebase and test inventories, offline
+  handoff and ingestion contracts, concurrency/error gotchas, Insight race
+  narrative, incident record, logging inventory, data/API contracts, focused
+  test matrix, and executable documentation guard with the pipeline, failure,
+  and identification-review coordinator boundaries. No product, wire,
+  persistence, or release contract changed.
+- The fourteenth slice extracted live species hydration from `InferenceEngine`.
+  The singleton-free `InferenceSpeciesHydrationCoordinator` now owns the
+  complete live Wikipedia/enrichment/GBIF sequence, exact
+  scan/species/presentation/review identities, sanitized five-URL merging, and
+  immutable persistence-work emission. Its private-state
+  `InferenceSpeciesEnrichmentCoordinator` owns the concurrent metadata/lookalike
+  children, independent loading completion, current-presentation patching,
+  silent 403 handling, shared 429 backoff, and the one taxonomy-gated lookalike
+  retry. At that slice, historical and identification-review flows retained
+  their established engine-level projection/action order while reusing the
+  coordinator's exact Wikipedia, GBIF, enrichment, and missing-reference
+  operations. The fifteenth slice below moves historical follow-up order into a
+  dedicated owner; the engine retains stable entry points, observable
+  publication, and bounded persistence admission through narrow callbacks.
+- `InferenceLookalikeCacheResetService` separately isolates the installed
+  legacy-cache compatibility decision. Its effect-free injected core accepts an
+  optional `ModelContainer`; only the `+Live` adapter reads and writes the
+  existing UserDefaults reset version, coalesces process-wide work, starts the
+  existing utility-priority detached task, and constructs
+  `BackgroundDatabaseActor`. `AppDIContainer` composes the reference,
+  enrichment, persistence, hydration-logging, and reset values explicitly.
+  Focused deterministic suites lock live ordering and enriched taxon-key
+  handoff, independent scope failure, loading/reference transitions, stale
+  Wikipedia suppression without consuming retry state, immutable persistence-
+  work emission, 429 suppression, and reset/nil-container admission.
+- Fourteenth-slice verification status (2026-09-13): all 1,255 current app
+  sources type-check together against the cached locked iOS Simulator
+  dependencies, and the 14 changed/new test and shared-support sources
+  type-check against a freshly emitted testing-enabled module. Changed Swift
+  parsing, strict no-cache SwiftLint, byte-stable XcodeGen, generated-project,
+  resource/source membership, event-routing and adversarial routing checks, and
+  the complete iOS CI-tooling regression suite pass. The required local build
+  wrapper was attempted but refused before invoking Xcode because this sandbox
+  cannot verify whether another `xcodebuild` is active; no fresh linked target
+  or Simulator-runtime result is claimed. Documentation formatting, executable
+  documentation contracts, and whitespace validation were rerun before handoff.
+  No endpoint, JSON payload, SwiftData schema, persistence format, feature flag,
+  navigation, copy, accessibility, layout, or release contract changed.
+- A second-pass cancellation audit found that a cancellation-ignoring public-
+  reference parser or enrichment dependency could return after
+  `cancelHistoricHydration()` and still mutate the unchanged presentation. The
+  species and enrichment coordinators now recheck cancellation before logging,
+  publication, retry, or persistence-work emission after every external
+  suspension. Deterministic tests cover Wikipedia, GBIF, metadata, and
+  lookalikes returning after cancellation. The complete 1,255-source app module
+  and all 14 changed/new test/support sources type-check with warnings as
+  errors; strict SwiftLint, parsing, XcodeGen, membership, routing, CI tooling,
+  Markdown, and whitespace gates pass. The repository build wrapper remains
+  host-blocked before Xcode by process-inspection denial, so no new Simulator
+  runtime claim is made.
+- The fifteenth slice extracted registered historical follow-up orchestration
+  from `InferenceEngine.load(from:)` into the singleton-free
+  `InferenceHistoricalHydrationCoordinator`. The engine retains synchronous
+  lifecycle reset, persisted-record projection, initial observable/media
+  publication, review-generation capture, override refresh callbacks, and
+  bounded persistence admission. The new owner registers one `.historic`
+  operation, publishes initial reference state, awaits deferred projection
+  decoding and displayed-override refresh, runs Wikipedia beside enrichment, and
+  awaits GBIF after enrichment supplies the final taxon key. Species-level
+  metadata caching remains independent from per-scan lookalike admission, and
+  cancellation checks fence every awaited stage. It captures no managed record,
+  singleton, network client, database actor, or raw persistence owner.
+- Five focused historical-coordinator tests lock the complete order, enriched
+  taxon-key handoff, cached-metadata/lookalike independence, replacement after a
+  cancellation-ignoring decoder, cancellation after a non-cooperative override
+  callback, and terminal empty reference state when eligible providers return no
+  usable image. Architecture and executable documentation guards keep the
+  asynchronous sequence out of the engine. The extraction removes 114 lines from
+  `InferenceEngine.swift`; the final 231-line production owner and 595-line
+  focused suite remain below the 600-line review ceiling. No endpoint, JSON
+  payload, SwiftData schema, persistence format, feature flag, navigation, copy,
+  accessibility, layout, or release contract changed.
+- Fifteenth-slice verification status (2026-09-13): focused coordinator/test
+  sources and the architecture suite type-check with warnings as errors against
+  the cached Pass 14 iOS module. A current engine-integration overlay also
+  type-checks after removing only the Observation attributes whose macro plugin
+  the sandbox cannot launch. Changed Swift parsing, strict no-cache SwiftLint,
+  byte-stable XcodeGen, generated-project and source-membership checks,
+  event-routing and adversarial routing checks, the complete iOS CI-tooling
+  regression suite, all 265 standard Supabase tooling tests plus the isolated
+  DTO contracts, executable documentation contracts, Markdown formatting, skill
+  link integrity, and whitespace validation pass. The required local build
+  wrapper was attempted in normal and isolated modes but refused before invoking
+  Xcode because this sandbox cannot inspect active `xcodebuild` processes; no
+  fresh linked-target or Simulator-runtime result is claimed.
+- The final Pass 15 review closed three presentation-lifetime gaps. Historical
+  hydration now validates the complete scan/species/presentation/review identity
+  at entry and after each suspension, and resolves its own still-current loader
+  to empty when providers yield no usable image. Live hydration validates that
+  identity before its first loader publication or provider request, while its
+  deferred cleanup can no longer clear a replacement same-scan presentation's
+  loading state. Deterministic tests cover pre-start replacement, cancellation-
+  ignoring replacement tails, and terminal empty-provider responses. Byte-stable
+  XcodeGen, project/source and event-routing guards, Swift parsing, strict lint,
+  warnings-as-errors strict-concurrency typechecking, iOS tooling and exact-
+  result validators, the complete Supabase tooling suite, all 26 executable
+  documentation contracts, Markdown/Deno formatting, and whitespace validation
+  pass. The supported local build wrapper retains the same pre-Xcode process-
+  inspection refusal, so no Simulator execution is claimed.
+- The sixteenth slice extracted the complete identification-review workflow from
+  `InferenceEngine` into the singleton-free
+  `InferenceReviewWorkflowCoordinator`. The existing action/effect coordinator
+  still owns review/confirmation/legacy-flag generations, ordered local and
+  cloud writes, typed snapshot and dictionary failure, and post-sync effects.
+  The new workflow owner sequences override, confirmation, reset, and historical
+  displayed-override hydration; preserves local admission before dictionary and
+  cloud work; registers interactive work in the replaceable review slot; and
+  invokes the species-hydration owner for enrichment and reference follow-up.
+  The engine's three public signatures and observable/media commits remain
+  unchanged behind one presentation-application closure and one hydration
+  callback bundle.
+- The workflow now revalidates the exact scan, species, presentation generation,
+  review generation, cancellation state, and Auth fence after every external
+  suspension. A cancellation-ignoring replaced dictionary or species-ID lookup
+  can no longer publish, persist, or return a stale result. Focused
+  continuation-gate tests lock local-before-cloud and patch-before-review order,
+  overlapping override replacement, missing-row enrichment followed by the
+  species-ID fallback, and stale historical dictionary/fallback rejection. The
+  extraction reduces `InferenceEngine.swift` from 2,077 to 1,796 lines; the
+  399-line workflow and 469-line focused suite remain below the 600-line review
+  ceiling. No endpoint, payload, SwiftData schema, persistence format, feature
+  flag, navigation, copy, accessibility, layout, or release contract changed.
+- The final sixteenth-slice review removed duplicate `currentSpeciesData` and
+  `currentPresentationGeneration` closures from the workflow callback value.
+  Both are now sourced only from its nested species-hydration callbacks, so a
+  caller cannot make workflow admission and stale-result checks consult
+  different presentation owners. `InferenceArchitectureTests` freezes that
+  single-source contract. The audit also corrected residual documentation that
+  assigned enrichment scheduling, current-presentation application, reference
+  URL policy, or hydration persistence directly to the engine.
+- Sixteenth-slice verification includes byte-stable repeated XcodeGen,
+  generated-project resource and source-membership guards, event-routing source
+  and adversarial guards, project-resource adversarial fixtures, Swift parsing,
+  strict SwiftLint, focused Swift 6 strict-concurrency typechecking for the
+  workflow and its tests, architecture-suite typechecking, all 26 executable
+  documentation contracts, recursive Supabase Deno formatting, Markdown
+  formatting, and whitespace validation. The supported local build wrapper
+  remains unable to inspect active Xcode processes in this sandbox and exits
+  before invoking Xcode, so no Simulator build or test execution is claimed for
+  this slice.
+- The seventeenth slice extracted process-local presentation lifecycle from
+  `InferenceEngine` into the non-observable `@MainActor`
+  `InferencePresentationCoordinator`. The focused owner contains exact prepared
+  and active presentation identity, visual queue-handoff phrase/media context,
+  and the pending first-render timestamp. It performs only synchronous value
+  decisions: observable queue IDs, copy, media, species, processing state,
+  logging, networking, persistence, and task lifetime remain with their existing
+  owners. Public engine entry points, callback order, visual/nonvisual
+  semantics, visible Auth behavior, and first-render measurement boundaries
+  remain unchanged. One internal hygiene correction closes a latent post-drain
+  leak: Auth quiescence now clears any presentation owner and queued visual
+  phrase/media context installed re-entrantly during the drain, while preserving
+  the pending first-render metric just as Auth admission does.
+- Nine deterministic coordinator tests lock prepared versus active handoff,
+  exact attempt/current-owner checks, nonvisual isolation, stale cleanup, exact
+  finish, reset, Auth admission/quiescence, and one-shot first-render
+  consumption. `InferenceArchitectureTests` freezes the extracted fields and
+  rejects observable models, effects, tasks, singletons, and domain presentation
+  values in the coordinator. This slice reduces `InferenceEngine.swift` from
+  1,790 to 1,702 lines; the 231-line production owner and 252-line focused suite
+  remain below the 600-line review ceiling. No endpoint, payload, SwiftData
+  schema, persistence, feature-flag, navigation, copy, accessibility, layout, or
+  release contract changed.
+- The eighteenth slice extracted live visual/nonvisual media normalization from
+  `InferenceEngine` into `InferenceLiveMediaProjector`. The value-only owner
+  derives the fallback timeline, preserves explicit owner order, creates the
+  aligned provider projection, selects display-policy image bytes, carries focus
+  regions, maps live and persisted media into `ActiveScanMedia`, resolves moved
+  Documents/temporary paths, admits only policy-approved remote video, and
+  applies explicit-index video poster suppression and fallback. Filesystem
+  roots, existence, and secure-URL validation are narrow injected values; the
+  owner has no task, observable mutation, logging, persistence, or network call.
+  Engine method signatures, admission order, modality choice, phrase selection,
+  active-media publication order, persisted-media completion timing, and wire
+  inputs remain unchanged. The second-pass review corrected a legacy adjacency
+  heuristic: only an image whose index explicitly matches the following video's
+  poster is suppressed, so a real staged still immediately before that video
+  remains visible in both live and persisted carousel mapping.
+- Seven deterministic projector tests lock default versus explicit timelines,
+  visual display/focus mapping, owner-order projection, remote-video and poster
+  behavior, adjacent-still retention, persisted remapping, compatible local
+  paths, empty legacy inputs, and the intentionally independent nonvisual
+  audio-modality decision. `InferenceArchitectureTests` requires delegation and
+  prevents direct filesystem/mapping helpers from returning to the engine. The
+  strict focused compile also caught and removed a helper/local-name ambiguity
+  that could make the Swift compiler fail without a diagnostic. This slice
+  reduces `InferenceEngine.swift` from 1,702 to 1,593 lines; the 262-line
+  production owner and 283-line suite remain below the 600-line review ceiling.
+  No endpoint, payload, SwiftData schema, persistence, feature-flag, navigation,
+  copy, accessibility, layout, or release contract changed.
+- The nineteenth slice extracted stored observable values and their synchronous
+  transitions from `InferenceEngine` into the `@MainActor @Observable`
+  `InferencePresentationState`. Processing, metadata/enrichment and lookalike
+  loaders, scanning copy, active media, species data, the queued-presentation
+  ID, and display telemetry now have one effect-free owner. The engine preserves
+  every existing property name through computed read-throughs, so SwiftUI
+  observation, test/preview mutation, publication order, routes, and call sites
+  remain stable. Lifecycle identity, task ownership, networking, persistence,
+  logging, filesystem access, and singleton resolution remain outside the state
+  owner. The slice also closes a pre-existing telemetry leak: new-scan,
+  nonvisual, and cancellation transitions now clear the previous visual subject
+  distance.
+- Seven deterministic state tests lock complete preparation reset, successful
+  result and queue-handoff publication, cancellation, historical replacement,
+  displaced historical-loader cleanup, visual-to-nonvisual distance isolation,
+  and Observation invalidation through scalar and value-type media writeback on
+  the engine facade. `InferenceArchitectureTests` freezes ownership and
+  result-publication order. This slice reduces `InferenceEngine.swift` from
+  1,593 to 1,580 lines. The production owner has 198 lines and the focused suite
+  has 213; both remain below the 600-line review ceiling. Compiler-backed
+  candidate typechecking passed with Observation and Swift Testing macro
+  expansion. No endpoint, payload, SwiftData schema, persistence format, feature
+  flag, navigation, copy, accessibility, layout, or release contract changed.
+- The twentieth slice extracted cross-owner session transition order from
+  `InferenceEngine` into the effect-acquisition-free `@MainActor`
+  `InferenceSessionLifecycleCoordinator`. It sequences new-scan preparation,
+  visual/nonvisual replacement, successful publication, pipeline finish, visual
+  queue handoff, dismissal, explicit cancellation, historical-load admission,
+  application activity, and the two Auth-transition phases across the existing
+  attempt, hydration, write, local-analysis, presentation-identity, and
+  presentation-value owners. It creates no task, stores no duplicate mutable
+  registry, and resolves no network, persistence, logging, filesystem, or
+  singleton dependency. Durable queue effects stay behind the attempt owner's
+  injected service. The engine keeps every stable entry point and accessor,
+  request/task creation, immutable projection, and callback composition.
+- Seven deterministic lifecycle tests lock complete reset, modality-specific
+  replacement, coherent queue handoff, cancellation, historical replacement, and
+  an Auth drain that waits for cancellation-ignoring attempt, hydration, and
+  write work. The architecture sibling freezes the critical operation order,
+  engine delegation, semantic attempt-task operations, effect exclusions, and
+  the 600-line ceiling. This slice reduces `InferenceEngine.swift` from 1,580 to
+  1,468 lines; the new production owner is 250 lines, the behavior suite is 481
+  lines, and the architecture suite is 233 lines.
+- Twentieth-slice candidate verification includes byte-stable XcodeGen,
+  generated-project/resource and source-membership guards, event-routing source
+  and adversarial checks, Swift parsing, strict SwiftLint, and compiler-backed
+  focused typechecking with Observation and Swift Testing macro expansion. The
+  supported local Simulator build wrapper was attempted but refused before
+  invoking Xcode because this sandbox cannot verify whether another `xcodebuild`
+  is active; no new Simulator build or runtime result is claimed. No endpoint,
+  payload, SwiftData schema, persistence format, feature flag, navigation, copy,
+  accessibility, layout, or release contract changed.
+- A second-pass concurrency and ownership audit on 2026-09-13 independently
+  retraced task replacement, stale pipeline completion, Auth admission and
+  quiescence, cancellation, historical replacement, and the hydration/write
+  fences. It found no corrective source change. Fresh verification again passed
+  byte-stable XcodeGen, project/resource and source-membership guards, event-
+  routing source and adversarial checks, Swift parsing, strict SwiftLint with
+  zero violations, warnings-as-errors focused test typechecking, the lifecycle
+  architecture oracle, iOS CI-tooling tests, Markdown formatting, documentation
+  contracts, recursive Supabase formatting, and `git diff --check`. The
+  supported Simulator wrapper again stopped before compilation because this host
+  could not inspect active `xcodebuild` processes; no build or runtime test
+  result is inferred from the supplemental compiler checks.
+- The twenty-first slice extracted the hydration-presentation callback bridge
+  and write admission from `InferenceEngine` into the live-dependency-free
+  `@MainActor` `InferenceSpeciesPresentationCoordinator`. It is the sole
+  production constructor of `InferenceSpeciesHydrationCoordinator.Callbacks`,
+  applies admitted species/reference/loading values through
+  `InferencePresentationState`, starts review generations, validates exact
+  case-insensitive scan/species plus presentation/review generations, routes
+  immutable persistence work to the bounded background or serialized review
+  owner, and admits eligible live hydration. The engine keeps stable public
+  entry points, synchronous historical projection, and source-compatible
+  observable read-throughs. The new bridge owns no mutable state, task, live
+  dependency, network transport, or persistence implementation.
+- Six deterministic behavior cases lock observable publication, shared review
+  callbacks, complete identity fencing, both write paths, stale/Auth-fenced
+  rejection, and biological-only live admission. A focused architecture suite
+  freezes the sole callback factory, engine delegation, required fences and
+  routes, effect/state/task exclusions, private dependency storage, and the 600-
+  line ceiling. This slice reduces `InferenceEngine.swift` from 1,468 to 1,302
+  lines; the production bridge is 174 lines, the behavior suite 382, and the
+  architecture suite 158. No endpoint, payload, SwiftData schema, persistence
+  format, feature flag, navigation, copy, accessibility, layout, or release
+  contract changed.
+- Twenty-first-slice candidate verification includes byte-stable XcodeGen,
+  generated-project/resource and source-membership guards, event-routing source
+  and adversarial checks, Swift parsing, strict no-cache SwiftLint, and
+  production plus focused-test compiler validation with Observation and Swift
+  Testing macro expansion. The complete iOS CI-tooling regression, all 265
+  standard Supabase tooling tests plus the isolated DTO and wire-contract
+  suites, all 26 executable documentation contracts, recursive Deno and
+  changed-Markdown formatting, and whitespace validation pass. The supported
+  local Simulator `build-for-testing` wrapper was attempted but refused before
+  invoking Xcode because this sandbox cannot verify whether another `xcodebuild`
+  is active; no new linked build or Simulator-runtime result is claimed.
+- A final Pass 21 ownership and concurrency audit found no behavioral defect in
+  callback construction, live admission, exact identity checks, cancellation,
+  Auth fencing, or background-versus-review persistence routing. It corrected
+  stale source headers that still assigned hydration callbacks or lifecycle
+  coordination to `InferenceEngine`, and clarified the app and Core AI READMEs
+  plus the canonical AI, manager, and Insight guides: the species-presentation
+  bridge validates scan/species and presentation/review identity, while
+  `InferenceWriteCoordinator` retains bounded operation lifetime and enforces
+  presentation-generation, Auth, and action-generation fences. All 69 documented
+  focused-test selectors resolve to current suites, and the Pass 21 source/test
+  line-count claims remain exact. Repeated byte-stable XcodeGen,
+  project/resource and source-membership validation, Swift parsing, strict
+  SwiftLint, event-routing checks, the complete iOS CI-tooling suite, all 26
+  executable documentation contracts, Markdown and recursive Supabase
+  formatting, and whitespace validation pass. The required Simulator wrapper was
+  retried and again stopped before Xcode because process inspection is
+  unavailable; no linked build or runtime-test result is added by this comment-
+  and-documentation-only correction.
+- The twenty-second slice extracted the remaining live-pipeline presentation
+  callback bridge from `InferenceEngine` into the effect-acquisition-free
+  `@MainActor` `InferenceLivePresentationCoordinator`. It is now the sole
+  production constructor of `InferenceLivePipelineCoordinator.Callbacks` and
+  `VisualCallbacks`. The bridge performs the exact local/durable success check
+  before invoking persisted-media projection, publishes through
+  `InferenceSessionLifecycleCoordinator`, emits the biological completion event
+  only after that publication, routes exact finish and all three typed failure
+  actions, forwards the captured hydration container/policy, and translates
+  visual cancellation/request-body callbacks to
+  `InferenceLocalAnalysisCoordinator`. It creates no task or suspension, owns no
+  mutable or observable state, resolves no live dependency, and captures no
+  engine. Public visual/nonvisual analysis, successful-result commit, recovered-
+  result, queue-handoff, navigation, and presentation signatures remain stable.
+- Six deterministic bridge cases lock accepted and stale publication, stale
+  persisted-media projection suppression, publication-before-event order,
+  callback-session finish identity, recoverable/failure/queue action mapping,
+  visual queue phrase transfer, exact request-body session forwarding, phrase-
+  deck preservation during cancellation, and captured hydration-policy and
+  `ModelContainer` forwarding. The async suite has the standard one-minute
+  limit. The pipeline architecture suite proves the bridge is the only
+  production constructor of either callback bundle, freezes attempt-before-
+  projection order plus hydration and local-analysis tuple forwarding, and
+  prevents callback construction or typed failure mapping from returning to the
+  engine. The completion, failure, lifecycle, and aggregate architecture suites
+  point at the new owner. This slice reduces `InferenceEngine.swift` from 1,302
+  to 1,220 lines; the production bridge is 172 lines, its behavior suite is 333
+  lines, its reusable test support is 301 lines, and the expanded pipeline
+  architecture suite is 203 lines. No endpoint, payload, SwiftData schema,
+  persistence format, feature flag, navigation, copy, accessibility, layout, or
+  release contract changed.
+- Pass 22 follow-up review confirmed the callback now evaluates the persisted-
+  media mapper lazily behind the exact-attempt guard. Its stale-completion test
+  proves the mapper, publication, and foreground event remain inert after
+  replacement; the architecture suite freezes the attempt-before-projection
+  source order; and the behavior suite has the standard one-minute async limit.
+  Byte-stable XcodeGen, project/resource and source-membership validation,
+  event-routing source and adversarial checks, Swift parsing, strict SwiftLint,
+  focused test typechecking, the complete iOS CI-tooling suite, all 26
+  executable documentation contracts, Markdown and recursive Supabase
+  formatting, and whitespace validation pass. The supported Simulator
+  `build-for-testing` wrapper stopped before invoking Xcode because this
+  environment cannot inspect active `xcodebuild` processes, so this local
+  follow-up claims no linked build or runtime-test result.
+- The twenty-third slice moved all recovered-presentation admission and commit
+  ordering from `InferenceEngine` into the existing effect-acquisition-free
+  `InferenceSessionLifecycleCoordinator`. Exact background recovery transfers
+  the complete released attempt tuple before cancelling local analysis and
+  publishing. Queued-result recovery fences the retained presentation ID,
+  case-insensitive result ID, and current active scan before cleanup and
+  publication. Queued-record recovery fences the retained, record, and active
+  IDs, then clears recovery ownership before invoking a synchronous loader. The
+  engine retains all three source-compatible methods; it passes immutable IDs
+  and values or a nonescaping callback, so the lifecycle owner does not acquire
+  `LocalScanRecord`, persistence, task, network, logger, filesystem, or
+  singleton ownership.
+- Five deterministic recovery cases lock exact background transfer, stale same-
+  scan replacement rejection, every queued-result and queued-record identity
+  fence, matching-result publication, and clear-before-record-load order. The
+  existing lifecycle fixture moved into a 141-line shared test-support file,
+  reducing the original behavior suite from 481 to 350 lines. This slice reduces
+  `InferenceEngine.swift` from 1,220 to 1,191 lines; the expanded lifecycle
+  owner is 312 lines, the recovery suite is 263, and the architecture suite
+  is 349. The architecture oracle freezes all three transition orders, stable
+  engine delegation without facade-owned recovery guards, effect and managed-
+  record exclusions, and the 600-line focused-owner ceiling. No endpoint,
+  payload, SwiftData schema, persistence format, feature flag, navigation, copy,
+  accessibility, layout, or release contract changed.
+- Twenty-third-slice candidate verification includes byte-stable repeated
+  XcodeGen, project/resource and source-membership validation, event-routing
+  source and adversarial checks, affected Swift parsing, and strict no-cache
+  SwiftLint with zero violations. Warnings-as-errors iOS frontend typechecking
+  passes for the complete current Inference source set plus engine and for the
+  focused lifecycle behavior, recovery, support, and architecture sources with
+  macro expansion. The complete iOS CI-tooling suite, all 26 executable
+  documentation contracts, Markdown and recursive Supabase formatting, and
+  whitespace validation pass. The supported Simulator `build-for-testing`
+  wrapper was attempted and stopped before invoking Xcode because this host
+  cannot inspect active `xcodebuild` processes; no linked build or runtime-test
+  result is claimed.
+- The twenty-fourth slice moved visual and nonvisual live-submission startup
+  from `InferenceEngine` into the singleton-free `@MainActor`
+  `InferenceLiveSubmissionCoordinator`. The new owner preserves Auth and empty-
+  payload disposition, admission-before-replacement, media/telemetry staging,
+  attempt and presentation activation, local visual analysis, first-render
+  timing, immutable request/callback construction, and execution-task
+  registration. It immediately installs the task in
+  `InferenceLiveAttemptCoordinator`, which remains the sole task-handle and
+  attempt-identity owner. It stores no mutable state and resolves no network,
+  persistence, logger, filesystem, or singleton dependency. Both engine entry
+  signatures remain unchanged and are now thin typed delegates.
+- Six deterministic startup cases lock visual presentation and task staging,
+  audio and Describe copy, Auth-fenced release-before-retirement, visual empty-
+  payload release-before-retirement, and the retained nonvisual retirement-only
+  behavior. Source-order guards freeze both modality sequences, engine
+  delegation, callback ownership, effect exclusions, and the 600-line focused-
+  owner ceiling. The slice reduces `InferenceEngine.swift` from 1,191 to 1,004
+  lines; the new production owner is 337 lines and its behavior suite is 354.
+  Its local-analysis predicate and launch helpers remain private; existing
+  engine debug adapters cross only DEBUG-gated forwarding methods. No endpoint,
+  payload, SwiftData schema, persistence format, feature flag, navigation, copy,
+  accessibility, layout, or release contract changed. Verification also replaced
+  the shared presentation fixture's obsolete optional Species Reference
+  transport stub with a type-correct inert 404, and corrected architecture
+  oracles to require lifecycle-owned presentation reset and attempt invalidation
+  rather than direct engine calls. The executable documentation contract now
+  enforces submission-coordinator execution ownership.
+- Twenty-fourth-slice candidate verification includes byte-stable repeated
+  XcodeGen, project/resource and source-membership validation, event-routing
+  source and adversarial checks, affected Swift parsing, and strict no-cache
+  SwiftLint with zero violations. The complete iOS CI-tooling and Supabase
+  tooling suites, all 26 executable documentation contracts, Markdown and
+  recursive Supabase formatting, and whitespace validation pass. The supported
+  Simulator `build-for-testing` wrapper stopped before invoking Xcode because
+  this environment cannot inspect active `xcodebuild` processes, so this local
+  verification claims no linked build or runtime-test result.
+- A follow-up Pass 24 concurrency and documentation audit found no production
+  defect. Direct comparison with the former `analyze` and `analyzeNonVisual`
+  implementations confirmed admission-before-replacement, cancellation order,
+  exact-attempt publication fences, and task registration parity. Secondary
+  image-pipeline, Capture, Offline Sync, lifecycle, SwiftData, and AI guides now
+  identify `InferenceLiveSubmissionCoordinator` as the live startup/task-launch
+  owner and `InferenceLiveAttemptCoordinator` as the task-handle owner instead
+  of attributing those responsibilities to the engine facade.
+- The twenty-fifth slice extracted synchronous persisted-record startup from
+  `InferenceEngine.load(from:)` into the singleton-free `@MainActor`
+  `InferenceHistoricalLoadCoordinator`. The new owner sequences historical
+  lifecycle admission, active-scan identity, live-media release, immutable
+  record projection, legacy lookalike-cache reset scheduling, initial
+  presentation publication, presentation/review generation capture, callback
+  construction, and registered hydration scheduling. It creates no task,
+  resolves no live dependency, and retains no managed `LocalScanRecord` after
+  `load(from:)` returns. The engine preserves its source-compatible signature as
+  a thin delegate. Four deterministic behavior cases lock publication before
+  deferred hydration, Auth-fenced rejection without presentation mutation,
+  replacement of a cancellation-ignoring prior decode, and required reset
+  scheduling with the record's model container. Architecture oracles freeze the
+  collaborator inventory, exact startup order, effect exclusions, facade
+  delegation, and 600-line focused-owner ceiling. This slice reduces
+  `InferenceEngine.swift` from 1,004 to 964 lines; the production coordinator is
+  109 lines and its behavior suite is 350 lines. No endpoint, payload, SwiftData
+  schema, persistence format, feature flag, navigation, copy, accessibility,
+  layout, or release contract changed.
+- Pass 25 follow-up review found no production parity or concurrency defect. It
+  made the cancellation-ignoring operation gate private to the focused behavior
+  suite and corrected the recorded engine and suite line counts. The companion
+  documentation audit updated the system overview, memory/concurrency, image
+  pipeline, Insight, SwiftData, API, Edge-modularization, agent, and Core AI
+  guides to distinguish the synchronous load owner from the engine facade and
+  registered hydration owner. The SwiftData example now snapshots the model
+  container before constructing the projection. Complete current-source semantic
+  compiler checks for production plus the new behavior suite, standalone
+  architecture-test typechecking, affected Swift parsing, strict SwiftLint,
+  repeated byte-stable XcodeGen, project/resource and source-membership checks,
+  event-routing source and adversarial checks, the complete iOS CI-tooling
+  suite, all 26 executable documentation contracts, Markdown and recursive
+  Supabase formatting, and whitespace validation pass. The supported Simulator
+  `build-for-testing` wrapper again stopped before invoking Xcode because this
+  environment cannot inspect active `xcodebuild` processes, so no linked build
+  or runtime-test result is claimed locally.
+- The twenty-sixth slice extracted the engine initializer's internal owner-graph
+  construction into the one-shot `@MainActor` `InferenceEngineAssembly`. The
+  assembly is now the sole production constructor of the eighteen focused
+  inference owners and preserves their exact construction order, injected
+  collaborator edges, optional live fallbacks, and retention graph. It stores no
+  mutable runtime state, starts no task, and performs no network, persistence,
+  logging, filesystem, AppDI, or direct singleton work. `InferenceEngine` keeps
+  its initializer signature and defaults unchanged, receives the completed graph
+  as a local value, and continues to retain its twelve runtime collaborators as
+  private properties; the assembly itself is not retained. This reduces
+  `InferenceEngine.swift` from 964 to 881 lines; the production assembly is 204
+  lines and its architecture suite is 258 lines, both below the 600-line review
+  ceiling. The architecture suite freezes sole constructor ownership, exact
+  ordering and dependency edges, exhaustive initializer input forwarding and
+  consumption, stable initializer inputs, private facade retention, effect
+  exclusions, and the focused-file ceiling. No endpoint, payload, SwiftData
+  schema, persistence format, feature flag, navigation, copy, accessibility,
+  layout, lifecycle, or release contract changed. Compiler-backed review caught
+  and corrected a dropped `Visual` segment in the assembly dependency label
+  before handoff; the architecture oracle now rejects that stale spelling and
+  also restricts assembly consumers to the assembly file and engine facade.
+  Final candidate verification passed exact facade/assembly/ focused-owner
+  iOS-SDK typechecking with warnings as errors (using typecheck- only stand-ins
+  for live adapters already covered by their focused suites), standalone
+  architecture-suite typechecking, affected Swift parsing, strict SwiftLint, the
+  constructor/consumer oracle, byte-stable XcodeGen, project and
+  source-membership validation, event-routing and adversarial routing guards,
+  the complete iOS CI-tooling suite, all 26 executable documentation contracts,
+  recursive Supabase and changed-Markdown formatting, and whitespace validation.
+  The supported Simulator `build-for-testing` wrapper stopped before invoking
+  Xcode because this environment could not inspect active `xcodebuild`
+  processes, so no fresh linked build or runtime-test result is claimed locally.
+- The Pass 26 documentation reconciliation registered `InferenceEngineAssembly`
+  in the Core root contract, system overview, and contributor directory map. It
+  also corrected stale ownership claims in Capture Submission, camera,
+  image-pipeline, feature-module, concurrency, and manager guidance: the engine
+  is the stable observable facade; `InferencePresentationState` owns stored
+  presentation values; `InferenceLiveSubmissionCoordinator` starts visual
+  analysis; `InferenceLivePipelineCoordinator` owns encoded-empty refund
+  handling; `InferenceHistoricalLoadCoordinator` owns historical projection; and
+  `InferenceSpeciesPresentationCoordinator` routes admitted persistence work.
+  The executable documentation contract now requires the assembly across every
+  canonical ownership surface and rejects the superseded orchestrator, refund,
+  historical-load, and background-write descriptions. This documentation-only
+  follow-up changes no runtime, wire, persistence, navigation, or release
+  behavior.
+- The twenty-seventh slice partitions the stable inference facade without
+  widening its twelve private focused-owner references. Pure source-compatible
+  nested modality values and static adapters now live in
+  `Inference/Facade/InferenceEngineCompatibility.swift`; the existing simulator
+  and test API lives in two fully `#if DEBUG` diagnostic files and coordinates
+  scenarios through one ephemeral support value returned by the facade's sole
+  DEBUG factory. First-render timing now consumes the exact one-shot scan metric
+  in `InferenceLiveSubmissionCoordinator` and routes logging through the
+  pipeline benchmark adapter. Alternatives exhaustion now validates the exact
+  case-insensitive scan and advances its review generation in
+  `InferenceSpeciesPresentationCoordinator`. The established cloud-analysis
+  phrase deck is owned by `ScanningPhrasePolicy` behind the unchanged engine
+  adapter. This reduces `InferenceEngine.swift` from 881 to 585 lines, below the
+  review ceiling; every new production file is also below 600 lines. Focused
+  behavior tests cover mismatched/one-shot render metrics and exact/mismatched
+  alternatives exhaustion, while a new architecture suite freezes the facade,
+  compatibility, diagnostic, visibility, and delegation boundaries. The
+  follow-up integration review also closes a legacy replacement gap: once a new
+  visual submission is admitted, the lifecycle owner now discards its
+  predecessor's ephemeral owner, queued visual context, and render timestamp
+  before installing the replacement. This prevents a same-scan retry without a
+  new clock from logging the prior tap interval. A second inference-wide review
+  makes current-task retirement re-entrancy-safe: the attempt owner detaches and
+  retains the exact displaced handle before synchronous durable callbacks, Auth
+  drains cancellation-ignoring displaced work, and recovered-result commits
+  cancel the displaced task before observable publication so caller cleanup
+  cannot cancel an observer-installed replacement. Exact admitted queue-less
+  responses also transfer their pending first-render clock from the temporary
+  client identity to the server-assigned scan ID; stale callbacks cannot move or
+  consume it. Focused overlap and architecture tests freeze each ordering. No
+  payload, persistence, schema, navigation, copy, layout, accessibility, or
+  release contract changes.
 - Focused Core AI and Species Reference suites cover hydration replacement and
   stale-completion isolation, TTL/backoff policy, queue capacity and overflow,
   cancellation and Auth quiescence, ordered newest-action writes, public
@@ -426,9 +1127,9 @@ Implemented Core slices:
   locks the extracted owners and retired aggregate. The result suites cover
   persistence input parity, actor outcome classification, and stale-result
   isolation through both live engine paths. No JSON payload, SwiftData schema,
-  navigation, or backend contract changed. `InferenceEngine.swift` remains a
-  large orchestrator and should continue through small, behavior-preserving
-  slices.
+  navigation, or backend contract changed. `InferenceEngine.swift` now remains
+  below the 600-line ceiling as a source-compatible observable facade; focused
+  owner construction and execution responsibilities must not return to it.
 - The Inference-wide source integration audit (2026-09-02) traced visual, audio,
   and Describe requests through result, recovery, hydration, writes, Auth, and
   exact queue completion. It repaired an existing reanalysis data-loss path:
@@ -438,6 +1139,25 @@ Implemented Core slices:
   save rollback leaves unrelated user edits intact. The repository's existing
   deletion/outbox commit still owns destruction; its post-commit cleanup now has
   an optional completion handle so tests can await their own work.
+- The post-audit integrity review closes three accepted-result races without
+  changing a wire or persistence contract. Auth admission now advances a
+  dedicated live follow-up authorization epoch before cancelling inference, so a
+  suspended queue deletion that ignores cancellation cannot mint a permit.
+  Shared response preparation is pure and compares the provider `scan_id` with
+  every supplied or durable client ID before either persistence path can act;
+  the queue-less nonvisual compatibility path continues to accept its server-
+  assigned ID. The service projects generated entitlement wire values into the
+  checked-Sendable `EntitlementStateSnapshot` domain value instead of extending
+  generator-owned DTOs. The completion boundary rechecks the settlement against
+  the prepared result ID. Foreground and background paths carry the resulting
+  `InferenceResponseSettlement` through successful local persistence and apply
+  it only after any required exact main-context queue deletion. Offline Sync
+  owns the account-lease-protected entitlement, usage, and funding-reservation
+  effects. Its injected `InferenceFundingReconciliationOwner` retains all
+  accepted leases, coalesces trailing passes, and owns the task that Auth
+  cancels and awaits before session replacement. Deterministic response and
+  suspended-deletion tests plus source architecture guards freeze the new
+  identity, ordering, task-ownership, and generator-boundary invariants.
 - The audit added atomic, cancellation-aware resource leases shared by Swift
   Testing and the Capture XCTest base. Queue scopes restore the previous model
   context; individual cases still own other state restoration and task
@@ -2048,11 +2768,25 @@ grants, cross-account denial, and 200-character constraint.
 
 The audit also moved the final identification-review PostgREST and RPC calls out
 of `InferenceEngine` into an immutable AppDI-owned Network service. Account-work
-leases now fence every live request across Auth transitions, while the engine
-retains review generations, local persistence, presentation, and post-success
-effects. Architecture tests lock this ownership and the Core Network singleton,
-query, and RPC inventory. No Identify payload, navigation contract, collection
-wire field, or non-preference SwiftData shape changed.
+leases now fence every live request across Auth transitions. The subsequent
+Inference twelfth slice moved review generations, ordered local persistence,
+transport invocation, and post-success effects into the singleton-free
+identification-review coordinator and its live adapter. The sixteenth slice then
+moved the complete review workflow and hydration timing into the focused
+workflow coordinator; at that point the engine retained stable public methods,
+observable commits, a presentation-application closure, and one hydration
+callback bundle as the workflow's sole current-state source. Architecture tests
+lock all three boundaries, that single-source callback contract, and the Core
+Network singleton, query, and RPC inventory. No Identify payload, navigation
+contract, collection wire field, or non-preference SwiftData shape changed.
+
+The twenty-first Inference slice subsequently moved observable commits,
+hydration callback construction, presentation/review identity checks, live
+hydration admission, review-generation starts, and background-versus-review
+write routing into `InferenceSpeciesPresentationCoordinator`. The engine now
+retains only the stable review facade and delegates through that
+live-dependency-free bridge; the workflow still receives one single-source
+callback bundle.
 
 A final adversarial pass found and fixed two preference-convergence races. The
 focused `SpeciesPreferenceLocalRecovery` owner resolves interrupted
@@ -3981,13 +4715,22 @@ Background URLSession completion now enters
 `BackgroundInferenceFinalizationService`, which injects response preparation and
 a fresh persistence actor. `InferenceResponsePreparationService` is the single
 stateless foreground/background owner for JSON decoding, usable-success
-validation, `SpeciesData` mapping, and entitlement/usage reconciliation. The
+validation, request-appropriate response-ID comparison, `SpeciesData` mapping,
+and immutable funding-settlement projection; it performs no account or queue
+effects. Background and other client-ID-bearing paths require an exact echo;
+queue-less nonvisual compatibility retains the server-assigned response ID. The
 finalizer never awaits `InferenceProcessingActor` while holding
 `ScanInferencePersistenceCoordinator`; that dependency direction avoids a cycle
 with a foreground parse already waiting for the same scan fence. SwiftData
 validation and commits remain on the database actor, file adoption remains on
 `FileIOActor` behind narrow closures, and queue deletion remains on the main
 actor after exact-generation revalidation.
+
+The settlement crosses the actor boundary as checked-Sendable domain values and
+remains inert until that exact queue deletion commits. The focused Offline Sync
+funding owner then applies entitlement, advisory usage, and funding-reservation
+effects under account-work leases retained through its injected, coalesced,
+Auth-drained `InferenceFundingReconciliationOwner`.
 
 `CapturedMediaPersistenceServiceTests` deterministically cover explicit and
 default timeline order, invalid-item filtering, video companions, and
@@ -5443,10 +6186,9 @@ review ceiling:
 That checkpoint inventory prevented silent growth or drift; it did not exempt
 the owners from later behavior-preserving splits. The Explore and Field Trips
 aggregates are retired below, and subsequent slices reduce the current
-large-owner inventory to `InferenceEngine.swift` and `SupabaseManager.swift` in
-the Core README and codebase map. This audit changed no endpoint, JSON,
-SwiftData schema, migration, persistence state, route, entitlement, copy,
-layout, or deployment contract.
+large-owner inventory to `SupabaseManager.swift` in the Core README and codebase
+map. This audit changed no endpoint, JSON, SwiftData schema, migration,
+persistence state, route, entitlement, copy, layout, or deployment contract.
 
 Candidate verification includes byte-stable XcodeGen output, project/resource
 and source-membership guards, event-routing validation, recursive Swift parsing,
@@ -5648,7 +6390,7 @@ reapproval, and final-session Ghost rebind verification.
 The slice changes no API payload, SwiftData schema, database migration, RLS or
 grant, persistence key or format, policy statement/version, provider, feature
 flag, navigation, copy, layout, or release control. The current Core residual
-inventory is `InferenceEngine.swift` and `SupabaseManager.swift`.
+inventory is `SupabaseManager.swift`.
 
 Candidate verification passed byte-stable XcodeGen output, generated-project,
 resource, source-membership, event-routing, and adversarial routing guards,

@@ -278,11 +278,18 @@ orphaned object does not reconstruct its relational context.
   installed `pg_net` routines and persisted `pg_cron` command text.
 - Live cancellation and exact-attempt boundaries are split across the owning
   layers: `InferenceLiveAttemptCoordinator` owns and validates the exact local
-  and durable tuple, `InferenceEngine` invokes that validation at pipeline and
-  side-effect boundaries, and `InferenceLiveRequestService` invokes the supplied
-  validator after image encoding, optional staged-video upload, and provider
-  return. If the iOS Watchdog or the user cancels a processing scan, stale work
-  cannot continue to provider dispatch, persistence, or presentation effects.
+  and durable tuple, `InferenceLivePipelineCoordinator` invokes that validation
+  at execution and result boundaries, `InferenceLivePresentationCoordinator`
+  rechecks it before persisted-media projection and the observable commit, and
+  `InferenceLiveRequestService` invokes the supplied validator after image
+  encoding, optional staged-video upload, and provider return. If the iOS
+  Watchdog or the user cancels a processing scan, stale work cannot continue to
+  provider dispatch, persistence, or presentation effects. Full invalidation
+  detaches identity and the exact task before durable callbacks, retains the
+  cancelled handle for Auth quiescence, and prevents a re-entrant replacement
+  from being cancelled by old cleanup. A recovered-result commit performs that
+  exact cancellation before observable publication; its Offline Sync caller does
+  not cancel the facade task afterward.
 
 **Edge Function Map:** The backend logic is strictly decoupled into modular,
 single-responsibility functions under `/services/supabase/functions/`.

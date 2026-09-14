@@ -4,10 +4,13 @@ import SwiftData
 /// Normalizes one accepted live result and authorizes post-commit effects only
 /// while the exact presentation owner remains current.
 ///
-/// `InferenceEngine` retains observable state publication, benchmark timing,
-/// and modality-specific hydration order. This coordinator owns the shared
-/// discovery, replacement, telemetry, durable-finalization, notification,
-/// foreground-event, and milestone boundary for visual and nonvisual results.
+/// `InferenceLivePipelineCoordinator` retains benchmark placement and modality-
+/// specific effect order. Observable publication stays behind the engine facade
+/// through `InferencePresentationState`, while
+/// `InferenceSpeciesPresentationCoordinator` owns hydration callbacks. This
+/// coordinator owns the shared discovery, replacement, telemetry, durable-
+/// finalization, notification, foreground-event, and milestone boundary for
+/// visual and nonvisual results.
 @MainActor
 final class InferenceLiveCompletionCoordinator {
     struct Dependencies {
@@ -26,11 +29,14 @@ final class InferenceLiveCompletionCoordinator {
             @MainActor (String, String) -> Void
         let scheduleMilestoneProcessing:
             @MainActor (String, SpeciesData, ModelContainer?) -> Void
+        let commitFundingSettlement:
+            @MainActor (InferenceResponseSettlement) -> Bool
     }
 
     struct PreparedCompletion {
         let speciesData: SpeciesData
         let savedImagePaths: [String]
+        let fundingSettlement: InferenceResponseSettlement?
 
         var mediaPathsToKeep: [String] {
             (speciesData.audioFilePaths ?? []) +
@@ -43,14 +49,7 @@ final class InferenceLiveCompletionCoordinator {
     struct FollowUpPermit {
         let speciesData: SpeciesData
         let modelContainer: ModelContainer?
-
-        fileprivate init(
-            speciesData: SpeciesData,
-            modelContainer: ModelContainer?
-        ) {
-            self.speciesData = speciesData
-            self.modelContainer = modelContainer
-        }
+        fileprivate let fundingSettlement: InferenceResponseSettlement?
     }
 
     private let attemptCoordinator: InferenceLiveAttemptCoordinator
@@ -91,7 +90,8 @@ final class InferenceLiveCompletionCoordinator {
 
         return PreparedCompletion(
             speciesData: speciesData,
-            savedImagePaths: completedResult.savedImagePaths
+            savedImagePaths: completedResult.savedImagePaths,
+            fundingSettlement: completedResult.fundingSettlement
         )
     }
 
@@ -111,14 +111,16 @@ final class InferenceLiveCompletionCoordinator {
         scanId: String?,
         attemptGeneration: UUID,
         speciesData: SpeciesData,
-        modelContainer: ModelContainer?
+        modelContainer: ModelContainer?,
+        fundingSettlement: InferenceResponseSettlement? = nil
     ) -> FollowUpPermit? {
         guard scanId == nil else { return nil }
         return permitIfCurrent(
             scanId: scanId,
             attemptGeneration: attemptGeneration,
             speciesData: speciesData,
-            modelContainer: modelContainer
+            modelContainer: modelContainer,
+            fundingSettlement: fundingSettlement
         )
     }
 
@@ -130,7 +132,8 @@ final class InferenceLiveCompletionCoordinator {
         foregroundGeneration: UUID?,
         mediaPathsToKeep: [String],
         speciesData: SpeciesData,
-        modelContainer: ModelContainer?
+        modelContainer: ModelContainer?,
+        fundingSettlement: InferenceResponseSettlement? = nil
     ) async -> FollowUpPermit? {
         guard await attemptCoordinator.completeQueuedInferenceIfNeeded(
             scanId: scanId,
@@ -145,8 +148,19 @@ final class InferenceLiveCompletionCoordinator {
             scanId: scanId,
             attemptGeneration: attemptGeneration,
             speciesData: speciesData,
-            modelContainer: modelContainer
+            modelContainer: modelContainer,
+            fundingSettlement: fundingSettlement
         )
+    }
+
+    func commitFundingSettlement(_ permit: FollowUpPermit) {
+        guard let fundingSettlement = permit.fundingSettlement,
+              let resultScanId = permit.speciesData.scanId,
+              fundingSettlement.scanId.caseInsensitiveCompare(resultScanId)
+                == .orderedSame else {
+            return
+        }
+        _ = dependencies.commitFundingSettlement(fundingSettlement)
     }
 
     func sendNotificationIfEnabled(_ permit: FollowUpPermit) {
@@ -171,9 +185,10 @@ final class InferenceLiveCompletionCoordinator {
         scanId: String?,
         attemptGeneration: UUID,
         speciesData: SpeciesData,
-        modelContainer: ModelContainer?
+        modelContainer: ModelContainer?,
+        fundingSettlement: InferenceResponseSettlement?
     ) -> FollowUpPermit? {
-        guard attemptCoordinator.isAttemptCurrent(
+        guard attemptCoordinator.canAuthorizeFollowUps(
             scanId: scanId,
             attemptGeneration: attemptGeneration,
             foregroundGeneration: nil
@@ -182,7 +197,8 @@ final class InferenceLiveCompletionCoordinator {
         }
         return FollowUpPermit(
             speciesData: speciesData,
-            modelContainer: modelContainer
+            modelContainer: modelContainer,
+            fundingSettlement: fundingSettlement
         )
     }
 }

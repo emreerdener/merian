@@ -1,7 +1,28 @@
 import Foundation
 
+/// Immutable account/funding effects carried only by a response whose scan
+/// identity matches the caller's expected owner.
+struct InferenceResponseSettlement: Sendable {
+    let scanId: String
+    let accountId: UUID
+    let planUsed: String
+    let creditConsumed: Bool
+    let entitlementAfter: EntitlementStateSnapshot
+
+    init?(scanId: String, metadata: ScanEntitlementMetadataDTO) {
+        guard let accountId = UUID(uuidString: metadata.userID) else {
+            return nil
+        }
+        self.scanId = scanId
+        self.accountId = accountId
+        planUsed = metadata.planUsed
+        creditConsumed = metadata.creditConsumed
+        entitlementAfter = EntitlementStateSnapshot(metadata.entitlementAfter)
+    }
+}
+
 /// Decodes and maps one validated inference response without performing local
-/// persistence.
+/// persistence or account-sensitive effects.
 ///
 /// This service is stateless so foreground and background completion can share
 /// response semantics without serializing on the persistence actor or on one
@@ -10,6 +31,8 @@ struct InferenceResponsePreparationService: Sendable {
     struct PreparedResponse: Sendable {
         let mappedData: SpeciesData
         let planUsed: String?
+        let fundingSettlement: InferenceResponseSettlement?
+        let responseMatchesExpectedScanId: Bool
     }
 
     static let live = InferenceResponsePreparationService()
@@ -18,8 +41,10 @@ struct InferenceResponsePreparationService: Sendable {
         resultData: Data,
         telemetry: CaptureTelemetry?,
         audioFilePaths: [String]?,
-        videoFilePaths: [String]?
+        videoFilePaths: [String]?,
+        expectedScanId: String?
     ) async throws -> PreparedResponse {
+        try Task.checkCancellation()
         let parseStartedAt = CFAbsoluteTimeGetCurrent()
         let parsedWrapper: EdgeResponseWrapper
         do {
@@ -39,8 +64,12 @@ struct InferenceResponsePreparationService: Sendable {
             )
             throw MerianError.decodingFailed
         }
-
-        await reconcileEntitlement(from: parsedWrapper)
+        guard let responseScanId = parsedWrapper.data.scan_id else {
+            throw MerianError.decodingFailed
+        }
+        let responseMatchesExpectedScanId = expectedScanId.map {
+            responseScanId.caseInsensitiveCompare($0) == .orderedSame
+        } ?? true
 
         var mappedData = SpeciesData(
             fromEdgeResponse: parsedWrapper.data,
@@ -61,32 +90,16 @@ struct InferenceResponsePreparationService: Sendable {
         try Task.checkCancellation()
         return PreparedResponse(
             mappedData: mappedData,
-            planUsed: parsedWrapper.entitlement?.planUsed
+            planUsed: parsedWrapper.entitlement?.planUsed,
+            fundingSettlement: responseMatchesExpectedScanId
+                ? parsedWrapper.entitlement.flatMap {
+                    InferenceResponseSettlement(
+                        scanId: responseScanId,
+                        metadata: $0
+                    )
+                }
+                : nil,
+            responseMatchesExpectedScanId: responseMatchesExpectedScanId
         )
-    }
-
-    private func reconcileEntitlement(
-        from parsedWrapper: EdgeResponseWrapper
-    ) async {
-        guard let metadata = parsedWrapper.entitlement else { return }
-        await MainActor.run {
-            _ = EntitlementManager.shared.apply(metadata)
-            guard let scanId = parsedWrapper.data.scan_id else { return }
-            UsageManager.shared.reconcileServerPlanUsed(
-                metadata.planUsed,
-                scanId: scanId
-            )
-            EntitlementManager.shared.recordCompletedFunding(
-                planUsed: metadata.planUsed,
-                creditConsumed: metadata.creditConsumed,
-                scanId: scanId
-            )
-            Task { @MainActor in
-                await OfflineQueueManager.shared
-                    .reconcileDeferredFundingReservations()
-                OfflineQueueManager.shared.syncPendingScans()
-                OfflineQueueManager.shared.replayInferenceForUploadedScans()
-            }
-        }
     }
 }

@@ -1453,15 +1453,16 @@ The transaction log for every successful identification.
 - `confirmed_species_id` (UUID, nullable): The database dictionary ID
   corresponding to the final user-verified species identity. Populated upon both
   Confirmation (resolves the `scans.species_id` fallback) and Override (resolves
-  via `fetchAndPatchOverrideData`). Owner-published Community Identification
-  consensus also sets this column after materializing the resolved taxon into
-  `species_dictionary`; that path does not imply
-  `user_confirmed_identification = TRUE`, because it is a final owner-approved
-  ID rather than positive feedback that the AI primary ID was correct. Serves as
-  the authoritative source of truth for reference dataset extraction. Added in
-  migration `20260330230000_add_confirmed_species_id_to_scans.sql`. Synced to
-  the cloud in the same `ReviewSyncPayload` PATCH as
-  `user_identification_override` and `user_confirmed_identification`.
+  through `InferenceReviewWorkflowCoordinator`'s displayed-species lookup).
+  Owner-published Community Identification consensus also sets this column after
+  materializing the resolved taxon into `species_dictionary`; that path does not
+  imply `user_confirmed_identification = TRUE`, because it is a final
+  owner-approved ID rather than positive feedback that the AI primary ID was
+  correct. Serves as the authoritative source of truth for reference dataset
+  extraction. Added in migration
+  `20260330230000_add_confirmed_species_id_to_scans.sql`. Synced to the cloud in
+  the same `ReviewSyncPayload` PATCH as `user_identification_override` and
+  `user_confirmed_identification`.
 - `user_review_state` (public.user_review_state enum, default `'unreviewed'`):
   The definitive typed state representing user feedback. Valid values:
   `unreviewed`, `ai_confirmed`, `user_overridden`. Added in migration
@@ -2549,7 +2550,7 @@ table access required by the Edge RPC.
 `public.apply_or_stage_scan_context(p_scan_id, p_user_id, p_context)` updates
 the matching owner scan when it already exists. Otherwise it requires a matching
 owner `scan_ingestion_jobs` row and upserts the staged context. The
-service-role- only function returns `true` for an immediate scan update and
+service-role-only function returns `true` for an immediate scan update and
 `false` for a staged update. A `BEFORE INSERT` trigger on `public.scans` merges
 any staged context into the new owner row and deletes the staging record in the
 same transaction. Late context never initiates AI inference or changes ingestion
@@ -5140,7 +5141,7 @@ The current active schema is `MerianSchemaV51`. Recent milestones:
   immutable V34 preference type instead of resolving the mutable active model,
   preserving their released source checksums. Dedicated
   `MerianRecentV50MigrationPlan` and `MerianReleasedActiveV50MigrationPlan`
-  variants handle the two immediate- predecessor graphs, and all older recent
+  variants handle the two immediate-predecessor graphs, and all older recent
   plans append the same custom stage after reaching frozen V50.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): The
@@ -5193,7 +5194,8 @@ historical scan:
   immediately visible on sheet open. All accompanying species-dict fields
   (`commonName`, `hazardType`, `taxonomy`, etc.) first receive an atomic cleared
   placeholder through `BackgroundDatabaseActor.beginScanIdentificationOverride`,
-  then are persisted to `LocalScanRecord` by `fetchAndPatchOverrideData` →
+  then are resolved by `InferenceReviewWorkflowCoordinator` and persisted to
+  `LocalScanRecord` through
   `BackgroundDatabaseActor.updateScanWithOverrideSpeciesData` when hydration
   succeeds. The state therefore survives reopen without mixing species even if
   hydration fails. Drives the "Your ID" state in `ConfidenceBadge`.
@@ -5205,21 +5207,20 @@ historical scan:
   confidence badge or candidate-review UI.
 
 **`SpeciesData` mutable display fields**: Three `SpeciesData` properties are
-declared `var` (not `let`) specifically because the identification override
-hydration path (`fetchAndPatchOverrideData`) patches them in-place after
-querying `species_dictionary` for the override species:
+declared `var` (not `let`) because review presentation actions publish a
+full-value `SpeciesData` replacement after resolving the override species from
+`species_dictionary`:
 
 - `var scientificName: String` — patched by `applyIdentificationOverride` and
   `resetIdentificationReview` to the chosen/reverted name. On `load(from:)`, set
   to `userIdentificationOverride ?? record.scientificName` so the correct name
   is visible immediately.
-- `var commonName: String` — patched by `fetchAndPatchOverrideData` to the
-  override species' canonical common name from
-  `species_dictionary.common_names`. Also persisted to
-  `LocalScanRecord.commonName` by `updateScanWithOverrideSpeciesData` so the
-  name survives reopen.
-- `var iucnRedListStatus: String?` — patched by `fetchAndPatchOverrideData` to
-  the override species' conservation status. Also persisted to
+- `var commonName: String` — replaced by the review workflow with the override
+  species' canonical common name from `species_dictionary.common_names`. Also
+  persisted to `LocalScanRecord.commonName` by
+  `updateScanWithOverrideSpeciesData` so the name survives reopen.
+- `var iucnRedListStatus: String?` — replaced by the review workflow with the
+  override species' conservation status. Also persisted to
   `LocalScanRecord.iucnRedListStatus` by `updateScanWithOverrideSpeciesData`.
 
 `aiScientificName` remains `let` — it is set once at init and never mutated,
@@ -5568,13 +5569,14 @@ Tracks locally synchronized species scans for the Scans library.
 - `userIdentificationOverride`: String? (Added in `MerianSchemaV29`. The
   scientific name the user selected when overriding the AI's primary
   identification via `CandidatesCard`. `nil` when the user confirmed the AI or
-  hasn't reviewed. Synced to `public.scans.user_identification_override` via
-  `InferenceEngine.syncIdentificationReviewToCloud`. A lightweight migration
+  hasn't reviewed. Synced to `public.scans.user_identification_override` via the
+  account-fenced `InferenceIdentificationReviewService`, sequenced by
+  `InferenceIdentificationReviewCoordinator`. A lightweight migration
   (`migrateV28toV29`) handles the version bump.)
 - `userConfirmedIdentification`: Bool (Added in `MerianSchemaV29`, defaults to
   `false`. Set to `true` when the user taps "Yes, correct" in `CandidatesCard`.
-  Cloud-synced via `InferenceEngine.syncIdentificationReviewToCloud` (same PATCH
-  payload as `userIdentificationOverride`). Backfilled from
+  Cloud-synced through the same coordinator and typed review mutation as
+  `userIdentificationOverride`. Backfilled from
   `public.scans.user_confirmed_identification` by
   `HistoricalDatabaseActor.ingestScans` and `updateExistingScans`.
   `updateExistingScans` propagates this field in the `true` direction only — a
@@ -5586,8 +5588,8 @@ Tracks locally synchronized species scans for the Scans library.
 - `userReviewStateRaw`: String (Added in `MerianSchemaV36`, defaults to
   `"unreviewed"`. Replaces the boolean/string combinator logic and maps cleanly
   to the `UserReviewState` Swift enum and the `public.user_review_state`
-  Postgres enum. Cloud-synced via
-  `InferenceEngine.syncIdentificationReviewToCloud`.)
+  Postgres enum. Cloud-synced via `InferenceIdentificationReviewCoordinator` and
+  the account-fenced review service.)
 - `observationContextsJSON`: [String]? (Added in `MerianSchemaV39`. Raw JSON
   array of structured `ObservationContext` values staged by the user before
   submission. Replaced the singular `observationContextJSON` field from V38 as
@@ -5648,8 +5650,9 @@ Tracks locally synchronized species scans for the Scans library.
 - `habitatDescription`: String? (Added in `MerianSchemaV15`. Populated
   asynchronously through `InferenceHydrationPersistenceService+Live` and
   `BackgroundDatabaseActor.updateScanWithEnrichment` after `enrich-scan`
-  returns. Loads 2–3 seconds after each biological scan completes via
-  `InferenceEngine.fetchAndApplyEnrichment`. Displayed in
+  returns. Loads 2–3 seconds after each biological scan completes through the
+  stable `InferenceEngine.fetchAndApplyEnrichment` facade, species-presentation
+  bridge, and species-enrichment coordinator. Displayed in
   `HabitatAndDistributionCard` inside `BiologicalView`.)
 - ~~`globalDistributionRegionsJson`~~: Removed in `MerianSchemaV19`. Was added
   in `MerianSchemaV15` to cache AI-generated region codes, but proved

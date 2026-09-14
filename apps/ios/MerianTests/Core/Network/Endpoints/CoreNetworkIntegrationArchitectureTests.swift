@@ -1113,7 +1113,8 @@ struct CoreNetworkIntegrationArchitectureTests {
             }
         )
         #expect(unauthorizedRecoveryOptOutOwners == [
-            "Endpoints/MerianNetworkClient+Collections.swift"
+            "Endpoints/MerianNetworkClient+Collections.swift",
+            "Endpoints/MerianNetworkClient+ScanLifecycle.swift"
         ])
         #expect(dispatcher.contains("final class AuthenticatedTransportDispatcher"))
         #expect(dispatcher.contains("private let sessionTransport: PinnedNetworkTransport"))

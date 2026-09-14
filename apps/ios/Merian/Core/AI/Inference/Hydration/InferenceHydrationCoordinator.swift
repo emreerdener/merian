@@ -9,10 +9,11 @@ enum InferenceHydrationResourceLimits {
 
 /// Owns inference hydration task lifetime and session-scoped request policy.
 ///
-/// `InferenceEngine` still decides what may mutate the active presentation and
-/// what is persisted. This owner contains only hydration task handles,
-/// deduplication history, the persisted species TTL cache, and the temporary
-/// enrichment backoff deadline.
+/// `InferenceSpeciesHydrationCoordinator` supplies live work and request
+/// policy; `InferenceSpeciesPresentationCoordinator` supplies narrow
+/// presentation and write-admission callbacks. This owner contains only
+/// hydration task handles, deduplication history, the persisted species TTL
+/// cache, and the temporary enrichment backoff deadline.
 @MainActor
 final class InferenceHydrationCoordinator {
     enum TaskSlot: Hashable, Sendable {

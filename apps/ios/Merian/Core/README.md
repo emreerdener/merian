@@ -32,14 +32,21 @@ and the staged cleanup history and residual owners are recorded in the
 ## Residual large owners
 
 The post-refactor integration guard intentionally tracks the remaining Core
-production files above the 600-line review ceiling:
+production file above the 600-line review ceiling:
 
-- `AI/InferenceEngine.swift`
 - `Network/SupabaseManager.swift`
 
 This is a residual inventory, not an exemption for new growth. Split these
 owners in behavior-preserving slices, update the inventory in the same change,
 and keep wire DTOs separate from UI policy.
+
+`InferenceEngine.swift` is now below the ceiling as the source-compatible
+observable facade. Its internal graph is constructed once by
+`AI/Inference/Assembly/InferenceEngineAssembly.swift`; pure compatibility
+adapters live under `AI/Inference/Facade/`, and DEBUG-only simulator/test
+operations live under `AI/Inference/Diagnostics/`. Lifecycle, presentation,
+pipeline, hydration, recovery, review, and write ownership stays with the
+focused `AI/Inference/` owners.
 
 The retired `Network/ExploreAPIModels.swift` aggregate is now split under
 `Network/Models/Explore/`; the cross-feature semantic-location redaction policy

@@ -45,10 +45,14 @@ The canonical behavioral contract is the
   admission, shared capture-file persistence, and generation-fenced live
   inference handoff. The file store is stateless; manager-owned funding and
   lifecycle state remain in focused extensions.
-- `Services/Funding/` owns durable funding restoration, reconciliation, and
-  proven pre-dispatch release. `Services/FieldTripProgress/` owns durable goal
-  hint acknowledgement and replay. `Services/InferenceReplay/` owns coalesced
-  uploaded-scan inference reconciliation.
+- `Services/Funding/` owns durable funding restoration, reconciliation, proven
+  pre-dispatch release, and accepted-inference settlement after exact queue
+  deletion. `InferenceFundingReconciliationOwner` privately retains every
+  accepted account lease, coalesces trailing reconciliation passes, and exposes
+  the cancellation-and-await boundary used by Auth quiescence.
+  `Services/FieldTripProgress/` owns durable goal hint acknowledgement and
+  replay. `Services/InferenceReplay/` owns coalesced uploaded-scan inference
+  reconciliation.
 - `Services/BackgroundInference/` owns exact process-generation lifecycle,
   generation-fenced request preparation and background download dispatch,
   accepted task-result and transport-failure completion, delayed status probes,
@@ -58,11 +62,17 @@ The canonical behavioral contract is the
   finalization service owns cross-domain ordering but neither SwiftData nor
   response-decoding implementation. The recovery owner resolves the existing
   network client and scan repository for server-owned result hydration and
-  persists the retryable server-status transition. The reconciliation owner
-  projects server-owned inferencing IDs from durable authority, and the retry
-  sibling owns general transport-retry preflight/persistence and server-poll
-  execution. Completion has no direct network-client or session access, while
-  dispatch and watchdog use only the root manager's retained background session.
+  persists the retryable server-status transition. When background completion
+  wins an open live presentation, `InferenceSessionLifecycleCoordinator`
+  validates the exact presentation owner, atomically detaches and cancels that
+  task, and only then publishes recovered state. The queue manager never
+  re-reads or cancels `engine.inferenceTask` after that facade call because a
+  synchronous observer may already have installed a replacement. The
+  reconciliation owner projects server-owned inferencing IDs from durable
+  authority, and the retry sibling owns general transport-retry
+  preflight/persistence and server-poll execution. Completion has no direct
+  network-client or session access, while dispatch and watchdog use only the
+  root manager's retained background session.
 - `Services/BackgroundTransfer/` owns the lock-protected terminal-work tracker,
   Auth-bound lease retention and transition quiescence, relaunched-task owner
   validation/adoption, terminal callback routing, and the nonisolated URLSession
@@ -146,6 +156,8 @@ The canonical behavioral contract is the
 | `Services/QueueMaintenance/OfflineQueueManager+QueueState.swift`                  | Main-context flushes, automatic-work count projection, invalid-media quarantine, and failed-state tombstoning.                                                                                     |
 | `Services/QueueMaintenance/OfflineQueueManager+QueueDeletion.swift`               | Persistence-fenced explicit deletion, task cancellation, retained-media policy, and failed-record purging.                                                                                         |
 | `Services/Funding/OfflineQueueManager+Funding.swift`                              | Funding restoration, deferred-reservation reconciliation, and durable proven-failure release.                                                                                                      |
+| `Services/Funding/OfflineQueueManager+InferenceSettlement.swift`                  | Exact accepted-result entitlement/usage settlement plus delegation to the retained reconciliation owner.                                                                                           |
+| `Services/Funding/InferenceFundingReconciliationOwner.swift`                      | Injected single-flight/trailing-pass reconciliation, accepted account-lease retention, and cancellation-and-await teardown.                                                                        |
 | `Services/FieldTripProgress/OfflineQueueManager+FieldTripProgress.swift`          | Durable preferred-goal acknowledgement and replay through the milestone coordinator.                                                                                                               |
 | `Services/InferenceReplay/OfflineQueueManager+InferenceReplay.swift`              | Coalesced uploaded-scan and staged-scan inference replay, unsupported-audio quarantine, status recovery, and dispatch handoff.                                                                     |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceLifecycle.swift`       | Exact process-local inference generation claim, validation, retirement, and observable sync completion.                                                                                            |
@@ -285,10 +297,14 @@ across durable generation validation, shared response preparation, exact
 response-ID validation, and the final SwiftData commit. It intentionally does
 not await `InferenceProcessingActor` while holding that fence; the stateless
 `InferenceResponsePreparationService` supplies the same decode, success
-validation, mapping, and entitlement policy to foreground and background
-completion without an actor dependency cycle. Queue deletion remains on the main
-actor after finalization so open SwiftData queries receive a real pending
-deletion and stale work cannot delete a replacement generation.
+validation, request-appropriate response-ID check, mapping, and immutable
+settlement projection to foreground and background completion without an actor
+dependency cycle or an account effect. The background path always supplies the
+durable scan ID and therefore requires an exact response echo. Queue deletion
+remains on the main actor after finalization so open SwiftData queries receive a
+real pending deletion and stale work cannot delete a replacement generation.
+Only then may the Funding owner apply the settlement and begin its Auth-drained
+reconciliation task.
 
 Queued inference audio is intentionally fail-closed. Supported iOS capture and
 video-companion producers persist local WAV files, and pending upload preflight

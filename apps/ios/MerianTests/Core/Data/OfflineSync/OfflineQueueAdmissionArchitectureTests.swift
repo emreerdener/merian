@@ -96,6 +96,14 @@ struct OfflineQueueAdmissionArchitectureTests {
             "Services/Funding/OfflineQueueManager+Funding.swift",
             below: root
         )
+        let inferenceSettlement = try source(
+            "Services/Funding/OfflineQueueManager+InferenceSettlement.swift",
+            below: root
+        )
+        let fundingCoordinator = try source(
+            "Services/Funding/InferenceFundingReconciliationOwner.swift",
+            below: root
+        )
         let fieldTrip = try source(
             "Services/FieldTripProgress/OfflineQueueManager+FieldTripProgress.swift",
             below: root
@@ -129,6 +137,37 @@ struct OfflineQueueAdmissionArchitectureTests {
         ))
         #expect(!funding.contains("backgroundSession"))
         #expect(!funding.contains("FileIOActor"))
+
+        for token in [
+            "func commitInferenceResponseSettlement(",
+            "func cancelAndAwaitInferenceFundingSettlementForAuthTransition() async",
+            "beginUnownedAccountBoundWork(",
+            "inferenceFundingReconciliationOwner.enqueue(lease: lease)",
+            "inferenceFundingReconciliationOwner.cancelAndAwait()"
+        ] {
+            #expect(inferenceSettlement.contains(token))
+        }
+        #expect(!inferenceSettlement.contains("MerianNetworkClient"))
+        #expect(!inferenceSettlement.contains("import SwiftData"))
+
+        for token in [
+            "final class InferenceFundingReconciliationOwner",
+            "private var task: Task<Void, Never>?",
+            "private var leases: [AccountBoundWorkLease]",
+            "func enqueue(lease: AccountBoundWorkLease)",
+            "func cancelAndAwait() async",
+            "await dependencies.reconcile(lease)",
+            "dependencies.resumeQueueWork()",
+            "dependencies.finishLease(lease)"
+        ] {
+            #expect(fundingCoordinator.contains(token))
+        }
+        for forbidden in [
+            ".shared", "OfflineQueueManager", "MerianNetworkClient",
+            "EntitlementManager", "UsageManager", "SupabaseManager"
+        ] {
+            #expect(!fundingCoordinator.contains(forbidden))
+        }
 
         #expect(fieldTrip.contains("scanMilestoneCoordinator"))
         #expect(!fieldTrip.contains("MerianNetworkClient"))
@@ -241,6 +280,36 @@ struct OfflineQueueAdmissionArchitectureTests {
         #expect(durableLookup.lowerBound < release.lowerBound)
     }
 
+    @Test func fundingSettlementTaskIsRetainedAndAuthDrained() throws {
+        let repository = try repositoryRoot()
+        let manager = try contents(of: repository.appendingPathComponent(
+            "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift"
+        ))
+        let auth = normalizedSource(try contents(
+            of: repository.appendingPathComponent(
+                "apps/ios/Merian/Core/Network/SupabaseManager.swift"
+            )
+        ))
+
+        #expect(manager.contains(
+            "lazy var inferenceFundingReconciliationOwner ="
+        ))
+        #expect(manager.contains(
+            "InferenceFundingReconciliationOwner("
+        ))
+        let drain = try #require(auth.range(
+            of: "private func awaitAccountBoundWorkQuiescenceForAuthTransition() async"
+        ))
+        let drainSource = auth[drain.lowerBound...]
+        let settlement = try #require(drainSource.range(
+            of: ".cancelAndAwaitInferenceFundingSettlementForAuthTransition()"
+        ))
+        let background = try #require(drainSource.range(
+            of: ".quiesceBackgroundAccountWorkForAuthTransition("
+        ))
+        #expect(settlement.lowerBound < background.lowerBound)
+    }
+
     private static let serviceDirectories = [
         "CaptureAdmission",
         "FieldTripProgress",
@@ -249,6 +318,12 @@ struct OfflineQueueAdmissionArchitectureTests {
     ]
 
     private static let declarationOwners: [String: String] = [
+        "final class InferenceFundingReconciliationOwner":
+            "Services/Funding/InferenceFundingReconciliationOwner.swift",
+        "func commitInferenceResponseSettlement":
+            "Services/Funding/OfflineQueueManager+InferenceSettlement.swift",
+        "func cancelAndAwaitInferenceFundingSettlementForAuthTransition":
+            "Services/Funding/OfflineQueueManager+InferenceSettlement.swift",
         "func restoreFundingReservationsForCurrentAccount":
             "Services/Funding/OfflineQueueManager+Funding.swift",
         "func reconcileDeferredFundingReservations":
@@ -316,6 +391,12 @@ struct OfflineQueueAdmissionArchitectureTests {
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Services/Funding/InferenceFundingReconciliationOwner.swift": [
+            "import Foundation"
+        ],
+        "Services/Funding/OfflineQueueManager+InferenceSettlement.swift": [
+            "import Foundation"
+        ],
         "Services/Funding/OfflineQueueManager+Funding.swift": [
             "import Foundation",
             "import SwiftData"

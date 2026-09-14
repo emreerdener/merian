@@ -9,9 +9,10 @@ enum InferenceResourceLimits {
 /// Owns the bounded, presentation-generation-fenced write queue used by
 /// `InferenceEngine`.
 ///
-/// Mutable task storage stays private to this owner. The engine coordinates
-/// presentation lifecycle, while this type enforces capacity, cancellation,
-/// Auth-transition quiescence, and newest-identification final-writer ordering.
+/// Mutable task storage stays private to this owner. Session lifecycle
+/// transitions remain in `InferenceSessionLifecycleCoordinator`, while this
+/// type enforces capacity, cancellation, Auth-transition quiescence, and
+/// newest-identification final-writer ordering.
 @MainActor
 final class InferenceWriteCoordinator {
     enum IdentificationChannel: Sendable {

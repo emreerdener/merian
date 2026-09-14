@@ -632,10 +632,18 @@ awaits `InferenceProcessingActor` while holding the fence. Completion supplies a
 fresh persistence actor so a failed save cannot contaminate the long-lived queue
 state-machine context. The stateless
 `Core/AI/Inference/Services/InferenceResponsePreparationService` gives live and
-background completion one decode, success-validation, mapping, and entitlement
-reconciliation policy without creating another actor or singleton with mutable
-state. Its prepared value, the complete `SpeciesData` graph, and the foreground
-and background result carriers use compiler-checked `Sendable` conformances.
+background completion one decode, success-validation, request-appropriate
+response-ID, domain-mapping, and immutable funding-settlement projection policy
+without creating another actor or singleton with mutable state. It performs no
+account or queue effect. Its prepared value, `EntitlementStateSnapshot`, the
+complete `SpeciesData` graph, and the foreground and background result carriers
+use compiler-checked `Sendable` conformances. The live and background owners
+carry the settlement through successful persistence and apply it only after any
+required exact main-context queue deletion.
+`Services/Funding/OfflineQueueManager+InferenceSettlement.swift` then owns
+acceptance and entitlement/usage mutations, while
+`InferenceFundingReconciliationOwner` retains every account lease, coalesces
+trailing passes, and exposes the cancellation-and-await boundary used by Auth.
 
 `CapturedMediaPersistenceServiceTests` covers explicit/default timeline order,
 invalid-item filtering, source-index preservation, and the generic-constrained
@@ -724,9 +732,10 @@ fetch-mutate-save helper and identification-presentation replacement helper are
 private implementation details; moving them out of the aggregate does not widen
 mutable state. Enrichment writes arrive through the live
 `Core/AI/Inference/Hydration/InferenceHydrationPersistenceService` after the
-engine's bounded write admission. Existing actor method names and argument
-labels remain stable; the enrichment taxonomy value now crosses this boundary as
-domain `TaxonomyData`, keeping the Edge wire DTO out of persistence.
+species-presentation bridge's bounded write admission. Existing actor method
+names and argument labels remain stable; the enrichment taxonomy value now
+crosses this boundary as domain `TaxonomyData`, keeping the Edge wire DTO out of
+persistence.
 
 Identification review changes species identity without changing
 `LocalScanRecord.scientificName`, which remains the original AI reset key.

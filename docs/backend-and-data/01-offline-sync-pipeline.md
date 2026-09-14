@@ -318,12 +318,13 @@ request body has finished sending:
 - **Deferred background start**: `OfflineQueueManager` excludes the active live
   `scanId` from normal pending batches. Each URLSession attempt's
   `MerianRequestUploadDelegate` observes request-body progress and fires the
-  logical completion callback when all bytes are sent. `InferenceEngine`
-  sequences that callback and a two-second fail-safe; both retain
-  `InferenceLiveAttemptCoordinator` independently and enter Offline Sync through
-  `InferenceLiveQueueService+Live`. The callback's local-analysis update alone
-  captures the engine weakly. A replayed logical request may notify again on a
-  later attempt; generation-scoped queue release is intentionally idempotent.
+  logical completion callback when all bytes are sent.
+  `InferenceLivePipelineCoordinator` sequences that callback and a two-second
+  fail-safe; both retain `InferenceLiveAttemptCoordinator` independently and
+  enter Offline Sync through `InferenceLiveQueueService+Live`. The callback's
+  local-analysis update alone captures `InferenceLivePresentationCoordinator`
+  weakly. A replayed logical request may notify again on a later attempt;
+  generation-scoped queue release is intentionally idempotent.
 - **Single inference owner**: recovery media may stage after that handoff, but
   `foregroundInferenceGenerations[scanId]` prevents staged replay from
   dispatching a second identification while the exact foreground generation
@@ -359,9 +360,11 @@ scan by owner-row recovery.
 
 After handoff, either path can finish first:
 
-- **Live wins**: the live result service first persists through a
-  `LiveInferencePersistenceFence`, and `InferenceEngine` commits the observable
-  result. `InferenceLiveCompletionCoordinator` then delegates exact queue
+- **Live wins**: the pipeline's live result service first persists through a
+  `LiveInferencePersistenceFence`, then `InferenceLivePresentationCoordinator`
+  revalidates the exact local/durable attempt before persisted-media projection
+  and commits the observable result through the lifecycle and presentation-state
+  owners. `InferenceLiveCompletionCoordinator` then delegates exact queue
   finalization to `InferenceLiveAttemptCoordinator`, whose injected live queue
   service calls `deleteQueuedScan` with the exact
   `ForegroundInferenceGenerationExpectation`. The generation is validated before
@@ -681,12 +684,14 @@ preserving a collection reactivated while the request was in flight. Collection
 sync explicitly defers classified-401 session recovery to its durable retry
 boundary. Starting recovery inside this task would make Auth quiescence await
 the collection task and its outer lease while that task awaited the same
-recovery. The failed job therefore retains its desired state and may retry after
-Auth stabilizes; other client endpoints keep ordinary classified-401 recovery.
-Before the service or its network adapter starts, the manager must fetch the
-coalesced job and commit its `.running` claim. A fetch or save failure leaves
-the job conservatively pending, clears the process-local syncing latch, and
-starts no remote work.
+recovery. The accepted-result funding owner's bulk status probe applies the same
+rule while retaining its settlement lease. Those failures therefore return to
+durable scheduling and may retry after Auth stabilizes; endpoints without an
+outer quiescence-owned lease keep ordinary classified-401 recovery. Before the
+service or its network adapter starts, the manager must fetch the coalesced job
+and commit its `.running` claim. A fetch or save failure leaves the job
+conservatively pending, clears the process-local syncing latch, and starts no
+remote work.
 
 ### 4. Background Processing & Batch Uploads
 
@@ -1105,30 +1110,33 @@ additional callback fence, but they are not the persistence authority:
   `InferenceLiveQueueService`, whose `+Live` adapter resolves
   `OfflineQueueManager`. `scanId` alone is never sufficient ownership. The UUID
   is single-use: the adapter asks `OfflineQueueManager` to atomically consume an
-  exact generation before any engine instance dispatches its provider pipeline.
-  Cancellation and pre-provider exits register a tokenized retirement task
-  synchronously so the UUID cannot restart before asynchronous durable handoff
-  completes. Transient handoff fetch/save failures retain that registry slot and
-  retry with bounded backoff rather than reopening the UUID or permanently
-  abandoning recovery suppression. Merely registering retirement immediately
-  makes the attempt non-current, so delayed saves and UI/cleanup callbacks
-  cannot act during the durable handoff window. Failure handlers also compare
-  the full scan, presentation-attempt, and foreground generation before emitting
-  telemetry, recording a circuit-breaker failure, triggering a haptic, or
-  publishing an error placeholder. A current owner snapshots that proof
-  immediately before synchronous retirement and performs its terminal commit
-  without another suspension; a stale handler is an idempotent no-op.
-  Confidence-zero responses preserve their terminal no-record behavior, but
-  queue-backed foreground and generated background paths require the response to
-  echo the exact scan ID before cleanup is allowed. A mismatched or missing ID
-  leaves the durable row intact for recovery. Foreground finalization rechecks
-  the scan, process-local UUID, and durable generation after awaited deletion so
-  a late success or failure cannot clear or retire a same-scan replacement. App
-  backgrounding, connectivity loss, failure, or cancellation clears only the
-  expected generation and then hands the durable row to recovery. Replacing the
-  insight presentation with a persisted library record performs the same
-  exact-generation handoff before changing `activeScanId`; it never abandons the
-  old foreground claim or deletes its queued capture.
+  exact generation before `InferenceLiveSubmissionCoordinator` stages or
+  launches its provider pipeline. Cancellation and pre-provider exits register a
+  tokenized retirement task synchronously so the UUID cannot restart before
+  asynchronous durable handoff completes. Transient handoff fetch/save failures
+  retain that registry slot and retry with bounded backoff rather than reopening
+  the UUID or permanently abandoning recovery suppression. Merely registering
+  retirement immediately makes the attempt non-current, so delayed saves and
+  UI/cleanup callbacks cannot act during the durable handoff window.
+  `InferenceLiveFailureCoordinator` compares the full scan,
+  presentation-attempt, and foreground generation before any failure or handoff
+  effect. A current invocation performs synchronous release, retirement, or
+  rejection through the attempt coordinator, rechecks local ownership after
+  those callbacks, and only then emits telemetry, records a circuit-breaker
+  failure, triggers a haptic, or returns a narrow presentation action for the
+  engine to apply. It introduces no suspension; a stale invocation is an
+  idempotent no-op. Confidence-zero responses preserve their terminal no-record
+  behavior, but queue-backed foreground and generated background paths require
+  the response to echo the exact scan ID before cleanup is allowed. A mismatched
+  or missing ID leaves the durable row intact for recovery. Foreground
+  finalization rechecks the scan, process-local UUID, and durable generation
+  after awaited deletion so a late success or failure cannot clear or retire a
+  same-scan replacement. App backgrounding, connectivity loss, failure, or
+  cancellation clears only the expected generation and then hands the durable
+  row to recovery. Replacing the insight presentation with a persisted library
+  record performs the same exact-generation handoff before changing
+  `activeScanId`; it never abandons the old foreground claim or deletes its
+  queued capture.
 - Retry accounting plus `.inferencing → .staged` is one persistence operation
   and succeeds only when the `OfflineJobRecord` still contains the expected
   generation. A stale callback therefore cannot consume retry budget or make a
@@ -1480,21 +1488,30 @@ This source split does not change the sequence:
   shared response preparation, exact response-ID validation, and the final
   persistence handoff. The stateless `InferenceResponsePreparationService`
   supplies foreground and background JSON decoding, success validation, domain
-  mapping, and entitlement reconciliation without routing the locked background
-  workflow through `InferenceProcessingActor`. A fresh `BackgroundDatabaseActor`
-  then inserts `LocalScanRecord` when confidence is positive, writes
-  `audioFilePaths`, `videoFilePaths`, and `capturedMediaJSON`, and calls
-  `modelContext.save()`. The background actor intentionally does not delete the
-  `OfflineQueuedScan`; after the save succeeds, `processInferenceDownloadResult`
-  rechecks the inference generation before it calls
+  mapping, exact response-ID comparison, and immutable funding-settlement
+  projection without routing the locked background workflow through
+  `InferenceProcessingActor` or mutating account state. A fresh
+  `BackgroundDatabaseActor` then inserts `LocalScanRecord` when confidence is
+  positive, writes `audioFilePaths`, `videoFilePaths`, and `capturedMediaJSON`,
+  and calls `modelContext.save()`. The background actor intentionally does not
+  delete the `OfflineQueuedScan`; after the save succeeds,
+  `processInferenceDownloadResult` rechecks the inference generation before it
+  calls
   `deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:preservePreferredGoalHint:inferenceExpectation:serverPollTokenToPreserve:)`
   on the main actor. The expectation is rechecked after URLSession task
   enumeration, so a delayed finalizer cannot cancel or delete a replacement
   generation. Job completion, its completed event, and queue deletion commit in
   that same guarded save; the generation is checked again before later UI,
-  notification, and retry-accounting side effects. That main-context deletion
-  still provides the reliable `@Query` re-evaluation trigger for open sheets,
-  but it also has access to the queued row before deletion, so it can delete
+  notification, funding, and retry-accounting side effects. Only after that
+  exact deletion succeeds does
+  `Services/Funding/OfflineQueueManager+InferenceSettlement.swift` apply the
+  carried entitlement snapshot, advisory `plan_used` meter result, and funding-
+  reservation settlement. The injected `InferenceFundingReconciliationOwner`
+  retains every accepted account- work lease, coalesces trailing reconciliation
+  passes, and owns the task that Auth admission cancels and awaits before
+  replacing the source session. That main-context deletion still provides the
+  reliable `@Query` re-evaluation trigger for open sheets, but it also has
+  access to the queued row before deletion, so it can delete
   `inferenceImagePaths` and other queue-only files while preserving display
   images, video clips, and audio files adopted by the saved `LocalScanRecord`.
   If the background save fails, `wasCleaned` is `false`, no
@@ -1576,28 +1593,31 @@ This source split does not change the sequence:
   inconsistent probe remains `waitForServer` and can never re-enable provider
   dispatch.
 
-  **InferenceEngine hydration (background-wins race)**: After the shared scan
-  milestone coordinator task is started, if `processingResult.speciesData` is
-  non-nil, `processInferenceDownloadResult` checks whether `InferenceEngine` is
-  still presenting the exact released live-attempt generation for the same scan.
-  `commitRecoveredBackgroundResult` compares `activeScanId`, the live
-  presentation UUID, its released foreground UUID, and the absence of a new
+  **Inference presentation recovery (background-wins race)**: After the shared
+  scan milestone coordinator task is started, if `processingResult.speciesData`
+  is non-nil, `processInferenceDownloadResult` calls the stable
+  `InferenceEngine.commitRecoveredBackgroundResult` facade. The engine delegates
+  to `InferenceSessionLifecycleCoordinator`, which compares `activeScanId`, the
+  live presentation UUID, its released foreground UUID, and the absence of a new
   foreground owner before publishing. When these checks succeed, the background
-  URLSession path has raced ahead of the suspended live
-  `InferenceEngine.analyze()` task — which happens when the user backgrounds the
-  app immediately after capture. In that case the recovered result is committed
-  first, atomically invalidating the old presentation UUID, and only then is the
-  exact live task cancelled. That ownership transfer prevents a cooperatively
-  cancelled live error handler from overwriting the recovered result. A stale
-  background completion that finds replacement generation B returns without
-  cancelling B. This prevents the old live task from resuming after
-  foregrounding, finding a cold network, and overwriting a scan whose result is
-  already committed to the database. The required queue-backed connectivity path
-  publishes `queuedPresentationScanId`; the open Insight snapshots that durable
-  row and shows **Queued for later** while the background owner resumes, instead
-  of manufacturing a **Network timeout** result. Durable foreground retirement
-  and local presentation authority must be evaluated separately: path monitoring
-  can retire the former before URLSession returns, while the exact still-current
+  URLSession path has raced ahead of the suspended live task registered by
+  `InferenceLiveSubmissionCoordinator` through `InferenceEngine.analyze()` —
+  which happens when the user backgrounds the app immediately after capture. In
+  that case the attempt owner atomically detaches the exact live task, clears
+  the old presentation UUID, and retains and cancels that displaced task before
+  publishing the recovered result. A synchronous presentation observer may
+  therefore install replacement B without later caller cleanup cancelling B. The
+  cleared identity also prevents the displaced task's defer or error handler
+  from overwriting the recovered result. A stale background completion that
+  finds replacement generation B returns without detaching or cancelling B. This
+  prevents the old live task from resuming after foregrounding, finding a cold
+  network, and overwriting a scan whose result is already committed to the
+  database. The required queue-backed connectivity path publishes
+  `queuedPresentationScanId`; the open Insight snapshots that durable row and
+  shows **Queued for later** while the background owner resumes, instead of
+  manufacturing a **Network timeout** result. Durable foreground retirement and
+  local presentation authority must be evaluated separately: path monitoring can
+  retire the former before URLSession returns, while the exact still-current
   sheet still needs to acknowledge queue takeover. The current catch path
   separates those checks, and queue-backed Identify returns the first transport
   failure without generic inline replay. Its foreground request is capped at 15
@@ -2175,9 +2195,10 @@ configuration aggregate:
   whichever slot resolves or loads its taxon key. A replacement cancels its
   current slot without discarding the old handle, so a cancellation-ignoring
   operation remains visible to the Auth-transition drain until it terminates.
-  Offline result recovery still enters through `InferenceEngine`
-  presentation-identity checks; the hydration coordinator does not own durable
-  queue state.
+  Offline result recovery still enters through the stable `InferenceEngine`
+  methods. Exact background/queued-result admission and queued-record handoff
+  order live in `InferenceSessionLifecycleCoordinator`; the hydration
+  coordinator does not own durable queue or recovery-presentation state.
 
 ## 2026-05 Queue I/O Update
 

@@ -38,7 +38,8 @@ immediately on each loop iteration and preserving a clean RAM ceiling.
 
 This identical RAM ceiling violation exists during Apple Vision requests,
 detached image decoding, manual cropping, and metadata scrubbing. Executing
-`VNImageRequestHandler` work (e.g., `Core/AI/InferenceEngine.swift` and
+`VNImageRequestHandler` work (e.g.,
+`Core/AI/Inference/LocalAnalysis/VisionSubjectClassification.swift` and
 `Features/Capture/Submission/Services/SizeEstimator.swift`), decoding
 live/fullscreen carousel blobs in
 `apps/ios/Merian/Features/Insights/Media/Carousel/Pages/LiveCapturePageView.swift`
@@ -83,16 +84,18 @@ aligns network fan-out with decode capacity, keeps thumbnail responses out of
 the shared cache, and allows immutable media reuse across view reconstruction
 and app launches.
 
-### TaskGroup Retain Cycles (`InferenceEngine`)
+### Inference Task-Group Ownership
 
-Within parallel inference scopes, applying
-`group.addTask { @MainActor [self] in }` inside `withTaskGroup` unintentionally
-forced hard retain cycles. If Edge network requests hung, the `InferenceEngine`
-explicitly retained multi-shot buffers (`activeLiveCaptureDatas`) indefinitely.
-The architecture strips hard closures, enforcing `@MainActor [weak self]`
-alongside `guard let self else { return }`, breaking execution cycles and safely
-allowing `cancelActiveRequest()` to wipe memory footprints without ghost task
-zombies.
+Older parallel inference scopes captured the observable engine strongly from
+`withTaskGroup` children. Combined with the now-retired `activeLiveCaptureDatas`
+rescue buffer, a stalled provider could retain both the engine and multi-shot
+media. The current design gives replaceable task handles to
+`InferenceHydrationCoordinator`; structured Wikipedia, enrichment, and GBIF
+children run inside `InferenceSpeciesHydrationCoordinator` or
+`InferenceHistoricalHydrationCoordinator` and reach presentation only through
+exact-identity callbacks. No child task owns the engine or a second media copy.
+Cancellation retains displaced handles only until termination so Auth quiescence
+can await cancellation-ignoring work without leaking an untracked task.
 
 ### DRY SwiftData Boilerplate Abstraction (`BackgroundDatabaseActor`)
 
@@ -135,11 +138,16 @@ durable generation validation, response preparation, and commit. It calls the
 stateless `InferenceResponsePreparationService` directly rather than awaiting
 `InferenceProcessingActor`; otherwise a foreground parse waiting for the same
 fence could form a lock/actor cycle. Foreground parsing uses the same stateless
-decoder and mapper, so removing that actor hop does not fork response semantics.
-`PreparedResponse`, its complete `SpeciesData` graph, and the foreground and
+decoder, expected-scan comparison, mapper, and immutable funding-settlement
+projection, so removing that actor hop does not fork response semantics or move
+account effects under the lock. `PreparedResponse`, its
+`EntitlementStateSnapshot`, complete `SpeciesData` graph, and the foreground and
 background result carriers conform to `Sendable` through their stored values;
 the finalization architecture suite rejects an unchecked conformance at this
-boundary.
+boundary. The settlement remains inert through successful persistence and any
+required exact main-context queue deletion. Its later coalesced reconciliation
+is owned by `InferenceFundingReconciliationOwner`, which retains every account-
+work lease and participates in Auth quiescence.
 
 ### SwiftData Memory Exhaustion (`InsightSheetView`, `ScansSheetView`, & `BackgroundDatabaseActor`)
 
@@ -190,11 +198,12 @@ The projection is one phase of an account-fenced transaction, not a complete
 sync owner. `CollectionSyncService` revalidates the same account-work lease
 before dispatch and after the response, then creates a fresh actor that deletes
 only acknowledged rows still marked `isPendingDeletion`. This prevents a stale
-context from purging a collection reactivated during the request. The durable
-collection task explicitly declines inline classified-401 recovery: an Auth
-transition must first drain that task and its outer lease, so recovery initiated
-from inside it would recursively wait on itself. The manager retains the failed
-job and bounded retry state until a later eligible drain.
+context from purging a collection reactivated during the request. Durable
+collection sync and accepted-inference funding reconciliation explicitly decline
+inline classified-401 recovery: an Auth transition must first drain each task
+and its outer lease, so recovery initiated from inside either task would
+recursively wait on itself. Their managers retain the failed durable work for a
+later eligible drain.
 
 Species Observation Charts also obey the "no full library fetch on `@MainActor`"
 rule. `SpeciesObservationStatsViewModel` invokes an injected
@@ -885,7 +894,7 @@ The active presentation still owns its bounded display buffers in
 `ActiveScanMedia.items` as `MediaItem.liveImage` values, including a live poster
 fallback when applicable. That is the carousel's retained in-memory presentation
 state, not a second `activeImageData` or `activeDisplayDatas` property; the
-task- scoped display array still feeds persistence. A successfully persisted
+task-scoped display array still feeds persistence. A successfully persisted
 result replaces the live items with path-backed `MediaItem.image` values, while
 `prepareForNewScan()` and `cancelActiveRequest()` clear the presentation. This
 two-phase design removes the former parallel rescue and display properties while
@@ -909,21 +918,32 @@ Wikipedia hydration, enrichment/GBIF hydration). Navigating rapidly between
 scans left all prior tasks running — each decoding JSON, making network calls,
 and writing `@Observable` state for a scan no longer on screen.
 
-`InferenceHydrationCoordinator` now owns one replaceable `.historic` task slot.
-At the start of every `load(from:)` call, the engine cancels all hydration
-slots, assigns the persisted scan identity, releases the prior live-media
-buffers, and snapshots the persisted SwiftData record through
-`InferenceHistoricalRecordProjection`, then registers the new historical
-operation through the coordinator. Deferred legacy-lookalike and candidate
-decoding, override patching, Wikipedia, and enrichment/GBIF run inside that
-operation with `guard !Task.isCancelled` checks between stages. The rich
-lookalike blob is decoded once on `@MainActor` because its result also
+`InferenceHydrationCoordinator` owns one replaceable `.historic` task slot, and
+`InferenceHistoricalHydrationCoordinator` owns the work registered in it. At the
+start of every `load(from:)` call, the engine facade delegates to
+`InferenceHistoricalLoadCoordinator`. That owner asks
+`InferenceSessionLifecycleCoordinator` to retire the live attempt and cancel all
+hydration slots, then assigns the persisted scan identity, releases the prior
+live-media buffers, snapshots the optional model container and persisted
+SwiftData record through `InferenceHistoricalRecordProjection`, synchronously
+publishes that initial projection, and registers the immutable follow-up. The
+historical-hydration coordinator awaits deferred legacy-lookalike and candidate
+decoding, then override patching, then runs Wikipedia concurrently with the
+enrichment branch; GBIF remains sequential after enrichment so it receives the
+final taxon key. `guard !Task.isCancelled` checks fence each suspension. The
+rich lookalike blob is decoded once on `@MainActor` because its result also
 determines refresh scope; the remaining bytes are decoded in one awaited
 `Task.detached`. Replacing the coordinator slot immediately invalidates the
 parent operation and fences every later observable, network, and persistence
-stage. A synchronous `JSONDecoder` invocation already in progress may still
-finish before the detached child observes cancellation; the post-await guard
-prevents that stale result from advancing.
+stage. Exact scan/species/presentation/review identity is also revalidated
+before publication and terminal reference-state cleanup, so a cancelled
+same-scan producer cannot clear a newer loader. The live slot applies the same
+exact-identity check at its first actor turn, before it can publish `.loading`
+or issue a provider request; a presentation replaced between task registration
+and task start therefore has no observable effect. A synchronous `JSONDecoder`
+invocation already in progress may still finish before the detached child
+observes cancellation; the post-await guards prevent that stale result from
+advancing.
 
 When a persisted identification override is active, the displayed override name
 is the single Wikipedia, enrichment-cache, and GBIF identity. The Species
@@ -931,11 +951,12 @@ Dictionary cache-miss branch leaves enrichment to the enclosing `.historic`
 operation, avoiding a duplicate request; the original AI name remains only as
 the reset target.
 
-The coordinator keeps cancelled replacement handles until they actually finish,
-so Auth-transition quiescence also covers cancellation-ignoring tails. New-scan,
-analysis, cancellation, and historical-load boundaries all cancel through the
-same owner. `InferenceEngine` exposes only narrow historic-work status, await,
-and cancel methods; raw task handles do not escape the coordinator.
+The task coordinator keeps cancelled replacement handles until they actually
+finish, so Auth-transition quiescence also covers cancellation-ignoring tails.
+New-scan, analysis, cancellation, and historical-load boundaries all cancel
+through the same owner. `InferenceEngine` exposes only narrow historic-work
+status, await, and cancel methods; raw task handles do not escape either
+coordinator.
 
 ### Stale Content-Router State on New Scan (`InferenceEngine.prepareForNewScan()`)
 
@@ -955,11 +976,14 @@ only when a live inference path is confirmed online and immediately before
 setting `activeSheet = .insight`. Offline queued-only submissions must not call
 it; otherwise `isProcessing` can be left true with no live task to clear it. It:
 
-- Cancels `inferenceTask` and every current live, historical, and
-  identification-review hydration slot through `InferenceHydrationCoordinator`.
-  Wikipedia, enrichment, and GBIF requests are structured children of those
-  slots. The coordinator retains cancelled handles until completion for Auth
-  quiescence.
+- Delegates foreground teardown to `InferenceSessionLifecycleCoordinator`.
+  `InferenceLiveAttemptCoordinator` atomically detaches and cancels the current
+  task, retaining any displaced handle through termination, while
+  `InferenceHydrationCoordinator` cancels every live, historical, and
+  identification-review hydration slot. Wikipedia, enrichment, and GBIF requests
+  are structured children of those hydration slots. Both owners retain cancelled
+  handles needed for Auth quiescence without exposing raw task mutation to the
+  facade.
 - Calls `cancelLocalVisualAnalysis()`, which delegates to
   `InferenceLocalAnalysisCoordinator` to cancel and release its classification,
   deterministic-trait, Foundation-cue, and phrase-rotation task slots plus the
@@ -1009,14 +1033,14 @@ and retry, legacy migration rescue with a fresh persistent store, in-memory safe
 mode, and finally a startup-blocked UI if no `ModelContainer` can be created. No
 auth/config/store bootstrap path may hard-crash before user-visible recovery UI.
 
-### Unbounded GBIF Reference Image Accumulation (`InferenceEngine`)
+### Unbounded GBIF Reference Image Accumulation (Species Hydration)
 
-`fetchGBIFImagesAndHydrate` previously appended up to 4 new GBIF image URLs to
-`speciesData?.referenceImageUrl` (a comma-separated string) on every open. GBIF
-URLs are now capped at **5 entries** (`Array(currentUrls.prefix(5))`). The
-redundant `await MainActor.run { }` hops inside this method have also been
-removed — `InferenceEngine` is a `@MainActor` class, so all methods resume on
-the main actor after every `await`; the explicit wrappers were a no-op.
+The former engine-owned GBIF helper appended up to 4 new image URLs to
+`speciesData?.referenceImageUrl` (a comma-separated string) on every open.
+`InferenceSpeciesHydrationCoordinator.hydrateGBIF` now caps the merged list at
+**5 entries** (`Array(currentURLs.prefix(5))`). The coordinator and engine are
+both `@MainActor`, so final identity checks and publication need no redundant
+`MainActor.run` hop.
 
 ### Enrichment Re-firing on Every Open (`InferenceHydrationCoordinator`)
 
@@ -1030,9 +1054,9 @@ the call so even empty results prevent re-fires. Live inference scans (via
 
 ### Enrichment Rate-Limit Recovery (`InferenceHydrationCoordinator`)
 
-`fetchAndApplyEnrichment` asks the injected enrichment service to call the
-`enrich-scan` Edge Function, which proxies to Gemini. When Gemini returns HTTP
-429, `InferenceEngine` previously set a permanent
+`InferenceSpeciesEnrichmentCoordinator` asks the injected enrichment service to
+call the `enrich-scan` Edge Function, which proxies to Gemini. When Gemini
+returns HTTP 429, `InferenceEngine` previously set a permanent
 `isEnrichmentRateLimited: Bool = true` flag for the remainder of the app session
 — a single transient quota spike killed enrichment for all subsequent scans
 until app restart.
@@ -1108,13 +1132,14 @@ loaded the taxon key:
 - identification override/reset hydration awaits it inside `.review` when the
   Species Dictionary row has no usable reference URL.
 
-`fetchAndApplyEnrichment` only applies the returned taxon key; it does not spawn
-or register another GBIF request. This prevents the enrichment scope and its
-caller from querying GBIF twice for the same result. Registration of each
-top-level operation happens synchronously on `@MainActor`, before its first
-suspension. A replaced task is cancelled but retained in the coordinator's
-active registry until completion, preventing a cancellation-ignoring request
-from escaping the Auth drain or clearing its replacement's slot.
+The enrichment sub-coordinator only applies the returned taxon key; its parent
+species coordinator then awaits one GBIF request in the same structured
+operation. This prevents the enrichment scope and its caller from querying GBIF
+twice for the same result. Registration of each top-level operation happens
+synchronously on `@MainActor`, before its first suspension. A replaced task is
+cancelled but retained in the task coordinator's active registry until
+completion, preventing a cancellation-ignoring request from escaping the Auth
+drain or clearing its replacement's slot.
 
 The review path uses `replaceAndAwaitTask(in: .review)`, which awaits the exact
 task it registered even if a newer review replaces the slot. Apply, confirm, and
@@ -1141,18 +1166,19 @@ write handle.
 
 ### GBIF Response Decoded Off `@MainActor`
 
-`@MainActor InferenceEngine.fetchGBIFImagesAndHydrate` delegates the public
-request and wire parsing to the injected `SpeciesReferenceHydrationService`. The
-service owns its dedicated external `URLSession` and private `GBIFMediaResponse`
-DTO, then decodes common 50–200 KB occurrence responses inside
-`Task.detached(priority: .utility)`. Only the final `[String]` crosses back to
-the engine for presentation-identity validation, observable state mutation, URL
-policy, and persistence:
+`@MainActor InferenceSpeciesHydrationCoordinator.hydrateGBIF` delegates the
+public request and wire parsing to the injected
+`SpeciesReferenceHydrationService`. The service owns its dedicated external
+`URLSession` and private `GBIFMediaResponse` DTO, then decodes common 50–200 KB
+occurrence responses inside `Task.detached(priority: .utility)`. Only the final
+`[String]` crosses back to the coordinator for URL admission, exact-presentation
+validation, full-value observable publication, and persistence-work emission:
 
 ```swift
-let newUrls = try await speciesReferenceService
+let fetchedURLs = try await referenceService
     .fetchGBIFImageURLs(taxonKey: taxonKey)
-// @MainActor identity checks and UI/persistence patching continue here.
+let urls = fetchedURLs.compactMap(ExternalReferenceImagePolicy.sanitizedURL)
+// @MainActor identity checks and callback publication continue here.
 ```
 
 ### `JSONEncoder` Hoist + Consolidated Date Parse in `ingestScans` (`HistoricalDatabaseActor`)
@@ -1239,15 +1265,16 @@ path entirely.
 
 ### Background Write Task Cap and Pending Queue (`InferenceWriteCoordinator`)
 
-After a successful identification, `InferenceEngine` submits best-effort
-Wikipedia, GBIF, and enrichment persistence closures to the private
-`@MainActor InferenceWriteCoordinator`; admitted reference, metadata, and
-lookalike snapshots then cross `InferenceHydrationPersistenceService`.
-Identification review persistence and review-bound metadata share the
-coordinator's serial newest-action tail. Without a ceiling, rapid successive
-scans or a heavy session opening dozens of historical records could retain an
-unbounded number of actor instances, closures, and associated `ModelContext`
-objects, eventually triggering JetSam OOM.
+After a successful identification, `InferenceSpeciesPresentationCoordinator`
+submits admitted best-effort Wikipedia, GBIF, and enrichment persistence
+closures to the private `@MainActor InferenceWriteCoordinator`; reference,
+metadata, and lookalike snapshots then cross
+`InferenceHydrationPersistenceService`. Identification review persistence and
+review-bound metadata share the coordinator's serial newest-action tail. Without
+a ceiling, rapid successive scans or a heavy session opening dozens of
+historical records could retain an unbounded number of actor instances,
+closures, and associated `ModelContext` objects, eventually triggering JetSam
+OOM.
 
 The coordinator permits at most eight active and eight pending best-effort
 writes. Further submissions are dropped until capacity returns. Completion
@@ -1261,18 +1288,19 @@ private to the coordinator.
 
 ### Wikipedia Decode Offloaded from `@MainActor`
 
-`InferenceEngine.fetchWikipediaAndHydrate` delegates request construction,
-transport, private mobile-sections DTOs, and parsing to
+`InferenceSpeciesHydrationCoordinator.hydrateWikipedia` delegates request
+construction, transport, private mobile-sections DTOs, and parsing to
 `SpeciesReferenceHydrationService`. Popular responses can be 50–200 KB, so the
 shared service runs `JSONDecoder` and its pure `nonisolated` HTML normalization
 inside `Task.detached(priority: .utility)` rather than on the main run loop.
 
-Only `SpeciesWikipediaReference` crosses back to the engine. Its overview is
-optional so scan-thumbnail recovery can still use a valid article image when a
-Description section is absent; Inference requires a nonempty overview before
-applying any Wikipedia state, preserving its presentation behavior. The engine
-then checks scan, scientific-name, presentation-generation, and review-action
-identity before mutating observable state or scheduling persistence.
+Only `SpeciesWikipediaReference` crosses back to the coordinator. Its overview
+is optional so scan-thumbnail recovery can still use a valid article image when
+a Description section is absent; Inference requires a nonempty overview before
+applying any Wikipedia state, preserving its presentation behavior. The
+coordinator then asks the species-presentation callback to verify scan,
+scientific-name, presentation-generation, and review-action identity before
+publishing a full observable value or emitting persistence work.
 
 ### `AVCaptureSession.inputs` Thread Safety (`CameraSessionController`)
 
@@ -1297,15 +1325,19 @@ control paths must follow that split: AVFoundation session/device/output reads
 and `lockForConfiguration()` stay on the camera queue; `@Observable` state
 writes stay on `@MainActor`.
 
-### Historical Scan Hydration Snapshot Boundary (`InferenceEngine`)
+### Historical Scan Hydration Snapshot Boundary
 
 `InferenceEngine.load(from:)` receives a live SwiftData `LocalScanRecord`, but
-its follow-up hydration task can outlive the view transition that provided that
-record. `InferenceHistoricalRecordProjection` copies every required scalar,
-media snapshot, relationship-derived value, and deferred data blob while the
-model is still live on `@MainActor`. The historical task captures only that
-`Sendable` projection; it never touches `record` after suspension. Accessing a
-deleted or detached `@Model` from the hydration task can crash in
+the registered hydration task can outlive the view transition that provided that
+record. `InferenceHistoricalLoadCoordinator` snapshots the optional model
+container first, then constructs `InferenceHistoricalRecordProjection`, which
+copies every required scalar, media snapshot, relationship-derived value, and
+deferred data blob while the model is still live on `@MainActor`. The load
+coordinator publishes the initial projected state synchronously, and
+`InferenceHistoricalHydrationCoordinator` captures only the `Sendable`
+projection, model container, generations, and narrow callbacks for registered
+follow-up work. Neither coordinator touches `record` after suspension. Accessing
+a deleted or detached `@Model` from the hydration task can crash in
 `SwiftData._KKMDBackingData.getValue`.
 
 ### Thread Starvation & Dropped Frames (`InferenceEngine`)
@@ -1319,22 +1351,24 @@ and routed through the `@ModelActor BackgroundDatabaseActor`, preserving
 isolated SQL boundaries.
 
 If the user rapidly triggers the capture shutter, `.analyze()` retires the old
-presentation and asks `InferenceLiveAttemptCoordinator` to clear its local
-identity before releasing/retiring the durable owner, then requests cancellation
-of the coordinator's `inferenceTask`. Cancellation remains cooperative;
-exact-attempt checks prevent the displaced work from advancing to provider
-dispatch, persistence, or presentation effects even if a synchronous stage
-finishes first. An awaited queue deletion rechecks the scan, process-local UUID,
-and durable generation before clearing or retiring state, so a late finalizer
-cannot mutate a same-scan replacement.
+presentation through `InferenceSessionLifecycleCoordinator`. The live-attempt
+owner atomically detaches the exact current task and clears its local identity,
+retains and cancels that displaced handle, then releases/retires the captured
+durable owner. A synchronous durable callback can therefore install a
+replacement without later cleanup cancelling it. Exact-attempt checks prevent
+the displaced work from advancing to provider dispatch, persistence, or
+presentation effects even when cancellation is ignored. An awaited queue
+deletion rechecks the scan, process-local UUID, durable generation, cancellation
+state, and Auth follow-up epoch before clearing or authorizing anything, so a
+late finalizer cannot mutate a same-scan replacement.
 
 For historical scans, `InferenceHistoricalRecordProjection` captures serialized
 media values while the SwiftData record is live. Converting that snapshot to
 `ActiveScanMedia` performs only bounded local-path selection before the
 historical task is registered; media bytes remain lazily loaded by their
-downstream media owners. The engine releases the previous live-media buffers
-before this projection so a historical presentation does not overlap them in
-memory.
+downstream media owners. `InferenceHistoricalLoadCoordinator` releases the
+previous live-media buffers before this projection so a historical presentation
+does not overlap them in memory.
 
 ### Main Thread Disk I/O Blocking
 
@@ -2534,10 +2568,11 @@ before enqueue and stores it in `OfflineJobRecord.metadataJSON` in the same save
 as `OfflineQueuedScan`; the in-memory dictionary is registered before sync or
 replay can start. `InferenceLiveAttemptCoordinator` stores that generation with
 the active scan and process-local attempt UUID rather than relying on
-`activeScanId` alone. `InferenceEngine` invokes the coordinator's full-tuple
-validation at task entry, after external suspension points, immediately before
-provider dispatch, and at every side-effect boundary, and supplies a
-`LiveInferencePersistenceFence` to the database actor. `OfflineQueueManager`
+`activeScanId` alone. `InferenceLivePipelineCoordinator` invokes the
+coordinator's full-tuple validation at task entry and result boundaries;
+`InferenceLiveRequestService` invokes the supplied validator after external
+suspensions and immediately before provider dispatch. The pipeline also supplies
+a `LiveInferencePersistenceFence` to the database actor. `OfflineQueueManager`
 atomically consumes the generation before provider dispatch, making duplicate
 starts no-ops across engine instances. Cancellation and pre-provider exits
 register a tokenized retirement task synchronously before durable handoff
@@ -2547,12 +2582,13 @@ present. Retirement retries transient durable-owner fetch/save failures with
 bounded backoff while retaining the marker, so the system neither admits a
 callback-equivalent replacement nor strands the queue behind an abandoned claim.
 
-Error presentation is a generation-owned commit, not harmless cleanup. A failure
-handler snapshots the full scan, presentation-attempt, and foreground generation
-match before synchronously registering retirement. Only that owner may emit
-failure telemetry, update the circuit breaker, trigger a haptic, or publish an
-error placeholder, with no suspension between the snapshot and terminal commit.
-A stale or cooperatively cancelled task performs none of those effects.
+Error presentation is a generation-owned commit, not harmless cleanup.
+`InferenceLiveFailureCoordinator` snapshots the full scan, presentation-attempt,
+and foreground-generation match before synchronous queue handoff. It rechecks
+local ownership after release, retirement, and rejection callbacks, then emits
+terminal effects and returns only a narrow presentation action for the engine to
+apply. No suspension occurs between the ownership checks and terminal commit. A
+stale or cooperatively cancelled task performs none of those effects.
 
 Live persistence acquires `ScanInferencePersistenceCoordinator`, validates both
 the durable job generation, MainActor owner, and echoed result scan ID, and
@@ -2982,9 +3018,12 @@ Wikipedia/enrichment/GBIF results from the previous scan able to overwrite
 `speciesData` state set by the new result.
 
 `InferenceHydrationCoordinator` now owns a replaceable `.live` slot. At the top
-of every `analyze()` / `analyzeNonVisual()` call, the engine cancels all current
-hydration slots alongside `inferenceTask`. The live visual and nonvisual success
-paths both enter `schedulePostInferenceHydrationIfNeeded(...)`, which registers
+of every `analyze()` / `analyzeNonVisual()` replacement,
+`InferenceSessionLifecycleCoordinator` cancels all current hydration slots
+alongside the live attempt task. The live visual and nonvisual success paths
+both enter
+`InferenceSpeciesPresentationCoordinator.scheduleLiveHydrationIfNeeded(...)`,
+which delegates to `InferenceSpeciesHydrationCoordinator`. That owner registers
 one tracked operation containing:
 
 - a Wikipedia child task, skipped when the identify response already included
@@ -2993,8 +3032,8 @@ one tracked operation containing:
   sequentially fetch GBIF reference images with a cancellation check before the
   GBIF call
 
-The helper preserves the one intentional modality difference through
-`LiveReferenceHydrationPolicy`: visual captures may set
+The coordinator preserves the one intentional modality difference through its
+`ReferencePolicy`: visual captures may set
 `activeMedia.referenceState = .loading` while waiting for missing reference
 imagery; describe/audio success paths keep that loading state quiet. Core result
 presentation does not wait for hydration. `commitSuccessfulResult(...)`
@@ -3079,29 +3118,31 @@ the start of `fetchAndApplyEnrichment` as a persistent cross-session
 deduplication guard. It was subsequently **removed** because it introduced a
 similar-species regression:
 
-**Root cause of the regression:** `load(from:)` (the historical scan hydration
-path) decodes legacy `LocalScanRecord.similarSpecies TEXT[]` into
-`speciesData.similarSpecies` — producing `LookalikeSummary` entries with null
-`common_name` and null `reference_image_url` — _before_
-`fetchAndApplyEnrichment` runs. The gate saw `habitatDescription != nil`
-(already enriched) and `similarSpecies != nil` (populated from TEXT[], not from
-the join table) and returned early, permanently blocking the upgrade from legacy
-TEXT[] stubs to rich join-table lookalike entries for those scans.
+**Root cause of the regression:** The historical scan hydration path decodes
+legacy `LocalScanRecord.similarSpecies TEXT[]` through
+`InferenceHistoricalRecordProjection` into `speciesData.similarSpecies` —
+producing `LookalikeSummary` entries with null `common_name` and null
+`reference_image_url` — before `fetchAndApplyEnrichment` runs. The gate saw
+`habitatDescription != nil` (already enriched) and `similarSpecies != nil`
+(populated from TEXT[], not from the join table) and returned early, permanently
+blocking the upgrade from legacy TEXT[] stubs to rich join-table lookalike
+entries for those scans.
 
 **Why the gate was redundant:**
 
 - **Live scans**: `SpeciesData.init(fromEdgeResponse:)` always initializes
   `similarSpecies = nil`, so the gate would never fire for a newly-captured scan
   anyway.
-- **Historical scans**: the coordinator's scan-ID-scoped attempt history and
-  species-name-scoped, 24-hour `UserDefaults` timestamp cache already guard
-  re-fires within and across sessions.
+- **Historical scans**: `InferenceHydrationCoordinator`'s scan-ID-scoped attempt
+  history and species-name-scoped, 24-hour `UserDefaults` timestamp cache
+  already guard re-fires within and across sessions.
 - **Cross-session deduplication**: The persistent backstop is the enrichment
-  data itself. `load(from:)` computes a local `needsEnrichment` variable —
-  `record.habitatDescription == nil || record.gbifTaxonKey == nil || (record.lookalikesData == nil && (record.similarSpecies?.isEmpty ?? true))`
-  — and skips `fetchAndApplyEnrichment` when all fields are already present. No
-  separate `needsEnrichment: Bool` column exists on `LocalScanRecord`; the
-  stored enrichment fields are the gate.
+  data itself. `InferenceHistoricalRecordProjection` computes a value-only
+  `HydrationPlan`: metadata is needed when habitat is blank/missing, the GBIF
+  key is missing, or taxonomy cannot validate lookalikes; lookalikes are needed
+  when the installed reset applies, the rich blob is missing, or a nonempty
+  decoded rich set has no common names. No separate `needsEnrichment: Bool`
+  column exists on `LocalScanRecord`; the stored enrichment fields are the gate.
 
 **Rule:** Do not gate `fetchAndApplyEnrichment` on `similarSpecies != nil`.
 `similarSpecies` can be populated from the legacy TEXT[] path with incomplete
@@ -3109,7 +3150,7 @@ data (no common names, no images), which is visually indistinguishable from a
 populated join-table result at the gate check site but represents un-upgraded
 data that must still flow through `enrich-scan`.
 
-### Wikipedia Skip via `species_dictionary` Join (`InferenceEngine`)
+### Wikipedia Skip via `species_dictionary` Join (Species Hydration)
 
 The live-inference hydration operation previously always called
 `fetchWikipediaAndHydrate` for every successful scan, even if the `identify`
@@ -3122,8 +3163,7 @@ task boundary. Inside the task, the Wikipedia round-trip is skipped when
 
 ```swift
 if !capturedHasWikipedia {
-    await self.fetchWikipediaAndHydrate(...)
-    guard !Task.isCancelled else { return }
+    await hydrateWikipedia(...)
 }
 ```
 
@@ -3131,33 +3171,40 @@ For any species whose dictionary row already contains Wikipedia data, this
 eliminates a ~300–600 ms client Wikipedia call from background result hydration.
 Cache misses remain outside the first-render path.
 
-### Scoped Concurrent Enrichment (`InferenceEngine.fetchAndApplyEnrichment`)
+### Scoped Concurrent Enrichment (`InferenceSpeciesEnrichmentCoordinator`)
 
-`fetchAndApplyEnrichment` asks `InferenceSpeciesEnrichmentService` for the
+The enrichment coordinator asks `InferenceSpeciesEnrichmentService` for the
 `"enrichment"` scope (habitat, taxonomy, GBIF key) and `"lookalikes"` scope
 (similar species cards) concurrently via `withTaskGroup`. Only the service's
 live adapter calls the `enrich-scan` endpoint; the injected core resolves no
 live client directly and maps each response to a domain patch. Each `@MainActor`
-task group child applies its patch to `speciesData` as soon as its network call
+task group child applies its patch to a full `SpeciesData` value and publishes
+it through the current-presentation callback as soon as its network call
 resolves — the habitat card and taxonomy section become visible independently of
 the similar species gallery:
 
 ```swift
 await withTaskGroup(of: Void.self) { group in
     if needsMetadata {
-        group.addTask { @MainActor [self] in
-            defer { self.isEnrichmentLoading = false }
+        group.addTask { @MainActor in
+            defer { callbacks.setLoading(.metadata, false) }
             // fetches habitat_description, gbif_taxon_key, taxonomy
         }
     }
     if needsLookalikes {
-        group.addTask { @MainActor [self] in
-            defer { self.isLookalikesLoading = false }
+        group.addTask { @MainActor in
+            defer { callbacks.setLoading(.lookalikes, false) }
             // fetches similar_species
         }
     }
 }
 ```
+
+Each child checks cancellation immediately after its injected fetch returns. The
+Wikipedia and GBIF operations use the same post-suspension fence. Cancelling the
+owning live, historical, or review task may still allow an uncooperative
+dependency to finish, but that late response cannot log a failure, publish
+presentation state, consume retry/backoff state, or enqueue persistence work.
 
 Two `@Observable` flags gate their respective loading skeletons:
 
@@ -3165,30 +3212,35 @@ Two `@Observable` flags gate their respective loading skeletons:
   `HabitatAndDistributionCard`
 - `isLookalikesLoading` — similar species gallery skeleton in `BiologicalView`
 
-The historic `load(from:)` path computes `needsMetadata` and `needsLookalikes`
-independently so only the missing scope is requested:
+`InferenceHistoricalRecordProjection` computes `needsMetadata` and
+`needsLookalikes` independently for an eligible resolved, non-Human record, so
+only the missing scope is requested:
 
 ```swift
-let needsMetadata   = record.habitatDescription == nil || record.gbifTaxonKey == nil
-let needsLookalikes = record.lookalikesData == nil || lookalikesHaveNoCommonNames
+let needsMetadata = habitatIsBlank || gbifKeyIsMissing || taxonomyIsUnusable
+let needsLookalikes = resetApplies || richBlobIsMissing || nonemptyRichSetHasNoCommonNames
 ```
 
-GBIF image hydration continues to run unconditionally because it writes
-`referenceImageUrl` to the specific scan record. Only the `enrich-scan` Edge
-calls (which write species-level fields shared across all scans) are skipped
-when already present. For users scanning the same species repeatedly in a field
-session, this eliminates all but the first enrichment calls per species.
+GBIF image hydration remains per scan and runs after scoped enrichment only when
+the exact presentation allows reference images and an existing or newly enriched
+taxon key is available. The species-level timestamp may suppress a redundant
+metadata scope, but it does not suppress a still-needed per-scan lookalike
+scope. For repeated observations, this avoids redundant metadata work while
+still allowing incomplete local records to acquire rich lookalikes and reference
+images.
 
 **Rule:** The historical-attempt history is scan-ID-scoped and session-scoped;
 the enriched-species timestamp cache is species-name-scoped and
 **cross-session-persistent** via `UserDefaults` with a 24-hour TTL. Both belong
 to `InferenceHydrationCoordinator`, not the engine. The persistent cross-session
-backstop is the enrichment data itself: `load(from:)` computes `needsMetadata`
-and `needsLookalikes` from stored field presence — no separate
-`needsEnrichment: Bool` column exists on `LocalScanRecord`. Do not add an
-explicit boolean flag; the stored field presence is the correct signal. Do not
-gate on `similarSpecies` field presence alone; see the "Persistent Field Gate —
-REMOVED" section for the regression that approach introduced.
+backstop is the enrichment data itself: `InferenceHistoricalRecordProjection`
+computes `needsMetadata` and `needsLookalikes` from stored field presence and
+decoded quality, and `InferenceHistoricalLoadCoordinator` submits that
+value-only plan behind `load(from:)`. No separate `needsEnrichment: Bool` column
+exists on `LocalScanRecord`. Do not add an explicit boolean flag; the stored
+field presence is the correct signal. Do not gate on `similarSpecies` field
+presence alone; see the "Persistent Field Gate — REMOVED" section for the
+regression that approach introduced.
 
 ## 2026-05 Regression Test Anchors
 
@@ -3280,11 +3332,14 @@ This ensures:
   forward reset events that clear pending closures and invalidate stale write
   tasks so cancelled work cannot mutate the next scan session.
 - `InferenceLiveAttemptCoordinator` contains the non-observable foreground task,
-  scan, process-local attempt, durable generation, and recoverable scan on
-  `@MainActor`. Invalidation clears that local tuple before its injected queue
-  service releases upload or registers retirement. Awaited exact-generation
-  deletion rechecks the scan, local attempt, and durable generation before
-  clearing or retiring anything, so a stale finalizer cannot mutate a same-scan
+  retained displaced handles, scan, process-local attempt, durable generation,
+  and recoverable scan on `@MainActor`. Invalidation atomically detaches the
+  current task and clears that local tuple before its injected queue service
+  releases upload or registers retirement. It retains the cancelled displaced
+  handle until termination so Auth can await cancellation-ignoring work. Awaited
+  exact-generation deletion rechecks the scan, local attempt, durable
+  generation, cancellation state, and Auth follow-up epoch before clearing or
+  authorizing anything, so a stale finalizer cannot mutate a same-scan
   replacement. The core service has no singleton access; only its live adapter
   resolves `OfflineQueueManager` for this live-attempt lifecycle. Entitlement
   reconciliation retains its separate existing Offline Sync trigger.

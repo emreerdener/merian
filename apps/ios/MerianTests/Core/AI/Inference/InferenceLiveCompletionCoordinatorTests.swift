@@ -14,6 +14,7 @@ private final class InferenceLiveCompletionHarness {
         case notificationPreferenceRead
         case notification(String, String)
         case milestone(String, String)
+        case fundingSettlement(String)
         case queueDeleted(String, [String], UUID)
         case queueRetired(String, UUID, Bool, String)
     }
@@ -95,6 +96,10 @@ private final class InferenceLiveCompletionHarness {
                     events.append(
                         .milestone(scanId, speciesData.commonName)
                     )
+                },
+                commitFundingSettlement: { [self] settlement in
+                    events.append(.fundingSettlement(settlement.scanId))
+                    return true
                 }
             )
         )
@@ -196,12 +201,12 @@ struct InferenceLiveCompletionCoordinatorTests {
         ])
     }
 
-    @Test func durableFinalizationAuthorizesNotificationAndMilestone() async throws {
+    @Test func durableFinalizationAuthorizesSettlementNotificationAndMilestone() async throws {
         let harness = InferenceLiveCompletionHarness()
         let system = harness.makeSystem()
         let attempt = UUID()
         let foreground = UUID()
-        let speciesData = speciesData()
+        let speciesData = speciesData(scanId: "owner-scan")
         system.attemptCoordinator.activate(
             scanId: "owner-scan",
             attemptGeneration: attempt,
@@ -215,9 +220,13 @@ struct InferenceLiveCompletionCoordinatorTests {
                 foregroundGeneration: foreground,
                 mediaPathsToKeep: ["audio.m4a", "video.mov"],
                 speciesData: speciesData,
-                modelContainer: nil
+                modelContainer: nil,
+                fundingSettlement: try fundingSettlement(
+                    scanId: "owner-scan"
+                )
             )
         let acceptedPermit = try #require(permit)
+        system.coordinator.commitFundingSettlement(acceptedPermit)
         system.coordinator.sendNotificationIfEnabled(acceptedPermit)
         system.coordinator.scheduleMilestones(acceptedPermit)
 
@@ -228,10 +237,36 @@ struct InferenceLiveCompletionCoordinatorTests {
                 ["audio.m4a", "video.mov"],
                 foreground
             ),
+            .fundingSettlement("owner-scan"),
             .notificationPreferenceRead,
-            .notification("Test subject", "result-scan"),
-            .milestone("result-scan", "Test subject")
+            .notification("Test subject", "owner-scan"),
+            .milestone("owner-scan", "Test subject")
         ])
+    }
+
+    @Test func mismatchedSettlementIdentityCannotMutateFunding() throws {
+        let harness = InferenceLiveCompletionHarness()
+        let system = harness.makeSystem()
+        let attempt = UUID()
+        system.attemptCoordinator.activate(
+            scanId: nil,
+            attemptGeneration: attempt,
+            foregroundGeneration: nil
+        )
+
+        let permit = system.coordinator.authorizeQueueLessFollowUps(
+            scanId: nil,
+            attemptGeneration: attempt,
+            speciesData: speciesData(scanId: "result-scan"),
+            modelContainer: nil,
+            fundingSettlement: try fundingSettlement(
+                scanId: "different-scan"
+            )
+        )
+        let acceptedPermit = try #require(permit)
+        system.coordinator.commitFundingSettlement(acceptedPermit)
+
+        #expect(harness.events.isEmpty)
     }
 
     @Test func failedDurableFinalizationDeniesAllFollowUps() async {
@@ -359,6 +394,46 @@ struct InferenceLiveCompletionCoordinatorTests {
         ])
     }
 
+    @Test func authAdmissionDuringFinalizationDeniesFollowUps() async {
+        let gate = InferenceOperationGate()
+        let harness = InferenceLiveCompletionHarness()
+        harness.deleteOperation = {
+            await gate.wait()
+            return true
+        }
+        let system = harness.makeSystem()
+        let attempt = UUID()
+        let foreground = UUID()
+        system.attemptCoordinator.activate(
+            scanId: "owner-scan",
+            attemptGeneration: attempt,
+            foregroundGeneration: foreground
+        )
+
+        let finalization = Task { @MainActor in
+            await system.coordinator.finalizeQueueAndAuthorizeFollowUps(
+                scanId: "owner-scan",
+                attemptGeneration: attempt,
+                foregroundGeneration: foreground,
+                mediaPathsToKeep: [],
+                speciesData: speciesData(),
+                modelContainer: nil
+            )
+        }
+        await gate.waitUntilStarted()
+        system.attemptCoordinator.invalidateFollowUpAuthorization()
+        finalization.cancel()
+        await gate.release()
+
+        #expect(await finalization.value == nil)
+        #expect(
+            system.attemptCoordinator.activeForegroundGeneration == foreground
+        )
+        #expect(harness.events == [
+            .queueDeleted("owner-scan", [], foreground)
+        ])
+    }
+
     @Test func queueLessPermitPreservesSynchronousOwnerAndPreferenceFence() throws {
         let harness = InferenceLiveCompletionHarness()
         harness.notificationsEnabled = false
@@ -466,6 +541,36 @@ struct InferenceLiveCompletionCoordinatorTests {
             inferenceTier: "pro",
             audioFilePaths: ["audio.m4a"],
             videoFilePaths: ["video.mov"]
+        )
+    }
+
+    private func fundingSettlement(
+        scanId: String
+    ) throws -> InferenceResponseSettlement {
+        let accountId = UUID()
+        let metadata = try JSONDecoder().decode(
+            ScanEntitlementMetadataDTO.self,
+            from: Data(
+                """
+                {
+                  "user_id": "\(accountId.uuidString)",
+                  "plan_used": "pro_paid",
+                  "credit_consumed": false,
+                  "entitlement_after": {
+                    "current_plan": "pro_paid",
+                    "current_tier": "pro",
+                    "is_paid": true,
+                    "scans_remaining": 0,
+                    "scans_available_to_start": 0,
+                    "in_flight_count": 0,
+                    "entitlement_version": 1
+                  }
+                }
+                """.utf8
+            )
+        )
+        return try #require(
+            InferenceResponseSettlement(scanId: scanId, metadata: metadata)
         )
     }
 }

@@ -32,17 +32,35 @@ import SwiftUI
     let liveInferenceCompletionDependencies:
         InferenceLiveCompletionCoordinator.Dependencies
     @ObservationIgnored
+    let liveInferenceFailureDependencies:
+        InferenceLiveFailureCoordinator.Dependencies
+    @ObservationIgnored
+    let liveInferencePipelineDependencies:
+        InferenceLivePipelineCoordinator.Dependencies
+    @ObservationIgnored
+    let liveInferenceSpeciesReferenceService:
+        SpeciesReferenceHydrationService
+    @ObservationIgnored
     let liveInferenceSpeciesEnrichmentService:
         InferenceSpeciesEnrichmentService
     @ObservationIgnored
     let liveInferenceHydrationPersistenceService:
         InferenceHydrationPersistenceService
     @ObservationIgnored
+    let liveInferenceSpeciesHydrationDependencies:
+        InferenceSpeciesHydrationCoordinator.Dependencies
+    @ObservationIgnored
+    let liveInferenceLookalikeCacheResetService:
+        InferenceLookalikeCacheResetService
+    @ObservationIgnored
     let liveInferenceIdentificationReviewService:
         InferenceIdentificationReviewService
     @ObservationIgnored
     let liveInferenceReviewSnapshotService:
         InferenceReviewSnapshotService
+    @ObservationIgnored
+    let liveInferenceIdentificationReviewDependencies:
+        InferenceIdentificationReviewCoordinator.Dependencies
     var inferenceEngine: InferenceEngine
     var viewfinderIntelligence = ViewfinderIntelligence.shared
     var speechManager = SpeechManager()
@@ -100,10 +118,16 @@ import SwiftUI
         let liveInferenceRequestService = InferenceLiveRequestService.live
         let liveInferenceResultService = InferenceLiveResultService.live
         let liveInferenceQueueService = InferenceLiveQueueService.live
+        let liveInferenceSpeciesReferenceService =
+            SpeciesReferenceHydrationService.live
         let liveInferenceSpeciesEnrichmentService =
             InferenceSpeciesEnrichmentService.live
         let liveInferenceHydrationPersistenceService =
             InferenceHydrationPersistenceService.live
+        let liveInferenceSpeciesHydrationDependencies =
+            InferenceSpeciesHydrationCoordinator.Dependencies.live
+        let liveInferenceLookalikeCacheResetService =
+            InferenceLookalikeCacheResetService.live
         let liveInferenceIdentificationReviewService =
             InferenceIdentificationReviewService.live
         let liveInferenceReviewSnapshotService =
@@ -125,6 +149,23 @@ import SwiftUI
                 revenueCatManager: RevenueCatManager.shared,
                 appSettings: AppSettings.shared,
                 pushNotificationManager: PushNotificationManager.shared,
+                offlineQueueManager: OfflineQueueManager.shared,
+                eventSender: appEventPublisher,
+                milestoneCoordinator: scanMilestoneCoordinator
+            )
+        let liveInferenceFailureDependencies =
+            InferenceLiveFailureCoordinator.Dependencies.composed(
+                circuitBreakerManager: CircuitBreakerManager.shared,
+                hapticManager: HapticManager.shared,
+                usageManager: UsageManager.shared
+            )
+        let liveInferencePipelineDependencies =
+            InferenceLivePipelineCoordinator.Dependencies.composed(
+                circuitBreakerManager: CircuitBreakerManager.shared,
+                usageManager: UsageManager.shared
+            )
+        let liveInferenceIdentificationReviewDependencies =
+            InferenceIdentificationReviewCoordinator.Dependencies.composed(
                 eventSender: appEventPublisher,
                 milestoneCoordinator: scanMilestoneCoordinator
             )
@@ -138,14 +179,26 @@ import SwiftUI
         self.liveInferenceQueueService = liveInferenceQueueService
         self.liveInferenceCompletionDependencies =
             liveInferenceCompletionDependencies
+        self.liveInferenceFailureDependencies =
+            liveInferenceFailureDependencies
+        self.liveInferencePipelineDependencies =
+            liveInferencePipelineDependencies
+        self.liveInferenceSpeciesReferenceService =
+            liveInferenceSpeciesReferenceService
         self.liveInferenceSpeciesEnrichmentService =
             liveInferenceSpeciesEnrichmentService
         self.liveInferenceHydrationPersistenceService =
             liveInferenceHydrationPersistenceService
+        self.liveInferenceSpeciesHydrationDependencies =
+            liveInferenceSpeciesHydrationDependencies
+        self.liveInferenceLookalikeCacheResetService =
+            liveInferenceLookalikeCacheResetService
         self.liveInferenceIdentificationReviewService =
             liveInferenceIdentificationReviewService
         self.liveInferenceReviewSnapshotService =
             liveInferenceReviewSnapshotService
+        self.liveInferenceIdentificationReviewDependencies =
+            liveInferenceIdentificationReviewDependencies
         self.appEventPublisher = appEventPublisher
         self.milestoneToastClock = milestoneToastClock
         self.milestoneToastPresenter = milestoneToastPresenter
@@ -165,6 +218,8 @@ import SwiftUI
             liveQueueService: liveInferenceQueueService,
             liveCompletionDependencies:
                 liveInferenceCompletionDependencies,
+            speciesReferenceService:
+                liveInferenceSpeciesReferenceService,
             speciesEnrichmentService:
                 liveInferenceSpeciesEnrichmentService,
             hydrationPersistenceService:
@@ -172,7 +227,17 @@ import SwiftUI
             identificationReviewService:
                 liveInferenceIdentificationReviewService,
             identificationReviewSnapshotService:
-                liveInferenceReviewSnapshotService
+                liveInferenceReviewSnapshotService,
+            identificationReviewDependencies:
+                liveInferenceIdentificationReviewDependencies,
+            liveFailureDependencies:
+                liveInferenceFailureDependencies,
+            livePipelineDependencies:
+                liveInferencePipelineDependencies,
+            speciesHydrationDependencies:
+                liveInferenceSpeciesHydrationDependencies,
+            lookalikeCacheResetService:
+                liveInferenceLookalikeCacheResetService
         )
 
         if bindGlobalManagers {

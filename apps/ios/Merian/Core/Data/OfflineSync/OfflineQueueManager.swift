@@ -192,6 +192,35 @@ import SwiftData
     /// compare-before-clear ownership contract as probes and server polls.
     @ObservationIgnored let inferenceRetryTasks = GenerationTaskRegistry<String>()
 
+    /// Coalesced post-result funding reconciliation. Every admitted settlement
+    /// contributes an account-work lease; Auth cancellation awaits this owner
+    /// before it may replace the source session.
+    @ObservationIgnored
+    lazy var inferenceFundingReconciliationOwner =
+        InferenceFundingReconciliationOwner(
+            dependencies: .init(
+                reconcile: { [weak self] lease in
+                    await self?.reconcileDeferredFundingReservations(
+                        accountWorkLease: lease
+                    )
+                },
+                isLeaseCurrent: { lease in
+                    !SupabaseManager.shared.isAuthTransitionInProgress &&
+                        SupabaseManager.shared
+                        .isAccountBoundWorkLeaseCurrent(lease) &&
+                        EntitlementManager.shared.activeAccountID ==
+                        lease.session.userID
+                },
+                resumeQueueWork: { [weak self] in
+                    self?.syncPendingScans()
+                    self?.replayInferenceForUploadedScans()
+                },
+                finishLease: { lease in
+                    SupabaseManager.shared.finishAccountBoundWork(lease)
+                }
+            )
+        )
+
     /// Current inference generation for each scan. URLSession callbacks and
     /// watchdogs from older generations must not mutate a newer entry.
     @ObservationIgnored var activeInferenceGenerations: [String: UUID] = [:]

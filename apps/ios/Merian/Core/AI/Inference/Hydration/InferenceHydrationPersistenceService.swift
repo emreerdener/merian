@@ -4,8 +4,8 @@ import SwiftData
 /// Applies already-admitted inference hydration snapshots to local storage.
 ///
 /// Presentation generation and identification-review fencing remain owned by
-/// `InferenceEngine` and `InferenceWriteCoordinator`; this service receives
-/// work only after those owners admit it.
+/// `InferenceSpeciesPresentationCoordinator` and `InferenceWriteCoordinator`;
+/// this service receives work only after those boundaries admit it.
 struct InferenceHydrationPersistenceService: Sendable {
     struct ReferenceSnapshot: Equatable, Sendable {
         let scanId: String

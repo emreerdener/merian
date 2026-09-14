@@ -126,12 +126,13 @@ no quota and cannot override a cross-device decision.
 
 ### Durable ownership and local presentation were coupled
 
-`InferenceLiveAttemptCoordinator.isAttemptCurrent`, invoked by
-`InferenceEngine`, requires both the local presentation generation and the queue
-manager's foreground generation to be current. When `OfflineQueueManager`
-observes an unsatisfied path, it calls `releaseAllForegroundInferenceClaims`.
-Retirement synchronously registers the generation in the retirement registry,
-making the full ownership check false before URLSession necessarily returns.
+`InferenceLiveAttemptCoordinator.isAttemptCurrent`, invoked by the live pipeline
+and engine presentation boundaries, requires both the local presentation
+generation and the queue manager's foreground generation to be current. When
+`OfflineQueueManager` observes an unsatisfied path, it calls
+`releaseAllForegroundInferenceClaims`. Retirement synchronously registers the
+generation in the retirement registry, making the full ownership check false
+before URLSession necessarily returns.
 
 The later `URLError` catch therefore formerly exited at the stale-owner guard.
 Its defer path could stop processing and clear active identity without
@@ -163,12 +164,13 @@ end-to-end p95 target.
 
 The request now accepts explicit recovery ownership. Queue-backed foreground
 Identify sets `durableQueueOwnsRecovery`, receives one 15-second request window,
-and returns its first transport failure to the engine. Fifteen seconds is more
-than twice the documented p95 target, while a slow valid completion remains
-recoverable under the same stable scan ID and idempotency key. Queue-less
-callers retain the reviewed 90-second window and inline retry; authentication
-refresh, route-propagation recovery, and handler `5xx` behavior remain
-independently scoped.
+and returns its first transport failure to the live pipeline and synchronous
+failure coordinator; `InferenceLivePresentationCoordinator` applies only their
+exact-owner presentation action. Fifteen seconds is more than twice the
+documented p95 target, while a slow valid completion remains recoverable under
+the same stable scan ID and idempotency key. Queue-less callers retain the
+reviewed 90-second window and inline retry; authentication refresh, route-
+propagation recovery, and handler `5xx` behavior remain independently scoped.
 
 ### Error presentation no longer depends on display copy
 
@@ -181,9 +183,10 @@ success lifecycle.
 The current contract uses explicit typed presentation state instead of a title
 whitelist. The factory now lives in
 `Core/AI/Inference/Recovery/InferenceFailurePresentation.speciesData(telemetry:)`;
-the engine's synchronous failure handler publishes its values. It marks every
-transient failure and policy presentation as `.inferenceError`; decoded and
-persisted classifications default to `.inferenceResult`.
+`InferenceLiveFailureCoordinator` creates that value on its synchronous terminal
+path and returns a narrow `.publishFailure` action for the engine to apply. It
+marks every transient failure and policy presentation as `.inferenceError`;
+decoded and persisted classifications default to `.inferenceResult`.
 `isInferenceErrorPlaceholder` therefore cannot change when customer-facing copy
 changes. A direct role test and the protected queue-backed server/provider tests
 lock both sides of this boundary. Exact-SHA workflow and device acceptance still

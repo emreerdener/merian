@@ -42,11 +42,28 @@ actor InferenceProcessingActor {
         let isNewDiscovery: Bool
         let savedPaths: [String]
         let planUsed: String?
+        let fundingSettlement: InferenceResponseSettlement?
         /// True when the provider response reached a durable terminal state: either a
         /// `LocalScanRecord` was saved, or a valid confidence-zero response requires no
         /// record. False means persistence was rejected or failed and the queued job must
         /// remain available for recovery.
         let didCompletePersistence: Bool
+
+        init(
+            mappedData: SpeciesData?,
+            isNewDiscovery: Bool,
+            savedPaths: [String],
+            planUsed: String?,
+            fundingSettlement: InferenceResponseSettlement? = nil,
+            didCompletePersistence: Bool
+        ) {
+            self.mappedData = mappedData
+            self.isNewDiscovery = isNewDiscovery
+            self.savedPaths = savedPaths
+            self.planUsed = planUsed
+            self.fundingSettlement = fundingSettlement
+            self.didCompletePersistence = didCompletePersistence
+        }
     }
 
     func parseAndSave(
@@ -60,29 +77,36 @@ actor InferenceProcessingActor {
         audioFilePaths: [String]? = nil,
         videoFilePaths: [String]? = nil,
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
-        persistenceFence: LiveInferencePersistenceFence? = nil
+        persistenceFence: LiveInferencePersistenceFence? = nil,
+        expectedScanId: String? = nil
     ) async throws -> ParseAndSaveResult {
         let decoded = try await InferenceResponsePreparationService.live
             .prepare(
                 resultData: resultData,
                 telemetry: telemetry,
                 audioFilePaths: audioFilePaths,
-                videoFilePaths: videoFilePaths
+                videoFilePaths: videoFilePaths,
+                expectedScanId: expectedScanId ?? persistenceFence?.scanId
             )
         let mappedData = decoded.mappedData
 
+        guard decoded.responseMatchesExpectedScanId else {
+            return ParseAndSaveResult(
+                mappedData: mappedData,
+                isNewDiscovery: false,
+                savedPaths: [],
+                planUsed: decoded.planUsed,
+                didCompletePersistence: false
+            )
+        }
+
         var newDiscovery = false
         var savedPaths: [String] = []
-        let responseMatchesFence = persistenceFence.map { fence in
-            mappedData.scanId?.caseInsensitiveCompare(fence.scanId)
-                == .orderedSame
-        } ?? true
         // Confidence-zero is a valid terminal provider response. It intentionally creates no
         // LocalScanRecord, matching the background retry path, but must not trigger another
         // paid provider call merely because there was nothing to persist. A queue-backed
         // response must still echo the exact scan ID before that no-record result is trusted.
-        var didCompletePersistence =
-            mappedData.confidenceScore <= 0.0 && responseMatchesFence
+        var didCompletePersistence = mappedData.confidenceScore <= 0.0
 
         let persistenceStartedAt = CFAbsoluteTimeGetCurrent()
         if mappedData.confidenceScore > 0.0, let container = modelContext?.container,
@@ -132,6 +156,9 @@ actor InferenceProcessingActor {
             isNewDiscovery: newDiscovery,
             savedPaths: savedPaths,
             planUsed: decoded.planUsed,
+            fundingSettlement: didCompletePersistence
+                ? decoded.fundingSettlement
+                : nil,
             didCompletePersistence: didCompletePersistence
         )
     }

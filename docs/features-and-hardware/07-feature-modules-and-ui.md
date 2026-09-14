@@ -1221,9 +1221,11 @@ an Edge API response or opened offline via the Scans library.
   retain the authoring account ID, so an older mutation cannot overwrite newer
   state or cross an Auth transition. SwiftUI components keep animation, layout,
   alert drafts, and interaction wiring.
-- **Decoupled Asynchronous Validations**: All asynchronous `FileManager` fetches
-  identifying historic local payloads are removed from the `ImagesCarousel` and
-  isolated into the background `load` pipeline inside `InferenceEngine`.
+- **Decoupled Media Resolution**: `ImagesCarousel` performs no `FileManager`
+  lookup. Serialized media values resolve compatible persisted paths, while
+  `InferenceHistoricalLoadCoordinator` synchronously projects historical media
+  through `InferencePresentationState` behind the stable engine facade. Live
+  media path and HTTPS policy remain in `InferenceLiveMediaProjector`.
 - **Isolated Animation Engine**: Features a continuously rotating 360-degree
   `LinearGradient` (rainbow styling) for pending AI states. The animation logic
   is decoupled and bound inside a localized struct with `Equatable` conformance,
@@ -1280,11 +1282,14 @@ an Edge API response or opened offline via the Scans library.
 
 - Spawns parallel external lookups fetching the full taxonomic classification
   into the visual `TaxonomyCard`.
-- After the Gemini payload renders, `InferenceEngine` delegates Wikipedia
-  mobile-sections transport and parsing to its injected
-  `SpeciesReferenceHydrationService`. When the result still matches the active
-  scan generation, the engine applies the description and reference media to
-  `InsightSheetView` without requiring modal dismissal.
+- After the Gemini payload renders, `InferenceEngine` delegates the exact live
+  hydration request through `InferenceSpeciesPresentationCoordinator` to
+  `InferenceSpeciesHydrationCoordinator`, which asks its injected
+  `SpeciesReferenceHydrationService` for Wikipedia mobile-sections transport and
+  parsing. When the result still matches the active scan generation, the
+  coordinator publishes the description and reference media through the
+  species-presentation callback so `InsightSheetView` updates without requiring
+  modal dismissal.
 
 ## 4. Account (`ProfileView`)
 
@@ -1841,41 +1846,43 @@ dependency composition.
   **Offline Submission Intercept**: To optimize UX and preserve computing power,
   `CaptureWorkspaceViewModel.submitStagedCapture` gates
   `activeSheet = .insight`, `InferenceEngine.prepareForNewScan()`, and the live
-  `InferenceEngine.analyze` Task behind durable `enqueueCapture` acceptance plus
-  `OfflineQueueManager.isOnline`. If the queue rejects the durable write, the UI
-  shows an error and deletes unowned source media; if the user is un-networked,
-  execution drops after the queued callback, clears the pending live scan ID,
-  circumvents timeout overlays, and surfaces a temporary `ToastBanner` ("No
-  network connection. Scan queued for later.") directly on the camera matrix
-  without locking the viewfinder. **Progressive On-Device Visual Analysis
-  (`VNClassifyImageRequest`)**: After staging images or sampled video frames for
-  inference, `InferenceEngine.analyze` starts an exact typed visual session in
-  the private `InferenceLocalAnalysisCoordinator`. The coordinator builds one
-  derivative bounded to 512 px from the primary inference image. It applies the
-  first visual item's accepted padded focus region when present and does not
-  analyze another capture or alter Gemini's ordered payload. Morphology-only
-  generic copy starts immediately. A Vision result that clears the 0.65
-  confidence floor, 0.15 runner-up margin, and broad-category mapping replaces
-  that copy immediately; all later automatic changes use the single 2.3-second
-  phrase clock. After Vision completes, a 32×32 sample of the same derivative
-  produces five validated, image-specific dominant-color, saturation, lighting,
-  light-contrast, and surface-detail cues for subsequent ticks. Source priority
-  prevents generic or category regression. Within the active deck, every
-  available phrase appears before its first phrase becomes eligible again. Trait
-  kinds render as natural verb-led sentences such as **Analyzing gray and green
-  colors**, **Reviewing softly colored areas**, or **Observing light and shadow
-  areas**, never `Kind: detail` fields or numeric bucket labels such as
-  **moderate** and **balanced**. `AppDIContainer` injects the live classifier,
-  deterministic trait extractor, Foundation visual-cue seam, eligibility
-  provider, and light-impact start feedback. Direct/default engine instances use
-  inert start feedback. The Xcode 26.6 Foundation provider is intentionally a
-  no-op, but deterministic image traits are active; after stable Xcode 27, an
-  iOS 27 availability-gated on-device provider may start only after the Gemini
-  request body is sent and local Vision completes. Partial or unsafe cue
-  snapshots never reach SwiftUI. Scan ID, presentation-attempt, and durable
-  foreground-generation fences discard stale completions. Result arrival,
-  dismissal, replacement, queue handoff, Auth transition, and failure fence
-  local producers without joining network or persistence work. Consecutive
+  `InferenceEngine.analyze` call behind durable `enqueueCapture` acceptance plus
+  `OfflineQueueManager.isOnline`. The engine delegates task launch and
+  registration to `InferenceLiveSubmissionCoordinator`. If the queue rejects the
+  durable write, the UI shows an error and deletes unowned source media; if the
+  user is un-networked, execution drops after the queued callback, clears the
+  pending live scan ID, circumvents timeout overlays, and surfaces a temporary
+  `ToastBanner` ("No network connection. Scan queued for later.") directly on
+  the camera matrix without locking the viewfinder. **Progressive On-Device
+  Visual Analysis (`VNClassifyImageRequest`)**: After staging images or sampled
+  video frames for inference, `InferenceEngine.analyze` delegates to
+  `InferenceLiveSubmissionCoordinator`, which starts an exact typed visual
+  session in the private `InferenceLocalAnalysisCoordinator`. The local-analysis
+  coordinator builds one derivative bounded to 512 px from the primary inference
+  image. It applies the first visual item's accepted padded focus region when
+  present and does not analyze another capture or alter Gemini's ordered
+  payload. Morphology-only generic copy starts immediately. A Vision result that
+  clears the 0.65 confidence floor, 0.15 runner-up margin, and broad-category
+  mapping replaces that copy immediately; all later automatic changes use the
+  single 2.3-second phrase clock. After Vision completes, a 32×32 sample of the
+  same derivative produces five validated, image-specific dominant-color,
+  saturation, lighting, light-contrast, and surface-detail cues for subsequent
+  ticks. Source priority prevents generic or category regression. Within the
+  active deck, every available phrase appears before its first phrase becomes
+  eligible again. Trait kinds render as natural verb-led sentences such as
+  **Analyzing gray and green colors**, **Reviewing softly colored areas**, or
+  **Observing light and shadow areas**, never `Kind: detail` fields or numeric
+  bucket labels such as **moderate** and **balanced**. `AppDIContainer` injects
+  the live classifier, deterministic trait extractor, Foundation visual-cue
+  seam, eligibility provider, and light-impact start feedback. Direct/default
+  engine instances use inert start feedback. The Xcode 26.6 Foundation provider
+  is intentionally a no-op, but deterministic image traits are active; after
+  stable Xcode 27, an iOS 27 availability-gated on-device provider may start
+  only after the Gemini request body is sent and local Vision completes. Partial
+  or unsafe cue snapshots never reach SwiftUI. Scan ID, presentation-attempt,
+  and durable foreground-generation fences discard stale completions. Result
+  arrival, dismissal, replacement, queue handoff, Auth transition, and failure
+  fence local producers without joining network or persistence work. Consecutive
   inactive/background callbacks are idempotent: the coordinator stops local work
   once while retaining the exact visual owner, current phrase, and at most one
   pending cadence resume. Reactivation resumes only that visual cadence and

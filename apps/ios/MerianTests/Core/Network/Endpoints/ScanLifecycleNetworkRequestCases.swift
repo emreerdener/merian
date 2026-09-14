@@ -55,6 +55,9 @@ struct ScanLifecycleNetworkRequestCase: Sendable, CustomTestStringConvertible {
     }
 
     static var operations: [Self] { [status, compatibility, bulk, deletion, recovery] }
+    static var authRecoveringOperations: [Self] {
+        operations.filter { $0.kind != .bulk }
+    }
     static var statusOperations: [Self] { operations.filter { $0.kind != .deletion } }
     static var all: [Self] { operations + variants }
 

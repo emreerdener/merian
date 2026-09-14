@@ -1,7 +1,9 @@
 import Foundation
 
-/// Stateless decisions for the live pipelines. The engine retains recovery
-/// sequencing and observable or feedback effects; the live-attempt coordinator
+/// Stateless decisions for the live pipelines. The live-failure coordinator
+/// retains recovery sequencing and effects; the live-pipeline coordinator owns
+/// both catch paths and the live-presentation coordinator applies only
+/// `InferencePresentationState` actions, while the live-attempt coordinator
 /// owns exact validation and durable queue effects.
 enum InferenceLiveFailurePolicy {
     enum Mode: Equatable, Sendable {

@@ -560,6 +560,8 @@ private struct RevenueCatPublicIdentity: Decodable {
             .cancelAndAwaitAccountBoundWorkForAuthTransition()
         await AppDIContainer.shared.inferenceEngine
             .awaitAuthTransitionWriteQuiescence()
+        await OfflineQueueManager.shared
+            .cancelAndAwaitInferenceFundingSettlementForAuthTransition()
         guard await OfflineQueueManager.shared
             .quiesceBackgroundAccountWorkForAuthTransition(
                 sourceUserID:

@@ -170,13 +170,19 @@ struct ScanFinalizationArchitectureTests {
         ))
         #expect(inference.contains("struct ParseAndSaveResult: Sendable"))
         #expect(preparation.contains("func prepare("))
-        #expect(preparation.contains("await reconcileEntitlement("))
         #expect(preparation.contains(
             "struct InferenceResponsePreparationService: Sendable"
         ))
         #expect(preparation.contains("struct PreparedResponse: Sendable"))
+        #expect(preparation.contains("struct InferenceResponseSettlement: Sendable"))
+        #expect(preparation.contains("expectedScanId: String?"))
+        #expect(preparation.contains("responseMatchesExpectedScanId"))
         #expect(!preparation.contains("@unchecked Sendable"))
         #expect(!preparation.contains("actor InferenceResponsePreparationService"))
+        #expect(!preparation.contains("EntitlementManager"))
+        #expect(!preparation.contains("UsageManager"))
+        #expect(!preparation.contains("OfflineQueueManager"))
+        #expect(!preparation.contains("Task {"))
         #expect(!finalization.contains("InferenceProcessingActor.shared"))
         #expect(
             preparation.components(
@@ -189,6 +195,12 @@ struct ScanFinalizationArchitectureTests {
             ).count == 2
         )
         #expect(finalization.contains("dependencies.decodeResponse("))
+        #expect(finalization.contains(
+            "guard preparedResponse.responseMatchesExpectedScanId else"
+        ))
+        #expect(finalization.contains(
+            "preparedResponse.fundingSettlement"
+        ))
         #expect(!finalization.contains("SpeciesData("))
         #expect(resultModels.contains(
             "struct OfflineScanProcessingResult: Sendable"

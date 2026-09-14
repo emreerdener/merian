@@ -24,6 +24,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
     ) private var messageShareCacheRecords: [LocalScanRecord]
 
     let viewModel: CaptureWorkspaceViewModel
+    let coordinator: CaptureActionCoordinator
     @Binding var captureMode: CaptureMode
     @Binding var observationContext: ObservationContext
     let describePromptViewModel: DescribePromptViewModel

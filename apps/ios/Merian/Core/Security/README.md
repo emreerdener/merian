@@ -78,7 +78,9 @@ pin lifecycle. See the
   grant, unheld capacity available to start, in-flight holds, and the monotonic
   entitlement version. It also serializes stable scan/account funding
   reservations on `@MainActor`; the exposed booleans are UI hints, not an
-  admission transaction.
+  admission transaction. `EntitlementStateSnapshot` is the immutable, checked-
+  Sendable domain projection used to carry generated response DTO values across
+  inference actor boundaries without widening those wire declarations.
 - `ScanAdmissionManager` reads the authenticated account's prospective scan plan
   and UTC-day allowance immediately before Capture starts hardware or submission
   work. Preview responses are never cached, because even a short cache could
@@ -525,7 +527,10 @@ response arrives first, the manager buffers only the newest valid snapshot, then
 reconciles it after `get_my_entitlement()`. Once verified, snapshots apply only
 when `entitlementVersion` is at least the installed version, so an out-of-order
 replay cannot restore a stale balance. Session changes and sign-out clear the
-proof and buffer.
+proof and buffer. Inference response preparation only projects
+`EntitlementStateSnapshot`; Offline Sync applies the accepted settlement after
+successful local persistence and any required exact queue deletion under an
+account-work lease retained through Auth quiescence.
 
 The accepted product, API, offline, and rollout rules are canonical in
 [Three Complimentary Pro Scans](../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).

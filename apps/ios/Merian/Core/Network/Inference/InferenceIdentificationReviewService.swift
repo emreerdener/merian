@@ -42,7 +42,7 @@ struct InferenceIdentificationReviewMutation: Encodable, Equatable, Sendable {
     let override: String?
     let confirmed: Bool
     let confirmedSpeciesID: String?
-    let userReviewState: String
+    let userReviewState: UserReviewState
 
     enum CodingKeys: String, CodingKey {
         case scanID = "p_scan_id"
@@ -50,6 +50,57 @@ struct InferenceIdentificationReviewMutation: Encodable, Equatable, Sendable {
         case confirmed = "p_confirmed"
         case confirmedSpeciesID = "p_confirmed_species_id"
         case userReviewState = "p_user_review_state"
+    }
+
+    static func userOverride(
+        scanID: String,
+        scientificName: String,
+        confirmedSpeciesID: String?
+    ) -> Self {
+        Self(
+            scanID: scanID,
+            override: scientificName,
+            confirmed: false,
+            confirmedSpeciesID: confirmedSpeciesID,
+            userReviewState: .userOverridden
+        )
+    }
+
+    static func aiConfirmation(
+        scanID: String,
+        confirmedSpeciesID: String?
+    ) -> Self {
+        Self(
+            scanID: scanID,
+            override: nil,
+            confirmed: true,
+            confirmedSpeciesID: confirmedSpeciesID,
+            userReviewState: .aiConfirmed
+        )
+    }
+
+    static func reset(scanID: String) -> Self {
+        Self(
+            scanID: scanID,
+            override: nil,
+            confirmed: false,
+            confirmedSpeciesID: nil,
+            userReviewState: .unreviewed
+        )
+    }
+
+    private init(
+        scanID: String,
+        override: String?,
+        confirmed: Bool,
+        confirmedSpeciesID: String?,
+        userReviewState: UserReviewState
+    ) {
+        self.scanID = scanID
+        self.override = override
+        self.confirmed = confirmed
+        self.confirmedSpeciesID = confirmedSpeciesID
+        self.userReviewState = userReviewState
     }
 
     func encode(to encoder: Encoder) throws {
@@ -67,7 +118,7 @@ struct InferenceIdentificationReviewMutation: Encodable, Equatable, Sendable {
         if confirmedSpeciesID == nil {
             try container.encodeNil(forKey: .confirmedSpeciesID)
         }
-        try container.encode(userReviewState, forKey: .userReviewState)
+        try container.encode(userReviewState.rawValue, forKey: .userReviewState)
     }
 }
 

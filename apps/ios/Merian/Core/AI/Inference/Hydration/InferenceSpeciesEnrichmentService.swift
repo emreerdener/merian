@@ -3,9 +3,9 @@ import Foundation
 /// Normalizes progressive `enrich-scan` responses for the inference
 /// presentation and persistence boundaries.
 ///
-/// `InferenceEngine` retains request admission, concurrency, retry, loading,
-/// and stale-presentation policy. This service performs no observable or
-/// SwiftData mutation.
+/// `InferenceSpeciesEnrichmentCoordinator` retains request admission,
+/// concurrency, retry, loading, and stale-presentation policy. This service
+/// performs no observable or SwiftData mutation.
 struct InferenceSpeciesEnrichmentService: Sendable {
     enum Scope: String, Sendable {
         case metadata = "enrichment"

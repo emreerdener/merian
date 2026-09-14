@@ -52,7 +52,33 @@ extension OfflineQueueManager {
 
     /// Performs one bulk status lookup for all deferred blockers in a scheduler
     /// pass, then persists any safe reclassification before dispatch begins.
-    func reconcileDeferredFundingReservations() async {
+    func reconcileDeferredFundingReservations(
+        accountWorkLease providedLease: AccountBoundWorkLease? = nil
+    ) async {
+        let accountWorkLease: AccountBoundWorkLease
+        let ownsAccountWorkLease: Bool
+        if let providedLease {
+            accountWorkLease = providedLease
+            ownsAccountWorkLease = false
+        } else {
+            guard let accountId = EntitlementManager.shared.activeAccountID,
+                  let lease = try? SupabaseManager.shared
+                  .beginUnownedAccountBoundWork(expectedUserID: accountId)
+            else {
+                return
+            }
+            accountWorkLease = lease
+            ownsAccountWorkLease = true
+        }
+        defer {
+            if ownsAccountWorkLease {
+                SupabaseManager.shared.finishAccountBoundWork(
+                    accountWorkLease
+                )
+            }
+        }
+        guard fundingAccountWorkIsCurrent(accountWorkLease) else { return }
+
         restoreFundingReservationsForCurrentAccount()
         let blockers = Array(
             EntitlementManager.shared.fundingBlockerScanIds.prefix(50)
@@ -72,6 +98,9 @@ extension OfflineQueueManager {
                 )
                 return
             }
+            guard fundingAccountWorkIsCurrent(accountWorkLease) else {
+                return
+            }
             for blocker in blockers {
                 guard let response = responses[blocker] else { continue }
                 EntitlementManager.shared.applyComplimentaryState(
@@ -88,6 +117,9 @@ extension OfflineQueueManager {
         if EntitlementManager.shared.hasReleasedDeferredBlocker ||
             EntitlementManager.shared.needsTerminalSettlementEntitlementRefresh {
             let refreshed = await EntitlementManager.shared.refreshCurrentSession()
+            guard fundingAccountWorkIsCurrent(accountWorkLease) else {
+                return
+            }
             if refreshed {
                 EntitlementManager.shared
                     .confirmTerminalSettlementsAfterEntitlementRefresh()
@@ -96,6 +128,7 @@ extension OfflineQueueManager {
 
         let previous = EntitlementManager.shared.deferredFundingReservations
         let changes = EntitlementManager.shared.resolveDeferredFunding()
+        guard fundingAccountWorkIsCurrent(accountWorkLease) else { return }
         guard !changes.isEmpty, let context = modelContext else { return }
         do {
             for reservation in changes {
@@ -130,6 +163,15 @@ extension OfflineQueueManager {
                 "Deferred funding reclassification could not be persisted: \(error.localizedDescription, privacy: .private)"
             )
         }
+    }
+
+    private func fundingAccountWorkIsCurrent(
+        _ lease: AccountBoundWorkLease
+    ) -> Bool {
+        !Task.isCancelled &&
+            !SupabaseManager.shared.isAuthTransitionInProgress &&
+            SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(lease) &&
+            EntitlementManager.shared.activeAccountID == lease.session.userID
     }
 
     private func localFundingBlockerIsTerminal(scanId: String) -> Bool {

@@ -246,6 +246,10 @@ extension OfflineQueueManager {
             return
         }
 
+        if let fundingSettlement = processingResult.fundingSettlement {
+            _ = commitInferenceResponseSettlement(fundingSettlement)
+        }
+
         if let speciesName = processingResult.resolvedSpeciesName,
            let dbScanId = processingResult.finalScanId {
             MerianLog.data.debug(
@@ -283,10 +287,10 @@ extension OfflineQueueManager {
                 // sheet in "Analyzing..." until the live task eventually times out and shows
                 // "Network timeout" even though the scan completed successfully.
                 //
-                // The recovered-result commit first invalidates the exact live
-                // presentation slot and publishes species data. Cooperative
-                // cancellation happens afterward, so the old task's defer and
-                // error handlers fail their generation check and become no-ops.
+                // The recovered-result commit atomically detaches and cancels
+                // the exact displaced live task before publishing species data.
+                // Its defer and error handlers fail their generation check, and
+                // a synchronous observer may safely install a replacement.
                 if let speciesData = processingResult.speciesData {
                     let engine = AppDIContainer.shared.inferenceEngine
                     // Hydrate when the engine is still waiting for a result for this exact scan.
@@ -300,7 +304,7 @@ extension OfflineQueueManager {
                            engine.activeLiveInferenceAttemptGeneration {
                         let releasedForegroundGeneration =
                             engine.activeForegroundInferenceGeneration
-                        let didHydrate =
+                        _ =
                             engine.commitRecoveredBackgroundResult(
                                 for: scanId,
                                 replacingAttemptGeneration:
@@ -309,14 +313,11 @@ extension OfflineQueueManager {
                                     releasedForegroundGeneration,
                                 speciesData: speciesData
                             )
-                        if didHydrate {
-                            engine.inferenceTask?.cancel()
-                        }
-                    } else if engine.commitRecoveredQueuedResult(
-                        for: scanId,
-                        speciesData: speciesData
-                    ) {
-                        engine.inferenceTask?.cancel()
+                    } else {
+                        _ = engine.commitRecoveredQueuedResult(
+                            for: scanId,
+                            speciesData: speciesData
+                        )
                     }
                 }
             }

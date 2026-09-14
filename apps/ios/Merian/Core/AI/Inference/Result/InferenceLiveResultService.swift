@@ -3,10 +3,12 @@ import SwiftData
 
 /// Adapts one live response to the existing parsing/persistence actor.
 ///
-/// The actor remains authoritative for durable completion. The engine supplies
-/// exact-attempt validation and retains presentation; the live-completion
-/// coordinator owns normalized discovery, replacement, telemetry, and follow-up
-/// effects, while the live-attempt coordinator owns exact queue lifecycle.
+/// The actor remains authoritative for durable completion. The live-pipeline
+/// coordinator supplies exact-attempt validation and sequences completion; the
+/// live-presentation coordinator publishes through `InferencePresentationState`.
+/// The live-completion coordinator owns normalized discovery, replacement,
+/// telemetry, and follow-up effects, while the live-attempt coordinator owns
+/// exact queue lifecycle.
 struct InferenceLiveResultService {
     struct Dependencies {
         let parseAndSave:
@@ -29,6 +31,9 @@ struct InferenceLiveResultService {
         let submissionProjection: CaptureSubmissionMediaProjection
         let modelContext: ModelContext?
         let persistenceFence: LiveInferencePersistenceFence?
+        /// Nil only for the compatibility queue-less nonvisual request, which
+        /// intentionally lets the server assign its scan identity.
+        let expectedScanId: String?
     }
 
     struct PersistenceRequest {
@@ -43,6 +48,7 @@ struct InferenceLiveResultService {
         let videoFilePaths: [String]?
         let mediaTimeline: [CaptureSubmissionMediaItem]
         let persistenceFence: LiveInferencePersistenceFence?
+        let expectedScanId: String?
     }
 
     struct CompletedResult {
@@ -50,6 +56,21 @@ struct InferenceLiveResultService {
         let isNewDiscovery: Bool
         let savedImagePaths: [String]
         let planUsed: String?
+        let fundingSettlement: InferenceResponseSettlement?
+
+        init(
+            speciesData: SpeciesData,
+            isNewDiscovery: Bool,
+            savedImagePaths: [String],
+            planUsed: String?,
+            fundingSettlement: InferenceResponseSettlement? = nil
+        ) {
+            self.speciesData = speciesData
+            self.isNewDiscovery = isNewDiscovery
+            self.savedImagePaths = savedImagePaths
+            self.planUsed = planUsed
+            self.fundingSettlement = fundingSettlement
+        }
     }
 
     enum Outcome {
@@ -89,7 +110,8 @@ struct InferenceLiveResultService {
                     audioFilePaths: request.audioFilePaths,
                     videoFilePaths: request.videoFilePaths,
                     mediaTimeline: request.mediaTimeline,
-                    persistenceFence: request.persistenceFence
+                    persistenceFence: request.persistenceFence,
+                    expectedScanId: request.expectedScanId
                 )
             }
         )
@@ -116,7 +138,8 @@ struct InferenceLiveResultService {
             speciesData: mappedData,
             isNewDiscovery: parsed.isNewDiscovery,
             savedImagePaths: parsed.savedPaths,
-            planUsed: parsed.planUsed
+            planUsed: parsed.planUsed,
+            fundingSettlement: parsed.fundingSettlement
         )
         return mappedData.confidenceScore <= 0
             ? .completedWithoutRecord(result)
@@ -153,7 +176,8 @@ struct InferenceLiveResultService {
                 ? nil
                 : request.submissionProjection.videoFilePaths,
             mediaTimeline: request.mediaTimeline,
-            persistenceFence: request.persistenceFence
+            persistenceFence: request.persistenceFence,
+            expectedScanId: request.expectedScanId
         )
     }
 }

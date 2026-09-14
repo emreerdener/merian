@@ -22,6 +22,16 @@ struct InferenceLiveCompletionArchitectureTests {
                 "apps/ios/Merian/Core/AI/InferenceEngine.swift"
             )
         )
+        let presentationBridge = try contents(
+            of: root.appendingPathComponent(
+                "apps/ios/Merian/Core/AI/Inference/Pipeline/InferenceLivePresentationCoordinator.swift"
+            )
+        )
+        let pipeline = try contents(
+            of: root.appendingPathComponent(
+                "apps/ios/Merian/Core/AI/Inference/Pipeline/InferenceLivePipelineCoordinator.swift"
+            )
+        )
         let appDI = try contents(
             of: root.appendingPathComponent(
                 "apps/ios/Merian/Core/AppDIContainer.swift"
@@ -31,12 +41,14 @@ struct InferenceLiveCompletionArchitectureTests {
         for token in [
             "struct PreparedCompletion",
             "struct FollowUpPermit",
-            "fileprivate init(\n            speciesData: SpeciesData,",
+            "fileprivate let fundingSettlement:",
             "func prepare(",
             "func publishForegroundCompletionEventIfNeeded(",
             "func authorizeQueueLessFollowUps(",
             "guard scanId == nil else { return nil }",
             "func finalizeQueueAndAuthorizeFollowUps(",
+            "func commitFundingSettlement(",
+            "fundingSettlement.scanId.caseInsensitiveCompare(resultScanId)",
             "func sendNotificationIfEnabled(",
             "func scheduleMilestones("
         ] {
@@ -60,6 +72,7 @@ struct InferenceLiveCompletionArchitectureTests {
             "RevenueCatManager.shared",
             "AppSettings.shared",
             "PushNotificationManager.shared",
+            "OfflineQueueManager.shared",
             "AppDIContainer.shared.appEventPublisher",
             "AppDIContainer.shared.scanMilestoneCoordinator",
             "InferenceScanReplacement.transferMetadata(",
@@ -69,15 +82,26 @@ struct InferenceLiveCompletionArchitectureTests {
             #expect(liveAdapter.contains(token))
         }
 
+        #expect(
+            presentationBridge.contains(
+                "private let completionCoordinator:"
+            )
+        )
+        #expect(
+            presentationBridge.contains(
+                "publishForegroundCompletionEventIfNeeded(\n            for: speciesData"
+            )
+        )
         for token in [
-            "private let liveCompletionCoordinator:",
-            "liveCompletionCoordinator.prepare(",
+            "completionCoordinator.prepare(",
             ".finalizeQueueAndAuthorizeFollowUps(",
             ".authorizeQueueLessFollowUps(",
+            ".commitFundingSettlement(",
             ".sendNotificationIfEnabled(",
             ".scheduleMilestones("
         ] {
-            #expect(engine.contains(token))
+            #expect(pipeline.contains(token))
+            #expect(!engine.contains(token))
         }
         for retiredToken in [
             "GamificationManager.shared",
@@ -106,38 +130,38 @@ struct InferenceLiveCompletionArchitectureTests {
     }
 
     @Test func visualAndNonvisualCallSitesPreserveReviewedEffectOrder() throws {
-        let engine = try contents(
+        let pipeline = try contents(
             of: repositoryRoot().appendingPathComponent(
-                "apps/ios/Merian/Core/AI/InferenceEngine.swift"
+                "apps/ios/Merian/Core/AI/Inference/Pipeline/InferenceLivePipelineCoordinator.swift"
             )
         )
         let visualStart = try #require(
-            engine.range(of: "// MARK: - Live Inference Pipeline")
+            pipeline.range(of: "func executeVisual(")
         )
         let nonvisualStart = try #require(
-            engine.range(
-                of: "// MARK: - Describe Inference Pipeline",
-                range: visualStart.upperBound..<engine.endIndex
+            pipeline.range(
+                of: "func executeNonVisual(",
+                range: visualStart.upperBound..<pipeline.endIndex
             )
         )
-        let failureStart = try #require(
-            engine.range(
-                of: "// MARK: - Live Failure Recovery",
-                range: nonvisualStart.upperBound..<engine.endIndex
+        let sharedHelperStart = try #require(
+            pipeline.range(
+                of: "private func check(",
+                range: nonvisualStart.upperBound..<pipeline.endIndex
             )
         )
-        let visual = engine[
+        let visual = pipeline[
             visualStart.lowerBound..<nonvisualStart.lowerBound
         ]
-        let nonvisual = engine[
-            nonvisualStart.lowerBound..<failureStart.lowerBound
+        let nonvisual = pipeline[
+            nonvisualStart.lowerBound..<sharedHelperStart.lowerBound
         ]
 
         let visualPrepare = try #require(
-            visual.range(of: "liveCompletionCoordinator.prepare(")
+            visual.range(of: "processResult(")
         )
         let visualCommit = try #require(
-            visual.range(of: "let didCommitResult = self.commitSuccessfulResult(")
+            visual.range(of: "let didCommitResult = callbacks.shared.publishCompletion(")
         )
         let visualFinalize = try #require(
             visual.range(of: ".finalizeQueueAndAuthorizeFollowUps(")
@@ -145,55 +169,85 @@ struct InferenceLiveCompletionArchitectureTests {
         let visualNotification = try #require(
             visual.range(of: ".sendNotificationIfEnabled(")
         )
+        let visualFundingSettlement = try #require(
+            visual.range(of: ".commitFundingSettlement(")
+        )
         let visualPostFlight = try #require(
-            visual.range(of: "[⏱ BENCH] Post-flight")
+            visual.range(of: ".postFlight(")
         )
         let visualHydration = try #require(
-            visual.range(of: "schedulePostInferenceHydrationIfNeeded(")
+            visual.range(of: "callbacks.shared.scheduleHydration(")
         )
         let visualMilestone = try #require(
             visual.range(of: ".scheduleMilestones(")
         )
         #expect(visualPrepare.lowerBound < visualCommit.lowerBound)
         #expect(visualCommit.lowerBound < visualFinalize.lowerBound)
-        #expect(visualFinalize.lowerBound < visualNotification.lowerBound)
+        #expect(visualFinalize.lowerBound < visualFundingSettlement.lowerBound)
+        #expect(visualFundingSettlement.lowerBound < visualNotification.lowerBound)
         #expect(visualNotification.lowerBound < visualPostFlight.lowerBound)
         #expect(visualPostFlight.lowerBound < visualHydration.lowerBound)
         #expect(visualHydration.lowerBound < visualMilestone.lowerBound)
 
         let nonvisualPrepare = try #require(
-            nonvisual.range(of: "liveCompletionCoordinator.prepare(")
+            nonvisual.range(of: "processResult(")
         )
         let nonvisualCommit = try #require(
             nonvisual.range(
-                of: "let didCommitResult = self.commitSuccessfulResult("
+                of: "let didCommitResult = callbacks.publishCompletion("
             )
         )
         let nonvisualPostFlight = try #require(
-            nonvisual.range(of: "[⏱ BENCH] Post-flight")
+            nonvisual.range(of: ".postFlight(")
         )
-        let nonvisualFinalize = try #require(
+        let nonvisualDurableAuthorization = try #require(
             nonvisual.range(of: ".finalizeQueueAndAuthorizeFollowUps(")
         )
-        let nonvisualQueueLess = try #require(
+        let nonvisualQueueLessAuthorization = try #require(
             nonvisual.range(of: ".authorizeQueueLessFollowUps(")
         )
         let nonvisualMilestone = try #require(
             nonvisual.range(of: ".scheduleMilestones(")
         )
+        let nonvisualFundingSettlement = try #require(
+            nonvisual.range(of: ".commitFundingSettlement(")
+        )
         let nonvisualNotification = try #require(
             nonvisual.range(of: ".sendNotificationIfEnabled(")
         )
         let nonvisualHydration = try #require(
-            nonvisual.range(of: "schedulePostInferenceHydrationIfNeeded(")
+            nonvisual.range(of: "callbacks.scheduleHydration(")
         )
         #expect(nonvisualPrepare.lowerBound < nonvisualCommit.lowerBound)
         #expect(nonvisualCommit.lowerBound < nonvisualPostFlight.lowerBound)
-        #expect(nonvisualPostFlight.lowerBound < nonvisualFinalize.lowerBound)
-        #expect(nonvisualFinalize.lowerBound < nonvisualQueueLess.lowerBound)
-        #expect(nonvisualQueueLess.lowerBound < nonvisualMilestone.lowerBound)
+        #expect(
+            nonvisualPostFlight.lowerBound
+                < nonvisualDurableAuthorization.lowerBound
+        )
+        #expect(
+            nonvisualDurableAuthorization.lowerBound
+                < nonvisualQueueLessAuthorization.lowerBound
+        )
+        #expect(
+            nonvisualQueueLessAuthorization.lowerBound
+                < nonvisualFundingSettlement.lowerBound
+        )
+        #expect(nonvisualFundingSettlement.lowerBound < nonvisualMilestone.lowerBound)
         #expect(nonvisualMilestone.lowerBound < nonvisualNotification.lowerBound)
         #expect(nonvisualNotification.lowerBound < nonvisualHydration.lowerBound)
+
+        #expect(
+            nonvisual.contains("else if session.durableQueueOwnsRecovery")
+        )
+        #expect(
+            nonvisual.contains("followUpPermit = await completionCoordinator")
+        )
+        #expect(
+            nonvisual.contains(
+                "followUpPermit = completionCoordinator\n"
+                    + "                    .authorizeQueueLessFollowUps("
+            )
+        )
     }
 
     private func contents(of file: URL) throws -> String {

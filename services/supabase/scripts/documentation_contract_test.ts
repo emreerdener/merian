@@ -1337,7 +1337,18 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     collectionAlertModifierImplementationSource,
     candidateCardImplementationSource,
     namePreferencesImplementationSource,
+    inferenceOwnershipDocumentationSources,
     inferenceEngineImplementationSource,
+    inferenceAssemblyDocumentationSources,
+    inferenceEngineAssemblyImplementationSource,
+    inferenceEngineAssemblyArchitectureTestsSource,
+    inferenceSpeciesPresentationImplementationSource,
+    inferenceSpeciesHydrationImplementationSource,
+    inferenceHistoricalHydrationImplementationSource,
+    inferenceHistoricalLoadImplementationSource,
+    inferenceLivePipelineCoordinatorSource,
+    inferenceLiveSubmissionCoordinatorSource,
+    inferenceIdentificationReviewCoordinatorSource,
     inferenceWriteCoordinatorSource,
     insightContentImplementationSource,
     candidateSwipeImplementationSource,
@@ -1457,7 +1468,67 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read(
       "apps/ios/Merian/Features/Insights/Content/ViewModels/InsightSheetViewModel+NamePreferences.swift",
     ),
+    Promise.all([
+      read("apps/ios/README.md"),
+      read("apps/ios/Merian/Core/AI/README.md"),
+      read("docs/backend-and-data/05-api-contracts.md"),
+      read("docs/codebase-map.md"),
+      read("docs/development-guides/07-ai-agent-guidelines.md"),
+      read("docs/development-guides/08-testing-strategy.md"),
+      read("docs/development-guides/09-core-managers.md"),
+      read("docs/development-guides/11-swiftdata-and-api-gotchas.md"),
+      read("docs/features-and-hardware/05-insight-sheet.md"),
+      read("docs/rfcs/codebase-cleanup.md"),
+      read("docs/system-architecture/02-zero-oom-and-concurrency.md"),
+      read("docs/system-architecture/04-ai-engineering.md"),
+      read("docs/system-architecture/06-edge-modularization.md"),
+      read("docs/system-architecture/system-overview.md"),
+    ]),
     read("apps/ios/Merian/Core/AI/InferenceEngine.swift"),
+    Promise.all([
+      read("apps/ios/README.md"),
+      read("apps/ios/Merian/Core/README.md"),
+      read("apps/ios/Merian/Core/AI/README.md"),
+      read("docs/codebase-map.md"),
+      read("docs/development-guides/07-ai-agent-guidelines.md"),
+      read("docs/development-guides/08-testing-strategy.md"),
+      read("docs/development-guides/09-core-managers.md"),
+      read("docs/rfcs/codebase-cleanup.md"),
+      read("docs/system-architecture/04-ai-engineering.md"),
+      read("docs/system-architecture/system-overview.md"),
+    ]),
+    read(
+      "apps/ios/Merian/Core/AI/Inference/Assembly/InferenceEngineAssembly.swift",
+    ),
+    read(
+      "apps/ios/MerianTests/Core/AI/Inference/InferenceEngineAssemblyArchitectureTests.swift",
+    ),
+    read(
+      "apps/ios/Merian/Core/AI/Inference/Hydration/InferenceSpeciesPresentationCoordinator.swift",
+    ),
+    Promise.all([
+      read(
+        "apps/ios/Merian/Core/AI/Inference/Hydration/InferenceSpeciesHydrationCoordinator.swift",
+      ),
+      read(
+        "apps/ios/Merian/Core/AI/Inference/Hydration/InferenceSpeciesEnrichmentCoordinator.swift",
+      ),
+    ]).then((sources) => sources.join("\n")),
+    read(
+      "apps/ios/Merian/Core/AI/Inference/Hydration/InferenceHistoricalHydrationCoordinator.swift",
+    ),
+    read(
+      "apps/ios/Merian/Core/AI/Inference/Hydration/InferenceHistoricalLoadCoordinator.swift",
+    ),
+    read(
+      "apps/ios/Merian/Core/AI/Inference/Pipeline/InferenceLivePipelineCoordinator.swift",
+    ),
+    read(
+      "apps/ios/Merian/Core/AI/Inference/Pipeline/InferenceLiveSubmissionCoordinator.swift",
+    ),
+    read(
+      "apps/ios/Merian/Core/AI/Inference/IdentificationReview/InferenceIdentificationReviewCoordinator.swift",
+    ),
     read(
       "apps/ios/Merian/Core/AI/Inference/State/InferenceWriteCoordinator.swift",
     ),
@@ -2089,24 +2160,247 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     "shellPresentationBinding",
   );
   assertStringIncludes(
-    compact(inferenceEngineImplementationSource),
+    compact(inferenceSpeciesPresentationImplementationSource),
     "expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame",
+  );
+  for (const source of inferenceAssemblyDocumentationSources) {
+    assertStringIncludes(source, "InferenceEngineAssembly");
+  }
+  const compactInferenceAssemblyDocumentation =
+    inferenceAssemblyDocumentationSources.map(compact).join("\n");
+  assert(
+    !compactInferenceAssemblyDocumentation.includes(
+      "`InferenceEngine.swift` remains a large orchestrator",
+    ),
+    "Inference documentation must retain the facade/assembly ownership split.",
+  );
+  const compactInferenceAssembly = compact(
+    inferenceEngineAssemblyImplementationSource,
   );
   assertStringIncludes(
     compact(inferenceEngineImplementationSource),
+    "let assembly = InferenceEngineAssembly(",
+  );
+  assert(
+    !compact(inferenceEngineImplementationSource).includes(
+      "private let assembly:",
+    ),
+    "InferenceEngine must consume its one-shot assembly without retaining it.",
+  );
+  for (
+    const constructor of [
+      "InferencePresentationCoordinator()",
+      "InferencePresentationState()",
+      "InferenceWriteCoordinator()",
+      "InferenceLiveAttemptCoordinator(",
+      "InferenceLivePipelineCoordinator(",
+      "InferenceSessionLifecycleCoordinator(",
+      "InferenceSpeciesHydrationCoordinator(",
+      "InferenceLiveSubmissionCoordinator(",
+      "InferenceHistoricalLoadCoordinator(",
+    ]
+  ) {
+    assertStringIncludes(compactInferenceAssembly, constructor);
+  }
+  for (
+    const architectureCase of [
+      "assemblyIsTheSoleProductionOwnerGraphConstructor",
+      "assemblyPreservesConstructionOrderAndInjectedEdges",
+      "engineRetainsPrivateOwnersAndStableInitializer",
+      "assemblyIsAOneShotEffectFreeValue",
+    ]
+  ) {
+    assertStringIncludes(
+      inferenceEngineAssemblyArchitectureTestsSource,
+      architectureCase,
+    );
+  }
+  assertStringIncludes(
+    compact(inferenceEngineImplementationSource),
+    "liveSubmissionCoordinator.startVisual(",
+  );
+  assertStringIncludes(
+    compact(inferenceEngineImplementationSource),
+    "liveSubmissionCoordinator.startNonVisual(",
+  );
+  assertStringIncludes(
+    compact(inferenceLiveSubmissionCoordinatorSource),
+    "pipelineCoordinator.executeVisual( request, callbacks:",
+  );
+  assertStringIncludes(
+    compact(inferenceLiveSubmissionCoordinatorSource),
+    "pipelineCoordinator.executeNonVisual( request, callbacks:",
+  );
+  assert(
+    !compact(inferenceEngineImplementationSource).includes(
+      "livePipelineCoordinator.executeVisual(",
+    ),
+  );
+  assert(
+    !compact(inferenceEngineImplementationSource).includes(
+      "livePipelineCoordinator.executeNonVisual(",
+    ),
+  );
+  for (
+    const fragment of [
+      "requestService.dispatchVisual(",
+      "requestService.dispatchNonVisual(",
+      "resultService.process(",
+      "completionCoordinator.prepare(",
+      "completionCoordinator .finalizeQueueAndAuthorizeFollowUps(",
+      "completionCoordinator .authorizeQueueLessFollowUps(",
+      "failureCoordinator.handle(",
+      "attemptCoordinator.clearActiveAttemptIfCurrent(",
+    ]
+  ) {
+    assertStringIncludes(
+      compact(inferenceLivePipelineCoordinatorSource),
+      fragment,
+    );
+  }
+  assertStringIncludes(
+    compact(inferenceEngineImplementationSource),
+    "speciesPresentationCoordinator .makeReviewWorkflowCallbacks()",
+  );
+  assertStringIncludes(
+    compact(inferenceSpeciesPresentationImplementationSource),
+    "reviewCoordinator.enqueueWrite(",
+  );
+  assertStringIncludes(
+    compact(inferenceIdentificationReviewCoordinatorSource),
     "writeCoordinator.enqueueIdentificationWrite(",
   );
   assertStringIncludes(
-    compact(inferenceEngineImplementationSource),
-    "current.scientificName.caseInsensitiveCompare(scientificName) == .orderedSame",
+    compact(inferenceSpeciesPresentationImplementationSource),
+    "current.scientificName.caseInsensitiveCompare( identity.scientificName ) == .orderedSame",
+  );
+  assertStringIncludes(
+    compact(inferenceSpeciesPresentationImplementationSource),
+    "enqueuePersistence: { [weak self] work in self?.enqueuePersistence(work) }",
+  );
+  assertStringIncludes(
+    compact(inferenceSpeciesPresentationImplementationSource),
+    "writeCoordinator.enqueueBackgroundWrite(guardedOperation)",
+  );
+  assertStringIncludes(
+    compact(inferenceSpeciesHydrationImplementationSource),
+    "callbacks.enqueuePersistence(PersistenceWork( identity: identity, operation:",
   );
   assertStringIncludes(
     compact(inferenceEngineImplementationSource),
-    "executeSpeciesMetadataWrite( scanId: capturedScanId, scientificName: capturedScientificName, presentationGeneration: capturedPresentationGeneration",
+    "historicalLoadCoordinator.load(from: record)",
+  );
+  assert(
+    !compact(inferenceEngineImplementationSource).includes(
+      "historicalHydrationCoordinator.scheduleHydration(",
+    ),
+  );
+  const compactHistoricalLoad = compact(
+    inferenceHistoricalLoadImplementationSource,
+  );
+  for (
+    const fragment of [
+      "sessionLifecycleCoordinator.beginHistoricalLoad()",
+      "attemptCoordinator.setActiveScanId(record.id)",
+      "presentationState.releaseLiveMedia()",
+      "InferenceHistoricalRecordProjection(",
+      "presentationState.publishHistoricalProjection(",
+      "speciesPresentationCoordinator .makeReviewWorkflowCallbacks()",
+      "historicalHydrationCoordinator.scheduleHydration(",
+    ]
+  ) {
+    assertStringIncludes(compactHistoricalLoad, fragment);
+  }
+  for (const source of inferenceOwnershipDocumentationSources) {
+    assertStringIncludes(source, "InferenceHistoricalLoadCoordinator");
+    assertStringIncludes(source, "InferenceHistoricalHydrationCoordinator");
+  }
+  const compactInferenceOwnershipDocumentation =
+    inferenceOwnershipDocumentationSources.map(compact).join("\n");
+  for (
+    const staleFragment of [
+      "are synchronously projected and published by the engine",
+      "The engine releases the previous live-media buffers",
+      "the engine cancels all hydration slots",
+      "The engine publishes the initial historical projection",
+      "modelContainer: record.modelContext?.container",
+      "InferenceHistoricalRecordProjection`, invoked by `InferenceEngine.load(from:)",
+      "The engine then delegates only the required scopes",
+      "After a successful identification, `InferenceEngine` submits best-effort",
+    ]
+  ) {
+    assert(
+      !compactInferenceOwnershipDocumentation.includes(staleFragment),
+      `Historical-load documentation restored stale engine ownership: ${staleFragment}`,
+    );
+  }
+  assertStringIncludes(
+    compactInferenceOwnershipDocumentation,
+    "`InferenceSpeciesPresentationCoordinator` submits admitted best-effort",
+  );
+  const compactFeatureModules = compact(featureModulesSource);
+  assertStringIncludes(
+    compactFeatureModules,
+    "`InferenceHistoricalLoadCoordinator` synchronously projects historical media",
+  );
+  assert(
+    !compactFeatureModules.includes(
+      "background `load` pipeline inside `InferenceEngine`",
+    ),
+    "Feature documentation must retain historical-load coordinator ownership.",
+  );
+  const compactImagePipeline = compact(imagePipelineSource);
+  for (
+    const fragment of [
+      "The stable facade delegates to `InferenceLiveSubmissionCoordinator`",
+      "`InferenceLiveMediaProjector` to normalize the timeline and submission values",
+      "publishes its ordered `ActiveScanMedia` projection through `InferencePresentationState`",
+      "`InferenceLivePipelineCoordinator` applies its injected refund decision",
+    ]
+  ) {
+    assertStringIncludes(compactImagePipeline, fragment);
+  }
+  assert(
+    !compactImagePipeline.includes(
+      "The engine asks `InferenceLiveMediaProjector`",
+    ),
+    "Image-pipeline documentation must retain submission-coordinator ownership.",
+  );
+  assert(
+    !compactImagePipeline.includes(
+      "`InferenceEngine` retains the refund decision",
+    ),
+    "Image-pipeline documentation must retain pipeline-owned refund handling.",
+  );
+  const compactHistoricalHydration = compact(
+    inferenceHistoricalHydrationImplementationSource,
+  );
+  for (
+    const fragment of [
+      "taskCoordinator.replaceTask(in: .historic)",
+      "await dependencies.decodeDeferredContent(",
+      "await callbacks.hydrateDisplayedOverride(override)",
+      "await withTaskGroup(of: Void.self)",
+      "await speciesHydrationCoordinator.fetchAndApplyEnrichment(",
+      "await speciesHydrationCoordinator.hydrateGBIF(",
+    ]
+  ) {
+    assertStringIncludes(compactHistoricalHydration, fragment);
+  }
+  const historicalEnrichmentIndex = compactHistoricalHydration.indexOf(
+    "await speciesHydrationCoordinator.fetchAndApplyEnrichment(",
+  );
+  const historicalGBIFIndex = compactHistoricalHydration.indexOf(
+    "await speciesHydrationCoordinator.hydrateGBIF(",
+  );
+  assert(
+    historicalEnrichmentIndex >= 0 &&
+      historicalEnrichmentIndex < historicalGBIFIndex,
+    "Historical hydration must await enrichment before GBIF.",
   );
   assertStringIncludes(
-    compact(inferenceEngineImplementationSource),
-    "presentationGeneration: historicPresentationGeneration, reviewActionGeneration: reviewActionGeneration",
+    compactHistoricalLoad,
+    "presentationGeneration: presentationGeneration, reviewActionGeneration: reviewActionGeneration",
   );
   for (
     const fragment of [

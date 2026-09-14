@@ -66,6 +66,7 @@ struct InferenceLiveResultServiceTests {
         #expect(input.videoFilePaths == ["clip.mov"])
         #expect(input.observationContextsJSON == request.response.observationContextsJSON)
         #expect(input.persistenceFence == fence)
+        #expect(input.expectedScanId == fence.scanId)
         #expect(input.telemetry.locationName == "Test Habitat")
         #expect(input.telemetry.subjectDistanceInMeters == 1.5)
         #expect(input.telemetry.zoomFactor == 2)
@@ -271,6 +272,23 @@ struct InferenceLiveResultServiceTests {
         #expect(outcome.completedResult == nil)
     }
 
+    @Test func liveAdapterAcceptsServerAssignedQueueLessNonVisualIdentity() async throws {
+        let outcome = try await InferenceLiveResultService.live.process(
+            makeRequest(
+                response: makeResponse(confidence: 0),
+                serverAssignsScanId: true
+            )
+        ) {}
+
+        guard case .completedWithoutRecord(let result) = outcome else {
+            Issue.record(
+                "A queue-less nonvisual response may use its server-assigned ID"
+            )
+            return
+        }
+        #expect(result.speciesData.scanId == "scan-id")
+    }
+
     @Test func liveAdapterPreservesDecodingFailure() async {
         await #expect(throws: MerianError.decodingFailed) {
             try await InferenceLiveResultService.live.process(makeRequest()) {}
@@ -282,7 +300,8 @@ struct InferenceLiveResultServiceTests {
         media: InferenceLiveResultService.Media = .nonVisual,
         timeline: [CaptureSubmissionMediaItem] = [],
         modelContext: ModelContext? = nil,
-        fence: LiveInferencePersistenceFence? = nil
+        fence: LiveInferencePersistenceFence? = nil,
+        serverAssignsScanId: Bool = false
     ) -> InferenceLiveResultService.Request {
         .init(
             response: response ?? .init(
@@ -307,7 +326,10 @@ struct InferenceLiveResultServiceTests {
             mediaTimeline: timeline,
             submissionProjection: timeline.submissionMediaProjection,
             modelContext: modelContext,
-            persistenceFence: fence
+            persistenceFence: fence,
+            expectedScanId: serverAssignsScanId
+                ? nil
+                : fence?.scanId ?? "scan-id"
         )
     }
 

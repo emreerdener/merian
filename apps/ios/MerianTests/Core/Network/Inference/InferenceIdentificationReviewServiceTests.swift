@@ -44,12 +44,8 @@ struct InferenceReviewServiceTests {
     }
 
     @Test func reviewMutationEncodesExplicitNullsForClearedValues() throws {
-        let mutation = InferenceIdentificationReviewMutation(
-            scanID: "scan-id",
-            override: nil,
-            confirmed: false,
-            confirmedSpeciesID: nil,
-            userReviewState: "unreviewed"
+        let mutation = InferenceIdentificationReviewMutation.reset(
+            scanID: "scan-id"
         )
 
         let object = try #require(
@@ -63,6 +59,49 @@ struct InferenceReviewServiceTests {
         #expect(object["p_confirmed"] as? Bool == false)
         #expect(object["p_confirmed_species_id"] is NSNull)
         #expect(object["p_user_review_state"] as? String == "unreviewed")
+    }
+
+    @Test(arguments: [
+        UserReviewState.aiConfirmed,
+        UserReviewState.userOverridden
+    ])
+    func reviewMutationEncodesCanonicalTypedState(
+        _ state: UserReviewState
+    ) throws {
+        let mutation: InferenceIdentificationReviewMutation = switch state {
+        case .aiConfirmed:
+            .aiConfirmation(
+                scanID: "scan-id",
+                confirmedSpeciesID: "species-id"
+            )
+        case .userOverridden:
+            .userOverride(
+                scanID: "scan-id",
+                scientificName: "Danaus plexippus",
+                confirmedSpeciesID: "species-id"
+            )
+        case .unreviewed:
+            .reset(scanID: "scan-id")
+        }
+
+        let object = try #require(
+            JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(mutation)
+            ) as? [String: Any]
+        )
+
+        #expect(object["p_user_review_state"] as? String == state.rawValue)
+        #expect(object["p_confirmed_species_id"] as? String == "species-id")
+        switch state {
+        case .aiConfirmed:
+            #expect(object["p_override"] is NSNull)
+            #expect(object["p_confirmed"] as? Bool == true)
+        case .userOverridden:
+            #expect(object["p_override"] as? String == "Danaus plexippus")
+            #expect(object["p_confirmed"] as? Bool == false)
+        case .unreviewed:
+            Issue.record("The parameter matrix excludes reset")
+        }
     }
 
     @Test func injectedHandlersReceiveTypedInputsAndReturnTypedValues() async throws {
@@ -83,12 +122,10 @@ struct InferenceReviewServiceTests {
             habitatDescription: nil,
             gbifTaxonKey: nil
         )
-        let mutation = InferenceIdentificationReviewMutation(
+        let mutation = InferenceIdentificationReviewMutation.userOverride(
             scanID: "scan-id",
-            override: "Danaus plexippus",
-            confirmed: true,
-            confirmedSpeciesID: "species-id",
-            userReviewState: "confirmed"
+            scientificName: "Danaus plexippus",
+            confirmedSpeciesID: "species-id"
         )
         var loadedNames: [String] = []
         var loadedIDNames: [String] = []
@@ -118,5 +155,6 @@ struct InferenceReviewServiceTests {
         #expect(loadedNames == ["Danaus plexippus"])
         #expect(loadedIDNames == ["Danaus plexippus"])
         #expect(syncedMutations == [mutation])
+        #expect(syncedMutations.first?.userReviewState == .userOverridden)
     }
 }

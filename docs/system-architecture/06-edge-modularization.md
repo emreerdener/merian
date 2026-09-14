@@ -641,9 +641,16 @@ Responses include `data.scope` and only the selected fields:
 | `"enrichment"` | `habitat_description`, `gbif_taxon_key`, `taxonomy`, `alternative_common_names` | `fetchStaticEncyclopedicData` |
 | `"lookalikes"` | `similar_species`                                                               | `fetchSimilarSpecies`         |
 
-When both scopes are needed, `InferenceEngine.fetchAndApplyEnrichment` asks the
-injected `InferenceSpeciesEnrichmentService` for two independent domain patches
-through a task group and applies each result as it arrives. The service's live
+When both scopes are needed for live or review hydration, the stable
+`InferenceEngine.fetchAndApplyEnrichment` facade delegates through
+`InferenceSpeciesPresentationCoordinator` to
+`InferenceSpeciesHydrationCoordinator`; historical loads submit their projected
+scopes to that same owner through `InferenceHistoricalHydrationCoordinator`,
+registered by `InferenceHistoricalLoadCoordinator` behind the stable
+`load(from:)` facade. The species coordinator's enrichment sub-coordinator owns
+its request state and asks the injected `InferenceSpeciesEnrichmentService` for
+two independent domain patches through a task group and applies each result
+through the current-presentation callback as it arrives. The service's live
 adapter is Core AI's sole caller of the stateless endpoint method.
 `Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift` owns request
 construction and plain decoding of the hand-written `EnrichScanResponse`;
@@ -653,17 +660,23 @@ transport owns the sole session/TLS boundary, its authenticated dispatcher owns
 per-attempt Auth/session dispatch, and the client façade injects both. The
 injected service core maps each response without resolving a live client
 directly, and the live hydration persistence adapter owns admitted
-database/encoding effects. Scheduling, result application, and stale-
-presentation checks stay in the engine and its hydration/write coordinators.
+database/encoding effects. The species coordinator owns scope scheduling, result
+mapping, and stale-presentation decisions; `InferenceHydrationCoordinator` owns
+task lifetime and backoff, while `InferenceSpeciesPresentationCoordinator`
+validates and publishes observable values and admits persistence work through
+the write coordinator behind the stable engine facade.
 
-The engine keeps separate `isEnrichmentLoading` and `isLookalikesLoading` flags
-for the metadata and gallery surfaces. Historical `load(from:)` derives
+The engine exposes separate `isEnrichmentLoading` and `isLookalikesLoading`
+flags for the metadata and gallery surfaces; the enrichment coordinator mutates
+them through narrow callbacks. `InferenceHistoricalRecordProjection` derives
 `needsMetadata` and `needsLookalikes` independently from the eligible record's
-missing metadata, usable taxonomy, rich lookalike data, and local reset policy.
-Hydration admission can suppress an already-satisfied scope or back off after a
-rate limit. After both initially requested scopes finish, a still-current
-presentation with usable taxonomy and no similar species may request only
-lookalikes once more; that retry disables further lookalike retries.
+missing metadata, usable taxonomy, rich lookalike data, and local reset policy;
+`InferenceHistoricalLoadCoordinator` submits that value-only plan behind
+`load(from:)`. Hydration admission can suppress an already-satisfied scope or
+back off after a rate limit. After both initially requested scopes finish, a
+still-current presentation with usable taxonomy and no similar species may
+request only lookalikes once more; that retry disables further lookalike
+retries.
 
 A handler invocation performs only its selected scope's work. Same-species
 requests can await that scope's in-flight work on a warm isolate; the handler

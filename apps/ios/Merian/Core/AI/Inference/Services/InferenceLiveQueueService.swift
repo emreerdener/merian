@@ -2,9 +2,10 @@ import Foundation
 
 /// The narrow durable-queue boundary used by foreground inference attempts.
 ///
-/// `InferenceEngine` retains presentation and call ordering. The live adapter
-/// is the only Core AI owner that resolves `OfflineQueueManager` for attempt
-/// admission, upload release, retirement, finalization, and rejection.
+/// `InferenceLivePipelineCoordinator` owns live call ordering, while the engine
+/// exposes its `InferencePresentationState` facade. The live adapter is the only Core AI owner
+/// that resolves `OfflineQueueManager` for attempt admission, upload release,
+/// retirement, finalization, and rejection.
 @MainActor
 struct InferenceLiveQueueService {
     struct Dependencies: Sendable {

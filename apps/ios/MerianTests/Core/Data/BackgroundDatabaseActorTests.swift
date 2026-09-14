@@ -244,7 +244,7 @@ struct BackgroundDatabaseActorTests {
             .live.processAndCleanupOfflineScan(
             resultData: resultData,
             originalImagePaths: ["offline_monarch.webp"],
-            scanId: "offline_queue_001",
+            scanId: "offline_scan_001",
             originalTimestamp: originalTimestamp,
             persistenceActor: actor
         )

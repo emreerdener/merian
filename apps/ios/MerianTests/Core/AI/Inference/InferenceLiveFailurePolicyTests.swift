@@ -7,6 +7,18 @@ import Testing
 struct InferenceLiveFailurePolicyTests {
     private typealias Policy = InferenceLiveFailurePolicy
 
+    private struct ProviderPolicyCase {
+        let status: Int
+        let code: String
+        let failure: Policy.Failure
+    }
+
+    private struct SpecialPolicyCase {
+        let failure: Policy.Failure
+        let event: String
+        let triggersFeedback: Bool
+    }
+
     @Test func taskCancellationTakesPrecedenceOverReturnedErrors() {
         let errors: [Error] = [
             CancellationError(), URLError(.cancelled), URLError(.timedOut),
@@ -50,23 +62,23 @@ struct InferenceLiveFailurePolicyTests {
     }
 
     @Test func knownProviderPoliciesRequireTheirExactHTTPStatus() {
-        let cases: [(Int, String, Policy.Failure)] = [
-            (409, "ai_request_already_completed", .recoverableConflict),
-            (409, "ai_request_in_progress", .recoverableConflict),
-            (409, "scan_already_complete", .recoverableConflict),
-            (409, "scan_already_finalized", .recoverableConflict),
-            (402, "pro_required", .proRequired),
-            (429, "ai_quota_daily_exceeded", .dailyQuotaExceeded),
-            (429, "ai_user_rate_limit_exceeded", .rateLimited(.user)),
-            (429, "ai_ip_rate_limit_exceeded", .rateLimited(.ip)),
-            (400, "observation_rejected", .observationRejected)
+        let cases: [ProviderPolicyCase] = [
+            .init(status: 409, code: "ai_request_already_completed", failure: .recoverableConflict),
+            .init(status: 409, code: "ai_request_in_progress", failure: .recoverableConflict),
+            .init(status: 409, code: "scan_already_complete", failure: .recoverableConflict),
+            .init(status: 409, code: "scan_already_finalized", failure: .recoverableConflict),
+            .init(status: 402, code: "pro_required", failure: .proRequired),
+            .init(status: 429, code: "ai_quota_daily_exceeded", failure: .dailyQuotaExceeded),
+            .init(status: 429, code: "ai_user_rate_limit_exceeded", failure: .rateLimited(.user)),
+            .init(status: 429, code: "ai_ip_rate_limit_exceeded", failure: .rateLimited(.ip)),
+            .init(status: 400, code: "observation_rejected", failure: .observationRejected)
         ]
         for mode in modes {
-            for (expectedStatus, code, failure) in cases {
+            for testCase in cases {
                 for status in [400, 402, 403, 409, 429, 500] {
                     #expect(Policy.failure(
-                        for: httpError(status, code: code), mode: mode
-                    ) == (status == expectedStatus ? failure : .service))
+                        for: httpError(status, code: testCase.code), mode: mode
+                    ) == (status == testCase.status ? testCase.failure : .service))
                 }
             }
         }
@@ -106,22 +118,22 @@ struct InferenceLiveFailurePolicyTests {
     }
 
     @Test func consentAndSpecialPoliciesStayOutsideCircuitFailure() {
-        let cases: [(Policy.Failure, String, Bool)] = [
-            (.recoverableConflict, "InferenceCompletionRecovery", false),
-            (.consentRequired, "InferenceConsentRequired", true),
-            (.proRequired, "InferenceProRequired", true),
-            (.dailyQuotaExceeded, "InferenceDailyQuotaExceeded", false),
-            (.rateLimited(.user), "InferenceRateLimited", true),
-            (.rateLimited(.ip), "InferenceRateLimited", true),
-            (.observationRejected, "InferenceObservationRejected", true),
-            (.visualDecoding, "APIDecodingFailure", true)
+        let cases: [SpecialPolicyCase] = [
+            .init(failure: .recoverableConflict, event: "InferenceCompletionRecovery", triggersFeedback: false),
+            .init(failure: .consentRequired, event: "InferenceConsentRequired", triggersFeedback: true),
+            .init(failure: .proRequired, event: "InferenceProRequired", triggersFeedback: true),
+            .init(failure: .dailyQuotaExceeded, event: "InferenceDailyQuotaExceeded", triggersFeedback: false),
+            .init(failure: .rateLimited(.user), event: "InferenceRateLimited", triggersFeedback: true),
+            .init(failure: .rateLimited(.ip), event: "InferenceRateLimited", triggersFeedback: true),
+            .init(failure: .observationRejected, event: "InferenceObservationRejected", triggersFeedback: true),
+            .init(failure: .visualDecoding, event: "APIDecodingFailure", triggersFeedback: true)
         ]
         for mode in modes {
             #expect(Policy.failure(for: MerianError.aiConsentRequired, mode: mode) == .consentRequired)
-            for (failure, event, feedback) in cases {
-                #expect(!failure.recordsCircuitFailure)
-                #expect(failure.triggersErrorFeedback == feedback)
-                #expect(failure.telemetryEvent(for: mode) == event)
+            for testCase in cases {
+                #expect(!testCase.failure.recordsCircuitFailure)
+                #expect(testCase.failure.triggersErrorFeedback == testCase.triggersFeedback)
+                #expect(testCase.failure.telemetryEvent(for: mode) == testCase.event)
             }
             #expect(Policy.Failure.connectivity.recordsCircuitFailure)
             #expect(Policy.Failure.connectivity.telemetryEvent(for: mode) == "InferenceNetworkFailure")

@@ -104,15 +104,21 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
     composition, and optional LiDAR/Vision physical-size estimation.
 - `Core/`: Foundational logic organized into subdirectories:
   - `AI/`: `InferenceEngine`, generated Edge DTOs, `InferenceProcessingActor`,
-    the shared response-preparation and injected live-attempt queue boundaries
-    under `Inference/Services`, the private `Inference/Hydration` lifecycle and
+    the one-shot internal owner-graph builder
+    `Inference/Assembly/InferenceEngineAssembly.swift`, the shared
+    response-preparation and injected live-attempt queue boundaries under
+    `Inference/Services`, the private `Inference/Hydration` lifecycle,
+    historical startup/follow-up, and species-hydration coordinators,
     `Inference/State` write/live-attempt coordinators, the injected
     `Inference/Request` live provider and `Inference/Result` parse/save
     adaptation and synchronous reanalysis metadata-safety boundaries,
+    `Inference/Pipeline` visual/nonvisual execution and exact-owner cleanup,
     `Inference/Completion` accepted-result sequencing and typed post-commit
-    authorization, stateless `Inference/Recovery` failure/presentation policies,
-    and the `Inference/LocalAnalysis` ephemeral model/cadence owner plus its
-    split classifier, image, trait, cue, and phrase policies
+    authorization, `Inference/Recovery` failure policy, presentation, and
+    synchronous queue-handoff coordination, `Inference/IdentificationReview`
+    snapshot, action/effect, and pure presentation mapping, and the
+    `Inference/LocalAnalysis` ephemeral model/cadence owner plus its split
+    classifier, image, trait, cue, and phrase policies
   - `Data/Database/`: the declaration-only `BackgroundDatabaseActor`, its
     focused persistence extensions, scan-record factory and coordinators,
     `FileIOActor`, `ScanRepository`, and the focused
@@ -464,12 +470,14 @@ dependency audit, tests, type-check, and production build; preserve the required
   `DeviceIdentityManager.shared.deviceId` instead of the private
   `getOrGeneratePersistentIDFV()`).
 - **Test historical media through the value projection.**
-  `InferenceEngine.load(from:)` snapshots
+  `InferenceEngine.load(from:)` delegates to
+  `InferenceHistoricalLoadCoordinator`, which snapshots
   `LocalScanRecord.capturedMediaSnapshot` synchronously through
   `InferenceHistoricalRecordProjection` and publishes its `ActiveScanMedia`
-  before starting deferred hydration. Projection tests may assert serialized
-  media items directly without creating files; filesystem resolution behavior
-  belongs to `SerializedMediaItemTests`.
+  before registering the immutable projection with
+  `InferenceHistoricalHydrationCoordinator` for deferred hydration. Projection
+  tests may assert serialized media items directly without creating files;
+  filesystem resolution behavior belongs to `SerializedMediaItemTests`.
 - **No `await` needed for `ImageDownsampler` in tests.** `ImageDownsampler` is a
   `public enum` with static methods. Call
   `ImageDownsampler.downsample(data:maxSize:)` directly — no actor isolation, no

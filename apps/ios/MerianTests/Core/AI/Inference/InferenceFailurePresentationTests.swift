@@ -5,35 +5,75 @@ import Testing
 
 @Suite("Inference Failure Presentation")
 struct InferenceFailurePresentationTests {
+    private struct FailureCase {
+        let failure: InferenceLiveFailurePolicy.Failure
+        let title: String
+        let subtitle: String
+        let reasoning: String
+    }
+
     @Test func specialFailuresPreserveTheirExactCopy() throws {
-        let cases: [(InferenceLiveFailurePolicy.Failure, String, String, String)] = [
-            (.recoverableConflict, "Restoring scan", "Safely saved",
-             "Your scan reached Naturebook safely. We’re restoring its saved result now, " +
-                "and it will appear here or in Scans automatically."),
-            (.consentRequired, "Approval needed", "Scan saved",
-             "Naturebook saved this scan. Complete the required age, Terms, and Google Gemini " +
-                "consent step, and Naturebook will resume it automatically when eligible. " +
-                "If it stays paused, you can retry it from Scans."),
-            (.proRequired, "Upgrade needed", "Scan saved",
-             "Naturebook saved this scan. This capture requires Pro access. Upgrade, then retry it from Scans."),
-            (.rateLimited(.user), "Retrying shortly", "Scan saved",
-             "Naturebook saved this scan and will retry automatically after the server’s " +
-                "short safety pause. You can leave this screen and check Scans later."),
-            (.rateLimited(.ip), "Retrying shortly", "Scan saved",
-             "Naturebook saved this scan and will retry automatically after the server’s " +
-                "short safety pause. You can leave this screen and check Scans later."),
-            (.observationRejected, "Try another capture", "Scan not processed",
-             "Naturebook couldn’t process this observation. Try a different photo or " +
-                "recording with the subject clearly visible."),
-            (.visualDecoding, "Analysis Failed", "Data Unreadable",
-             "The AI failed to understand the image or produced an unreadable schema.")
+        let cases: [FailureCase] = [
+            .init(
+                failure: .recoverableConflict,
+                title: "Restoring scan",
+                subtitle: "Safely saved",
+                reasoning: "Your scan reached Naturebook safely. We’re restoring its saved result now, " +
+                    "and it will appear here or in Scans automatically."
+            ),
+            .init(
+                failure: .consentRequired,
+                title: "Approval needed",
+                subtitle: "Scan saved",
+                reasoning: "Naturebook saved this scan. Complete the required age, Terms, and Google Gemini " +
+                    "consent step, and Naturebook will resume it automatically when eligible. " +
+                    "If it stays paused, you can retry it from Scans."
+            ),
+            .init(
+                failure: .proRequired,
+                title: "Upgrade needed",
+                subtitle: "Scan saved",
+                reasoning: "Naturebook saved this scan. This capture requires Pro access. " +
+                    "Upgrade, then retry it from Scans."
+            ),
+            .init(
+                failure: .rateLimited(.user),
+                title: "Retrying shortly",
+                subtitle: "Scan saved",
+                reasoning: "Naturebook saved this scan and will retry automatically after the server’s " +
+                    "short safety pause. You can leave this screen and check Scans later."
+            ),
+            .init(
+                failure: .rateLimited(.ip),
+                title: "Retrying shortly",
+                subtitle: "Scan saved",
+                reasoning: "Naturebook saved this scan and will retry automatically after the server’s " +
+                    "short safety pause. You can leave this screen and check Scans later."
+            ),
+            .init(
+                failure: .observationRejected,
+                title: "Try another capture",
+                subtitle: "Scan not processed",
+                reasoning: "Naturebook couldn’t process this observation. Try a different photo or " +
+                    "recording with the subject clearly visible."
+            ),
+            .init(
+                failure: .visualDecoding,
+                title: "Analysis Failed",
+                subtitle: "Data Unreadable",
+                reasoning: "The AI failed to understand the image or produced an unreadable schema."
+            )
         ]
         for hasQueuedScan in [true, false] {
-            for (failure, title, subtitle, reasoning) in cases {
+            for testCase in cases {
                 let presentation = try #require(InferenceFailurePresentation.make(
-                    for: failure, hasQueuedScan: hasQueuedScan
+                    for: testCase.failure, hasQueuedScan: hasQueuedScan
                 ))
-                #expect(presentation == .init(title: title, subtitle: subtitle, reasoning: reasoning))
+                #expect(presentation == .init(
+                    title: testCase.title,
+                    subtitle: testCase.subtitle,
+                    reasoning: testCase.reasoning
+                ))
             }
         }
     }

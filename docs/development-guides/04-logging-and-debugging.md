@@ -43,7 +43,7 @@ replaced before merge.
 | `MerianLog.hardware`      | `CameraSessionController`, `CameraManager`, and `CameraVideoRecordingService` — AVFoundation session/device locks, focus, torch, frame-rate application, recording lifecycle, and stabilization modes |
 | `MerianLog.notifications` | System authorization, APNs registration, local scheduling/routing, and app-icon badge refresh/presentation                                                                                            |
 | `MerianLog.exploreVideo`  | Explore public video playback — active player changes, sheet overlay pause/resume, player/layer rebuilds, recovery watchdogs                                                                          |
-| `MerianLog.general`       | `InferenceEngine`, `CircuitBreakerManager`, `GamificationManager`, `PostHogManager`, `AppTelemetry`, everything else                                                                                  |
+| `MerianLog.general`       | Core AI inference coordinators and engine, `CircuitBreakerManager`, `GamificationManager`, `PostHogManager`, `AppTelemetry`, everything else                                                          |
 
 When in doubt, use `MerianLog.general`. Do not create new `Logger` instances
 outside of `MerianLog` — adding a new category requires updating the enum and
@@ -504,7 +504,8 @@ make latency breakdowns visible without an attached profiler. These use `.debug`
 level and are filtered by the prefix in the Xcode console or Console.app.
 
 **iOS — capture submission, `InferenceLiveRequestService`, networking, and
-`InferenceEngine.swift`** (filter in Xcode console: `⏱ BENCH`):
+`InferenceLivePipelineCoordinator+Live.swift`** (filter in Xcode console:
+`⏱ BENCH`):
 
 ```
 [⏱ BENCH] Analyze tap to durable queue commit: 0.041s
@@ -523,10 +524,18 @@ level and are filtered by the prefix in the Xcode console or Console.app.
 The first timestamp is taken when Analyze is tapped, before queue persistence or
 environmental context. The final value comes from a one-shot UIKit draw probe
 after the result view participates in its first display pass; awards and Field
-Trips are intentionally outside that boundary. URLSession task metrics separate
-request upload, time to first byte, and response transfer. The pre-flight marker
-is emitted by `InferenceLiveRequestService`; response parsing/persistence and
-first-result publication remain downstream actor/engine measurements.
+Trips are intentionally outside that boundary. The presentation coordinator
+consumes the timestamp only for its exact scan. Once a replacement visual
+submission is admitted, the lifecycle coordinator clears the displaced owner,
+queued visual context, and timestamp before the submission coordinator installs
+the new owner. A same-scan retry without a new clock therefore emits no stale
+tap-to-first-render interval. For an exact admitted queue-less response, the
+presentation coordinator moves the pending clock from the temporary client
+identity to the authoritative server scan ID before publication; stale callbacks
+cannot move or consume it. URLSession task metrics separate request upload, time
+to first byte, and response transfer. The pre-flight marker is emitted by
+`InferenceLiveRequestService`; response parsing/persistence and first-result
+publication remain downstream actor/pipeline/engine measurements.
 `X-Merian-Constrained-Network` tags the Edge request, and the response exposes
 the privacy-safe `Server-Timing` breakdown plus `X-Merian-Edge-Region`. The HTTP
 marker reports request and response byte counts separately. Builds before this

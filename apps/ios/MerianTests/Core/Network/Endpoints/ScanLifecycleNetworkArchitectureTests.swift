@@ -58,6 +58,7 @@ struct ScanLifecycleNetworkArchitectureTests {
             "for scanID in requirements.keys", "expectedScanIDs.updateValue(scanID, forKey: normalized)",
             #"try validateEndpointConfiguration("check-scan-status")"#,
             "let scans = requirements.map", "try await performAuthenticatedJSONDataPost(",
+            "allowsUnauthorizedSessionRecovery: false",
             "try ScanLifecycleResponseDecoder.statuses("
         ], in: bulk)
         #expect(bulk.contains("requiredVideoCount > 0") && !bulk.contains("recovery_scan"))
@@ -74,9 +75,12 @@ struct ScanLifecycleNetworkArchitectureTests {
         let client = try source("MerianNetworkClient.swift")
         let bridge = try method("performAuthenticatedJSONDataPost", in: client)
         #expect(bridge.contains("expectedAuthUserID: UUID? = nil") && bridge.contains("async throws -> Data"))
+        #expect(bridge.contains("allowsUnauthorizedSessionRecovery: Bool = true"))
         try expectOrder([
             "try endpointURL(function)", "try JSONSerialization.data(withJSONObject: payload)",
-            "try await performAuthenticatedRequest(", "expectedAuthUserID: expectedAuthUserID", "return data"
+            "try await performAuthenticatedRequest(",
+            "allowsUnauthorizedSessionRecovery:",
+            "expectedAuthUserID: expectedAuthUserID", "return data"
         ], in: bridge)
         #expect(bridge.contains(#"method: "POST""#))
         #expect(bridge.components(separatedBy: "performAuthenticatedRequest(").count == 2)

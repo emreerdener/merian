@@ -2,11 +2,11 @@ import Foundation
 
 /// Prepares and dispatches the provider request for one live inference attempt.
 ///
-/// `InferenceEngine` retains observable presentation and recovery sequencing;
-/// `InferenceLiveAttemptCoordinator` owns exact attempt identity and durable
-/// queue effects. `InferenceLiveResultService` adapts response parsing and
-/// persistence. The engine supplies an exact validator around each suspension
-/// point that could otherwise dispatch stale work.
+/// `InferenceLivePipelineCoordinator` owns request/result and recovery
+/// sequencing; `InferenceLiveAttemptCoordinator` owns exact attempt identity
+/// and durable queue effects. `InferenceLiveResultService` adapts response
+/// parsing and persistence. The pipeline supplies an exact validator around
+/// each suspension point that could otherwise dispatch stale work.
 struct InferenceLiveRequestService {
     struct Dependencies {
         let encodeVisualImages: @MainActor ([Data]) async -> [String]
@@ -104,8 +104,8 @@ struct InferenceLiveRequestService {
         )
     )
 
-    /// Returns `nil` only when every encoded image is empty. The engine retains
-    /// the existing refund and durable-owner retirement policy for that case.
+    /// Returns `nil` only when every encoded image is empty. The live pipeline
+    /// retains the refund and durable-owner retirement policy for that case.
     @MainActor
     func dispatchVisual(
         _ request: VisualRequest,

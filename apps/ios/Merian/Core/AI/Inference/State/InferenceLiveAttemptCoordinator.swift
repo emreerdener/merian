@@ -1,12 +1,17 @@
 import Foundation
 
-/// Owns the engine's non-observable active scan identity plus the task and
-/// generation state for one foreground inference presentation. Durable queue
-/// mutations are delegated to a narrow service.
+/// Owns the engine's non-observable active scan identity plus the current task,
+/// retained displaced task handles, and generation state for one foreground
+/// inference presentation. Durable queue mutations are delegated to a narrow
+/// service.
 ///
-/// The engine remains the observable presentation and orchestration owner.
+/// The engine remains the observable presentation facade;
+/// `InferenceSessionLifecycleCoordinator` sequences cross-owner replacement,
+/// and `InferencePresentationState` contains the stored presentation values.
 /// Relinquished local ownership always clears before its durable callback so
-/// synchronous callbacks cannot observe or regain a displaced slot.
+/// synchronous callbacks cannot observe a displaced slot. A callback may
+/// install a replacement without losing the old handle required by Auth
+/// quiescence.
 @MainActor
 final class InferenceLiveAttemptCoordinator {
     private(set) var task: Task<Void, Error>?
@@ -14,6 +19,10 @@ final class InferenceLiveAttemptCoordinator {
     private(set) var activeAttemptGeneration: UUID?
     private(set) var activeForegroundGeneration: UUID?
     private(set) var recoverablePresentationScanId: String?
+    private var displacedTasks: [UUID: Task<Void, Error>] = [:]
+    private var displacedTaskWaiters: [UUID: Task<Void, Never>] = [:]
+    private var followUpAuthorizationGeneration: UInt64 = 0
+    private var activeFollowUpAuthorizationGeneration: UInt64?
 
     private let queueService: InferenceLiveQueueService
 
@@ -23,6 +32,45 @@ final class InferenceLiveAttemptCoordinator {
 
     func replaceTask(_ task: Task<Void, Error>?) {
         self.task = task
+    }
+
+    func cancelCurrentTask() {
+        task?.cancel()
+    }
+
+    func cancelAllTasks() {
+        task?.cancel()
+        for displacedTask in displacedTasks.values {
+            displacedTask.cancel()
+        }
+    }
+
+    func awaitQuiescence() async {
+        _ = await task?.result
+        while !displacedTaskWaiters.isEmpty {
+            let waiters = Array(displacedTaskWaiters.values)
+            for waiter in waiters {
+                await waiter.value
+            }
+        }
+    }
+
+    func clearCurrentTask() {
+        task = nil
+    }
+
+    /// Relinquishes the exact local task and attempt without changing durable
+    /// queue ownership. Recovery commits use this before publication so a
+    /// synchronous observer can install a replacement without that replacement
+    /// being cancelled by later caller cleanup.
+    func cancelAndClearActiveAttempt() {
+        let displacedTask = task
+        task = nil
+        clearActiveAttempt()
+        if let displacedTask {
+            retainUntilCompletion(displacedTask)
+            displacedTask.cancel()
+        }
     }
 
     func setActiveScanId(_ scanId: String?) {
@@ -49,12 +97,22 @@ final class InferenceLiveAttemptCoordinator {
         activeScanId = scanId
         activeAttemptGeneration = attemptGeneration
         activeForegroundGeneration = foregroundGeneration
+        activeFollowUpAuthorizationGeneration =
+            followUpAuthorizationGeneration
     }
 
-    func clearActiveAttempt() {
+    private func clearActiveAttempt() {
         activeScanId = nil
         activeAttemptGeneration = nil
         activeForegroundGeneration = nil
+        activeFollowUpAuthorizationGeneration = nil
+    }
+
+    /// Closes accepted-result authority without releasing or retiring the
+    /// durable queue owner. Auth admission uses this narrower fence because a
+    /// full attempt invalidation would restart queue work during quiescence.
+    func invalidateFollowUpAuthorization() {
+        followUpAuthorizationGeneration &+= 1
     }
 
     func clearActiveAttemptIfCurrent(
@@ -98,6 +156,20 @@ final class InferenceLiveAttemptCoordinator {
             scanId: scanId,
             generation: foregroundGeneration
         )
+    }
+
+    func canAuthorizeFollowUps(
+        scanId: String?,
+        attemptGeneration: UUID,
+        foregroundGeneration: UUID?
+    ) -> Bool {
+        activeFollowUpAuthorizationGeneration ==
+            followUpAuthorizationGeneration &&
+            isAttemptCurrent(
+                scanId: scanId,
+                attemptGeneration: attemptGeneration,
+                foregroundGeneration: foregroundGeneration
+            )
     }
 
     func checkAttempt(
@@ -180,13 +252,17 @@ final class InferenceLiveAttemptCoordinator {
         )
     }
 
+    /// Atomically relinquishes the local attempt and its exact task before
+    /// invoking durable queue callbacks. A callback may synchronously admit a
+    /// replacement; detaching the displaced task first prevents later cleanup
+    /// from cancelling that replacement.
     func invalidateActiveAttempt(
         resumeBackground: Bool,
         reason: String
     ) {
         let scanId = activeScanId
         let foregroundGeneration = activeForegroundGeneration
-        clearActiveAttempt()
+        cancelAndClearActiveAttempt()
         releaseAndRetire(
             scanId: scanId,
             foregroundGeneration: foregroundGeneration,
@@ -241,11 +317,13 @@ final class InferenceLiveAttemptCoordinator {
             foregroundGeneration: foregroundGeneration
         )
         if didDelete {
-            guard isLocalAttemptCurrent(
-                scanId: scanId,
-                attemptGeneration: attemptGeneration,
-                foregroundGeneration: foregroundGeneration
-            ) else {
+            guard !Task.isCancelled,
+                  followUpAuthorizationIsCurrent,
+                  isLocalAttemptCurrent(
+                      scanId: scanId,
+                      attemptGeneration: attemptGeneration,
+                      foregroundGeneration: foregroundGeneration
+                  ) else {
                 return false
             }
             activeForegroundGeneration = nil
@@ -307,5 +385,20 @@ final class InferenceLiveAttemptCoordinator {
             scanId: scanId,
             attemptGeneration: attemptGeneration
         ) && activeForegroundGeneration == foregroundGeneration
+    }
+
+    private var followUpAuthorizationIsCurrent: Bool {
+        activeFollowUpAuthorizationGeneration ==
+            followUpAuthorizationGeneration
+    }
+
+    private func retainUntilCompletion(_ displacedTask: Task<Void, Error>) {
+        let id = UUID()
+        displacedTasks[id] = displacedTask
+        displacedTaskWaiters[id] = Task { @MainActor [weak self] in
+            _ = await displacedTask.result
+            self?.displacedTasks[id] = nil
+            self?.displacedTaskWaiters[id] = nil
+        }
     }
 }

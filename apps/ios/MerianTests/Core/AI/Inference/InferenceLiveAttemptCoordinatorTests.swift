@@ -38,10 +38,14 @@ private final class InferenceLiveAttemptQueueHarness {
             foregroundInferenceGeneration: { [self] scanId in
                 foregroundGenerations[scanId]
             },
-            deleteQueuedScan: { [self] _, _, _ in
+            deleteQueuedScan: { [self] scanId, _, _ in
                 deleteCallCount += 1
                 if let deleteOperation {
                     return await deleteOperation()
+                }
+                if deleteResult {
+                    durableCurrent = false
+                    foregroundGenerations[scanId] = nil
                 }
                 return deleteResult
             },
@@ -165,7 +169,85 @@ struct InferenceLiveAttemptCoordinatorTests {
         #expect(queue.deleteCallCount == 0)
     }
 
-    @Test func invalidationClearsLocalIdentityBeforeQueueCallbacks() {
+    @Test func authEpochDeniesFollowUpsWithoutRetiringDurableOwner() async {
+        let queue = InferenceLiveAttemptQueueHarness()
+        let coordinator = InferenceLiveAttemptCoordinator(
+            queueService: queue.service
+        )
+        let attempt = UUID()
+        let foreground = UUID()
+        coordinator.activate(
+            scanId: "scan-a",
+            attemptGeneration: attempt,
+            foregroundGeneration: foreground
+        )
+
+        #expect(coordinator.canAuthorizeFollowUps(
+            scanId: "scan-a",
+            attemptGeneration: attempt,
+            foregroundGeneration: foreground
+        ))
+
+        coordinator.invalidateFollowUpAuthorization()
+
+        #expect(coordinator.isAttemptCurrent(
+            scanId: "scan-a",
+            attemptGeneration: attempt,
+            foregroundGeneration: foreground
+        ))
+        #expect(!coordinator.canAuthorizeFollowUps(
+            scanId: "scan-a",
+            attemptGeneration: attempt,
+            foregroundGeneration: foreground
+        ))
+        let didFinalize = await coordinator.completeQueuedInferenceIfNeeded(
+            scanId: "scan-a",
+            attemptGeneration: attempt,
+            foregroundGeneration: foreground,
+            mediaPathsToKeep: []
+        )
+        #expect(!didFinalize)
+        #expect(coordinator.activeForegroundGeneration == foreground)
+        #expect(queue.deleteCallCount == 1)
+        #expect(queue.events.isEmpty)
+    }
+
+    @Test func exactDeletionAuthorizesAfterRetiringDurableOwner() async {
+        let queue = InferenceLiveAttemptQueueHarness()
+        let coordinator = InferenceLiveAttemptCoordinator(
+            queueService: queue.service
+        )
+        let attempt = UUID()
+        let foreground = UUID()
+        queue.foregroundGenerations["scan-a"] = foreground
+        coordinator.activate(
+            scanId: "scan-a",
+            attemptGeneration: attempt,
+            foregroundGeneration: foreground
+        )
+
+        let didFinalize = await coordinator.completeQueuedInferenceIfNeeded(
+            scanId: "scan-a",
+            attemptGeneration: attempt,
+            foregroundGeneration: foreground,
+            mediaPathsToKeep: []
+        )
+
+        #expect(didFinalize)
+        #expect(!queue.durableCurrent)
+        #expect(queue.foregroundGenerations["scan-a"] == nil)
+        #expect(coordinator.activeScanId == "scan-a")
+        #expect(coordinator.activeAttemptGeneration == attempt)
+        #expect(coordinator.activeForegroundGeneration == nil)
+        #expect(coordinator.canAuthorizeFollowUps(
+            scanId: "scan-a",
+            attemptGeneration: attempt,
+            foregroundGeneration: nil
+        ))
+    }
+
+    @Test func invalidationDetachesTaskAndIdentityBeforeQueueCallbacks()
+        async {
         let queue = InferenceLiveAttemptQueueHarness()
         let coordinator = InferenceLiveAttemptCoordinator(
             queueService: queue.service
@@ -176,6 +258,13 @@ struct InferenceLiveAttemptCoordinatorTests {
         }
         let attempt = UUID()
         let foreground = UUID()
+        let displacedTask = Task<Void, Error> {
+            try await Task.sleep(for: .seconds(60))
+        }
+        let replacementTask = Task<Void, Error> {
+            try await Task.sleep(for: .seconds(60))
+        }
+        coordinator.replaceTask(displacedTask)
         coordinator.activate(
             scanId: "scan-a",
             attemptGeneration: attempt,
@@ -185,8 +274,13 @@ struct InferenceLiveAttemptCoordinatorTests {
             #expect(coordinator.activeScanId == nil)
             #expect(coordinator.activeAttemptGeneration == nil)
             #expect(coordinator.activeForegroundGeneration == nil)
+            #expect(coordinator.task == nil)
+            coordinator.replaceTask(replacementTask)
         }
-        queue.onRetire = queue.onRelease
+        queue.onRetire = {
+            #expect(coordinator.task != nil)
+            #expect(!replacementTask.isCancelled)
+        }
 
         coordinator.invalidateActiveAttempt(
             resumeBackground: true,
@@ -197,6 +291,12 @@ struct InferenceLiveAttemptCoordinatorTests {
             .release("scan-a", foreground, "replacement"),
             .retire("scan-a", foreground, true, "replacement")
         ])
+        #expect(displacedTask.isCancelled)
+        #expect(!replacementTask.isCancelled)
+
+        replacementTask.cancel()
+        _ = await displacedTask.result
+        _ = await replacementTask.result
     }
 
     @Test func currentRetirementFencesDurableOwnerBeforeCallback() {

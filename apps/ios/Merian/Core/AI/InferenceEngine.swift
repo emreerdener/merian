@@ -1,38 +1,13 @@
-import Combine
-import CoreImage
 import Foundation
-import ImageIO
-import os
+import Observation
 import SwiftData
-import SwiftUI
 
 // MARK: - Inference Engine
 
-/// Drives the live AI taxonomy pipeline and manages all active scan state.
+/// Stable observable facade for live, recovered, and historical inference.
+/// Focused coordinators own execution, lifecycle, and mutable state.
 @MainActor
 @Observable final class InferenceEngine {
-
-    enum ScanPresentationModality: Sendable {
-        case visual
-        case nonVisual
-    }
-
-    enum QueuedPresentationSource: Sendable {
-        case prepared(attemptGeneration: UUID)
-        case active(attemptGeneration: UUID)
-    }
-
-    private struct AnalysisPresentationOwner: Sendable {
-        let scanId: String?
-        let attemptGeneration: UUID
-        let modality: ScanPresentationModality
-
-        func matches(scanId: String, attemptGeneration: UUID) -> Bool {
-            self.attemptGeneration == attemptGeneration &&
-                self.scanId?.caseInsensitiveCompare(scanId) == .orderedSame
-        }
-    }
-
     // MARK: - Pipeline State
     var inferenceTask: Task<Void, Error>? {
         get { liveAttemptCoordinator.task }
@@ -69,71 +44,87 @@ import SwiftUI
     /// and should now use the queue-aware Insight presentation. Unlike
     /// `recoverablePresentationScanId`, this value is observable because the
     /// visible sheet uses it to bind the matching `OfflineQueuedScan` snapshot.
-    private(set) var queuedPresentationScanId: String?
-    /// Exact queued visual presentation that may continue the foreground
-    /// phrase deck. Nonvisual and stale handoffs never populate this owner.
-    @ObservationIgnored private var queuedVisualPresentationScanId: String?
-    /// Only an exact active visual handoff may surface the in-memory carousel.
-    /// Prepared handoffs use durable queue media even though they inherit the
-    /// generic visual phrase deck.
-    @ObservationIgnored private var queuedPresentationCarriesLiveMedia = false
-    /// Ephemeral phrase order transferred with an exact live-to-queue
-    /// presentation. It is never persisted, logged, or included in analytics.
-    @ObservationIgnored private var queuedPresentationScanningPhrases: [String] = []
-    @ObservationIgnored private var pendingFirstRenderMetric: (scanId: String, startedAt: CFAbsoluteTime)?
-    var isProcessing: Bool = false
-    var scanningPhaseText: String = "Analyzing subject"
-    var activeMedia = ActiveScanMedia()
-    var speciesData: SpeciesData?
+    var queuedPresentationScanId: String? {
+        presentationState.queuedPresentationScanId
+    }
+    var isProcessing: Bool {
+        get { presentationState.isProcessing }
+        set { presentationState.setProcessing(newValue) }
+    }
+    var scanningPhaseText: String {
+        get { presentationState.scanningPhaseText }
+        set { presentationState.setScanningPhaseText(newValue) }
+    }
+    var activeMedia: ActiveScanMedia {
+        get { presentationState.activeMedia }
+        set { presentationState.replaceActiveMedia(newValue) }
+    }
+    var speciesData: SpeciesData? {
+        get { presentationState.speciesData }
+        set { presentationState.replaceSpeciesData(newValue) }
+    }
     // MARK: - Environmental Telemetry State
-    private(set) var activeLatitude: Double?
-    private(set) var activeLongitude: Double?
-    private(set) var activeElevation: Double?
-    private var activeDeviceLocale: String?
-    private var activeCurrentMonth: Int?
-    private var activeTimeOfDay: String?
-    private(set) var activeLocationName: String?
-    private(set) var activeWeatherCondition: String?
-    private(set) var activeTemperatureF: Double?
-    private(set) var activeFlashFired: Bool?
-    private(set) var activeDistanceInMeters: Float?
+    var activeLatitude: Double? {
+        presentationState.activeLatitude
+    }
+    var activeLongitude: Double? {
+        presentationState.activeLongitude
+    }
+    var activeElevation: Double? {
+        presentationState.activeElevation
+    }
+    var activeLocationName: String? {
+        presentationState.activeLocationName
+    }
+    var activeWeatherCondition: String? {
+        presentationState.activeWeatherCondition
+    }
+    var activeTemperatureF: Double? {
+        presentationState.activeTemperatureF
+    }
+    var activeFlashFired: Bool? {
+        presentationState.activeFlashFired
+    }
+    var activeDistanceInMeters: Float? {
+        presentationState.activeDistanceInMeters
+    }
 
     /// True while the "enrichment" scope call (habitat, taxonomy, GBIF key) is in flight.
-    var isEnrichmentLoading: Bool = false
+    var isEnrichmentLoading: Bool {
+        get { presentationState.isEnrichmentLoading }
+        set { presentationState.setEnrichmentLoading(newValue) }
+    }
     /// True while the "lookalikes" scope call (similar species cards) is in flight.
-    var isLookalikesLoading: Bool = false
+    var isLookalikesLoading: Bool {
+        get { presentationState.isLookalikesLoading }
+        set { presentationState.setLookalikesLoading(newValue) }
+    }
     // isReferenceImageLoading has been removed. Use activeMedia.referenceState.
-    // MARK: - Background Rescue State
-    /// One-time global reset guard for stale locally cached lookalikes.
-    @ObservationIgnored private static var localLookalikesCacheResetInFlight = false
+    // MARK: - Focused Owners
+    @ObservationIgnored private let presentationLifecycleCoordinator:
+        InferencePresentationCoordinator
+    @ObservationIgnored private let presentationState:
+        InferencePresentationState
+    @ObservationIgnored private let sessionLifecycleCoordinator:
+        InferenceSessionLifecycleCoordinator
     @ObservationIgnored private let localAnalysisCoordinator:
         InferenceLocalAnalysisCoordinator
-    @ObservationIgnored private let liveRequestService:
-        InferenceLiveRequestService
-    @ObservationIgnored private let liveResultService:
-        InferenceLiveResultService
     @ObservationIgnored private let liveAttemptCoordinator:
         InferenceLiveAttemptCoordinator
-    @ObservationIgnored private let liveCompletionCoordinator:
-        InferenceLiveCompletionCoordinator
-    @ObservationIgnored private let requestPaywall: @MainActor () -> Void
-    @ObservationIgnored private let speciesReferenceService:
-        SpeciesReferenceHydrationService
-    @ObservationIgnored private let speciesEnrichmentService:
-        InferenceSpeciesEnrichmentService
-    @ObservationIgnored private let hydrationPersistenceService:
-        InferenceHydrationPersistenceService
-    @ObservationIgnored private let identificationReviewService:
-        InferenceIdentificationReviewService
-    @ObservationIgnored private let identificationReviewSnapshotService:
-        InferenceReviewSnapshotService
+    @ObservationIgnored private let liveSubmissionCoordinator:
+        InferenceLiveSubmissionCoordinator
+    @ObservationIgnored private let livePipelinePresentationCoordinator:
+        InferenceLivePresentationCoordinator
+    @ObservationIgnored private let speciesPresentationCoordinator:
+        InferenceSpeciesPresentationCoordinator
+    @ObservationIgnored private let historicalLoadCoordinator:
+        InferenceHistoricalLoadCoordinator
+    @ObservationIgnored private let identificationReviewWorkflowCoordinator:
+        InferenceReviewWorkflowCoordinator
     @ObservationIgnored private let hydrationCoordinator:
         InferenceHydrationCoordinator
-    @ObservationIgnored private let writeCoordinator = InferenceWriteCoordinator()
-    @ObservationIgnored private var preparedPresentationOwner:
-        AnalysisPresentationOwner?
-    @ObservationIgnored private var activePresentationOwner:
-        AnalysisPresentationOwner?
+    @ObservationIgnored private let writeCoordinator:
+        InferenceWriteCoordinator
     var scanPresentationGeneration: UInt64 { writeCoordinator.generation }
 
     init(
@@ -145,9 +136,9 @@ import SwiftUI
         localAnalysisStartFeedback: @escaping @MainActor () -> Void = {},
         liveRequestService: InferenceLiveRequestService = .live,
         liveResultService: InferenceLiveResultService = .live,
-        liveQueueService: InferenceLiveQueueService = .live,
+        liveQueueService: InferenceLiveQueueService? = nil,
         liveCompletionDependencies:
-            InferenceLiveCompletionCoordinator.Dependencies = .live,
+            InferenceLiveCompletionCoordinator.Dependencies? = nil,
         speciesReferenceService: SpeciesReferenceHydrationService = .live,
         speciesEnrichmentService:
             InferenceSpeciesEnrichmentService = .live,
@@ -157,428 +148,118 @@ import SwiftUI
             InferenceIdentificationReviewService = .live,
         identificationReviewSnapshotService:
             InferenceReviewSnapshotService = .live,
+        identificationReviewDependencies:
+            InferenceIdentificationReviewCoordinator.Dependencies? = nil,
         hydrationCoordinator: InferenceHydrationCoordinator? = nil,
-        requestPaywall: @escaping @MainActor () -> Void = {
-            UsageManager.shared.showPaywall = true
-        }
+        requestPaywall: (@MainActor () -> Void)? = nil,
+        liveFailureDependencies:
+            InferenceLiveFailureCoordinator.Dependencies? = nil,
+        livePipelineDependencies:
+            InferenceLivePipelineCoordinator.Dependencies = .live,
+        speciesHydrationDependencies:
+            InferenceSpeciesHydrationCoordinator.Dependencies = .live,
+        lookalikeCacheResetService:
+            InferenceLookalikeCacheResetService = .live,
+        liveMediaProjector: InferenceLiveMediaProjector = .live
     ) {
-        self.localAnalysisCoordinator = InferenceLocalAnalysisCoordinator(
+        let assembly = InferenceEngineAssembly(
             dependencies: .init(
-                classifier: visionSubjectClassifier,
-                traitExtractor: localVisualTraitExtractor,
-                foundationCueProvider: foundationVisualCueProvider,
-                foundationCueEligibilityChecker:
+                visionSubjectClassifier: visionSubjectClassifier,
+                localVisualTraitExtractor: localVisualTraitExtractor,
+                foundationVisualCueProvider:
+                    foundationVisualCueProvider,
+                foundationVisualCueEligibilityChecker:
                     foundationVisualCueEligibilityChecker,
-                phraseSleeper: scanningPhraseSleeper,
-                startFeedback: localAnalysisStartFeedback
+                scanningPhraseSleeper: scanningPhraseSleeper,
+                localAnalysisStartFeedback: localAnalysisStartFeedback,
+                liveRequestService: liveRequestService,
+                liveResultService: liveResultService,
+                liveQueueService: liveQueueService,
+                liveCompletionDependencies: liveCompletionDependencies,
+                speciesReferenceService: speciesReferenceService,
+                speciesEnrichmentService: speciesEnrichmentService,
+                hydrationPersistenceService: hydrationPersistenceService,
+                identificationReviewService: identificationReviewService,
+                identificationReviewSnapshotService:
+                    identificationReviewSnapshotService,
+                identificationReviewDependencies:
+                    identificationReviewDependencies,
+                hydrationCoordinator: hydrationCoordinator,
+                requestPaywall: requestPaywall,
+                liveFailureDependencies: liveFailureDependencies,
+                livePipelineDependencies: livePipelineDependencies,
+                speciesHydrationDependencies:
+                    speciesHydrationDependencies,
+                lookalikeCacheResetService: lookalikeCacheResetService,
+                liveMediaProjector: liveMediaProjector
             )
         )
-        self.liveRequestService = liveRequestService
-        self.liveResultService = liveResultService
-        let liveAttemptCoordinator = InferenceLiveAttemptCoordinator(
-            queueService: liveQueueService
-        )
-        self.liveAttemptCoordinator = liveAttemptCoordinator
-        self.liveCompletionCoordinator =
-            InferenceLiveCompletionCoordinator(
-                attemptCoordinator: liveAttemptCoordinator,
-                dependencies: liveCompletionDependencies
-            )
-        self.speciesReferenceService = speciesReferenceService
-        self.speciesEnrichmentService = speciesEnrichmentService
-        self.hydrationPersistenceService = hydrationPersistenceService
-        self.identificationReviewService = identificationReviewService
-        self.identificationReviewSnapshotService =
-            identificationReviewSnapshotService
-        self.hydrationCoordinator = hydrationCoordinator
-            ?? InferenceHydrationCoordinator()
-        self.requestPaywall = requestPaywall
+        self.presentationLifecycleCoordinator =
+            assembly.presentationLifecycleCoordinator
+        self.presentationState = assembly.presentationState
+        self.sessionLifecycleCoordinator =
+            assembly.sessionLifecycleCoordinator
+        self.localAnalysisCoordinator = assembly.localAnalysisCoordinator
+        self.liveAttemptCoordinator = assembly.liveAttemptCoordinator
+        self.liveSubmissionCoordinator = assembly.liveSubmissionCoordinator
+        self.livePipelinePresentationCoordinator =
+            assembly.livePipelinePresentationCoordinator
+        self.speciesPresentationCoordinator =
+            assembly.speciesPresentationCoordinator
+        self.historicalLoadCoordinator = assembly.historicalLoadCoordinator
+        self.identificationReviewWorkflowCoordinator =
+            assembly.identificationReviewWorkflowCoordinator
+        self.hydrationCoordinator = assembly.hydrationCoordinator
+        self.writeCoordinator = assembly.writeCoordinator
     }
 
-    private enum LiveReferenceHydrationPolicy: Sendable, Equatable {
-        case none
-        case showLoadingWhenReferenceMissing
-    }
-
-    private func resetTrackedBackgroundWrites() {
-        writeCoordinator.resetPresentationWrites()
-    }
-
-    private func beginIdentificationReviewAction(scanId: String) -> UInt64 {
-        writeCoordinator.beginIdentificationAction(
-            scanId: scanId,
-            channel: .review
+    #if DEBUG
+    /// The only DEBUG cross-file seam. The returned value is ephemeral and
+    /// exposes operations rather than the facade's private owner references.
+    func makeDebugSupport() -> InferenceEngineDebugSupport {
+        InferenceEngineDebugSupport(
+            presentationLifecycleCoordinator:
+                presentationLifecycleCoordinator,
+            presentationState: presentationState,
+            sessionLifecycleCoordinator: sessionLifecycleCoordinator,
+            localAnalysisCoordinator: localAnalysisCoordinator,
+            liveAttemptCoordinator: liveAttemptCoordinator,
+            liveSubmissionCoordinator: liveSubmissionCoordinator,
+            writeCoordinator: writeCoordinator
         )
     }
-
-    private func beginIdentificationConfirmationAction(
-        scanId: String
-    ) -> UInt64 {
-        writeCoordinator.beginIdentificationAction(
-            scanId: scanId,
-            channel: .confirmation
-        )
-    }
-
-    private func isIdentificationReviewActionCurrent(
-        scanId: String,
-        generation: UInt64
-    ) -> Bool {
-        writeCoordinator.isIdentificationActionCurrent(
-            scanId: scanId,
-            generation: generation,
-            channel: .review
-        )
-    }
-
-    private func beginIdentificationFlagAction(scanId: String) -> UInt64 {
-        writeCoordinator.beginIdentificationAction(
-            scanId: scanId,
-            channel: .legacyFlag
-        )
-    }
-
-    private func isIdentificationFlagActionCurrent(
-        scanId: String,
-        generation: UInt64
-    ) -> Bool {
-        writeCoordinator.isIdentificationActionCurrent(
-            scanId: scanId,
-            generation: generation,
-            channel: .legacyFlag
-        )
-    }
-
-    @discardableResult
-    private func enqueueIdentificationWrite(
-        scanId: String,
-        actionGeneration: UInt64,
-        channel: InferenceWriteCoordinator.IdentificationChannel = .review,
-        operation: @escaping @Sendable () async -> Void
-    ) -> Task<Void, Never>? {
-        writeCoordinator.enqueueIdentificationWrite(
-            scanId: scanId,
-            actionGeneration: actionGeneration,
-            channel: channel,
-            operation: operation
-        )
-    }
-
-    private func isLiveSpeciesPresentation(
-        scanId: String,
-        scientificName: String,
-        presentationGeneration: UInt64? = nil,
-        reviewActionGeneration: UInt64? = nil
-    ) -> Bool {
-        guard let current = speciesData,
-              current.scanId?.caseInsensitiveCompare(scanId) == .orderedSame,
-              current.scientificName.caseInsensitiveCompare(scientificName) == .orderedSame else {
-            return false
-        }
-        if let presentationGeneration,
-           writeCoordinator.generation != presentationGeneration {
-            return false
-        }
-        guard let reviewActionGeneration else { return true }
-        return isIdentificationReviewActionCurrent(
-            scanId: scanId,
-            generation: reviewActionGeneration
-        )
-    }
-
-    private func cancelSpeciesHydrationForIdentificationChange() {
-        hydrationCoordinator.cancelAllTasks()
-        isEnrichmentLoading = false
-        isLookalikesLoading = false
-    }
-
-    private func executeSpeciesMetadataWrite(
-        scanId: String,
-        scientificName: String,
-        presentationGeneration: UInt64,
-        reviewActionGeneration: UInt64?,
-        operation: @escaping @Sendable () async -> Void
-    ) {
-        guard !writeCoordinator.isAuthTransitionFenceActive else { return }
-        let guardedOperation: @Sendable () async -> Void = { [weak self] in
-            guard !Task.isCancelled,
-                  let self,
-                  await self.isLiveSpeciesPresentation(
-                      scanId: scanId,
-                      scientificName: scientificName,
-                      presentationGeneration: presentationGeneration,
-                      reviewActionGeneration: reviewActionGeneration
-                  ) else {
-                return
-            }
-            await operation()
-        }
-
-        if let reviewActionGeneration {
-            enqueueIdentificationWrite(
-                scanId: scanId,
-                actionGeneration: reviewActionGeneration,
-                operation: guardedOperation
-            )
-        } else {
-            writeCoordinator.enqueueBackgroundWrite(guardedOperation)
-        }
-    }
+    #endif
 
     /// Synchronously closes new presentation writes at Auth-transition
     /// admission and cancels every existing producer. Ephemeral local visual
     /// work is fenced and released here; only durable write owners participate
     /// in the async quiescence drain.
     func beginAuthTransitionWriteFence() {
-        guard writeCoordinator.beginAuthTransitionFence() else { return }
-        _ = hydrationCoordinator.beginAuthTransitionFence()
-        inferenceTask?.cancel()
-        cancelLocalVisualAnalysis()
-        preparedPresentationOwner = nil
-        activePresentationOwner = nil
-        recoverablePresentationScanId = nil
-        queuedPresentationScanId = nil
-        queuedVisualPresentationScanId = nil
-        queuedPresentationCarriesLiveMedia = false
-        queuedPresentationScanningPhrases = []
-        scanningPhaseText = ScanningPhraseCoordinator.genericPhrases[0]
-        activeMedia = ActiveScanMedia()
-        resetTrackedBackgroundWrites()
+        sessionLifecycleCoordinator.beginAuthTransition()
     }
 
     func awaitAuthTransitionWriteQuiescence() async {
-        guard writeCoordinator.isAuthTransitionFenceActive else { return }
-
-        _ = await inferenceTask?.result
-        await hydrationCoordinator.awaitQuiescence()
-        await writeCoordinator.awaitQuiescence()
-
-        inferenceTask = nil
-        localAnalysisCoordinator.cancel()
-        preparedPresentationOwner = nil
-        activePresentationOwner = nil
-        queuedVisualPresentationScanId = nil
-        queuedPresentationCarriesLiveMedia = false
+        await sessionLifecycleCoordinator.awaitAuthTransitionQuiescence()
     }
 
     func finishAuthTransitionWriteFence() {
-        hydrationCoordinator.finishAuthTransitionFence()
-        writeCoordinator.finishAuthTransitionFence()
-    }
-
-    private func hasUsableLookalikeTaxonomy(_ taxonomy: TaxonomyData?) -> Bool {
-        taxonomy?.hasUsableLookalikeValidation == true
-    }
-
-    nonisolated static func plannedEnrichmentScopes(
-        needsMetadata: Bool,
-        needsLookalikes: Bool,
-        speciesIsEnriched: Bool
-    ) -> (metadata: Bool, lookalikes: Bool) {
-        (
-            metadata: needsMetadata && !speciesIsEnriched,
-            lookalikes: needsLookalikes
-        )
-    }
-
-    private func shouldResetLocalLookalikesCache() -> Bool {
-        UserDefaults.standard.integer(forKey: UserDefaultsKeys.localLookalikesCacheResetVersion) <
-        InferenceLookalikeCachePolicy.resetVersion
-    }
-
-    private func scheduleLocalLookalikesCacheResetIfNeeded(modelContext: ModelContext?) {
-        guard shouldResetLocalLookalikesCache(),
-              !Self.localLookalikesCacheResetInFlight,
-              let container = modelContext?.container else { return }
-
-        Self.localLookalikesCacheResetInFlight = true
-        Task.detached(priority: .utility) {
-            let dbActor = BackgroundDatabaseActor(modelContainer: container)
-            await dbActor.clearAllLocalLookalikesCache()
-            await MainActor.run {
-                UserDefaults.standard.set(
-                    InferenceLookalikeCachePolicy.resetVersion,
-                    forKey: UserDefaultsKeys.localLookalikesCacheResetVersion
-                )
-                Self.localLookalikesCacheResetInFlight = false
-            }
-        }
+        sessionLifecycleCoordinator.finishAuthTransition()
     }
 
     // MARK: - Live Inference Pipeline
 
-    /// Synchronously resets all display state so the content router sees
-    /// `isProcessing == true && speciesData == nil` from the very first frame
-    /// when the insight sheet opens — even when the previous scan was a library
-    /// load that had already finished (`isProcessing == false`, `speciesData != nil`).
-    ///
-    /// Called by `CaptureWorkspaceViewModel.submitStagedCapture(...)` before `activeSheet = .insight`.
-    /// `analyze()` will subsequently overwrite image and telemetry fields with the
-    /// new scan's data once the async telemetry Task resolves.
-    ///
-    /// Contrast with `cancelActiveRequest()`, which resets to idle with no upcoming scan.
+    /// Resets display state before the Insight sheet opens so its first frame
+    /// presents the upcoming scan rather than a previous result.
     func prepareForNewScan(
         scanId: String? = nil,
         attemptGeneration: UUID? = nil,
         modality: ScanPresentationModality = .visual
     ) {
-        guard !writeCoordinator.isAuthTransitionFenceActive else { return }
-        // Cancel all in-flight async work before the new scan claims the engine.
-        liveAttemptCoordinator.invalidateActiveAttempt(
-            resumeBackground: true,
-            reason: "live_scan_replaced"
+        sessionLifecycleCoordinator.prepareForNewScan(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            modality: modality.presentationValue
         )
-        self.inferenceTask?.cancel()
-        self.hydrationCoordinator.cancelAllTasks()
-        self.hydrationCoordinator.resetEnrichmentRateLimit()
-        self.cancelLocalVisualAnalysis()
-        self.resetTrackedBackgroundWrites()
-
-        // Reset scan identity and processing flags.
-        self.activeScanId = nil
-        self.activePresentationOwner = nil
-        self.recoverablePresentationScanId = nil
-        self.queuedPresentationScanId = nil
-        self.queuedVisualPresentationScanId = nil
-        self.queuedPresentationCarriesLiveMedia = false
-        self.queuedPresentationScanningPhrases = []
-        if let scanId, let attemptGeneration {
-            self.preparedPresentationOwner = AnalysisPresentationOwner(
-                scanId: scanId,
-                attemptGeneration: attemptGeneration,
-                modality: modality
-            )
-        } else {
-            self.preparedPresentationOwner = nil
-        }
-        self.pendingFirstRenderMetric = nil
-        self.isProcessing = true
-        self.scanningPhaseText = ScanningPhraseCoordinator.genericPhrases[0]
-        self.isEnrichmentLoading = false
-        self.isLookalikesLoading = false
-        self.speciesData = nil
-        self.activeMedia = ActiveScanMedia()
-
-        // Clear telemetry so stale GPS/weather cannot bleed into the new scan's display.
-        self.activeLatitude = nil
-        self.activeLongitude = nil
-        self.activeElevation = nil
-        self.activeLocationName = nil
-        self.activeWeatherCondition = nil
-        self.activeTemperatureF = nil
-    }
-
-    private func filteredObservationContexts(_ observationContexts: [ObservationContext]) -> [ObservationContext] {
-        observationContexts.filter { !$0.isEmpty }
-    }
-
-    private func resolvedAudioPath(for audioFilePath: String) -> String {
-        let normalizedPath = audioFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
-        if normalizedPath.hasPrefix("/") {
-            if FileManager.default.fileExists(atPath: normalizedPath) {
-                return normalizedPath
-            }
-            let filename = URL(fileURLWithPath: normalizedPath).lastPathComponent
-            let documentsPath = URL.documentsDirectory.appendingPathComponent(filename).path
-            if FileManager.default.fileExists(atPath: documentsPath) {
-                return documentsPath
-            }
-            return normalizedPath
-        }
-        let docsPath = URL.documentsDirectory.appendingPathComponent(normalizedPath).path
-        let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(normalizedPath).path
-        return FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
-    }
-
-    private func resolvedVideoPath(for videoFilePath: String) -> String? {
-        let normalizedPath = videoFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
-        if normalizedPath.hasPrefix("http://") || normalizedPath.hasPrefix("https://") {
-            return SecureTransportPolicy.httpsURL(
-                from: normalizedPath
-            )?.absoluteString
-        }
-        if normalizedPath.hasPrefix("/") {
-            if FileManager.default.fileExists(atPath: normalizedPath) {
-                return normalizedPath
-            }
-            let filename = URL(fileURLWithPath: normalizedPath).lastPathComponent
-            let documentsPath = URL.documentsDirectory.appendingPathComponent(filename).path
-            if FileManager.default.fileExists(atPath: documentsPath) {
-                return documentsPath
-            }
-            return normalizedPath
-        }
-        let docsPath = URL.documentsDirectory.appendingPathComponent(normalizedPath).path
-        let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(normalizedPath).path
-        return FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
-    }
-
-    nonisolated static func normalizedReferenceURLs(from rawValue: String?) -> [String] {
-        ExternalReferenceImagePolicy.allowedURLStrings(from: rawValue)
-    }
-
-    private func mediaItems(
-        from mediaTimeline: [CaptureSubmissionMediaItem],
-        liveImageDatas: [Data]?,
-        persistedImagePaths: [String]?
-    ) -> [MediaItem] {
-        var items: [MediaItem] = []
-
-        for (timelineIndex, item) in mediaTimeline.enumerated() {
-            switch item {
-            case .image(let imageIndex):
-                if mediaTimeline.indices.contains(timelineIndex + 1),
-                   case .video = mediaTimeline[timelineIndex + 1] {
-                    continue
-                }
-                if let liveImageDatas, liveImageDatas.indices.contains(imageIndex) {
-                    items.append(.liveImage(liveImageDatas[imageIndex]))
-                } else if let persistedImagePaths, persistedImagePaths.indices.contains(imageIndex) {
-                    items.append(.image(persistedImagePaths[imageIndex]))
-                }
-            case .audio(let audioFilePath):
-                items.append(.audio(resolvedAudioPath(for: audioFilePath)))
-            case .video(let videoFilePath, let posterImageIndex, _):
-                let fallbackImage = posterImageIndex.flatMap { imageIndex -> VideoFallbackImageSource? in
-                    if let liveImageDatas, liveImageDatas.indices.contains(imageIndex) {
-                        return .liveImage(liveImageDatas[imageIndex])
-                    }
-                    if let persistedImagePaths, persistedImagePaths.indices.contains(imageIndex) {
-                        return .imagePath(persistedImagePaths[imageIndex])
-                    }
-                    return nil
-                }
-                if let videoPath = resolvedVideoPath(for: videoFilePath) {
-                    items.append(.video(
-                        videoPath,
-                        fallbackImage: fallbackImage
-                    ))
-                } else if let fallbackImage {
-                    switch fallbackImage {
-                    case .liveImage(let data):
-                        items.append(.liveImage(data))
-                    case .imagePath(let path):
-                        items.append(.image(path))
-                    }
-                }
-            case .description(let context):
-                guard !context.isEmpty else { continue }
-                items.append(.description(context))
-            }
-        }
-
-        return items
-    }
-
-    private func applyReferenceStateIfAvailable(from mappedData: SpeciesData) {
-        guard !mappedData.shouldSuppressReferenceImages else {
-            activeMedia.referenceState = .empty
-            return
-        }
-        let refs = Self.normalizedReferenceURLs(from: mappedData.referenceImageUrl)
-        if !refs.isEmpty {
-            activeMedia.referenceState = .loaded(refs)
-        }
     }
 
     /// Publishes a completed core identification as one main-actor state transition.
@@ -593,21 +274,13 @@ import SwiftUI
         speciesData: SpeciesData,
         persistedMediaItems: [MediaItem]? = nil
     ) -> Bool {
-        guard liveAttemptCoordinator.isAttemptCurrent(
-            scanId: ownedScanId,
+        livePipelinePresentationCoordinator.commitSuccessfulResult(
+            for: ownedScanId,
             attemptGeneration: attemptGeneration,
-            foregroundGeneration: foregroundInferenceGeneration
-        ) else {
-            return false
-        }
-
-        publishSuccessfulResult(
-            speciesData,
+            foregroundInferenceGeneration: foregroundInferenceGeneration,
+            speciesData: speciesData,
             persistedMediaItems: persistedMediaItems
         )
-        liveCompletionCoordinator
-            .publishForegroundCompletionEventIfNeeded(for: speciesData)
-        return true
     }
 
     /// Publishes a terminal background result only when it replaces the exact
@@ -624,21 +297,12 @@ import SwiftUI
         expectedForegroundGeneration: UUID?,
         speciesData: SpeciesData
     ) -> Bool {
-        guard liveAttemptCoordinator.canCommitRecoveredBackgroundResult(
-            scanId: scanId,
+        sessionLifecycleCoordinator.commitRecoveredBackgroundResult(
+            for: scanId,
             replacingAttemptGeneration: replacingAttemptGeneration,
-            expectedForegroundGeneration: expectedForegroundGeneration
-        ) else {
-            return false
-        }
-
-        // Transfer the presentation slot before the caller cooperatively cancels
-        // the old task. Otherwise that task can resume an error handler, still
-        // pass its local UUID check, and overwrite this recovered result.
-        liveAttemptCoordinator.clearActiveAttempt()
-        cancelLocalVisualAnalysis()
-        publishSuccessfulResult(speciesData)
-        return true
+            expectedForegroundGeneration: expectedForegroundGeneration,
+            speciesData: speciesData
+        )
     }
 
     /// Publishes a queued/background response after the corresponding live
@@ -650,18 +314,10 @@ import SwiftUI
         for scanId: String,
         speciesData: SpeciesData
     ) -> Bool {
-        guard recoverablePresentationScanId == scanId,
-              speciesData.scanId?.caseInsensitiveCompare(scanId)
-                == .orderedSame,
-              activeScanId == nil || activeScanId == scanId else {
-            return false
-        }
-
-        liveAttemptCoordinator.clearActiveAttempt()
-        recoverablePresentationScanId = nil
-        cancelLocalVisualAnalysis()
-        publishSuccessfulResult(speciesData)
-        return true
+        sessionLifecycleCoordinator.commitRecoveredQueuedResult(
+            for: scanId,
+            speciesData: speciesData
+        )
     }
 
     /// Rehydrates a status-recovered owner row into the still-presented live
@@ -673,154 +329,16 @@ import SwiftUI
         _ record: LocalScanRecord,
         for scanId: String
     ) -> Bool {
-        guard recoverablePresentationScanId == scanId,
-              record.id == scanId,
-              activeScanId == nil || activeScanId == scanId else {
-            return false
-        }
-
-        recoverablePresentationScanId = nil
-        load(from: record)
-        return true
-    }
-
-    private func publishSuccessfulResult(
-        _ speciesData: SpeciesData,
-        persistedMediaItems: [MediaItem]? = nil
-    ) {
-        preparedPresentationOwner = nil
-        activePresentationOwner = nil
-        recoverablePresentationScanId = nil
-        queuedPresentationScanId = nil
-        queuedVisualPresentationScanId = nil
-        queuedPresentationCarriesLiveMedia = false
-        queuedPresentationScanningPhrases = []
-        if let persistedMediaItems {
-            activeMedia.items = persistedMediaItems
-        }
-        self.speciesData = speciesData
-        applyReferenceStateIfAvailable(from: speciesData)
-        isProcessing = false
-    }
-
-    private func schedulePostInferenceHydrationIfNeeded(
-        for mappedData: SpeciesData,
-        modelContext: ModelContext?,
-        referencePolicy: LiveReferenceHydrationPolicy
-    ) {
-        guard mappedData.hasResolvedBiologicalIdentification,
-              !mappedData.isHumanSubject,
-              let capturedScanId = mappedData.scanId else {
-            return
-        }
-
-        let capturedScientificName = mappedData.scientificName
-        let capturedPresentationGeneration = writeCoordinator.generation
-        let reviewActionGeneration =
-            beginIdentificationReviewAction(scanId: capturedScanId)
-        let capturedGbifKey = mappedData.gbifTaxonKey
-        let capturedHasWikipedia = mappedData.wikipediaOverview != nil
-        let shouldShowReferenceLoading = referencePolicy == .showLoadingWhenReferenceMissing &&
-            capturedGbifKey != nil &&
-            Self.normalizedReferenceURLs(from: mappedData.referenceImageUrl).isEmpty
-
-        hydrationCoordinator.replaceTask(in: .live) { [weak self] in
-            guard let self else { return }
-            defer {
-                if shouldShowReferenceLoading,
-                   self.speciesData?.scanId == capturedScanId,
-                   self.activeMedia.referenceState == .loading {
-                    self.activeMedia.referenceState = .empty
-                }
-            }
-
-            if shouldShowReferenceLoading {
-                self.activeMedia.referenceState = .loading
-            }
-
-            let capturedIsEnriched = self.hydrationCoordinator
-                .isSpeciesEnriched(capturedScientificName)
-            let plannedScopes = Self.plannedEnrichmentScopes(
-                needsMetadata: true,
-                needsLookalikes: true,
-                speciesIsEnriched: capturedIsEnriched
-            )
-
-            await withTaskGroup(of: Void.self) { group in
-                if !capturedHasWikipedia {
-                    group.addTask { @MainActor [weak self] in
-                        guard let self else { return }
-                        await self.fetchWikipediaAndHydrate(
-                            for: capturedScientificName,
-                            scanId: capturedScanId,
-                            presentationGeneration: capturedPresentationGeneration,
-                            reviewActionGeneration: reviewActionGeneration,
-                            modelContext: modelContext
-                        )
-                    }
-                }
-
-                group.addTask { @MainActor [weak self] in
-                    guard let self else { return }
-                    var taxonKeyToUse = capturedGbifKey
-
-                    if plannedScopes.metadata || plannedScopes.lookalikes {
-                        await self.fetchAndApplyEnrichment(
-                            modelContext: modelContext,
-                            needsMetadata: plannedScopes.metadata,
-                            needsLookalikes: plannedScopes.lookalikes,
-                            reviewActionGeneration: reviewActionGeneration
-                        )
-                        taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
-                    }
-
-                    guard !Task.isCancelled else { return }
-
-                    if let key = taxonKeyToUse {
-                        await self.fetchGBIFImagesAndHydrate(
-                            for: key,
-                            scanId: capturedScanId,
-                            scientificName: capturedScientificName,
-                            presentationGeneration: capturedPresentationGeneration,
-                            reviewActionGeneration: reviewActionGeneration,
-                            modelContext: modelContext
-                        )
-                    }
-                }
-            }
-
-            // Only mark the species as enriched when the call actually succeeded.
-            if !capturedIsEnriched && !Task.isCancelled,
-               self.speciesData?.habitatDescription?.trimmedNonEmptyValue != nil,
-               self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
-                self.hydrationCoordinator.markSpeciesEnriched(
-                    capturedScientificName
-                )
-            }
+        sessionLifecycleCoordinator.commitRecoveredQueuedRecord(
+            for: scanId,
+            recordScanId: record.id
+        ) { [self] in
+            load(from: record)
         }
     }
 
-    /// Runs the live AI taxonomy pipeline for a new scan submission.
-    ///
-    /// Dispatches the Gemini inference request, parses and persists the result, updates all
-    /// observable state for the insight sheet, and registers one structured
-    /// post-inference hydration operation for Wikipedia, enrichment, and GBIF
-    /// images.
-    ///
-    /// The method is idempotent with respect to in-flight work — calling it cancels any
-    /// existing inference and live-hydration work before starting the new pipeline.
-    ///
-    /// - Parameters:
-    ///   - scanId: The `OfflineQueuedScan.id` for this capture. Passed to the Edge function
-    ///     so the backend can correlate the live response with the queued upload.
-    ///   - imageDatas: Tier-bounded inference images. Sent to Gemini as base64.
-    ///   - displayDatas: Display-policy-bounded images. Written to disk so the insight
-    ///     sheet renders without JPEG blocking artifacts. Never sent to AI.
-    ///     Falls back to `imageDatas` when empty (e.g. offline-queue reprocessing path).
-    ///   - telemetry: GPS, weather, and device context bundled at capture time.
-    ///   - modelContext: The SwiftData context for persisting the parsed scan record locally.
-    ///   - targetEradicationScanId: An optional historic scan ID passed exclusively when replacing a scan with a fresh analysis.
-    ///   - observationContexts: Structured descriptions staged alongside the capture.
+    /// Starts a live visual submission. The focused submission coordinator owns
+    /// admission, media projection, execution, persistence, and hydration.
     func analyze(
         scanId: String? = nil,
         foregroundInferenceGeneration: UUID? = nil,
@@ -837,375 +355,25 @@ import SwiftUI
         targetEradicationScanId: String? = nil,
         userPerceivedStart: CFAbsoluteTime? = nil
     ) {
-        guard !writeCoordinator.isAuthTransitionFenceActive else {
-            liveAttemptCoordinator.releaseAndRetire(
+        liveSubmissionCoordinator.startVisual(
+            InferenceLiveSubmissionCoordinator.VisualSubmission(
                 scanId: scanId,
-                foregroundGeneration: foregroundInferenceGeneration,
-                resumeBackground: true,
-                reason: "auth_transition_active"
+                foregroundInferenceGeneration:
+                    foregroundInferenceGeneration,
+                imageDatas: imageDatas,
+                displayDatas: displayDatas,
+                audioFilePaths: audioFilePaths,
+                videoFilePaths: videoFilePaths,
+                telemetry: telemetry,
+                observationContexts: observationContexts,
+                mediaTimeline: mediaTimeline,
+                visualMediaItems: visualMediaItems,
+                preferredGoal: preferredGoal,
+                modelContext: modelContext,
+                targetEradicationScanId: targetEradicationScanId,
+                userPerceivedStart: userPerceivedStart
             )
-            return
-        }
-        guard !imageDatas.isEmpty else {
-            liveAttemptCoordinator.releaseAndRetire(
-                scanId: scanId,
-                foregroundGeneration: foregroundInferenceGeneration,
-                resumeBackground: true,
-                reason: "live_visual_payload_empty"
-            )
-            return
-        }
-        if let scanId {
-            guard let foregroundInferenceGeneration else {
-                MerianLog.general.debug(
-                    "analyze: rejected missing foreground owner scanId=\(scanId, privacy: .public)"
-                )
-                return
-            }
-            guard !liveAttemptCoordinator.isDuplicateActiveForegroundAttempt(
-                scanId: scanId,
-                generation: foregroundInferenceGeneration
-            ) else {
-                MerianLog.general.debug(
-                    "analyze: ignored duplicate foreground generation scanId=\(scanId, privacy: .public)"
-                )
-                return
-            }
-            guard liveAttemptCoordinator.claimForegroundInferenceStart(
-                scanId: scanId,
-                generation: foregroundInferenceGeneration
-            ) else {
-                MerianLog.general.debug(
-                    "analyze: rejected missing, stale, used, or retiring foreground owner scanId=\(scanId, privacy: .public)"
-                )
-                return
-            }
-        } else if foregroundInferenceGeneration != nil {
-            MerianLog.general.debug(
-                "analyze: rejected foreground owner without scanId"
-            )
-            return
-        }
-        liveAttemptCoordinator.invalidateActiveAttempt(
-            resumeBackground: true,
-            reason: "live_scan_replaced_by_analyze"
         )
-        self.inferenceTask?.cancel()
-        self.hydrationCoordinator.cancelAllTasks()
-        self.cancelLocalVisualAnalysis()
-        self.resetTrackedBackgroundWrites()
-
-        // Reset loading flags synchronously before the cancelled tasks' defer blocks can run
-        // on @MainActor. Without this, a stale defer from the old task can fire after the new
-        // pipeline has already set these flags to true, prematurely clearing the skeletons.
-        self.isEnrichmentLoading = false
-        self.isLookalikesLoading = false
-        self.activeMedia = ActiveScanMedia()
-        let datasToUse = displayDatas.isEmpty ? imageDatas : displayDatas
-        let resolvedObservationContexts = filteredObservationContexts(observationContexts)
-        let resolvedMediaTimeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
-            imageCount: datasToUse.count,
-            observationContexts: resolvedObservationContexts,
-            audioFilePaths: audioFilePaths ?? [],
-            videoFilePaths: videoFilePaths ?? []
-        )
-        let submissionProjection = resolvedMediaTimeline.submissionMediaProjection
-        let ownerMediaTimeline = mediaTimeline == nil
-            ? nil
-            : submissionProjection.ownerMediaTimeline
-        self.activeMedia.items = mediaItems(
-            from: resolvedMediaTimeline,
-            liveImageDatas: datasToUse,
-            persistedImagePaths: nil
-        )
-        self.activeMedia.focusRegionsBySourceIndex = visualMediaItems?.focusRegionsBySourceIndex ?? [:]
-        
-        self.speciesData = nil
-
-        // Queue-backed attempts use the same UUID persisted on the durable job;
-        // queue-less online descriptions receive a process-local owner.
-        let attemptGeneration =
-            foregroundInferenceGeneration ?? UUID()
-        liveAttemptCoordinator.activate(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: foregroundInferenceGeneration
-        )
-        self.preparedPresentationOwner = nil
-        self.activePresentationOwner = AnalysisPresentationOwner(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            modality: .visual
-        )
-        self.activeLatitude = telemetry.gpsLatitude
-        self.activeLongitude = telemetry.gpsLongitude
-        self.activeElevation = telemetry.gpsElevation
-        self.activeLocationName = telemetry.locationName
-        self.activeWeatherCondition = telemetry.weatherCondition
-        self.activeTemperatureF = telemetry.weatherTemperatureF
-        self.activeDistanceInMeters = telemetry.subjectDistanceInMeters
-
-        let capturedDisplayDatas = displayDatas
-
-        if let firstData = imageDatas.first {
-            classifySubjectLocally(
-                from: firstData,
-                focusRegion: visualMediaItems?.first?.focusRegion
-            )
-        }
-
-        // Capture before the Task so the defer can compare against the ID this Task owns.
-        let ownedScanId = scanId
-        let ownedForegroundInferenceGeneration =
-            foregroundInferenceGeneration
-        let resolvedClientScanId = scanId ?? UUID().uuidString.lowercased()
-        if let userPerceivedStart {
-            self.pendingFirstRenderMetric = (
-                scanId: resolvedClientScanId,
-                startedAt: userPerceivedStart
-            )
-        }
-
-        self.inferenceTask = Task { [weak self] in
-            guard let self = self else { return }
-
-            // Single exit point for isProcessing — covers all success, error, and cancellation paths.
-            // Guard on ownedScanId: if a new scan called prepareForNewScan() + analyze() before this
-            // Task's defer runs, activeScanId has already been updated to the new scan's ID. Writing
-            // isProcessing=false or activeScanId=nil in that window would corrupt the new scan's state
-            // (leaving the insight sheet stuck in a done-but-empty state). Only reset when this Task
-            // still owns the active slot.
-            defer {
-                if self.liveAttemptCoordinator.clearActiveAttemptIfCurrent(
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration
-                ) {
-                    self.isProcessing = false
-                    if self.activePresentationOwner?.attemptGeneration
-                        == attemptGeneration {
-                        self.activePresentationOwner = nil
-                    }
-                    self.cancelLocalVisualAnalysis()
-                }
-            }
-
-            let pipelineStart = CFAbsoluteTimeGetCurrent()
-            let compressedDatas = imageDatas  // Only these are base64-encoded for Gemini.
-
-            do {
-                // --- Step 1: Pre-flight Checks & Data Preparation ---
-
-                try self.liveAttemptCoordinator.checkAttempt(
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundGeneration:
-                        ownedForegroundInferenceGeneration
-                )
-                if CircuitBreakerManager.shared.isCircuitTripped {
-                    throw URLError(.notConnectedToInternet)
-                }
-
-                // Durable upload release must outlive this engine instance;
-                // only the local-analysis callback below remains weakly owned.
-                let requestAttemptCoordinator = self.liveAttemptCoordinator
-                var uploadFailSafe: Task<Void, Never>?
-                defer { uploadFailSafe?.cancel() }
-                let requestResponse = try await self.liveRequestService
-                    .dispatchVisual(
-                        InferenceLiveRequestService.VisualRequest(
-                            compressedImages: compressedDatas,
-                            submissionProjection: submissionProjection,
-                            ownerMediaTimeline: ownerMediaTimeline,
-                            visualMediaItems: visualMediaItems,
-                            telemetry: telemetry,
-                            clientScanId: resolvedClientScanId,
-                            preferredGoal: preferredGoal,
-                            // A durable queue already owns every later
-                            // transport retry and receives a bounded foreground
-                            // deadline. Direct callers retain the reviewed long
-                            // request window and inline replay.
-                            durableQueueOwnsRecovery:
-                                ownedForegroundInferenceGeneration != nil,
-                            pipelineStartedAt: pipelineStart
-                        ),
-                        validateAttempt: {
-                            try self.liveAttemptCoordinator.checkAttempt(
-                                scanId: ownedScanId,
-                                attemptGeneration: attemptGeneration,
-                                foregroundGeneration:
-                                    ownedForegroundInferenceGeneration
-                            )
-                        },
-                        onProviderDispatchReady: {
-                            uploadFailSafe = Task { @MainActor in
-                                try? await Task.sleep(for: .seconds(2))
-                                guard !Task.isCancelled else { return }
-                                requestAttemptCoordinator
-                                    .releaseDeferredUpload(
-                                        scanId: resolvedClientScanId,
-                                        foregroundGeneration:
-                                            ownedForegroundInferenceGeneration,
-                                        reason:
-                                            "inline_upload_two_second_failsafe"
-                                    )
-                            }
-                        },
-                        onRequestBodySent: { [weak self] in
-                            Task { @MainActor in
-                                requestAttemptCoordinator
-                                    .releaseDeferredUpload(
-                                        scanId: resolvedClientScanId,
-                                        foregroundGeneration:
-                                            ownedForegroundInferenceGeneration,
-                                        reason: "inline_request_body_sent"
-                                )
-                                self?.markInferenceRequestBodySent(
-                                    session: InferenceLocalAnalysisCoordinator.Session(
-                                        scanId: ownedScanId,
-                                        attemptGeneration: attemptGeneration,
-                                        foregroundGeneration:
-                                            ownedForegroundInferenceGeneration
-                                    )
-                                )
-                            }
-                        }
-                    )
-                guard let requestResponse else {
-                    MerianLog.general.error("All base64 payloads are empty — corrupted capture data. Refunding scan.")
-                    UsageManager.shared.refundScan(scanId: resolvedClientScanId)
-                    self.liveAttemptCoordinator.releaseDeferredUpload(
-                        scanId: resolvedClientScanId,
-                        foregroundGeneration:
-                            ownedForegroundInferenceGeneration,
-                        reason: "live_visual_encoding_empty"
-                    )
-                    self.liveAttemptCoordinator.retireForegroundInferenceIfCurrent(
-                        scanId: ownedScanId,
-                        attemptGeneration: attemptGeneration,
-                        foregroundGeneration:
-                            ownedForegroundInferenceGeneration,
-                        resumeBackground: true,
-                        reason: "live_visual_encoding_empty"
-                    )
-                    return
-                }
-                let responseReceivedAt = requestResponse.receivedAt
-                self.cancelLocalVisualAnalysis(resetPhraseCoordinator: false)
-
-                // --- Step 3: Response Parsing & Local Persistence ---
-                
-                let postFlightStart = CFAbsoluteTimeGetCurrent()
-                let resultOutcome = try await self.liveResultService.process(
-                    InferenceLiveResultService.Request(
-                        response: requestResponse,
-                        telemetry: telemetry,
-                        media: .visual(
-                            compressedImages: compressedDatas,
-                            displayImages: capturedDisplayDatas
-                        ),
-                        mediaTimeline: resolvedMediaTimeline,
-                        submissionProjection: submissionProjection,
-                        modelContext: modelContext,
-                        persistenceFence: ownedScanId.flatMap { scanId in
-                            ownedForegroundInferenceGeneration.map { generation in
-                                LiveInferencePersistenceFence(
-                                    scanId: scanId,
-                                    generation: generation
-                                )
-                            }
-                        }
-                    ),
-                    validateAttempt: {
-                        try self.liveAttemptCoordinator.checkAttempt(
-                            scanId: ownedScanId,
-                            attemptGeneration: attemptGeneration,
-                            foregroundGeneration:
-                                ownedForegroundInferenceGeneration
-                        )
-                    }
-                )
-                guard let completion =
-                    self.liveCompletionCoordinator.prepare(
-                        outcome: resultOutcome,
-                        targetEradicationScanId: targetEradicationScanId,
-                        modelContext: modelContext
-                    ) else {
-                    self.liveAttemptCoordinator.retireForegroundInferenceIfCurrent(
-                        scanId: ownedScanId,
-                        attemptGeneration: attemptGeneration,
-                        foregroundGeneration:
-                            ownedForegroundInferenceGeneration,
-                        resumeBackground: true,
-                        reason: "live_result_persistence_rejected"
-                    )
-                    return
-                }
-
-                // --- Step 4: UI State Updates & Gamification ---
-
-                let didCommitResult = self.commitSuccessfulResult(
-                    for: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration,
-                    speciesData: completion.speciesData,
-                    persistedMediaItems: self.mediaItems(
-                        from: resolvedMediaTimeline,
-                        liveImageDatas: nil,
-                        persistedImagePaths: completion.savedImagePaths
-                    )
-                )
-                let stateCommittedAt = CFAbsoluteTimeGetCurrent()
-                MerianLog.general.debug(
-                    "[⏱ BENCH] Response to first-result state: \(String(format: "%.3f", stateCommittedAt - responseReceivedAt), privacy: .public)s"
-                )
-                let followUpPermit:
-                    InferenceLiveCompletionCoordinator.FollowUpPermit? =
-                    if didCommitResult {
-                        await self.liveCompletionCoordinator
-                            .finalizeQueueAndAuthorizeFollowUps(
-                                scanId: scanId,
-                                attemptGeneration: attemptGeneration,
-                                foregroundGeneration:
-                                    ownedForegroundInferenceGeneration,
-                                mediaPathsToKeep: completion.mediaPathsToKeep,
-                                speciesData: completion.speciesData,
-                                modelContainer: modelContext?.container
-                            )
-                    } else {
-                        nil
-                    }
-                if let followUpPermit {
-                    self.liveCompletionCoordinator
-                        .sendNotificationIfEnabled(followUpPermit)
-                }
-
-                MerianLog.general.debug("[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - postFlightStart), privacy: .public)s")
-                MerianLog.general.debug("[⏱ BENCH] Total pipeline: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
-
-                // --- Step 5: Post-Inference Background Hydration ---
-                if let followUpPermit {
-                    schedulePostInferenceHydrationIfNeeded(
-                        for: followUpPermit.speciesData,
-                        modelContext: modelContext,
-                        referencePolicy: .showLoadingWhenReferenceMissing
-                    )
-                    self.liveCompletionCoordinator
-                        .scheduleMilestones(followUpPermit)
-                }
-            } catch {
-                handleLiveInferenceFailure(
-                    error,
-                    mode: .visual,
-                    scanId: ownedScanId,
-                    resolvedClientScanId: resolvedClientScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration,
-                    telemetry: telemetry
-                )
-            }
-        }
     }
 
     // MARK: - Describe Inference Pipeline
@@ -1222,473 +390,21 @@ import SwiftUI
         targetEradicationScanId: String? = nil,
         userPerceivedStart: CFAbsoluteTime? = nil
     ) {
-        guard !writeCoordinator.isAuthTransitionFenceActive else {
-            liveAttemptCoordinator.releaseAndRetire(
+        liveSubmissionCoordinator.startNonVisual(
+            InferenceLiveSubmissionCoordinator.NonVisualSubmission(
                 scanId: scanId,
-                foregroundGeneration: foregroundInferenceGeneration,
-                resumeBackground: true,
-                reason: "auth_transition_active"
+                foregroundInferenceGeneration:
+                    foregroundInferenceGeneration,
+                audioFilePaths: audioFilePaths,
+                videoFilePaths: videoFilePaths,
+                observationContexts: observationContexts,
+                mediaTimeline: mediaTimeline,
+                telemetry: telemetry,
+                modelContext: modelContext,
+                targetEradicationScanId: targetEradicationScanId,
+                userPerceivedStart: userPerceivedStart
             )
-            return
-        }
-        let filteredAudioFilePaths = (audioFilePaths ?? []).filter { !$0.isEmpty }
-        let filteredVideoFilePaths = (videoFilePaths ?? []).filter { !$0.isEmpty }
-        let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
-        let resolvedMediaTimeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
-            imageCount: 0,
-            observationContexts: filteredObservationContexts,
-            audioFilePaths: filteredAudioFilePaths,
-            videoFilePaths: filteredVideoFilePaths
         )
-        let submissionProjection = resolvedMediaTimeline.submissionMediaProjection
-        let ownerMediaTimeline = mediaTimeline == nil
-            ? nil
-            : submissionProjection.ownerMediaTimeline
-
-        guard !resolvedMediaTimeline.isEmpty else {
-            if let scanId, let foregroundInferenceGeneration {
-                liveAttemptCoordinator.retireForegroundInference(
-                    scanId: scanId,
-                    generation: foregroundInferenceGeneration,
-                    resumeBackground: true,
-                    reason: "live_nonvisual_payload_empty"
-                )
-            }
-            return
-        }
-        if let scanId {
-            guard let foregroundInferenceGeneration else {
-                MerianLog.general.debug(
-                    "analyzeNonVisual: rejected missing foreground owner scanId=\(scanId, privacy: .public)"
-                )
-                return
-            }
-            guard !liveAttemptCoordinator.isDuplicateActiveForegroundAttempt(
-                scanId: scanId,
-                generation: foregroundInferenceGeneration
-            ) else {
-                MerianLog.general.debug(
-                    "analyzeNonVisual: ignored duplicate foreground generation scanId=\(scanId, privacy: .public)"
-                )
-                return
-            }
-            guard liveAttemptCoordinator.claimForegroundInferenceStart(
-                scanId: scanId,
-                generation: foregroundInferenceGeneration
-            ) else {
-                MerianLog.general.debug(
-                    "analyzeNonVisual: rejected stale, used, or retiring foreground owner scanId=\(scanId, privacy: .public)"
-                )
-                return
-            }
-        } else if foregroundInferenceGeneration != nil {
-            MerianLog.general.debug(
-                "analyzeNonVisual: rejected foreground owner without scanId"
-            )
-            return
-        }
-
-        self.inferenceTask?.cancel()
-        self.hydrationCoordinator.cancelAllTasks()
-        self.cancelLocalVisualAnalysis()
-
-        let attemptGeneration =
-            foregroundInferenceGeneration ?? UUID()
-        self.prepareForNewScan(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            modality: .nonVisual
-        )
-        self.scanningPhaseText = submissionProjection.audioFilePaths.isEmpty
-            ? "Identifying describe"
-            : "Listening"
-
-        liveAttemptCoordinator.activate(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: foregroundInferenceGeneration
-        )
-        self.activePresentationOwner = AnalysisPresentationOwner(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            modality: .nonVisual
-        )
-        self.preparedPresentationOwner = nil
-        self.activeLatitude = telemetry.gpsLatitude
-        self.activeLongitude = telemetry.gpsLongitude
-        self.activeElevation = telemetry.gpsElevation
-        self.activeLocationName = telemetry.locationName
-        self.activeWeatherCondition = telemetry.weatherCondition
-        self.activeTemperatureF = telemetry.weatherTemperatureF
-        self.activeMedia = ActiveScanMedia(items: mediaItems(from: resolvedMediaTimeline, liveImageDatas: nil, persistedImagePaths: nil))
-
-        let ownedScanId = scanId
-        let ownedForegroundInferenceGeneration =
-            foregroundInferenceGeneration
-        let resolvedClientScanId = scanId ?? UUID().uuidString.lowercased()
-        let shouldFlushQueuedScan =
-            ownedForegroundInferenceGeneration != nil
-        if let userPerceivedStart {
-            self.pendingFirstRenderMetric = (
-                scanId: resolvedClientScanId,
-                startedAt: userPerceivedStart
-            )
-        }
-
-        self.inferenceTask = Task { [weak self] in
-            guard let self else { return }
-            let pipelineStart = CFAbsoluteTimeGetCurrent()
-
-            defer {
-                if self.liveAttemptCoordinator.clearActiveAttemptIfCurrent(
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration
-                ) {
-                    self.isProcessing = false
-                    if self.activePresentationOwner?.attemptGeneration
-                        == attemptGeneration {
-                        self.activePresentationOwner = nil
-                    }
-                    self.cancelLocalVisualAnalysis()
-                }
-            }
-
-            do {
-                try self.liveAttemptCoordinator.checkAttempt(
-                    scanId: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundGeneration:
-                        ownedForegroundInferenceGeneration
-                )
-                if CircuitBreakerManager.shared.isCircuitTripped {
-                    throw URLError(.notConnectedToInternet)
-                }
-
-                let requestResponse = try await self.liveRequestService
-                    .dispatchNonVisual(
-                        InferenceLiveRequestService.NonVisualRequest(
-                            submissionProjection: submissionProjection,
-                            ownerMediaTimeline: ownerMediaTimeline,
-                            telemetry: telemetry,
-                            clientScanId: scanId,
-                            durableQueueOwnsRecovery:
-                                ownedForegroundInferenceGeneration != nil
-                        ),
-                        validateAttempt: {
-                            try self.liveAttemptCoordinator.checkAttempt(
-                                scanId: ownedScanId,
-                                attemptGeneration: attemptGeneration,
-                                foregroundGeneration:
-                                    ownedForegroundInferenceGeneration
-                            )
-                        }
-                    )
-                let responseReceivedAt = requestResponse.receivedAt
-                let postFlightStart = CFAbsoluteTimeGetCurrent()
-
-                let resultOutcome = try await self.liveResultService.process(
-                    InferenceLiveResultService.Request(
-                        response: requestResponse,
-                        telemetry: telemetry,
-                        media: .nonVisual,
-                        mediaTimeline: resolvedMediaTimeline,
-                        submissionProjection: submissionProjection,
-                        modelContext: modelContext,
-                        persistenceFence: ownedScanId.flatMap { scanId in
-                            ownedForegroundInferenceGeneration.map { generation in
-                                LiveInferencePersistenceFence(
-                                    scanId: scanId,
-                                    generation: generation
-                                )
-                            }
-                        }
-                    ),
-                    validateAttempt: {
-                        try self.liveAttemptCoordinator.checkAttempt(
-                            scanId: ownedScanId,
-                            attemptGeneration: attemptGeneration,
-                            foregroundGeneration:
-                                ownedForegroundInferenceGeneration
-                        )
-                    }
-                )
-                guard let completion =
-                    self.liveCompletionCoordinator.prepare(
-                        outcome: resultOutcome,
-                        targetEradicationScanId: targetEradicationScanId,
-                        modelContext: modelContext
-                    ) else {
-                    self.liveAttemptCoordinator.retireForegroundInferenceIfCurrent(
-                        scanId: ownedScanId,
-                        attemptGeneration: attemptGeneration,
-                        foregroundGeneration:
-                            ownedForegroundInferenceGeneration,
-                        resumeBackground: true,
-                        reason: "live_nonvisual_persistence_rejected"
-                    )
-                    return
-                }
-
-                let didCommitResult = self.commitSuccessfulResult(
-                    for: ownedScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration,
-                    speciesData: completion.speciesData
-                )
-                let stateCommittedAt = CFAbsoluteTimeGetCurrent()
-                MerianLog.general.debug(
-                    "[⏱ BENCH] Response to first-result state: \(String(format: "%.3f", stateCommittedAt - responseReceivedAt), privacy: .public)s"
-                )
-                MerianLog.general.debug(
-                    "[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", stateCommittedAt - postFlightStart), privacy: .public)s"
-                )
-                MerianLog.general.debug(
-                    "[⏱ BENCH] Total pipeline: \(String(format: "%.3f", stateCommittedAt - pipelineStart), privacy: .public)s"
-                )
-                let followUpPermit:
-                    InferenceLiveCompletionCoordinator.FollowUpPermit?
-                if didCommitResult, shouldFlushQueuedScan {
-                    followUpPermit = await self.liveCompletionCoordinator
-                        .finalizeQueueAndAuthorizeFollowUps(
-                            scanId: ownedScanId,
-                            attemptGeneration: attemptGeneration,
-                            foregroundGeneration:
-                                ownedForegroundInferenceGeneration,
-                            mediaPathsToKeep: completion.mediaPathsToKeep,
-                            speciesData: completion.speciesData,
-                            modelContainer: modelContext?.container
-                        )
-                } else if didCommitResult {
-                    followUpPermit = self.liveCompletionCoordinator
-                        .authorizeQueueLessFollowUps(
-                            scanId: ownedScanId,
-                            attemptGeneration: attemptGeneration,
-                            speciesData: completion.speciesData,
-                            modelContainer: modelContext?.container
-                        )
-                } else {
-                    followUpPermit = nil
-                }
-                if let followUpPermit {
-                    self.liveCompletionCoordinator
-                        .scheduleMilestones(followUpPermit)
-                    self.liveCompletionCoordinator
-                        .sendNotificationIfEnabled(followUpPermit)
-                    schedulePostInferenceHydrationIfNeeded(
-                        for: followUpPermit.speciesData,
-                        modelContext: modelContext,
-                        referencePolicy: .none
-                    )
-                }
-            } catch {
-                handleLiveInferenceFailure(
-                    error,
-                    mode: .nonVisual(hasAudio: !filteredAudioFilePaths.isEmpty),
-                    scanId: ownedScanId,
-                    resolvedClientScanId: resolvedClientScanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration,
-                    telemetry: telemetry
-                )
-            }
-        }
-    }
-
-    // MARK: - Live Failure Recovery
-
-    /// One synchronous owner for both catch paths. Capture full ownership before
-    /// retiring it; only exact local presentation may acknowledge a queue handoff
-    /// after durable ownership has already moved to background recovery.
-    private func handleLiveInferenceFailure(
-        _ error: Error,
-        mode: InferenceLiveFailurePolicy.Mode,
-        scanId: String?,
-        resolvedClientScanId: String,
-        attemptGeneration: UUID,
-        foregroundInferenceGeneration: UUID?,
-        telemetry: CaptureTelemetry
-    ) {
-        let stillOwnsAttempt = liveAttemptCoordinator.isAttemptCurrent(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: foregroundInferenceGeneration
-        )
-
-        switch InferenceLiveFailurePolicy.interruption(
-            for: error,
-            isTaskCancelled: Task.isCancelled
-        ) {
-        case .taskCancellation:
-            if stillOwnsAttempt {
-                releaseQueueBackedLiveInferenceForRecovery(
-                    scanId: scanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration: foregroundInferenceGeneration,
-                    reason: mode.cancellationReason
-                )
-            }
-            return
-        case .ownershipCancellation:
-            if publishQueuedRetiredOwnershipHandoffIfNeeded(
-                scanId: scanId,
-                attemptGeneration: attemptGeneration,
-                foregroundInferenceGeneration: foregroundInferenceGeneration
-            ) {
-                return
-            }
-            if stillOwnsAttempt {
-                releaseQueueBackedLiveInferenceForRecovery(
-                    scanId: scanId,
-                    attemptGeneration: attemptGeneration,
-                    foregroundInferenceGeneration: foregroundInferenceGeneration,
-                    reason: mode.cancellationReason
-                )
-            }
-            return
-        case .transportCancellation:
-            _ = publishQueuedRecoveryHandoffIfNeeded(
-                scanId: scanId,
-                attemptGeneration: attemptGeneration,
-                foregroundInferenceGeneration: foregroundInferenceGeneration,
-                telemetryEvent: "InferenceQueuedForTransportCancellation",
-                reason: mode.transportCancellationReason
-            )
-            return
-        case nil:
-            break
-        }
-
-        // Connectivity monitoring can retire the durable generation before the
-        // transport returns. The still-current sheet may acknowledge that exact
-        // queue handoff, but cannot publish provider results or generic failure.
-        if InferenceLiveFailurePolicy.isConnectivityFailure(error),
-           publishQueuedRecoveryHandoffIfNeeded(
-               scanId: scanId,
-               attemptGeneration: attemptGeneration,
-               foregroundInferenceGeneration: foregroundInferenceGeneration,
-               telemetryEvent: "InferenceQueuedForConnectivity",
-               reason: "live_connectivity_handoff"
-           ) {
-            return
-        }
-
-        guard stillOwnsAttempt else { return }
-        releaseQueueBackedLiveInferenceForRecovery(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundInferenceGeneration: foregroundInferenceGeneration,
-            reason: mode.failureReason
-        )
-        if scanId != nil {
-            recoverablePresentationScanId = resolvedClientScanId
-        }
-
-        let failure = InferenceLiveFailurePolicy.failure(for: error, mode: mode)
-        publishLiveInferenceFailure(
-            failure,
-            error: error,
-            mode: mode,
-            scanId: resolvedClientScanId,
-            hasQueuedScan: scanId != nil,
-            telemetry: telemetry
-        )
-    }
-
-    /// Called only from the guarded synchronous handler above. Do not add a
-    /// suspension between its ownership snapshot, retirement, and these effects.
-    private func publishLiveInferenceFailure(
-        _ failure: InferenceLiveFailurePolicy.Failure,
-        error: Error,
-        mode: InferenceLiveFailurePolicy.Mode,
-        scanId: String,
-        hasQueuedScan: Bool,
-        telemetry: CaptureTelemetry
-    ) {
-        AppTelemetry.trackError(failure.telemetryEvent(for: mode))
-        if failure.recordsCircuitFailure {
-            CircuitBreakerManager.shared.recordFailure()
-        }
-        logLiveInferenceFailure(failure, error: error, mode: mode, scanId: scanId)
-
-        switch failure {
-        case .dailyQuotaExceeded:
-            // Quota exhaustion requests the root paywall without publishing an
-            // Insight placeholder, error haptic, or circuit failure.
-            requestPaywall()
-            return
-        case .observationRejected:
-            // Preserve release-before-disposition ordering. If this durable
-            // transition fails, background recovery can apply the same rejection.
-            _ = liveAttemptCoordinator.rejectQueuedScan(
-                scanId: scanId,
-                reason: InferenceFailurePresentation.observationRejected.reasoning,
-                errorCode: "observation_rejected"
-            )
-        default:
-            break
-        }
-
-        if failure.triggersErrorFeedback {
-            HapticManager.shared.triggerErrorThump()
-        }
-        if let presentation = InferenceFailurePresentation.make(
-            for: failure,
-            hasQueuedScan: hasQueuedScan
-        ) {
-            speciesData = presentation.speciesData(telemetry: telemetry)
-        }
-    }
-
-    private func logLiveInferenceFailure(
-        _ failure: InferenceLiveFailurePolicy.Failure,
-        error: Error,
-        mode: InferenceLiveFailurePolicy.Mode,
-        scanId: String
-    ) {
-        switch failure {
-        case .recoverableConflict:
-            MerianLog.general.debug(
-                "Inference response was ambiguous after server acceptance; restoring scanId=\(scanId, privacy: .public)"
-            )
-        case .consentRequired:
-            MerianLog.general.debug(
-                "Inference paused until required consent is authoritative; the queued scan remains saved."
-            )
-        case .proRequired, .rateLimited:
-            let code: String
-            if case .rateLimited(let limit) = failure {
-                code = limit.rawValue
-            } else {
-                code = "pro_required"
-            }
-            MerianLog.general.debug(
-                "Inference paused by provider admission policy code=\(code, privacy: .public); the queued scan remains saved."
-            )
-        case .dailyQuotaExceeded:
-            MerianLog.general.debug(
-                "Inference daily quota exhausted; requesting the paywall while the queued scan remains saved."
-            )
-        case .observationRejected:
-            MerianLog.general.debug(
-                "Inference observation was rejected by policy; a different capture is required."
-            )
-        case .visualDecoding:
-            break
-        case .connectivity, .service:
-            if mode == .visual {
-                MerianLog.general.debug("Inference failure: \(error.localizedDescription, privacy: .private)")
-            } else {
-                MerianLog.general.debug("Non-visual inference failure: \(error.localizedDescription, privacy: .private)")
-            }
-        }
-    }
-
-    private func clearQueuedVisualPresentationContext() {
-        queuedVisualPresentationScanId = nil
-        queuedPresentationCarriesLiveMedia = false
-        queuedPresentationScanningPhrases = []
     }
 
     /// Moves an already-durable, exactly owned scan out of the live-result state
@@ -1700,342 +416,32 @@ import SwiftUI
         scanId: String,
         source: QueuedPresentationSource
     ) -> Bool {
-        let normalizedScanId = scanId
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedScanId.isEmpty else {
-            clearQueuedVisualPresentationContext()
-            return false
-        }
-
-        let owner: AnalysisPresentationOwner
-        let isPreparedHandoff: Bool
-        switch source {
-        case .prepared(let attemptGeneration):
-            guard let preparedPresentationOwner,
-                  preparedPresentationOwner.matches(
-                      scanId: normalizedScanId,
-                      attemptGeneration: attemptGeneration
-                  ) else {
-                clearQueuedVisualPresentationContext()
-                return false
-            }
-            owner = preparedPresentationOwner
-            isPreparedHandoff = true
-        case .active(let attemptGeneration):
-            guard let activePresentationOwner,
-                  activePresentationOwner.matches(
-                      scanId: normalizedScanId,
-                      attemptGeneration: attemptGeneration
-                  ),
-                  liveAttemptCoordinator.isLocalAttemptCurrent(
-                      scanId: normalizedScanId,
-                      attemptGeneration: attemptGeneration
-                  ) else {
-                clearQueuedVisualPresentationContext()
-                return false
-            }
-            owner = activePresentationOwner
-            isPreparedHandoff = false
-        }
-
-        clearQueuedVisualPresentationContext()
-        if owner.modality == .visual {
-            queuedVisualPresentationScanId = normalizedScanId
-            queuedPresentationCarriesLiveMedia =
-                !isPreparedHandoff && activeMedia.totalItems > 0
-            let phraseDeck = isPreparedHandoff
-                ? ScanningPhraseCoordinator.genericPhrases
-                : localAnalysisCoordinator.handoffPhraseDeck
-            queuedPresentationScanningPhrases = phraseDeck
-            if let firstPhrase = phraseDeck.first {
-                scanningPhaseText = firstPhrase
-            }
-        }
-
-        preparedPresentationOwner = nil
-        activePresentationOwner = nil
-        recoverablePresentationScanId = normalizedScanId
-        queuedPresentationScanId = normalizedScanId
-        pendingFirstRenderMetric = nil
-        cancelLocalVisualAnalysis(resetPhraseCoordinator: false)
-        speciesData = nil
-        isProcessing = false
-        return true
+        return sessionLifecycleCoordinator.transitionToQueue(
+            scanId: scanId,
+            source: source.presentationValue,
+            activeVisualPhrases: localAnalysisCoordinator.handoffPhraseDeck
+        )
     }
 
     /// Returns visual copy only for the exact queued presentation that inherited
     /// a prepared or active visual scan. Values remain process-local and
     /// ephemeral.
     func liveQueueHandoffScanningPhrases(for scanId: String) -> [String] {
-        guard queuedVisualPresentationScanId?
-            .caseInsensitiveCompare(scanId) == .orderedSame else {
-            return []
-        }
-        return queuedPresentationScanningPhrases
+        presentationLifecycleCoordinator.scanningPhrases(for: scanId)
     }
 
     func hasLiveVisualQueueHandoff(for scanId: String) -> Bool {
-        queuedVisualPresentationScanId?
-            .caseInsensitiveCompare(scanId) == .orderedSame
+        presentationLifecycleCoordinator.hasVisualQueueHandoff(for: scanId)
     }
 
     func hasLiveQueueHandoffMedia(for scanId: String) -> Bool {
-        queuedPresentationCarriesLiveMedia &&
-            hasLiveVisualQueueHandoff(for: scanId)
-    }
-
-    private func publishQueuedRetiredOwnershipHandoffIfNeeded(
-        scanId: String?,
-        attemptGeneration: UUID,
-        foregroundInferenceGeneration: UUID?
-    ) -> Bool {
-        guard let scanId, let foregroundInferenceGeneration,
-              !liveAttemptCoordinator.isDurableAttemptCurrent(
-                  scanId: scanId,
-                  generation: foregroundInferenceGeneration
-              ) else {
-            return false
-        }
-        return publishQueuedRecoveryHandoffIfNeeded(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundInferenceGeneration: foregroundInferenceGeneration,
-            telemetryEvent: "InferenceQueuedAfterOwnershipRetirement",
-            reason: "live_ownership_retired"
-        )
-    }
-
-    private func publishQueuedRecoveryHandoffIfNeeded(
-        scanId: String?,
-        attemptGeneration: UUID,
-        foregroundInferenceGeneration: UUID?,
-        telemetryEvent: String,
-        reason: String
-    ) -> Bool {
-        guard let scanId,
-              foregroundInferenceGeneration != nil,
-              liveAttemptCoordinator.isLocalAttemptCurrent(
-                  scanId: scanId,
-                  attemptGeneration: attemptGeneration
-              ) else {
-            return false
-        }
-
-        releaseQueueBackedLiveInferenceForRecovery(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundInferenceGeneration: foregroundInferenceGeneration,
-            reason: reason
-        )
-        AppTelemetry.trackError(telemetryEvent)
-        MerianLog.general.debug(
-            "Live inference handed presentation to durable queue state."
-        )
-        transitionToQueuedPresentation(
-            scanId: scanId,
-            source: .active(attemptGeneration: attemptGeneration)
-        )
-        return true
-    }
-
-    private func releaseQueueBackedLiveInferenceForRecovery(
-        scanId: String?,
-        attemptGeneration: UUID,
-        foregroundInferenceGeneration: UUID?,
-        reason: String
-    ) {
-        guard let scanId, let foregroundInferenceGeneration else { return }
-        liveAttemptCoordinator.releaseDeferredUpload(
-            scanId: scanId,
-            foregroundGeneration: foregroundInferenceGeneration,
-            reason: reason
-        )
-        liveAttemptCoordinator.retireForegroundInferenceIfCurrent(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: foregroundInferenceGeneration,
-            resumeBackground: true,
-            reason: reason
-        )
-    }
-
-    // MARK: - Wikipedia Background Hydration
-
-    /// Fetches and patches the Wikipedia extract and reference image for a species after inference completes.
-    /// Runs independently to avoid adding latency to the inference round-trip.
-    /// Only marks the species as attempted after a *successful* fetch, so transient failures are retryable.
-    private func fetchWikipediaAndHydrate(
-        for species: String,
-        scanId: String,
-        presentationGeneration: UInt64,
-        reviewActionGeneration: UInt64?,
-        modelContext: ModelContext?
-    ) async {
-        guard !species.isEmpty,
-              species.lowercased() != "taxonomy unavailable",
-              species.lowercased() != "unknown subject" else { return }
-        guard hydrationCoordinator.canHydrateWikipedia(for: species) else {
-            return
-        }
-
-        do {
-            guard let reference = try await speciesReferenceService
-                .fetchWikipediaReference(for: species),
-                let descriptionText = reference.overview else {
-                return
-            }
-            let webUrl = reference.pageURL
-            let imageUrl = ExternalReferenceImagePolicy.sanitizedURL(
-                reference.imageURL
-            )
-
-            guard isLiveSpeciesPresentation(
-                scanId: scanId,
-                scientificName: species,
-                presentationGeneration: presentationGeneration,
-                reviewActionGeneration: reviewActionGeneration
-            ), var updated = speciesData else {
-                return
-            }
-
-            // Mark as attempted only after the fetched species still owns this exact
-            // presentation. A stale successful request must not suppress hydration when the
-            // user later returns to the same species under a new generation.
-            hydrationCoordinator.recordWikipediaHydrationSuccess(for: species)
-
-            MerianLog.general.debug("Wikipedia hydration returned imageUrl: \(imageUrl ?? "nil", privacy: .private)")
-            updated.wikipediaOverview = descriptionText
-            updated.wikipediaUrl = webUrl
-            if let img = imageUrl, !img.isEmpty {
-                var currentUrls = Self.normalizedReferenceURLs(from: updated.referenceImageUrl)
-                if !currentUrls.contains(img) {
-                    currentUrls.insert(img, at: 0)
-                }
-                let capped = Array(currentUrls.prefix(5))
-                updated.referenceImageUrl = capped.joined(separator: ",")
-                activeMedia.referenceState = .loaded(capped)
-                MerianLog.general.debug("Wiki hydration applied. New state: \(capped, privacy: .public)")
-            }
-            speciesData = updated
-            let safeImageUrlToPersist = updated.referenceImageUrl
-
-            if let context = modelContext {
-                let container = context.container
-                let persistence = hydrationPersistenceService
-                let snapshot = InferenceHydrationPersistenceService
-                    .ReferenceSnapshot(
-                        scanId: scanId,
-                        extract: descriptionText,
-                        url: webUrl,
-                        imageUrl: safeImageUrlToPersist,
-                        expectedScientificName: species
-                    )
-                executeSpeciesMetadataWrite(
-                    scanId: scanId,
-                    scientificName: species,
-                    presentationGeneration: presentationGeneration,
-                    reviewActionGeneration: reviewActionGeneration
-                ) {
-                    await persistence.persistReference(
-                        snapshot,
-                        in: container
-                    )
-                }
-            }
-        } catch {
-            MerianLog.general.debug("Wikipedia hydration skipped: \(error, privacy: .private)")
-        }
-    }
-
-    // MARK: - GBIF Background Hydration
-
-    /// Fetches high-quality field observations from GBIF (e.g. iNaturalist) once the Taxon Key is known.
-    /// This acts as a robust supplement/fallback to Wikipedia imagery.
-    private func fetchGBIFImagesAndHydrate(
-        for taxonKey: Int,
-        scanId: String,
-        scientificName: String,
-        presentationGeneration: UInt64,
-        reviewActionGeneration: UInt64?,
-        modelContext: ModelContext?
-    ) async {
-        do {
-            let fetchedURLs = try await speciesReferenceService
-                .fetchGBIFImageURLs(taxonKey: taxonKey)
-            let newUrls = fetchedURLs.compactMap {
-                ExternalReferenceImagePolicy.sanitizedURL($0)
-            }
-
-            MerianLog.general.debug(
-                "GBIF hydration returned \(newUrls.count, privacy: .public) usable URLs: \(newUrls, privacy: .private)"
-            )
-            guard !newUrls.isEmpty else { return }
-
-            // Back on @MainActor (InferenceEngine is @MainActor) — direct access, no hop needed.
-            var persistUrls: String?
-            if var updated = self.speciesData,
-               isLiveSpeciesPresentation(
-                   scanId: scanId,
-                   scientificName: scientificName,
-                   presentationGeneration: presentationGeneration,
-                   reviewActionGeneration: reviewActionGeneration
-               ) {
-                var currentUrls = Self.normalizedReferenceURLs(from: updated.referenceImageUrl)
-
-                for urlStr in newUrls where !currentUrls.contains(urlStr) {
-                    currentUrls.append(urlStr)
-                }
-
-                // Cap at 5 URLs to prevent unbounded referenceImageUrl string growth across sessions.
-                let capped = Array(currentUrls.prefix(5))
-                updated.referenceImageUrl = capped.joined(separator: ",")
-                persistUrls = updated.referenceImageUrl
-                self.activeMedia.referenceState = .loaded(capped)
-                // Single full-value replacement — see fetchAndApplyEnrichment comment.
-                self.speciesData = updated
-            }
-
-            if let context = modelContext, let finalUrls = persistUrls {
-                let container = context.container
-                let persistence = hydrationPersistenceService
-                let snapshot = InferenceHydrationPersistenceService
-                    .ReferenceSnapshot(
-                        scanId: scanId,
-                        extract: nil,
-                        url: nil,
-                        imageUrl: finalUrls,
-                        expectedScientificName: scientificName
-                    )
-                executeSpeciesMetadataWrite(
-                    scanId: scanId,
-                    scientificName: scientificName,
-                    presentationGeneration: presentationGeneration,
-                    reviewActionGeneration: reviewActionGeneration
-                ) {
-                    await persistence.persistReference(
-                        snapshot,
-                        in: container
-                    )
-                }
-            }
-        } catch {
-            // Silently fail on network/timeout
-            MerianLog.general.debug("GBIF image hydration skipped: \(error, privacy: .private)")
-        }
+        presentationLifecycleCoordinator.hasLiveMedia(for: scanId)
     }
 
     // MARK: - Species Enrichment
 
-    /// Fires the "enrichment" and "lookalikes" scopes of `enrich-scan` concurrently via a
-    /// task group. Each scope applies its fields to `speciesData` as soon as its network call
-    /// resolves — habitat description and taxonomy appear independently of similar species cards.
-    ///
-    /// `isEnrichmentLoading` gates the habitat/distribution skeleton (enrichment scope).
-    /// `isLookalikesLoading` gates the similar species gallery skeleton (lookalikes scope).
-    ///
-    /// Called automatically after every successful biological scan and when reloading a historical
-    /// record that is missing enrichment data. `needsMetadata` / `needsLookalikes` allow callers
-    /// to skip whichever scope is already fully populated locally.
+    /// Fetches independently requested metadata and lookalike scopes for the
+    /// exact current species presentation.
     func fetchAndApplyEnrichment(
         modelContext: ModelContext?,
         needsMetadata: Bool = true,
@@ -2043,200 +449,15 @@ import SwiftUI
         allowLookalikesRetry: Bool = true,
         reviewActionGeneration: UInt64? = nil
     ) async {
-        guard let data = speciesData,
-              let scanId = data.scanId,
-              data.isBiological,
-              !data.scientificName.isEmpty,
-              data.scientificName.lowercased() != "taxonomy unavailable" else { return }
-
-        guard needsMetadata || needsLookalikes else { return }
-        guard hydrationCoordinator.canAttemptEnrichment() else { return }
-
-        if needsMetadata { isEnrichmentLoading = true }
-        if needsLookalikes { isLookalikesLoading = true }
-
-        let capturedScanId = scanId
-        let capturedScientificName = data.scientificName
-        let capturedConfidence = data.confidenceScore
-        let capturedTier = data.inferenceTier ?? "flash"
-        let capturedPresentationGeneration = writeCoordinator.generation
-        let request = InferenceSpeciesEnrichmentService.Request(
-            scanId: capturedScanId,
-            scientificName: capturedScientificName,
-            confidenceScore: capturedConfidence,
-            inferenceTier: capturedTier
-        )
-
-        await withTaskGroup(of: Void.self) { group in
-            if needsMetadata {
-                group.addTask { @MainActor [weak self] in
-                    guard let self else { return }
-                    defer {
-                        if self.isLiveSpeciesPresentation(
-                            scanId: capturedScanId,
-                            scientificName: capturedScientificName,
-                            presentationGeneration: capturedPresentationGeneration,
-                            reviewActionGeneration: reviewActionGeneration
-                        ) {
-                            self.isEnrichmentLoading = false
-                        }
-                    }
-                    do {
-                        guard let patch = try await self
-                            .speciesEnrichmentService
-                            .fetchMetadata(for: request) else {
-                            return
-                        }
-
-                        // Collect all enrichment mutations into a local copy, then assign once.
-                        // Individual optional-chain mutations (self.speciesData?.field = x) do not
-                        // reliably fire @Observable notifications for struct value types; a single
-                        // full-value replacement is the only guaranteed trigger.
-                        // Guard on scanId: a stale enrichment task completing after a new scan
-                        // has already set speciesData must not overwrite the new scan's fields.
-                        if var updated = self.speciesData,
-                           self.isLiveSpeciesPresentation(
-                               scanId: capturedScanId,
-                               scientificName: capturedScientificName,
-                               presentationGeneration: capturedPresentationGeneration,
-                               reviewActionGeneration: reviewActionGeneration
-                           ) {
-                            updated = patch.applying(to: updated)
-                            self.speciesData = updated  // Single @Observable-triggering assignment
-                        }
-                        if let context = modelContext {
-                            let container = context.container
-                            let persistence = self.hydrationPersistenceService
-                            let snapshot = InferenceHydrationPersistenceService
-                                .MetadataSnapshot(
-                                    scanId: capturedScanId,
-                                    habitatDescription:
-                                        patch.habitatDescription,
-                                    gbifTaxonKey: patch.gbifTaxonKey,
-                                    taxonomy: patch.taxonomy,
-                                    alternativeCommonNames:
-                                        patch.persistedAlternativeCommonNames,
-                                    expectedScientificName:
-                                        capturedScientificName
-                                )
-                            self.executeSpeciesMetadataWrite(
-                                scanId: capturedScanId,
-                                scientificName: capturedScientificName,
-                                presentationGeneration: capturedPresentationGeneration,
-                                reviewActionGeneration: reviewActionGeneration
-                            ) {
-                                await persistence.persistMetadata(
-                                    snapshot,
-                                    in: container
-                                )
-                            }
-                        }
-                    } catch let error as MerianError {
-                        if case .httpError(let code, _) = error, code == 403 { return }
-                        if case .httpError(let code, _) = error, code == 429 {
-                            self.hydrationCoordinator
-                                .recordEnrichmentRateLimit()
-                            return
-                        }
-                        MerianLog.general.debug("Enrichment scope failed: \(error, privacy: .private)")
-                    } catch {
-                        MerianLog.general.debug("Enrichment scope failed: \(error, privacy: .private)")
-                    }
-                }
-            }
-
-            if needsLookalikes {
-                group.addTask { @MainActor [weak self] in
-                    guard let self else { return }
-                    defer {
-                        if self.isLiveSpeciesPresentation(
-                            scanId: capturedScanId,
-                            scientificName: capturedScientificName,
-                            presentationGeneration: capturedPresentationGeneration,
-                            reviewActionGeneration: reviewActionGeneration
-                        ) {
-                            self.isLookalikesLoading = false
-                        }
-                    }
-                    do {
-                        guard let patch = try await self
-                            .speciesEnrichmentService
-                            .fetchLookalikes(for: request) else {
-                            return
-                        }
-
-                        // Single full-value replacement — see enrichment scope comment above.
-                        // Guard on scanId: a stale lookalikes task completing after a new scan
-                        // has set speciesData must not overwrite the new scan's similar species.
-                        if var updated = self.speciesData,
-                           self.isLiveSpeciesPresentation(
-                               scanId: capturedScanId,
-                               scientificName: capturedScientificName,
-                               presentationGeneration: capturedPresentationGeneration,
-                               reviewActionGeneration: reviewActionGeneration
-                           ) {
-                            updated = patch.applying(to: updated)
-                            self.speciesData = updated
-                        }
-                        if let context = modelContext {
-                            let container = context.container
-                            let persistence = self.hydrationPersistenceService
-                            let snapshot = InferenceHydrationPersistenceService
-                                .LookalikesSnapshot(
-                                    scanId: capturedScanId,
-                                    entries: patch.entries,
-                                    expectedScientificName:
-                                        capturedScientificName
-                                )
-                            self.executeSpeciesMetadataWrite(
-                                scanId: capturedScanId,
-                                scientificName: capturedScientificName,
-                                presentationGeneration: capturedPresentationGeneration,
-                                reviewActionGeneration: reviewActionGeneration
-                            ) {
-                                await persistence.persistLookalikes(
-                                    snapshot,
-                                    in: container
-                                )
-                            }
-                        }
-                    } catch let error as MerianError {
-                        if case .httpError(let code, _) = error, code == 403 { return }
-                        if case .httpError(let code, _) = error, code == 429 {
-                            self.hydrationCoordinator
-                                .recordEnrichmentRateLimit()
-                            return
-                        }
-                        MerianLog.general.debug("Lookalikes scope failed: \(error, privacy: .private)")
-                    } catch {
-                        MerianLog.general.debug("Lookalikes scope failed: \(error, privacy: .private)")
-                    }
-                }
-            }
-        }
-
-        // If lookalikes were requested before taxonomy was available, the backend now returns
-        // null rather than provisional cards. Once metadata lands, retry the lookalikes scope
-        // exactly once so first-open UX still recovers within the same session.
-        if allowLookalikesRetry,
-           needsMetadata,
-           needsLookalikes,
-           isLiveSpeciesPresentation(
-               scanId: capturedScanId,
-               scientificName: capturedScientificName,
-               presentationGeneration: capturedPresentationGeneration,
-               reviewActionGeneration: reviewActionGeneration
-           ),
-           speciesData?.similarSpecies == nil,
-           hasUsableLookalikeTaxonomy(speciesData?.taxonomy) {
-            await fetchAndApplyEnrichment(
-                modelContext: modelContext,
-                needsMetadata: false,
-                needsLookalikes: true,
-                allowLookalikesRetry: false,
+        await speciesPresentationCoordinator.fetchAndApplyEnrichment(
+            .init(
+                modelContainer: modelContext?.container,
+                needsMetadata: needsMetadata,
+                needsLookalikes: needsLookalikes,
+                allowLookalikesRetry: allowLookalikesRetry,
                 reviewActionGeneration: reviewActionGeneration
             )
-        }
+        )
     }
 
     // MARK: - Identification Override
@@ -2249,125 +470,15 @@ import SwiftUI
         expectedScanId: String? = nil,
         modelContext: ModelContext?
     ) async {
-        guard !writeCoordinator.isAuthTransitionFenceActive,
-              let scanId = speciesData?.scanId,
-              expectedScanId == nil ||
-                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
-            return
-        }
-        let reviewActionGeneration = beginIdentificationReviewAction(scanId: scanId)
-        _ = beginIdentificationFlagAction(scanId: scanId)
-        let presentationGeneration = writeCoordinator.generation
-        let container = modelContext?.container
-        cancelSpeciesHydrationForIdentificationChange()
-
-        // 1. Immediately update display — scientificName drives InsightHeader subtitle.
-        // Wipe stale contextual data to prevent old UI cards from lingering during the fetch.
-        // Full-value replacement guarantees a single @Observable notification for the entire wipe.
-        if var updated = speciesData {
-            updated.userIdentificationOverride = scientificName
-            updated.scientificName = scientificName
-            updated.commonName = scientificName
-            updated.insightData = InsightData(aiReasoning: "", hazardType: "none")
-            updated.wikipediaOverview = nil
-            updated.wikipediaUrl = nil
-            updated.referenceImageUrl = nil
-            updated.iucnRedListStatus = nil
-            updated.habitatDescription = nil
-            updated.gbifTaxonKey = nil
-            updated.taxonomy = nil
-            updated.alternativeCommonNames = nil
-            updated.similarSpecies = nil
-            updated.userConfirmedIdentification = false
-            updated.isFlagged = false
-            updated.alternativesExhausted = false
-            speciesData = updated
-            activeMedia.referenceState = .empty
-        }
-        let localOverrideAdmission: Task<Void, Never>? = if let container {
-            enqueueIdentificationWrite(
-                scanId: scanId,
-                actionGeneration: reviewActionGeneration
-            ) {
-                let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.beginScanIdentificationOverride(
-                    scanId: scanId,
-                    scientificName: scientificName
-                )
-            }
-        } else {
-            nil
-        }
-        await localOverrideAdmission?.value
-        guard !writeCoordinator.isAuthTransitionFenceActive,
-              isLiveSpeciesPresentation(
-                  scanId: scanId,
-                  scientificName: scientificName,
-                  presentationGeneration: presentationGeneration,
-                  reviewActionGeneration: reviewActionGeneration
-              ) else {
-            return
-        }
-
-        // 2. Register the complete review hydration before its first network
-        // suspension. Replacement, dismissal, and Auth transitions can now
-        // cancel and drain the Species Dictionary and reference-image work.
-        await hydrationCoordinator.replaceAndAwaitTask(
-            in: .review
-        ) { [weak self] in
-            guard let self else { return }
-            let confirmedId = await self.fetchAndPatchOverrideData(
+        await identificationReviewWorkflowCoordinator.applyOverride(
+            .init(
                 scientificName: scientificName,
-                scanId: scanId,
-                modelContext: modelContext,
-                replacingSpeciesIdentity: true,
-                reviewActionGeneration: reviewActionGeneration
-            )
-            guard !Task.isCancelled,
-                  self.isIdentificationReviewActionCurrent(
-                      scanId: scanId,
-                      generation: reviewActionGeneration
-                  ) else {
-                return
-            }
-
-            // 3–4. Serialize local and cloud writes so this choice remains the
-            // final writer even when a newer review action begins while an
-            // older request is already in flight.
-            self.enqueueIdentificationWrite(
-                scanId: scanId,
-                actionGeneration: reviewActionGeneration
-            ) { [weak self] in
-                if let container {
-                    let dbActor = BackgroundDatabaseActor(
-                        modelContainer: container
-                    )
-                    await dbActor.updateScanWithOverride(
-                        scanId: scanId,
-                        override: scientificName,
-                        confirmed: false,
-                        newConfirmedSpeciesId: confirmedId,
-                        userReviewState: .userOverridden
-                    )
-                }
-                await self?.syncIdentificationReviewToCloud(
-                    scanId: scanId,
-                    override: scientificName,
-                    confirmed: false,
-                    confirmedSpeciesId: confirmedId,
-                    userReviewState:
-                        UserReviewState.userOverridden.rawValue
-                )
-            }
-
-            await self.hydrateMissingReviewReferenceImages(
-                scanId: scanId,
-                scientificName: scientificName,
-                presentationGeneration: presentationGeneration,
-                reviewActionGeneration: reviewActionGeneration,
-                modelContext: modelContext
-            )
-        }
+                expectedScanID: expectedScanId,
+                modelContainer: modelContext?.container
+            ),
+            callbacks: speciesPresentationCoordinator
+                .makeReviewWorkflowCallbacks()
+        )
     }
 
     /// Called when the user confirms the AI's primary identification ("Yes, correct").
@@ -2376,63 +487,14 @@ import SwiftUI
         expectedScanId: String? = nil,
         modelContext: ModelContext?
     ) async {
-        guard !writeCoordinator.isAuthTransitionFenceActive,
-              let scanId = speciesData?.scanId,
-              speciesData?.userIdentificationOverride == nil,
-              expectedScanId == nil ||
-              expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
-            return
-        }
-
-        let confirmedSpeciesId: String?
-        do {
-            if let modelContext {
-                confirmedSpeciesId = try identificationReviewSnapshotService
-                    .load(scanId, modelContext)?.speciesId
-            } else {
-                confirmedSpeciesId = nil
-            }
-        } catch {
-            MerianLog.data.error(
-                "confirmAIIdentification: persistence preflight failed for \(scanId, privacy: .private): \(error, privacy: .private)"
-            )
-            return
-        }
-
-        let confirmationActionGeneration =
-            beginIdentificationConfirmationAction(scanId: scanId)
-        hydrationCoordinator.cancelCurrentTask(in: .review)
-
-        if var updated = speciesData {
-            updated.userConfirmedIdentification = true
-            speciesData = updated
-        }
-
-        let container = modelContext?.container
-
-        enqueueIdentificationWrite(
-            scanId: scanId,
-            actionGeneration: confirmationActionGeneration,
-            channel: .confirmation
-        ) { [weak self] in
-            if let container {
-                let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.updateScanWithOverride(
-                    scanId: scanId,
-                    override: nil,
-                    confirmed: true,
-                    newConfirmedSpeciesId: confirmedSpeciesId,
-                    userReviewState: .aiConfirmed
-                )
-            }
-            await self?.syncIdentificationReviewToCloud(
-                scanId: scanId,
-                override: nil,
-                confirmed: true,
-                confirmedSpeciesId: confirmedSpeciesId,
-                userReviewState: UserReviewState.aiConfirmed.rawValue
-            )
-        }
+        await identificationReviewWorkflowCoordinator.confirm(
+            .init(
+                expectedScanID: expectedScanId,
+                modelContext: modelContext
+            ),
+            callbacks: speciesPresentationCoordinator
+                .makeReviewWorkflowCallbacks()
+        )
     }
 
     /// Resets all identification review state, reverting the scan back to the AI's original
@@ -2443,349 +505,14 @@ import SwiftUI
         expectedScanId: String? = nil,
         modelContext: ModelContext?
     ) async {
-        guard !writeCoordinator.isAuthTransitionFenceActive,
-              let scanId = speciesData?.scanId,
-              expectedScanId == nil ||
-                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame,
-              let aiName = speciesData?.aiScientificName,
-              !aiName.isEmpty else { return }
-
-        let originalAiReasoning: String?
-        do {
-            if let modelContext {
-                originalAiReasoning = try identificationReviewSnapshotService
-                    .load(scanId, modelContext)?.aiReasoning
-            } else {
-                originalAiReasoning = nil
-            }
-        } catch {
-            MerianLog.data.error(
-                "resetIdentificationReview: persistence preflight failed for \(scanId, privacy: .private): \(error, privacy: .private)"
-            )
-            return
-        }
-
-        let reviewActionGeneration = beginIdentificationReviewAction(scanId: scanId)
-        let flagActionGeneration = beginIdentificationFlagAction(scanId: scanId)
-        let presentationGeneration = writeCoordinator.generation
-        cancelSpeciesHydrationForIdentificationChange()
-
-        let container = modelContext?.container
-        let restoredReasoning = originalAiReasoning
-            ?? speciesData?.aiReasoning
-            ?? ""
-
-        // 1. Revert identity immediately and clear every override-owned
-        // presentation field. A cache miss must not leave the rejected
-        // species' taxonomy, media, or overview visible under the AI name.
-        if var updated = speciesData {
-            updated.userIdentificationOverride = nil
-            updated.userConfirmedIdentification = false
-            updated.isFlagged = false
-            updated.alternativesExhausted = false
-            updated.scientificName = aiName
-            updated.commonName = aiName
-            updated.insightData = InsightData(
-                aiReasoning: restoredReasoning,
-                hazardType: "none"
-            )
-            updated.wikipediaOverview = nil
-            updated.wikipediaUrl = nil
-            updated.referenceImageUrl = nil
-            updated.iucnRedListStatus = nil
-            updated.habitatDescription = nil
-            updated.gbifTaxonKey = nil
-            updated.taxonomy = nil
-            updated.alternativeCommonNames = nil
-            updated.similarSpecies = nil
-            speciesData = updated
-        }
-        activeMedia.referenceState = .empty
-
-        if let container {
-            enqueueIdentificationWrite(
-                scanId: scanId,
-                actionGeneration: flagActionGeneration,
-                channel: .legacyFlag
-            ) {
-                let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.updateScanAsUnflagged(scanId: scanId)
-            }
-        }
-
-        // 2–3. Serialize the local reset and cloud reset behind any already-started older
-        // write. This makes the user's newest action the durable final state.
-        enqueueIdentificationWrite(
-            scanId: scanId,
-            actionGeneration: reviewActionGeneration
-        ) { [weak self] in
-            if let container {
-                let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.updateScanWithOverride(
-                    scanId: scanId,
-                    override: nil,
-                    confirmed: false,
-                    newConfirmedSpeciesId: nil,
-                    userReviewState: .unreviewed
-                )
-            }
-            await self?.syncIdentificationReviewToCloud(
-                scanId: scanId,
-                override: nil,
-                confirmed: false,
-                confirmedSpeciesId: nil,
-                userReviewState: UserReviewState.unreviewed.rawValue
-            )
-        }
-
-        // 4. Re-hydrate the original species inside the tracked review slot.
-        await hydrationCoordinator.replaceAndAwaitTask(
-            in: .review
-        ) { [weak self] in
-            guard let self else { return }
-            await self.fetchAndPatchOverrideData(
-                scientificName: aiName,
-                scanId: scanId,
-                modelContext: modelContext,
-                restoringAiReasoning: restoredReasoning,
-                replacingSpeciesIdentity: true,
-                reviewActionGeneration: reviewActionGeneration
-            )
-            await self.hydrateMissingReviewReferenceImages(
-                scanId: scanId,
-                scientificName: aiName,
-                presentationGeneration: presentationGeneration,
-                reviewActionGeneration: reviewActionGeneration,
+        await identificationReviewWorkflowCoordinator.reset(
+            .init(
+                expectedScanID: expectedScanId,
                 modelContext: modelContext
-            )
-        }
-    }
-
-    /// Queries `species_dictionary` for the given scientific name and patches the live
-    /// `speciesData` in-place. On cache miss, it can await
-    /// `fetchAndApplyEnrichment`; the owning live, historical, or review task
-    /// remains responsible for subsequent reference-image hydration.
-    ///
-    /// - Parameter restoringAiReasoning: When non-nil, the AI reasoning text is restored to
-    ///   this value instead of being wiped. Pass the original `record.aiReasoning` when
-    ///   called from `resetIdentificationReview` so the reasoning reappears after an undo.
-    ///   Pass nil (default) when called from `applyIdentificationOverride` to suppress the
-    ///   original AI reasoning under the override species name.
-    /// - Parameter enrichOnCacheMiss: Keep true for interactive review work.
-    ///   Historical loading passes false because its enclosing task owns the
-    ///   single enrichment/GBIF sequence.
-    /// - Parameter replacingSpeciesIdentity: Clears prior-species taxonomy and
-    ///   related collections only for an interactive override or reset. A
-    ///   historical refresh preserves already-valid data for the same species.
-    @MainActor
-    @discardableResult
-    private func fetchAndPatchOverrideData(
-        scientificName: String,
-        scanId: String,
-        modelContext: ModelContext?,
-        restoringAiReasoning: String? = nil,
-        enrichOnCacheMiss: Bool = true,
-        replacingSpeciesIdentity: Bool,
-        reviewActionGeneration: UInt64
-    ) async -> String? {
-        do {
-            let row = try await identificationReviewService.loadSpecies(
-                scientificName: scientificName
-            )
-            guard !Task.isCancelled else { return nil }
-
-            if let row {
-                // Cache hit — patch all available fields reactively.
-                // Prefer the authoritative "en" locale; fall back to any available translation;
-                // final fallback is the scientific name. Mirrors ScanRepository's resolution logic.
-                let commonName: String = {
-                    guard let names = row.commonNames else { return scientificName }
-                    return names["en"].flatMap { $0 } ?? names.compactMap { $0.value }.first ?? scientificName
-                }()
-                // On override: wipe aiReasoning — the AI's explanation was for the rejected species.
-                // On reset (restoringAiReasoning != nil): restore the original reasoning so the
-                // paragraph reappears under the reverted AI identification.
-                //
-                // Individual optional-chain mutations (speciesData?.field = x) do not reliably
-                // fire @Observable notifications for struct value types; a single full-value
-                // replacement is the only guaranteed trigger.
-                if var updated = speciesData,
-                   isLiveSpeciesPresentation(
-                       scanId: scanId,
-                       scientificName: scientificName,
-                       reviewActionGeneration: reviewActionGeneration
-                   ) {
-                    updated.commonName = commonName.capitalized
-                    updated.insightData = InsightData(
-                        aiReasoning: restoringAiReasoning ?? "",
-                        hazardType: row.hazardType ?? "none"
-                    )
-                    updated.taxonomy = TaxonomyData(
-                        kingdom: row.kingdom,
-                        phylum: row.phylum,
-                        className: row.className,
-                        order: row.order,
-                        family: row.family,
-                        genus: row.genus
-                    )
-                    updated.iucnRedListStatus = row.iucnRedListStatus
-                    updated.habitatDescription = row.habitatDescription?
-                        .trimmedNonEmptyValue
-                    updated.gbifTaxonKey = row.gbifTaxonKey
-                    updated.referenceImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(
-                        row.referenceImageURL
-                    )
-                    updated.wikipediaOverview = row.wikipediaOverview
-                    updated.wikipediaUrl = row.wikipediaURL
-                    speciesData = updated
-                    let referenceURLs = Self.normalizedReferenceURLs(
-                        from: updated.referenceImageUrl
-                    )
-                    activeMedia.referenceState = referenceURLs.isEmpty
-                        ? .empty
-                        : .loaded(referenceURLs)
-                }
-
-                // Persist updated species fields so they survive sheet dismissal and reopen.
-                // scientificName is intentionally excluded — it is preserved as aiScientificName.
-                if let context = modelContext {
-                    let container = context.container
-                    let capturedCommonName = commonName.capitalized
-                    let capturedHazardType = row.hazardType ?? "none"
-                    let capturedTaxonomy = TaxonomyData(
-                        kingdom: row.kingdom,
-                        phylum: row.phylum,
-                        className: row.className,
-                        order: row.order, family: row.family, genus: row.genus
-                    )
-                    let capturedWikiOverview = row.wikipediaOverview
-                    let capturedWikiUrl = row.wikipediaURL
-                    let capturedRefImageUrl =
-                        ExternalReferenceImagePolicy.sanitizedURLList(
-                            row.referenceImageURL
-                        )
-                    let capturedIucn = row.iucnRedListStatus
-                    let capturedHabitat = row.habitatDescription?
-                        .trimmedNonEmptyValue
-                    let capturedGbif = row.gbifTaxonKey
-                    enqueueIdentificationWrite(
-                        scanId: scanId,
-                        actionGeneration: reviewActionGeneration
-                    ) {
-                        let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                        await dbActor.updateScanWithOverrideSpeciesData(
-                            scanId: scanId,
-                            commonName: capturedCommonName,
-                            hazardType: capturedHazardType,
-                            wikipediaOverview: capturedWikiOverview,
-                            wikipediaUrl: capturedWikiUrl,
-                            referenceImageUrl: capturedRefImageUrl,
-                            iucnRedListStatus: capturedIucn,
-                            habitatDescription: capturedHabitat,
-                            gbifTaxonKey: capturedGbif,
-                            taxonomy: capturedTaxonomy,
-                            replacingSpeciesIdentity:
-                                replacingSpeciesIdentity
-                        )
-                    }
-                }
-                return row.id
-            } else {
-                // Cache miss — enrich the override species. fetchAndApplyEnrichment uses
-                // speciesData.scientificName which is already set to the override name.
-                // Interactive replacement already admitted an atomic local
-                // override placeholder before this lookup began.
-                if enrichOnCacheMiss,
-                   isLiveSpeciesPresentation(
-                    scanId: scanId,
-                    scientificName: scientificName,
-                    reviewActionGeneration: reviewActionGeneration
-                ) {
-                    await fetchAndApplyEnrichment(
-                        modelContext: modelContext,
-                        reviewActionGeneration: reviewActionGeneration
-                    )
-                }
-
-                guard !Task.isCancelled else { return nil }
-                return try? await identificationReviewService.loadSpeciesID(
-                    scientificName: scientificName
-                )
-            }
-        } catch {
-            MerianLog.general.debug("fetchAndPatchOverrideData failed: \(error, privacy: .private)")
-
-            guard !Task.isCancelled else { return nil }
-            return try? await identificationReviewService.loadSpeciesID(
-                scientificName: scientificName
-            )
-        }
-    }
-
-    /// Completes reference-image hydration inside the review task that owns the
-    /// Species Dictionary lookup. Existing authoritative imagery is preserved;
-    /// GBIF is only consulted when the reviewed species still owns this exact
-    /// presentation and has no usable reference URL.
-    private func hydrateMissingReviewReferenceImages(
-        scanId: String,
-        scientificName: String,
-        presentationGeneration: UInt64,
-        reviewActionGeneration: UInt64,
-        modelContext: ModelContext?
-    ) async {
-        guard !Task.isCancelled,
-              isLiveSpeciesPresentation(
-                  scanId: scanId,
-                  scientificName: scientificName,
-                  presentationGeneration: presentationGeneration,
-                  reviewActionGeneration: reviewActionGeneration
-              ),
-              Self.normalizedReferenceURLs(
-                  from: speciesData?.referenceImageUrl
-              ).isEmpty,
-              let taxonKey = speciesData?.gbifTaxonKey else {
-            return
-        }
-
-        await fetchGBIFImagesAndHydrate(
-            for: taxonKey,
-            scanId: scanId,
-            scientificName: scientificName,
-            presentationGeneration: presentationGeneration,
-            reviewActionGeneration: reviewActionGeneration,
-            modelContext: modelContext
+            ),
+            callbacks: speciesPresentationCoordinator
+                .makeReviewWorkflowCallbacks()
         )
-    }
-
-    /// Owner-derived RPC persisting the complete identification review atomically.
-    /// Accepts nil for `override` to set the column to NULL (reset / confirmed-only path).
-    private func syncIdentificationReviewToCloud(
-        scanId: String,
-        override: String?,
-        confirmed: Bool,
-        confirmedSpeciesId: String?,
-        userReviewState: String
-    ) async {
-        do {
-            try await identificationReviewService.syncReview(
-                InferenceIdentificationReviewMutation(
-                    scanID: scanId,
-                    override: override,
-                    confirmed: confirmed,
-                    confirmedSpeciesID: confirmedSpeciesId,
-                    userReviewState: userReviewState
-                )
-            )
-
-            if let postId = ExploreShareStateStore.sharedPostId(for: scanId) {
-                AppDIContainer.shared.appEventPublisher.send(.explorePostNeedsRefresh(postId: postId))
-            }
-            await AppDIContainer.shared.scanMilestoneCoordinator.processIdentificationUpdate(scanId: scanId)
-        } catch {
-            MerianLog.general.debug(
-                "syncIdentificationReviewToCloud failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-        }
     }
 
     // MARK: - Pipeline Modifiers
@@ -2795,17 +522,7 @@ import SwiftUI
     /// Clearing the owners before cancellation fences even non-cooperative local
     /// providers from publishing after the sheet has gone away.
     func dismissAnalyzingPresentation() {
-        preparedPresentationOwner = nil
-        activePresentationOwner = nil
-        recoverablePresentationScanId = nil
-        queuedPresentationScanId = nil
-        queuedVisualPresentationScanId = nil
-        queuedPresentationCarriesLiveMedia = false
-        queuedPresentationScanningPhrases = []
-        pendingFirstRenderMetric = nil
-        cancelLocalVisualAnalysis()
-        scanningPhaseText = ScanningPhraseCoordinator.genericPhrases[0]
-        activeMedia = ActiveScanMedia()
+        sessionLifecycleCoordinator.dismissAnalyzingPresentation()
     }
 
     /// Cancels all in-flight work and resets the engine to idle.
@@ -2815,42 +532,9 @@ import SwiftUI
     /// resets to `isProcessing = false, speciesData = nil` — appropriate when the user
     /// dismisses the insight sheet with no new scan queued.
     func cancelActiveRequest(isUserInitiated: Bool = false) {
-        liveAttemptCoordinator.invalidateActiveAttempt(
-            resumeBackground: true,
-            reason: isUserInitiated
-                ? "live_scan_cancelled_by_user"
-                : "live_scan_cancelled"
+        sessionLifecycleCoordinator.cancelActiveRequest(
+            isUserInitiated: isUserInitiated
         )
-        // The helper invalidates the UUID and paired scan identity atomically,
-        // so the cancelled task's defer no longer owns this slot.
-        // Background-wins hydration still works for a suspended live task;
-        // an explicitly cancelled presentation is intentionally no longer a
-        // hydration target.
-        self.isProcessing = false
-        self.inferenceTask?.cancel()
-        self.hydrationCoordinator.cancelAllTasks()
-        self.cancelLocalVisualAnalysis()
-        self.resetTrackedBackgroundWrites()
-        // Reset loading flags synchronously so stale defer blocks from cancelled task group
-        self.scanningPhaseText = ScanningPhraseCoordinator.genericPhrases[0]
-        self.isEnrichmentLoading = false
-        self.isLookalikesLoading = false
-        self.speciesData = nil
-        self.recoverablePresentationScanId = nil
-        self.queuedPresentationScanId = nil
-        self.queuedVisualPresentationScanId = nil
-        self.queuedPresentationCarriesLiveMedia = false
-        self.queuedPresentationScanningPhrases = []
-        self.preparedPresentationOwner = nil
-        self.activePresentationOwner = nil
-        self.pendingFirstRenderMetric = nil
-        self.activeMedia = ActiveScanMedia()
-        activeLatitude = nil
-        activeLongitude = nil
-        activeElevation = nil
-        activeLocationName = nil
-        activeWeatherCondition = nil
-        activeTemperatureF = nil
     }
 
     /// Called by the Insight sheet's one-shot UIKit draw probe. Unlike a task
@@ -2858,41 +542,8 @@ import SwiftUI
     /// display pass, so this closes the user-perceived latency interval at the
     /// first rendered frame rather than at state assignment.
     func recordFirstRenderedFrame(scanId: String) {
-        guard let metric = pendingFirstRenderMetric,
-              metric.scanId.caseInsensitiveCompare(scanId) == .orderedSame else {
-            return
-        }
-        pendingFirstRenderMetric = nil
-        MerianLog.general.debug(
-            "[⏱ BENCH] Analyze tap to first rendered frame: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - metric.startedAt), privacy: .public)s"
-        )
+        liveSubmissionCoordinator.recordFirstRenderedFrame(scanId: scanId)
     }
-
-#if DEBUG
-    struct DebugBackgroundWriteState: Sendable {
-        let active: Int
-        let pending: Int
-        let generation: UInt64
-    }
-
-    var debugBackgroundWriteTaskCap: Int { writeCoordinator.activeTaskCapacity }
-    var debugPendingBackgroundWriteTaskCap: Int {
-        writeCoordinator.pendingTaskCapacity
-    }
-
-    func debugBackgroundWriteState() -> DebugBackgroundWriteState {
-        let snapshot = writeCoordinator.snapshot
-        return DebugBackgroundWriteState(
-            active: snapshot.active,
-            pending: snapshot.pending,
-            generation: snapshot.generation
-        )
-    }
-
-    func debugEnqueueTrackedBackgroundTask(_ operation: @escaping @Sendable () async -> Void) {
-        writeCoordinator.enqueueBackgroundWrite(operation)
-    }
-#endif
 
     // MARK: - Local Record Loading
 
@@ -2910,454 +561,25 @@ import SwiftUI
 
     /// Rehydrates engine state from a persisted `LocalScanRecord` for the insight sheet.
     ///
-    /// The record is first projected into value-only state on `@MainActor`.
-    /// Deferred decoding and network hydration then run inside the hydration
-    /// coordinator's single current historic slot. Replacing that slot fences
-    /// stale state and effects immediately; a synchronous decoder already in
-    /// progress can finish before it observes cancellation.
+    /// The historical-load coordinator first projects the record into value-
+    /// only state on `@MainActor`. Deferred decoding and network hydration then
+    /// run inside the hydration coordinator's single current historic slot.
+    /// Replacing that slot fences stale state and effects immediately; a
+    /// synchronous decoder already in progress can finish before it observes
+    /// cancellation.
     func load(from record: LocalScanRecord) {
-        guard !writeCoordinator.isAuthTransitionFenceActive else { return }
-        // Loading a persisted record replaces the live presentation just as
-        // starting another capture does. Relinquish the exact foreground owner
-        // before changing activeScanId, otherwise the old task can no longer
-        // identify itself to release durable recovery suppression.
-        liveAttemptCoordinator.invalidateActiveAttempt(
-            resumeBackground: true,
-            reason: "persisted_scan_loaded"
-        )
-        inferenceTask?.cancel()
-        recoverablePresentationScanId = nil
-        queuedPresentationScanId = nil
-        queuedVisualPresentationScanId = nil
-        queuedPresentationCarriesLiveMedia = false
-        queuedPresentationScanningPhrases = []
-        preparedPresentationOwner = nil
-        activePresentationOwner = nil
-        self.isProcessing = true
-        hydrationCoordinator.cancelAllTasks()
-        cancelLocalVisualAnalysis()
-        resetTrackedBackgroundWrites()
-        pendingFirstRenderMetric = nil
-
-        self.activeScanId = record.id
-        // Release any large live-capture buffers before projecting historical
-        // fields and media so both presentations are not retained at once.
-        self.activeMedia = ActiveScanMedia()
-
-        let safeContext = record.modelContext
-        let projection = InferenceHistoricalRecordProjection(
-            record: record,
-            resetLocalLookalikes: shouldResetLocalLookalikesCache()
-        )
-        if projection.hydrationPlan.shouldResetLocalLookalikes {
-            scheduleLocalLookalikesCacheResetIfNeeded(modelContext: safeContext)
-        }
-        self.activeMedia = projection.mediaSnapshot.activeScanMedia
-        self.speciesData = projection.speciesData
-        self.isProcessing = false
-        let historicPresentationGeneration = writeCoordinator.generation
-        let reviewActionGeneration =
-            beginIdentificationReviewAction(scanId: projection.scanId)
-
-        hydrationCoordinator.replaceTask(in: .historic) { [weak self] in
-            guard let self else { return }
-
-            // Step 1: Determine initial reference image loading state.
-            guard !Task.isCancelled else { return }
-            let referenceURLs = projection.referenceURLs
-            let shouldLoadImages =
-                projection.hydrationPlan.allowsReferenceImages &&
-                referenceURLs.isEmpty &&
-                (projection.gbifTaxonKey != nil ||
-                    projection.hydrationPlan.needsEnrichment)
-            self.activeMedia.referenceState = shouldLoadImages
-                ? .loading
-                : (referenceURLs.isEmpty
-                    ? .empty
-                    : .loaded(referenceURLs))
-
-            // Step 2: Resolve similar species and decode candidates off @MainActor (CPU-bound).
-            // The projection reuses its gate-decoded rich lookalikes and owns
-            // the awaited off-main legacy/candidate conversion.
-            let decodedContent = await InferenceHistoricalRecordProjection
-                .decodeDeferredContent(projection.deferredContent)
-
-            guard !Task.isCancelled else { return }
-            if var updated = self.speciesData {
-                updated.similarSpecies = decodedContent.similarSpecies
-                updated.candidates = decodedContent.candidates
-                self.speciesData = updated
-            }
-
-            // Step 3: If an identification override is active, patch in the override species data.
-            if let override = projection.overrideScientificName,
-               projection.hydrationPlan.allowsSpeciesHydration {
-                guard !Task.isCancelled else { return }
-                await self.fetchAndPatchOverrideData(
-                    scientificName: override,
-                    scanId: projection.scanId,
-                    modelContext: safeContext,
-                    enrichOnCacheMiss: false,
-                    replacingSpeciesIdentity: false,
-                    reviewActionGeneration: reviewActionGeneration
-                )
-            }
-
-            // Steps 4 & 5: Retroactive Wikipedia hydration, Enrichment, and GBIF-image hydration.
-            // Run Wikipedia and Enrichment concurrently. GBIF images run sequentially after Enrichment.
-            await withTaskGroup(of: Void.self) { group in
-                if projection.hydrationPlan.needsWikipedia {
-                    group.addTask { @MainActor [weak self] in
-                        guard let self else { return }
-                        guard !Task.isCancelled else { return }
-                        await self.fetchWikipediaAndHydrate(
-                            for: projection.displayedScientificName,
-                            scanId: projection.scanId,
-                            presentationGeneration: historicPresentationGeneration,
-                            reviewActionGeneration: reviewActionGeneration,
-                            modelContext: safeContext
-                        )
-                    }
-                }
-
-                group.addTask { @MainActor [weak self] in
-                    guard let self else { return }
-                    var taxonKeyToUse = projection.gbifTaxonKey
-                    let speciesIsEnriched = self.hydrationCoordinator
-                        .isSpeciesEnriched(
-                            projection.displayedScientificName
-                        )
-                    let plannedScopes = Self.plannedEnrichmentScopes(
-                        needsMetadata:
-                            projection.hydrationPlan.needsMetadata,
-                        needsLookalikes:
-                            projection.hydrationPlan.needsLookalikes,
-                        speciesIsEnriched: speciesIsEnriched
-                    )
-
-                    // Metadata is species-level cached, but lookalikes are still hydrated per-scan
-                    // unless the record already has rich local lookalike data persisted.
-                    if (plannedScopes.metadata || plannedScopes.lookalikes)
-                        && self.hydrationCoordinator
-                        .beginHistoricEnrichmentAttempt(
-                            scanId: projection.scanId
-                        ) {
-                        guard !Task.isCancelled else { return }
-                        await self.fetchAndApplyEnrichment(
-                            modelContext: safeContext,
-                            needsMetadata: plannedScopes.metadata,
-                            needsLookalikes: plannedScopes.lookalikes,
-                            reviewActionGeneration: reviewActionGeneration
-                        )
-                        if !Task.isCancelled,
-                           self.speciesData?.habitatDescription?.trimmedNonEmptyValue != nil,
-                           self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
-                            self.hydrationCoordinator.markSpeciesEnriched(
-                                projection.displayedScientificName
-                            )
-                        }
-                        taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
-                    }
-
-                    if let key = taxonKeyToUse,
-                       projection.hydrationPlan.allowsReferenceImages {
-                        guard !Task.isCancelled else { return }
-                        guard let currentScientificName = self.speciesData?.scientificName,
-                              currentScientificName.caseInsensitiveCompare(
-                                  projection.displayedScientificName
-                              ) == .orderedSame,
-                              self.speciesData?.scanId?.caseInsensitiveCompare(
-                                  projection.scanId
-                              ) == .orderedSame else {
-                            return
-                        }
-                        await self.fetchGBIFImagesAndHydrate(
-                            for: key,
-                            scanId: projection.scanId,
-                            scientificName: currentScientificName,
-                            presentationGeneration: historicPresentationGeneration,
-                            reviewActionGeneration: reviewActionGeneration,
-                            modelContext: safeContext
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - On-Device Subject Study
-
-    /// Builds one bounded image from the primary visual item, then reuses it for
-    /// Vision, deterministic visible-trait extraction, and the future Foundation
-    /// Models provider. This work never joins the network task and cannot delay
-    /// request dispatch or result publication.
-    @discardableResult
-    private func classifySubjectLocally(
-        from data: Data,
-        focusRegion: NormalizedImageFocusRegion?
-    ) -> Task<Void, Never>? {
-        guard let attemptGeneration = activeLiveInferenceAttemptGeneration else {
-            return nil
-        }
-        let session = InferenceLocalAnalysisCoordinator.Session(
-            scanId: activeScanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: activeForegroundInferenceGeneration
-        )
-        return localAnalysisCoordinator.start(
-            imageData: data,
-            focusRegion: focusRegion,
-            session: session,
-            isCurrent: { [weak self] session in
-                self?.isLocalAnalysisCurrent(session) == true
-            },
-            publishPhrase: { [weak self] phrase in
-                self?.scanningPhaseText = phrase
-            }
-        )
-    }
-
-    private func markInferenceRequestBodySent(
-        session: InferenceLocalAnalysisCoordinator.Session
-    ) {
-        localAnalysisCoordinator.markInferenceRequestBodySent(for: session)
-    }
-
-    private func isLocalAnalysisCurrent(
-        _ session: InferenceLocalAnalysisCoordinator.Session
-    ) -> Bool {
-        guard activePresentationOwner?.modality == .visual,
-              activePresentationOwner?.attemptGeneration
-                == session.attemptGeneration else {
-            return false
-        }
-        return liveAttemptCoordinator.isAttemptCurrent(
-            scanId: session.scanId,
-            attemptGeneration: session.attemptGeneration,
-            foregroundGeneration: session.foregroundGeneration
-        )
-    }
-
-    private func cancelLocalVisualAnalysis(
-        resetPhraseCoordinator: Bool = true
-    ) {
-        localAnalysisCoordinator.cancel(
-            resetPhraseCoordinator: resetPhraseCoordinator
-        )
+        historicalLoadCoordinator.load(from: record)
     }
 
     func handleApplicationActiveStateChange(isActive: Bool) {
-        let canResume = isProcessing
-            && activePresentationOwner?.modality == .visual
-            && activePresentationOwner?.attemptGeneration
-                == activeLiveInferenceAttemptGeneration
-        if isActive {
-            localAnalysisCoordinator.resumeAfterInactivity(
-                canResume: canResume
-            )
-            return
-        }
-        localAnalysisCoordinator.pauseForInactivity(canResume: canResume)
-    }
-
-    #if DEBUG
-    /// Deterministic generic → category → trait progression for UI development
-    /// and the analyzing-pill UI contract test.
-    func simulateProgressiveAnalyzing(
-        automaticallyAdvances: Bool = true,
-        scanId: String = "debug-progressive-analysis"
-    ) {
-        cancelLocalVisualAnalysis()
-        let attemptGeneration = UUID()
-        liveAttemptCoordinator.activate(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: nil
+        sessionLifecycleCoordinator.handleApplicationActiveStateChange(
+            isActive: isActive
         )
-        activePresentationOwner = AnalysisPresentationOwner(
-            scanId: activeScanId,
-            attemptGeneration: attemptGeneration,
-            modality: .visual
-        )
-        isProcessing = true
-        let session = InferenceLocalAnalysisCoordinator.Session(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: nil
-        )
-        localAnalysisCoordinator.startDebugProgression(
-            session: session,
-            automaticallyAdvances: automaticallyAdvances,
-            isCurrent: { [weak self] session in
-                self?.isLocalAnalysisCurrent(session) == true
-            },
-            publishPhrase: { [weak self] phrase in
-                self?.scanningPhaseText = phrase
-            }
-        )
-    }
-
-    func debugAdvanceProgressiveAnalyzing() {
-        localAnalysisCoordinator.advanceDebugProgression()
-    }
-
-    func simulateAnalyzing() {
-        simulateProgressiveAnalyzing()
-    }
-
-    func debugStartFoundationCueStream(
-        image: ImageDownsampler.SendableImage,
-        classification: VisionSubjectClassification,
-        scanId: String = "debug-local-analysis",
-        attemptGeneration: UUID = UUID()
-    ) {
-        cancelLocalVisualAnalysis()
-        liveAttemptCoordinator.activate(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: nil
-        )
-        activePresentationOwner = AnalysisPresentationOwner(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            modality: .visual
-        )
-        isProcessing = true
-        let session = InferenceLocalAnalysisCoordinator.Session(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: nil
-        )
-        localAnalysisCoordinator.startDebugFoundationCueStream(
-            image: image,
-            classification: classification,
-            session: session,
-            isCurrent: { [weak self] session in
-                self?.isLocalAnalysisCurrent(session) == true
-            },
-            publishPhrase: { [weak self] phrase in
-                self?.scanningPhaseText = phrase
-            }
-        )
-    }
-
-    @discardableResult
-    func debugStartLocalClassification(
-        imageData: Data,
-        focusRegion: NormalizedImageFocusRegion? = nil,
-        scanId: String = "debug-local-classification",
-        attemptGeneration: UUID = UUID()
-    ) -> Task<Void, Never>? {
-        cancelLocalVisualAnalysis()
-        liveAttemptCoordinator.activate(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: nil
-        )
-        activePresentationOwner = AnalysisPresentationOwner(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            modality: .visual
-        )
-        isProcessing = true
-        return classifySubjectLocally(
-            from: imageData,
-            focusRegion: focusRegion
-        )
-    }
-
-    @discardableResult
-    func debugTransitionProgressiveAnalyzingToQueue(scanId: String) -> Bool {
-        let attemptGeneration = activeLiveInferenceAttemptGeneration ?? UUID()
-        liveAttemptCoordinator.activate(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: nil
-        )
-        activePresentationOwner = AnalysisPresentationOwner(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            modality: .visual
-        )
-        return transitionToQueuedPresentation(
-            scanId: scanId,
-            source: .active(attemptGeneration: attemptGeneration)
-        )
-    }
-
-    func debugStartNonVisualPresentation(
-        scanId: String,
-        phrase: String = "Listening"
-    ) -> UUID {
-        cancelLocalVisualAnalysis()
-        let attemptGeneration = UUID()
-        liveAttemptCoordinator.activate(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: nil
-        )
-        activePresentationOwner = AnalysisPresentationOwner(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            modality: .nonVisual
-        )
-        isProcessing = true
-        scanningPhaseText = phrase
-        return attemptGeneration
-    }
-
-    func debugSimulateGeminiResponseArrival() {
-        cancelLocalVisualAnalysis()
-    }
-
-    var debugAcceptedFoundationPhraseCount: Int {
-        localAnalysisCoordinator.acceptedFoundationPhraseCount
-    }
-
-    func debugWaitForFoundationVisualCueStream() async {
-        await localAnalysisCoordinator.waitForFoundationCueStream()
-    }
-
-    func debugWaitForLocalVisualTraits() async {
-        await localAnalysisCoordinator.waitForTraits()
-    }
-
-    var debugLocalVisionCategory: LocalSubjectCategory? {
-        localAnalysisCoordinator.localVisionCategory
-    }
-
-    var debugLocalVisualAnalysisIsRunning: Bool {
-        localAnalysisCoordinator.isRunning
-    }
-
-    var debugLocalVisualTraitIsRunning: Bool {
-        localAnalysisCoordinator.isTraitExtractionRunning
-    }
-    #endif
-
-    /// Existing cloud-analysis phrases retained by queued, audio-only, and
-    /// Describe flows. Foreground visual local analysis uses the morphology-only
-    /// deck owned by `ScanningPhraseCoordinator`.
-    nonisolated static var genericScanningPhasePhrases: [String] {
-        [
-            "Scanning subject...",
-            "Analyzing subject morphology",
-            "Analyzing biological traits",
-            "Analyzing structural patterns",
-            "Checking taxonomic data",
-            "Checking species records",
-            "Checking habitat context",
-            "Identifying species..."
-        ]
     }
 
     func markAlternativesExhausted(expectedScanId: String? = nil) {
-        guard let scanId = speciesData?.scanId,
-              expectedScanId == nil ||
-                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
-            return
-        }
-        _ = beginIdentificationReviewAction(scanId: scanId)
-        speciesData?.alternativesExhausted = true
+        speciesPresentationCoordinator.markAlternativesExhausted(
+            expectedScanId: expectedScanId
+        )
     }
 }

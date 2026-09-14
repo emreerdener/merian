@@ -31,6 +31,15 @@ struct InferenceLiveResultIntegrationTests {
             #expect(request.compressedDatas == (nonVisual ? [] : [Data([0x01])]))
             #expect(request.displayDatas == (nonVisual ? [] : [Data([0x11])]))
             #expect(request.persistenceFence == nil)
+            if nonVisual {
+                // Queue-less nonvisual requests preserve the existing
+                // server-assigned scan-ID contract.
+                #expect(request.expectedScanId == nil)
+            } else {
+                // Visual requests send their generated client ID and therefore
+                // require the response to echo it.
+                #expect(request.expectedScanId?.isEmpty == false)
+            }
             #expect(engine.speciesData?.commonName == "No identification")
             #expect(engine.speciesData?.confidenceScore == 0)
             #expect(engine.speciesData?.isInferenceErrorPlaceholder == false)

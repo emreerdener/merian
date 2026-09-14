@@ -12,6 +12,7 @@ struct BackgroundInferenceFinalizationService: Sendable {
         let telemetry: CaptureTelemetry?
         let audioFilePaths: [String]?
         let videoFilePaths: [String]?
+        let expectedScanId: String
     }
 
     struct Dependencies: Sendable {
@@ -26,7 +27,8 @@ struct BackgroundInferenceFinalizationService: Sendable {
                 resultData: request.resultData,
                 telemetry: request.telemetry,
                 audioFilePaths: request.audioFilePaths,
-                videoFilePaths: request.videoFilePaths
+                videoFilePaths: request.videoFilePaths,
+                expectedScanId: request.expectedScanId
             )
         }
     )
@@ -98,14 +100,18 @@ struct BackgroundInferenceFinalizationService: Sendable {
             return .notProcessed
         }
 
-        let mappedData: SpeciesData
+        let preparedResponse: InferenceResponsePreparationService
+            .PreparedResponse
         do {
-            mappedData = try await dependencies.decodeResponse(DecodeRequest(
-                resultData: resultData,
-                telemetry: telemetry,
-                audioFilePaths: audioFilePaths,
-                videoFilePaths: videoFilePaths
-            )).mappedData
+            preparedResponse = try await dependencies.decodeResponse(
+                DecodeRequest(
+                    resultData: resultData,
+                    telemetry: telemetry,
+                    audioFilePaths: audioFilePaths,
+                    videoFilePaths: videoFilePaths,
+                    expectedScanId: scanId
+                )
+            )
         } catch {
             MerianLog.data.debug(
                 "Background inference finalization could not decode a usable response scanId=\(scanId, privacy: .public) error=\(error, privacy: .private)"
@@ -114,17 +120,16 @@ struct BackgroundInferenceFinalizationService: Sendable {
         }
 
         guard !Task.isCancelled else { return .notProcessed }
-        if expectedGeneration != nil,
-           mappedData.scanId?.caseInsensitiveCompare(scanId) != .orderedSame {
+        guard preparedResponse.responseMatchesExpectedScanId else {
             MerianLog.data.debug(
                 "Background inference finalization rejected a response scan ID mismatch scanId=\(scanId, privacy: .public)"
             )
             return .notProcessed
         }
 
-        return await persistenceActor
+        let persistenceResult = await persistenceActor
             .persistOfflineScanResultAssumingPersistenceLock(
-                mappedData: mappedData,
+                mappedData: preparedResponse.mappedData,
                 originalImagePaths: originalImagePaths,
                 scanId: scanId,
                 originalTimestamp: originalTimestamp,
@@ -133,5 +138,9 @@ struct BackgroundInferenceFinalizationService: Sendable {
                 videoFilePaths: videoFilePaths,
                 capturedMediaJSON: capturedMediaJSON
             )
+        guard persistenceResult.wasCleaned else { return persistenceResult }
+        return persistenceResult.withFundingSettlement(
+            preparedResponse.fundingSettlement
+        )
     }
 }

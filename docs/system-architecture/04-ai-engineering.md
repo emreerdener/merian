@@ -13,8 +13,10 @@ The iOS inference layer is split across focused owners under
 `apps/ios/Merian/Core/AI/`, shared `Core/SpeciesReference` infrastructure, and
 its capture integration:
 
-- **`InferenceEngine.swift`**: The main engine. Coordinates upload confirmation,
-  delegates live provider preparation/dispatch, and delivers results to
+- **`InferenceEngine.swift`**: The observable presentation façade. It retains
+  the stable visual/nonvisual entry points, delegates their startup to
+  `InferenceLiveSubmissionCoordinator`, exposes `InferencePresentationState`
+  values through source-compatible accessors, and delivers admitted results to
   `CaptureWorkspaceViewModel`. Its source-compatible internal accessors project
   the live task, active scan, process-local attempt UUID, durable foreground
   UUID, and recoverable scan from `InferenceLiveAttemptCoordinator`; these
@@ -24,37 +26,37 @@ its capture integration:
   tuple to detect whether the background URLSession path has completed for the
   exact live attempt it may replace — see the
   [offline pipeline InferenceEngine hydration note](../backend-and-data/01-offline-sync-pipeline.md).
-  The `analyze` progression is mapped across 5 strict functional checkpoints
-  enforcing UI hydration, image translation, and network payload dispatch
-  gracefully. **`defer` race guard**: The `defer` block inside `analyze()`'s
-  live task captures the scan and presentation UUID before the task body runs.
-  It resets `isProcessing` only when the coordinator atomically clears that
-  still-current local tuple. The durable foreground UUID is separately checked
-  at provider and side-effect boundaries. Without both fences, a cancelled task
-  could race against a replacement for the same scan. **Live-success
-  orchestration**: The visual and nonvisual success paths pass typed result
-  outcomes to `InferenceLiveCompletionCoordinator`. It owns discovery marking,
-  replacement handoff, circuit success, scan telemetry, the foreground
-  biological-completion event, exact queue-finalization authorization,
-  notifications, and milestone scheduling. Only the coordinator can construct
-  its typed permit. Queue-backed authorization requires the complete local/
-  durable tuple to survive deletion and leaves no outstanding durable
-  generation; synchronous queue-less authorization requires the nil scan/
-  durable pair. The engine retains observable publication, benchmark placement,
-  media construction, reference hydration, and each modality's reviewed effect
-  order. **`targetEradicationScanId` (reanalysis path)**: Both `analyze` and
-  `analyzeNonVisual` accept `targetEradicationScanId: String?`, carrying the old
-  scan's stable ID rather than retaining a managed record across inference
-  suspensions. The live completion adapter passes the typed result outcome to
-  `Inference/Result/InferenceScanReplacement.swift`. Only `.persisted` with
-  distinct non-empty IDs, a replacement resolved in a fresh store context, and
-  non-deleted original/replacement records may proceed. The helper copies
-  `customTags` and non-empty collection memberships. Non-empty old field notes
-  are copied only when the replacement's notes are empty. Review state
-  (`userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`) is
-  intentionally not transferred because this is a fresh analysis. The metadata
-  save must succeed before the completion adapter delegates old-record removal
-  and queued cloud deletion to
+  The submission coordinator passes immutable session/request values to
+  `InferenceLivePipelineCoordinator` and asks
+  `InferenceLivePresentationCoordinator` for both callback bundles. Pipeline
+  cleanup resets `isProcessing` only after the attempt coordinator atomically
+  clears the still-current local tuple. The durable foreground UUID is
+  separately checked at provider and side-effect boundaries. Without both
+  fences, a cancelled task could race against a replacement for the same scan.
+  **Live-success orchestration**: The pipeline passes typed result outcomes to
+  `InferenceLiveCompletionCoordinator`. It owns discovery marking, replacement
+  handoff, circuit success, scan telemetry, the foreground biological-completion
+  event, exact queue-finalization authorization, notifications, and milestone
+  scheduling. Only the coordinator can construct its typed permit. Queue-backed
+  authorization requires the complete local/durable tuple to survive deletion
+  and leaves no outstanding durable generation; synchronous queue-less
+  authorization requires the nil scan/durable pair. The pipeline owns benchmark
+  placement and each modality's reviewed effect order; the live-presentation
+  coordinator owns exact commit admission and callback routing, the engine
+  retains its stable facade, and the species-presentation bridge owns reference-
+  hydration callbacks. **`targetEradicationScanId` (reanalysis path)**: Both
+  `analyze` and `analyzeNonVisual` accept `targetEradicationScanId: String?`,
+  carrying the old scan's stable ID rather than retaining a managed record
+  across inference suspensions. The live completion adapter passes the typed
+  result outcome to `Inference/Result/InferenceScanReplacement.swift`. Only
+  `.persisted` with distinct non-empty IDs, a replacement resolved in a fresh
+  store context, and non-deleted original/replacement records may proceed. The
+  helper copies `customTags` and non-empty collection memberships. Non-empty old
+  field notes are copied only when the replacement's notes are empty. Review
+  state (`userIdentificationOverride`, `userConfirmedIdentification`,
+  `isFlagged`) is intentionally not transferred because this is a fresh
+  analysis. The metadata save must succeed before the completion adapter
+  delegates old-record removal and queued cloud deletion to
   `ScanRepository.eradicateScan(record:modelContext:)`. On save failure, only
   the helper's staged fields are restored, preserving unrelated pending edits.
   Lookup failure, pending-only inserts, missing/same IDs, rejected persistence,
@@ -72,39 +74,152 @@ its capture integration:
   scientific name, presentation generation, and review-action generation before
   mutating state. Without this guard, a slow enrichment Task started for scan A
   that completes after the user has already moved to scan B would overwrite scan
-  B's `speciesData` with scan A's habitat description and lookalikes. The engine
-  decides whether a result still matches the visible scan; it delegates task
-  storage and ordering to `InferenceWriteCoordinator`.
+  B's `speciesData` with scan A's habitat description and lookalikes.
+  `InferenceSpeciesHydrationCoordinator` carries that identity through its
+  injected callbacks; `InferencePresentationState` remains the observable-value
+  boundary behind the engine facade, and
+  `InferenceSpeciesPresentationCoordinator` retains bounded-write admission.
+- **`Inference/Assembly/InferenceEngineAssembly.swift`**: The one-shot
+  `@MainActor` composition boundary for the focused inference owner graph. It
+  preserves the engine initializer's existing construction order, injected
+  edges, and optional live fallbacks, then returns the completed owners for
+  private retention by `InferenceEngine`. It owns no observable or mutable
+  runtime state, task, networking, persistence, filesystem, logging, or
+  singleton resolution. `AppDIContainer` remains the production composition root
+  for external live dependencies; the assembly is only the internal graph
+  builder.
+- **`Inference/Facade/InferenceEngineCompatibility.swift` and
+  `Inference/Diagnostics/`**: The facade support file owns source-compatible
+  nested modality values and pure policy adapters. The existing debug API is a
+  compile-time-gated forwarding extension backed by an ephemeral scenario
+  coordinator. Its only entry to the private owner graph is a DEBUG-only engine
+  factory; no owner visibility is widened and no diagnostic code enters Release.
+- **`Inference/Pipeline/InferenceLiveSubmissionCoordinator.swift`**: The
+  singleton-free `@MainActor` startup sequence owner for both live modalities.
+  It preserves Auth and empty-payload disposition, pipeline admission, lifecycle
+  replacement, media projection and staging, attempt/presentation activation,
+  telemetry, optional local visual analysis, exact one-shot first-render metric
+  consumption and benchmark routing, immutable request construction, callback
+  selection, and task registration. It creates the execution task but
+  immediately installs it in `InferenceLiveAttemptCoordinator`; it stores no
+  task or mutable state and resolves no network, persistence, logger,
+  filesystem, or singleton dependency. The engine entry points now only
+  construct the typed submission values and delegate.
+- **`Inference/Lifecycle/InferenceSessionLifecycleCoordinator.swift`**: The
+  effect-acquisition-free `@MainActor` ordering owner for cross-owner session
+  transitions. It sequences new-scan preparation, visual/nonvisual replacement,
+  successful publication, exact background/queued-result recovery, queued-record
+  handoff, pipeline finish, visual queue handoff, dismissal, explicit
+  cancellation, historical-load admission, foreground activity changes, and Auth
+  admission/drain completion across the attempt, hydration, write, local
+  analysis, presentation-identity, and observable-value owners. It stores no
+  task or independent lifecycle registry. Once visual admission succeeds,
+  replacement synchronously clears the displaced presentation owner, queued
+  visual context, and first-render timestamp before the submission owner
+  installs the new presentation; a same-scan retry without a new clock therefore
+  cannot consume its predecessor's timing state. It resolves no network,
+  persistence, logging, filesystem, managed record, or singleton dependency. The
+  engine retains the three source-compatible recovery methods and supplies only
+  immutable IDs, result values, or a synchronous record-loading callback;
+  durable queue effects remain behind the attempt owner's injected service.
+  `InferenceEngine` retains the stable callable/observable facade;
+  `InferenceLivePresentationCoordinator` owns pipeline callback composition and
+  exact-admission transfer of a queue-less first-render clock to the server scan
+  ID.
 - **`Inference/Hydration/InferenceHydrationCoordinator.swift`**: The private
   `@MainActor` owner for replaceable live, historical, and identification-review
   task slots; cancellation-ignoring task retention; Auth-transition admission
   and quiescence; bounded Wikipedia-success and historical-attempt histories;
   the persisted 24-hour enriched-species cache; and the temporary enrichment
   backoff. GBIF work is a structured child of the slot that resolved or loaded
-  its taxon key. The engine supplies operations and decides presentation
-  identity, observable mutation, and write admission. Raw hydration handles do
-  not escape the coordinator.
+  its taxon key. `InferenceSpeciesHydrationCoordinator` supplies the species
+  operations, `InferenceHistoricalHydrationCoordinator` sequences the historical
+  operation, and `InferenceSpeciesPresentationCoordinator` exposes only exact-
+  presentation and write-admission callbacks. Raw hydration handles do not
+  escape these coordinators.
+- **`Inference/Hydration/InferenceSpeciesHydrationCoordinator.swift`**: The
+  singleton-free owner of the complete live species-hydration sequence and the
+  shared exact-presentation Wikipedia, GBIF, enrichment, and missing-reference
+  operations invoked by historical and review flows. It carries exact
+  scan/species/presentation/review identities, sequences live enrichment before
+  GBIF, and validates that complete identity at registered live-task entry
+  before publishing a reference loader or starting provider work. It merges
+  sanitized bounded reference URLs, rejects cancellation after every external
+  suspension, and emits immutable persistence work. Deferred live reference
+  cleanup revalidates the identity, so a cancelled same-scan task cannot clear a
+  replacement presentation's loading state.
+  `InferenceHistoricalHydrationCoordinator` owns historical projection follow-up
+  ordering around those shared operations; `InferenceReviewWorkflowCoordinator`
+  owns review-action ordering and review-slot orchestration. The species
+  coordinator's private-state `InferenceSpeciesEnrichmentCoordinator` child owns
+  concurrent metadata and lookalike loading, independent publication, one
+  taxonomy-gated retry, and 403 and 429 policy. The `+Live` hydration adapter
+  owns logging; live transport and database effects remain in their existing
+  service adapters.
+- **`Inference/Hydration/InferenceSpeciesPresentationCoordinator.swift`**: The
+  live-dependency-free `@MainActor` bridge between species hydration,
+  identification review, observable presentation state, and bounded writes. It
+  is the sole production constructor of
+  `InferenceSpeciesHydrationCoordinator.Callbacks`, applies admitted
+  species/reference/loading values, starts review generations, validates exact
+  case-insensitive scan/species plus presentation/review generations, routes
+  immutable persistence work to the background or serialized review owner, and
+  admits eligible live hydration. It creates no task and owns no mutable state,
+  network transport, persistence implementation, singleton, or live dependency.
+  `InferenceEngine` retains stable entry points and delegates these operations
+  to the bridge.
+- **`Inference/Hydration/InferenceHistoricalHydrationCoordinator.swift`**: The
+  singleton-free owner of the registered historical follow-up sequence. It
+  publishes initial reference state, awaits deferred projection decoding,
+  refreshes the displayed override, runs Wikipedia beside the enrichment branch,
+  and awaits GBIF after enrichment has supplied the final taxon key. It
+  preserves independent species-level metadata and per-scan lookalike admission,
+  checks cancellation after every suspension, revalidates exact presentation
+  identity before observable publication, and resolves a still-current reference
+  loader to empty when providers return no usable image. It captures only
+  immutable projection values plus narrow callbacks. The historical-load
+  coordinator owns synchronous presentation replacement; the species-
+  presentation bridge owns bounded write admission.
+- **`Inference/Hydration/InferenceHistoricalLoadCoordinator.swift`**: The
+  singleton-free, main-actor owner of synchronous persisted-record startup. It
+  sequences lifecycle admission, active-scan identity, live-media release,
+  immutable projection, legacy-cache reset scheduling, initial presentation
+  publication, presentation/review generation capture, callback construction,
+  and registered historical hydration. It creates no task, resolves no live
+  dependency, and retains no managed record after `load(from:)` returns.
+  `InferenceEngine` retains the source-compatible facade.
+- **`Inference/Hydration/InferenceLookalikeCacheResetService.swift`**: The
+  injected compatibility owner for the installed local-lookalike reset version.
+  Its effect-free core exposes only the decision and optional-container
+  scheduling boundary. The `+Live` adapter alone owns UserDefaults, process-wide
+  coalescing, detached utility work, and `BackgroundDatabaseActor` construction.
 - **`Inference/Hydration/InferenceHistoricalRecordProjection.swift`**: The
   immutable historical-load boundary. Its `@MainActor` initializer snapshots
   every required `LocalScanRecord` value, projects the initial `SpeciesData`,
   computes reference and enrichment eligibility, and retains only `Sendable`
   deferred lookalike/candidate inputs. It owns override/original display
   identity and Human/unresolved suppression but no task, network, persistence,
-  or observable state. The engine registers the resulting value with the
-  historical task owner and remains the sole presentation/effect coordinator.
+  or observable state. The historical-load coordinator constructs and
+  synchronously publishes the resulting value before passing it to the
+  historical-hydration coordinator; that coordinator owns asynchronous follow-
+  up ordering, while `InferenceSpeciesPresentationCoordinator` exposes the
+  presentation-state and bounded-write callback boundary behind the engine
+  facade.
 - **`Inference/Hydration/InferenceSpeciesEnrichmentService.swift`**: The
   immutable, initializer-injected scoped enrichment boundary. Its core resolves
   no live client directly and maps metadata and lookalike wire values into
   domain patches. Its `+Live` sibling is Core AI's sole
-  `MerianNetworkClient.fetchEnrichment` caller. `InferenceEngine` retains
-  independent loading, retry, current-presentation application, and error
-  feedback.
+  `MerianNetworkClient.fetchEnrichment` caller. The enrichment coordinator
+  retains independent loading, retry, current-presentation application, and
+  error feedback through injected callbacks.
 - **`Inference/Hydration/InferenceHydrationPersistenceService.swift`**: The
   immutable, initializer-injected persistence boundary for already-admitted
   reference, metadata, and lookalike snapshots. Its `+Live` sibling constructs
-  `BackgroundDatabaseActor` and encodes rich lookalikes off-main. The engine and
-  write coordinator retain presentation/review fences and operation lifetime;
-  the service owns neither admission nor mutable task state.
+  `BackgroundDatabaseActor` and encodes rich lookalikes off-main. The species-
+  presentation bridge validates exact presentation/review identity and routes
+  admitted work; the write coordinator retains operation lifetime and enforces
+  generation, Auth, and action fences. The service owns neither admission nor
+  mutable task state.
 - **`Inference/State/InferenceWriteCoordinator.swift`**: The private
   `@MainActor` owner for presentation generations, the Auth-transition write
   fence, and all best-effort/review write handles. It permits at most eight
@@ -115,46 +230,128 @@ its capture integration:
   review work, same-species confirmation, and legacy flagging have independent
   per-scan action generations, each bounded to 500 entries. Confirmation
   therefore stays the newest review-state writer without invalidating live or
-  historical hydration for the same species. The engine supplies operations and
-  lifecycle events but cannot mutate these registries.
+  historical hydration for the same species. The focused lifecycle and species-
+  presentation coordinators supply lifecycle events and admitted operations but
+  cannot mutate these registries.
 - **`Inference/State/InferenceLiveAttemptCoordinator.swift`**: The private
-  `@MainActor` owner for the foreground task handle, active scan, process-local
-  attempt UUID, optional durable foreground UUID, and recoverable presentation
-  scan. It validates the complete local/durable owner. Full invalidation clears
-  the local tuple before release and retirement; exact-current retirement clears
-  only its durable-generation slot before its callback and retains the local
-  presentation identity needed for queue handoff. It revalidates the complete
-  tuple after awaited queue deletion and reports a stale success as
-  unauthorized, so finalizer A cannot clear, retire, or authorize follow-ups
-  over same-scan replacement B.
+  `@MainActor` owner for the current foreground task handle, retained displaced
+  handles, active scan, process-local attempt UUID, optional durable foreground
+  UUID, and recoverable presentation scan. It validates the complete local and
+  durable owner tuple. Full invalidation atomically detaches the current task
+  and clears the local tuple before release and retirement callbacks, then
+  cancels and retains the displaced handle through termination. A synchronous
+  callback can therefore install a replacement without later cleanup cancelling
+  it, and Auth quiescence can cancel and await current plus previously displaced
+  work. Recovered-result admission uses the same local detach-and-cancel
+  operation without durable callbacks before publishing recovered state.
+  Exact-current retirement clears only its durable-generation slot before its
+  callback and retains the local presentation identity needed for queue handoff.
+  It revalidates the complete tuple after awaited queue deletion and reports a
+  stale success as unauthorized, so finalizer A cannot clear, retire, or
+  authorize follow-ups over same-scan replacement B.
   `Inference/Services/InferenceLiveQueueService.swift` is the narrow injected
   durable boundary; its core has no singleton access, and only its `+Live`
   adapter resolves `OfflineQueueManager` for claim, current-owner lookup,
   deferred-upload release, retirement, exact-generation deletion, and terminal
-  rejection. AppDI composes the live service. The engine retains observable
-  presentation.
+  rejection. AppDI composes the live service. The engine retains the stable
+  observable presentation facade.
+- **`Inference/Presentation/InferencePresentationCoordinator.swift`**: The
+  engine-retained, non-observable `@MainActor` owner for exact prepared/active
+  presentation identity, visual queue-handoff phrase and live-media eligibility,
+  and the one pending tap-to-first-render timestamp. It synchronously validates
+  and consumes an exact owner and returns only a value handoff. The engine keeps
+  stable entry points, while `InferenceSessionLifecycleCoordinator` asks
+  `InferencePresentationState` to apply `scanningPhaseText`, queue IDs, media,
+  `speciesData`, and processing-state commits in their existing order. The
+  coordinator owns no task, logger, network or persistence dependency,
+  `SpeciesData`, or `ActiveScanMedia`. Result publication, Auth admission, and
+  post-drain Auth cleanup preserve a pending render metric. Both Auth phases
+  clear presentation owners and queued visual context, including context
+  installed re-entrantly during the drain; replacement, dismissal, queue
+  transfer, historical loading, and explicit cancellation clear the metric. An
+  exact-admitted completion without a queue may rebind the metric from its
+  temporary request ID to the authoritative response scan ID while preserving
+  its start timestamp.
+- **`Inference/Presentation/InferencePresentationState.swift`**: The sole stored
+  `@Observable @MainActor` value owner behind `InferenceEngine`. It owns
+  processing plus metadata/enrichment and lookalike loading flags, scanning
+  copy, `ActiveScanMedia`, `SpeciesData`, the queued-presentation ID, and
+  display telemetry. Named synchronous methods apply preparation,
+  visual/nonvisual telemetry, successful result, queue handoff, dismissal,
+  cancellation, and historical-projection transitions without acquiring
+  lifecycle identity or performing networking, persistence, logging, filesystem
+  access, singleton resolution, or task creation. The engine's computed
+  accessors preserve existing SwiftUI observation and test/preview mutation.
+  New-scan, nonvisual, and cancellation transitions clear subject distance,
+  preventing a prior visual measurement from leaking into another modality or
+  scan. Historical replacement clears both loading flags before invalidating the
+  displaced hydration generation, so a guarded stale-task cleanup cannot leave
+  permanent skeleton state behind.
+- **`Inference/Media/InferenceLiveMediaProjector.swift`**: The value-only live
+  media boundary. It derives a fallback timeline only when Capture did not
+  provide one, preserves an explicit timeline's owner order, creates the aligned
+  provider projection, selects display-policy images, carries focus regions, and
+  maps live or persisted media into `ActiveScanMedia`. It also centralizes the
+  compatible Documents/temporary path lookup, HTTPS video admission, and video-
+  poster suppression/fallback rules behind injected filesystem and URL-policy
+  values. Only a poster index matching the adjacent image is suppressed; a
+  distinct staged still remains its own carousel page. It owns no task,
+  endpoint, persistence, logger, or observable state. The submission coordinator
+  publishes its pre-request presentation and passes the immutable request values
+  to the pipeline; on accepted completion,
+  `InferenceLivePresentationCoordinator` invokes persisted mapping only after
+  exact-attempt admission and publishes through the lifecycle and
+  presentation-state owners.
+- **`Inference/Pipeline/InferenceLivePipelineCoordinator.swift`**: The private
+  shared `@MainActor` execution owner after the submission coordinator publishes
+  a projected visual or nonvisual presentation. It owns exact admission and
+  activation, circuit gating, request dispatch, result processing, completion
+  preparation, benchmark placement, durable finalization, modality-specific
+  follow-up order, synchronous failure dispatch, and exact-owner cleanup.
+  Queue-less nonvisual authorization remains synchronous after commit, so only
+  queue-backed finalization introduces the existing suspension. The core
+  resolves no live singleton or logger and emits narrow callbacks for
+  presentation-state publication, media, hydration scheduling, local-analysis
+  timing, and final cleanup. Its `+Live` adapter owns circuit, quota-refund, and
+  logging effects; AppDI captures and injects those managers.
+- **`Inference/Pipeline/InferenceLivePresentationCoordinator.swift`**: The
+  effect-acquisition-free `@MainActor` callback adapter. It is the only
+  production constructor of `InferenceLivePipelineCoordinator.Callbacks` and
+  `VisualCallbacks`; synchronously checks the exact local/durable attempt before
+  projecting persisted media or publishing a successful result; routes lifecycle
+  finish, all three typed failure actions, the biological completion event, and
+  captured post-result hydration; and translates visual cancellation/body-sent
+  events to the local-analysis owner. The successful publication completes
+  before the foreground event is emitted. A completion without a queue rebinds
+  its pending first-render clock to the server scan ID only after the
+  exact-attempt fence and before media projection or publication. It owns no
+  task, suspension, network or persistence effect, observable or mutable state,
+  singleton, or engine capture.
 - **`Inference/Completion/InferenceLiveCompletionCoordinator.swift`**: The
   private `@MainActor` accepted-result coordinator shared by visual and
   nonvisual paths. It maps a typed persisted or confidence-zero no-record
   outcome into one prepared completion; sequences new-discovery feedback,
   replacement metadata/deletion, circuit success, and scan telemetry; emits the
-  foreground biological event only after the engine commits; and returns a typed
-  follow-up permit only after exact queue finalization and a local-owner
-  recheck. The permit initializer is file-scoped. Notification and milestone
-  APIs accept only that permit, while queue-less authorization accepts only the
-  nil scan/durable pair. Queue-less nonvisual work uses that synchronous method
-  to preserve its existing no-suspension timing. The core owns no singleton or
-  task. Its `+Live` adapter is the concrete manager/repository/settings/
-  analytics/event/notification/milestone bridge; AppDI captures those
-  collaborators once and injects the dependency value. Observable state
-  publication, media construction, benchmark logging, and modality-specific
-  hydration order remain engine-owned.
+  foreground biological event only after the live-presentation coordinator
+  commits; and returns a typed follow-up permit only after exact queue
+  finalization and a local-owner recheck. The permit initializer is file-scoped.
+  Notification and milestone APIs accept only that permit, while queue-less
+  authorization accepts only the nil scan/durable pair. Queue-less nonvisual
+  work uses that synchronous method to preserve its existing no-suspension
+  timing. The core owns no singleton or task. Its `+Live` adapter is the
+  concrete manager/repository/settings/ analytics/event/notification/milestone
+  bridge; AppDI captures those collaborators once and injects the dependency
+  value. Benchmark placement and modality-specific effect order remain
+  pipeline-owned; observable state and media publication remain behind the
+  engine facade, while hydration callbacks belong to the species-presentation
+  bridge.
 - **`Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift`**: The
   private `@MainActor` owner for Vision classification, deterministic trait,
   future Foundation-cue, and phrase-rotation task slots; the bounded derivative
   and provisional classification; request-body gate; phrase cursor; and
-  application-inactivity pause/resume state. `InferenceEngine` supplies a typed
-  scan/presentation/durable-generation session plus the attempt coordinator's
+  application-inactivity pause/resume state.
+  `InferenceLiveSubmissionCoordinator` supplies a typed scan/presentation/
+  durable-generation session plus the attempt and presentation coordinators'
   authoritative current-session predicate and receives only phrase values. Raw
   task handles, the derivative, provisional candidates, and mutable phrase state
   do not escape the coordinator or participate in durable Auth draining. Sibling
@@ -166,68 +363,100 @@ its capture integration:
   initializer-injected live request boundary shared by visual and nonvisual
   flows. It owns image base64 filtering and MIME detection, observation-context
   JSON, visual/audio/timeline descriptor forwarding, staged-video upload, and
-  the single `/identify-multimodal` call. The engine supplies a main-actor
+  the single `/identify-multimodal` call. The pipeline supplies a main-actor
   exact-attempt validator after image encoding, staged-video upload, and
-  provider return. Provider-ready and request-body callbacks return effect
-  timing to the engine, which delegates the durable action to the attempt
-  coordinator. Both callbacks retain that coordinator independently so durable
-  upload release survives engine teardown; only the local-analysis update in the
-  body-sent callback captures the engine weakly. The request service does not
-  own presentation, queue retirement, parsing, persistence, or recovery state.
+  provider return. It owns provider-ready and request-body callback timing and
+  delegates the durable action to the attempt coordinator. Both callbacks retain
+  that coordinator independently so durable upload release survives engine
+  teardown; the body-sent local-analysis update weakly captures only the live-
+  presentation coordinator. The request service does not own presentation, queue
+  retirement, parsing, persistence, or recovery state.
 - **`Inference/Result/InferenceLiveResultService.swift`**: The injected live
   response-to-persistence adapter. It normalizes visual/nonvisual image
   requirements and optional audio/video paths while forwarding the original
   context JSON, canonical timeline/projection, model context, and exact
   `LiveInferencePersistenceFence` to `InferenceProcessingActor.parseAndSave`.
-  The service calls the engine-supplied validator before and after that
+  The service calls the pipeline-supplied validator before and after that
   suspension, before mapping the outcome. Both
   `ParseAndSaveResult.didCompletePersistence` and a non-nil `mappedData` are
   required: positive confidence maps to `.persisted`, and non-positive
   confidence maps to `.completedWithoutRecord`. Otherwise the outcome is
   `.persistenceRejected`; confidence alone cannot prove completion. Parser and
-  validation errors propagate to the engine unchanged, without a service-owned
+  validation errors propagate to the pipeline unchanged, without a service-owned
   retry or recovery policy. The model context remains a main-actor input to the
   existing adapter, not a new Sendable value. AppDI owns the live request,
-  result, queue, and completion dependency values; neither request nor result
-  service retains mutable attempt/task state. Observable commits and hydration
-  ordering stay engine-owned; the completion coordinator owns shared accepted-
-  result effects and delegates exact queue cleanup to the attempt coordinator.
+  result, queue, completion, failure, and pipeline dependency values; neither
+  request nor result service retains mutable attempt/task state. The pipeline
+  owns completion preparation, benchmark placement, failure routing, and exact
+  queue cleanup; the completion coordinator owns the shared accepted-result
+  effects. Observable values and mutations stay in `InferencePresentationState`;
+  the live-presentation coordinator owns commit orchestration and routes
+  hydration to the species-presentation bridge behind the engine facade.
   Reanalysis metadata safety belongs to the synchronous
   `InferenceScanReplacement` helper described above, not to this result adapter.
 - **`Inference/Recovery/`**: `InferenceLiveFailurePolicy` owns pure
   interruption, error, retirement-reason, and telemetry/circuit/feedback
   decisions; `InferenceFailurePresentation` owns recovery copy and
-  `.inferenceError` `SpeciesData` construction. Both live catch paths call the
-  engine's private synchronous `handleLiveInferenceFailure`. It snapshots full
-  ownership, handles task cancellation, logical ownership cancellation,
-  transport cancellation, and connectivity handoff in that order, then rejects
-  stale attempts before queue release and terminal publication. The policy never
-  reads queue state or invokes a live service; it reuses the existing Network
-  stable-code helper and shared connectivity policy. The engine retains
-  observable and feedback effect order, while the attempt coordinator performs
-  exact validation, release, retirement, and terminal queue disposition. That
-  synchronous path introduces no suspension between the ownership snapshot and
-  terminal commit. Known conflict, consent, admission, observation rejection,
-  and visual decoding remain outside circuit failure; nonvisual decoding retains
-  its generic service/circuit path and Describe-versus-audio telemetry. Quota
-  exhaustion requests the paywall without a placeholder or error haptic. No
-  copy, endpoint, retry, or durable ownership contract changes with this
-  extraction.
+  `.inferenceError` `SpeciesData` construction.
+  `InferenceLiveFailureCoordinator` is the singleton-free synchronous owner for
+  both live catch paths and is invoked only by the pipeline coordinator. It
+  snapshots full ownership, handles task cancellation, logical ownership
+  cancellation, transport cancellation, and connectivity handoff in that order,
+  then rejects stale attempts before queue release and terminal effects. It
+  delegates exact validation, release, retirement, and terminal queue
+  disposition to the attempt coordinator, then revalidates local ownership after
+  synchronous queue callbacks before later presentation effects. It emits only
+  three synchronous actions for the live-presentation coordinator: retain the
+  recoverable scan, transition the current presentation to its queue row, or
+  publish a typed failure value. Its `+Live` adapter binds telemetry and logging
+  and adapts the circuit, haptic, and usage managers captured by AppDI. The
+  policy never reads queue state or invokes a live service; it reuses the
+  existing Network stable-code helper and shared connectivity policy. This path
+  creates no task and introduces no suspension between the ownership snapshot,
+  retirement, and terminal commit. Known conflict, consent, admission,
+  observation rejection, and visual decoding remain outside circuit failure;
+  nonvisual decoding retains its generic service/circuit path and Describe-
+  versus-audio telemetry. Quota exhaustion requests the paywall without a
+  placeholder or error haptic. No copy, endpoint, retry, or durable ownership
+  contract changes with this extraction.
 - **`Core/Network/Inference/InferenceIdentificationReviewService.swift`**: The
   immutable AppDI-owned transport adapter for exact-name Species Dictionary
   reads and `update_owned_scan_identification_review`. Every live operation is
   wrapped in an account-work lease and rejects a result after Auth transition.
-  The engine owns review generations, ordered local writes, presentation, and
-  post-success invalidation; it no longer constructs PostgREST or RPC requests.
+  It owns no review presentation, local persistence, or post-success effects.
+- **`Inference/IdentificationReview/`**: The action/effect coordinator delegates
+  generation, replacement, final-writer, and Auth fencing to the shared write
+  coordinator; sequences local persistence before the account-fenced transport;
+  and emits Explore refresh before milestone processing only after sync
+  succeeds. Its `+Live` adapter alone constructs the database actor, maps shared
+  posts, logs failures, and binds AppDI's event and milestone collaborators. The
+  adjacent snapshot service performs the bounded throwing SwiftData preflight.
+  `InferenceReviewWorkflowCoordinator` owns the complete override, confirmation,
+  reset, and historical displayed-override sequences, including
+  local-before-cloud admission, registered review hydration, and exact post-
+  suspension presentation fencing. The pure presentation mapper returns paired
+  full-value `SpeciesData`, reference-media, and persistence-patch actions.
+  `InferenceEngine` retains stable public methods.
+  `InferenceSpeciesPresentationCoordinator` coordinates observable commits
+  through `InferencePresentationState`; its single hydration callback bundle is
+  the workflow's source for current presentation, generation, exact-identity
+  checks, and persistence admission. The bridge also starts review generations
+  when the live-presentation or historical-load coordinator installs a
+  presentation. Interactive override, confirmation, and reset sequencing,
+  persistence implementation, transport, Explore invalidation, and milestone
+  resolution remain outside the engine.
 - **`Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift`**:
   The initializer-injected Wikipedia mobile-sections and GBIF taxon-key
   transport/parsing boundary shared with scan-thumbnail recovery. Its live value
   owns a cookie-free, cache-free public `URLSession`; private wire DTOs, HTML
   normalization, and GBIF image selection stay inside the service and run off
-  the main actor. It returns Sendable values only. `InferenceEngine` remains
-  responsible for requiring a Wikipedia overview, scan-generation checks,
-  observable `SpeciesData` and media mutations, URL policy, and SwiftData
-  persistence.
+  the main actor. It returns Sendable values only.
+  `InferenceSpeciesHydrationCoordinator` requires usable Wikipedia content,
+  applies reference URL policy, validates exact presentation identity, and emits
+  immutable persistence work. Species-presentation callbacks publish admitted
+  `SpeciesData` and media values and route writes through
+  `InferenceWriteCoordinator`; the hydration persistence live adapter owns the
+  SwiftData effect.
 - **`CaptureTelemetry` abstraction
   (`Capture/Submission/Services/CaptureSubmissionTelemetry.swift`)**: Telemetry
   context creation is strictly abstracted away from UI controllers. Instead of
@@ -238,10 +467,16 @@ its capture integration:
   schemas without risking memory bounding loops or precision errors crossing
   into the network interface.
 - **`Inference/Services/InferenceResponsePreparationService.swift`**: A
-  stateless shared decoder, usable-success validator, `SpeciesData` mapper, and
-  entitlement/usage reconciler for foreground and background completion. It owns
-  no task, actor, persistence, or presentation state. Its `PreparedResponse` and
-  complete domain-value graph use compiler-checked `Sendable` conformances; this
+  stateless shared decoder, usable-success validator, request-appropriate
+  response-ID checker, `SpeciesData` mapper, and immutable
+  `InferenceResponseSettlement` projector for foreground and background
+  completion. Client-ID-bearing and queue-backed calls require an exact echo;
+  the compatibility queue-less nonvisual call accepts the server-assigned ID
+  returned by the endpoint. The service owns no task, actor, persistence,
+  account mutation, queue mutation, or presentation state. Generated transport
+  DTOs remain generator-owned; the settlement copies their values into the
+  compiler-checked `EntitlementStateSnapshot` domain type. `PreparedResponse`
+  and its complete domain-value graph use checked `Sendable` conformances; this
   boundary does not rely on `@unchecked Sendable`.
 - **`InferenceProcessingActor.swift`**: An off-main-thread actor responsible for
   base64 encoding image data and routing foreground prepared results to the
@@ -441,19 +676,24 @@ behavior.
 
 ### Enrichment Pipeline (`isEnrichmentLoading` / `fetchAndApplyEnrichment`)
 
-After an eligible biological scan or historical load, `InferenceEngine`
-coordinates the required scopes through `fetchAndApplyEnrichment`.
+After an eligible live biological scan, the stable
+`InferenceEngine.fetchAndApplyEnrichment` facade delegates through
+`InferenceSpeciesPresentationCoordinator` to
+`InferenceSpeciesHydrationCoordinator` and its enrichment sub-coordinator.
+Historical loads submit their projected scopes to the same species coordinator
+through `InferenceHistoricalHydrationCoordinator`.
 `Core/Network/Endpoints/MerianNetworkClient+ScanEnrichment.swift` owns the
 stateless HTTP methods.
 `Inference/Hydration/InferenceSpeciesEnrichmentService+Live.swift` is the sole
 Core AI bridge to that endpoint; the injected core resolves no live client
 directly and normalizes scoped responses into domain patches.
 `InferenceHydrationPersistenceService+Live.swift` owns the local database and
-off-main lookalike-encoding effects. The engine and its hydration/write
-coordinators retain admission, scheduling, independent loading state,
-presentation fencing, bounded retry, and write lifetime. The hand-written
-`EnrichScanResponse` remains below the generated Identify block in
-`InferenceEdgeDTOs.swift`. See the
+off-main lookalike-encoding effects. The species coordinator owns scheduling,
+independent loading, current-presentation application, and bounded retry;
+`InferenceHydrationCoordinator` owns task lifetime and backoff. The species-
+presentation bridge owns observable publication and admits immutable persistence
+work through `InferenceWriteCoordinator`. The hand-written `EnrichScanResponse`
+remains below the generated Identify block in `InferenceEdgeDTOs.swift`. See the
 [native ownership and verification guide](../../apps/ios/Merian/Core/Network/README.md#enrichment-export-and-feedback-verification).
 
 1. Sets the requested scope's `isEnrichmentLoading` or `isLookalikesLoading`
@@ -464,28 +704,31 @@ presentation fencing, bounded retry, and write lifetime. The hand-written
    exact scan ID, scientific name, confidence, tier, and typed scope to
    `MerianNetworkClient.shared.fetchEnrichment`. The endpoint serializes before
    UUID-key validation, then preserves the existing 30-second private transport
-   and plain decoder.
+   and plain decoder. After each external suspension, the coordinator checks
+   cancellation before logging a failure, applying a patch, retrying, or
+   emitting persistence work. This keeps `cancelHistoricHydration()`
+   authoritative even when an injected transport or detached reference parser
+   completes despite cancellation.
 3. The mapping service trims nonblank habitat, maps wire taxonomy into
    `TaxonomyData`, retains the raw optional alternate-name array for
    persistence, and separately sanitizes names for presentation. As metadata
-   resolves for the current scan/species/presentation, the engine applies that
-   patch to a local `var updated = speciesData` copy, then assigns
-   `self.speciesData = updated` in a single write on `@MainActor`. This
-   preserves the established full-value update pattern for observation and live
-   `HabitatAndDistributionCard` rendering.
+   resolves for the current scan/species/presentation, the coordinator applies
+   that patch to a local `var updated = speciesData` copy and publishes the
+   complete value through the species-presentation callback in one `@MainActor`
+   write. This preserves the established full-value update pattern for
+   observation and live `HabitatAndDistributionCard` rendering.
 4. The mapping service converts nonempty `data.similar_species` (a
    `[EnrichScanResponse.SimilarSpeciesEntry]` array, including `species_id` when
    the entry is dictionary-backed) into domain `SimilarSpeciesEntry` values. The
-   engine applies the resulting patch to
-   `updated.similarSpecies = SimilarSpecies(entries:)`, then commits with
-   `self.speciesData = updated` — the same single-write pattern — triggering a
-   live `SimilarSpeciesGallery` UI update. No confidence threshold gate —
-   enrichment always sets the data, and the gallery renders validated entries
-   with the stable "Similar species" label. Lookalikes are sourced from the
-   validated `species_lookalikes` / `species_dictionary` path when available.
-   The wire formatter also retains the legacy TEXT[] fallback described in the
-   API contract; historical hydration separately supports old local string
-   arrays.
+   enrichment coordinator applies the resulting patch to
+   `updated.similarSpecies = SimilarSpecies(entries:)`, then commits with the
+   same full-value callback pattern, triggering a live `SimilarSpeciesGallery`
+   UI update. No confidence threshold gate — enrichment always sets the data,
+   and the gallery renders validated entries with the stable "Similar species"
+   label. Lookalikes are sourced from the validated `species_lookalikes` /
+   `species_dictionary` path when available. The wire formatter also retains the
+   legacy TEXT[] fallback described in the API contract; historical hydration
+   separately supports old local string arrays.
    - **Client-side filtering:** `SimilarSpeciesGallery` removes the active
      species and duplicates by canonical species UUID when available, then by
      normalized scientific name. A shared common name is not an identity match.
@@ -546,13 +789,16 @@ presentation fencing, bounded retry, and write lifetime. The hand-written
    one versioned queue attempt. The marker is written only when the new worker
    claims the job, so the migration can safely precede the worker deployment.
 5. Each child queues only its own immutable snapshot through
-   `executeSpeciesMetadataWrite` and `InferenceHydrationPersistenceService`. The
-   live persistence adapter delegates metadata/reference mutations to
-   `BackgroundDatabaseActor` and JSON-encodes mapped lookalikes off-main into a
-   `Data` blob; an encoding failure supplies nil rather than invalid JSON. The
-   blob's existing native destination is `LocalScanRecord.lookalikesData`
-   (`MerianSchemaV27`). `InferenceWriteCoordinator` retains bounded write
-   scheduling and the scan/species/presentation/review-action fences. A
+   `InferenceSpeciesPresentationCoordinator` and
+   `InferenceHydrationPersistenceService`. The live persistence adapter
+   delegates metadata/reference mutations to `BackgroundDatabaseActor` and
+   JSON-encodes mapped lookalikes off-main into a `Data` blob; an encoding
+   failure supplies nil rather than invalid JSON. The blob's existing native
+   destination is `LocalScanRecord.lookalikesData` (`MerianSchemaV27`).
+   `InferenceSpeciesPresentationCoordinator` rechecks exact scan/species plus
+   presentation/review-action identity immediately before admitted work.
+   `InferenceWriteCoordinator` retains bounded scheduling and operation lifetime
+   and enforces presentation-generation, Auth, and action-generation fences. A
    presentation reset advances the write generation, drops queued operations,
    and cancels active work. Every snapshot also carries the expected scientific
    name. At commit time, the database actor rechecks it against the record's
@@ -562,41 +808,45 @@ presentation fencing, bounded retry, and write lifetime. The hand-written
 6. Each child's `defer` clears only its own loading flag, and only while the
    same presentation still owns that state.
 
-After both initially requested scopes finish, the engine may retry lookalikes
-once when the presentation is still current, similar species remain absent, and
-taxonomy is usable. The retry requests no metadata, disables further lookalike
-retries, and remains subject to hydration admission/backoff. This is caller
-policy, not another retry owner in the endpoint extension.
+After both initially requested scopes finish, the enrichment coordinator may
+retry lookalikes once when the presentation is still current, similar species
+remain absent, and taxonomy is usable. The retry requests no metadata, disables
+further lookalike retries, and remains subject to hydration admission/backoff.
+This is orchestration policy, not another retry owner in the endpoint extension.
 
-For eligible historical records, `load(from:)` requests metadata when habitat is
-blank/missing, the GBIF key is missing, or taxonomy is unusable. It requests
-lookalikes for the local reset policy, a missing rich blob, or a nonempty
-decoded set whose common names are all nil. Scope planning also retains the
-existing species-level hydration cache and backoff.
-`InferenceHistoricalRecordProjection` owns these decisions. Its initializer
-decodes the small `lookalikesData` blob once on `@MainActor` for the gate check,
-and the resulting `SimilarSpecies` plus raw legacy/candidate values are captured
-by the coordinator-owned `.historic` operation. The latter values are converted
-by one awaited detached decode; the live SwiftData record never crosses that
-suspension.
+For eligible historical records, `InferenceHistoricalRecordProjection` plans
+metadata when habitat is blank/missing, the GBIF key is missing, or taxonomy is
+unusable. It plans lookalikes for the local reset policy, a missing rich blob,
+or a nonempty decoded set whose common names are all nil. The historical
+hydration coordinator submits only those planned scopes through the species
+coordinator; hydration admission retains the existing species-level cache and
+backoff. The projection initializer decodes the small `lookalikesData` blob once
+on `@MainActor` for the gate check, and the resulting `SimilarSpecies` plus raw
+legacy/candidate values are captured by the coordinator-owned `.historic`
+operation. The latter values are converted by one awaited detached decode; the
+live SwiftData record never crosses that suspension.
 
-Additionally, `load(from:)` asks `InferenceHydrationCoordinator` to record the
-displayed hydration scientific name—the active override when present, otherwise
-the original AI name—in its persisted enriched-species timestamp cache after a
-successful enrichment call, matching the live inference path. Wikipedia,
-enrichment, and GBIF use that same target so an override cannot receive the
-original species' metadata or media. This prevents a redundant `enrich-scan`
-Edge call when the user opens two different scan records of the same displayed
-species within 24 hours. **Conditional insert guard**: the timestamp is only
-written when `speciesData?.habitatDescription != nil` — a transient failure that
-returns without populating `habitatDescription` remains retryable.
+Additionally, the historical-hydration coordinator asks
+`InferenceHydrationCoordinator` to record the displayed hydration scientific
+name—the active override when present, otherwise the original AI name—in its
+persisted enriched-species timestamp cache after a successful enrichment call,
+matching the live inference path. Wikipedia, enrichment, and GBIF use that same
+target so an override cannot receive the original species' metadata or media.
+This prevents a redundant `enrich-scan` Edge call when the user opens two
+different scan records of the same displayed species within 24 hours.
+**Conditional insert guard**: the timestamp is written only when habitat remains
+nonblank after trimming and taxonomy can validate lookalikes. A transient or
+incomplete metadata response remains retryable.
 
 **Historical record load path** (`load(from:)`): When opening a scan from the
-library, the engine assigns the persisted identity and clears prior live-media
-buffers before it faults and projects historical state, avoiding overlapping
-large presentations in memory. `InferenceHistoricalRecordProjection`
-reconstructs `speciesData.similarSpecies` via a two-layer decode, then
-`InferenceEngine` publishes the returned value and coordinates follow-up work:
+library, the stable `InferenceEngine` facade delegates to
+`InferenceHistoricalLoadCoordinator`. That owner admits the lifecycle
+transition, assigns the persisted identity, and clears prior live-media buffers
+before it faults, projects, and synchronously publishes historical state,
+avoiding overlapping large presentations in memory.
+`InferenceHistoricalRecordProjection` reconstructs `speciesData.similarSpecies`
+via a two-layer decode. The load coordinator then registers
+`InferenceHistoricalHydrationCoordinator` for the asynchronous follow-up work:
 
 1. **Rich path** (preferred): If `LocalScanRecord.lookalikesData` is non-nil,
    `JSONDecoder` decodes it as `[SimilarSpeciesEntry]` and wraps the array in
@@ -614,10 +864,14 @@ reconstructs `speciesData.similarSpecies` via a two-layer decode, then
    `referenceImageUrl == nil`.
 
 To heal previously poisoned local rich blobs, the client also carries the
-versioned `InferenceLookalikeCachePolicy.resetVersion`. When that version bumps,
-`load(from:)` temporarily ignores stored `lookalikesData` / `similarSpecies`,
-schedules a background wipe of those fields across local `LocalScanRecord`s, and
-lets validated enrichment repopulate them.
+versioned `InferenceLookalikeCachePolicy.resetVersion`.
+`InferenceLookalikeCacheResetService` owns the injected compatibility decision;
+its live adapter alone reads and writes the installed `UserDefaults` version,
+coalesces process-wide work, and schedules the database-actor wipe. The
+historical-load coordinator passes the decision into
+`InferenceHistoricalRecordProjection`, which ignores stored `lookalikesData` /
+`similarSpecies` for that presentation and plans lookalike hydration so
+validated enrichment can repopulate them.
 
 ## Multi-Modal Combined Image + Description Path
 
@@ -629,11 +883,14 @@ belongs to the staged timeline wrapper; durable chronology belongs to
 `ownerMediaTimeline` and final Captured Media array order, not to an `addedAt`
 field inside the description payload:
 
-1. **Media timeline build**: `analyze()` builds one ordered mixed-media timeline
-   containing the current images plus any staged `ObservationContext` items,
-   then passes its canonical projection to `InferenceLiveRequestService`. The
-   text prompt sent to Gemini and the JSON persisted locally are both derived
-   from that single source.
+1. **Media timeline build**: `analyze()` delegates to
+   `InferenceLiveSubmissionCoordinator`, which asks
+   `InferenceLiveMediaProjector` for one ordered mixed-media timeline containing
+   the current images plus any staged `ObservationContext` items, publishes the
+   resulting `ActiveScanMedia`, then passes its canonical projection through
+   `InferenceLivePipelineCoordinator` to `InferenceLiveRequestService`. The text
+   prompt sent to Gemini and the JSON persisted locally are both derived from
+   that single source.
 
 2. **Request/network layer**: `InferenceLiveRequestService` serializes the
    projection's observation contexts, preserves its aligned audio and owner-
@@ -670,43 +927,59 @@ field inside the description payload:
 5. **Attempt ownership**: A queue-backed live request carries the foreground
    generation created at submission. `InferenceLiveAttemptCoordinator` stores it
    with the active scan and process-local attempt UUID, compares the complete
-   tuple at task entry, and supplies the request service's validator after every
-   request-preparation suspension point and provider return. It also supplies
-   the result service's validator before and after parsing/persistence. The
-   completion coordinator then authorizes shared success effects; failure
-   publication retains the same exact-attempt check in the engine.
-   `BackgroundDatabaseActor` validates the same generation in the scan-ingestion
-   job while holding the per-scan persistence coordinator. `OfflineQueueManager`
-   atomically consumes the generation before provider dispatch and owns
-   tokenized retirement for cancellation and pre-provider exits. The coordinator
-   accesses those operations only through the initializer-injected
-   `InferenceLiveQueueService`; the core service is deterministic, and its
-   `+Live` adapter is the sole Core AI owner of these live-attempt queue
-   operations. Entitlement reconciliation retains its separate existing Offline
-   Sync trigger through `InferenceResponsePreparationService`. Duplicate active
-   or retiring generations therefore cannot restart, even through a second
-   engine instance. Result publication and queue cleanup are fenced by the
-   single-use attempt UUID, not merely by the reusable `scanId`. Retirement
-   registration immediately fences persistence, UI, and cleanup while raw
-   durable release is pending. Full invalidation clears the local tuple before
-   release and retirement callbacks; exact-current retirement first fences its
-   local durable-generation slot while retaining scan and attempt identity for
-   the queue-presentation handoff. Queue finalization rechecks the full tuple
-   after deletion suspends, so a late completion cannot mutate or authorize
-   follow-ups over a same-scan replacement. A success that returns after its
+   tuple at task entry. `InferenceLivePipelineCoordinator` supplies the request
+   service's validator after every request-preparation suspension point and
+   provider return, and the result service's validator before and after parsing/
+   persistence. The completion coordinator then authorizes shared success
+   effects; the pipeline routes failure through the synchronous failure
+   coordinator under the same exact-attempt fence. `BackgroundDatabaseActor`
+   validates the same generation in the scan-ingestion job while holding the
+   per-scan persistence coordinator. `OfflineQueueManager` atomically consumes
+   the generation before provider dispatch and owns tokenized retirement for
+   cancellation and pre-provider exits. The coordinator accesses those
+   operations only through the initializer-injected `InferenceLiveQueueService`;
+   the core service is deterministic, and its `+Live` adapter is the sole Core
+   AI owner of these live-attempt queue operations. The response-preparation
+   service rejects a mismatched scan identity before persistence and carries
+   account-sensitive response metadata as an immutable settlement; it does not
+   apply that metadata while decoding. The Offline Sync funding owner applies
+   the settlement only after successful persistence and any required exact queue
+   deletion, then retains every accepted account lease across coalesced
+   reconciliation. Duplicate active or retiring generations therefore cannot
+   restart, even through a second engine instance. Result publication and queue
+   cleanup are fenced by the single-use attempt UUID, not merely by the reusable
+   `scanId`. Retirement registration immediately fences persistence, UI, and
+   cleanup while raw durable release is pending. Full invalidation atomically
+   detaches the current task and clears the local tuple before release and
+   retirement callbacks, then retains the cancelled displaced handle through
+   termination. Re-entrant callbacks may install a replacement without cleanup
+   cancelling it, while Auth cancellation and drain still include all displaced
+   work. Recovered-result admission uses the same local detach-and-cancel
+   operation without durable callbacks before observable publication.
+   Exact-current retirement first fences its local durable-generation slot while
+   retaining scan and attempt identity for the queue-presentation handoff. Queue
+   finalization rechecks the full tuple after deletion suspends, so a late
+   completion cannot mutate or authorize follow-ups over a same-scan
+   replacement. Auth admission separately advances the attempt owner's follow-up
+   authorization epoch before cancellation; even a deletion operation that
+   ignores cancellation cannot mint a permit after that point. The retained
+   `InferenceFundingReconciliationOwner` task is also cancelled and awaited
+   before Auth may replace the account session. A success that returns after its
    durable generation was relinquished also fails closed. The completion
    coordinator grants notifications, milestones, and hydration only through a
    coordinator-minted typed permit produced after that finalization and local-
    owner recheck; its synchronous queue-less path requires the nil scan/durable
    pair. A transient durable-owner handoff failure retains the registry slot and
    retries with bounded backoff instead of reopening that UUID or indefinitely
-   suppressing recovery. A failure handler snapshots the full current owner
-   before synchronous retirement; only that owner may emit telemetry, update the
-   circuit breaker, trigger an error haptic, or publish an error placeholder. A
-   replaced task exits without observable failure effects. Confidence-zero is
-   still a terminal response that intentionally saves no local record, but
-   queue-backed foreground and generated background results must echo the exact
-   scan ID before that response can finalize the job.
+   suppressing recovery. The live-failure coordinator snapshots the full current
+   owner before synchronous retirement; only that owner may emit telemetry,
+   update the circuit breaker, trigger an error haptic, or request publication
+   of an error placeholder. The live-presentation coordinator applies that
+   narrow observable action. A replaced task exits without observable failure
+   effects. Confidence-zero is still a terminal response that intentionally
+   saves no local record, but queue-backed foreground and generated background
+   results must echo the exact scan ID before that response can finalize the
+   job.
 
 **Offline resilience**: the queue stores the same ordered media timeline at
 enqueue time.
@@ -750,12 +1023,14 @@ provider dispatch:
    result or failure publication, and successful queue deletion carry that exact
    UUID; failure hands the row to normal background replay.
 
-5. **Persistence path**: `InferenceEngine.analyzeNonVisual` passes the ordered
-   timeline and its canonical projection to `InferenceLiveResultService` with
-   nonvisual image policy, then `InferenceProcessingActor.parseAndSave(...)`
-   routes through `BackgroundDatabaseActor.saveNonVisualRecord(...)` and
-   persists the same timeline into scalar `LocalScanRecord.capturedMediaJSON`
-   plus the V41 `capturedMediaEntries` mirror.
+5. **Persistence path**: `InferenceEngine.analyzeNonVisual` delegates its typed
+   inputs to `InferenceLiveSubmissionCoordinator`. The submission and pipeline
+   coordinators pass the ordered timeline and its canonical projection to
+   `InferenceLiveResultService` with nonvisual image policy, then
+   `InferenceProcessingActor.parseAndSave(...)` routes through
+   `BackgroundDatabaseActor.saveNonVisualRecord(...)` and persists the same
+   timeline into scalar `LocalScanRecord.capturedMediaJSON` plus the V41
+   `capturedMediaEntries` mirror.
 
 ---
 
@@ -1109,7 +1384,17 @@ provider dispatch:
     only layer that invokes the engine review mutations. Their view models
     revalidate the captured scan and presentation generation, then pass the
     expected scan ID into the engine so a replaced result cannot receive the
-    deferred mutation.
+    deferred mutation. Within Core AI,
+    `InferenceIdentificationReviewCoordinator` owns review action/write/effect
+    sequencing, `InferenceReviewWorkflowCoordinator` owns the complete user-
+    intent and hydration workflow, and `IdentificationReviewPresentation` owns
+    pure full-value mapping. The engine remains the observable facade backed by
+    `InferencePresentationState`; `InferenceSpeciesPresentationCoordinator`
+    exposes current species, presentation generation, exact-identity checks, and
+    write admission through one hydration callback bundle. The workflow builds
+    the mutation's coherent override, confirmation, or reset factory, and the
+    action/effect coordinator uses that mutation's single typed review state for
+    both local persistence and RPC transport.
     - `InferenceEngine` exposes three methods for this flow:
     - `applyIdentificationOverride(scientificName:expectedScanId:modelContext:)`:
       Immediately wipes all stale contextual fields (`wikipediaOverview`,
@@ -1117,28 +1402,28 @@ provider dispatch:
       `similarSpecies`, etc.) and sets `userIdentificationOverride` and
       `scientificName` to the chosen species name in a **single full-value
       replacement** (`speciesData = updated`) to guarantee `@Observable` fires
-      exactly once for the entire wipe. It first enqueues and awaits
-      `BackgroundDatabaseActor.beginScanIdentificationOverride`, which
-      atomically persists the override state and cleared scientific-name
-      placeholder before network suspension. It then resolves the confirmed UUID
-      asynchronously via `fetchAndPatchOverrideData` and updates
-      `LocalScanRecord` via
-      `BackgroundDatabaseActor.updateScanWithOverride(scanId:override:confirmed:newConfirmedSpeciesId:userReviewState:)`
-      (passing `.userOverridden`), and syncs to `public.scans` via
-      `syncIdentificationReviewToCloud`.
+      exactly once for the entire wipe. The pure presentation mapper creates
+      that replacement. The workflow coordinator then enqueues and awaits the
+      action/effect coordinator's `beginScanIdentificationOverride` adapter,
+      which atomically persists the override state and cleared scientific-name
+      placeholder before network suspension. It resolves the confirmed UUID
+      asynchronously through its private displayed-species resolver, then
+      serializes the typed `.userOverridden` local mutation before the account-
+      fenced `update_owned_scan_identification_review` call.
     - `confirmAIIdentification(expectedScanId:modelContext:)`: Sets
       `speciesData.userConfirmedIdentification = true` through a full-value
       observable replacement. It advances the independent confirmation action
       generation, leaving same-species live/historical hydration valid, and
       rejects a stale confirmation action after an override presentation has
-      already become current. Before either mutation, the injected
-      `InferenceReviewSnapshotService` performs one bounded, throwing SwiftData
-      projection for the immutable native UUID. An unreadable store fails closed
-      before observable state, action generations, local persistence, or cloud
-      state changes; an absent row remains the existing optional-ID
-      compatibility path. The accepted action persists to `LocalScanRecord` via
-      `updateScanWithOverride` (passing `.aiConfirmed`), and syncs all three
-      review variables to `public.scans` via `syncIdentificationReviewToCloud`.
+      already become current. Before either mutation, the coordinator invokes
+      the injected `InferenceReviewSnapshotService` for one bounded, throwing
+      SwiftData projection of the immutable native UUID. An unreadable store
+      fails closed before observable state, action generations, local
+      persistence, or cloud state changes; an absent row remains the existing
+      optional-ID compatibility path. The pure mapper changes only confirmation
+      presentation. The workflow asks the action/effect coordinator to persist
+      `.aiConfirmed` through its live database adapter before syncing the
+      complete typed review mutation.
     - `resetIdentificationReview(expectedScanId:modelContext:)`: Clears
       `userIdentificationOverride`, `userConfirmedIdentification`, the legacy
       `isFlagged` bit, and `alternativesExhausted`, reverts
@@ -1146,38 +1431,42 @@ provider dispatch:
       override-owned presentation metadata before any suspension. The same
       snapshot service first projects the durable original AI reasoning; a read
       failure leaves the review presentation and all downstream work untouched.
-      It then enqueues the local `.unreviewed` mutation and cloud reset on the
-      ordered identification tail. The local mutation atomically clears the same
-      stale common-name, hazard, taxonomy, Wikipedia, reference, conservation,
-      habitat, GBIF, lookalike, and alternate-name fields; every later hydrated
-      metadata write is serialized behind it. The Species Dictionary request may
-      execute while that reset drains, but cannot persist its patch ahead of the
-      reset. Called by Undo, Change, and the alternatives-exhausted reset path.
-    - `fetchAndPatchOverrideData(scientificName:scanId:modelContext:restoringAiReasoning:enrichOnCacheMiss:replacingSpeciesIdentity:reviewActionGeneration:)`:
-      Queries `species_dictionary` via a PostgREST array select with `.limit(1)`
-      and takes `.first` (the Supabase Swift SDK does not provide a
-      `.maybeSingle()` method). On cache hit, collects all field updates —
-      `commonName`, `insightData` (hazard type + aiReasoning), `taxonomy`,
-      `iucnRedListStatus`, `habitatDescription`, `gbifTaxonKey`,
-      `referenceImageUrl`, `wikipediaOverview`, `wikipediaUrl` — into a local
-      `var updated = speciesData` copy, then commits with a single
-      `speciesData = updated` assignment on `@MainActor`. This full-value
-      replacement guarantees `@Observable` fires once for the entire patch;
-      individual optional-chain mutations (`speciesData?.field = x`) do not
-      reliably trigger observation for struct value types (see Gotcha §11 in
-      `docs/development-guides/11-swiftdata-and-api-gotchas.md`). Also persists
-      the same fields to `LocalScanRecord` via
-      `BackgroundDatabaseActor.updateScanWithOverrideSpeciesData` so the data
-      survives sheet dismissal and reopen without requiring a network call. For
-      interactive override/reset, nil taxonomy plus prior
-      lookalike/alternate-name values are destructive replacement inputs, not
-      “leave unchanged” signals; this prevents one durable record from combining
-      two species. Historical refresh passes `replacingSpeciesIdentity: false`,
-      so a sparse row cannot erase valid same-species taxonomy or lookalikes
-      already stored on the record. `scientificName` is intentionally excluded
-      from this write — `record.scientificName` is preserved as the original-AI
-      identifier and reused as `aiScientificName`. `commonName` is resolved with
-      locale preference matching `HistoricalDatabaseActor.ingestScans`:
+      The workflow then asks the action/effect coordinator to enqueue the local
+      `.unreviewed` mutation and cloud reset on the ordered identification tail.
+      The local mutation atomically clears the same stale common-name, hazard,
+      taxonomy, Wikipedia, reference, conservation, habitat, GBIF, lookalike,
+      and alternate-name fields; every later hydrated metadata write is
+      serialized behind it. The Species Dictionary request may execute while
+      that reset drains, but cannot persist its patch ahead of the reset. Called
+      by Undo, Change, and the alternatives-exhausted reset path.
+    - `InferenceReviewWorkflowCoordinator.resolveDisplayedSpecies`: Asks the
+      action/effect coordinator to query `species_dictionary` through the
+      account-fenced Network service. That service retains the PostgREST array
+      select with `.limit(1)` and takes `.first` (the Supabase Swift SDK does
+      not provide a `.maybeSingle()` method). On cache hit, the pure mapper
+      collects all field updates — `commonName`, `insightData` (hazard type +
+      aiReasoning), `taxonomy`, `iucnRedListStatus`, `habitatDescription`,
+      `gbifTaxonKey`, `referenceImageUrl`, `wikipediaOverview`, `wikipediaUrl` —
+      into a typed full-value action. The workflow commits that action through
+      the species-presentation bridge's narrow callback behind the engine facade
+      with one `speciesData` assignment on `@MainActor`. This replacement
+      guarantees `@Observable` fires once for the entire patch; individual
+      optional-chain mutations (`speciesData?.field = x`) do not reliably
+      trigger observation for struct value types (see Gotcha §11 in
+      `docs/development-guides/11-swiftdata-and-api-gotchas.md`). The pure
+      mapper returns the same fields in a typed persistence patch; the
+      coordinator admits it on the ordered tail and its live adapter performs
+      the `BackgroundDatabaseActor` write so the data survives sheet dismissal
+      and reopen without requiring a network call. For interactive
+      override/reset, nil taxonomy plus prior lookalike/alternate-name values
+      are destructive replacement inputs, not “leave unchanged” signals; this
+      prevents one durable record from combining two species. Historical refresh
+      passes `replacingSpeciesIdentity: false`, so a sparse row cannot erase
+      valid same-species taxonomy or lookalikes already stored on the record.
+      `scientificName` is intentionally excluded from this write —
+      `record.scientificName` is preserved as the original-AI identifier and
+      reused as `aiScientificName`. `commonName` is resolved with locale
+      preference matching `HistoricalDatabaseActor.ingestScans`:
       `names["en"].flatMap { $0 } ?? names.compactMap { $0.value }.first ?? scientificName`.
       The `restoringAiReasoning` parameter controls the `aiReasoning` field in
       `InsightData`: pass `nil` (default) when calling from
@@ -1191,17 +1480,23 @@ provider dispatch:
       calls `fetchAndApplyEnrichment` using the already-mutated
       `speciesData.scientificName`; historical refresh passes
       `enrichOnCacheMiss: false` and leaves the single enrichment/GBIF sequence
-      to its enclosing `.historic` operation.
-    - `syncIdentificationReviewToCloud(scanId:override:confirmed:confirmedSpeciesId:userReviewState:)`:
-      Private engine orchestration that builds an
-      `InferenceIdentificationReviewMutation` and delegates the IDOR-guarded RPC
-      to the injected `InferenceIdentificationReviewService`. The Network owner
-      serializes `user_identification_override`,
-      `user_confirmed_identification`, `confirmed_species_id`, and
-      `user_review_state` together, including JSON nulls for reset paths. After
-      a successful call, the engine retains Explore invalidation and milestone
-      sequencing. Called by `applyIdentificationOverride`,
-      `confirmAIIdentification`, and `resetIdentificationReview`.
+      to its enclosing `.historic` operation. After every dictionary or fallback
+      suspension, the workflow requires the exact scan, species, presentation
+      generation, review generation, cancellation state, and an inactive Auth-
+      transition fence before observable or persistence admission.
+    - `InferenceIdentificationReviewCoordinator.enqueueReviewMutation`: Accepts
+      the complete factory-built `InferenceIdentificationReviewMutation`,
+      derives local persistence from its typed `UserReviewState`, serializes
+      that write before the injected account-fenced Network service, and emits
+      the shared-post refresh before scan-milestone processing only after
+      transport succeeds. The Network owner serializes
+      `user_identification_override`, `user_confirmed_identification`,
+      `confirmed_species_id`, and `user_review_state` together, including JSON
+      nulls for reset paths. Failed transport logs once and suppresses both
+      post-success effects. Replaced generations and Auth-fenced submissions
+      never enter persistence or transport. The core coordinator has no
+      singleton, database actor, or cross-feature implementation dependency;
+      those bindings live in its `+Live` adapter and AppDI.
   - `InferenceHistoricalRecordProjection` restores review state from
     `LocalScanRecord` when `InferenceEngine.load(from:)` opens a historical
     scan. When `userIdentificationOverride` is non-nil, two rules apply: (1)
@@ -1213,10 +1508,10 @@ provider dispatch:
     under the override name. `record.scientificName` is always used as
     `aiScientificName` — it is never overwritten — so
     `resetIdentificationReview` can recover the original name across any number
-    of reopens. The coordinator-owned historical operation's Step 3 still fires
-    `fetchAndPatchOverrideData` asynchronously as a freshness refresh
-    (re-patching the same species data from the network), but display
-    correctness no longer depends on this call completing.
+    of reopens. The historical-hydration coordinator's displayed-override stage
+    calls the review workflow's `hydrateDisplayedSpecies` asynchronously as a
+    freshness refresh (re-patching the same species data from the network), but
+    display correctness no longer depends on this call completing.
 - **Telemetry Pruning**: Legacy ephemeral fields (`cameraPitchDegrees`,
   `compassHeading`, `relativeHumidity`, `uvIndex`, `isFlashFired`) have been
   removed from the `CaptureTelemetry` JSON payload, saving hundreds of tokens
@@ -1342,9 +1637,10 @@ provider dispatch:
 
 ## On-Device Pre-Classification & Scanning Phase UX
 
-While the Edge inference round-trip runs, `InferenceEngine` drives progressive
-local context through its existing SwiftUI-facing `scanningPhaseText`. Gemini
-remains the only authority for species identity and completed Insight content.
+While the Edge inference round-trip runs, the local-analysis coordinator
+publishes progressive local context through `InferenceEngine`'s existing
+SwiftUI-facing `scanningPhaseText`. Gemini remains the only authority for
+species identity and completed Insight content.
 
 ### Current Pipeline
 
@@ -1352,27 +1648,28 @@ remains the only authority for species identity and completed Insight content.
 `LocalVisualTraitExtracting`, and `FoundationVisualCueProviding` implementations
 and the live light-impact start-feedback closure; direct/default engine
 instances use inert feedback. `InferenceEngine` passes those dependencies into
-the private local-analysis coordinator and retains only presentation authority
-plus observable `scanningPhaseText`. For the primary visual item, the
-coordinator builds one bounded image, applying its accepted, already-padded
-`NormalizedImageFocusRegion` when present and otherwise using the full square
-inference image. The local derivative is bounded to 512 px and reused;
-additional captures are not analyzed locally, and Gemini's request payload is
-not changed.
+the private local-analysis coordinator and retains the stable presentation
+facade. `InferenceLiveSubmissionCoordinator` supplies the exact-session
+predicate and publishes accepted phrases into the observable presentation state.
+For the primary visual item, the local-analysis coordinator builds one bounded
+image, applying its accepted, already-padded `NormalizedImageFocusRegion` when
+present and otherwise using the full square inference image. The local
+derivative is bounded to 512 px and reused; additional captures are not analyzed
+locally, and Gemini's request payload is not changed.
 
 The coordinator starts generic copy and injected light-impact feedback
 immediately, then runs `AppleVisionSubjectClassifier` off the main actor. A
-qualifying broad category is returned through the engine's phrase callback as
-soon as Vision returns. The coordinator then launches its separately owned
-deterministic-trait task without awaiting it. `AppleImageVisualTraitExtractor`
-samples the same local derivative at 32×32 pixels and deterministically
-describes its dominant colors, saturation distribution, lighting distribution,
-light contrast, and surface detail. The five pixel observations are validated
-against the Vision candidate denylist and become eligible at the next phrase
-tick. Numeric midpoint buckets are converted to plain observations—for example,
-**Reviewing softly colored areas** or **Observing light and shadow
-areas**—rather than exposing phrases such as **moderate color levels** or
-**balanced light and dark**.
+qualifying broad category is returned through the submission coordinator's
+phrase callback as soon as Vision returns. The local-analysis coordinator then
+launches its separately owned deterministic-trait task without awaiting it.
+`AppleImageVisualTraitExtractor` samples the same local derivative at 32×32
+pixels and deterministically describes its dominant colors, saturation
+distribution, lighting distribution, light contrast, and surface detail. The
+five pixel observations are validated against the Vision candidate denylist and
+become eligible at the next phrase tick. Numeric midpoint buckets are converted
+to plain observations—for example, **Reviewing softly colored areas** or
+**Observing light and shadow areas**—rather than exposing phrases such as
+**moderate color levels** or **balanced light and dark**.
 
 A single `ScanningPhraseCoordinator` owns the monotonic source order: generic →
 Vision category → deterministic image trait → Foundation Models cue. A less
@@ -1437,8 +1734,9 @@ audio, Describe, and stale-owner handoffs receive no visual context. The
 snapshot is cleared on result, replacement, dismissal, historical load, or Auth
 reset and is never persisted, logged, or analyzed.
 
-`InferenceEngine.genericScanningPhasePhrases` preserves the established
-cloud-analysis deck for ordinary queued Insights, including audio-only and
+`ScanningPhrasePolicy.cloudAnalysisPhrases` owns the established cloud-analysis
+deck; `InferenceEngine.genericScanningPhasePhrases` remains its pure source-
+compatible adapter for ordinary queued Insights, including audio-only and
 Describe scans. `QueuedContentView` reuses that vocabulary while the server is
 actively processing unless it is presenting the exact online handoff described
 above, while preserving queue-specific phrases for upload, retry, finalization,
@@ -1503,11 +1801,13 @@ persistence, or result publication; even a permanently hung stream is fenced and
 cancelled at terminal ownership boundaries.
 
 Deterministic trait extraction has the same non-blocking ownership rule. Its
-protocol requires cooperative cancellation, but the engine still owns it as a
-separate weak-engine task: an injected implementation that ignores cancellation
-cannot suspend Vision completion, networking, result publication, or an Auth
-drain, and its eventual return fails both cancellation and scan-generation
-checks before touching the phrase coordinator.
+protocol requires cooperative cancellation, but
+`InferenceLocalAnalysisCoordinator` owns it as a separate task.
+`InferenceLiveSubmissionCoordinator` supplies weak exact-session validation and
+phrase-publication callbacks, so an injected implementation that ignores
+cancellation cannot suspend Vision completion, networking, result publication,
+or an Auth drain. Its eventual return fails both cancellation and
+scan-generation checks before touching the phrase coordinator.
 
 This milestone changes no backend route, wire DTO, SwiftData schema, consent
 surface, analytics event, or privacy-manifest declaration. Reassess those
@@ -1596,13 +1896,15 @@ insight sheet display.
   path-retirement ordering and a path-satisfied timeout with the owner still
   active. Hosted exact-SHA and physical-device acceptance remain open; see the
   [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
-- **First-result commit before secondary work** (`InferenceEngine.swift`): after
-  response parsing and local persistence, saved media and `speciesData` are
-  committed immediately. Award calculation and Field trips run asynchronously;
-  the server scan-ingestion transaction applies Field trip progress before the
-  scan is reported persisted. Client follow-up retrieves the idempotent receipt
-  for notifications without placing progress correctness on the first-result
-  task.
+- **First-result commit before secondary work** (`Inference/Pipeline` with the
+  `InferenceLivePresentationCoordinator` commit callback): after response
+  parsing and local persistence, the callback rechecks the exact local/durable
+  attempt before resolving saved-media projection, then commits saved media and
+  `speciesData` immediately. Award calculation and Field trips run
+  asynchronously; the server scan-ingestion transaction applies Field trip
+  progress before the scan is reported persisted. Client follow-up retrieves the
+  idempotent receipt for notifications without placing progress correctness on
+  the first-result task.
 - **base64 encoding priority** (`InferenceLiveRequestService` →
   `InferenceProcessingActor`): The request service invokes the actor's multi-
   image encoder, which uses `withTaskGroup` at `.userInitiated` priority so the

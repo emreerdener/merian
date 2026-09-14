@@ -1322,9 +1322,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     `scientific_name`) decode with `nil` optional fields. Asserts absent
     `similar_species` key decodes as `nil`, not empty array.
   - **`load(from:)` integration**: Retains public-engine coverage for historical
-    task replacement, reference-state publication, enrichment scheduling, and
-    review-state restoration. Exact persisted-field mapping and hydration-plan
-    decisions belong to `InferenceHistoricalRecordProjectionTests` below.
+    presentation replacement, registered-task exposure, reference-state
+    publication, enrichment results, and review-state restoration. Exact
+    persisted-field mapping and hydration-plan decisions belong to
+    `InferenceHistoricalRecordProjectionTests`; synchronous startup order, Auth
+    admission, replacement overlap, and compatibility-reset scheduling belong to
+    `InferenceHistoricalLoadCoordinatorTests`; deferred sequencing and
+    suspension races belong to `HistoricalHydrationCoordinatorTests` below.
   - **Inference tier**: Validates Flash vs Pro confidence band thresholds via
     `InferenceConfidencePolicy.bands(forInferenceTier:)`. Asserts nil tier
     resolves to Flash for safety. The exact values and fallback are owned by
@@ -1350,19 +1354,105 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   local-plus-durable validation, queue-less attempts, full-invalidation and
   exact-current retirement callback ordering, re-entrant replacement
   preservation, failed-finalization retirement, recovered-background admission,
-  partial durable-identity rejection, and suspended same-scan replacement races.
-  Late successful deletion cannot clear or authorize replacement ownership, and
-  late failed deletion cannot retire it.
+  partial durable-identity rejection, the Auth follow-up authorization epoch,
+  and suspended same-scan replacement races. Invalidation must detach task and
+  identity before durable callbacks and preserve a callback-installed
+  replacement. Late successful deletion cannot clear or authorize replacement
+  ownership, an Auth-admitted cancellation-ignoring deletion cannot authorize
+  follow-up work, and late failed deletion cannot retire it.
+- **`Core/AI/Inference/InferenceSessionLifecycleCoordinatorTests.swift`**:
+  Executes cross-owner session ordering without constructing the engine or any
+  live effect adapter. It locks complete new-scan reset, visual and nonvisual
+  replacement including displaced owner, queued-context, and render-clock
+  cleanup, coherent visual queue handoff, cancellation, historical-load
+  replacement, and the Auth drain's wait for cancellation-ignoring current and
+  already-displaced attempt tasks, hydration, and write work. The submission
+  suite separately proves a same-scan visual replacement without a new clock
+  cannot report its predecessor's first-render duration. The architecture
+  sibling freezes critical source order, method-local engine/submission
+  delegation, the absence of facade-owned recovery guards or mutations, semantic
+  attempt-task operations, effect exclusions, and the 600-line ceiling.
+- **`Core/AI/Inference/InferenceSessionLifecycleRecoveryTests.swift`**: Executes
+  recovered-result admission directly against the lifecycle owner. It locks
+  exact background ownership transfer plus displaced-task detachment and
+  cancellation before publication, stale same-scan replacement rejection, every
+  queued-result presentation fence, accepted queued-result cleanup/publication,
+  and queued-record callback ordering. Shared lifecycle test support supplies
+  only inert collaborators and value fixtures; the recovery suite does not
+  construct `InferenceEngine` or a managed `LocalScanRecord`.
+- **`Core/AI/Inference/InferencePresentationCoordinatorTests.swift`**: Executes
+  the non-observable presentation-lifecycle owner directly. It locks prepared
+  versus active visual handoff, exact scan/attempt validation, nonvisual
+  exclusion from phrase/media context, stale-owner cleanup, exact active finish,
+  reset, Auth-admission cleanup, post-drain rejection of re-entrant owner and
+  queue context, pending-metric preservation across both Auth phases, and one-
+  shot case-insensitive first-render consumption plus exact-source clock
+  rebinding. The architecture suite separately prevents effects, observable UI
+  state, or the extracted mutable fields from returning across this boundary.
+- **`Core/AI/Inference/InferencePresentationStateTests.swift`**: Executes the
+  stored observable-value owner directly. It locks complete scan preparation,
+  successful-result and queue-handoff publication, cancellation, historical
+  replacement including displaced-loader cleanup, visual-to-nonvisual subject-
+  distance isolation, and Swift Observation invalidation through the engine's
+  source-compatible scalar and value-type media accessors. The architecture
+  suite rejects tasks, persistence, networking, logging, filesystem access,
+  singleton resolution, and lifecycle identity in this owner, and freezes the
+  result-publication order.
+- **`Core/AI/Inference/InferenceLiveMediaProjectorTests.swift`**: Executes the
+  value-only live media boundary with injected Documents/temporary roots, file
+  existence, and secure-URL policy. It locks display-image preference, default
+  timeline filtering, explicit owner ordering, aligned audio/video/context
+  projection, focus-region carry-through, video poster suppression and fallback,
+  retention of a distinct still immediately before video, persisted-image
+  remapping, moved-file and temporary-path compatibility, HTTPS rejection
+  behavior, and the legacy nonvisual audio-modality decision.
+  `InferenceArchitectureTests` separately requires engine delegation and rejects
+  the retired mapping/path helpers plus direct `FileManager` access in the
+  engine.
+- **`Core/AI/Inference/InferenceLiveSubmissionCoordinatorTests.swift`**:
+  Executes the singleton-free startup owner against deterministic focused
+  collaborators. It locks synchronous visual media/telemetry/identity staging,
+  exact one-shot scan-matched first-render benchmarking, audio and Describe
+  copy, execution-task registration, Auth-fenced release then retirement, visual
+  empty-payload release then retirement, and the retained nonvisual retirement-
+  only compatibility behavior. The pipeline architecture suite separately
+  freezes both startup orders, engine-only facade delegation, effect exclusions,
+  sole task-handle ownership, and the 600-line ceiling.
+- **`Core/AI/Inference/InferenceLivePipelineCoordinatorTests.swift`**: Executes
+  the singleton-free visual/nonvisual pipeline with deterministic request,
+  result, completion, failure, and presentation callbacks. It covers admission,
+  empty visual encoding, queue-less modality order, durable nonvisual
+  finalization, circuit failure routing, and suspended replacement rejection.
+  `InferenceLivePipelineDurableVisualTests.swift` locks the complete
+  queue-backed visual success sequence, including exact deletion before
+  notification and later benchmark, hydration, milestone, and cleanup effects.
+  The architecture sibling freezes the core/`+Live` split, AppDI wiring,
+  synchronous queue-less branch, engine delegation, retired ownership, and the
+  Pipeline production-file ceiling.
+- **`Core/AI/Inference/InferenceLivePresentationCoordinatorTests.swift`**:
+  Executes the effect-acquisition-free callback bridge against deterministic
+  focused owners. It locks exact accepted and stale publication, suppression of
+  stale persisted-media projection, queue-less first-render transfer from the
+  process-local request ID to the server scan ID, rejection of that transfer for
+  a stale attempt, publication-before-event order, callback-session finish
+  identity, all three typed failure mappings, exact request-body session
+  forwarding, phrase-deck preservation during visual cancellation, and captured
+  hydration policy plus `ModelContainer` forwarding. The suite uses the standard
+  one-minute async limit. `InferenceLivePresentationTestSupport.swift` contains
+  only its reusable fakes, gates, recorders, and harness; the architecture
+  sibling freezes sole callback construction, the attempt fence before
+  projection, engine delegation, and dependency/effect exclusions.
 - **`Core/AI/Inference/InferenceLiveCompletionCoordinatorTests.swift`**:
   Executes the singleton-free accepted-result coordinator with recording
   dependencies. It locks persisted and confidence-zero normalization, exact
   discovery/replacement/circuit/telemetry order, rejected-persistence inertness,
   biological event gating, coordinator-minted permits, synchronous nil-identity
   queue-less authorization, notification preference gating, successful and
-  failed durable finalization, and local-owner replacement or durable-generation
-  retirement while deletion is suspended. The sibling
-  `InferenceLiveCompletionArchitectureTests` freezes AppDI composition, the
-  core/`+Live` dependency split, retired engine effects, visual/nonvisual
+  failed durable finalization, settlement only through a post-deletion permit,
+  mismatched settlement-carrier rejection, and local-owner replacement, Auth
+  admission, or durable-generation retirement while deletion is suspended. The
+  sibling `InferenceLiveCompletionArchitectureTests` freezes AppDI composition,
+  the core/`+Live` dependency split, retired engine effects, visual/nonvisual
   benchmark and follow-up order, and the 600-line production ceiling.
 - **`Core/AI/Inference/InferenceHydrationCoordinatorTests.swift`**: Executes the
   hydration lifecycle and request-policy owner with injected clocks and storage.
@@ -1375,6 +1465,29 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   and rejected-override field-clearing integrations. The architecture suite
   rejects a detached/duplicate GBIF owner and verifies that historical override
   hydration uses the displayed species.
+- **`Core/AI/Inference/InferenceSpeciesHydrationCoordinatorTests.swift`**:
+  Executes the singleton-free species orchestration boundary with injected
+  public-reference transport, scoped enrichment, persistence, logging, and
+  presentation callbacks. The suite locks the complete live
+  Wikipedia/enrichment/GBIF sequence, enriched taxon-key handoff, independent
+  scope completion, reference-loading transitions, stale Wikipedia rejection
+  without consuming its retry, immutable persistence-work emission,
+  post-cancellation suppression for Wikipedia, GBIF, metadata, and lookalikes,
+  pre-start stale-presentation rejection, exact-generation protection for
+  deferred reference cleanup after same-scan replacement, and 429 backoff.
+  `InferenceLookalikeCacheResetServiceTests` separately freezes reset-required
+  and nil-container admission without touching UserDefaults or a live database
+  actor.
+- **`Core/AI/Inference/InferenceSpeciesPresentationCoordinatorTests.swift`**:
+  Executes the hydration/presentation bridge with deterministic injected state,
+  write, review, and hydration owners. It locks species/reference/loading
+  publication, shared review callbacks, case-insensitive exact identity,
+  presentation and review-generation fencing, exact/mismatched alternatives-
+  exhausted admission, background versus serialized review-write routing,
+  stale/Auth-fenced write rejection, and biological-only live hydration
+  admission. The architecture sibling requires the sole production callback
+  factory and engine delegation, freezes the exact fences and write routes,
+  rejects mutable state/tasks/live effects, and applies the 600-line ceiling.
 - **`Core/AI/Inference/InferenceHistoricalRecordProjectionTests.swift`**:
   Executes the value-only historical-load boundary directly. It locks the full
   persisted `SpeciesData` and media projection, override/original identity,
@@ -1382,9 +1495,26 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   precedence, independent metadata/lookalike/Wikipedia planning, cache-reset
   behavior, candidate decoding after deleting the source record, and
   malformed-candidate compatibility without networking or a retained SwiftData
-  model. `InferenceArchitectureTests` separately locks identity assignment and
-  live-media release before projection, then rejects any managed-record capture
-  inside the deferred task.
+  model. `InferenceArchitectureTests` separately locks projection ownership and
+  rejects any managed-record capture inside the deferred task.
+- **`Core/AI/Inference/InferenceHistoricalLoadCoordinatorTests.swift`**:
+  Executes synchronous persisted-record startup with injected lifecycle,
+  presentation, hydration, review, and compatibility-reset owners. It locks
+  publication before deferred hydration, Auth-fenced rejection without
+  presentation mutation, replacement of a cancellation-ignoring prior decode,
+  and reset scheduling with the source record's model container. The
+  architecture suite freezes lifecycle admission, identity, media release,
+  projection, reset, publication, generation, callback, and scheduling order;
+  the engine remains a thin source-compatible delegate.
+- **`Core/AI/Inference/InferenceHistoricalHydrationCoordinatorTests.swift`**:
+  Executes the registered historical follow-up owner with injected decoding,
+  public-reference, enrichment, persistence, and presentation callbacks. It
+  locks decode-before-override ordering, concurrent Wikipedia and enrichment
+  branches, enrichment-before-GBIF taxon-key handoff, independent species-cache
+  and per-scan lookalike admission, replacement rejection after a
+  cancellation-ignoring decode, and cancellation after a non-cooperative
+  override callback. Empty-provider coverage locks terminal reference-state
+  cleanup without allowing a stale presentation to publish.
 - **`Core/AI/Inference/InferenceSpeciesEnrichmentServiceTests.swift`**: Injects
   a recording scoped fetch dependency and locks exact request forwarding,
   metadata trimming, wire-taxonomy-to-domain mapping, raw persistence versus
@@ -1412,19 +1542,29 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   completion/rejection, missing mapped results, stale/cancelled actor returns,
   and error propagation. Live-adapter tests execute the unchanged actor for
   matching/mismatched confidence-zero scan IDs, positive confidence without
-  persistence, and malformed responses without networking or durable stores.
+  persistence, the server-assigned queue-less nonvisual identity, and malformed
+  responses without networking or durable stores.
+- **`Core/AI/Inference/InferenceResponsePreparationServiceTests.swift`**:
+  Executes the pure foreground/background response boundary with generated-wire
+  JSON fixtures. It locks case-insensitive exact scan identity, immutable domain
+  settlement projection, settlement suppression for mismatched scan IDs, and
+  server-assigned identity compatibility when no client ID was sent, plus
+  graceful omission when the settlement account ID is malformed. Architecture
+  coverage separately rejects entitlement, usage, queue, task, and persistence
+  effects in this service.
 - **`Core/AI/Inference/InferenceLiveResultIntegrationTests.swift`**: Exercises
   both queue-less engine pipelines with injected request/result services. It
-  proves confidence-zero presentation, exact engine-to-service media timeline
-  and ordered context-JSON forwarding, persisted-result media ordering, withheld
-  rejected results, and uncancelled persistence returns losing to replacement
-  local attempts. Fixtures deliberately omit a response scan ID, so durable
-  queue transitions, notifications, milestones, and reference-network effects
-  remain outside this suite. Persisted outcomes are injected parser results, not
-  a substitute for the database actor's durable-save tests. The service suite
-  separately checks exact fence forwarding and revalidates an injected same-scan
-  replacement identity. Shared global engine setup uses the existing
-  process-state serialization trait without replacing queue-manager state.
+  proves confidence-zero presentation, exact engine-to-service media timeline,
+  request-appropriate expected-ID forwarding, ordered context-JSON forwarding,
+  persisted-result media ordering, withheld rejected results, and uncancelled
+  persistence returns losing to replacement local attempts. Injected parsed
+  outcomes deliberately omit a response scan ID, so durable queue transitions,
+  notifications, milestones, and reference-network effects remain outside this
+  suite. Persisted outcomes are injected parser results, not a substitute for
+  the database actor's durable-save tests. The service suite separately checks
+  exact fence forwarding and revalidates an injected same-scan replacement
+  identity. Shared global engine setup uses the existing process-state
+  serialization trait without replacing queue-manager state.
 - **`Core/AI/Inference/InferenceLiveFailurePolicyTests.swift`**: Locks
   Swift-task cancellation precedence, logical-versus-transport interruption,
   stable status/code pairs, malformed/unknown-code fallback, shared connectivity
@@ -1434,6 +1574,18 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
 - **`Core/AI/Inference/InferenceFailurePresentationTests.swift`**: Locks exact
   recovery copy, saved-versus-direct fallback, the absence of a quota
   placeholder, and `.inferenceError`/telemetry mapping independently of titles.
+- **`Core/AI/Inference/InferenceLiveFailureCoordinatorTests.swift`**: Records
+  the synchronous queue and effect boundary without using live singletons. It
+  locks release-before-retirement, recoverable-ID timing, terminal effect order,
+  stale-attempt suppression, retired-owner/transport/connectivity queue handoff,
+  quota-only paywall behavior, rejection before feedback and presentation, and
+  replacement attempts installed synchronously by release, retirement, or
+  rejection callbacks.
+- **`Core/AI/Inference/InferenceLiveFailureArchitectureTests.swift`**: Freezes
+  the singleton-free coordinator and `+Live` effect split, AppDI composition,
+  the three narrow live-presentation coordinator actions, the post-retirement
+  ownership guard, retired engine effect helpers, and the no-task/no-suspension
+  failure-commit boundary.
 - **`Core/AI/Inference/InferenceLiveRecoveryIntegrationTests.swift`**: Uses
   injected result failures after request preparation, not a consent-preflight
   shortcut. Both queue-less engine paths cover known 409 restoration,
@@ -1465,6 +1617,23 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   Injected store failures prove confirmation and reset return before changing
   observable review state; source-order coverage separately prevents downstream
   work from starting first.
+- **`Core/AI/Inference/InferenceIdentificationReviewCoordinatorTests.swift`**:
+  Uses injected persistence, transport, refresh, milestone, lookup, and logging
+  closures to prove local-before-cloud and refresh-before-milestone order,
+  failed-sync effect suppression, replacement and Auth-fence rejection, typed
+  snapshot/lookup failure, and the silent species-ID compatibility fallback.
+- **`Core/AI/Inference/InferenceReviewWorkflowCoordinatorTests.swift`**: Uses
+  continuation gates and injected review/hydration owners to prove atomic local
+  admission precedes dictionary and cloud work, dictionary patches serialize
+  before the review mutation, a newer override rejects a cancellation-ignoring
+  older lookup, a missing dictionary row completes enrichment before the ID
+  fallback, and stale historical displayed-override dictionary and species-ID
+  fallback results cannot publish, persist, or escape to their caller.
+- **`Core/AI/Inference/InferenceIdentificationReviewPresentationTests.swift`**:
+  Locks the full-value override placeholder, confirmation-only mutation, AI
+  reset, Species Dictionary common-name/taxonomy/habitat/reference mapping, URL
+  admission, and the matching durable patch. It also proves a stale or absent
+  live presentation does not erase the already-admitted persistence result.
 - **`Core/AI/Inference/InferenceIntegrationAuditTests.swift`**: Exercises
   visual, audio, and Describe pipelines. It covers original-scan preservation
   after confidence-zero or missing-ID results, Auth quiescence with a
@@ -1489,31 +1658,56 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   resolving live networking. Its architecture suite ensures Inference and scan-
   thumbnail recovery reuse this shared transport/parser instead of duplicating
   wire DTOs or sessions.
+- **`Core/AI/Inference/InferenceEngineAssemblyArchitectureTests.swift`**:
+  Freezes the one-shot main-actor graph builder as the sole production
+  construction site for focused inference owners; locks their construction order
+  and injected edges, exhaustive initializer dependency forwarding and
+  consumption, the stable engine initializer surface, and private engine
+  retention; and rejects mutable runtime state, tasks, transport, persistence,
+  filesystem, logging, singleton resolution, or files above the 600-line ceiling
+  in the assembly boundary.
+- **`Core/AI/Inference/InferenceEngineFacadeArchitectureTests.swift`**: Freezes
+  the engine's 600-line ceiling and private owner retention; the pure
+  compatibility-file boundary; DEBUG-only diagnostic compilation and stable
+  forwarding signatures; and first-render and alternatives-exhausted delegation
+  to focused owners.
 - **`Core/AI/Inference/InferenceArchitectureTests.swift`**: Prevents mutable
-  write, hydration, live-attempt, or local-analysis registries, historical
-  record mapping and planning, live provider payload/dispatch, and shared
-  reference wire state from drifting back into `InferenceEngine`; requires
+  write, hydration, live-attempt, session-lifecycle, presentation-lifecycle, or
+  local-analysis registries, historical record mapping, planning, or synchronous
+  or asynchronous orchestration, live provider payload/dispatch, and shared
+  reference wire state from drifting back into `InferenceEngine`; requires the
+  historical-load coordinator to own the exact synchronous sequence, the
+  historical-hydration coordinator to capture only the immutable projection,
   private coordinator state, a singleton-free queue core plus sole live adapter,
   and AppDI-owned live request/result/queue/enrichment/persistence injection;
   prevents direct parse/save adaptation, enrichment endpoint calls, database
   actor construction, and lookalike encoding from crossing their focused
-  boundaries; keeps request- format and result/enrichment-mapping helpers
-  file-private; requires stateless recovery policies and one private synchronous
-  engine failure handler with handoff-before-stale-guard and
-  release-before-publication ordering; rejects the retired
-  `LocalVisualAnalysis.swift` aggregate; requires request-body durable release
-  to retain its coordinator independently of the weak engine callback; and keeps
-  every extracted owner and split local-analysis policy file below 600 lines.
-  The Species Reference architecture suite applies the same ceiling to the
-  shared transport owner.
+  boundaries; keeps request-format and result/enrichment-mapping helpers
+  file-private; requires stateless recovery policies; freezes the
+  identification-review action/effect coordinator, workflow coordinator, live
+  adapter, pure mapper, AppDI wiring, effect placement,
+  preflight-before-generation and admission-before-hydration ordering; requires
+  the workflow to source current species and presentation generation only from
+  the species-presentation bridge's nested hydration callback bundle; rejects
+  the retired `LocalVisualAnalysis.swift` aggregate; requires session
+  transitions to route through their effect-free lifecycle owner; requires
+  request-body durable release to retain its coordinator independently of the
+  weak live-presentation coordinator callback; and keeps every extracted owner
+  and split local-analysis policy file below 600 lines. The Species Reference
+  architecture suite applies the same ceiling to the shared transport owner. The
+  cross-surface `services/supabase/scripts/documentation_contract_test.ts`
+  additionally locks the
+  engine-to-species-presentation-to-review/write-coordinator forwarding chain
+  and the species-hydration-to-species-presentation write-admission chain used
+  by the TestFlight recovery contract.
 - **`Core/Architecture/CoreIntegrationArchitectureTests.swift`**: Freezes the
   complete Core domain and root-file inventory, requires each domain README,
-  tracks the two remaining production files above 600 lines, keeps Policies
-  stateless with an exact allowlist for documented file/clock/jitter inputs,
-  keeps shared UI components free of transport/persistence, rejects `try?`
-  SwiftData fetches across Core, and self-validates the patterns that prevent
-  raw errors, localized descriptions, local media paths, or server terminal-
-  failure messages from being logged as public values.
+  tracks the remaining production file above 600 lines, keeps Policies stateless
+  with an exact allowlist for documented file/clock/jitter inputs, keeps shared
+  UI components free of transport/persistence, rejects `try?` SwiftData fetches
+  across Core, and self-validates the patterns that prevent raw errors,
+  localized descriptions, local media paths, or server terminal- failure
+  messages from being logged as public values.
 - **`Core/Network/Decoding/SpeciesDictionaryAPIModelsTests.swift`,
   `SpeciesDictionaryCatalogAPIModelsTests.swift`, and
   `SpeciesObservationStatsAPIModelsTests.swift`**: Own the rehomed public
@@ -2026,7 +2220,10 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   cannot silently survive account deletion.
 - **`Core/Network/Inference/InferenceIdentificationReviewServiceTests.swift`**:
   Locks the Species Dictionary PostgREST projection, explicit-null review RPC
-  payload, and typed injected handler surface. `InferenceArchitectureTests` and
+  payload, all coherent typed mutation factories and their exact raw-state
+  encoding, and the typed injected handler surface. `InferenceArchitectureTests`
+  also prevents reintroducing a string review-state path or a public initializer
+  that permits contradictory review fields. It and
   `CoreNetworkIntegrationArchitectureTests` keep Supabase query/RPC ownership in
   that service and the live instance in `AppDIContainer`.
 - **`speciesPreferenceRLSMigrationContract.test.ts` and
@@ -2132,6 +2329,11 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
 - **`OfflineQueueManagerTests.swift`**: Covers the remaining integrated
   background upload and accepted inference-result processing, retry, status
   recovery, diagnostics, and queue behavior.
+- **`InferenceFundingReconciliationOwnerTests.swift`**: Uses injected
+  continuation gates to prove concurrent accepted settlements retain every
+  account lease while coalescing into one trailing reconciliation pass. It also
+  proves Auth cancellation awaits non-cooperative work, suppresses queue resume,
+  releases the lease, and leaves the owner restartable.
 - **`BackgroundInferenceLifecycleTests.swift`**: Covers exact/idempotent
   process-generation claims, retired-generation rejection, legacy generation
   adoption, and stale completion against a replacement owner under serialized
@@ -2332,9 +2534,10 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   coalescing. `OfflineQueueAdmissionArchitectureTests.swift` freezes those test
   owners together with their exact Swift type/display identities and required
   `.serialized` plus `.sharedProcessState(.offlineQueueManager)` traits. It also
-  freezes the seven focused production files, private helper containment, the
-  exact `OfflineCaptureFileStore` consumer allowlist, framework imports,
-  durable-before-dispatch ordering, retired aggregate, and 600-line ceiling.
+  freezes the nine focused production files, private helper containment, the
+  exact `OfflineCaptureFileStore` consumer allowlist, retained funding owner and
+  Auth-drain order, framework imports, durable-before-dispatch ordering, retired
+  aggregate, and 600-line ceiling.
 - **`ScansShellViewModelTests.swift`**
   (`apps/ios/MerianTests/Features/Scans/Shell/`): Locks default and
   Non-biological initial navigation, incident summary/signature presentation,
@@ -2459,11 +2662,10 @@ Dynamic Type; and light/dark appearance.
 
 ### Live inference request/result verification
 
-After changes to `Inference/Request`, `Inference/Result`, `Inference/Services`,
-`Inference/State`, `Inference/Hydration`, `Inference/Recovery`, their AppDI
-wiring, either engine call site, reanalysis replacement safety, foreground
-lifecycle/scheduler dispatch, or the shared inference/queue test fixtures, run
-`make xcodegen`, `make validate-ios-project`,
+After changes anywhere under `Core/AI/Inference/`, to `InferenceEngine.swift`,
+to their AppDI wiring or either engine call site, to reanalysis replacement
+safety or foreground lifecycle/scheduler dispatch, or to the shared inference/
+queue test fixtures, run `make xcodegen`, `make validate-ios-project`,
 `bash scripts/test-ios-project-source-membership.sh`,
 `make validate-ios-event-routing`, and `make test-ios-event-routing`. Follow
 with the generic iOS Simulator build and `build-for-testing`, with code signing
@@ -2488,25 +2690,51 @@ xcodebuild test-without-building \
   -only-testing:merianTests/InferenceNetworkArchitectureTests \
   -only-testing:merianTests/InferenceLiveQueueServiceTests \
   -only-testing:merianTests/InferenceLiveAttemptCoordinatorTests \
+  -only-testing:merianTests/InferencePresentationCoordinatorTests \
+  -only-testing:merianTests/InferencePresentationStateTests \
+  -only-testing:merianTests/InferenceLifecycleCoordinatorTests \
+  -only-testing:merianTests/InferenceLifecycleRecoveryTests \
+  -only-testing:merianTests/InferenceLifecycleArchitectureTests \
+  -only-testing:merianTests/InferenceLiveMediaProjectorTests \
+  -only-testing:merianTests/InferenceLiveSubmissionCoordinatorTests \
+  -only-testing:merianTests/InferenceLivePipelineCoordinatorTests \
+  -only-testing:merianTests/InferenceLivePipelineDurableVisualTests \
+  -only-testing:merianTests/InferenceLivePipelineArchitectureTests \
+  -only-testing:merianTests/InferenceLivePresentationTests \
   -only-testing:merianTests/InferenceLiveCompletionCoordinatorTests \
   -only-testing:merianTests/InferenceLiveCompletionArchitectureTests \
   -only-testing:merianTests/InferenceLiveRequestServiceTests \
   -only-testing:merianTests/InferenceLiveResultServiceTests \
+  -only-testing:merianTests/InferenceResponsePreparationServiceTests \
   -only-testing:merianTests/InferenceLiveResultIntegrationTests \
   -only-testing:merianTests/InferenceLiveFailurePolicyTests \
   -only-testing:merianTests/InferenceFailurePresentationTests \
+  -only-testing:merianTests/InferenceLiveFailureCoordinatorTests \
+  -only-testing:merianTests/InferenceLiveFailureArchitectureTests \
   -only-testing:merianTests/InferenceLiveRecoveryIntegrationTests \
   -only-testing:merianTests/InferenceScanReplacementTests \
   -only-testing:merianTests/InferenceIntegrationAuditTests \
   -only-testing:merianTests/SharedProcessStateGateTests \
   -only-testing:merianTests/InferenceHydrationCoordinatorTests \
+  -only-testing:merianTests/SpeciesHydrationCoordinatorTests \
+  -only-testing:merianTests/SpeciesPresentationCoordinatorTests \
+  -only-testing:merianTests/SpeciesPresentationArchitectureTests \
+  -only-testing:merianTests/InferenceLookalikeCacheResetServiceTests \
   -only-testing:merianTests/InferenceHistoricalRecordProjectionTests \
+  -only-testing:merianTests/InferenceHistoricalLoadCoordinatorTests \
+  -only-testing:merianTests/HistoricalHydrationCoordinatorTests \
   -only-testing:merianTests/InferenceSpeciesEnrichmentServiceTests \
   -only-testing:merianTests/InferenceHydrationPersistenceTests \
   -only-testing:merianTests/InferenceWriteCoordinatorTests \
+  -only-testing:merianTests/InferenceReviewServiceTests \
   -only-testing:merianTests/InferenceReviewSnapshotServiceTests \
+  -only-testing:merianTests/InferenceReviewCoordinatorTests \
+  -only-testing:merianTests/InferenceReviewWorkflowCoordinatorTests \
+  -only-testing:merianTests/InferenceReviewPresentationTests \
   -only-testing:merianTests/LocalVisualAnalysisTests \
   -only-testing:merianTests/SpeciesReferenceHydrationServiceTests \
+  -only-testing:merianTests/InferenceEngineAssemblyArchitectureTests \
+  -only-testing:merianTests/InferenceEngineFacadeArchitectureTests \
   -only-testing:merianTests/InferenceArchitectureTests \
   -only-testing:merianTests/CoreIntegrationArchitectureTests \
   -only-testing:merianTests/InferenceEngineTests \
@@ -2545,6 +2773,7 @@ xcodebuild test-without-building \
   -only-testing:merianTests/CaptureAdmissionTests \
   -only-testing:merianTests/LiveCaptureLifecycleTests \
   -only-testing:merianTests/InferenceReplayTests \
+  -only-testing:merianTests/InferenceFundingReconciliationOwnerTests \
   -only-testing:merianTests/OfflineSyncTests \
   -only-testing:merianTests/SyncStateManagerTests \
   -only-testing:merianTests/OfflineQueueRetryPolicyTests \
@@ -2578,6 +2807,24 @@ xcodebuild test-without-building \
   -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests \
   -only-testing:merianTests/MerianNetworkClientTests
 ```
+
+`InferenceLivePipelineCoordinatorTests` deterministically cover incomplete,
+unavailable, and duplicate admission; empty visual encoding refund and exact
+retirement; queue-less visual and nonvisual success order; durable nonvisual
+finalization before follow-ups; circuit-gated failure routing; and a suspended
+stale result that must not publish or clear a replacement.
+`InferenceLivePipelineDurableVisualTests` separately verifies the complete
+queue-backed visual success order and exact deletion before notification,
+benchmark completion, hydration, and milestone follow-ups.
+`InferenceLivePipelineArchitectureTests` freezes the singleton-free core/live-
+adapter split, AppDI wiring, visual/nonvisual startup ordering, synchronous
+queue-less branch, exact-attempt-before-render-clock-transfer order, engine
+delegation, sole live-task-handle ownership, and retired request/result/failure
+ownership. The completion architecture suite continues to lock the exact visual
+and nonvisual effect orders at their new pipeline owner.
+`scripts/test-ios-build-and-test-workflow.sh` also requires both provider
+dispatches to derive durable-recovery policy from the admitted pipeline session
+and requires that ownership flag to stay out of the presentation façade.
 
 Then repeat against the same products with the individual suite selectors
 replaced by `-only-testing:merianTests`. This includes the existing offline
@@ -3256,11 +3503,12 @@ import, and permission-denial UI require the physical-device checklist in
   independent request cases, raw caller-key/out-of-order bulk mapping,
   empty/invalid input short circuits, and recovery encoding failures.
   `ScanLifecycleNetworkTransportTests` locks exact-body replay snapshots,
-  unclassified denials without refresh, classified-401 refresh, bounded status
-  retries, deletion's ambiguous-replay refusal, and
-  pre-dispatch/in-flight/independent cancellation. The scoped DEBUG transport
-  bypasses live Auth lease acquisition; source guards for expected
-  recovery-owner forwarding do not replace real-session integration tests.
+  unclassified denials without refresh, ordinary classified-401 refresh, the
+  bulk funding probe's durable-owner recovery deferral, bounded status retries,
+  deletion's ambiguous-replay refusal, and pre-dispatch/in-flight/independent
+  cancellation. The scoped DEBUG transport bypasses live Auth lease acquisition;
+  source guards for expected recovery-owner forwarding do not replace
+  real-session integration tests.
   `Core/Network/Decoding/ScanLifecycleAPIModelsTests.swift` owns explicit wire
   keys, optional state, and the legacy failure alias;
   `ScanLifecycleResponseDecoderTests.swift` owns strict single/bulk identity,
@@ -4271,11 +4519,14 @@ paths that require separate coverage:
 `EnrichScanResponse.SimilarSpeciesEntry` (Codable DTO, snake_case) is decoded
 from the `/enrich-scan` JSON payload and mapped to the domain
 `SimilarSpeciesEntry` (camelCase) by the initializer-injected
-`InferenceSpeciesEnrichmentService`. `InferenceEngine` owns only current-
-presentation application and admitted write scheduling; the live persistence
-adapter owns off-main encoding into the rich SwiftData blob. Wire decoding is
-covered by `InferenceEngineTests`, while exact domain mapping is covered by
-`InferenceSpeciesEnrichmentServiceTests`:
+`InferenceSpeciesEnrichmentService`. `InferenceSpeciesPresentationCoordinator`
+owns current-presentation callbacks and admitted write scheduling, while
+`InferenceEngine` remains the stable delegating facade;
+`InferenceSpeciesEnrichmentCoordinator` owns independent scope application and
+retry, while the live persistence adapter owns off-main encoding into the rich
+SwiftData blob. Wire decoding is covered by `InferenceEngineTests`, exact domain
+mapping by `InferenceSpeciesEnrichmentServiceTests`, and orchestration/stale-
+presentation behavior by `SpeciesHydrationCoordinatorTests`:
 
 ```swift
 // Verify flat array decodes with all four optional fields
@@ -4298,8 +4549,10 @@ When opening a scan from the library, `InferenceHistoricalRecordProjection`
 snapshots `LocalScanRecord.similarSpecies: [String]?` (bare scientific name
 strings), and its awaited deferred decoder wraps each into a
 `SimilarSpeciesEntry` with `nil` enrichment fields.
-`InferenceEngine.load(from:)` publishes that returned value only while its
-replaceable historical operation remains current:
+`InferenceEngine.load(from:)` delegates synchronous projection publication and
+registered follow-up scheduling to `InferenceHistoricalLoadCoordinator`.
+Deferred values publish only while that replaceable historical operation remains
+current:
 
 ```swift
 // LocalScanRecord.similarSpecies = ["Procyon cancrivorus", "Bassariscus astutus"]
@@ -5779,16 +6032,21 @@ its now-invalidated task exits. Run the same-scan overlap case with foreground
 generation A replaced by B: `BackgroundDatabaseActorTests` must reject A's
 fenced save, and `OfflineQueueManagerTests` must prove A can neither release B's
 durable claim nor cancel B's retry slot or delete B's queued row.
-`InferenceEngineTests` must also prove that background recovery invalidates A's
-presentation UUID before cancellation, so A cannot resume an error/result commit
-over the recovered UI state. Exercise visual and nonvisual replacement at task
+`InferenceSessionLifecycleRecoveryTests` must prove that the lifecycle owner
+atomically detaches and cancels task A and invalidates A's presentation UUID
+before publishing the recovered result; `InferenceEngineTests` retains the
+stable-facade integration proof that A cannot later commit over that recovered
+UI state. Offline Sync must not re-read and cancel `engine.inferenceTask` after
+the facade returns: a synchronous presentation observer could already have
+installed replacement B. Exercise visual and nonvisual replacement at task
 entry, after an awaited preflight operation, and immediately before provider
 dispatch. Once A has been retired or B has replaced it, A must not issue a
 provider request, emit failure telemetry, record a circuit-breaker failure,
 trigger an error haptic, or publish an error placeholder. The terminal-error
-case must also prove that the valid current owner can snapshot its full
-ownership, register synchronous retirement, and publish its own error without
-reopening the stale-task window.
+cases in `InferenceLiveFailureCoordinatorTests` must also prove that a valid
+current invocation can snapshot full ownership, perform synchronous queue
+handoff, recheck ownership after re-entrant callbacks, and return its own error
+action without reopening the stale-task window.
 
 **Live-to-queue transport handoff regression matrix:** A test that throws
 `URLError` from consent preflight, request construction, or another pre-dispatch

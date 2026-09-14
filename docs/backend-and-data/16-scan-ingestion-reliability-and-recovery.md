@@ -314,7 +314,9 @@ The joined client contract is:
    failure for the handoff.
 6. Allow a same-ID background or status-recovered completion to replace queued
    content in place. A newer scan or completed presentation must fence every
-   delayed failure callback.
+   delayed failure callback. Offline Sync calls the stable `InferenceEngine`
+   recovery methods; `InferenceSessionLifecycleCoordinator` owns the exact
+   background/queued-result identity checks and queued-record callback order.
 
 Local presentation ownership and durable foreground ownership are deliberately
 different. Path monitoring may retire the provider generation immediately so the
@@ -331,16 +333,18 @@ documented states. `SpeciesData.presentationRole` is the authoritative typed
 distinction; display titles never decide whether a value is an inference error.
 
 **Acceptance status:** source remediation is complete in the current working
-tree, but release acceptance is not. The engine uses local presentation
-authority for the exact queued acknowledgement while durable ownership remains
-mandatory for provider/result commits. Queue-backed Identify suppresses the
-generic transient replay and bounds the queue-owned foreground request to 15
-seconds; queue-less Identify preserves its 90-second window and replay. A gated
-`MockURLProtocol` regression retires the durable generation before delivering
-path-loss errors, then separately delivers `.timedOut` while the durable owner
-and path remain active. It proves one request, bounded handoff, exact-ID queued
-binding, eventual ownership release, row survival, and circuit isolation. The
-error/result distinction is explicit and copy-independent. See the
+tree, but release acceptance is not. The live pipeline and failure coordinator
+use local presentation authority for the exact queued acknowledgement, and the
+live-presentation coordinator applies their narrow action, while durable
+ownership remains mandatory for provider/result commits. Queue-backed Identify
+suppresses the generic transient replay and bounds the queue-owned foreground
+request to 15 seconds; queue-less Identify preserves its 90-second window and
+replay. A gated `MockURLProtocol` regression retires the durable generation
+before delivering path-loss errors, then separately delivers `.timedOut` while
+the durable owner and path remain active. It proves one request, bounded
+handoff, exact-ID queued binding, eventual ownership release, row survival, and
+circuit isolation. The error/result distinction is explicit and
+copy-independent. See the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md)
 for the pending exact-SHA workflow and physical-device evidence before making
 any release claim.
@@ -1465,6 +1469,10 @@ The focused regression inventory includes:
 - `MediaStagingContractTests`, `MediaStagingBudgetTests`,
   `MediaStagingIdentityTests`, and `MediaStagingCompletionStateTests`;
 - `InferenceURLSessionTaskContractTests` and `GenerationTaskRegistryTests`;
+- `InferenceSessionLifecycleRecoveryTests`, covering exact background transfer,
+  pre-publication cancellation of the exact displaced task, stale same-scan
+  replacement rejection, queued-result identity fencing, and queued-record
+  callback order without a managed-record dependency;
 - `OfflineSyncFoundationArchitectureTests`;
 - `QueueMaintenanceTests` and `OfflineQueueMaintenanceArchitectureTests`;
 - `CaptureAdmissionTests`, `LiveCaptureLifecycleTests`, `InferenceReplayTests`,
@@ -1538,10 +1546,22 @@ The focused regression inventory includes:
 - `InferenceLiveQueueServiceTests` and `InferenceLiveAttemptCoordinatorTests`,
   covering exact durable forwarding, local/durable identity, retirement fencing,
   re-entrant replacement, and post-suspension finalization races;
+- `InferenceLivePipelineCoordinatorTests`,
+  `InferenceLivePipelineDurableVisualTests`, and
+  `InferenceLivePipelineArchitectureTests`, covering exact admission, visual
+  empty-encoding retirement, visual and nonvisual success order, exact durable
+  deletion before follow-ups, circuit failure routing, suspended replacement
+  suppression, live-effect confinement, and the synchronous queue-less
+  authorization branch;
 - `InferenceLiveCompletionCoordinatorTests` and
   `InferenceLiveCompletionArchitectureTests`, covering accepted-result effect
   order, sealed follow-up authorization, notification/milestone gating, and the
   singleton-free core/live-adapter ownership split;
+- `InferenceLiveFailureCoordinatorTests` and
+  `InferenceLiveFailureArchitectureTests`, covering exact ownership snapshots,
+  synchronous release/retirement/rejection order, re-entrant replacement
+  suppression, cancellation and connectivity handoff, narrow presentation
+  actions, and the singleton-free core/live-adapter ownership split;
 - `InferenceEndpointTransportTests`, including queue-backed no-transient-
   transport-replay request count and bounded timing, pre-dispatch cancellation,
   header/body-free prewarm, plus the direct 90-second/replay control;

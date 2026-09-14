@@ -11,6 +11,7 @@ extension InferenceLiveCompletionCoordinator.Dependencies {
         revenueCatManager: { RevenueCatManager.shared },
         appSettings: { AppSettings.shared },
         pushNotificationManager: { PushNotificationManager.shared },
+        offlineQueueManager: { OfflineQueueManager.shared },
         eventSender: { AppDIContainer.shared.appEventPublisher },
         milestoneCoordinator: {
             AppDIContainer.shared.scanMilestoneCoordinator
@@ -26,6 +27,7 @@ extension InferenceLiveCompletionCoordinator.Dependencies {
         revenueCatManager: RevenueCatManager,
         appSettings: AppSettings,
         pushNotificationManager: PushNotificationManager,
+        offlineQueueManager: OfflineQueueManager,
         eventSender: any AppEventSending,
         milestoneCoordinator: ScanMilestoneCoordinator
     ) -> Self {
@@ -36,6 +38,7 @@ extension InferenceLiveCompletionCoordinator.Dependencies {
             revenueCatManager: { revenueCatManager },
             appSettings: { appSettings },
             pushNotificationManager: { pushNotificationManager },
+            offlineQueueManager: { offlineQueueManager },
             eventSender: { eventSender },
             milestoneCoordinator: { milestoneCoordinator }
         )
@@ -50,6 +53,8 @@ extension InferenceLiveCompletionCoordinator.Dependencies {
         appSettings: @escaping @MainActor () -> AppSettings,
         pushNotificationManager:
             @escaping @MainActor () -> PushNotificationManager,
+        offlineQueueManager:
+            @escaping @MainActor () -> OfflineQueueManager,
         eventSender: @escaping @MainActor () -> any AppEventSending,
         milestoneCoordinator:
             @escaping @MainActor () -> ScanMilestoneCoordinator
@@ -105,6 +110,11 @@ extension InferenceLiveCompletionCoordinator.Dependencies {
                         modelContainer: modelContainer
                     )
                 }
+            },
+            commitFundingSettlement: { settlement in
+                offlineQueueManager().commitInferenceResponseSettlement(
+                    settlement
+                )
             }
         )
     }

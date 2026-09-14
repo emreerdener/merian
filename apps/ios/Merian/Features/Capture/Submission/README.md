@@ -8,16 +8,20 @@ Capture observation is ready to analyze.
 This area normalizes staged media, admits it to the durable SwiftData queue
 (`OfflineQueuedScan`) before live work begins, coordinates visual and nonvisual
 foreground inference, and prepares the existing Insight or queued presentation.
-Shell owns the mounted UI and presentation timing; `InferenceEngine` owns
-observable presentation policy, while `InferenceLiveAttemptCoordinator` owns
-exact live-attempt identity and `InferenceLocalAnalysisCoordinator` owns the
-concurrent on-device `VNClassifyImageRequest` status phrases. The injected
+Shell owns the mounted UI and presentation timing; `InferenceEngine` remains the
+stable observable facade, while `InferencePresentationState` owns its stored
+presentation values, `InferenceLiveAttemptCoordinator` owns exact live-attempt
+identity, and `InferenceLocalAnalysisCoordinator` owns the concurrent on-device
+`VNClassifyImageRequest` status phrases. The injected
+`InferenceLivePipelineCoordinator` owns shared visual/nonvisual execution, the
 `InferenceLiveRequestService` owns live visual/nonvisual payload preparation,
 staged-video upload, and `/identify-multimodal` dispatch. The paired
 `InferenceLiveResultService` adapts the same canonical projection and exact
 attempt fence to the existing parse/save actor; typed completion returns to the
-engine for presentation sequencing and to the attempt coordinator for exact-
-generation queue cleanup through `InferenceLiveQueueService`.
+pipeline for sequencing, the live-presentation coordinator callback revalidates
+the exact attempt before persisted-media projection and performs the observable
+commit, and the completion/attempt coordinators perform exact-generation queue
+cleanup through `InferenceLiveQueueService`.
 
 The canonical bounded-image and focus handoff is documented in the
 [image pipeline](../../../../../../docs/system-architecture/03-image-pipeline.md).
@@ -30,6 +34,13 @@ The canonical bounded-image and focus handoff is documented in the
   `CaptureSubmissionMediaProjection`, and the hand-written `Identify*` request/
   replay descriptors. Staging owns chronological draft nodes; Submission alone
   maps those nodes into live and durable transport values.
+  `CaptureSubmissionPayload` appends a video's cover to `displayImages` and
+  records that exact index on the timeline's `.video` item. It intentionally
+  does not emit a separate `.image` timeline item for the cover. A real still
+  immediately before a video therefore remains independent user media; only an
+  image whose index explicitly matches `posterImageIndex` is poster fallback
+  content. Core AI's `InferenceLiveMediaProjector` owns that presentation-time
+  suppression and fallback policy.
 - `Services/` composes narrow live admission and context closures, owns the 150
   ms one-shot context race, formats submission telemetry, and owns the optional
   LiDAR/Vision `SizeEstimator`. That estimator consumes the shared bounded
@@ -66,16 +77,17 @@ suite freezes the estimator's production and test ownership and retired
 Utilities paths.
 
 For visual scans, submission passes only the first visual item's existing focus
-region with the primary inference image to `InferenceEngine`. The engine starts
-the exact visual-presentation session in `InferenceLocalAnalysisCoordinator`;
-that private owner uses `LocalVisualAnalysisImageBuilder` to derive one 512 px
-local image, applies the accepted padded focus region when present, and
-otherwise uses the full square. Apple Vision and the deterministic pixel-trait
-extractor reuse that derivative; the extractor samples it at 32×32 pixels to
-produce five bounded palette, color-intensity, tone, contrast, and surface cues.
-It never analyzes the second capture locally or changes the ordered images sent
-to Gemini. Audio-only and Describe submissions retain their established
-analyzing copy.
+region with the primary inference image through the source-compatible
+`InferenceEngine.analyze` facade. `InferenceLiveSubmissionCoordinator` starts
+the exact visual-presentation session and delegates local work to
+`InferenceLocalAnalysisCoordinator`. That private local-analysis owner uses
+`LocalVisualAnalysisImageBuilder` to derive one 512 px local image, applies the
+accepted padded focus region when present, and otherwise uses the full square.
+Apple Vision and the deterministic pixel-trait extractor reuse that derivative;
+the extractor samples it at 32×32 pixels to produce five bounded palette,
+color-intensity, tone, contrast, and surface cues. It never analyzes the second
+capture locally or changes the ordered images sent to Gemini. Audio-only and
+Describe submissions retain their established analyzing copy.
 
 ## Submission Contract
 
@@ -307,23 +319,23 @@ experience and ignores stale, unauthorized, completed, or nonmatching hints.
 
 The active live request temporarily owns the uplink. After any staged-video
 upload, `InferenceLiveRequestService` signals that provider dispatch is ready;
-`InferenceEngine` then sequences the existing two-second fail-safe and supplies
-the request-body completion callback that the service forwards unchanged. Both
-release closures retain `InferenceLiveAttemptCoordinator` independently of the
-engine; only the body-sent local-analysis update captures the engine weakly.
-Either release path opens the queue row for normal background upload only when
-the expected foreground generation still matches. Request failure, connectivity
-loss, or app backgrounding synchronously retires that exact generation. A
-network replay may invoke the callback for more than one transport attempt, so
-both queue release and the local-analysis start gate remain idempotent for the
-logical request. Relaunch naturally clears process-local upload suppression.
-Live success deletes the queue only with a matching foreground-generation
-expectation. Recovery media may finish staging while the live request awaits
-Gemini, but the durable foreground claim prevents the queue from dispatching a
-second identification call. Failure, cancellation, or backgrounding releases
-that claim and replays any staged row. Staged replay checks the server ingestion
-ledger first and polls an already-processing foreground job instead of issuing a
-duplicate model call.
+`InferenceLivePipelineCoordinator` then sequences the existing two-second fail-
+safe and supplies the request-body completion callback that the service forwards
+unchanged. Both release closures retain `InferenceLiveAttemptCoordinator`
+independently of the engine; only the body-sent local-analysis update captures
+the engine weakly. Either release path opens the queue row for normal background
+upload only when the expected foreground generation still matches. Request
+failure, connectivity loss, or app backgrounding synchronously retires that
+exact generation. A network replay may invoke the callback for more than one
+transport attempt, so both queue release and the local-analysis start gate
+remain idempotent for the logical request. Relaunch naturally clears
+process-local upload suppression. Live success deletes the queue only with a
+matching foreground-generation expectation. Recovery media may finish staging
+while the live request awaits Gemini, but the durable foreground claim prevents
+the queue from dispatching a second identification call. Failure, cancellation,
+or backgrounding releases that claim and replays any staged row. Staged replay
+checks the server ingestion ledger first and polls an already-processing
+foreground job instead of issuing a duplicate model call.
 
 That same request-body completion callback is the earliest point at which the
 injected Foundation visual-cue provider may start. The callback only marks the
