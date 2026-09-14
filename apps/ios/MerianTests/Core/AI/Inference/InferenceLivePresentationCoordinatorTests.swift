@@ -25,7 +25,8 @@ struct InferenceLivePresentationTests {
         let didCommit = harness.callbacks(for: session).publishCompletion(
             .init(
                 speciesData: speciesData(),
-                savedImagePaths: ["capture.webp"]
+                savedImagePaths: ["capture.webp"],
+                fundingSettlement: nil
             )
         )
 
@@ -66,7 +67,8 @@ struct InferenceLivePresentationTests {
         )
         let didCommit = callbacks.publishCompletion(.init(
             speciesData: speciesData(),
-            savedImagePaths: ["capture.webp"]
+            savedImagePaths: ["capture.webp"],
+            fundingSettlement: nil
         ))
 
         #expect(!didCommit)
@@ -100,7 +102,8 @@ struct InferenceLivePresentationTests {
         let didCommit = harness.callbacks(for: session).publishCompletion(
             .init(
                 speciesData: speciesData(),
-                savedImagePaths: []
+                savedImagePaths: [],
+                fundingSettlement: nil
             )
         )
 
@@ -140,7 +143,8 @@ struct InferenceLivePresentationTests {
         let didCommit = harness.callbacks(for: staleSession).publishCompletion(
             .init(
                 speciesData: speciesData(),
-                savedImagePaths: []
+                savedImagePaths: [],
+                fundingSettlement: nil
             )
         )
 
