@@ -49,6 +49,19 @@ verified, or exact source cancellation is durably confirmed. A retry without a
 transition owner becomes stale as soon as another Auth transition opens; durable
 proof remains available for the correct session to resume.
 
+On iOS, `PurchaseIdentitySourceHandoffCoordinator` owns the exact-source session
+fences and delegates proof construction to Core Security's
+`PurchaseHandoffPreparationCoordinator`. That preparation owner persists the
+`preparing` checkpoint before this route and the returned `prepared` checkpoint
+before cancellation can stop later Auth work. The focused Auth journal adapter
+maps secure-store failures without owning Keychain; `SupabaseManager` only
+assembles the live SDK, route, provider, entitlement, and publication effects.
+When the exact source is restored, source coordination revalidates the owned
+transition or unowned account-work lease after its initial suspended SDK read
+and before remote cancellation. Stable abandonment repeats that fence after the
+final SDK read and before durable proof removal; fence loss retains the journal
+and pending purchase-mutation fence for recovery.
+
 The client cannot nominate an Auth UUID, purchase-principal UUID, or RevenueCat
 App User ID. Existing customers are adopted in place when safe; otherwise the
 server creates an opaque `MERIAN_PP_…` provider ID. StoreKit-backed state is

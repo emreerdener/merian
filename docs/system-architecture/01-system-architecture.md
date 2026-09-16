@@ -402,7 +402,9 @@ single-responsibility functions under `/services/supabase/functions/`.
   - The iOS Apple-auth lifecycle treats credential-revoked notifications as
     subject-bound revalidation signals. It preserves an authoritative
     `.authorized` session, clears the same active Apple session for every other
-    or failed state, and ignores callbacks after identity replacement. This is
+    or failed state, and ignores callbacks after identity replacement. The local
+    clear is admitted only after a final exact-identity/no-transition check;
+    rejected admission revalidates the next stable Auth context. This is
     independent of the durable server provider stage.
   - `/repair-scan-image`: Owner-authenticated inspection and recovery for a
     verified-missing durable scan image. It promotes a surviving local copy and

@@ -92,6 +92,23 @@ final class AuthTransitionFoundationTests: XCTestCase {
         XCTAssertFalse(singleFlight.isRunning)
     }
 
+    func testCanceledSingleFlightCallerDoesNotStartOperation() async {
+        let singleFlight = AuthTransitionSingleFlight()
+        var operationCount = 0
+
+        let result = await Task { @MainActor in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await singleFlight.run {
+                operationCount += 1
+                return true
+            }
+        }.value
+
+        XCTAssertFalse(result)
+        XCTAssertEqual(operationCount, 0)
+        XCTAssertFalse(singleFlight.isRunning)
+    }
+
     func testSimultaneousAppleGoogleAndSignOutStartsHaveExactlyOneOwner() async {
         let source = AuthTransitionSession(
             userID: UUID(),

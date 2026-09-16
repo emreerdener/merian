@@ -155,11 +155,18 @@ Again** action during the automatic retry cycle and after its exhaustion.
 
 `SupabaseManager` configures Auth to emit the locally cached session
 immediately. That initial session may carry a known user while its access token
-is expired. The listener classifies this as `.awaitingRefresh`, keeps
-authenticated request state closed, and passes the known user to
-`ConsentManager`; it must not collapse the event into a no-session result. The
-root therefore remains neutral until Supabase emits `tokenRefreshed` with a
-valid session or `signedOut` after a terminal refresh failure.
+is expired. `AuthTransitionPolicy` classifies this as `.awaitingRefresh`, and
+`AuthSessionLifecycleCoordinator` keeps authenticated request state closed while
+passing the known user to `ConsentManager`; it must not collapse the event into
+a no-session result. `AuthSessionLifecycleLiveProvider` retains the SDK
+stream/listener task and maps its callbacks into lifecycle events through weak
+facade effects. Listener replacement also cancels the superseded task and its
+deferred replay, so that task cannot resume credential revocation after
+coordination. The root therefore remains neutral until Supabase emits
+`tokenRefreshed` with a valid session or `signedOut` after a terminal refresh
+failure. Initial session resolution and true-missing-only anonymous creation use
+the focused bootstrap service and its sole Supabase `+Live` adapter; Onboarding
+does not own SDK reads, error classification, task state, or publication.
 
 Core Security's `RequiredConsentRestorationCoordinator` is the source of truth
 for the state machine and retry budget. It retains every outstanding retry in a
@@ -444,11 +451,13 @@ detail. Its restoration, ledger durability, lifecycle, reapproval, and authority
 suites live under `MerianTests/Core/Security/Consent`. Moving those tests does
 not move or weaken the root-presentation and consent invariants they cover.
 `ghostProfileMergeClientContract.test.ts` deliberately reads `SupabaseManager`,
-the extracted Ghost merge store, policy, workflow, policy test, and
-endpoint-adapter test together with the Consent facade, runtime, cloud-session
-coordinator and live adapter, synchronization, merge, state-projection,
-Realtime, restoration, repository, and retry owners and their focused tests. It
-enforces verified device-only proof persistence, terminal-only retirement,
+the OAuth coordinator, identity-token policy, replacement workflow, and OAuth
+SDK session service/live adapter, the extracted Ghost coordinator/dependencies,
+typed merge service/live adapter, store, policy, workflow, and focused tests
+together with the Consent facade, runtime, cloud-session coordinator and live
+adapter, synchronization, merge, state-projection, Realtime, restoration,
+repository, and retry owners and their focused tests. It enforces verified
+device-only proof persistence, terminal-only retirement,
 cancellation/proof-removal ordering, account-work lease/session adoption,
 complete scheduled and active synchronization-task draining, restoration retry
 retention through exact completion and the combined Auth-transition drain,

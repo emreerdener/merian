@@ -392,7 +392,9 @@ struct AuthenticatedRequestExecutor {
             .unauthorizedRefreshTarget(
                 authTransitionOwner: request.authTransitionOwner
             )
-        if await dependencies.refreshSession(refreshTarget) {
+        let didRefresh = await dependencies.refreshSession(refreshTarget)
+        try Task.checkCancellation()
+        if didRefresh {
             return try await execute(
                 request,
                 state: AttemptState(
@@ -405,6 +407,7 @@ struct AuthenticatedRequestExecutor {
         }
 
         let recoveryState = await dependencies.unauthorizedRecoveryState()
+        try Task.checkCancellation()
         if AuthenticatedRequestRetryPolicy
             .shouldRegenerateSessionAfterUnauthorized(
                 responseProvesMissingSession: true,
@@ -417,7 +420,9 @@ struct AuthenticatedRequestExecutor {
             MerianLog.network.debug(
                 "Missing anonymous auth session detected — regenerating anonymous session."
             )
-            if await dependencies.resetGhostSession() {
+            let didResetSession = await dependencies.resetGhostSession()
+            try Task.checkCancellation()
+            if didResetSession {
                 try await dependencies.sleep(1_500_000_000)
                 return try await execute(
                     request,
@@ -432,8 +437,12 @@ struct AuthenticatedRequestExecutor {
 
             // A handoff may become durable between policy evaluation and the
             // attempted reset. Never clear that exact session.
-            if !(await dependencies.hasPendingPurchaseIdentityHandoff()) {
+            let handoffIsPending = await dependencies
+                .hasPendingPurchaseIdentityHandoff()
+            try Task.checkCancellation()
+            if !handoffIsPending {
                 await dependencies.clearLocalSessionAfterAuthFailure()
+                try Task.checkCancellation()
             }
         } else {
             MerianLog.network.debug(

@@ -1059,7 +1059,7 @@ Implemented Core slices:
   before handoff; the architecture oracle now rejects that stale spelling and
   also restricts assembly consumers to the assembly file and engine facade.
   Final candidate verification passed exact facade/assembly/ focused-owner
-  iOS-SDK typechecking with warnings as errors (using typecheck- only stand-ins
+  iOS-SDK typechecking with warnings as errors (using typecheck-only stand-ins
   for live adapters already covered by their focused suites), standalone
   architecture-suite typechecking, affected Swift parsing, strict SwiftLint, the
   constructor/consumer oracle, byte-stable XcodeGen, project and
@@ -6403,6 +6403,1477 @@ required unsigned generic iOS Simulator `build-for-testing` was attempted
 through `make ios-local-build`, but the safety wrapper exited before invoking
 Xcode because this sandbox could not inspect whether another `xcodebuild` was
 active. No fresh build or Simulator runtime result is claimed for this slice.
+
+### SupabaseManager Account Deletion Orchestration
+
+The sixth `SupabaseManager` hygiene slice moves fresh account-deletion
+orchestration and durable recovery routing out of the live facade. The public
+manager deletion and recovery signatures remain unchanged and now delegate to
+`AccountDeletionCoordinator` and `AccountDeletionRecoveryCoordinator`.
+`AccountDeletionCoordinationDependencies` groups narrow purchase-handoff,
+local-state, exact-session, cached-session, sign-out, and diagnostics closures;
+the coordinators acquire no Supabase/provider SDK, singleton, or logger and
+create no task. `SupabaseManager` remains the composition root for those live
+effects.
+
+The pure `AccountDeletionWorkflow` remains the owner of reusable phase-ordering
+primitives. The fresh coordinator selects prepared v2 versus compatible v1
+intake, fences every suspended result to the owned Auth transition, and
+sequences accepted cleanup, acknowledgement, and proof retirement through that
+workflow. The recovery coordinator routes every installed marker, legacy and v2
+capability, definitive noncommit restoration, accepted cleanup, acknowledgement,
+and retirement. Deferred restoration still adopts and revalidates the exact
+cached source while the durable marker is present, removes that marker as its
+final failable step, then publishes without suspension.
+
+This reduces `SupabaseManager.swift` from 5,389 to 4,870 lines. All three new
+production owners remain below the 600-line review ceiling.
+`AccountDeletionCoordinatorTests` covers fresh v2 phase/effect order and both
+preflight fences. `AccountDeletionRecoveryCoordinatorTests` covers no-marker,
+legacy replay, v2 accepted and noncommitted recovery, stale-session refusal,
+acknowledgement retention, proof-only restoration, and final retirement.
+`CoreNetworkIntegrationArchitectureTests` freezes the resulting twelve-file Auth
+inventory and prevents the manager from reacquiring the removed recovery
+helpers. The cross-language account-deletion source contract reads both new
+coordinators alongside the pure workflow.
+
+A second-pass review also closed two installed-state edge cases exposed by the
+new owner. A pre-capability `intake_pending` marker with no proof now creates a
+read-verified raw protocol-v1 proof and keeps every retry in the legacy hash
+domain; it can no longer create a v2 envelope, submit that recovery value to the
+v1 route, and relaunch into a mismatched v2 lookup after an ambiguous response.
+A proofless `capability_prepared_pending` marker now cancels against only the
+exact cached source session because non-destructive preparation completed but
+commit had not started. Store tests pin v1 creation/reuse and reject v2
+reinterpretation; recovery tests cover proofless prepared cancellation and an
+ambiguous v1 request followed by relaunch with the same proof. The review also
+accounts for devices that already persisted the former mixed state: v2 unknown
+at intake/cleanup now probes legacy recovery and keeps both proof and barrier
+unless that domain returns a positive match.
+
+The structural extraction changes no JSON payload, endpoint action, Auth
+transition value, persisted key name or supported encoding, SwiftData schema,
+provider behavior, copy, route, feature flag, deployment, or release control.
+The second-pass fixes intentionally tighten installed recovery routing without
+changing either endpoint contract.
+
+Candidate verification passed byte-stable XcodeGen output, generated-project,
+resource, source-membership, event-routing, transport-security, and iOS
+CI-tooling guards, Swift parsing, focused iOS-SDK source and test typechecks,
+strict affected-source SwiftLint, a native deterministic mixed-domain recovery
+probe, the focused six-test cross-language deletion contract, 1,944 passing Edge
+Function tests with one ignored, the complete Supabase function/script format
+check, changed-Markdown formatting, all 26 documentation contracts and
+local-link checks, and whitespace validation. The required unsigned generic iOS
+Simulator `build-for-testing` was attempted through `make ios-local-build`, but
+the safety wrapper exited before invoking Xcode because this sandbox could not
+inspect whether another `xcodebuild` was active. No fresh build or Simulator
+runtime result is claimed for this slice.
+
+### SupabaseManager Purchase-safe Sign-out Coordination
+
+The seventh `SupabaseManager` hygiene slice moves purchase-safe sign-out route
+policy out of the live facade while preserving `transitionToGhostSession()`,
+`retryPendingSignOutPurchaseHandoff()`, and the recovery-owned Ghost-reset path.
+`PurchaseIdentitySignOutCoordinator` now owns ordinary versus linked routing,
+stable-principal versus compatibility selection, installed-proof continuation or
+exact-source abandonment, failed-attempt source restoration, and exact anonymous
+retry admission. It continues to delegate phase checkpoints and
+proof-removal-last ordering to `PurchaseIdentitySignOutWorkflow`.
+
+`PurchaseIdentitySignOutCoordinationDependencies.swift` defines the narrow
+SDK-session snapshot, Auth-transition, journal, provider-readiness, restoration,
+and diagnostics closure boundaries. Its session snapshot preserves the exact SDK
+`User` only inside an injected telemetry closure, so the coordinator remains
+provider-neutral without substituting a later manager-published user.
+`SupabaseManager` remains the composition root and sole owner of Supabase,
+RevenueCat, entitlement, Keychain, endpoint, logging, and task effects. The
+coordinator and dependency package create no task, import no provider SDK, and
+resolve no singleton.
+
+This reduces `SupabaseManager.swift` from 4,870 to 4,772 lines. The 315-line
+coordinator and 91-line dependency owner remain below the 600-line Core Network
+review ceiling. Fourteen deterministic coordinator tests cover both purchase
+modes, initial and post-retirement unreadable journals, existing anonymous
+destinations, unrelated stable and legacy linked sources, failed preparation
+restoration, unverified linked sessions, ordinary anonymous replacement, exact
+recovery retry, and recovery-only reset admission. The architecture suite
+expands the Auth inventory from twelve to fourteen files and prevents live
+routing from returning to the manager.
+
+The second-pass review restores the fail-closed RevenueCat readiness fence when
+a stable proof is retired but the verifying journal reread fails. It also limits
+the coordinator's manager-owned reset entry point to `.recovery` transitions and
+adds exact-transition checks before and after suspended linked-source discovery
+and stable preparation. These are safety corrections to indeterminate and stale
+local state; they do not change a successful sign-out path or any wire contract.
+
+The extraction changes no API payload, endpoint action, durable journal shape or
+key, Auth transition value, provider behavior, entitlement rule, SwiftData
+schema, feature flag, navigation, copy, deployment, or release control.
+
+Candidate verification passed byte-stable XcodeGen output, generated-project,
+resource, source-membership, event-routing, transport-security, and iOS
+CI-tooling guards, full Swift parsing, focused iOS-SDK production and test
+typechecks, strict repository-wide SwiftLint with zero violations, a native
+deterministic sign-out route probe, the focused 42-test purchase-principal and
+documentation contract matrix, the complete Supabase function/script format
+check, changed-Markdown formatting, and whitespace validation. The required
+unsigned generic iOS Simulator `build-for-testing` was attempted through
+`make ios-local-build`, but the safety wrapper exited before invoking Xcode
+because this sandbox could not inspect whether another `xcodebuild` was active.
+No fresh build or Simulator runtime result is claimed for this slice.
+
+### SupabaseManager Purchase-handoff Completion
+
+The eighth `SupabaseManager` hygiene slice moves stable-rotation claim and
+legacy compatibility completion out of the live facade while preserving the
+existing private completion entry point and every public sign-out/retry
+signature. `PurchaseIdentityHandoffCoordinator` owns the single-flight keyed by
+destination, Auth generation, and transition owner; the stable-versus-
+compatibility completion route; post-suspension session and cancellation fences;
+terminal-only compatibility retirement, restored-source abandonment, and
+proof-removal-last boundary. `PurchaseIdentityHandoffCoordinationDependencies`
+groups exact-session, journal, provider, entitlement, remote-operation, and
+diagnostics closures without acquiring a live dependency.
+
+The public completion entry rejects cancellation before task admission, and the
+coordinator-owned task checks again before journal selection. Transition
+ownership is part of the task key, so a transition-owned call replaces older
+ownerless work even when destination and Auth generation are unchanged.
+
+`LegacyPurchaseHandoffRemoteService` is the typed compatibility boundary. Its
+live adapter is the sole owner of the private prepare/bind/complete/cancel DTOs,
+all four operations across three `transfer-signout-purchases` SDK invocation
+paths, exact response-identity validation, and terminal
+`handoff_expired`/`handoff_invalid` classifier. `SupabaseManager` constructs
+that adapter and supplies the live Supabase Auth, purchase resolver, RevenueCat,
+entitlement, journal, telemetry, and logging effects. It no longer stores the
+four handoff task/key fields or owns the completion algorithms.
+
+This reduces `SupabaseManager.swift` from 4,772 to 4,516 lines. The 409-line
+coordinator, 87-line dependency package, and both compatibility-service files
+remain below their review ceilings. Eleven coordinator tests cover
+already-cancelled caller preflight, stable and compatibility order, same-context
+convergence, same-session transition-owner replacement, replacement-generation
+cancellation before proof removal, late cancelled-task mutation suppression,
+stale-session retention, terminal versus transient proof retirement, unreadable
+selection, and restored-source abandonment. Two service tests cover typed
+operation forwarding and exact terminal classification. The Core Network
+architecture guard expands the Auth inventory from fourteen to sixteen files,
+prevents the retired helpers/task fields from returning to the manager, and
+follows stable/compatibility generation fences in the coordinator. The
+purchase-principal architecture and cross-language migration contracts pin the
+new service ownership and live route shape.
+
+The extraction changes no request or response body, endpoint action, Auth
+transition value, durable journal key/encoding, RevenueCat identity, entitlement
+rule, SwiftData schema, feature flag, navigation, copy, deployment, or release
+control. Proof removal still occurs only after successful provider/server work,
+a current entitlement projection, cancellation checks, and exact anonymous
+session revalidation.
+
+Candidate verification passed generated-project and source-membership checks,
+full changed-Swift parsing, strict affected-source SwiftLint, focused production
+and test typechecks, a warnings-as-errors typecheck of all 1,281 app sources,
+the 14-case native Network/Purchase Identity architecture runner, the 16-case
+cross-language purchase-principal contract, the complete Supabase Edge Function
+suite (1,944 passed, zero failed, one ignored), and the complete Supabase
+function/script format check. The required generic Simulator `build-for-testing`
+was attempted through `make ios-local-build`, but the safety wrapper stopped
+before invoking Xcode because this sandbox could not inspect whether another
+`xcodebuild` was active. No fresh build or Simulator runtime result is claimed
+for this slice.
+
+### SupabaseManager Auth-coordinator Integration Audit
+
+The integration audit after the account-deletion, purchase-safe sign-out, and
+purchase-handoff completion extractions reviewed transition admission,
+account-work quiescence, durable journal checkpoints, cancellation, source
+restoration, and proof retirement as one lifecycle rather than as isolated
+owners. It found six cross-owner gaps. A foreground purchase-handoff retry could
+read its anonymous SDK session while earlier account-bound work was still
+admitted; purchase-safe sign-out did not honor cancellation between its identity
+phases; already-cancelled deletion and sign-out callers could open a transition
+or single-flight; pending-proof recovery could complete after a cancelled
+anonymous-session initialization; and cancelled source-restoration work could
+continue toward proof or readiness mutation after suspension. A follow-up review
+also found that a classified `401` cancelled during session refresh could
+proceed into Ghost regeneration or local-session cleanup.
+
+The corrected lifecycle now rejects cancellation before transition or
+single-flight admission, drains account-bound work before a recovery retry reads
+the SDK session, and rechecks cancellation between preparation, local sign-out,
+anonymous initialization, and completion. Stable and compatibility preparation
+continue to persist every returned one-use proof before cancellation is honored,
+so a stopped task cannot lose the credential required for relaunch recovery.
+Pending-proof recovery revalidates cancellation, transition ownership, and the
+exact anonymous destination after initialization and before completion.
+Source-only abandonment and failed-sign-out restoration recheck cancellation and
+exact transition/session ownership after suspension and before proof or
+readiness mutation. The request executor now rechecks cancellation after every
+suspended unauthorized-recovery decision, while the public Ghost-reset boundary
+checks before transition admission and after each SDK, purchase-link,
+entitlement, and final-session suspension.
+
+Focused coverage grows the Auth foundation single-flight suite to nine cases,
+the fresh-deletion coordinator suite to four, and both the sign-out workflow and
+route-coordinator suites to sixteen and seventeen cases, respectively. The
+request-executor suite now has eleven cases, including cancellation during an
+unauthorized refresh before Auth mutation. The Core Network architecture test
+freezes the new admission and phase order, while the cross-language
+purchase-principal contract pins recovery quiescence and
+persistence-before-cancellation ordering alongside the unchanged Edge protocol.
+
+This audit changes no request or response body, endpoint operation, durable
+journal key or encoding, Auth transition value, purchase-provider identity,
+entitlement rule, SwiftData schema, feature flag, navigation, copy, deployment,
+or release control.
+
+After these audit fixes, `SupabaseManager.swift` is 4,541 lines. That count is
+recorded as remaining facade debt: the enforced 600-line review ceiling applies
+to the extracted Core Network owners and `MerianNetworkClient`, not to
+`SupabaseManager` itself.
+
+Candidate verification passed byte-stable XcodeGen output, generated-project,
+source-membership, event-routing, transport-security, and iOS CI-tooling guards;
+changed-Swift parsing; strict affected-source SwiftLint with zero violations;
+focused production and XCTest semantic typechecks; the 11-case native request
+executor suite; the 13-case native Core Network architecture suite; the 16-case
+cross-language purchase-principal contract; all 1,944 Edge Function tests with
+one ignored; the complete function/script format check; all 26 documentation
+contracts and local-link checks; changed-Markdown formatting; and whitespace
+validation. The required generic Simulator `build-for-testing` was attempted
+through `make ios-local-build`, but the safety wrapper refused to invoke Xcode
+because this sandbox cannot inspect active `xcodebuild` processes. No fresh
+Simulator build or XCTest runtime result is claimed for the audit.
+
+### SupabaseManager OAuth Sign-in Coordination
+
+The ninth `SupabaseManager` hygiene slice moves provider-neutral Apple and
+Google completion out of the live facade while preserving the public sign-in
+entry points, Apple delegate, provider presentation, visible behavior, and every
+wire or persistence contract. `OAuthSignInCoordinator` now owns pending
+purchase-handoff admission; direct same-UUID identity linking versus provider-
+bound Ghost fallback; exact-session adoption; credential registration required
+for Apple and forbidden for Google; exact provider-to-transition agreement;
+normalized metadata persistence; telemetry and purchase-identity readiness;
+entitlement; public-author refresh/event publication; and the authenticated-
+OAuth marker. `OAuthSignInCoordinationDependencies` exposes those effects as
+narrow main-actor closures and creates no task.
+
+`OAuthSignInWorkflow` owns cancellation-aware SDK-session replacement around the
+analytics-suppression boundary and bounded same-registration Apple credential
+retry. `OAuthIdentityTokenPolicy` owns the bounded, control-character-safe
+provider-subject extraction needed by the conflict fallback, while
+`OAuthSignInModels` owns provider-neutral credential, exact-session, completion,
+normalized metadata, and workflow-error values. `SupabaseManager` remains the
+only live provider/Supabase composition root: Google and Apple bridges prepare
+those values, inject SDK/Edge/RevenueCat/Keychain/telemetry and lifecycle
+effects, and retain failure cleanup.
+
+The split reduces `SupabaseManager.swift` from 4,541 to 4,391 lines. All five
+new production owners remain below the 600-line review ceiling and import only
+Foundation. Four focused suites own token parsing, metadata normalization,
+session replacement, Apple retry, direct-link and Ghost-fallback routing,
+completion order, fail-closed provider/transition and registration
+configuration, cancellation, required-credential failure, and nonfatal-metadata
+failure behavior. Rehomed workflow test method names remain stable. The Core
+Network architecture guard now freezes the exact twenty-one-file Auth inventory,
+new ownership boundaries, live-effect exclusions, and retired aggregate helper
+names. The Apple and Ghost Deno source contracts read the extracted coordinator,
+workflow, and token policy directly.
+
+This slice changes no endpoint, payload, response, Supabase Auth action,
+Keychain key or encoding, RevenueCat identity, entitlement decision, SwiftData
+schema, feature flag, navigation, copy, layout, deployment, or release control.
+Local verification covered byte-stable XcodeGen; generated-project source and
+resource membership; event-routing, transport-security, and iOS CI-tooling
+guards; Swift parsing; focused iOS-SDK production and XCTest semantic
+typechecks; strict affected-source SwiftLint with zero violations; the 14-case
+Apple/Ghost cross-language matrix; all 1,944 Edge Function tests with one
+intentional ignore; the complete 852-file Function/script format check; all 26
+documentation and local-link contracts; changed-Markdown formatting; and
+whitespace validation. The required generic Simulator `build-for-testing` was
+attempted through `make ios-local-build`, but the safety wrapper refused to
+invoke Xcode because this sandbox cannot inspect active `xcodebuild` processes.
+No fresh Simulator build or XCTest runtime result is claimed for this slice.
+
+### SupabaseManager Auth-session Lifecycle Coordination
+
+The tenth `SupabaseManager` hygiene slice moves provider-neutral Auth-event
+projection and restored-session recovery ordering out of the live facade while
+preserving the Supabase stream, listener task, SDK mapping, public observable
+state, and every external contract. `AuthSessionLifecycleModels` owns the event
+origin, adoption/session/generation envelope, and fixed diagnostic categories.
+`AuthSessionLifecycleCoordinationDependencies` defines narrow state, durable-
+fence, purchase/entitlement, synchronization, and diagnostic closures.
+`AuthSessionLifecycleCoordinator` owns account-deletion and active-transition
+deferral; independent fail-closed Ghost and purchase-journal projection;
+authenticated, awaiting-refresh, and signed-out state order; anonymous and
+restored-source purchase handoff; immediate local server-verified entitlement
+projection closure behind an accepted deletion barrier; entitlement order;
+post-suspension exact-generation/transition fencing; and historical-sync
+admission. It creates no task and imports no provider SDK.
+
+`SupabaseManager` remains the sole live composition root. It advances the Auth
+generation and transition owner, maps each SDK callback into the
+provider-neutral event, injects Supabase, RevenueCat, consent, telemetry,
+entitlement, durable-store, and synchronization effects, and retains the
+listener and scheduled history tasks. The split reduces `SupabaseManager.swift`
+from 4,391 to 4,375 lines. All three new production owners remain below the
+600-line review ceiling.
+
+`AuthSessionLifecycleCoordinatorTests` owns thirteen deterministic cases for
+both early deferrals, independent durable-store read failures, anonymous handoff
+before entitlement, identity-change reset order, restored-source abandonment and
+relinking, deletion-barrier local entitlement projection closure, stale
+generation and transition overlap after purchase or entitlement suspension,
+awaiting-refresh projection, sign-out overlap, signed-out cleanup order, and
+inconsistent events. The Core Network architecture guard freezes the exact
+twenty-four-file Auth inventory, lifecycle ownership, effect exclusions, and
+production ordering. The purchase-principal cross-language contract reads the
+new coordinator directly for awaiting-refresh, accepted-deletion
+purchase/entitlement closure, and sign-out ordering.
+
+This slice changes no endpoint, payload, response, Supabase Auth action,
+RevenueCat identity, entitlement policy, durable journal key or encoding,
+SwiftData schema, feature flag, navigation, copy, layout, deployment, or release
+control. Its review follow-up clears the local server-verified entitlement
+projection when the Auth listener observes accepted deletion cleanup as its
+barrier; it does not mutate server entitlement. Candidate verification covered
+byte-stable XcodeGen; generated-project and source-membership validation;
+event-routing, transport-security, and iOS CI-tooling guards; Swift parsing;
+strict affected-source SwiftLint with zero violations; focused production,
+XCTest, and architecture semantic typechecks; the 16-case purchase-principal
+cross-language contract; all 1,944 Edge Function tests with one intentional
+ignore; all 26 documentation and local-link contracts; the complete 852-file
+Function/script format check; changed-Markdown formatting; and whitespace
+validation. The required generic Simulator `build-for-testing` was attempted
+through `make ios-local-build`, but the safety wrapper refused to invoke Xcode
+because this sandbox cannot inspect active `xcodebuild` processes. No fresh
+Simulator build or XCTest runtime result is claimed for this slice.
+
+### SupabaseManager Purchase-identity Session Readiness
+
+The eleventh `SupabaseManager` hygiene slice moves provider-neutral purchase-
+identity session state, keyed resolution, foreground repair, and the legacy
+profile lookup out of the live Auth facade. `PurchaseIdentitySessionCoordinator`
+owns active binding and last-linked-user state plus one resolution task keyed by
+the exact Auth session, capability fingerprint, and creation policy. It
+republishes every durable handoff read to the provider mutation fence, closes
+that fence on unreadable evidence, rejects late results from superseded task
+keys, and revalidates the published session before and after provider work.
+`PurchaseIdentityReadinessCoordinator` owns foreground account-work admission,
+SDK-session validation, anonymous handoff completion or restored-source
+retirement, identity and entitlement readiness, and the final
+SDK/session/provider fence.
+
+`LegacyPurchaseIdentityProfileService` provides the typed profile lookup; its
+live adapter is the sole Supabase/private-DTO owner for the established `users`
+projection. `PurchaseIdentitySessionCoordinationDependencies` keeps the
+coordinators independent of Supabase, RevenueCat, entitlement, Keychain,
+logging, and singleton resolution. `SupabaseManager` remains the live
+composition root and public compatibility facade, supplies those effects, and
+retains the Supabase Auth stream/listener and provider SDK calls. The split
+reduces the manager from 4,375 to 4,244 lines; every new production owner is
+below 250 lines.
+
+Focused suites cover stable/legacy resolution, durable-handoff fence projection
+and fail closure, stale generation and final-admission cache rejection,
+already-ready elision, same-context single-flight, differently keyed task
+supersession, foreground admission and lease completion, restored-source
+recovery, entitlement and final-session fences, and typed legacy-profile
+forwarding. The Purchase Principal architecture and cross-language migration
+contracts freeze the new inventory, effect exclusions, task ownership, and live
+query shape.
+
+This slice changes no request or response body, endpoint action, Auth transition
+value, durable journal key or encoding, RevenueCat identity, entitlement rule,
+SwiftData schema, feature flag, navigation, copy, deployment, or release
+control.
+
+Candidate verification covered byte-stable XcodeGen; generated-project and
+source-membership validation; event-routing, transport-security, and iOS CI-
+tooling guards; a warnings-as-errors iOS Simulator SDK module compile of all
+1,295 app-target Swift sources; focused iOS-SDK test typechecking; 16 native
+coordinator/profile/ownership tests; all 13 Core Network integration
+architecture tests; the 16-case purchase-principal cross-language contract; all
+1,944 Edge Function tests with one intentional ignore; strict SwiftLint; the
+complete Function/script format check; documentation and local-link contracts;
+changed-Markdown formatting; and whitespace validation. The required generic
+Simulator `build-for-testing` was attempted through `make ios-local-build`, but
+the safety wrapper refused to invoke Xcode because this sandbox cannot inspect
+active `xcodebuild` processes. No fresh Simulator build or XCTest runtime result
+is claimed for this slice.
+
+A subsequent correctness review found that the direct session-resolution route
+read the durable handoff journals without also refreshing RevenueCat's in-memory
+mutation fence. The shared handoff boundary now publishes every successful read
+and publishes a closed fence on failure. The same review added a controlled
+differently keyed overlap regression proving a cancelled predecessor cannot
+publish over the newer binding or clear its task state. Follow-up verification
+passed 17 native coordinator/profile/ownership cases, all 13 Core Network
+integration architecture cases, focused warnings-as-errors iOS-SDK source and
+test typechecking, strict SwiftLint, byte-stable XcodeGen, project/source
+membership, event-routing, transport-security, complete portable iOS CI tooling,
+the 16-case purchase-principal cross-language contract, documentation contracts,
+Markdown formatting, and whitespace validation. The canonical Simulator build
+was attempted again, but the local wrapper stopped before Xcode because this
+sandbox cannot inspect active `xcodebuild` processes; no new Simulator build or
+runtime result is claimed.
+
+The documentation follow-up synchronized the iOS root and Core Security
+ownership guides, the foreground lifecycle sequence, and the Keychain authority
+contract with that correction. They now state that both direct resolution and
+foreground repair publish every durable handoff read to the provider mutation
+fence, publish pending state on an unreadable journal, and reject late
+differently keyed resolution results. The API, revenue/identity, system
+architecture, Core-manager, test-ownership, codebase-map, and purchase-principal
+RFC descriptions already carry the same boundary. No backend payload,
+deployment, persisted format, or release procedure changed.
+
+### SupabaseManager Ghost-profile Merge Coordination
+
+The twelfth `SupabaseManager` hygiene slice moves provider-bound Ghost merge
+preparation, queue-wide completion, retry, analytics-suppression projection,
+terminal cleanup, and keyed task lifetime into
+`Core/Network/Auth/Coordinators/GhostProfileMergeCoordinator.swift`. Its narrow
+dependency package carries exact Auth-session and account-work admission,
+secure-queue operations, purchase and consent synchronization, terminal error
+classification, suppression, and privacy-safe diagnostics without acquiring a
+live SDK, singleton, or logger. Completion is keyed by the exact permanent
+target UUID and optional Auth-transition owner; a new key cancels the old task,
+and task UUID ownership prevents a late predecessor from clearing the newer
+handle.
+
+`Core/Security/GhostProfileMerge/Services` now owns a closure-backed typed
+remote boundary and its sole live Supabase adapter. The live file contains all
+private `merge-ghost-profile` prepare, complete, and identity-refresh DTOs and
+Function calls plus provider-conflict and terminal-error mapping. The manager
+constructs that service and the existing secure store, injects Auth, RevenueCat,
+consent, Keychain, and logging effects, and preserves its existing entry points.
+The split reduces `SupabaseManager.swift` from 4,244 to 3,998 lines; all four
+new production files remain below the 600-line review ceiling.
+
+The preparation path rejects a provider-mismatched Auth transition before its
+first remote effect and deliberately secures a capability returned by the server
+before honoring caller cancellation, so response-time cancellation cannot lose
+relaunch recovery authority. It also revalidates the exact source after the
+response and before persistence. Completion rechecks cancellation and
+exact-session ownership around every remote/provider/local-evidence phase and
+before terminal evidence synchronization or proof removal. An invalid retained
+source marks that item unresolved but does not block later handoffs, preserving
+the installed queue semantics. No request/response field, endpoint operation,
+Keychain key, persisted JSON, valid Auth-transition behavior, RevenueCat action,
+consent contract, SwiftData schema, feature flag, UI, deployment, or release
+control changed.
+
+`GhostProfileMergeCoordinatorTests` adds deterministic coverage for returned-
+proof cancellation durability, stable source replacement, provider-transition
+mismatch, post-response source-session drift, same-key single-flight, target and
+owner supersession, unreadable-queue fail closure, transient retention, terminal
+synchronization-before-clear, cancelled terminal responses, later-proof
+progress, empty-queue suppression reopening, and source-scoped clearing.
+`GhostProfileMergeRemoteServiceTests` owns typed prepare/complete/refresh
+forwarding and both live error classifiers. The Core Network architecture guard
+now freezes twenty-six Auth files, the third structured task owner, the Core
+Security model/service/store inventory, sole live DTO/call ownership, test
+rehomes, and aggregate-manager exclusions. The cross-language Ghost client
+contract reads the new coordinator, dependencies, service/live adapter, and
+focused tests directly.
+
+A second review corrected the aggregate-ownership guards to use every exact
+retired manager helper name, including the former preparation, queue,
+completion, classification, and task-cancellation owners. Both the native
+architecture test and cross-language client contract now fail if any of those
+implementations drift back into `SupabaseManager`.
+
+Candidate verification passed Swift parsing; warnings-as-errors iOS SDK
+typechecking of the coordinator core and live remote adapter; focused iOS SDK
+test and architecture typechecking; strict affected-source SwiftLint with zero
+violations; the eight-case Ghost client contract and complete 1,944-test
+Function suite with one intentional ignore; XcodeGen byte stability,
+generated-project and source-membership validation; event-routing,
+transport-security, and iOS CI-tooling guardrails; recursive Function/script
+formatting; changed-Markdown formatting; documentation contracts; and whitespace
+validation. The required generic Simulator `build-for-testing` was attempted
+through `make ios-local-build`, but its safety wrapper refused before Xcode
+because this sandbox cannot inspect active `xcodebuild` processes. No new
+Simulator build or XCTest runtime result is claimed. No hosted request, live
+identity/provider mutation, deployment, or external publication was performed.
+
+### SupabaseManager Auth-session Bootstrap Coordination
+
+The thirteenth `SupabaseManager` hygiene slice moves reusable-session admission,
+existing-session resolution, anonymous creation, and bootstrap task lifetime
+into `Core/Network/Auth/Coordinators/AuthSessionBootstrapCoordinator.swift`.
+`AuthSessionBootstrapCoordinationDependencies.swift` carries only a provider-
+neutral identity/expiry snapshot and narrow state, transition, account-work,
+session-operation, publication, purchase-readiness, public-author refresh, and
+diagnostic closures. Neither extracted owner imports Supabase, resolves a
+singleton, emits logs directly, or knows the SDK `User` type.
+
+The coordinator waits for active sign-out, reuses an already-published usable
+session only behind an exact-session account-work lease, and drains admitted
+account work before resolving another SDK session. Ownerless callers may join
+only a task whose complete transition token remains the exact active anonymous-
+bootstrap owner; a different or replacement transition owner is rejected.
+Cancellation before admission or during sign-out waiting stops before lease,
+transition, or SDK-session work. Loaded or created identities must be adopted
+before publication and must still match the manager-published nonexpired SDK
+session after purchase readiness. Only the injected stable missing-session
+classifier reaches anonymous creation, so network or expiry failures preserve
+the existing identity. Task UUID cleanup prevents a cancelled predecessor from
+clearing a replacement handle.
+
+`SupabaseManager.initializeGhostSession(ownedBy:) -> User?` remains unchanged as
+the live adapter. The facade still owns the SDK session reads, anonymous
+sign-in, `AuthError` classification, observable publication, public-author
+scheduling, purchase effects, and privacy-safe log messages, then maps the
+coordinator's exact identity back to the current SDK user. Sign-out now cancels
+and awaits the coordinator-owned task through the same existing flow. The split
+reduces the manager from 3,998 to 3,994 lines and raises the guarded Auth
+inventory from 26 to 28 production files. The architecture guard freezes all
+four explicit Auth task owners and rejects the former manager task fields and
+private bootstrap performer.
+
+`AuthSessionBootstrapCoordinatorTests` adds eighteen deterministic cases
+covering test/deletion and preflight-cancellation gates, cancellation during
+sign-out waiting, sign-out and quiescence ordering, current-session reuse, stale
+account-work rejection, exact-token ownerless sharing, replaced-transition and
+different-owner isolation, true-missing anonymous creation and creation failure,
+network-failure identity preservation, cancellation and transition drift around
+session load, compare-before-clear task replacement, resolved-session
+publication order, and session replacement during purchase readiness. The
+focused production and XCTest sources pass iOS SDK semantic typechecking, the
+same eighteen cases pass in a native deterministic harness, and the complete
+13-case Core Network architecture suite passes in its native source harness.
+Swift parsing, strict affected-source SwiftLint, byte-stable XcodeGen,
+project/resource and generated-source membership, event-routing and adversarial
+fixtures, transport-security and fixtures, the complete portable iOS CI-tooling
+suite, changed-Markdown formatting, all 26 documentation and local-link
+contracts, and whitespace validation pass. The required generic Simulator
+`build-for-testing` was attempted through `make ios-local-build`, but its safety
+wrapper refused before Xcode because this sandbox cannot inspect active
+`xcodebuild` processes; no new full-target build or Simulator runtime result is
+claimed. No endpoint, request or response payload, successful Auth or purchase
+flow, persisted format, Keychain key, SwiftData schema, feature flag, UI,
+deployment, or release contract changed. The follow-up review intentionally
+narrows bootstrap admission for cancelled callers and stale transition tokens;
+no hosted operation was performed.
+
+### SupabaseManager Auth-session Recovery Coordination
+
+The fourteenth `SupabaseManager` hygiene slice moves authenticated-request
+session refresh, anonymous replacement recovery, and terminal local cleanup into
+`Core/Network/Auth/Coordinators/AuthSessionRecoveryCoordinator.swift`.
+`AuthSessionRecoveryCoordinationDependencies.swift` carries provider-neutral
+session capabilities and narrow state, transition, operation, and diagnostic
+closures. Neither extracted owner imports a provider SDK, resolves a singleton,
+emits a log directly, or creates a task.
+
+Ordinary refresh owns one recovery transition; a deletion or OAuth caller that
+already owns a transition uses the same coordinator without opening or finishing
+a nested owner. Both paths capture the exact expected session before draining
+account work and reject cancellation, ownership loss, or session replacement
+after SDK suspension. Anonymous recovery preserves pending purchase handoffs and
+requires purchase identity, entitlement, captured-generation, and final SDK
+readback agreement before request replay. Terminal cleanup checks cancellation
+before mutation, but once local SDK sign-out begins it completes observable,
+Keychain-marker, analytics, and purchase cleanup even if the SDK call fails or
+cancellation arrives.
+
+`SupabaseManager` preserves the existing public refresh, reset, and clear
+signatures and remains the sole live Supabase, RevenueCat, entitlement,
+persistence, analytics, and logging composition root.
+`SupabaseAuthSessionRecoveryDiagnostics.swift` retains the established
+privacy-safe log copy outside the provider-neutral coordinator. The split
+reduces the manager from 3,994 to 3,961 lines and raises the guarded Auth
+inventory from 28 to 30 production files; all extracted production files remain
+below 600 lines.
+
+`AuthSessionRecoveryCoordinatorTests` adds fifteen deterministic cases for
+ordinary and transition-owned refresh, cancelled admission and in-flight work,
+expected-session drift, anonymous purchase/entitlement/final-readback admission,
+pending-handoff preservation, local SDK sign-out failure, cancellation after SDK
+sign-out begins, and caller-owned transition lifetime. The Core Network
+architecture suite freezes the new owners, five facade delegations,
+live-diagnostic boundary, retired aggregate helpers, provider/singleton/task
+exclusions, and exact 30-file Auth inventory. The 15 focused cases and 13
+architecture cases pass in native Swift 6 harnesses, and strict affected-source
+SwiftLint reports zero violations. Swift parsing, byte-stable XcodeGen,
+generated-project/resource and source membership, event-routing and
+transport-security production/adversarial checks, the complete portable iOS
+CI-tooling suite, all 56 focused cross-language client and documentation
+contracts, recursive Function/script formatting, changed-Markdown formatting,
+and whitespace validation pass. The required generic Simulator
+`build-for-testing` was attempted through `make ios-local-build`, but its safety
+wrapper refused before Xcode because this sandbox cannot inspect active
+`xcodebuild` processes. No new full-target build or Simulator runtime result is
+claimed.
+
+The documentation follow-up synchronizes the iOS/Core ownership maps, API and
+revenue/identity contracts, app lifecycle, concurrency and system architecture,
+Core-manager responsibilities, and both test inventories. It distinguishes the
+refresh and anonymous-replacement cancellation fences from terminal cleanup's
+commit boundary: cancellation stops terminal clear before mutation, but once
+local SDK sign-out starts the coordinator still invokes observable-state,
+secure-marker, analytics, and purchase-identity cleanup. It does not claim that
+a failed SDK sign-out discarded the provider's cached session.
+
+No endpoint, request/response JSON, error copy, retry count, successful Auth or
+purchase flow, durable format, Keychain key, SwiftData schema, feature flag, UI,
+backend, deployment, or release contract changes in this slice. Admission is
+intentionally narrower only for cancelled callers and stale transition/session
+continuations. No hosted operation was performed.
+
+### SupabaseManager Public-author Identity Refresh Coordination
+
+The fifteenth `SupabaseManager` hygiene slice moves direct and restored-session
+public-author identity refresh sequencing into the provider-neutral
+`Core/Network/Auth/Coordinators/PublicAuthorIdentityRefreshCoordinator.swift`.
+`PublicAuthorIdentityRefreshCoordinationDependencies.swift` carries only narrow
+session, account-work, retained-Ghost-completion, remote-refresh, event, and
+diagnostic closures. Neither extracted Auth owner imports a provider SDK,
+resolves a singleton, logs directly, or constructs endpoint transport.
+
+The restored-session route owns one target-account-keyed task with a unique task
+ID. A replacement cancels its predecessor, and compare-before-clear cleanup
+prevents that predecessor from erasing the newer handle. The route retains the
+established outer account-work lease, completes queued Ghost handoffs, and then
+uses the existing nested ownerless refresh lease. Cancellation and lease state
+are revalidated after every suspension; the completed-account marker and
+identity-change event are admitted only while the manager-published user still
+matches the target. The direct OAuth route retains its transition-owned exact-
+session preflight and postflight without opening another account-work lease.
+
+`SupabaseManager` remains the live effect assembler and public-signature owner.
+It maps SDK users into provider-neutral sessions and injects the existing Ghost
+remote service, transition/lease checks, and current-user projection.
+`SupabasePublicAuthorIdentityRefreshLiveEffects.swift` is the explicit owner of
+the application event and privacy-safe diagnostic copy outside the Auth
+foundation. The split reduces `SupabaseManager.swift` from 3,961 to 3,916 lines,
+raises the guarded Auth inventory from 30 to 32 production files, and raises the
+explicit Auth task-owner count from four to five. Every extracted production
+file remains below the 600-line review ceiling.
+
+`PublicAuthorIdentityRefreshCoordinatorTests` owns eighteen deterministic cases
+for scheduling gates and stale-target rejection; Ghost/lease/refresh/publication
+order; same-target coalescing; replacement cleanup; cancellation before direct
+or scheduled admission and across remote suspension; cancellation-diagnostic
+suppression; stale outer and nested leases; published-user drift; remote
+failure; transition-owned preflight and postflight session fencing; ownerless
+refresh; and completed-marker reset. The initial independent concurrency review
+prompted the explicit stale-transition preflight regression. A follow-up review
+then closed stale-target replacement and direct/scheduled cancellation gaps. The
+Core Network architecture suite freezes the two new Auth owners, sole
+live-effects owner, aggregate-manager exclusions, single keyed task, and
+eighteen-test inventory. The cross-language Ghost client contract now reads the
+coordinator and dependency package directly and freezes
+retained-handoff-before-refresh ordering plus the live remote-service injection.
+
+Candidate verification passed byte-stable XcodeGen; generated-project/resource
+and source-membership validation; event-routing production and adversarial
+guards; Swift parsing; strict affected-source SwiftLint with zero violations;
+all 18 focused coordinator tests; all 13 Core Network architecture tests; the
+eight-case Ghost client contract; all 1,944 Edge Function tests with one
+intentional ignore; the 26-case documentation contract; complete Function and
+script formatting; changed-Markdown formatting; portable iOS CI tooling; and
+whitespace validation. The required generic Simulator `build-for-testing` was
+attempted through `make ios-local-build`, but the safety wrapper refused before
+Xcode because this sandbox cannot inspect active `xcodebuild` processes. No new
+full-target build or Simulator runtime result is claimed.
+
+This slice changes no JSON field, endpoint action, error mapping, Auth
+transition value, account-work semantics, durable journal, RevenueCat identity,
+entitlement, SwiftData schema, feature flag, navigation, copy, backend behavior,
+deployment, or release control. No hosted operation was performed.
+
+### SupabaseManager Apple Credential-Revocation Coordination
+
+The sixteenth `SupabaseManager` hygiene slice moves Apple credential-revocation
+notification coordination into
+`Core/Network/Auth/Coordinators/AppleCredentialRevocationCoordinator.swift`. Its
+dependency package carries only provider-neutral current-identity, transition,
+lookup, terminal-clear, and diagnostic closures. The coordinator owns one
+retained task, notification coalescing, Auth-transition deferral, a monotonic
+Auth-context generation, exact session/provider-subject postflight, and
+compare-before-clear cleanup.
+
+`AppleCredentialRevocationLiveProvider.swift` is the sole AuthenticationServices
+notification-token and credential-state lookup owner.
+`AppleCredentialRevocationLiveDiagnostics.swift` maps value-only outcomes to the
+existing privacy-safe log copy. `SupabaseManager` retains public signatures and
+acts only as the composition root: it maps the current SDK user to the exact
+provider-neutral identity, invalidates revocation work before Auth transitions
+and SDK lifecycle publication, resumes deferred work after stable publication,
+and injects terminal Auth recovery. Signed-out and terminal local-clear paths
+cancel any retained attempt.
+
+This closes two predecessor races without changing fail-closed policy. A
+same-user SDK refresh now invalidates an older lookup by generation, so its late
+unsafe result cannot clear the refreshed session. A notification received during
+an in-flight lookup retains exactly one follow-up instead of running overlapping
+unowned callbacks. Identity replacement, transition overlap, cancellation, and
+task replacement all reject stale postflight before local clear.
+
+The split reduces `SupabaseManager.swift` from 3,916 to 3,909 lines, raises the
+guarded Auth inventory from 32 to 34 production files, and raises explicit Auth
+task ownership from five to six. `AppleRevocationCoordinatorTests` adds thirteen
+deterministic cases for admission, deferral, every provider outcome, generation
+and identity drift, overlap, cancellation, coordinator release during a
+suspended lookup, and exactly-once clear; `AppleRevocationLiveProviderTests`
+owns the SDK-state mapping, exact observer lifecycle, and off-main delivery into
+the main-actor handler. The live provider holds the non-`Sendable` Foundation
+token inside a self-cleaning registration, so provider teardown does not cross
+the main-actor boundary from a nonisolated deinitializer or require an unsafe
+`Sendable` conformance. Its injected lookup closure captures only that provider,
+while the retained task keeps its coordinator weak across the SDK suspension; a
+stalled callback therefore cannot retain the manager through the coordinator.
+The Core Network architecture and cross-language Apple deletion contracts freeze
+the new owners and reject the retired manager observer, pending flag, callback,
+and state-policy helper.
+
+Candidate verification passed byte-stable XcodeGen; generated-project/resource
+and source-membership validation; event-routing production and adversarial
+guards; Swift parsing; strict affected-source SwiftLint with zero violations;
+Swift 6 complete-concurrency production and focused-test typechecking with
+warnings as errors; all 17 focused coordinator/live-provider XCTest cases in a
+host-compatible harness; native generation/overlap/transition and observer-
+lifecycle runtime audits; all 13 Core Network architecture tests; the six-case
+account-deletion source contract; the 26-case documentation contract; complete
+Function and script formatting; changed-Markdown formatting; and whitespace
+validation. The required generic Simulator `build-for-testing` was attempted
+through `make ios-local-build`, but the safety wrapper refused before Xcode
+because this sandbox cannot inspect active `xcodebuild` processes. No new
+full-target build or Simulator XCTest result is claimed.
+
+No endpoint, request/response JSON, server revocation receipt, Auth transition
+value, persistent state, Keychain key, RevenueCat behavior, SwiftData schema,
+feature flag, navigation, visible copy, backend behavior, deployment, or release
+control changes in this slice. The client continues to preserve only an
+authoritative `.authorized` credential and otherwise clears the exact
+still-matching local Apple session; it never reports server provider completion.
+
+### SupabaseManager Auth Integration Audit — Lifecycle Replay and OAuth Cancellation
+
+The post-extraction Auth integration audit closes two cross-coordinator races
+without returning orchestration to `SupabaseManager`. An SDK Auth event received
+while a transition owns the session is no longer discarded permanently.
+`AuthLifecycleReplayCoordinator` records only a genuinely deferred event and
+owns one replacement-safe main-actor task that snapshots the current SDK
+session, expiry, and Auth generation after transition finish. A newer SDK event
+cancels synthetic replay, while a newly admitted transition cancels the running
+attempt and carries the obligation to its next stable finish boundary. UUID
+compare-before-clear cleanup prevents a stale attempt from erasing replacement
+task state. The lifecycle coordinator also revalidates the exact nil SDK and
+published session, generation, cancellation state, and absence of a transition
+after suspended purchase sign-out before it clears linked-user, public-author,
+Apple-revocation, or Ghost-merge state.
+
+OAuth completion now treats cancellation as a first-class state at every
+suspension boundary. `OAuthSignInWorkflow` reports an explicit `installed`,
+`failed`, or `cancelled` replacement disposition, checks cancellation before and
+after SDK installation, and never retries cancelled Apple credential
+registration. `OAuthSignInCoordinator` repeats the fence after replacement,
+credential registration, metadata persistence, authenticated publication,
+telemetry, entitlement, exact-session readback, and public-author refresh.
+Pre-install cancellation may restore only the exact still-valid source session;
+post-install cancellation fails closed. The recovery coordinator's narrow
+`completeMutatedOAuthSession` entry policy then permits that already-mutated
+transition to complete terminal local cleanup despite caller cancellation. The
+ordinary recovery and pre-mutation paths retain active-caller admission, and
+pending purchase-handoff evidence remains fail-closed.
+
+At this audit checkpoint, the guarded Auth inventory contained 35 production
+files with seven explicit task owners. `SupabaseManager.swift` was 4,067 lines
+and remained the SDK/provider/live effect composition facade. Lifecycle coverage
+grows from 13 to 15 deterministic cases; the new replay suite owns five
+state/task cases; recovery grows from 15 to 16 cases; six OAuth suspension-gate
+cases cover replacement, Apple registration, metadata, telemetry, entitlement,
+and public-author refresh. The architecture guard freezes the new owner, task
+wiring, current-session postflight, cancellation disposition, cleanup entry
+policy, focused test names, and then-current 35-file inventory.
+
+A second integration review found that prebuilt lifecycle dependencies with
+strong facade captures defeated the replay scheduler's outer weak capture. The
+live assembly now captures `SupabaseManager` weakly for every lifecycle effect
+and returns a no-op or conservative unavailable value after facade teardown. The
+architecture suite rejects a strong capture and pins the weak purchase-principal
+and linked-user cleanup bindings. The deferred signed-out regression now enters
+through `AuthLifecycleReplayCoordinator` and asserts the complete cleanup
+sequence instead of calling the lifecycle handler directly.
+
+Verification passed byte-stable XcodeGen; generated-project/resource and source-
+membership guards; event-routing production and adversarial guards; the complete
+portable iOS CI-tooling suite; recursive Auth and focused architecture parsing;
+strict affected-source SwiftLint with zero violations; focused iOS Simulator SDK
+frontend typechecking for lifecycle replay, lifecycle projection, recovery,
+OAuth workflow/completion/cancellation, and the Swift Testing architecture
+source; all 56 focused cross-language Auth/deletion/purchase/documentation
+tests; the complete 1,944-test Edge Function suite with zero failures and one
+intentional ignore; recursive Function/script formatting across 852 files;
+changed-Markdown formatting; and whitespace validation. The canonical generic
+Simulator `build-for-testing` was attempted through `make ios-local-build`, but
+the wrapper refused before invoking Xcode because this environment cannot verify
+whether an `xcodebuild` process is active. No fresh iOS build, Simulator XCTest
+execution, or complete `merianTests` runtime result is claimed.
+
+The follow-up review additionally passed focused lifecycle/replay Swift
+typechecking, Swift Testing architecture-source typechecking, strict affected-
+source SwiftLint, byte-stable XcodeGen, project/source-membership and routing
+guards, the complete portable iOS CI-tooling suite, the focused eight-test
+Ghost/OAuth contract set, changed-Markdown formatting, and whitespace
+validation. The same local-build wrapper restriction remained, so the follow-up
+adds no Simulator runtime claim.
+
+This audit changes no endpoint, request/response JSON, Auth transition value,
+provider contract, Keychain format, RevenueCat identity, entitlement contract,
+SwiftData schema, feature flag, navigation, visible copy, backend behavior,
+deployment, or release control. No hosted operation was performed.
+
+### SupabaseManager OAuth Provider Authorization Coordination
+
+The post-audit OAuth provider slice removes Apple/Google framework presentation,
+provider callback handling, nonce/hash utilities, and presentation-context
+resolution from `SupabaseManager`. The facade preserves its public
+`signInWithGoogle()` and `startAppleSignIn()` signatures and now only assembles
+live Supabase session completion, authenticated Apple credential registration,
+and rollback effects.
+
+`OAuthProviderSignInCoordinator` owns transition admission, Google provider-
+return verification/recovery, Apple callback acceptance, and one retained Apple
+completion task with UUID compare-before-clear cleanup and immediate cancel-and-
+release teardown. Its injected dependency package contains only provider-neutral
+closure boundaries. The existing `OAuthSignInCoordinator` remains the single
+owner of session installation, direct same-UUID linking or provider-bound Ghost
+fallback, metadata, purchase, entitlement, public-author, and
+authenticated-marker completion.
+
+Focused Auth Services now own the live edges:
+
+- `GoogleOAuthAuthorizationLiveProvider` owns Google SDK presentation, result
+  mapping, and cancellation checks immediately before SDK entry and after
+  provider return.
+- `AppleOAuthAuthorizationLiveProvider` owns the exact authorization controller,
+  delegate and presentation callback, anchor, nonce, SHA-256 hash, raw
+  credential extraction, and mapping of the one-use authorization code into an
+  identity-token-free provider-neutral durable-registration value. The OAuth
+  credentials remain the sole native identity-token owner, and the facade
+  adapter forwards that exact token after session installation. The provider
+  rejects an overlapping start and releases only the matching attempt.
+- `OAuthPresentationContextResolver` owns the existing
+  key-window/root-controller policy, and `OAuthProviderSignInLiveDiagnostics`
+  owns privacy-safe provider-stage logging.
+
+The guarded Auth inventory is now 41 production files with eight explicit task
+owners, and `SupabaseManager.swift` is 3,862 lines. Fourteen
+provider-coordinator, five Google live-provider, and ten Apple live-provider
+cases freeze ordering, mapping, cancellation, callback/transition ownership,
+controller retention, overlap rejection, mutation-aware rollback, credential
+validation, nonce, and hash behavior. The Core Network architecture guard
+freezes the new owners, focused test inventory, provider-neutral dependency
+exclusions, sole framework Services, exact facade delegation/assembly, and
+removal of every retired provider concern from the manager. The cross-language
+account-deletion contract now reads the Apple provider, provider coordinator,
+facade registration assembly, and shared OAuth completion owners directly.
+
+The follow-up review removed a duplicated Apple identity-token field from the
+registration presentation value. Swift architecture and cross-language guards
+now reject reintroducing a second token source or forwarding a token other than
+the exact OAuth credential used to install the session. It also requires
+provider-task cancellation to release its retained handle and UUID before
+issuing cancellation.
+
+The final documentation audit names the live Apple authorization provider as the
+raw-credential mapper, the provider coordinator as callback/task owner, and
+`SupabaseManager` only as the Supabase session and authenticated registration
+endpoint effect assembler. The testing matrix likewise assigns provider SDK
+presentation, mapping, cancellation, and observer behavior to the focused
+provider suites rather than the aggregate manager suite.
+
+Verification passed byte-stable XcodeGen; generated-project/resource and source-
+membership guards; event-routing production and adversarial guards; recursive
+Swift parsing; strict affected-source SwiftLint with zero violations; warnings-
+as-errors Swift 6 complete-concurrency typechecking of the extracted production
+owners and all three focused XCTest sources; Swift Testing macro typechecking of
+the Core Network architecture source; the complete portable iOS CI-tooling and
+Supabase tooling/DTO contract suites; the focused six-case account-deletion and
+26-case documentation Deno contracts; recursive Function/script formatting
+across 852 files; Supabase skill-link verification; changed-Markdown formatting;
+and whitespace validation. The canonical generic Simulator `build-for-testing`
+was attempted through `make ios-local-build`, but the wrapper refused before
+invoking Xcode because this sandbox cannot verify whether an `xcodebuild`
+process is active. Focused typechecking is supplemental evidence, not a full
+target compile. No fresh iOS build, Simulator XCTest, or complete `merianTests`
+runtime result is claimed.
+
+This slice changes no endpoint, JSON payload, Apple registration semantics,
+Supabase Auth transition value, persistent state, Keychain key, RevenueCat or
+entitlement behavior, SwiftData schema, feature flag, navigation, visible copy,
+backend behavior, deployment, or release control. No hosted operation was
+performed.
+
+### SupabaseManager Apple Credential-registration Transport Extraction
+
+This Auth slice moves the Apple revocation-credential Function boundary out of
+`SupabaseManager.swift` without moving transition authority. The provider-
+neutral `AppleOAuthCredentialRegistrationService` owns the injected operation
+and strict `success == true`, `status == "registered"` receipt contract. Its
+`+Live` adapter alone imports Supabase and owns the private snake-case request
+and response DTOs, lowercased registration UUID, and authenticated
+`register-apple-revocation-token` invocation. The manager continues to bracket
+that injected suspension with the exact active transition and expected-user
+checks, and `OAuthSignInWorkflow` continues to own the bounded same-registration
+retry.
+
+The guarded Auth inventory is now 43 production files, and
+`SupabaseManager.swift` is 3,844 lines. Three focused service cases freeze exact
+value forwarding, acceptance of only the registered receipt, and unchanged
+transport-error propagation. The Core Network architecture guard freezes sole
+wire ownership, exactly one live invocation per service call, the absence of
+adapter-owned retry policy, asynchronous task, facade, or alternate transport,
+manager composition and fencing, provider-neutral dependency exclusion,
+lowercase UUID serialization, and the focused test inventory. The cross-language
+account-deletion guard reads both new owners, repeats those adapter-ownership
+assertions, and rejects route or DTO reacquisition by the manager.
+
+The documentation follow-up records that boundary in the Auth and Core Network
+READMEs, codebase map, API and Apple deletion contracts, testing strategy,
+manager and identity guides, Supabase overview, and affected Function READMEs.
+The executable documentation contract now requires the canonical surfaces to
+retain the one-invocation-per-call boundary and state that the adapter owns
+neither retry policy nor asynchronous task state.
+
+This slice changes no Function route, JSON field, retry count, Apple credential
+source, receipt semantics, Auth transition, session-cleanup behavior, persisted
+state, Keychain contract, SwiftData schema, feature flag, navigation, visible
+copy, backend implementation, deployment, or release control. No hosted
+operation was performed.
+
+Verification passed byte-stable XcodeGen; generated-project resource and source-
+membership guards; event-routing production and adversarial guards; affected-
+source Swift parsing; strict affected-source SwiftLint with zero violations;
+warnings-as-errors Swift 6 complete-concurrency typechecking of both production
+service owners and the focused XCTest source; Swift Testing macro typechecking
+of the Core Network architecture source; the complete portable iOS CI-tooling
+and Supabase tooling/DTO contract suites; the focused six-case account-deletion
+and 26-case documentation contracts; recursive Function/script formatting across
+852 files; Supabase skill-link verification; changed-Markdown formatting; and
+whitespace validation. The canonical generic Simulator `build-for-testing` was
+attempted through `make ios-local-build`, but the wrapper refused before
+invoking Xcode because this sandbox cannot verify whether an `xcodebuild`
+process is active. Focused typechecking is supplemental evidence, not a full
+target compile. No fresh iOS build, Simulator XCTest, or complete `merianTests`
+runtime result is claimed.
+
+### SupabaseManager Fallback Authentication Callback Coordination
+
+This Auth slice moves fallback authentication URL admission, session replacement
+sequencing, same-account target validation, purchase-identity and entitlement
+ordering, completion, and mutation-aware failure recovery out of
+`SupabaseManager.swift`. The provider-neutral
+`AuthenticationCallbackCoordinator` and its injected dependency package own the
+workflow without creating an asynchronous task. The focused live diagnostics
+adapter owns the existing privacy-safe log messages.
+
+The public `handleAuthenticationCallbackURL(_:)` signature and its caller
+contract remain unchanged. `SupabaseManager` remains the live composition edge:
+it converts the URL through Supabase Auth, adapts the captured SDK session,
+publishes observable Auth state, resolves RevenueCat purchase identity, starts
+the entitlement session, writes the authenticated-OAuth Keychain marker, and
+performs transition-owned local cleanup. No singleton or provider SDK crosses
+into the coordinator.
+
+The extracted policy preserves the existing product boundary. A fallback URL may
+establish a session when there is no local source session or refresh the exact
+existing linked account. It cannot upgrade an anonymous profile or replace a
+different linked account. Pending purchase handoffs and concurrent Auth
+transitions reject the callback before session installation. The shared OAuth
+replacement workflow preserves cancellation classification and reconciliation,
+and cleanup occurs when an SDK session mutation was observed or the exact source
+session was not restored. A post-preflight cancellation stops before
+installation, while a sign-out state observed after installation prevents the
+callback from republishing or completing the session.
+
+A post-extraction review closed the remaining cleanup race in both OAuth and
+fallback-callback replacement. Immediately after a live SDK install returns, the
+facade now records the mutation and adopts that exact SDK identity as the active
+transition expectation before any post-install cancellation check. This
+expectation is recovery evidence rather than callback acceptance: source/target
+policy still runs before publication, while cancelled or rejected work can now
+clear the exact installed identity without permitting cleanup of a later,
+unrelated account. Focused cancellation, recovery, callback, and architecture
+regressions freeze that ordering.
+
+The guarded Auth inventory is now 46 production files, with eight asynchronous
+task owners. Every new production owner remains below the 600-line review
+ceiling. `SupabaseManager.swift` is 3,860 lines; this extraction deliberately
+prioritizes isolating orchestration and live-effect ownership over a net
+line-count reduction in the composition facade.
+
+Fifteen deterministic `AuthenticationCallbackCoordinatorTests` cases cover
+success ordering, pending-handoff, transition and sign-out overlap, anonymous
+and different-account refusal, exact-account refresh, installation failure
+before and after SDK mutation, pre-install and suspended-phase cancellation,
+mutation-aware cleanup, purchase readiness, and final-session drift. The Core
+Network architecture contract freezes the thin facade, live effect assembly,
+provider-neutral exclusions, diagnostic copy, test inventory, and exact Auth
+owner inventory.
+
+Verification passed byte-stable XcodeGen regeneration; generated-project and
+source-membership validation; event-routing production and adversarial guards;
+focused Swift parsing; strict affected-source SwiftLint with zero violations;
+warnings-as-errors Swift 6 complete-concurrency typechecking of the extracted
+production and test owners; an executable 15-case host-compatible coordinator
+harness; an executable focused Core Network architecture check; the complete
+portable iOS CI-tooling and Supabase tooling/DTO contract suites; recursive
+Function/script formatting across 852 files; Supabase skill-link verification;
+changed-Markdown formatting; and whitespace validation. The canonical generic
+Simulator `build-for-testing` was attempted through `make ios-local-build`, but
+the wrapper refused before invoking Xcode because this sandbox cannot verify
+whether an `xcodebuild` process is active. Focused typechecking is supplemental
+evidence, not a full target compile. No fresh iOS build, Simulator XCTest, or
+complete `merianTests` runtime result is claimed for this slice.
+
+This slice changes no endpoint, JSON payload, Auth provider policy, callback
+route, SwiftData schema, persistent-state shape, feature flag, navigation,
+visible copy, backend implementation, deployment, or release control. No hosted
+operation was performed.
+
+### Final Auth Integration Audit
+
+The 2026-09-15 Auth-wide integration audit reviewed all forty-six extracted
+production Auth files, the eight coordinator-owned structured tasks, the
+manager-owned SDK listener and sign-out task, lifecycle replay, OAuth and
+fallback completion, deletion/recovery, public-author refresh, Ghost merge, and
+stable/compatibility purchase-continuity handoffs as one system. The independent
+read-only trace found no P1 regression and confirmed that transition, session,
+Auth-generation, durable-proof, and compare-before-clear ownership remains
+centralized and non-overlapping.
+
+The audit and its adversarial follow-up close six narrower completion gaps:
+
+- loaded and newly created bootstrap sessions now repeat cancellation after
+  purchase-identity readiness and cannot return an identity from a cancelled
+  coordinator task;
+- an unsafe Apple credential-state result reaches local recovery only through a
+  live exact-identity/no-replacement-transition admission. Rejection retains the
+  notification for the next stable Auth context;
+- terminal cleanup repeats its expected/current-session fence after account-work
+  quiescence, so a replacement session cannot be signed out;
+- a purchase-handoff-blocked recovery reports a distinct outcome, retains the
+  Apple signal without immediately starting another lookup, and resumes it when
+  the centralized aggregate handoff publication becomes false. A clear
+  diagnostic is emitted only after cleanup completes;
+- an Auth context change that finishes while terminal clear is suspended is
+  detected when a deferred result returns, so the stale attempt revalidates
+  instead of losing the earlier lifecycle wakeup; and
+- a stale Apple provider callback idempotently finishes its superseded token
+  without disturbing the replacement transition.
+
+Two new bootstrap cases, the replacement-during-quiescence recovery case, and
+four Apple revocation cases make those races deterministic. The focused
+inventories are now twenty bootstrap tests, seventeen recovery tests, seventeen
+Apple revocation coordinator tests, and fourteen provider-sign-in coordinator
+tests. `CoreNetworkIntegrationArchitectureTests` freezes both post-readiness
+cancellation fences, typed terminal-clear outcomes, the live exact-identity
+adapter, post-quiescence session fencing, stable-context replay, aggregate
+handoff-fence wakeup, deferred-clear context-change replay, direct-setter
+centralization, and stale-callback token retirement. The Auth package remains at
+forty-six production files, every extracted owner remains below 600 lines, and
+`SupabaseManager.swift` is 3,878 lines.
+
+The synchronized documentation now carries that terminal-clear contract through
+the Auth and Core Network ownership guides, app lifecycle, system overview, API
+contracts, Apple account-deletion guidance, revenue and identity guidance,
+logging operations, testing strategy, codebase map, documentation index, and
+changelog. The executable documentation contract asserts the post-quiescence
+session fence, typed completion/deferral result, aggregate purchase-handoff
+wakeup, lost-wakeup replay, and completion-only clearing diagnostic so those
+cross-document claims cannot silently drift.
+
+Verification for the adversarial follow-up passed direct Swift parsing;
+warnings-as-errors Swift 6 complete-concurrency typechecking of the focused
+production owners, test sources, and live assembly shape; an executable 68-case
+host-compatible bootstrap/recovery/revocation/provider matrix; and all thirteen
+executable Core Network integration architecture contracts. The 26-case
+documentation contract, recursive Function/script formatting across 852 files,
+format checks for all 39 changed Markdown files, production and adversarial
+event-routing guards, source-membership guard, versioning and Xcode release-
+workflow invariants, Supabase skill-link verification, and whitespace validation
+also pass. `make xcodegen`, generated-project/resource validation, the remaining
+portable iOS tooling scripts, the canonical generic Simulator build, and strict
+affected-source SwiftLint are blocked before meaningful execution because the
+local Xcode license is not accepted; SwiftLint consequently cannot load
+SourceKitten. Focused typechecking and the host-compatible runner are
+supplemental evidence, not a fresh app-target build or Simulator XCTest result.
+Neither a complete `merianTests` runtime result nor Simulator execution is
+claimed for this audit.
+
+This audit changes no endpoint, JSON payload, SDK Auth transition value,
+provider contract, Keychain or purchase-proof format, RevenueCat identity,
+entitlement contract, SwiftData schema, feature flag, navigation, visible copy,
+backend behavior, deployment, or release control. No hosted operation was
+performed.
+
+### SupabaseManager Purchase-continuity Source Handoff Extraction
+
+This Auth slice moves the remaining source-side purchase-continuity journal,
+preparation, exact-source abandonment, and failed-sign-out restoration logic out
+of `SupabaseManager.swift`. `PurchaseIdentitySourceHandoffCoordinator` owns the
+aggregate fail-closed projection and exact-session orchestration through a
+narrow dependency package. `PurchaseIdentityHandoffAuthJournal` is the sole Auth
+adapter over Core Security's store and preserves the established distinction:
+load/persist store failures become Auth-transition errors, while verified clear
+failures retain their underlying diagnostic.
+
+Core Security's `PurchaseHandoffPreparationCoordinator` owns proof construction
+and durability order. Protocol-3 preparation writes `preparing` evidence before
+remote work and the server-authorized `prepared` evidence before honoring
+post-response cancellation. Compatibility preparation maps and persists the
+returned proof before its cancellation checkpoint. `SupabaseManager` remains the
+live composition root and the sole direct publisher into RevenueCat's
+purchase-handoff mutation fence; it no longer owns journal codecs, source-side
+phase sequencing, or proof construction.
+
+The guarded Auth inventory is now 49 production files and
+`SupabaseManager.swift` is 3,692 lines. Fourteen source-coordinator cases, three
+Auth-journal cases, and five preparation-coordinator cases freeze fail closure,
+session drift, exact-source retirement, unowned account-work lifetime,
+pre-dispatch and pre-removal invalidation, stale-cancel proof retention,
+restoration order, exact error adaptation, durability checkpoints, and
+stable/compatibility cancellation behavior. The Core Network and Purchase
+Principal architecture suites plus the cross-language purchase-principal
+contract freeze the new owner inventory, dependency exclusions, manager
+delegation, retired helper absence, and unchanged route linkage.
+
+Verification passed byte-stable XcodeGen regeneration; generated-project and
+source-membership validation; Swift parsing and strict affected-source
+SwiftLint; warnings-as-errors complete-concurrency typechecking; executable
+focused source-handoff, journal, preparation, Core Network architecture, and
+Purchase Principal architecture tests; and the 16-case cross-language
+purchase-principal contract. The canonical Simulator `build-for-testing` was
+attempted through `make ios-local-build`, but the wrapper refused before Xcode
+because this sandbox cannot inspect active processes. No fresh app-target build,
+Simulator XCTest, or complete `merianTests` runtime result is claimed.
+
+This slice changes no endpoint, JSON field, request action, server behavior,
+local journal format, Keychain key or accessibility, RevenueCat behavior,
+entitlement order, Auth transition contract, SwiftData schema, feature flag,
+navigation, visible copy, deployment, or release control. No hosted operation
+was performed.
+
+### Auth Post-extraction Integration Audit
+
+The closure audit reviewed the complete 49-file Auth package together with its
+Core Security purchase-proof owners, `SupabaseManager` live composition, and
+both purchase-continuity Edge contracts. The package remains within its hygiene
+guard: 6,684 production lines total and no production file above 520 lines.
+Stable and compatibility payloads, exact-session and account-work fences,
+write-ahead proof durability, fail-closed journal projection, same-context
+single-flight behavior, and proof-removal-last ordering remain aligned across
+iOS and the server parsers. Independent concurrency/security and cross-surface
+contract reviews found no P1 or P2 implementation defect.
+
+One P3 cancellation inconsistency was corrected. Compatibility source
+preparation now checks cancellation immediately after its final suspended SDK
+session read, so a cancelled transition cannot return success or publish the
+preparation-success diagnostic. A deterministic suspension test cancels during
+that exact read and freezes the no-completion behavior. The source-coordinator
+inventory is therefore fifteen cases; the canonical Auth, Core Network, Purchase
+Identity, codebase map, API, architecture, Keychain, revenue, and testing
+ownership documents now agree, and the executable documentation contract
+requires both that inventory and the final-read regression. The preceding
+extraction record deliberately retains its fourteen-case executed baseline; this
+audit adds the fifteenth case without claiming fresh Simulator execution.
+
+Verification passed byte-stable XcodeGen regeneration; generated-project and
+source-membership validation; Swift parsing and focused production/Swift Testing
+typechecking; strict affected-source SwiftLint with zero violations;
+event-routing validation and adversarial tests; the full portable iOS CI-tooling
+suite; the 26-case documentation contract; the 16-case purchase-principal
+contract; all 265 standard Supabase tooling tests; both isolated DTO suites with
+19 cases; both shared wire-contract suites with 20 cases; recursive formatting
+checks across 852 Function/script files; Markdown format validation; and
+whitespace validation. The canonical generic Simulator `build-for-testing` was
+attempted through `make ios-local-build`, but the wrapper refused before
+invoking Xcode because this sandbox cannot inspect whether `xcodebuild` is
+active. No fresh app-target build, Simulator XCTest, or complete `merianTests`
+runtime result is claimed for this audit.
+
+The audit changes no endpoint, JSON field, action, persisted proof shape,
+Keychain key or accessibility, RevenueCat identity behavior, entitlement order,
+Auth transition contract, SwiftData schema, feature flag, navigation, visible
+copy, deployment, or release control. No hosted operation was performed.
+
+### SupabaseManager Auth Runtime State Extraction
+
+This slice moves the remaining process-local Auth transition bookkeeping out of
+`SupabaseManager.swift` and into the 181-line, main-actor observable
+`AuthRuntimeState`. The new owner composes the existing value-state machines and
+owns the active transition, Auth-session generation, transition analytics
+generations, exact-session work leases and drain waiters, and local sign-out
+state. It acquires no provider or Supabase SDK, singleton, store, endpoint,
+logger, or asynchronous task. `SupabaseManager` remains the live Auth facade: it
+retains the SDK listener and facade sign-out task, supplies live effects, and
+delegates mutable runtime bookkeeping through unchanged external entry points.
+
+Listener ordering remains explicit and guarded. Each SDK event advances the
+runtime generation, notifies Apple credential-revocation coordination that the
+Auth context changed, and only then lets the transition state observe the event.
+This preserves invalidation timing while allowing the transition owner to adopt
+the exact event generation. Transition finish still removes and returns its
+analytics generation before the facade reopens inference writes and resolves the
+account projection. Account-work drains still resume only after every exact
+lease is released.
+
+The guarded Auth inventory is now 50 production files and 6,865 lines, with no
+production owner above 520 lines; `SupabaseManager.swift` is 3,666 lines. The
+six-case `AuthRuntimeStateTests` suite freezes observable transition
+invalidation, exclusive transition and analytics completion, expected and
+unexpected event generations, dual-projection exact-session lease admission,
+multi-lease drain completion, and sign-out invalidation. The Core Network
+architecture suite freezes the new owner, retired facade storage, dependency
+exclusions, exact 50-file inventory, 600-line ceiling, focused-test inventory,
+and live-listener order.
+
+Verification passed byte-stable XcodeGen regeneration; generated-project,
+resource, and source-membership validation; Swift parsing; strict affected-file
+SwiftLint with zero violations; Swift 6 warnings-as-errors complete-concurrency
+typechecking of the focused production owner and XCTest suite; all thirteen
+executable Core Network architecture tests; all six executable Auth runtime
+state tests; and the complete portable iOS CI-tooling suite. The 26-case
+documentation contract, formatting checks for all changed Markdown,
+event-routing guard, and whitespace validation also pass. The canonical generic
+Simulator `build-for-testing` was attempted through `make ios-local-build`, but
+the wrapper refused before invoking Xcode because this sandbox cannot inspect
+whether `xcodebuild` is active. No fresh app-target build, Simulator XCTest, or
+complete `merianTests` runtime result is claimed for this slice.
+
+This extraction changes no endpoint, JSON field, request action, SDK Auth
+transition value, observable public signature, persisted shape, Keychain key or
+accessibility, RevenueCat identity behavior, entitlement order, SwiftData
+schema, feature flag, navigation, visible copy, backend behavior, deployment, or
+release control. No hosted operation was performed.
+
+### SupabaseManager OAuth SDK Session Boundary Extraction
+
+This slice moves the remaining OAuth-specific Supabase Auth adaptation out of
+`SupabaseManager.swift` and into the focused, initializer-injected
+`OAuthSessionService` plus its `+Live` adapter. The service maps Apple and
+Google provider-neutral credentials to OIDC credentials, projects SDK sessions
+back to the provider-neutral identity, and constructs the established
+`full_name` / `name`, `given_name`, `family_name`, `avatar_url` / `picture`
+metadata aliases. The live adapter alone performs the OAuth session
+read/current-session snapshot, identity link, ID-token installation, and
+user-metadata update calls.
+
+Transition ownership does not move. `SupabaseManager` still performs exact-
+session admission before and after suspended work, replacement reconciliation,
+current-user/authenticated publication, provider-specific privacy-safe
+diagnostics, and mutation-aware cleanup. `OAuthSignInCoordinator` and
+`OAuthSignInWorkflow` retain provider-neutral completion order, cancellation,
+and installed/failed/cancelled disposition policy. The new service creates no
+task, resolves no singleton, owns no logger, and introduces no broad protocol.
+
+The guarded Auth inventory is now 52 production files and 7,020 lines, with no
+production owner above 520 lines; `SupabaseManager.swift` falls from 3,666 to
+3,654 lines after the integration-audit safety fix. Seven deterministic
+`OAuthSessionServiceTests` cases freeze SDK session read/snapshot forwarding,
+Apple and Google credential mapping, identity projection, canonical metadata
+aliases, empty-update suppression, and error propagation. The Core Network
+architecture guard freezes both service owners, retired facade helpers, exact
+52-file inventory, and focused-test inventory. Its whole-Network scan requires
+OIDC and `UserAttributes` construction to remain exclusive to the service core
+and direct Supabase Auth link, ID-token install, and metadata-update calls to
+remain exclusive to the `+Live` adapter. The Ghost merge cross-surface contract
+now requires manager delegation for both direct identity linking and
+replacement-session installation, requires the live adapter to own both SDK
+operations, and rejects either direct call or the retired credential helper
+returning to the facade. A second review found no production defect; it closed
+these two executable-contract gaps before handoff.
+
+The subsequent Auth/SupabaseManager integration audit found and fixed two
+cross-slice lifecycle defects. Facade teardown now explicitly cancels the
+extracted purchase-handoff and purchase-identity resolution tasks, preserving
+the pre-extraction shutdown contract. OAuth replacement now forwards a mutation
+observer to the actual live SDK-install boundary and raises it before the
+workflow's post-install cancellation check; recovery can no longer misclassify
+an installed session when cancellation prevents the helper from returning. A
+follow-up review closed the remaining exact-cleanup gap by recording the
+installed SDK identity as the owning transition's expectation at that same
+boundary. The deterministic cancellation harness models that exact overlap, and
+the Core Network architecture suite freezes observer/adoption order, both
+replacement branches, the complete facade teardown list, and the reviewed
+generic Supabase Auth calls that intentionally remain in `SupabaseManager`.
+
+The documentation follow-up reconciles the Core overview with the final
+3,654-line facade, distinguishes recovery-only exact-target transition adoption
+from successful account publication, and carries that invariant through the iOS
+ownership map, product identity guide, Apple authorization contract, Ghost merge
+Function README, and canonical API contract. The cross-language Ghost contract
+also follows the renamed `replaceAndAdoptSession` boundary and exact-target
+cancellation regression. No endpoint, payload, persistence, or hosted behavior
+changes in this documentation pass.
+
+Verification passed byte-stable XcodeGen regeneration; generated-project,
+resource, and source-membership validation; Swift parsing; strict affected-file
+SwiftLint with zero violations; warnings-as-errors Swift 6 focused production
+and XCTest typechecking; all thirteen executable Core Network architecture
+tests; the Ghost merge and account-deletion client-source contracts; the
+canonical Supabase test task with 1,944 passes and one intentional ignore; the
+portable iOS CI-tooling suite; recursive Supabase Function/script formatting;
+Markdown formatting; and whitespace validation. The canonical generic Simulator
+`build-for-testing` was attempted through `make ios-local-build`, but the
+wrapper refused before invoking Xcode because this sandbox cannot inspect
+whether `xcodebuild` is active. No fresh app-target build, Simulator XCTest, or
+complete `merianTests` runtime result is claimed for this slice.
+
+The integration-audit follow-up again passed byte-stable XcodeGen, generated-
+project/source-membership and event-routing guards, strict affected-source
+SwiftLint, Swift parsing, Swift 6 complete-concurrency production and focused
+XCTest typechecking, the executable 13-case Core Network architecture suite, a
+host-executable mutation/cancellation overlap, the Ghost merge, account-
+deletion, and purchase-principal client contracts, the complete portable iOS CI
+tooling suite, the canonical Supabase tooling task, recursive Function/script
+formatting, Markdown formatting, and whitespace validation. The canonical
+generic Simulator build was attempted in both shared and isolated wrapper modes;
+both refused before invoking Xcode because the host cannot inspect active
+`xcodebuild` processes. No fresh app-target build or Simulator XCTest result is
+claimed.
+
+This extraction changes no endpoint, JSON field, request action, SDK Auth
+transition rule, observable public signature, persisted shape, Keychain key or
+accessibility, RevenueCat identity behavior, entitlement order, SwiftData
+schema, feature flag, navigation, visible copy, backend behavior, deployment, or
+release control. No hosted operation was performed.
+
+### SupabaseManager Auth Session Lifecycle Live Boundary Extraction
+
+This slice moves SDK Auth stream/task ownership, SDK-state mapping, exact
+current-session replay validation, lifecycle diagnostics, and retained
+historical-synchronization work out of `SupabaseManager.swift`. The focused
+`AuthSessionLifecycleLiveProvider` owns one replaceable listener task, composes
+the existing provider-neutral replay coordinator, and calls the existing
+session-lifecycle coordinator through weak facade dependencies. Replacing the
+listener cancels its task and clears the replaced listener's deferred replay
+obligation; a post-coordinator cancellation fence rejects the replaced
+operation's trailing credential effect. Its `+Live` adapter alone subscribes to
+`authStateChanges` and reads the current lifecycle session.
+`AuthHistoricalSessionSyncLiveService` retains every admitted history task and
+cancels outstanding work on teardown; its `+Live` adapter alone owns the model-
+context, timestamp, preferred-name, and historical-scan effects.
+`AuthSessionLifecycleLiveDiagnostics` owns privacy-safe log adaptation.
+
+Listener semantics remain exact. Each SDK event advances the Auth generation,
+invalidates Apple credential-revocation context, updates transition state, reads
+the deletion barrier, records deferred-replay state, runs provider-neutral
+lifecycle projection, and only then resumes deferred credential revalidation.
+Synthetic replay captures one SDK snapshot and rejects cancellation, a new Auth
+generation, an active transition, expiry drift, or identity drift both before
+projection and before revocation resume. Historical synchronization stamps its
+throttle before preferred-name work, repeats the exact published-session fence
+before scan history, and cannot survive facade teardown.
+
+The guarded Auth inventory is now 57 production files and 7,360 lines, with no
+production owner above 520 lines; `SupabaseManager.swift` falls from 3,654 to
+3,545 lines. Seven deterministic lifecycle-provider cases freeze SDK-state
+projection, listener prelude order, deferred current-state replay, stale
+snapshot rejection, replacement-listener cleanup, canceled trailing-effect
+rejection, and suspended-listener teardown. Three deterministic history-service
+cases freeze stamp/preference/scan order, post-preference session drift, and
+suspended-work teardown. The Core Network architecture suite freezes the exact
+inventory, sole live SDK stream owner, weak facade captures, retained task
+owners, listener order and replacement cleanup, cancellation fencing,
+diagnostics ownership, focused tests, facade teardown, and absence of the
+retired listener/replay fields and helpers.
+
+The review follow-up closed two replacement edges in that live owner. Starting a
+replacement listener now clears a deferred replay obligation created by its
+predecessor, and a listener canceled while lifecycle coordination is suspended
+cannot resume deferred Apple credential work after it returns. Dedicated
+regressions suspend and replace the listener to prove both boundaries.
+
+The documentation follow-up carries those replacement and trailing-effect
+boundaries through the Core, Core Network, Core Security, app-lifecycle,
+core-manager, Revenue and Identity, Onboarding, codebase-map, system-overview,
+and purchase-principal ownership summaries. The focused Auth README, testing
+strategy, and event-routing guide retain the detailed owner and regression
+matrix.
+
+The review rerun used the installed Swift 6.4 compiler while retained Supabase
+modules were still built with Swift 6.3.3. The changed production and XCTest
+sources therefore also passed strict complete-concurrency typechecking against a
+temporary minimal `User` boundary; that supplemental check does not replace the
+earlier real-SDK typecheck or a fresh Xcode build.
+
+Verification passed XcodeGen regeneration, generated-project/resource and
+source-membership validation, Swift parsing, strict affected-source SwiftLint
+with zero violations, focused iOS Simulator SDK production and XCTest
+typechecking, standalone Swift Testing architecture-suite typechecking, the
+exact Auth owner inventory comparison, skill-link validation, and whitespace
+validation, plus changed-Markdown formatting and all 26 documentation/local-link
+contracts. The canonical generic Simulator `build-for-testing` was attempted
+through `make ios-local-build`, but the wrapper refused before invoking Xcode
+because this sandbox cannot inspect whether `xcodebuild` is active. No fresh
+app-target build, Simulator XCTest, or complete `merianTests` runtime result is
+claimed for this slice.
+
+This extraction changes no endpoint, JSON field, request action, SDK Auth
+transition or cold-start rule, observable public signature, persistence,
+Keychain, RevenueCat or entitlement ordering, SwiftData schema, feature flag,
+navigation, visible copy, backend behavior, deployment, or release control. No
+hosted operation was performed.
+
+### SupabaseManager Auth Session Bootstrap Live Boundary Extraction
+
+This slice moves bootstrap-only Supabase Auth adaptation out of
+`SupabaseManager.swift`. `AuthSessionBootstrapLiveService` projects cached,
+loaded, and newly anonymous SDK sessions into the established bootstrap identity
+and expiry value and owns the existing exact `AuthError.sessionMissing` plus
+compatibility-description classification. Its `+Live` adapter is the sole owner
+of bootstrap `session`, `currentSession`, and `signInAnonymously()` calls.
+`AuthSessionBootstrapLiveDiagnostics` owns the unchanged privacy-safe log copy.
+
+Transition and product behavior do not move. `AuthSessionBootstrapCoordinator`
+continues to own sign-out waiting, account-work quiescence, complete-token keyed
+task lifetime, true-missing-only anonymous creation, cancellation, adoption,
+publication order, purchase readiness, and final exact-session admission.
+`SupabaseManager` composes the SDK user into those injected publication and
+readiness effects and preserves `initializeGhostSession(...) -> User?` without
+acquiring the SDK operations or error classifier directly.
+
+The guarded Auth inventory is now 60 production files and 7,490 lines, with no
+production owner above 520 lines; `SupabaseManager.swift` falls from 3,545 to
+3,520 lines. Five deterministic bootstrap-live-service cases freeze cached and
+loaded identity/expiry projection, newly anonymous fresh-session projection, SDK
+and compatibility missing-session classification, unrelated-error rejection, and
+SDK failure forwarding. The Core Network architecture suite freezes the three
+focused owners, sole anonymous-sign-in ownership, facade delegation, diagnostics
+ownership, exact inventory, and focused tests. A second-pass security and
+concurrency review found no remaining actionable issue, and the checked-in
+Supabase Swift 2.54.1 resolution and source confirm the session, expiry,
+missing-session, and anonymous-sign-in APIs used by the live adapter. No
+corrective production edit was required after that review.
+
+Verification passed byte-stable XcodeGen regeneration, generated-project
+resource and source-membership validation, Swift parsing, strict affected-source
+SwiftLint with zero violations, strict Swift 6 complete-concurrency production
+and XCTest typechecking against a temporary minimal Supabase boundary, and the
+host-executable thirteen-case Core Network architecture suite. The canonical
+generic Simulator `build-for-testing` was attempted through
+`make ios-local-build`, but the wrapper refused before invoking Xcode because
+this sandbox cannot inspect whether `xcodebuild` is active. No fresh app-target
+build, Simulator XCTest, or complete `merianTests` runtime result is claimed for
+this slice.
+
+This extraction changes no endpoint, JSON field, request action, SDK Auth
+transition or bootstrap rule, observable public signature, persistence,
+Keychain, RevenueCat or entitlement order, SwiftData schema, feature flag,
+navigation, visible copy, backend behavior, deployment, or release control. No
+hosted operation was performed.
 
 ## Validation Gates
 

@@ -72,12 +72,7 @@ struct AccountDeletionRecoveryCapabilityStore {
             acknowledgementCapability: acknowledgementCapability
         )
         guard let encoded = try? JSONEncoder().encode(envelope),
-              secureStore.set(
-                encoded,
-                forKey: key,
-                accessibility: .whenUnlockedThisDeviceOnly
-              ),
-              try secureStore.dataOrThrow(forKey: key) == encoded else {
+              try persistVerified(encoded, forKey: key) else {
             throw AccountDeletionRecoveryCapabilityError.unavailable
         }
         return PreparedDeletionRecoveryCapability(
@@ -85,6 +80,34 @@ struct AccountDeletionRecoveryCapabilityStore {
             recoveryValue: Self.base64URL(recoveryCapability),
             acknowledgementValue:
                 Self.base64URL(acknowledgementCapability),
+            wasCreated: true
+        )
+    }
+
+    /// Creates the one-proof format only for an installed pre-capability
+    /// `intake_pending` recovery. That state must replay through the legacy
+    /// endpoint, so persisting a v2 envelope would make a later launch query
+    /// the wrong hash domain after an ambiguous or lost response. Fresh
+    /// deletion intake must continue to use `prepare()`.
+    func prepareLegacyIntake() throws -> PreparedDeletionRecoveryCapability {
+        let key = KeychainKeys.accountDeletionRecoveryCapability
+        if let existing = try secureStore.dataOrThrow(forKey: key) {
+            let capability = try Self.decode(existing, wasCreated: false)
+            guard capability.protocolVersion == 1 else {
+                throw AccountDeletionRecoveryCapabilityError.unavailable
+            }
+            return capability
+        }
+
+        let recoveryCapability = try generateCapability()
+        guard recoveryCapability.count == 32,
+              try persistVerified(recoveryCapability, forKey: key) else {
+            throw AccountDeletionRecoveryCapabilityError.unavailable
+        }
+        return PreparedDeletionRecoveryCapability(
+            protocolVersion: 1,
+            recoveryValue: Self.base64URL(recoveryCapability),
+            acknowledgementValue: nil,
             wasCreated: true
         )
     }
@@ -172,6 +195,18 @@ struct AccountDeletionRecoveryCapabilityStore {
             throw AccountDeletionRecoveryCapabilityError.unavailable
         }
         return bytes
+    }
+
+    private func persistVerified(_ data: Data, forKey key: String) throws
+        -> Bool {
+        guard secureStore.set(
+            data,
+            forKey: key,
+            accessibility: .whenUnlockedThisDeviceOnly
+        ) else {
+            return false
+        }
+        return try secureStore.dataOrThrow(forKey: key) == data
     }
 
     private static func decode(

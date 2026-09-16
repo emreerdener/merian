@@ -5064,18 +5064,27 @@ Deno.test("Ghost merge documentation preserves the release proof and recovery co
     runbookSource,
     changelogSource,
     incidentSource,
+    apiSource,
+    testingSource,
+    securitySource,
   ] = await Promise.all([
     read("services/supabase/README.md"),
     read("services/supabase/functions/merge-ghost-profile/README.md"),
     read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
     read("CHANGELOG.md"),
     read("docs/incidents/2026-08-ghost-merge-species-ledger-underflow.md"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("docs/development-guides/08-testing-strategy.md"),
+    read("apps/ios/Merian/Core/Security/README.md"),
   ]);
   const backend = compact(backendSource);
   const functionReadme = compact(functionSource);
   const runbook = compact(runbookSource);
   const changelog = compact(changelogSource);
   const incident = compact(incidentSource);
+  const api = compact(apiSource);
+  const testing = compact(testingSource);
+  const security = compact(securitySource);
 
   for (const source of [backend, functionReadme, runbook, incident]) {
     assertStringIncludes(
@@ -5120,6 +5129,22 @@ Deno.test("Ghost merge documentation preserves the release proof and recovery co
     ]
   ) {
     assertStringIncludes(`${backend} ${functionReadme} ${runbook}`, fragment);
+  }
+
+  assertStringIncludes(
+    api,
+    "Before invoking prepare, the native coordinator requires the owned Auth transition to encode the same provider.",
+  );
+  assertStringIncludes(
+    testing,
+    "provider-to-transition rejection before remote work",
+  );
+  assertStringIncludes(
+    security,
+    "source-session validation before and after that suspension",
+  );
+  for (const source of [functionReadme, runbook]) {
+    assertStringIncludes(source, "every exact retired Ghost helper exclusion");
   }
 
   for (
@@ -5792,6 +5817,114 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
     "requires both `identityToken` and `authorizationCode`",
   );
   assertStringIncludes(network, "getCredentialState");
+  assertStringIncludes(network, "AppleCredentialRevocationCoordinator");
+  assertStringIncludes(network, "Auth-context generation");
+  assertStringIncludes(
+    network,
+    "live terminal-clear adapter rechecks the captured identity",
+  );
+  assertStringIncludes(
+    network,
+    "reports a typed cleared, rejected, or purchase-handoff-blocked outcome",
+  );
+  assertStringIncludes(
+    testingStrategy,
+    "stable-context revalidation after rejected clear admission",
+  );
+  assertStringIncludes(
+    testingStrategy,
+    "recovery deferral without immediate retry",
+  );
+  assertStringIncludes(
+    testingStrategy,
+    "context-change replay without a lost wakeup",
+  );
+  assertStringIncludes(
+    coreManagers,
+    "exact-identity clear closure accepts the captured Apple identity",
+  );
+  assertStringIncludes(
+    coreManagers,
+    "centralized aggregate handoff publication resumes it",
+  );
+  assertStringIncludes(
+    identityGuide,
+    "manager's centralized aggregate handoff publication resumes it",
+  );
+  assertStringIncludes(
+    api,
+    "repeats the expected/current-session check afterward",
+  );
+  assertStringIncludes(
+    canonical,
+    "context-change replay without a lost wakeup",
+  );
+  assertStringIncludes(
+    appLifecycle,
+    "typed terminal-clear outcome distinguishes completed cleanup",
+  );
+  assertStringIncludes(
+    docsIndex,
+    "after lookup and again after account-work quiescence",
+  );
+  assertStringIncludes(loggingGuide, "post-quiescence validation");
+  assertStringIncludes(
+    loggingGuide,
+    "no clearing diagnostic appears until local cleanup completes",
+  );
+  for (
+    const source of [canonical, backend, api, network, safeDelete, registration]
+  ) {
+    assertStringIncludes(source, "AppleOAuthCredentialRegistrationService");
+  }
+  for (
+    const source of [
+      canonical,
+      backend,
+      api,
+      network,
+      coreManagers,
+      registration,
+    ]
+  ) {
+    assertStringIncludes(
+      source,
+      "exactly one authenticated Function invocation per service call",
+    );
+    assertStringIncludes(
+      source,
+      "owns neither retry policy nor asynchronous task state",
+    );
+  }
+  assertStringIncludes(
+    testingStrategy,
+    "AppleOAuthCredentialRegistrationServiceTests",
+  );
+  assertStringIncludes(
+    network,
+    "does not retain its coordinator or manager across suspended provider work",
+  );
+  assertStringIncludes(
+    network,
+    "requires the owned transition to name the credential provider before session mutation",
+  );
+  for (
+    const source of [
+      canonical,
+      backend,
+      api,
+      network,
+      coreManagers,
+      identityGuide,
+      appLifecycle,
+      product,
+    ]
+  ) {
+    assertStringIncludes(
+      source.replaceAll("server- verified", "server-verified"),
+      "local server-verified entitlement projection",
+    );
+  }
   assertStringIncludes(
     settings,
     "records the durable app-level notice before sign-out",
@@ -5806,6 +5939,10 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
     "Publishing the supporting build alone is not rollout evidence",
   );
   assertStringIncludes(registration, "APPLE_SIGN_IN_PRIVATE_KEY");
+  assertStringIncludes(
+    registration,
+    "credentials whose provider does not match the owned OAuth transition",
+  );
   assertStringIncludes(
     reconciler,
     "Provider failure retains the credential and Auth identity",
@@ -5833,12 +5970,25 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
   );
   assertStringIncludes(coreManagers, "getCredentialState(forUserID:)");
   assertStringIncludes(
+    coreManagers,
+    "AppleCredentialRevocationLiveProvider",
+  );
+  assertStringIncludes(coreManagers, "exact provider-to-transition agreement");
+  assertStringIncludes(
     errorHandling,
     "credential-revoked notification is a prompt to revalidate, not proof",
   );
   assertStringIncludes(
     testingStrategy,
     "chosen older-binary control",
+  );
+  assertStringIncludes(
+    testingStrategy,
+    "fail-closed provider/transition and registration configuration",
+  );
+  assertStringIncludes(
+    testingStrategy,
+    "AppleCredentialRevocationCoordinatorTests.swift",
   );
   assertStringIncludes(identityGuide, "callback is discarded");
   assertStringIncludes(
@@ -5885,6 +6035,7 @@ Deno.test("purchase identity rollout documentation is exact-SHA, dry-run-first, 
     edgeReadme,
     legacyHandoffReadme,
     iosNetworkReadme,
+    authReadme,
     iosSecurityReadme,
     purchaseIdentityReadme,
     revenueIdentity,
@@ -5908,6 +6059,7 @@ Deno.test("purchase identity rollout documentation is exact-SHA, dry-run-first, 
       "services/supabase/functions/transfer-signout-purchases/README.md",
     ),
     read("apps/ios/Merian/Core/Network/README.md"),
+    read("apps/ios/Merian/Core/Network/Auth/README.md"),
     read("apps/ios/Merian/Core/Security/README.md"),
     read("apps/ios/Merian/Core/Security/PurchaseIdentity/README.md"),
     read("docs/features-and-hardware/02-revenue-and-identity.md"),
@@ -6026,6 +6178,100 @@ Deno.test("purchase identity rollout documentation is exact-SHA, dry-run-first, 
     ]
   ) {
     assertStringIncludes(source, "64-character lowercase");
+  }
+  for (
+    const source of [
+      rfc,
+      api,
+      coreManagers,
+      architecture,
+      edgeReadme,
+      legacyHandoffReadme,
+      iosNetworkReadme,
+      purchaseIdentityReadme,
+      revenueIdentity,
+    ]
+  ) {
+    assertStringIncludes(source, "PurchaseIdentitySourceHandoffCoordinator");
+    assertStringIncludes(source, "PurchaseHandoffPreparationCoordinator");
+  }
+  for (
+    const source of [
+      rfc,
+      api,
+      keychain,
+      coreManagers,
+      architecture,
+      edgeReadme,
+      legacyHandoffReadme,
+      purchaseIdentityReadme,
+      revenueIdentity,
+    ]
+  ) {
+    assertStringIncludes(source, "before remote cancellation");
+  }
+  for (
+    const source of [
+      rfc,
+      api,
+      keychain,
+      coreManagers,
+      architecture,
+      edgeReadme,
+      purchaseIdentityReadme,
+      revenueIdentity,
+    ]
+  ) {
+    assertStringIncludes(source, "before durable proof removal");
+  }
+  for (
+    const source of [
+      rfc,
+      api,
+      iosNetworkReadme,
+      purchaseIdentityReadme,
+    ]
+  ) {
+    assertStringIncludes(source, "PurchaseIdentityHandoffAuthJournal");
+  }
+  assertStringIncludes(
+    iosNetworkReadme,
+    "fifteen deterministic source-side cases",
+  );
+  assertStringIncludes(authReadme, "adds fifteen deterministic cases");
+  assertStringIncludes(
+    purchaseIdentityReadme,
+    "covers fifteen deterministic cases",
+  );
+  for (
+    const source of [
+      authReadme,
+      iosNetworkReadme,
+      purchaseIdentityReadme,
+      testing,
+    ]
+  ) {
+    assertStringIncludes(
+      source,
+      "cancellation during compatibility preparation's final SDK-session read",
+    );
+  }
+  for (
+    const source of [
+      rfc,
+      api,
+      keychain,
+      coreManagers,
+      architecture,
+      codebaseMap,
+      legacyHandoffReadme,
+      revenueIdentity,
+    ]
+  ) {
+    assertStringIncludes(
+      source,
+      "compatibility preparation's final SDK-session read",
+    );
   }
   assertStringIncludes(schema, "binding_intent_generation_fence");
   assertStringIncludes(testing, "binding_intent_generation_fence");

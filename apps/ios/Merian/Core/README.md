@@ -40,6 +40,81 @@ This is a residual inventory, not an exemption for new growth. Split these
 owners in behavior-preserving slices, update the inventory in the same change,
 and keep wire DTOs separate from UI policy.
 
+The current Auth extraction leaves `SupabaseManager.swift` at 3,520 lines. The
+facade retains its sign-out task and live-effect assembly while the focused
+`AuthSessionLifecycleLiveProvider` owns the Supabase stream/listener task, SDK
+value mapping, and deferred current-state replay. Replacing that listener
+cancels both the superseded task and its replay obligation, and a
+post-coordinator cancellation fence prevents the superseded operation from
+resuming deferred credential revocation. The retained
+`AuthHistoricalSessionSyncLiveService` owns listener-admitted synchronization
+tasks and cancels them on teardown. The facade delegates the active transition,
+Auth-session generation, transition-analytics generations, exact-session work
+leases and drain waiters, and local sign-out flag to the effect-free main-actor
+`Network/Auth/Coordinators/AuthRuntimeState.swift` owner. The focused bootstrap
+service owns cached/loaded SDK-session projection, anonymous sign-in, and
+missing-session classification. Its `+Live` adapter alone invokes those Supabase
+Auth operations, and bootstrap diagnostics have a separate privacy-safe log
+owner. The facade retains transition admission, publication, purchase readiness,
+and the stable `User?` compatibility result. The typed Apple
+credential-registration service and its sole Supabase live adapter own strict
+receipt validation and Function transport, while the facade retains
+exact-session assembly around that effect. The adapter performs exactly one
+authenticated invocation per service call and owns neither retry policy nor
+asynchronous task state. The injected OAuth session service and its live adapter
+now own OIDC credential mapping, session reads/link/install calls, canonical
+profile-metadata construction, and the SDK metadata update; the facade retains
+transition admission, replacement reconciliation, diagnostics, and observable
+publication. Provider-neutral bootstrap task state, lifecycle projection,
+conditional deferred-event replay, authenticated-request recovery sequencing,
+OAuth provider admission/presentation and completion, task-free fallback
+authentication-callback coordination, public-author refresh coordination,
+generation-fenced Apple credential revalidation, source-side purchase-handoff
+fencing/restoration, Auth journal error adaptation, and historical sync
+admission live under `Network/Auth/`. Keyed purchase resolution, binding state,
+foreground repair, and stable/compatibility proof construction and checkpointing
+live under `Security/PurchaseIdentity/`. Recovery captures the exact expected
+session before account-work quiescence. Refresh and anonymous-replacement paths
+fence cancellation and transition/session drift after their suspended phases;
+terminal clear preserves durable purchase handoffs and invokes the remaining
+local and purchase-identity cleanup after SDK sign-out has begun, even if
+cancellation arrives. The bootstrap coordinator continues to share work only
+while its complete token is the exact active owner, and anonymous creation
+remains limited to stable missing-session evidence. The replay coordinator owns
+one replacement-safe task and replays only an SDK event deferred by an active
+transition; signed-out handling revalidates exact nil-session and generation
+state after purchase cleanup. Facade-facing lifecycle dependencies capture the
+manager weakly, so suspended synthetic replay cannot keep it alive past teardown
+or prevent coordinator cancellation. OAuth replacement records installed,
+failed, or cancelled disposition, fences cancellation before/after provider
+return and after every suspended completion phase, and admits a cancelled owner
+to terminal cleanup only after it has already mutated the SDK session. The live
+install boundary records that mutation and the exact installed identity as the
+transition expectation before cancellation can escape. That expectation exists
+only to fence recovery; successful account publication still follows the
+source/target, purchase, entitlement, and final-session checks. The app-root
+`onOpenURL` task remains the fallback callback's sole asynchronous caller; the
+coordinator stops after preflight cancellation, blocks adoption when sign-out
+begins during SDK installation, and retains exact-session fences after purchase
+and entitlement suspension. The public-author coordinator rejects stale
+scheduling targets before task replacement, fences lease and remote work against
+cancellation, and publishes only after the exact current account survives
+validation after suspension. Its application-event and privacy-safe logging
+effects remain in
+`Network/SupabasePublicAuthorIdentityRefreshLiveEffects.swift`. Apple framework
+notification/state lookup and privacy-safe outcome logging live in
+`Network/AppleCredentialRevocationLiveProvider.swift` and
+`Network/AppleCredentialRevocationLiveDiagnostics.swift`; the manager only
+assembles those effects and maps its SDK user into the provider-neutral exact
+identity. The coordinator remains weak across the suspended provider lookup, and
+assembly captures the provider directly, so a delayed SDK callback cannot retain
+or mutate a released manager/coordinator owner. The purchase identity owner
+projects every durable handoff read into RevenueCat's synchronous mutation
+fence, fails closed when the journals are unreadable, and rejects late results
+from a superseded resolution key. The accepted-deletion barrier still closes the
+published Auth session, purchase identity, and local server-verified entitlement
+projection before recovery proceeds.
+
 `InferenceEngine.swift` is now below the ceiling as the source-compatible
 observable facade. Its internal graph is constructed once by
 `AI/Inference/Assembly/InferenceEngineAssembly.swift`; pure compatibility

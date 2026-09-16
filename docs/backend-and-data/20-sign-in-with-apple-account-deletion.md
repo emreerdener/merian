@@ -61,6 +61,35 @@ or account identity and cannot initiate deletion by itself.
 6. A lost HTTP response can repeat the exact registration UUID without a second
    code exchange. Receipts contain no token and are pruned after 24 hours.
 
+On iOS, `OAuthSignInCoordinator` owns the provider-neutral ordering from the
+installed exact session through required credential registration, optional
+profile metadata, purchase identity, entitlement, and final publication. It
+fails closed before session mutation unless the owned transition names the
+credential provider, Apple supplies that registration effect, and Google omits
+it. Cancellation is fenced after session replacement, credential registration,
+metadata, publication, purchase/telemetry work, entitlement, session readback,
+and public-author refresh. The live install boundary records the mutation and
+exact installed identity as the transition expectation before its post-install
+cancellation check. This recovery-only adoption lets the same transition clear
+that exact target without finalizing it as the signed-in account and still
+rejects cleanup of a later unrelated identity. `OAuthSignInWorkflow` owns the
+bounded same-registration retry and never retries cancellation.
+`AppleOAuthAuthorizationLiveProvider` retains the Apple delegate/controller,
+extracts the raw credential, and maps the one-use authorization code into an
+identity-token-free provider-neutral registration value. The OAuth credentials
+remain the single native identity-token source, and the live registration
+adapter forwards that same token after installing the session.
+`AppleOAuthCredentialRegistrationService+Live` alone owns the private
+request/response DTOs, lowercased registration UUID, and authenticated Function
+invocation; the provider-neutral service accepts only the exact registered
+receipt. The adapter performs exactly one authenticated Function invocation per
+service call. It owns neither retry policy nor asynchronous task state;
+`OAuthSignInWorkflow` remains the retry owner. `OAuthProviderSignInCoordinator`
+admits that callback and owns the completion task. `SupabaseManager` retains
+exact-session completion and brackets the injected registration service with
+pre/post transition-session checks; it never owns or retains the raw Apple
+credential.
+
 If exchange succeeds but Vault persistence returns an error, the function first
 rechecks the token-free registration receipt. A committed receipt resolves a
 lost database response without revoking a credential that is already durable. If
@@ -70,10 +99,25 @@ registration failure and requires the user to start a fresh Apple authorization.
 A new Apple sign-in is not presented as complete unless the server can later
 revoke its authorization.
 
-The app also observes Apple's credential-revoked notification. It revalidates
-the active provider-specific Apple subject with `getCredentialState`, discards a
-stale callback if the signed-in Apple identity changed, and clears the local
-session unless Apple authoritatively reports `.authorized`.
+`AppleCredentialRevocationLiveProvider` observes Apple's credential-revoked
+notification and maps `getCredentialState` into provider-neutral outcomes. The
+retained Auth coordinator defers while another Auth transition owns the session,
+coalesces overlapping notifications, and snapshots the active session, provider-
+specific Apple subject, and Auth-context generation. It rejects a cancelled or
+stale callback if any part of that context changed. Its live clear boundary
+repeats the exact identity and no-active-transition checks, and Auth recovery
+repeats the expected/current session after account-work quiescence before
+clearing anything. The typed result distinguishes completed cleanup, context
+rejection, and purchase-handoff deferral. A context rejection is revalidated in
+the next stable Auth context; a purchase-handoff block retains the signal
+without a hot lookup loop and resumes when the aggregate handoff fence becomes
+false. If the Auth generation changed while clear was suspended, the stale
+attempt replays after the deferred result rather than losing the earlier
+lifecycle wakeup. A clearing diagnostic is emitted only after local cleanup
+completes. Apple authoritatively reporting `.authorized` preserves the session.
+The task keeps its coordinator weak and captures only the live provider across
+SDK suspension; owner release does not wait for the callback, and a late result
+cannot apply.
 
 ## Durable deletion stage
 
@@ -144,8 +188,12 @@ does not reauthenticate the deleted account or accept a user, Apple subject,
 job, or provider identifier. The native decoder requires the explicit
 acknowledgement state and exact legacy/v2 operation status set; the cleanup
 workflow then rechecks a successful pending/completed receipt before its first
-effect. iOS must persist the manual notice before local sign-out, purge, and
-proof retirement. The purge explicitly removes every current SwiftData model and
+effect. When the Auth listener observes accepted cleanup, it first clears the
+published Auth session, purchase-principal binding/readiness, and local server-
+verified entitlement projection. This local fail-closed reset does not mutate
+server entitlement, acknowledge deletion, or retire either proof or marker. iOS
+must persist the manual notice before local sign-out, purge, and proof
+retirement. The purge explicitly removes every current SwiftData model and
 read-back verifies the classified account-derived preferences while retaining
 device settings, consent, this recovery marker, and the manual notice. It then
 resets process-local settings, gamification, badge, and image projections; badge
@@ -155,13 +203,14 @@ unreferenced app-container traversal; broader file erasure requires an explicit
 storage-owner inventory. It acknowledges only after local cleanup succeeds and
 only with the independent acknowledgement proof. A legacy unknown proof leaves
 cleanup blocked because intake may still be committing. A v2 `not_committed` or
-genuinely unknown proof retires only the unused local intent because commit
-cannot run without a server preparation. After that definitive cancellation, the
-transition owner retires the unused proof, adopts only the same unexpired cached
-Supabase session while the durable barrier remains, then clears the barrier
-before republishing that exact UUID and anonymous/account kind or reopening
-ordinary account work. An expired preparation retired during a different
-device's commit returns the distinct non-authorizing
+an unknown v2 proof admitted outside the installed mixed-domain compatibility
+state below retires only the unused local intent because commit cannot run
+without a server preparation. After that definitive cancellation, the transition
+owner retires the unused proof, adopts only the same unexpired cached Supabase
+session while the durable barrier remains, then clears the barrier before
+republishing that exact UUID and anonymous/account kind or reopening ordinary
+account work. An expired preparation retired during a different device's commit
+returns the distinct non-authorizing
 `account_deletion_recovery_preparation_expired` response and keeps cleanup
 blocked. Only a retained committed capability matched after its 180-day window
 returns `account_deletion_recovery_expired` and authorizes conservative local
@@ -174,13 +223,36 @@ definitive intake rejection, matched-expired or unknown recovery, and exact
 cached-session restoration eligibility.
 `Core/Network/Auth/Coordinators/AccountDeletionWorkflow.swift` sequences
 durable/prepared intake, accepted cleanup, proof retirement, deferred
-restoration, and pending cleanup through injected closures. `SupabaseManager`
-retains the live Auth, SDK, endpoint, Keychain, sign-out, purge, and lifecycle
-effect assembly. `Core/Security/AccountDeletion/` owns the device-local recovery
-models, phase and notice stores, and proof store;
-`Core/Preferences/UserDefaultsKeys.swift` and `Core/Security/KeychainKeys.swift`
-own the exact installed key strings. `AppDIContainer` and the Settings adapter
-supply the account-local purge boundary.
+restoration, and pending cleanup through injected closures.
+`AccountDeletionCoordinator` owns fresh authenticated intake and cleanup;
+`AccountDeletionRecoveryCoordinator` routes every durable recovery phase and
+legacy/v2 proof through their shared local-state and exact-session dependency
+package. `SupabaseManager` retains and injects the live Auth, SDK, endpoint,
+Keychain, sign-out, purge, diagnostics, and lifecycle effects.
+`Core/Security/AccountDeletion/` owns the device-local recovery models, phase
+and notice stores, and proof store; `Core/Preferences/UserDefaultsKeys.swift`
+and `Core/Security/KeychainKeys.swift` own the exact installed key strings.
+`AppDIContainer` and the Settings adapter supply the account-local purge
+boundary.
+
+Installed pre-capability `intake_pending` recovery remains protocol v1 end to
+end. If its proof is absent while the exact cached Auth session still exists,
+iOS creates and read-verifies one raw 32-byte v1 Keychain proof before replaying
+legacy intake. It never stores a two-proof v2 envelope for that v1 request, so a
+lost or ambiguous response cannot relaunch against the separate v2 recovery hash
+domain. A `capability_prepared_pending` marker with no proof cancels the unused
+preparation and restores only the exact cached session; the later
+`capability_intake_pending` marker proves destructive commit was allowed to
+start.
+
+Earlier binaries could create a v2 envelope while upgrading a proofless legacy
+marker and then submit its recovery value through v1 intake. Therefore a v2
+`account_deletion_recovery_invalid` result at an installed
+`capability_intake_pending` or `capability_cleanup_pending` phase is not, by
+itself, authority to restore. iOS checks the legacy recovery domain with the
+same proof. A positive v1 match continues accepted cleanup and v1
+acknowledgement; an unknown or unavailable result retains the proof and global
+barrier for retry or operator resolution.
 
 The native intake owner rejects cancellation before any durable marker write. It
 checks again after the legacy marker, immediately before and after
@@ -268,7 +340,8 @@ The migration and these runtime consumers form one release unit:
 - `recover-account-deletion`
 - `reconcile-account-deletions`
 - iOS `SupabaseManager`, `MerianNetworkClient`,
-  `AccountDeletionTransitionPolicy`, `AccountDeletionWorkflow`,
+  `AccountDeletionTransitionPolicy`, `AccountDeletionWorkflow`, both
+  account-deletion coordinators and their dependency package,
   `AccountDeletionRecoveryCapabilityStore`, the Security-owned local recovery
   and manual-notice stores, the Settings `AccountDeletionDependencies`,
   `DeleteAccountViewModel`, and `DeleteAccountSheet` presentation path, and the
@@ -310,7 +383,8 @@ immutable release SHA:
 - a physical-device credential-revocation notification smoke proving the app
   queries the active provider-specific Apple subject and clears the matching
   local session when Apple no longer reports `.authorized`, while exact-SHA
-  source coverage retains the stale-identity callback fence; and
+  source coverage retains the stale identity/generation and released-owner
+  callback fences; and
 - an enforceable minimum-supported-build gate or an independent server-delivered
   manual-revocation fallback for older iOS binaries. Older installed binaries
   cannot display a response field or notice they do not implement. Merely
@@ -342,8 +416,12 @@ provider attempt successful from an Apple error response.
   compensating revocation.
 - `_tests/safeDelete.test.ts`: provider-before-Auth ordering, retry retention,
   and legacy manual disposition.
-- `_tests/accountDeletionCoverage.test.ts`: source, iOS manager adapter,
-  extracted `AccountDeletionWorkflow`, prepared-v2 cancellation-to-commit
+- `_tests/accountDeletionCoverage.test.ts`: source, both iOS deletion
+  coordinators, extracted `AccountDeletionWorkflow`, OAuth coordinator/workflow
+  registration ordering and retry, typed registration receipt validation, sole
+  live Function DTO ownership, exactly one live invocation per service call,
+  rejection of retry policy, asynchronous task, facade, or alternate transport
+  ownership, manager pre/post session fences, prepared-v2 cancellation-to-commit
   ordering, config, and executable-fixture ordering.
 - `_tests/accountDeletionMigrationContract.test.ts`: Vault schema, Auth and
   terminal fences, recovery hash ledger, ACLs, allowlist, permanent replay,
@@ -385,16 +463,42 @@ provider attempt successful from an Apple error response.
   preparation, and after the v2 marker pair, recovery phase order,
   ambiguous-response retention, deferred restoration revalidation, and terminal
   capability retirement.
-- `SupabaseManagerTests`: bounded Apple credential-registration retry,
-  provider-subject validation, provider-bound merge fallback, and Auth
-  transition gating. The focused endpoint and workflow suites above own
-  account-deletion transport and sequencing; real-session effect assembly
-  remains an integration responsibility.
-- `AccountDeletionLocalCleanupStoreTests`,
-  `ManualAppleRevocationNoticeStoreTests`, and
-  `AccountDeletionRecoveryCapabilityStoreTests`: durable local phase and notice
-  persistence, legacy compatibility, fail-closed reads, synchronous invalidation
-  ordering, and verified Keychain proof creation and retirement.
+- `AccountDeletionCoordinatorTests` and
+  `AccountDeletionRecoveryCoordinatorTests`: fresh live-boundary order,
+  preflight fences, marker routing, v1/v2 recovery, acknowledgement retention,
+  proof-only restoration, retirement, stale cached-session rejection, proofless
+  prepared-v2 cancellation, and raw-v1 proof continuity across an ambiguous
+  pre-capability replay. These suites also cover legacy-domain recovery for the
+  installed mixed-envelope state before restoration is permitted.
+- `OAuthSignInWorkflowTests`, `OAuthIdentityTokenPolicyTests`,
+  `OAuthSignInCoordinatorTests`, `OAuthSignInCancellationTests`,
+  `OAuthProviderSignInCoordinatorTests`, and
+  `AppleOAuthAuthorizationLiveProviderTests`, plus
+  `AppleOAuthCredentialRegistrationServiceTests`: bounded cancellation-aware
+  Apple credential-registration retry, raw credential/one-use code mapping,
+  exact service forwarding, strict receipt validation, transport-error
+  propagation, provider-callback and completion-task ownership, provider-subject
+  validation, provider-bound merge fallback, replacement disposition, exact
+  completion ordering, fail-closed provider/transition and registration wiring,
+  and cancellation/session gating after every suspended phase.
+  `AppleRevocationCoordinatorTests` owns seventeen cases covering transition
+  deferral, overlap, Auth-context and identity drift, exact terminal-clear
+  admission, purchase-handoff deferral without immediate retry, explicit stable
+  resume, context-change replay without a lost wakeup, cancellation, coordinator
+  release during a suspended lookup, and fail-closed local clear;
+  `AppleRevocationLiveProviderTests` owns the Apple credential-state mapping,
+  exact observer lifecycle, and off-main delivery into the main-actor handler.
+  `SupabaseManagerTests` retains live facade assembly. The focused endpoint and
+  deletion workflow suites above own account-deletion transport and sequencing;
+  real-session effect assembly remains an integration responsibility.
+- `AccountDeletionCapabilityStoreTests`: secure randomness, Keychain
+  accessibility, write verification, reuse, and verified deletion.
+- `AccountDeletionLocalCleanupStoreTests` and
+  `ManualAppleRevocationNoticeStoreTests`: exact installed phase compatibility,
+  persistence/event order, fail-closed unknown-state handling, and explicit
+  notice resolution. `AccountDeletionSecurityArchitectureTests`,
+  `KeychainKeysTests`, and `UserDefaultsKeysTests` freeze package ownership and
+  the complete exact storage-key registries.
 - `AccountSettingsViewModelTests`: deletion eligibility, fail-closed purchase
   continuity, fresh and pending-recovery dependency handoff, local-purge
   callback forwarding, and overlapping-attempt feedback fencing.
@@ -408,11 +512,3 @@ provider attempt successful from an Apple error response.
   covers controller persistence and OS-presentation adaptation without touching
   global state; physical Home Screen presentation remains an integration
   checklist item.
-- `AccountDeletionRecoveryCapabilityStoreTests`: secure randomness, Keychain
-  accessibility, write verification, reuse, and verified deletion.
-- `AccountDeletionLocalCleanupStoreTests` and
-  `ManualAppleRevocationNoticeStoreTests`: exact installed phase compatibility,
-  persistence/event order, fail-closed unknown-state handling, and explicit
-  notice resolution. `AccountDeletionSecurityArchitectureTests`,
-  `KeychainKeysTests`, and `UserDefaultsKeysTests` freeze package ownership and
-  the complete exact storage-key registries.

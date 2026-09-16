@@ -51,22 +51,39 @@ or Capture workspace:
 milliseconds before showing an accessible progress indicator. It prevents a
 completed user from seeing actionable approval controls for a fraction of a
 second while account evidence loads. Supabase's immediate local-session event
-may contain a known user with an expired access token; `SupabaseManager` keeps
-that user attached to consent restoration while leaving authenticated request
-state closed. Only the subsequent `tokenRefreshed` or `signedOut` event may
-advance the root. A non-cancellation reconciliation failure retains this neutral
-root, shows an immediate retry action, and enters a bounded 5-, 10-, then
-20-second account-fenced retry schedule. Exhaustion keeps the explicit retry
-action visible; it does not treat the failure as authoritative absence.
-`RequiredConsentRestorationCoordinator` owns this state and a UUID-keyed
-registry of outstanding retry tasks. Canceled handles remain registered through
-completion and are included in the Auth-transition drain; stable task identity
-and post-suspension account/session/generation checks prevent a late canceled
-retry from clearing or entering a replacement session. Cancellation caused by
-account/session replacement keeps the transition pending until the replacement
-is evaluated. If invalidation cancels a scheduled retry for the same unresolved
-account, the state returns to `.reconciling` under the new synchronization
-generation rather than leaving an orphaned `.waitingToRetry` state.
+may contain a known user with an expired access token;
+`AuthSessionLifecycleCoordinator` keeps that user attached to consent
+restoration while leaving authenticated request state closed. The retained
+`AuthSessionLifecycleLiveProvider` owns and maps the SDK stream/listener task;
+restarting the listener cancels the superseded task and its deferred replay, and
+canceled work cannot publish the trailing credential-revocation resume effect.
+`SupabaseManager` injects only weak facade effects. Only the subsequent
+`tokenRefreshed` or `signedOut` event may advance the root. A non-cancellation
+reconciliation failure retains this neutral root, shows an immediate retry
+action, and enters a bounded 5-, 10-, then 20-second account-fenced retry
+schedule. Exhaustion keeps the explicit retry action visible; it does not treat
+the failure as authoritative absence. `RequiredConsentRestorationCoordinator`
+owns this state and a UUID-keyed registry of outstanding retry tasks. Canceled
+handles remain registered through completion and are included in the
+Auth-transition drain; stable task identity and post-suspension
+account/session/generation checks prevent a late canceled retry from clearing or
+entering a replacement session. Cancellation caused by account/session
+replacement keeps the transition pending until the replacement is evaluated. If
+invalidation cancels a scheduled retry for the same unresolved account, the
+state returns to `.reconciling` under the new synchronization generation rather
+than leaving an orphaned `.waitingToRetry` state.
+
+An SDK Auth event received while an Auth transition owns the session is deferred
+instead of discarded. `AuthLifecycleReplayCoordinator` records that obligation
+and, after the transition finishes, replays one exact snapshot of the current
+SDK session only if its Auth generation, expiry, and transition context are
+still current. A newer SDK event cancels the synthetic replay, while another
+transition carries the obligation forward. Its injected lifecycle effects hold
+the live Auth facade weakly, allowing facade teardown to cancel a suspended
+replay rather than being retained by the replay dependency graph. Signed-out
+handling also revalidates the exact nil session and generation after purchase
+cleanup before cancelling linked-user, public-author, Apple-revocation, or
+Ghost-merge work.
 
 This presentation policy does not weaken the phase contract below. Hardware,
 provider requests, ordinary sync, and queued work still require both completed
@@ -123,7 +140,12 @@ session solely so that JWT-derived, idempotent commit can be replayed after a
 crash or lost response. Both preparation markers are admitted back into that
 single deletion-owned recovery transition on relaunch; every other SDK Auth
 event, background sync, OAuth callback, and scene-phase operation remains
-closed. A successful or publicly recovered receipt advances to
+closed. If the Auth listener observes a cached SDK session while accepted
+cleanup is pending, `AuthSessionLifecycleCoordinator` clears the published Auth
+session, purchase-principal binding/readiness, and local server-verified
+entitlement projection before recovery performs any further work. This local
+reset neither edits the server entitlement ledger nor resolves the deletion
+marker. A successful or publicly recovered receipt advances to
 `capability_cleanup_pending`, which authorizes verified local sign-out and the
 accepted-cleanup sequence. `ScanRepository.purgeAllData` synchronously resets
 sensitive private-map projections, deletes every active SwiftData model, saves,
@@ -138,20 +160,28 @@ sign-out and the idempotent SwiftData/preferences cleanup before proof removal.
 Launch and foreground show a blocking recovery surface and retry with bounded
 backoff. Unused-intent retirement requires definitive noncommit evidence: legacy
 intake needs explicit `409 purchase_continuity_pending`; v2 accepts
-`not_committed` or a genuinely unknown proof, and a live v2 `409` must still be
-confirmed as `not_committed`. The app first persists
+`not_committed` or, outside the installed mixed-domain compatibility state
+below, a genuinely unknown proof. A live v2 `409` must still be confirmed as
+`not_committed`. The app first persists
 `capability_rejection_retirement_pending`, then verifies removal of the unused
 Keychain proof before clearing the barrier. Relaunch in that phase never signs
 out or purges local data. Legacy unknown proofs and all ambiguous failures
-retain both authority and barrier. A v2 `not_committed` or genuinely unknown
-proof definitively retires only the unused intent; before ordinary lifecycle
-work reopens, it verifies proof retirement, adopts the same cached unexpired
-session into the transition coordinator while the barrier is still present,
-clears the barrier, and only then republishes that session. The UUID and
-anonymous/account kind must match exactly. A tombstoned expired preparation
-retired during another device's commit is non-authorizing and retains the
-barrier. Only a server-matched expired committed capability permits conservative
-local erasure. Legacy `intake_pending` and `cleanup_pending` remain readable.
+retain both authority and barrier. A v2 `not_committed`, or an unknown v2 proof
+admitted after compatibility routing, definitively retires only the unused
+intent; before ordinary lifecycle work reopens, it verifies proof retirement,
+adopts the same cached unexpired session into the transition coordinator while
+the barrier is still present, clears the barrier, and only then republishes that
+session. The UUID and anonymous/account kind must match exactly. A tombstoned
+expired preparation retired during another device's commit is non-authorizing
+and retains the barrier. Only a server-matched expired committed capability
+permits conservative local erasure. Legacy `intake_pending` and
+`cleanup_pending` remain readable. Proofless `intake_pending` compatibility
+creates one verified raw v1 proof before legacy replay so a later launch stays
+in the v1 recovery domain. A proofless `capability_prepared_pending` marker
+restores the exact cached session without starting deletion because destructive
+commit had not begun. If an installed intake/cleanup marker carries the former
+mixed v2 envelope and v1-intake history, a v2 unknown result checks legacy
+recovery before any restore; a second unknown keeps the launch barrier in place.
 The checked-in prepare response is decoded by the dedicated non-destructive
 preparation receipt and locked to the handler through a shared fixture; see Core
 Network's
@@ -160,9 +190,36 @@ The lifecycle barriers above still prevent a terminated deletion from restoring
 the source account or later erasing a newly signed-in account's cache.
 
 At runtime, Apple, Google, Sign out, anonymous bootstrap, 401 recovery, and
-deletion share one Auth-transition owner. Ordinary account-bound work acquires
-an exact-session lease before direct Supabase or authenticated HTTP I/O. A
-transition closes new admission, snapshots, cancels, and awaits every
+deletion share one `AuthRuntimeState` owner for transition, generation,
+transition-analytics, exact-session lease/drain, and local sign-out state.
+`SupabaseManager` retains the live SDK listener and effect assembly. Ordinary
+account-bound work acquires an exact-session lease before direct Supabase or
+authenticated HTTP I/O. A keyed `AuthSessionBootstrapCoordinator` owns
+existing-session resolution and true-missing-only anonymous creation. It stores
+the task's complete transition token and permits sharing only while that token
+is still the exact active owner; an ownerless caller can join only an active
+anonymous-bootstrap token. Caller cancellation before admission or while waiting
+for sign-out stops before any lease, transition, or SDK-session operation, and
+publication is revalidated after purchase readiness. A focused bootstrap service
+projects the SDK session and classifies missing-session evidence; its `+Live`
+adapter alone reads the cached/loaded session or creates an anonymous one, while
+the facade retains publication and its stable `User?` result. The task-free
+`AuthSessionRecoveryCoordinator` owns ordinary and transition-owned
+exact-session refresh, anonymous replacement, and terminal local clear. It
+snapshots the expected session before quiescence and repeats the
+expected/current-session check after quiescence before mutation, alongside
+cancellation, transition ownership, purchase and entitlement readiness, Auth
+generation, and final SDK readback around the applicable suspension points. Its
+typed terminal-clear outcome distinguishes completed cleanup, rejected context,
+and a purchase-handoff block. A blocked clear retains Apple
+credential-revocation work without a hot lookup loop; publishing the aggregate
+handoff fence as resolved resumes it. If Auth context changed while clear was
+suspended, the stale attempt revalidates after the deferred result instead of
+losing the earlier lifecycle wakeup. After local SDK sign-out begins, the
+coordinator still invokes observable-state, secure-marker, analytics, and
+purchase-identity cleanup if the SDK call fails or cancellation arrives.
+
+A transition closes new admission, snapshots, cancels, and awaits every
 outstanding scheduled and active consent synchronization handle—including
 superseded and previously invalidated work—every registered consent-restoration
 retry, and every started consent Realtime removal. It then drains the Inference
@@ -218,14 +275,17 @@ queue rather than a separate event subscriber.
 
 **Photos document import:** `MerianApp.onOpenURL` handles Google Sign-In and
 Merian deep links before classifying file URLs, and leaves remaining URLs for
-Supabase authentication. An accepted image is copied immediately into
-`ExternalImageImportStore`; only then does the app request
-`AppRoute.processExternalImageImports` with the `durableExternalImport` source.
-The durable inbox, not the process-local route envelope, is authoritative.
-`CaptureWorkspaceView` also checks the inbox on appearance and every active
-transition so cold launch, onboarding, or a request sent before the workspace
-mounts cannot lose the photo. Capacity and quota blocks retain the receipt. See
-`docs/features-and-hardware/26-photos-share-import.md`.
+Supabase authentication. The existing app-root `Task` is the sole asynchronous
+caller for that fallback Auth URL; `AuthenticationCallbackCoordinator` creates
+no task and owns transition admission, SDK-session reconciliation, cancellation,
+and post-install sign-out fencing through injected effects. An accepted image is
+copied immediately into `ExternalImageImportStore`; only then does the app
+request `AppRoute.processExternalImageImports` with the `durableExternalImport`
+source. The durable inbox, not the process-local route envelope, is
+authoritative. `CaptureWorkspaceView` also checks the inbox on appearance and
+every active transition so cold launch, onboarding, or a request sent before the
+workspace mounts cannot lose the photo. Capacity and quota blocks retain the
+receipt. See `docs/features-and-hardware/26-photos-share-import.md`.
 
 **Fresh-launch Explore preference:** `AppSettings.opensExploreOnLaunch` is
 default-off and sampled once when the app process is created. After onboarding
@@ -269,9 +329,12 @@ continue to use `AppEventPublisher`. See
    evidence. It must remain session-bound after every suspension point and must
    push target-owned pending rows in the same synchronization pass.
 2. Also before that guard, a separate task retries purchase-identity readiness
-   through the container's existing manager. It repairs the same identity after
-   a transient failure; it does not require a new Auth event or open the consent
-   gate.
+   through the container's existing manager entry point. That entry composes
+   `PurchaseIdentityReadinessCoordinator`, which holds an account-work lease,
+   republishes durable handoff state to the provider mutation fence, and
+   revalidates the exact SDK session after identity and entitlement suspension.
+   It repairs the same identity after a transient failure; it does not require a
+   new Auth event or open the consent gate.
 3. After the guard, Core Notifications' source-compatible
    `AppIconBadgeCoordinator` refreshes the Explore unread count through its
    controller, and

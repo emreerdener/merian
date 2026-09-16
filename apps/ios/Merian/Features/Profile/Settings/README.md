@@ -64,8 +64,8 @@ and cooldown policy, with no shared network override.
 
 `SettingsTabView` remains the route and sheet composition owner. Detailed
 screens keep UI-only selection and presentation state locally. Account deletion
-delegates live protocol and recovery effects to `SupabaseManager`, which applies
-the deterministic classification and phase sequencing owned by
+delegates live protocol and recovery effects to `SupabaseManager`, which injects
+them into the deterministic classification and phase-sequencing owners under
 `Core/Network/Auth/`; the sheet supplies its environment `ModelContext` and
 private-map reset action to a narrow local-purge adapter. No Settings owner may
 reconstruct the server deletion protocol or mutate Auth directly.
@@ -169,38 +169,49 @@ are complete.
 
 `DeleteAccountSheet` delegates confirmation state to `DeleteAccountViewModel`.
 Its injected `AccountDeletionDependencies` delegates the authenticated
-`safe-delete` preparation/commit and recovery effects to `SupabaseManager`. That
-manager applies `AccountDeletionTransitionPolicy` and `AccountDeletionWorkflow`;
-the separate local-purge adapter owns repository access. A validated
-pending/`202` or completed/`200` receipt accepts deletion; prepared/`200` and an
-arbitrary successful `2xx` do not. Completed means relational cleanup, delayed
-R2 verification, provider disposition, and Auth removal are confirmed. A new
-commit normally returns pending/`202` because the durable server-side reaper
-must sweep and later verify storage before deleting Auth. Accepted pending and
-completed receipts are safe points for local sign-out and device-data cleanup.
-Public recovery requires an explicit acknowledgement-state Boolean. Legacy
-recovery and acknowledgement admit only `pending|completed`; v2 recovery alone
-may additionally admit an unacknowledged, provider-neutral `not_committed`
-receipt. Before Settings can trigger any local cleanup effect, the extracted
-workflow independently rechecks success and `pending|completed`, so a malformed,
-prepared, or noncommitted receipt cannot authorize sign-out or erasure. While
-sign-out purchase continuity is pending, the Settings action and confirmation
-button remain disabled. The server independently returns
-`409 purchase_continuity_pending` so a stale or second client cannot delete the
-source or exact bound anonymous destination; the user must finish sign-out
-first.
+`safe-delete` preparation/commit and recovery entry points to `SupabaseManager`.
+The manager assembles the live Auth, endpoint, Keychain, sign-out, diagnostics,
+and lifecycle effects for `AccountDeletionCoordinator` and
+`AccountDeletionRecoveryCoordinator`; those coordinators apply
+`AccountDeletionTransitionPolicy` and delegate phase ordering to
+`AccountDeletionWorkflow`. The separate local-purge adapter owns repository
+access. A validated pending/`202` or completed/`200` receipt accepts deletion;
+prepared/`200` and an arbitrary successful `2xx` do not. Completed means
+relational cleanup, delayed R2 verification, provider disposition, and Auth
+removal are confirmed. A new commit normally returns pending/`202` because the
+durable server-side reaper must sweep and later verify storage before deleting
+Auth. Accepted pending and completed receipts are safe points for local sign-out
+and device-data cleanup. Public recovery requires an explicit
+acknowledgement-state Boolean. Legacy recovery and acknowledgement admit only
+`pending|completed`; v2 recovery alone may additionally admit an unacknowledged,
+provider-neutral `not_committed` receipt. Before Settings can trigger any local
+cleanup effect, the extracted workflow independently rechecks success and
+`pending|completed`, so a malformed, prepared, or noncommitted receipt cannot
+authorize sign-out or erasure. While sign-out purchase continuity is pending,
+the Settings action and confirmation button remain disabled. The server
+independently returns `409 purchase_continuity_pending` so a stale or second
+client cannot delete the source or exact bound anonymous destination; the user
+must finish sign-out first.
 
-The manager's v2 path first persists `capability_preparation_pending`, then
-creates or loads the read-after-write-verified device-only Keychain envelope.
-New envelopes contain separate recovery and acknowledgement proofs. Before any
-destructive commit, it sends both proofs through non-destructive prepare,
-requires a valid prepared receipt, persists `capability_prepared_pending`, and
-then persists `capability_intake_pending`. The transition blocks ordinary Auth
-and account work while retaining its exact cached session. Relaunch uses public
-proof recovery rather than starting another deletion. Existing v1 proofs keep
-their legacy intake/replay path; they are not rewritten into v2 mid-recovery.
-The workflow checks task cancellation before its first recovery marker. The
-legacy branch checks again after its intake marker; the v2 branch checks before
+The fresh-deletion coordinator's v2 path first persists
+`capability_preparation_pending`, then creates or loads the
+read-after-write-verified device-only Keychain envelope. New envelopes contain
+separate recovery and acknowledgement proofs. Before any destructive commit, it
+sends both proofs through non-destructive prepare, requires a valid prepared
+receipt, persists `capability_prepared_pending`, and then persists
+`capability_intake_pending`. The transition blocks ordinary Auth and account
+work while retaining its exact cached session. Relaunch uses public proof
+recovery rather than starting another deletion. Existing v1 proofs keep their
+legacy intake/replay path; they are not rewritten into v2 mid-recovery. An
+installed pre-capability `intake_pending` marker with no proof creates a
+read-verified raw v1 proof before legacy replay; it never stores a v2 envelope
+for a v1 request. A proofless `capability_prepared_pending` marker cancels and
+restores the exact cached session because destructive commit had not started. An
+installed mixed v2-envelope/v1-intake state checks legacy proof recovery after a
+v2 unknown response; an unknown result in both domains leaves deletion recovery
+visibly blocked rather than restoring an ambiguously deleted account. The
+workflow checks task cancellation before its first recovery marker. The legacy
+branch checks again after its intake marker; the v2 branch checks before
 preparation, after the non-destructive response and before the prepared/intake
 marker pair, and after that pair before destructive commit. A cancelled task
 preserves any durable evidence already written for recovery and dispatches no
@@ -219,12 +230,13 @@ Verified Keychain removal precedes marker clearing; the recovery overlay remains
 visible with bounded retry while a phase is unresolved.
 
 Definitive cancellation is separate from accepted-deletion cleanup. For v2,
-`not_committed` or a genuinely unknown proof retires only the unused proof and
-intent, preserving local data and restoring only the same eligible cached
-session. Legacy unknown proofs and ambiguous errors retain the barrier. A
-received `409 purchase_continuity_pending` permits legacy rejection retirement;
-v2 additionally requires recovery to establish `not_committed`. The workflow
-admits success and failure results only for the exact transition session and
+`not_committed` or an unknown proof admitted outside the installed mixed-domain
+compatibility state above retires only the unused proof and intent, preserving
+local data and restoring only the same eligible cached session. Legacy unknown
+proofs and ambiguous errors retain the barrier. A received
+`409 purchase_continuity_pending` permits legacy rejection retirement; v2
+additionally requires recovery to establish `not_committed`. The workflow admits
+success and failure results only for the exact transition session and
 generation; stale prepared-v2 failures cannot enter recovery classification.
 Cached-session restoration revalidates before marker removal and performs no
 failable telemetry or entitlement work afterward. The workflow persists

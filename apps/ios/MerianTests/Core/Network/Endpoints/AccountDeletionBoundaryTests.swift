@@ -267,7 +267,7 @@ struct AccountDeletionBoundaryTests {
         )
 
         #expect(restoration.components(separatedBy: "await ").count == 2)
-        #expect(!restoration.contains("ensureTelemetryLinkedWhenSafe"))
+        #expect(!restoration.contains("ensurePurchaseIdentityReady"))
         #expect(!restoration.contains("EntitlementManager.shared"))
         try expectOrder(
             [

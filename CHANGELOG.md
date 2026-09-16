@@ -16,6 +16,21 @@ TestFlight, App Store, support, and QA.
   anonymous identity, and keeps retries durable across relaunches.
   Account-issued beta or promotional access stays with the linked account
   instead of being duplicated.
+- Purchase-continuity safeguards now have isolated, deterministic coverage for
+  source-session drift, interrupted proof preparation, exact-source restoration,
+  fail-closed secure-journal reads, and durable retry evidence. Source cleanup
+  also revalidates the active account before server cancellation and before
+  removing stable recovery proof, so an overlapping account change preserves the
+  evidence needed to recover. This is a reliability-only refactor; the sign-out
+  and entitlement experience is unchanged.
+- Auth teardown now cancels retained purchase-continuity and identity-resolution
+  work explicitly, and OAuth cancellation after an SDK session install is
+  classified as a mutated-session failure before cleanup. The exact installed
+  identity is now recorded by the active transition before cancellation can be
+  observed, so failed OAuth and fallback-callback work can clear that session
+  without weakening cross-account cleanup fences. This closes the lifecycle
+  races without changing sign-in screens, successful account behavior, or server
+  contracts.
 
 ### Species Dictionary Field Chat — Release-Gated
 
@@ -257,7 +272,10 @@ TestFlight, App Store, support, and QA.
 - Apple credential-revocation notifications now trigger a subject-bound
   credential-state check. A still-authorized identity keeps its session;
   revoked, missing, transferred, unknown, or failed state resolution clears only
-  the matching Apple-linked local session.
+  the matching Apple-linked local session. Cleanup repeats session validation
+  after account-work quiescence, defers without a retry loop while purchase
+  continuity is pending, resumes when that aggregate fence resolves, and emits
+  its clearing diagnostic only after cleanup completes.
 - Source implementation is complete, but public promotion remains gated on
   production Apple key provisioning, exact-SHA disposable database replay, a
   real exchange/revoke smoke, and either an enforceable minimum-supported-build

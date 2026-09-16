@@ -40,6 +40,10 @@ const supabaseManagerUrl = new URL(
   "../../../../apps/ios/Merian/Core/Network/SupabaseManager.swift",
   import.meta.url,
 );
+const authSessionLifecycleCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/AuthSessionLifecycleCoordinator.swift",
+  import.meta.url,
+);
 const purchasePrincipalResolverUrl = new URL(
   "../../../../apps/ios/Merian/Core/Security/PurchasePrincipalResolver.swift",
   import.meta.url,
@@ -50,6 +54,46 @@ const purchasePrincipalWireModelsUrl = new URL(
 );
 const purchasePrincipalRemoteServiceUrl = new URL(
   "../../../../apps/ios/Merian/Core/Security/PurchaseIdentity/Services/PurchasePrincipalRemoteService+Live.swift",
+  import.meta.url,
+);
+const legacyPurchaseHandoffRemoteServiceUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/PurchaseIdentity/Services/LegacyPurchaseHandoffRemoteService+Live.swift",
+  import.meta.url,
+);
+const purchaseIdentityHandoffCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/PurchaseIdentityHandoffCoordinator.swift",
+  import.meta.url,
+);
+const purchaseIdentitySourceHandoffCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/PurchaseIdentitySourceHandoffCoordinator.swift",
+  import.meta.url,
+);
+const purchaseIdentityHandoffAuthJournalUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Services/PurchaseIdentityHandoffAuthJournal.swift",
+  import.meta.url,
+);
+const purchaseIdentityHandoffPreparationCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/PurchaseIdentity/Coordinators/PurchaseIdentityHandoffPreparationCoordinator.swift",
+  import.meta.url,
+);
+const purchaseIdentitySessionCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/PurchaseIdentity/Coordinators/PurchaseIdentitySessionCoordinator.swift",
+  import.meta.url,
+);
+const purchaseIdentityReadinessCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/PurchaseIdentity/Coordinators/PurchaseIdentityReadinessCoordinator.swift",
+  import.meta.url,
+);
+const legacyPurchaseIdentityProfileServiceUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/PurchaseIdentity/Services/LegacyPurchaseIdentityProfileService+Live.swift",
+  import.meta.url,
+);
+const purchaseIdentitySignOutWorkflowUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/PurchaseIdentitySignOutWorkflow.swift",
+  import.meta.url,
+);
+const purchaseIdentitySignOutCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/PurchaseIdentitySignOutCoordinator.swift",
   import.meta.url,
 );
 const securityFixtureUrl = new URL(
@@ -636,20 +680,48 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
     manager,
     identityCoordinator,
     supabaseManager,
+    authSessionLifecycleCoordinator,
     resolver,
     resolverWireModels,
     resolverRemoteService,
+    legacyHandoffRemoteService,
+    handoffCoordinator,
+    sourceHandoffCoordinator,
+    handoffAuthJournal,
+    handoffPreparationCoordinator,
+    sessionCoordinator,
+    readinessCoordinator,
+    legacyProfileService,
+    signOutWorkflow,
+    signOutCoordinator,
   ] = await Promise.all([
     Deno.readTextFile(resolverHandlerUrl),
     Deno.readTextFile(resolverDbUrl),
     Deno.readTextFile(revenueCatManagerUrl),
     Deno.readTextFile(revenueCatIdentityCoordinatorUrl),
     Deno.readTextFile(supabaseManagerUrl),
+    Deno.readTextFile(authSessionLifecycleCoordinatorUrl),
     Deno.readTextFile(purchasePrincipalResolverUrl),
     Deno.readTextFile(purchasePrincipalWireModelsUrl),
     Deno.readTextFile(purchasePrincipalRemoteServiceUrl),
+    Deno.readTextFile(legacyPurchaseHandoffRemoteServiceUrl),
+    Deno.readTextFile(purchaseIdentityHandoffCoordinatorUrl),
+    Deno.readTextFile(purchaseIdentitySourceHandoffCoordinatorUrl),
+    Deno.readTextFile(purchaseIdentityHandoffAuthJournalUrl),
+    Deno.readTextFile(purchaseIdentityHandoffPreparationCoordinatorUrl),
+    Deno.readTextFile(purchaseIdentitySessionCoordinatorUrl),
+    Deno.readTextFile(purchaseIdentityReadinessCoordinatorUrl),
+    Deno.readTextFile(legacyPurchaseIdentityProfileServiceUrl),
+    Deno.readTextFile(purchaseIdentitySignOutWorkflowUrl),
+    Deno.readTextFile(purchaseIdentitySignOutCoordinatorUrl),
   ]);
   const compactIdentityCoordinator = compact(identityCoordinator);
+  const compactSignOutWorkflow = compact(signOutWorkflow);
+  const compactSignOutCoordinator = compact(signOutCoordinator);
+  const compactSourceHandoffCoordinator = compact(sourceHandoffCoordinator);
+  const compactHandoffPreparationCoordinator = compact(
+    handoffPreparationCoordinator,
+  );
 
   assertStringIncludes(handler, "deriveRevenueCatStoreEntitlementState");
   assertStringIncludes(handler, "deriveRevenueCatAccountGrantState");
@@ -682,6 +754,99 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
   assertStringIncludes(
     compactIdentityCoordinator,
     "accountGrantsAllowed = request.accountGrantsAllowed && !isPurchaseIdentityHandoffPending && context.accountGrantFenceGeneration == accountGrantFenceGeneration",
+  );
+  const safeSignOut = compactSignOutWorkflow.slice(
+    compactSignOutWorkflow.indexOf(
+      "static func performPurchaseSafeSignOutTransition",
+    ),
+    compactSignOutWorkflow.indexOf(
+      "static func finalizeSignOutPurchaseHandoff",
+    ),
+  );
+  const safePreparation = safeSignOut.indexOf(
+    "try await prepareAndPersistHandoff()",
+  );
+  const safeSignOutMutation = safeSignOut.indexOf(
+    "await performSignOut()",
+  );
+  const cancellationAfterPreparation = safeSignOut.indexOf(
+    "try Task.checkCancellation()",
+    safePreparation,
+  );
+  const safeInitialization = safeSignOut.indexOf(
+    "let initialized = await initializeAnonymousSession()",
+  );
+  const cancellationAfterSignOut = safeSignOut.indexOf(
+    "try Task.checkCancellation()",
+    safeSignOutMutation,
+  );
+  const cancellationAfterInitialization = safeSignOut.indexOf(
+    "try Task.checkCancellation()",
+    safeInitialization,
+  );
+  const safeCompletion = safeSignOut.indexOf("try await completeHandoff()");
+  assert(
+    safePreparation >= 0 &&
+      cancellationAfterPreparation > safePreparation &&
+      cancellationAfterPreparation < safeSignOutMutation &&
+      safeSignOutMutation > safePreparation &&
+      cancellationAfterSignOut > safeSignOutMutation &&
+      cancellationAfterSignOut < safeInitialization &&
+      safeInitialization > safeSignOutMutation &&
+      cancellationAfterInitialization > safeInitialization &&
+      cancellationAfterInitialization < safeCompletion &&
+      safeCompletion > safeInitialization,
+    "purchase-safe sign-out must honor cancellation between every identity phase",
+  );
+  const retrySignOut = compactSignOutCoordinator.slice(
+    compactSignOutCoordinator.indexOf("func retryPendingHandoff"),
+    compactSignOutCoordinator.indexOf("private func performTransition"),
+  );
+  const retryQuiescence = retrySignOut.indexOf(
+    "await dependencies.session.awaitAccountBoundWorkQuiescence()",
+  );
+  const retrySessionLoad = retrySignOut.indexOf("loadSDKSession()");
+  const retryCompletion = retrySignOut.indexOf("completePendingHandoff(");
+  assert(
+    retrySignOut.indexOf(
+          "guard !Task.isCancelled else { return false }",
+        ) >= 0 &&
+      retryQuiescence >= 0 &&
+      retrySessionLoad > retryQuiescence &&
+      retryCompletion > retrySessionLoad,
+    "purchase-handoff recovery must quiesce account work before session-bound completion",
+  );
+  const pendingInitialization = compactSignOutCoordinator.slice(
+    compactSignOutCoordinator.indexOf(
+      "private func initializeAnonymousSessionAndCompletePendingHandoff",
+    ),
+  );
+  const pendingAnonymousSession = pendingInitialization.indexOf(
+    ".initializeAnonymousSession(transition)",
+  );
+  const pendingCancellation = pendingInitialization.indexOf(
+    "!Task.isCancelled",
+    pendingAnonymousSession,
+  );
+  const pendingOwnership = pendingInitialization.indexOf(
+    "ownsTransition(transition)",
+    pendingCancellation,
+  );
+  const pendingSessionFence = pendingInitialization.indexOf(
+    "currentSessionMatchesTransition(",
+    pendingOwnership,
+  );
+  const pendingCompletion = pendingInitialization.indexOf(
+    "completePendingHandoff(",
+    pendingSessionFence,
+  );
+  assert(
+    pendingAnonymousSession >= 0 &&
+      pendingCancellation > pendingAnonymousSession &&
+      pendingOwnership > pendingCancellation &&
+      pendingSessionFence > pendingOwnership &&
+      pendingCompletion > pendingSessionFence,
+    "pending proof recovery must revalidate cancellation and session ownership after anonymous initialization",
   );
   assertStringIncludes(resolverWireModels, "static let current = 3");
   assertStringIncludes(
@@ -727,13 +892,57 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
   ) {
     assertStringIncludes(resolverRemoteService, payloadContract);
   }
+  assertEquals(
+    legacyHandoffRemoteService.match(/client\.functions\.invoke\(/g)?.length,
+    3,
+  );
+  assertEquals(
+    legacyHandoffRemoteService.match(/"transfer-signout-purchases"/g)
+      ?.length,
+    3,
+  );
+  for (
+    const compatibilityPayloadContract of [
+      'let operation = "prepare"',
+      'operation: "bind"',
+      '"complete"',
+      '"cancel"',
+      "let handoff_id: String",
+      "let handoff_secret: String",
+      "let destination_user_id: String",
+    ]
+  ) {
+    assertStringIncludes(
+      legacyHandoffRemoteService,
+      compatibilityPayloadContract,
+    );
+  }
   assertStringIncludes(
     supabaseManager,
     "RevenueCatManager.shared.beginPurchaseIdentityResolution()",
   );
   assertStringIncludes(
-    supabaseManager,
-    "case .awaitingRefresh(let userId):",
+    authSessionLifecycleCoordinator,
+    "case .awaitingRefresh(let userID):",
+  );
+  assertStringIncludes(
+    authSessionLifecycleCoordinator,
+    "dependencies.state.beginPurchaseIdentityResolution()",
+  );
+  assertStringIncludes(
+    compact(authSessionLifecycleCoordinator),
+    compact(`
+      private func publishDeletionBarrier() {
+        dependencies.state.clearPublishedSession()
+        dependencies.state.clearPurchasePrincipalBinding()
+        dependencies.state.beginPurchaseIdentityResolution()
+        dependencies.identity.clearEntitlementSession()
+      }
+    `),
+  );
+  assertStringIncludes(
+    authSessionLifecycleCoordinator,
+    "await dependencies.identity.handleSupabaseSignOut()",
   );
   assertStringIncludes(
     supabaseManager,
@@ -741,7 +950,7 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
   );
   assertStringIncludes(
     supabaseManager,
-    "linkLegacyRevenueCatIdentityForSignOutHandoff",
+    "linkLegacyPurchaseIdentityForSignOutHandoff",
   );
   assertStringIncludes(
     supabaseManager,
@@ -749,117 +958,251 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
   );
   assertStringIncludes(
     supabaseManager,
-    "activePurchasePrincipalBinding = .legacyFallback",
+    "purchaseIdentitySessionCoordinator.recordBinding(.legacyFallback)",
   );
   assertStringIncludes(
     supabaseManager,
-    ".linkLegacyRevenueCatIdentityForSignOutHandoff(",
+    ".linkLegacyPurchaseIdentityForSignOutHandoff(",
   );
+  assertStringIncludes(
+    sessionCoordinator,
+    "private var resolutionTask: Task<PurchasePrincipalBinding?, Never>?",
+  );
+  assertStringIncludes(
+    sessionCoordinator,
+    "dependencies.state.isCurrentPublishedSession(context)",
+  );
+  assertStringIncludes(
+    readinessCoordinator,
+    "let verifiedSnapshot = try? await dependencies.state",
+  );
+  assertStringIncludes(legacyProfileService, '.from("users")');
   assertStringIncludes(
     supabaseManager,
     ".claimSignoutRotation(",
   );
-  const compactSupabaseManager = supabaseManager.replaceAll(/\s+/g, " ")
-    .trim();
-  const handoffReadinessStart = compactSupabaseManager.indexOf(
-    "func hasPendingPurchaseIdentityHandoffFailClosed",
+  const legacySourcePreparation = compactSourceHandoffCoordinator.slice(
+    compactSourceHandoffCoordinator.indexOf("func prepareLegacyHandoff"),
+    compactSourceHandoffCoordinator.indexOf(
+      "func abandonStableRotationIfSourceRestored",
+    ),
   );
-  const handoffReadinessEnd = compactSupabaseManager.indexOf(
-    "private func loadPendingSignOutPurchaseHandoff",
-    handoffReadinessStart,
+  const legacySourceSession = legacySourcePreparation.indexOf(
+    "let startingSession = try await dependencies.session.loadSDKSession()",
+  );
+  const legacyCancellationAfterSession = legacySourcePreparation.indexOf(
+    "try Task.checkCancellation()",
+    legacySourceSession,
+  );
+  const legacyDurablePreparation = legacySourcePreparation.indexOf(
+    "prepareLegacyHandoff(sourceUUID)",
+  );
+  const legacyVerifiedSession = legacySourcePreparation.indexOf(
+    "let verifiedSession = try await dependencies.session.loadSDKSession()",
   );
   assert(
-    handoffReadinessStart >= 0 && handoffReadinessEnd > handoffReadinessStart,
-    "the fail-closed purchase handoff readiness boundary must remain explicit",
+    legacySourceSession >= 0 &&
+      legacyCancellationAfterSession > legacySourceSession &&
+      legacyDurablePreparation > legacyCancellationAfterSession &&
+      legacyVerifiedSession > legacyDurablePreparation,
+    "legacy source preparation must fence the exact Auth session before and after durable proof construction",
   );
-  const handoffReadiness = compactSupabaseManager.slice(
-    handoffReadinessStart,
-    handoffReadinessEnd,
+  const legacyPreparation = compactHandoffPreparationCoordinator.slice(
+    compactHandoffPreparationCoordinator.indexOf(
+      "func prepareLegacyHandoff",
+    ),
   );
-  const legacyRead = handoffReadiness.indexOf(
-    "loadPendingSignOutPurchaseHandoff()",
+  const legacyRemotePreparation = legacyPreparation.indexOf(
+    ".prepareLegacyHandoff()",
   );
-  const stableRead = handoffReadiness.indexOf(
-    "loadPendingPurchasePrincipalAuthRotation()",
+  const legacyProofPersistence = legacyPreparation.indexOf(
+    "persistLegacyHandoff(pending)",
   );
-  const pendingProjection = handoffReadiness.indexOf(
-    "let pending = pendingLegacyHandoff != nil || pendingStableRotation != nil",
+  const legacyCancellationAfterPersistence = legacyPreparation.indexOf(
+    "try Task.checkCancellation()",
+    legacyProofPersistence,
   );
+  assert(
+    legacyRemotePreparation >= 0 &&
+      legacyProofPersistence > legacyRemotePreparation &&
+      legacyCancellationAfterPersistence > legacyProofPersistence,
+    "legacy preparation must persist its one-use proof before honoring later cancellation",
+  );
+  const stablePreparation = compactHandoffPreparationCoordinator.slice(
+    compactHandoffPreparationCoordinator.indexOf(
+      "func prepareStableRotation",
+    ),
+    compactHandoffPreparationCoordinator.indexOf(
+      "func prepareLegacyHandoff",
+    ),
+  );
+  const stableDraft = stablePreparation.indexOf(
+    "persistStableRotation(draft)",
+  );
+  const stablePrepare = stablePreparation.indexOf(".prepareStableRotation(");
+  const stablePrepared = stablePreparation.indexOf(
+    "persistStableRotation(prepared)",
+  );
+  const stableCancellationAfterDraft = stablePreparation.indexOf(
+    "try Task.checkCancellation()",
+    stableDraft,
+  );
+  const stableCancellationAfterPreparation = stablePreparation.indexOf(
+    "try Task.checkCancellation()",
+    stablePrepared,
+  );
+  assert(
+    stableDraft >= 0 &&
+      stableCancellationAfterDraft > stableDraft &&
+      stableCancellationAfterDraft < stablePrepare &&
+      stablePrepare > stableDraft &&
+      stablePrepared > stablePrepare &&
+      stableCancellationAfterPreparation > stablePrepared,
+    "stable preparation must retain each durable checkpoint before cancellation can stop the transition",
+  );
+  assertStringIncludes(
+    compact(supabaseManager),
+    "func hasPendingPurchaseIdentityHandoffFailClosed() -> Bool { purchaseIdentitySourceHandoffCoordinator() .hasPendingHandoffFailClosed() }",
+  );
+  const handoffReadiness = compactSourceHandoffCoordinator.slice(
+    compactSourceHandoffCoordinator.indexOf("func hasPendingHandoff()"),
+    compactSourceHandoffCoordinator.indexOf("func prepareStableRotation"),
+  );
+  const pendingStateLoader = compactSourceHandoffCoordinator.slice(
+    compactSourceHandoffCoordinator.indexOf("private func loadPendingState"),
+    compactSourceHandoffCoordinator.indexOf(
+      "private func sourceSessionIsCurrent",
+    ),
+  );
+  const legacyRead = pendingStateLoader.indexOf("loadLegacyHandoff()");
+  const stableRead = pendingStateLoader.indexOf("loadStableRotation()");
   const publishProjection = handoffReadiness.indexOf(
-    "setPurchaseIdentityHandoffPending(pending)",
+    "setHandoffPending(pending)",
   );
-  const returnProjection = handoffReadiness.indexOf("return pending");
   const publishFailure = handoffReadiness.indexOf(
-    "setPurchaseIdentityHandoffPending(true)",
+    "setHandoffPending(true)",
   );
   const returnFailure = handoffReadiness.indexOf("return true", publishFailure);
   assert(
     legacyRead >= 0 &&
       stableRead > legacyRead &&
-      pendingProjection > stableRead &&
-      publishProjection > pendingProjection &&
-      returnProjection > publishProjection &&
-      publishFailure > returnProjection &&
+      publishProjection >= 0 &&
+      publishFailure > publishProjection &&
       returnFailure > publishFailure,
     "handoff readiness must re-read both durable proofs and fail closed when either read is unavailable",
   );
-  const compatibilityCompletion = compactSupabaseManager.slice(
-    compactSupabaseManager.indexOf(
-      "private func performPendingSignOutPurchaseHandoff",
+  assertStringIncludes(
+    handoffAuthJournal,
+    "catch is PurchaseIdentityHandoffStoreError",
+  );
+  for (
+    const retiredManagerHelper of [
+      "private func prepareSignOutPurchaseHandoff(",
+      "private func prepareAndPersistPendingPurchasePrincipalAuthRotation(",
+      "private func abandonPendingPurchasePrincipalRotationIfSourceRestored(",
+      "private func restoreSourceIdentityAfterFailedSignOutIfPossible(",
+      "private func abandonPendingSignOutPurchaseHandoffIfSourceRestored(",
+    ]
+  ) {
+    assert(!supabaseManager.includes(retiredManagerHelper));
+  }
+  const compactHandoffCoordinator = compact(handoffCoordinator);
+  const handoffTaskAdmission = compactHandoffCoordinator.slice(
+    compactHandoffCoordinator.indexOf("func completePendingHandoff"),
+    compactHandoffCoordinator.indexOf("func cancel()"),
+  );
+  const handoffKey = handoffTaskAdmission.indexOf(
+    "let key = CompletionKey(",
+  );
+  const existingTask = handoffTaskAdmission.indexOf("if let task", handoffKey);
+  const matchingKey = handoffTaskAdmission.indexOf(
+    "if activeKey == key",
+    existingTask,
+  );
+  const replacement = handoffTaskAdmission.indexOf("cancel()", matchingKey);
+  const callerCancellation = handoffTaskAdmission.indexOf(
+    "guard !Task.isCancelled else { return false }",
+  );
+  const expectedUserSelection = handoffTaskAdmission.indexOf(
+    "let expectedUserID =",
+  );
+  const ownedTaskAdmission = compactHandoffCoordinator.slice(
+    compactHandoffCoordinator.indexOf("private func performPendingHandoff"),
+    compactHandoffCoordinator.indexOf("private func completeStableRotation"),
+  );
+  assertStringIncludes(
+    compactHandoffCoordinator,
+    "let transition: AuthTransitionToken?",
+  );
+  assert(
+    callerCancellation >= 0 &&
+      expectedUserSelection > callerCancellation &&
+      handoffKey >= 0 &&
+      existingTask > handoffKey &&
+      matchingKey > existingTask &&
+      replacement > matchingKey &&
+      ownedTaskAdmission.indexOf(
+          "guard !Task.isCancelled else { return false }",
+        ) < ownedTaskAdmission.indexOf("loadLegacyHandoff()"),
+    "handoff admission must reject cancelled work before journal access and include transition ownership in its exact-session key",
+  );
+  const compatibilityCompletion = compactHandoffCoordinator.slice(
+    compactHandoffCoordinator.indexOf(
+      "private func completeLegacyHandoff",
     ),
-    compactSupabaseManager.indexOf(
-      "func hasPendingPurchaseIdentityHandoffFailClosed",
+    compactHandoffCoordinator.indexOf(
+      "private func verifyActiveAnonymousSession",
     ),
   );
   assert(
     compatibilityCompletion.indexOf(
-          ".linkLegacyRevenueCatIdentityForSignOutHandoff(",
+          "session.linkLegacyProviderIdentity()",
         ) < compatibilityCompletion.indexOf(
-          ".synchronizePurchasesAfterIdentityHandoff(",
+          ".synchronizeLegacyPurchases(",
         ) &&
       compatibilityCompletion.lastIndexOf(
-          "ensureTelemetryLinkedWhenSafe( for: session.user, ownedBy: transition )",
+          "session.ensureTelemetryLinked(transition)",
         ) > compatibilityCompletion.indexOf(
-          "clearPendingSignOutPurchaseHandoff()",
+          "clearLegacyHandoff()",
         ),
     "an issued compatibility proof must finish on its legacy UUID before stable adoption",
   );
   assert(
     compatibilityCompletion.lastIndexOf(
-          "expectedAuthGeneration: expectedAuthGeneration",
+          "verifyActiveAnonymousSession(",
         ) < compatibilityCompletion.indexOf(
-          "try self.clearPendingSignOutPurchaseHandoff()",
+          "clearLegacyHandoff()",
         ) &&
       compatibilityCompletion.lastIndexOf(
-          "expectedAuthGeneration: expectedAuthGeneration",
+          "verifyActiveAnonymousSession(",
         ) >= 0,
     "legacy proof removal must follow exact anonymous Auth-generation verification",
   );
 
-  const stableCompletion = compactSupabaseManager.slice(
-    compactSupabaseManager.indexOf(
-      "private func completePendingPurchasePrincipalAuthRotationIfNeeded",
+  const stableCompletion = compactHandoffCoordinator.slice(
+    compactHandoffCoordinator.indexOf(
+      "private func completeStableRotation",
     ),
-    compactSupabaseManager.indexOf(
-      "private func performPendingSignOutPurchaseHandoff",
+    compactHandoffCoordinator.indexOf(
+      "private func completeLegacyHandoff",
     ),
   );
   const stableEntitlement = stableCompletion.indexOf(
-    "guard await EntitlementManager.shared.beginSession(",
+    "guard await dependencies.operations.refreshEntitlement(",
   );
   const stableFinalSessionFence = stableCompletion.lastIndexOf(
-    "activeAnonymousSessionMatches(",
+    "verifyActiveAnonymousSession(",
   );
   const stableFinalCancellation = stableCompletion.lastIndexOf(
     "try Task.checkCancellation()",
   );
   const stableProofRemoval = stableCompletion.indexOf(
-    "try clearPendingPurchasePrincipalAuthRotation()",
+    "try dependencies.journal.clearStableRotation()",
   );
   assert(
-    stableCompletion.indexOf(".claimSignoutRotation(") >= 0 &&
+    stableCompletion.indexOf(".claimStableRotation(") >= 0 &&
       stableEntitlement >
-        stableCompletion.indexOf(".claimSignoutRotation(") &&
+        stableCompletion.indexOf(".claimStableRotation(") &&
       stableFinalSessionFence > stableEntitlement &&
       stableFinalCancellation > stableFinalSessionFence &&
       stableProofRemoval > stableFinalCancellation,

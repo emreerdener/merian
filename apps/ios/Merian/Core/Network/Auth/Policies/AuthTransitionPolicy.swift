@@ -111,12 +111,6 @@ enum AuthTransitionPolicy {
         return .authenticated(userId: userId)
     }
 
-    static func shouldDeferExternalIdentityLink(
-        purchaseIdentityHandoffPending: Bool
-    ) -> Bool {
-        purchaseIdentityHandoffPending
-    }
-
     nonisolated static func shouldRestoreSourceIdentityAfterFailedSignOut(
         activeUserId: UUID?,
         activeUserIsAnonymous: Bool,

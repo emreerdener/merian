@@ -602,13 +602,48 @@ domain owners.
 | Store recovery           | `apps/ios/Merian/Core/Data/StoreRecovery/`      | The coordinator façade owns the shipped SwiftData configuration; `Models` owns source/migration values, diagnostics, manifests, and recovery-local JSON coding; `Policies` owns migration selection, error classification, and privacy-safe fingerprints; and `Services` owns Core Data metadata inspection, local diagnostic persistence, exact SQLite artifact discovery, and rollback-protected quarantine/legacy rescue. Diagnostics fingerprint captured metadata strings and keys. Manifests retain error codes and allowlisted stable domains, fingerprint custom domains and raw prose, and are required before archive success.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Hardware                 | `apps/ios/Merian/Core/Hardware/`                | Stable camera, audio-capture, haptic, and environment-context facades over focused platform owners; cross-feature speech; one-shot token-aware audio-session coordination; the reviewed framework-Combine-to-main-actor bridge; spectrogram DSP and ambient-noise classification; thermal/battery orchestration. `EnvironmentContext/Models` and `Policies` own context values and deterministic location rules; its location controller alone owns Core Location delegate, authorization, tracking, continuations, invalid-fix rejection, accurate/coarse cache separation, revocation fencing, and exact-generation timeout state; its geocoding service alone owns coalesced bounded `CLGeocoder` work; and its weather adapter alone owns WeatherKit. Audio capture receives maximum-duration feedback through AppDI instead of resolving the haptic singleton.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Notifications            | `apps/ios/Merian/Core/Notifications/`           | App-wide system-notification infrastructure and the cross-feature post-identification permission sheet. Stable push and badge facades preserve caller APIs; Models and Policies own immutable values and deterministic routing/presentation/badge decisions; Services alone own UserDefaults, Supabase account-scope projection, UNUserNotificationCenter, UIApplication, and Core's push-registration/unread-count endpoint effects; Coordination owns account-aware latest-state remote-registration draining; Badges owns generation-fenced single-flight unread state; and Views owns only the injected permission presentation. The account scope is local coalescing metadata and never enters the wire payload. Explore's visible activity feed, catalog, and mark-read adapters remain feature-owned.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Network                  | `apps/ios/Merian/Core/Network/`                 | `Auth/` owns value-only transition/error/session/lease models, Guest-presentation and deterministic transition policies, exact-session lease and exclusive transition coordinators, the sign-out single-flight, account-deletion error/session classification, ghost-profile queue/error policy, and closure-injected deletion, purchase-safe sign-out, and ghost-merge phase sequencing without provider SDK or singleton access. `SupabaseManager` retains the live Supabase Auth listener, applies session-adoption/admission/callback/deletion decisions, and owns live effect assembly for OAuth, consent, endpoints, provider SDKs, purchase identity, sign-out, logging, purge, durable recovery, account deletion, and lifecycle integration. The area also owns legacy sign-out purchase requests, Sign in with Apple authorization-code/Vault registration and subject-bound credential-state revalidation, strict account-deletion receipts, TLS-pinned session transport and per-attempt authenticated dispatcher, shared Insight/Explore/Dictionary Field Chat endpoints and strict DTO validation, private Field trip completion-scan DTO mapping, typed/account-fenced inference identification-review PostgREST/RPC service, Explore DTOs, species dictionary/observation-stats DTOs, and Keychain manager. Protocol-3 purchase-principal requests are owned by Core Security's Purchase Identity live adapter.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Network                  | `apps/ios/Merian/Core/Network/`                 | `Auth/` owns value-only transition/error/session/lease models, Guest-presentation and deterministic transition policies, exact-session lease and exclusive transition coordinators, the sign-out single-flight, and the observable effect-free `AuthRuntimeState` for transition, generation, transition-analytics, exact-session lease/drain, and local sign-out state. It also owns provider-neutral Auth-session bootstrap, recovery, lifecycle, conditional deferred-event replay, and public-author identity-refresh coordination, provider-presentation admission, focused Apple/Google authorization Services, the narrow SDK-facing OAuth session adapter for credential/session/profile-metadata mapping and live Auth calls, account-deletion error/session classification, ghost-profile queue/error policy, pure deletion phase order, separate dependency-injected fresh/recovery deletion coordinators, purchase-safe sign-out phase order and route selection, stable and compatibility completion keyed by destination, Auth generation and transition ownership, pending-proof routing, restoration, fail-closed journal verification, retry, recovery-only reset admission, and ghost-merge phase sequencing. Provider-neutral owners contain no provider SDK or singleton access; only the named authorization Services acquire Apple/Google/UIKit framework dependencies. The lifecycle, bootstrap, and OAuth `+Live` adapters exclusively acquire their corresponding Supabase Auth calls. `SupabaseManager` retains the focused lifecycle provider, history service, and facade sign-out task, delegates transition-state storage to `AuthRuntimeState`, adapts bootstrap identities through its stable SDK-typed entry point, and injects live bootstrap, session-recovery, OAuth completion, consent, endpoint, purchase identity, sign-out, handoff, logging, purge, durable recovery, account-deletion, public-author event, and lifecycle effects into focused owners. The lifecycle provider owns SDK stream mapping and exact current-state replay; the history service retains listener-admitted synchronization. OAuth completion fences cancellation after every suspended phase and admits a cancelled caller to cleanup only after it has already mutated the SDK session. Core Security's Purchase Identity live compatibility adapter owns legacy sign-out purchase requests. The area also owns Sign in with Apple authorization-code/Vault registration and subject-bound credential-state revalidation, strict account-deletion receipts, TLS-pinned session transport and per-attempt authenticated dispatcher, shared Insight/Explore/Dictionary Field Chat endpoints and strict DTO validation, private Field trip completion-scan DTO mapping, typed/account-fenced inference identification-review PostgREST/RPC service, Explore DTOs, species dictionary/observation-stats DTOs, and Keychain manager. Protocol-3 purchase-principal requests are owned by Core Security's other Purchase Identity live adapter.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Preferences              | `apps/ios/Merian/Core/Preferences/`             | `AppSettings` typed observable state; the exact `UserDefaults` key registry; the small `UserDefaults`-backed Explore-share and field-note bridges; preferred-name legacy cleanup plus account-qualified, monotonic tombstone and diagnostic metadata; the verified accepted-account-deletion inventory for account-derived caches; and an injected runtime-reset composer for observable settings, gamification, the generation-fenced app badge, and RAM images. Extracted owners import neither Supabase nor SwiftData. Device settings, consent, deletion-recovery state, and the Apple manual-revocation notice survive that account cleanup. Durable species values and reconciliation are owned by `Core/Data/SpeciesPreferences`; deletion-recovery state and the exact secure-key registry are owned by Core Security.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Security                 | `apps/ios/Merian/Core/Security/`                | Circuit breaker; device identity; the exact app-owned Keychain key registry; focused Account Deletion, Purchase Identity, Ghost Profile Merge, RevenueCat, entitlement, and scan-admission boundaries; `Consent/Models` for exact policy/evidence and source-compatible durable values; `Consent/Policies` for provider authority, ownership, retry, synchronization merge, and observable-state projection; `Consent/Repositories` for verified local ledger/journal transitions; `Consent/Services` for deterministic mutation and remote mapping plus sole live clock/app-metadata, PostgREST/RPC, Realtime, and cloud-session dependency adapters; `Consent/Coordinators` for runtime composition, account/session/lease and Ghost/inference workflows, synchronization, restoration, and Realtime task ownership; the 597-line `ConsentManager` observable compatibility facade for mutable state, lifecycle entry points, SDK application, merge publication, and Auth-transition draining; atomic verified ledger-file and Keychain withdrawal-journal bytes; and social guard. The canonical purchase-identity target is [`purchase-principal-auth-separation.md`](./rfcs/purchase-principal-auth-separation.md); the canonical consent hold is [`production-consent-readiness-2026-08-03.md`](./legal/production-consent-readiness-2026-08-03.md).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Species reference        | `apps/ios/Merian/Core/SpeciesReference/`        | Shared non-UI Wikipedia mobile-sections and GBIF taxon-key transport/parsing used by Inference and scan-thumbnail recovery. Callers retain scheduling, presentation identity, URL admission, image loading, and persistence policy.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | UI                       | `apps/ios/Merian/Core/UI/`                      | Cross-feature render-only controls, cards/feedback/model-tier presentation, audio spectrogram, glow loading skeleton, bounds-safe array access, cross-feature scan thumbnails and empty states, goal progress, and a domain-neutral media carousel package containing pager, gallery, audio playback, and reusable video chrome. Explicit UI service adapters own live image loading and the sole main-actor UIKit share-sheet presentation bridge; feature owners retain loading state, activity-item construction, navigation, source policy, entitlement lookup, telemetry, and presentation lifetime.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Routing                  | `apps/ios/Merian/Core/Routing/`                 | Immutable `AppEvent` and `AppRoute` models, deterministic route policy, narrow producer/consumer capabilities, the synchronous loss-tolerant event bus, and the bounded delivery-critical root-route coordinator. Models and Policies are effect-free; Coordination owns the only mutable delivery state.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Utilities                | `apps/ios/Merian/Core/Utilities/`               | Exact two-file, Foundation-only home for cached ISO 8601 formatters and trim-to-non-empty string normalization. App lifecycle lives in `App/Lifecycle`; intentional detached execution in `Core/Concurrency`; Field Notes reconciliation in `Core/Data/FieldNotes`; background execution and scan connectivity policy in `Core/Data/OfflineSync`; the shared error taxonomy in `Core/Errors`; the framework publisher bridge in `Core/Hardware`; safe collection access in `Core/UI`; species common-name presentation in `Features/SpeciesReference`; and typed event/route coordination in `Core/Routing`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+
+Within the Network row, the provider-neutral Apple credential-registration
+service owns strict receipt validation, its `+Live` adapter alone owns the
+Supabase Function DTOs and invocation, and `SupabaseManager` retains only the
+exact-session assembly around that injected operation. The adapter performs
+exactly one authenticated invocation per service call and owns neither retry
+policy nor asynchronous task state.
+
+The same Network row assigns the SDK's fallback authentication URL to
+`AuthenticationCallbackCoordinator` and its dependency package. They own
+transition and pending-handoff admission, anonymous/different-account refusal,
+replacement reconciliation, exact-session adoption, purchase/entitlement
+ordering, final verification, and mutation-aware cleanup without owning a task
+or SDK value. Cancellation after preflight stops before installation; sign-out
+beginning during installation prevents adoption or publication; and later
+purchase/entitlement continuations retain exact-session fences.
+`SupabaseManager` preserves the public URL entry point and injects the live
+Supabase conversion, captured session capabilities, Keychain marker, purchase,
+entitlement, cleanup, and diagnostic effects; focused live diagnostics retain
+the existing privacy-safe copy.
+
+Purchase-continuity source work is split explicitly within those rows.
+`PurchaseIdentitySourceHandoffCoordinator` owns aggregate fail-closed journal
+projection, exact-session preparation, exact-source abandonment, and failed-
+sign-out restoration through injected boundaries. Cancellation during
+compatibility preparation's final SDK-session read cannot report success, and
+the already-durable proof remains recoverable. Both abandonment routes recheck
+the transition or unowned account-work fence after the initial suspended SDK
+read and before remote cancellation; stable proof retirement repeats that fence
+after its final suspended read. `PurchaseIdentityHandoffAuthJournal` owns Auth
+error translation over Core Security's store, while
+`PurchaseHandoffPreparationCoordinator` in Core Security owns proof construction
+and stable `preparing`/`prepared` checkpoint order. `SupabaseManager` remains
+only the live SDK/provider/entitlement effect assembler and the centralized
+pending-fence publisher.
 
 Within the AI row,
 `Inference/Hydration/InferenceHistoricalRecordProjection.swift` is the concrete
@@ -764,8 +799,11 @@ cross-domain architecture suite freezes that inventory, requires a README for
 every Core domain, checks bounded stateless Policies and their exact documented
 local-input exceptions, keeps shared UI components transport/persistence-free,
 rejects `try?` SwiftData fetches, protects sensitive diagnostics, and tracks the
-remaining production file above 600 lines: `SupabaseManager.swift`. Explore
-wire/request models now have focused owners under
+remaining production file above 600 lines: the 3,916-line
+`SupabaseManager.swift`. Its purchase-identity binding state, keyed resolution
+task, foreground repair, and legacy-profile query have focused owners under
+`Core/Security/PurchaseIdentity/`; the facade supplies their live dependencies.
+Explore wire/request models now have focused owners under
 `Core/Network/Models/Explore/`; shared semantic-location redaction lives in
 `Core/Models/ExploreLocationPrivacy.swift`. The Codable post-location mode lives
 in `Core/Network/Models/Explore/ExploreLocationSharingAPIModels.swift`, while
@@ -943,7 +981,7 @@ the carried settlement only after exact queue deletion through
 That owner delegates lease retention and trailing-pass coalescing to the
 injected `InferenceFundingReconciliationOwner`, which Auth admission cancels and
 awaits. Architecture tests freeze the sole owners, dependency direction, lock
-containment, checked value transfer, and focused production- file ceilings.
+containment, checked value transfer, and focused production-file ceilings.
 
 Unsupported inference audio crosses narrow fail-closed owners. Media Upload
 rejects non-local or non-WAV audio before signing, and surviving terminal
@@ -1070,12 +1108,52 @@ preparation/commit payloads. `AccountDeletionRecoveryValidation.swift` and
 `Decoding/AccountDeletionResponseDecoder.swift` own only stateless
 proof/timestamp and operation-specific receipt validation. Two fixed-route value
 bridges retain private authenticated or capability-only transport.
-`Core/Network/Auth/` owns the value-only transition/session/lease foundation,
-account-deletion classification, ghost-merge queue/error policy, and
-closure-injected deletion, sign-out, and ghost-merge phase sequencing;
-`SupabaseManager`, `Core/Security/AccountDeletion`, and `AppDIContainer` retain
-live transition, endpoint/SDK, injected secure storage, cleanup, and retirement
-effects. `Core/Network/Transport/` owns stateless Edge URL construction,
+`Core/Network/Auth/` owns the value-only transition/session/lease foundation;
+provider-neutral Auth-session bootstrap snapshots, injected dependencies, and
+complete-token exact-context keyed task coordinator with pre-session
+cancellation plus post-purchase-readiness completion fencing; a focused SDK
+bootstrap service/live adapter for session projection, reads, missing-session
+classification, and anonymous sign-in plus a separate diagnostics owner;
+lifecycle event/diagnostic values, injected dependency boundaries,
+session-projection coordinator, and conditional deferred-event replay task;
+provider-neutral OAuth credential, session, completion, and metadata values;
+OAuth token-subject policy, session-replacement/Apple-registration workflow, and
+shared completion coordinator with provider/transition validation, explicit
+replacement disposition, and cancellation fences around every suspended
+completion phase; provider-presentation admission dependencies/coordinator with
+one retained Apple completion task; and focused Apple/Google live Services for
+presentation, provider-value mapping, Apple controller/nonce ownership, window
+policy, and diagnostics; account-deletion classification; ghost-merge queue/
+error policy; pure deletion phase order; and separate dependency-injected
+fresh/recovery deletion, purchase-sign-out route, sign-out phase, keyed
+purchase-handoff completion, and Ghost durable-preparation/keyed-completion
+coordinators. Its public-author dependency/coordinator pair owns
+transition-owned refresh and the keyed restored-session
+Ghost-completion/refresh/event sequence. Its Apple credential-revocation pair
+owns exact identity/generation lookup and an identity-bound terminal-clear
+admission. Recovery repeats the exact expected and current session after
+account-work quiescence and returns a typed completion, context-change, or
+purchase-handoff deferral outcome. Rejected work remains pending for the next
+stable Auth context without a hot lookup loop, and the manager's centralized
+aggregate handoff publication resumes it when the fence becomes false. A context
+generation changed during suspended clear replays after the deferred result
+rather than losing an earlier lifecycle wakeup. `SupabaseManager` retains the
+focused lifecycle provider, history service, and facade sign-out task plus
+bootstrap publication, session-recovery, and public- author event effect
+assembly while preserving the SDK-typed bootstrap entry point. The bootstrap
+service/live adapter owns bootstrap SDK projection, reads, missing-session
+classification, and anonymous sign-in; the lifecycle provider owns the Auth SDK
+stream, SDK-state mapping, deferred-event registration, and exact current-state
+replay. Listener replacement cancels the superseded task and replay obligation,
+and a post-coordinator cancellation fence blocks its trailing
+credential-revocation resume effect; the history service owns every
+listener-admitted synchronization task. Its embedded `AuthRuntimeState` owns
+transition/generation, transition-analytics, exact-session lease/drain, and
+local sign-out state without acquiring those live effects;
+`Core/Security/GhostProfileMerge` owns the typed remote service and sole
+Supabase Function adapter; `Core/Security/AccountDeletion` and `AppDIContainer`
+retain injected secure storage, cleanup, and retirement effects.
+`Core/Network/Transport/` owns stateless Edge URL construction,
 unavailable-route and stable-error classification, retry allowlists/account
 binding, and value-only Auth-recovery decisions. Its request-scoped
 `AuthenticatedRequestExecutor` owns the logical attempt state machine and
@@ -1112,13 +1190,40 @@ endpoint-owner inventory, prevents duplicate aggregate endpoint methods, applies
 the 600-line ceiling across the extracted Auth, Endpoint, Inference, Media,
 Recovery, and Transport owners plus the client façade, and requires exactly six
 Transport files: three stateless policies, the request-scoped executor, the
-pinned session, and the authenticated dispatcher. It also freezes the nine Auth
-foundation paths, relocated declaration and helper-function ownership, former
-account-deletion, purchase-safe sign-out, and ghost-merge helper names, the sole
-structured task owner, actor isolation, and provider-SDK/singleton exclusion.
-The same guard locks the Core Security ghost-merge and purchase-handoff
-models/stores and their device-only verified-persistence boundaries. It records
-the exact, disjoint ambiguous-replay classifications and confines live
+pinned session, and the authenticated dispatcher. It also freezes the sixty Auth
+foundation paths, including the effect-free observable owner for transition,
+generation, transition-analytics, exact-session lease/drain, and local sign-out
+state plus the focused listener/current-state adapter, historical-sync task
+owner, lifecycle diagnostics, and live listener's
+generation/context/transition-observation order; the bootstrap dependency/
+coordinator pair plus focused SDK service/live adapter and diagnostics owner;
+the recovery dependency/coordinator pair plus bootstrap single-flight,
+missing-session, cancellation, exact-refresh, anonymous-readiness, local-clear,
+and final-session rules; the lifecycle event model, dependency boundaries,
+coordinator, and replay owner; the OAuth model, identity-token policy, workflow,
+completion dependency package/coordinator, provider-admission dependency
+package/coordinator, live-provider Services, and the typed Apple
+credential-registration service/ sole Supabase live-adapter pair, including
+exactly one Function invocation per service call and no retry policy,
+asynchronous task, facade, or alternate transport ownership in that adapter; the
+live SDK-install mutation marker before post-install cancellation plus
+exact-target transition adoption before recovery, explicit teardown of retained
+purchase-handoff and purchase-identity resolution work, and the reviewed
+residual generic Auth SDK calls in the facade; the shared deletion dependency
+package; and fresh/recovery coordinators, the purchase-sign-out and
+purchase-handoff dependency and route owners, relocated declaration and
+helper-function ownership, former account-deletion, purchase-safe sign-out,
+purchase-handoff, and ghost-merge helper names, the public-author refresh and
+Apple credential-revocation dependency/coordinator pairs, the fallback
+authentication callback dependency package, coordinator, and live-diagnostics
+split, the ten explicit structured task owners, actor isolation,
+provider-neutral SDK/singleton exclusion, focused provider-service framework
+ownership, and provider-only Apple lookup capture across suspension. The sole
+live public-author event/logging adapter remains an explicit owner outside the
+provider-neutral Auth package. The same guard locks the Core Security
+ghost-merge models/service/store and purchase-handoff models/stores, including
+device-only verified persistence and sole live Ghost endpoint ownership. It
+records the exact, disjoint ambiguous-replay classifications and confines live
 dependency acquisition to the reviewed transport, Auth, inference-preflight, and
 owned-recovery owners. The backend `get-filtered-discovery-feed` route remains
 in the Edge fleet but is intentionally absent from the iOS replay classification
@@ -1153,15 +1258,15 @@ URL/route/error classification, bounded unavailable-route scheduling,
 ambiguous-replay allowlists, retry-account binding, value-only Auth-recovery
 selection, exact request/account replay, refresh application, per-attempt
 failed/successful body-release notification, logical-callback idempotency across
-replay, cancellation, session configuration, exact Supabase hostname admission,
-concurrent single-session initialization, certificate-chain matching plus
-missing/empty/untrusted-chain rejection, injected-session and bounded no-cache
-dispatch, exact scan-admission route confinement, and authenticated request
-construction. The cross-slice source guard keeps session construction in
-`PinnedNetworkTransport`, per-attempt Auth leasing in
-`AuthenticatedTransportDispatcher`, and verifies the executor's ordinary and
-transition-owned application branches. `MediaUploadTests.swift` keeps its
-held-request cancellation transport, per-session signals, and bounded
+replay, pre-dispatch and post-unauthorized-refresh cancellation, session
+configuration, exact Supabase hostname admission, concurrent single-session
+initialization, certificate-chain matching plus missing/empty/untrusted-chain
+rejection, injected-session and bounded no-cache dispatch, exact scan-admission
+route confinement, and authenticated request construction. The cross-slice
+source guard keeps session construction in `PinnedNetworkTransport`, per-attempt
+Auth leasing in `AuthenticatedTransportDispatcher`, and verifies the executor's
+ordinary and transition-owned application branches. `MediaUploadTests.swift`
+keeps its held-request cancellation transport, per-session signals, and bounded
 completion/cleanup helpers private to that file; it does not add a production
 task or session owner. `MediaStorageAPIModelsTests.swift` owns
 signing/inspection wire decoding. Account-deletion endpoint/recovery/transport
@@ -1169,41 +1274,136 @@ and boundary suites live under `Endpoints/`; DTO/receipt tests live under
 `Decoding/`, and pure recovery syntax/expiry tests remain directly under
 `Core/Network/`. Their isolated fixtures do not bypass valid-transition
 admission. Value-state and lease tests live in
-`Auth/AuthTransitionFoundationTests`; admission, adoption, provider callback,
+`Auth/AuthTransitionFoundationTests`; observable transition/generation,
+transition-analytics, exact-session lease/drain, and local sign-out ownership
+live in `Auth/AuthRuntimeStateTests`; admission, adoption, provider callback,
 OAuth rollback/metadata, exact direct-link upgrade, and purchase-handoff
-decisions live in `Auth/AuthTransitionPolicyTests`. Account-deletion
-classification, intake, and cleanup/retirement sequencing live in
-`Auth/AccountDeletionTransitionPolicyTests`,
+decisions live in `Auth/AuthTransitionPolicyTests`. Token parsing, normalized
+metadata, replacement/registration retry, fail-closed provider/transition and
+registration configuration, shared OAuth completion, provider
+admission/callback/task ownership, and provider mapping/cancellation behavior
+live in `Auth/OAuthIdentityTokenPolicyTests`, `Auth/OAuthSignInModelsTests`,
+`Auth/OAuthSignInWorkflowTests`, `Auth/OAuthSignInCoordinatorTests`, and
+`Auth/OAuthSignInCancellationTests`, `Auth/OAuthProviderSignInCoordinatorTests`,
+`Auth/GoogleOAuthAuthorizationLiveProviderTests`, and
+`Auth/AppleOAuthAuthorizationLiveProviderTests`.
+`Auth/AppleOAuthCredentialRegistrationServiceTests` owns exact value forwarding,
+strict registered-receipt validation, and transport-error propagation.
+Account-deletion classification, intake, and cleanup/retirement sequencing live
+in `Auth/AccountDeletionTransitionPolicyTests`,
 `Auth/AccountDeletionIntakeWorkflowTests`, and
-`Auth/AccountDeletionCleanupWorkflowTests`. Purchase-safe ordering lives in
-`Auth/PurchaseIdentitySignOutWorkflowTests`; exact journal persistence and
-compatibility live in
-`Core/Security/PurchaseIdentity/PurchaseIdentityHandoffStoreTests`. Ghost-merge
-replacement, terminal-error adaptation, and completion order live in
-`Auth/GhostProfileMergePolicyTests`,
-`Auth/GhostProfileMergeEndpointErrorAdapterTests`, and
-`Auth/GhostProfileMergeWorkflowTests`; exact queue persistence, validation, and
-legacy migration live in
+`Auth/AccountDeletionCleanupWorkflowTests`; live-boundary deletion ordering and
+recovery routing live in `Auth/AccountDeletionCoordinatorTests` and
+`Auth/AccountDeletionRecoveryCoordinatorTests`. Purchase-safe ordering and
+preflight/inter-phase cancellation live in
+`Auth/PurchaseIdentitySignOutWorkflowTests`; stable/legacy selection,
+pending-proof routing, fail-closed journal rereads, recovery-only reset
+admission, cancelled transition admission, and account-work-quiesced retry live
+in `Auth/PurchaseIdentitySignOutCoordinatorTests`; source preparation, including
+cancellation during compatibility preparation's final SDK-session read,
+exact-source abandonment/restoration, and aggregate fail closure live in
+`Auth/PurchaseIdentitySourceHandoffCoordinatorTests`; exact Auth journal error
+translation lives in `Auth/PurchaseIdentityHandoffAuthJournalTests`; proof
+construction and durability checkpoints live in Core Security's
+`PurchaseIdentityHandoffPreparationCoordinatorTests`; exact journal persistence
+and compatibility live in
+`Core/Security/PurchaseIdentity/PurchaseIdentityHandoffStoreTests`. Stable and
+compatibility completion behavior lives in
+`Auth/PurchaseIdentityHandoffCoordinatorTests`; typed compatibility-route and
+terminal-error behavior lives in
+`Core/Security/PurchaseIdentity/LegacyPurchaseHandoffRemoteServiceTests`.
+Session binding/linking, durable-handoff fence projection, same-context
+single-flight, and differently keyed resolution supersession live in
+`Core/Security/PurchaseIdentity/PurchaseIdentitySessionCoordinatorTests`,
+including stale final-admission cache rejection; foreground repair and its final
+exact-session fence live in
+`Core/Security/PurchaseIdentity/PurchaseIdentityReadinessCoordinatorTests`;
+typed legacy-profile forwarding lives in
+`Core/Security/PurchaseIdentity/LegacyPurchaseIdentityProfileServiceTests`.
+Ghost-merge replacement, durable preparation, provider-transition and stale-
+source rejection, keyed completion/supersession, queue-wide retry, and
+completion order live in `Auth/GhostProfileMergePolicyTests`,
+`Auth/GhostProfileMergeWorkflowTests`, and
+`Auth/GhostProfileMergeCoordinatorTests`; typed operation forwarding and
+provider/terminal error adaptation live in
+`Core/Security/GhostProfileMerge/GhostProfileMergeRemoteServiceTests`; exact
+queue persistence, validation, and legacy migration live in
 `Core/Security/GhostProfileMerge/GhostProfileMergeStoreTests`.
-`SupabaseManagerTests` retains live Auth/effect assembly.
-`AccountDeletionRecoveryCapabilityStoreTests`,
-`AccountDeletionLocalCleanupStoreTests`, and
-`ManualAppleRevocationNoticeStoreTests` own device proof, recovery-phase, and
-notice behavior. `AccountSettingsViewModelTests`, `ScanRepositoryPurgeTests`,
-and `AccountScopedPreferencesTests` own the Settings dependency handoff and
-account-local purge boundaries; `AppDIContainerTests` remains scoped to
-container identity, preview isolation, and launch/root-presentation policy. The
-joined manager audit also locks post-suspension listener and anonymous-bootstrap
-publication, pre-destructive deletion/sign-out cancellation, two-stage pre-SDK
-OAuth cancellation with suppression rollback, direct provider-link cancellation
-immediately before the SDK mutation, exact generation and transition ownership
-before purchase-proof removal, and target-plus-UUID compare-before-clear cleanup
-for restored-session public-author refresh. The cross-language
+`AuthSessionLifecycleCoordinatorTests` owns provider-neutral listener
+orchestration, durable fail closure, deletion-barrier local entitlement
+projection closure, state order, purchase/entitlement sequencing, and
+post-suspension fences, including replay-owner-driven deferred sign-out cleanup
+and stale signed-out postflight rejection. `AuthLifecycleReplayCoordinatorTests`
+owns task replacement, transition carry-forward, stable-event obligation
+clearing, release-during-suspension, and no-deferred-event behavior.
+`CoreNetworkIntegrationArchitectureTests` rejects strong manager capture in the
+live lifecycle dependency assembly and pins its weak purchase-principal and
+linked-user cleanup bindings. `AuthSessionBootstrapCoordinatorTests` owns
+current session reuse, sign-out/quiescence order, true-missing anonymous
+creation and failure, exact-token task sharing, replaced-owner rejection,
+preflight and sign-out-wait cancellation, task replacement, transition drift,
+post-readiness cancellation, and final session admission after purchase
+readiness. `AuthSessionBootstrapLiveServiceTests` owns SDK identity/expiry and
+anonymous-fresh projection, exact SDK/compatibility missing-session
+classification, unrelated-error rejection, and SDK failure forwarding.
+`AuthSessionRecoveryCoordinatorTests` owns ordinary and transition-owned
+exact-session refresh, cancellation/session drift around suspension, anonymous
+purchase/entitlement/final-readback admission, pending-handoff preservation, and
+terminal local cleanup, including cancellation delivered after SDK sign-out has
+started and entry for a cancelled OAuth transition only after its SDK mutation,
+cleanup of the exact adopted replacement target, plus rejection of a different
+replacement session installed while cleanup waits for account-work quiescence.
+`AuthenticationCallbackCoordinatorTests` owns fifteen deterministic fallback URL
+cases covering success order, pending-handoff, transition and sign-out overlap,
+anonymous/different-account refusal, exact-account refresh, installation failure
+before and after SDK mutation, mutation-aware cleanup, pre-install and
+suspended-phase cancellation, exact installed-target transition adoption,
+purchase readiness, and final session drift.
+`PublicAuthorIdentityRefreshCoordinatorTests` owns eighteen deterministic cases
+covering stale-target scheduling, keyed replacement and compare-before-clear
+cleanup, Ghost/lease/refresh/event ordering, direct and scheduled cancellation
+admission and postflight, cancellation-diagnostic suppression, lease and
+current-user drift, remote failure, exact transition ownership, ownerless
+refresh, and completed-marker reset. `AppleCredentialRevocationCoordinatorTests`
+owns seventeen cases covering lookup and terminal-clear transition overlap,
+identity/generation drift, stable-context revalidation, recovery deferral
+without immediate retry, explicit stable resume, context-change replay without a
+lost wakeup, cancellation, coalescing, owner release, and fail-closed clearing.
+`SupabaseManagerTests` retains Supabase SDK/Auth effect assembly; focused
+provider suites own provider-specific adapter classification.
+`AccountDeletionCapabilityStoreTests`, `AccountDeletionLocalCleanupStoreTests`,
+and `ManualAppleRevocationNoticeStoreTests` own device proof, recovery-phase,
+and notice behavior. `AccountSettingsViewModelTests`,
+`ScanRepositoryPurgeTests`, and `AccountScopedPreferencesTests` own the Settings
+dependency handoff and account-local purge boundaries; `AppDIContainerTests`
+remains scoped to container identity, preview isolation, and
+launch/root-presentation policy. The joined lifecycle-coordinator/manager audit
+also locks post-suspension listener and coordinator-owned anonymous-bootstrap
+publication plus keyed task replacement, pre-destructive deletion/sign-out
+cancellation, pre- and post-install OAuth replacement cancellation with
+disposition-aware reconciliation, direct provider-link cancellation immediately
+before the SDK mutation, cancellation after each suspended OAuth completion
+phase, completion-owned cleanup after a mutated session, exact generation and
+transition ownership before purchase-proof removal, and coordinator-owned
+target-plus-UUID compare-before-clear cleanup for restored-session public-author
+refresh, conditional deferred-lifecycle replay plus signed-out postflight
+fencing, provider admission/presentation and Apple completion-task ownership,
+and generation-fenced Apple credential revalidation, coordinator release during
+a suspended lookup, and provider-only live capture. The Apple framework
+notification/state lookup and privacy-safe diagnostics remain in focused live
+adapters outside `Auth/`; sign-in provider presentation and mapping remain in
+focused Services inside `Auth/`. The cross-language
 `accountDeletionCoverage.test.ts`, `purchasePrincipalMigrationContract.test.ts`,
 and `ghostProfileMergeClientContract.test.ts` contracts read their extracted
-owners directly. The Ghost contract additionally reads `SupabaseManager`, its
-policy and endpoint-adapter tests, plus the Consent facade, runtime,
-cloud-session coordinator and live adapter, synchronization, merge,
+owners directly. The Apple registration contract reads the Apple authorization
+provider, provider sign-in coordinator, facade assembly, OAuth workflow, and
+completion coordinator and freezes one-use credential routing,
+provider/transition plus Apple-required/Google-forbidden configuration before
+session installation; the Ghost contract additionally reads `SupabaseManager`,
+the OAuth coordinator, models, identity-token policy, replacement workflow, and
+cancellation suite, the Ghost coordinator/dependencies, typed service/live
+adapter, store, policy, workflow, and focused tests, plus the Consent facade,
+runtime, cloud-session coordinator and live adapter, synchronization, merge,
 state-projection, Realtime, restoration, repository, and retry owners and their
 focused authority, cloud-session, synchronization, Realtime, and restoration
 tests; owner or suite rehomes must update those paths atomically. Together they

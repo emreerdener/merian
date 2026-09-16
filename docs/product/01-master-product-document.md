@@ -974,12 +974,16 @@ cannot consume that new response field. Public promotion is blocked until an
 enforceable minimum-supported-build control or independent server-delivered
 fallback covers them; App Store availability is not adoption evidence. Auth is
 deleted only after relational, storage, and applicable provider verification
-succeed. Transient failures are resumed automatically. After immediate
-completion or durable acceptance, the supporting client persists any manual
-Apple disposition, signs out locally, and removes its local store. An
-independent scheduled health check alerts when the reaper is disabled or
-misconfigured, deletion work is overdue, leases expire, storage work is
-orphaned, or queue age/backlog breaches the deletion SLA.
+succeed. Transient failures are resumed automatically. When the supporting
+client observes durable acceptance, it first clears published Auth, purchase
+identity readiness, and its local server-verified entitlement projection. This
+is local fail-closed invalidation; it does not mutate the server entitlement
+ledger or resolve the deletion marker. After immediate completion or durable
+acceptance, the client persists any manual Apple disposition, signs out locally,
+and removes its local store. An independent scheduled health check alerts when
+the reaper is disabled or misconfigured, deletion work is overdue, leases
+expire, storage work is orphaned, or queue age/backlog breaches the deletion
+SLA.
 
 The checked-in protocol-v2 prepare response has a dedicated native receipt for
 its four non-destructive fields. A shared identity-free fixture is emitted by

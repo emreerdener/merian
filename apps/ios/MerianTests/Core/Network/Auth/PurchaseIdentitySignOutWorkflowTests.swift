@@ -54,6 +54,27 @@ final class PurchaseIdentitySignOutWorkflowTests: XCTestCase {
         XCTAssertTrue(steps.isEmpty)
     }
 
+    func testUserSignOutCancellationStopsBeforeAnonymousInitialization() async {
+        var steps: [String] = []
+
+        let isReady = await Task { @MainActor in
+            await PurchaseIdentitySignOutWorkflow
+                .performUserSignOutTransition(
+                    performSignOut: {
+                        steps.append("signOut")
+                        withUnsafeCurrentTask { $0?.cancel() }
+                    },
+                    initializeAnonymousSession: {
+                        steps.append("initializeAnonymousSession")
+                        return true
+                    }
+                )
+        }.value
+
+        XCTAssertFalse(isReady)
+        XCTAssertEqual(steps, ["signOut"])
+    }
+
     func testPurchaseSafeSignOutPersistsBeforeClosingAndCompletingIdentity() async {
         var steps: [String] = []
 
@@ -147,6 +168,99 @@ final class PurchaseIdentitySignOutWorkflowTests: XCTestCase {
         XCTAssertFalse(isReady)
         XCTAssertTrue(reportedError is CancellationError)
         XCTAssertTrue(steps.isEmpty)
+    }
+
+    func testPurchaseSafeSignOutCancellationAfterPreparationStopsBeforeSignOut() async {
+        var steps: [String] = []
+        var reportedError: Error?
+
+        let isReady = await Task { @MainActor in
+            await PurchaseIdentitySignOutWorkflow
+                .performPurchaseSafeSignOutTransition(
+                    prepareAndPersistHandoff: {
+                        steps.append("prepareAndPersist")
+                        withUnsafeCurrentTask { $0?.cancel() }
+                    },
+                    performSignOut: { steps.append("signOut") },
+                    initializeAnonymousSession: {
+                        steps.append("initializeAnonymousSession")
+                        return true
+                    },
+                    completeHandoff: {
+                        steps.append("completeHandoff")
+                    },
+                    reportFailure: { reportedError = $0 }
+                )
+        }.value
+
+        XCTAssertFalse(isReady)
+        XCTAssertTrue(reportedError is CancellationError)
+        XCTAssertEqual(steps, ["prepareAndPersist"])
+    }
+
+    func testPurchaseSafeSignOutCancellationAfterSignOutStopsBeforeInitialization() async {
+        var steps: [String] = []
+        var reportedError: Error?
+
+        let isReady = await Task { @MainActor in
+            await PurchaseIdentitySignOutWorkflow
+                .performPurchaseSafeSignOutTransition(
+                    prepareAndPersistHandoff: {
+                        steps.append("prepareAndPersist")
+                    },
+                    performSignOut: {
+                        steps.append("signOut")
+                        withUnsafeCurrentTask { $0?.cancel() }
+                    },
+                    initializeAnonymousSession: {
+                        steps.append("initializeAnonymousSession")
+                        return true
+                    },
+                    completeHandoff: {
+                        steps.append("completeHandoff")
+                    },
+                    reportFailure: { reportedError = $0 }
+                )
+        }.value
+
+        XCTAssertFalse(isReady)
+        XCTAssertTrue(reportedError is CancellationError)
+        XCTAssertEqual(steps, ["prepareAndPersist", "signOut"])
+    }
+
+    func testPurchaseSafeSignOutCancellationAfterInitializationStopsBeforeCompletion() async {
+        var steps: [String] = []
+        var reportedError: Error?
+
+        let isReady = await Task { @MainActor in
+            await PurchaseIdentitySignOutWorkflow
+                .performPurchaseSafeSignOutTransition(
+                    prepareAndPersistHandoff: {
+                        steps.append("prepareAndPersist")
+                    },
+                    performSignOut: { steps.append("signOut") },
+                    initializeAnonymousSession: {
+                        steps.append("initializeAnonymousSession")
+                        withUnsafeCurrentTask { $0?.cancel() }
+                        return true
+                    },
+                    completeHandoff: {
+                        steps.append("completeHandoff")
+                    },
+                    reportFailure: { reportedError = $0 }
+                )
+        }.value
+
+        XCTAssertFalse(isReady)
+        XCTAssertTrue(reportedError is CancellationError)
+        XCTAssertEqual(
+            steps,
+            [
+                "prepareAndPersist",
+                "signOut",
+                "initializeAnonymousSession"
+            ]
+        )
     }
 
     func testPurchaseSafeSignOutPropagatesDurableCompletionFailure() async {

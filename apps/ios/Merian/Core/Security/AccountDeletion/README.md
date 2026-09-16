@@ -14,10 +14,13 @@ data erasure, workflow task lifetime, or user-facing presentation.
   capability value and the existing secure-storage error presentation.
 - `Stores/AccountDeletionRecoveryCapabilityStore.swift` owns distinct 256-bit
   recovery and acknowledgement capability generation, the protocol-v2 JSON
-  envelope, legacy raw protocol-v1 decoding, exact Keychain accessibility,
-  read-after-write verification, verified removal, and the pre-Auth bootstrap
-  barrier. It performs no networking and does not decide whether a server
-  receipt authorizes cleanup.
+  envelope, legacy raw protocol-v1 decoding, exact Keychain accessibility, the
+  explicit raw-v1 creation path used only to resume an installed pre-capability
+  intake marker, read-after-write verification, verified removal, and the
+  pre-Auth bootstrap barrier. Keeping that compatibility proof raw prevents a v1
+  request from being recovered through the separate v2 hash domain. The store
+  performs no networking and does not decide whether a server receipt authorizes
+  cleanup.
 - `Stores/AccountDeletionLocalCleanupStore.swift` owns the single durable
   `UserDefaults` phase marker. It preserves the installed Boolean migration,
   persists and reads back every phase before publishing its routing event, and
@@ -34,10 +37,16 @@ accepting explicit `UserDefaults`, event-sender, secure-store, and generator
 dependencies for isolated tests.
 
 `Core/Network/Auth/Coordinators/AccountDeletionWorkflow.swift` owns phase order
-through injected effects. `SupabaseManager` retains Auth and endpoint effect
-assembly, and the Settings deletion adapter supplies the account-local purge
-boundary. Only an admitted workflow result may advance recovery state or ask the
-capability store to retire a proof.
+through injected effects. `AccountDeletionCoordinator` owns fresh deletion
+orchestration and `AccountDeletionRecoveryCoordinator` routes every installed
+recovery phase; their shared dependency value exposes only narrow local-state,
+exact-session, diagnostics, and purchase-handoff closures.
+`AuthSessionLifecycleCoordinator` owns listener deferral and local Auth,
+purchase, and entitlement-projection closure while accepted cleanup is pending.
+`SupabaseManager` retains Auth and endpoint effect assembly, and the Settings
+deletion adapter supplies the account-local purge boundary. Only an admitted
+coordinator result may advance recovery state or ask the capability store to
+retire a proof.
 
 ## Invariants
 
@@ -45,6 +54,10 @@ capability store to retire a proof.
   metadata, app groups, backups, or server plaintext storage.
 - A present or unreadable Keychain proof restores a conservative barrier before
   Auth bootstrap. Verified absence may remove only that lookup barrier.
+- When the Auth listener observes an accepted-cleanup barrier, it immediately
+  clears the published Auth session, purchase-principal binding/readiness, and
+  local server-verified entitlement projection. This is a local fail-closed
+  reset; it neither changes the server ledger nor resolves the deletion marker.
 - The protocol-v2 recovery and acknowledgement values are distinct and are not
   interchangeable. Legacy 32-byte capability data remains protocol-v1 readable.
 - Accepted deletion clears account-local data before acknowledgement and
@@ -57,7 +70,8 @@ capability store to retire a proof.
 Mirrored tests live in `MerianTests/Core/Security/AccountDeletion/`:
 
 - `AccountDeletionRecoveryCapabilityStoreTests.swift` covers generation,
-  protocol compatibility, secure-storage uncertainty, exact accessibility, write
+  protocol compatibility, legacy-intake raw-proof creation and v2-envelope
+  rejection, secure-storage uncertainty, exact accessibility, write
   verification, pre-Auth barrier restoration, and verified removal.
 - `AccountDeletionLocalCleanupStoreTests.swift` covers every installed phase,
   legacy Boolean migration, unknown-state admission, persistence/event order,
@@ -72,8 +86,9 @@ Mirrored tests live in `MerianTests/Core/Security/AccountDeletion/`:
 
 The cross-language
 `services/supabase/functions/_tests/accountDeletionCoverage.test.ts` contract
-reads the relocated capability, recovery-state, and marker-store owners. Moving
-them requires updating that executable source contract in the same change.
+reads the two coordinators plus the relocated capability, recovery-state, and
+marker-store owners. Moving them requires updating that executable source
+contract in the same change.
 
 See the canonical
 [account-deletion contract](../../../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md),

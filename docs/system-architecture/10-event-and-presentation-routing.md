@@ -66,15 +66,43 @@ must remain small and schedule expensive reload work separately. Framework
 publishers that can emit off-main use `sinkOnMainActor`, which performs the
 asynchronous main-queue hop before entering `MainActor.assumeIsolated`.
 
-`SupabaseManager` stores its auth-stream task and Apple credential observer, but
-neither may retain the manager indefinitely. The auth task captures the manager
-weakly while suspended on the stream and binds it only for one delivered event;
-teardown cancels retained auth/merge/sign-out/identity tasks and removes the
-exact credential observer token. Restored-session public-author refresh is a
-replaceable target-account task with a unique task ID; only that ID may clear
-the stored handle, and `.publicAuthorIdentityChanged` is emitted only after the
+`SupabaseManager` retains `AuthSessionLifecycleLiveProvider` and composes the
+Apple credential live provider, but neither callback path may retain the manager
+indefinitely. The lifecycle provider owns the auth-stream task; its handler
+reaches the manager only through weak dependencies while preparing one delivered
+event, then releases the provider before downstream suspension. A listener
+replacement cancels its task and clears its deferred replay obligation; a
+post-coordinator cancellation fence rejects the replaced operation's trailing
+credential effect. The Apple provider's registered handler also captures the
+manager weakly, while its self-cleaning registration owns the exact Foundation
+observer token. Teardown cancels the lifecycle provider and focused task
+coordinators and explicitly stops the Apple provider; releasing that provider
+also removes the registration. `AuthLifecycleReplayCoordinator` owns the
+replacement-safe task that replays one exact current SDK snapshot only after a
+transition actually deferred a listener event; a newer event or transition
+cancels stale replay before it can route identity effects. Its facade-facing
+lifecycle dependencies capture the manager weakly, preserving teardown
+cancellation while a synthetic replay is suspended.
+`PublicAuthorIdentityRefreshCoordinator` owns restored-session public-author
+refresh as a replaceable target-account task with a unique task ID; only that ID
+may clear the stored handle. A stale target cannot replace current-user work,
+and cancellation is fenced before lease/remote admission and after remote
+suspension. The separate live-effects adapter sends
+`.publicAuthorIdentityChanged` only after the coordinator confirms that the
 target's account lease and exact session remain current through successful
-refresh.
+refresh. `OAuthProviderSignInCoordinator` owns provider-presentation admission
+and the single retained Apple completion task. Its UUID compare-before-clear
+cleanup and transition callback fence prevent a stale provider callback or
+predecessor task from publishing into a replacement Auth transition. The focused
+Apple/Google live providers own framework presentation and value mapping; the
+shared resolver owns only window/anchor selection. `SupabaseManager` keeps the
+stable public entry points and injects Supabase completion/recovery effects
+without becoming a presentation or framework-delegate owner again.
+`MerianApp.onOpenURL` remains the sole task owner for a fallback Supabase Auth
+URL. The task-free `AuthenticationCallbackCoordinator` owns its transition and
+session reconciliation, including cancellation after preflight and the
+post-install sign-out fence; it publishes no `AppEvent` or `AppRoute`, so this
+extraction does not add a parallel routing channel.
 
 The same container owns one `MilestoneToastPresenter`, one
 `MilestoneToastHostRegistry`, one `ScanMilestoneCoordinator`, and one
@@ -565,15 +593,15 @@ The reviewed allowlist is
 `scripts/config/ios-event-routing-singleton-allowlist.txt`. It contains exact
 files, not directories:
 
-| Boundary file                                                           | Framework signal                                                       | Lifetime/actor owner                                                                                                                                                                       |
-| ----------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Core/Hardware/CameraManager.swift`                                     | `AVCaptureDevice.subjectAreaDidChangeNotification`                     | Stored cancellable, weak manager capture, asynchronous `sinkOnMainActor` bridge                                                                                                            |
-| `Core/Hardware/HardwareOrchestrator.swift`                              | ProcessInfo thermal and power-state notifications                      | Stored cancellables, weak orchestrator capture, asynchronous `sinkOnMainActor` bridge                                                                                                      |
-| `Core/Media/MediaPlaybackObservation.swift`                             | AVPlayerItem end/stall/failure notifications plus KVO/time observation | Exact token/player teardown, weak captures, and player/item generation validation                                                                                                          |
-| `Core/Network/SupabaseManager.swift`                                    | AuthenticationServices Apple credential revocation                     | Stored observer token, weak capture, explicit `Task { @MainActor }`, removal in `deinit`                                                                                                   |
-| `Core/Preferences/AppSettings.swift`                                    | `UserDefaults.didChangeNotification`                                   | Stored observer token, weak capture, explicit main-actor hop, removal in `deinit`                                                                                                          |
-| `Features/Capture/Shell/Services/CaptureWorkspaceKeyboardService.swift` | UIKit keyboard show/hide notifications                                 | The main-actor platform adapter constructs the publishers; the mounted orchestration modifier owns SwiftUI `.onReceive` and explicitly delivers on `DispatchQueue.main` before UI mutation |
-| `Features/Explore/Shared/Media/Components/ExplorePublicMediaView.swift` | AVAudioSession interruption notification                               | SwiftUI `.onReceive` owns the mounted subscription and the publisher explicitly delivers on `DispatchQueue.main` before playback UI mutation                                               |
+| Boundary file                                                           | Framework signal                                                       | Lifetime/actor owner                                                                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Core/Hardware/CameraManager.swift`                                     | `AVCaptureDevice.subjectAreaDidChangeNotification`                     | Stored cancellable, weak manager capture, asynchronous `sinkOnMainActor` bridge                                                                                                                                                                                                                                |
+| `Core/Hardware/HardwareOrchestrator.swift`                              | ProcessInfo thermal and power-state notifications                      | Stored cancellables, weak orchestrator capture, asynchronous `sinkOnMainActor` bridge                                                                                                                                                                                                                          |
+| `Core/Media/MediaPlaybackObservation.swift`                             | AVPlayerItem end/stall/failure notifications plus KVO/time observation | Exact token/player teardown, weak captures, and player/item generation validation                                                                                                                                                                                                                              |
+| `Core/Network/AppleCredentialRevocationLiveProvider.swift`              | AuthenticationServices Apple credential revocation                     | A self-cleaning registration owns the exact observer token; replacement, explicit stop, and provider deinitialization release it. Main-queue delivery enters a main-actor handler; the retained Auth coordinator owns overlap and generation fencing without retaining its manager across provider suspension. |
+| `Core/Preferences/AppSettings.swift`                                    | `UserDefaults.didChangeNotification`                                   | Stored observer token, weak capture, explicit main-actor hop, removal in `deinit`                                                                                                                                                                                                                              |
+| `Features/Capture/Shell/Services/CaptureWorkspaceKeyboardService.swift` | UIKit keyboard show/hide notifications                                 | The main-actor platform adapter constructs the publishers; the mounted orchestration modifier owns SwiftUI `.onReceive` and explicitly delivers on `DispatchQueue.main` before UI mutation                                                                                                                     |
+| `Features/Explore/Shared/Media/Components/ExplorePublicMediaView.swift` | AVAudioSession interruption notification                               | SwiftUI `.onReceive` owns the mounted subscription and the publisher explicitly delivers on `DispatchQueue.main` before playback UI mutation                                                                                                                                                                   |
 
 The allowlist does not permit application-defined names or posts. The checker
 also rejects multiline spelling, `NotificationCenter.default` aliases outside

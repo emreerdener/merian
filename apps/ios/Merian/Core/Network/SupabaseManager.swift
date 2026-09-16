@@ -1,123 +1,34 @@
-import AuthenticationServices
-import CryptoKit
 import Foundation
-import GoogleSignIn
 import Observation
 import os
 import Supabase
-
-private struct RevenueCatPublicIdentity: Decodable {
-    let email: String?
-    let publicUsername: String?
-    let publicAuthorName: String?
-    let publicIdentitySource: String?
-    let publicAvatarUrl: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case email
-        case publicUsername = "public_username"
-        case publicAuthorName = "public_author_name"
-        case publicIdentitySource = "public_identity_source"
-        case publicAvatarUrl = "public_avatar_url"
-    }
-}
 
 // MARK: - Supabase Manager
 
 /// Manages the global Supabase connection, auth state, and OAuth sign-in flows.
 @MainActor
-@Observable final class SupabaseManager: NSObject, ASWebAuthenticationPresentationContextProviding {
-    private enum AppleSignInBootstrapError: LocalizedError {
-        case nonceGenerationFailed(OSStatus)
-        case invalidCredentialRegistrationReceipt
-
-        var errorDescription: String? {
-            switch self {
-            case .nonceGenerationFailed(let status):
-                return "Failed to generate an Apple Sign-In nonce (\(status))."
-            case .invalidCredentialRegistrationReceipt:
-                return "The Apple credential registration response was invalid."
-            }
-        }
-    }
-
-    private struct AppleRevocationCredentialPayload: Encodable {
-        let registration_id: String
-        let authorization_code: String
-        let identity_token: String
-    }
-
-    private struct AppleRevocationCredentialResponse: Decodable {
-        let success: Bool
-        let status: String
-    }
-
-    private struct GhostProfileMergePreparePayload: Encodable {
-        let operation = "prepare"
-        let provider: String
-        let provider_subject: String
-    }
-
-    private struct GhostProfileMergePrepareResponse: Decodable {
-        let handoff_id: String
-        let handoff_secret: String
-        let expires_at: String
-    }
-
-    private struct GhostProfileMergeCompletePayload: Encodable {
-        let operation = "complete"
-        let handoff_id: String
-        let handoff_secret: String
-    }
-
-    private struct GhostProfileIdentityRefreshPayload: Encodable {
-        let operation = "refresh_identity"
-    }
-
-    private struct GhostProfileMergeErrorPayload: Decodable {
-        let code: String?
-    }
-
-    private struct SignOutPurchasePreparePayload: Encodable {
-        let operation = "prepare"
-    }
-
-    private struct SignOutPurchasePrepareResponse: Decodable {
-        let success: Bool
-        let handoff_id: String
-        let handoff_secret: String
-        let expires_at: String
-    }
-
-    private struct SignOutPurchaseContinuePayload: Encodable {
-        let operation: String
-        let handoff_id: String
-        let handoff_secret: String
-    }
-
-    private struct SignOutPurchaseOperationResponse: Decodable {
-        let success: Bool
-        let handoff_id: String
-    }
-
-    private struct SignOutPurchaseBindResponse: Decodable {
-        let success: Bool
-        let handoff_id: String
-        let destination_user_id: String
-    }
-
-    private struct SignOutPurchaseErrorPayload: Decodable {
-        let code: String?
-    }
-
+@Observable final class SupabaseManager: NSObject {
     // MARK: - Singleton Architecture
     static let shared = SupabaseManager()
 
     // MARK: - Client
     let client: SupabaseClient
+    private let appleOAuthCredentialRegistrationService:
+        AppleOAuthCredentialRegistrationService
+    private let authSessionBootstrapLiveService:
+        AuthSessionBootstrapLiveService
+    private let oauthSessionService: OAuthSessionService
     private let purchasePrincipalResolver: PurchasePrincipalResolver
+    private let legacyPurchaseIdentityProfileService:
+        LegacyPurchaseIdentityProfileService
     private let ghostProfileMergeStore: GhostProfileMergeStore
-    private let purchaseIdentityHandoffStore: PurchaseIdentityHandoffStore
+    private let ghostProfileMergeRemoteService:
+        GhostProfileMergeRemoteService
+    private let purchaseIdentityHandoffJournal:
+        PurchaseIdentityHandoffAuthJournal
+    private let legacyPurchaseHandoffRemoteService:
+        LegacyPurchaseHandoffRemoteService
+    @ObservationIgnored private let authRuntimeState = AuthRuntimeState()
 
     // MARK: - State
     var currentUser: User?
@@ -138,15 +49,9 @@ private struct RevenueCatPublicIdentity: Decodable {
     }
 
     // MARK: - Authentication Transition State
-    private var authTransitionCoordinator = AuthTransitionCoordinator()
-    @ObservationIgnored private var authTransitionAnalyticsGenerations:
-        [UUID: UInt] = [:]
-    private var accountBoundWorkCoordinator = AccountBoundWorkCoordinator()
-    @ObservationIgnored private var accountBoundWorkDrainWaiters:
-        [CheckedContinuation<Void, Never>] = []
 
     var activeAuthTransition: AuthTransitionState? {
-        authTransitionCoordinator.active
+        authRuntimeState.activeTransition
     }
 
     var isAuthTransitionInProgress: Bool {
@@ -183,7 +88,7 @@ private struct RevenueCatPublicIdentity: Decodable {
               expectedUserID.map({ $0 == sdkUser.id }) ?? true else {
             throw SupabaseAuthTransitionError.signOutInProgress
         }
-        return accountBoundWorkCoordinator.begin(
+        return authRuntimeState.beginAccountWork(
             session: transitionSession(from: sdkUser)!
         )
     }
@@ -191,26 +96,17 @@ private struct RevenueCatPublicIdentity: Decodable {
     func isAccountBoundWorkLeaseCurrent(
         _ lease: AccountBoundWorkLease
     ) -> Bool {
-        guard accountBoundWorkCoordinator.owns(lease),
-              let currentUser,
-              let sdkUser = client.auth.currentSession?.user else {
-            return false
-        }
-        let observed = transitionSession(from: sdkUser)
-        return transitionSession(from: currentUser) == lease.session
-            && observed == lease.session
+        authRuntimeState.accountWorkLeaseIsCurrent(
+            lease,
+            publishedSession: transitionSession(from: currentUser),
+            sdkSession: transitionSession(
+                from: client.auth.currentSession?.user
+            )
+        )
     }
 
     func finishAccountBoundWork(_ lease: AccountBoundWorkLease) {
-        guard accountBoundWorkCoordinator.finish(lease),
-              accountBoundWorkCoordinator.isEmpty else {
-            return
-        }
-        let waiters = accountBoundWorkDrainWaiters
-        accountBoundWorkDrainWaiters.removeAll(keepingCapacity: true)
-        for waiter in waiters {
-            waiter.resume()
-        }
+        authRuntimeState.finishAccountWork(lease)
     }
 
     var isOAuthTransitionInProgress: Bool {
@@ -229,74 +125,59 @@ private struct RevenueCatPublicIdentity: Decodable {
         return true
     }
 
-    private struct AppleSignInAttempt {
-        let transition: AuthTransitionToken
-        let nonce: String
-        let controller: ASAuthorizationController
-    }
-
-    private struct OAuthLoginCompletion {
-        let previousUserId: String?
-        let session: Session
-    }
-
-    private var activeAppleSignInAttempt: AppleSignInAttempt?
-
     // MARK: - Session Deduplication
-    /// Tracks the last user ID considered for RevenueCat linkage and history sync.
-    /// Same-user auth events retry RevenueCat only while its identity fence is not ready;
-    /// they never repeat the identity-change-only historical download.
-    private var lastLinkedUserId: UUID?
-    private var activePurchasePrincipalBinding: PurchasePrincipalBinding?
-    private var authSessionGeneration: UInt64 = 0
+    /// Invalidates suspended Auth-session work whenever the SDK emits a new
+    /// lifecycle event, including a same-user refresh.
+    private var authSessionGeneration: UInt64 {
+        authRuntimeState.sessionGeneration
+    }
 
-    /// Retained handle for the auth state listener task. Stored so the task can be cancelled
-    /// on teardown and is consistent with the @ObservationIgnored task handle pattern used
-    /// throughout the engine layer. Fire-and-forget tasks with no handle cannot be inspected,
-    /// restarted, or cleanly shut down.
-    @ObservationIgnored private var authListenerTask: Task<Void, Never>?
-    /// Single-flight guard for anonymous session creation. Multiple callers can reach
-    /// `initializeGhostSession()` while the first network round-trip is suspended; without this
-    /// handle they each attempt a fresh anonymous sign-in and race to replace the active session.
-    @ObservationIgnored private var ghostSessionTask: Task<User?, Never>?
-    @ObservationIgnored private var ghostSessionTaskId: UUID?
-    @ObservationIgnored private var ghostSessionTaskAuthTransitionId: UUID?
-    /// Single-flight completion for a persisted provider-bound guest merge.
-    /// Auth callbacks and the interactive login path can observe the same new
-    /// permanent session; both converge on this task rather than racing cleanup.
-    @ObservationIgnored private var ghostProfileMergeTask: Task<Bool, Never>?
-    /// Identifies the currently retained task so a cancelled task that finishes
-    /// later cannot clear the handle for a newer auth session's merge.
-    @ObservationIgnored private var ghostProfileMergeTaskId: UUID?
-    @ObservationIgnored private var ghostProfileMergeTaskTargetUserId: String?
-    /// Single-flight completion for a durable signed-out purchase handoff.
-    /// The interactive transition and restored-session callback can observe
-    /// the same anonymous destination and must converge on one receipt sync.
-    @ObservationIgnored private var signOutPurchaseHandoffTask: Task<Bool, Never>?
-    @ObservationIgnored private var signOutPurchaseHandoffTaskId: UUID?
-    @ObservationIgnored private var signOutPurchaseHandoffTargetUserId: String?
-    @ObservationIgnored private var signOutPurchaseHandoffAuthGeneration: UInt64?
-    @ObservationIgnored private var purchasePrincipalLinkTask:
-        Task<PurchasePrincipalBinding?, Never>?
-    @ObservationIgnored private var purchasePrincipalLinkTaskId: UUID?
-    @ObservationIgnored private var purchasePrincipalLinkTaskUserId: UUID?
-    @ObservationIgnored private var purchasePrincipalLinkTaskGeneration: UInt64?
-    @ObservationIgnored private var purchasePrincipalLinkTaskCapabilityFingerprint: String?
-    @ObservationIgnored private var purchasePrincipalLinkTaskAllowsCapabilityCreation = true
+    /// Owns the live Supabase Auth stream task and deferred current-state replay.
+    @ObservationIgnored private let authSessionLifecycleLiveProvider:
+        AuthSessionLifecycleLiveProvider
+    /// Retains listener-admitted historical synchronization through teardown.
+    @ObservationIgnored private let authHistoricalSessionSyncLiveService:
+        AuthHistoricalSessionSyncLiveService
+    /// Owns existing-session resolution and anonymous-bootstrap single-flight.
+    @ObservationIgnored private let authSessionBootstrapCoordinator =
+        AuthSessionBootstrapCoordinator()
+    /// Owns durable preparation and keyed completion for Ghost merges.
+    @ObservationIgnored private let ghostProfileMergeCoordinator =
+        GhostProfileMergeCoordinator()
+    /// Owns keyed single-flight completion for a durable signed-out purchase
+    /// handoff observed by interactive and restored-session paths.
+    @ObservationIgnored private let purchaseIdentityHandoffCoordinator =
+        PurchaseIdentityHandoffCoordinator()
+    @ObservationIgnored private let purchaseIdentitySessionCoordinator =
+        PurchaseIdentitySessionCoordinator()
+    /// Owns the keyed restored-session public-author identity refresh task.
+    @ObservationIgnored private let publicAuthorIdentityRefreshCoordinator =
+        PublicAuthorIdentityRefreshCoordinator()
+    /// Owns generation-fenced Apple credential-revocation revalidation.
+    @ObservationIgnored private let appleCredentialRevocationCoordinator =
+        AppleCredentialRevocationCoordinator()
+    /// Owns the Apple framework notification and credential-state lookup.
+    @ObservationIgnored private let appleCredentialRevocationLiveProvider =
+        AppleCredentialRevocationLiveProvider()
+    /// Owns provider-presentation admission and Apple completion-task lifetime.
+    @ObservationIgnored private let oauthProviderSignInCoordinator =
+        OAuthProviderSignInCoordinator()
+    /// Owns the Google SDK presentation and provider-value mapping surface.
+    @ObservationIgnored private let googleOAuthAuthorizationLiveProvider =
+        GoogleOAuthAuthorizationLiveProvider()
+    /// Owns Apple authorization-controller retention and delegate callbacks.
+    @ObservationIgnored private let appleOAuthAuthorizationLiveProvider =
+        AppleOAuthAuthorizationLiveProvider()
     /// Single-flight sign-out handle. Authenticated request creation is closed as
     /// soon as this transition begins, before the SDK invalidates the session.
     @ObservationIgnored private var signOutTask: Task<Void, Never>?
     @ObservationIgnored private let userSignOutSingleFlight =
         AuthTransitionSingleFlight()
-    @ObservationIgnored private var publicAuthorIdentityRefreshTask: Task<Void, Never>?
-    @ObservationIgnored private var publicAuthorIdentityRefreshTaskId: UUID?
-    @ObservationIgnored private var publicAuthorIdentityRefreshTaskUserId: String?
-    @ObservationIgnored private var appleCredentialRevocationObserver: NSObjectProtocol?
-    @ObservationIgnored private var pendingAppleCredentialRevalidation = false
     @ObservationIgnored private weak var appRouteSessionController: (any AppRouteSessionControlling)?
     @ObservationIgnored private weak var milestoneToastSessionController: (any MilestoneToastSessionControlling)?
-    private var lastPublicAuthorIdentityRefreshUserId: String?
-    @ObservationIgnored private(set) var isSigningOut = false
+    private var isSigningOut: Bool {
+        authRuntimeState.isSigningOut
+    }
 
     // MARK: - Initialization
 
@@ -310,15 +191,29 @@ private struct RevenueCatPublicIdentity: Decodable {
             emitLocalSessionAsInitialSession: true
         )
         self.client = client
+        self.authSessionLifecycleLiveProvider = .live(client: client)
+        self.authHistoricalSessionSyncLiveService =
+            AuthHistoricalSessionSyncLiveService(dependencies: .live)
+        self.authSessionBootstrapLiveService = .live(client: client)
+        self.appleOAuthCredentialRegistrationService = .live(client: client)
+        self.oauthSessionService = .live(client: client)
         self.purchasePrincipalResolver = PurchasePrincipalResolver(
             client: client
         )
+        self.legacyPurchaseIdentityProfileService = .live(client: client)
         let keychain = KeychainManager.shared
         self.ghostProfileMergeStore = GhostProfileMergeStore(
             dependencies: .live(keychain: keychain)
         )
-        self.purchaseIdentityHandoffStore = PurchaseIdentityHandoffStore(
-            dependencies: .live(keychain: keychain)
+        self.ghostProfileMergeRemoteService = .live(client: client)
+        self.purchaseIdentityHandoffJournal =
+            PurchaseIdentityHandoffAuthJournal(
+                store: PurchaseIdentityHandoffStore(
+                    dependencies: .live(keychain: keychain)
+                )
+            )
+        self.legacyPurchaseHandoffRemoteService = .live(
+            client: client
         )
 
         super.init()
@@ -328,39 +223,38 @@ private struct RevenueCatPublicIdentity: Decodable {
         // anonymous session instead of masking an authenticated one.
         keychain.removeObject(forKey: KeychainKeys.legacyGhostModeUserID)
         do {
-            let pendingLegacyHandoff = try loadPendingSignOutPurchaseHandoff()
-            let pendingStableRotation = try loadPendingPurchasePrincipalAuthRotation()
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
-                pendingLegacyHandoff != nil || pendingStableRotation != nil
-            )
+            try purchaseIdentitySourceHandoffCoordinator()
+                .loadAndPublishPendingState()
         } catch {
             // Keychain uncertainty is not evidence that a purchase handoff is
             // absent. Keep provider mutations fail-closed until it is resolved.
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
+            publishPurchaseIdentityHandoffPending(true)
         }
-        self.setupAuthStateListener()
-        self.appleCredentialRevocationObserver = NotificationCenter.default.addObserver(
-            forName: ASAuthorizationAppleIDProvider.credentialRevokedNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.revalidateAppleCredentialAfterRevocationNotification()
-            }
+        self.authSessionLifecycleLiveProvider.start(
+            dependencies: authSessionLifecycleLiveDependencies()
+        )
+        self.appleCredentialRevocationLiveProvider.startObserving { [weak self] in
+            guard let self else { return }
+            appleCredentialRevocationCoordinator
+                .handleRevocationNotification(
+                    dependencies: appleCredentialRevocationDependencies()
+                )
         }
     }
 
     deinit {
-        authListenerTask?.cancel()
-        ghostSessionTask?.cancel()
-        ghostProfileMergeTask?.cancel()
-        signOutPurchaseHandoffTask?.cancel()
-        purchasePrincipalLinkTask?.cancel()
+        authSessionLifecycleLiveProvider.cancel()
+        authHistoricalSessionSyncLiveService.cancel()
+        authSessionBootstrapCoordinator.cancel()
+        ghostProfileMergeCoordinator.cancel()
+        purchaseIdentityHandoffCoordinator.cancel()
+        purchaseIdentitySessionCoordinator.cancelResolution()
         signOutTask?.cancel()
-        publicAuthorIdentityRefreshTask?.cancel()
-        if let appleCredentialRevocationObserver {
-            NotificationCenter.default.removeObserver(appleCredentialRevocationObserver)
-        }
+        publicAuthorIdentityRefreshCoordinator.cancel()
+        appleCredentialRevocationCoordinator.cancel()
+        appleCredentialRevocationLiveProvider.stopObserving()
+        oauthProviderSignInCoordinator.cancel()
+        appleOAuthAuthorizationLiveProvider.cancel()
     }
 
     func bindAppRouteSessionController(_ controller: any AppRouteSessionControlling) {
@@ -429,16 +323,19 @@ private struct RevenueCatPublicIdentity: Decodable {
             ) else { return nil }
         }
         let sourceUser = client.auth.currentSession?.user ?? currentUser
-        guard let token = authTransitionCoordinator.begin(
+        guard let token = authRuntimeState.beginTransition(
             kind: kind,
-            sourceSession: transitionSession(from: sourceUser),
-            authGeneration: authSessionGeneration
+            sourceSession: transitionSession(from: sourceUser)
         ) else {
             return nil
         }
+        authSessionLifecycleLiveProvider.authTransitionWillBegin()
+        appleCredentialRevocationCoordinator.authContextWillChange()
         AppDIContainer.shared.inferenceEngine.beginAuthTransitionWriteFence()
-        authTransitionAnalyticsGenerations[token.id] =
-            ConsentManager.shared.beginAnalyticsAccountTransition()
+        _ = authRuntimeState.recordAnalyticsGeneration(
+            ConsentManager.shared.beginAnalyticsAccountTransition(),
+            for: token
+        )
         appRouteSessionController?.beginAccountSession(
             accountID: nil,
             origin: .runtimeTransition,
@@ -453,16 +350,13 @@ private struct RevenueCatPublicIdentity: Decodable {
     }
 
     func ownsAuthTransition(_ token: AuthTransitionToken) -> Bool {
-        authTransitionCoordinator.owns(token)
+        authRuntimeState.ownsTransition(token)
     }
 
     private func authTransitionAllows(
         _ token: AuthTransitionToken?
     ) -> Bool {
-        if let active = activeAuthTransition?.token {
-            return token == active
-        }
-        return token == nil
+        authRuntimeState.transitionAllows(token)
     }
 
     @discardableResult
@@ -470,7 +364,7 @@ private struct RevenueCatPublicIdentity: Decodable {
         _ token: AuthTransitionToken,
         phase: AuthTransitionPhase
     ) -> Bool {
-        authTransitionCoordinator.updatePhase(phase, for: token)
+        authRuntimeState.updateTransition(token, phase: phase)
     }
 
     @discardableResult
@@ -478,18 +372,16 @@ private struct RevenueCatPublicIdentity: Decodable {
         _ session: User?,
         for token: AuthTransitionToken
     ) -> Bool {
-        authTransitionCoordinator.adoptExpectedSession(
+        authRuntimeState.adoptTransitionSession(
             transitionSession(from: session),
-            authGeneration: authSessionGeneration,
             for: token
         )
     }
 
     private func finishAuthTransition(_ token: AuthTransitionToken) {
-        guard authTransitionCoordinator.owns(token) else { return }
-        let analyticsGeneration =
-            authTransitionAnalyticsGenerations.removeValue(forKey: token.id)
-        guard authTransitionCoordinator.finish(token) else { return }
+        guard let completion = authRuntimeState.finishTransition(token) else {
+            return
+        }
         AppDIContainer.shared.inferenceEngine.finishAuthTransitionWriteFence()
         let sdkSession = client.auth.currentSession
         let finalUserID: UUID?
@@ -511,7 +403,7 @@ private struct RevenueCatPublicIdentity: Decodable {
             origin: .runtimeTransition,
             now: Date()
         )
-        if let analyticsGeneration {
+        if let analyticsGeneration = completion.analyticsGeneration {
             _ = ConsentManager.shared.resolveAnalyticsAccountTransition(
                 generation: analyticsGeneration,
                 userId: finalUserID
@@ -521,9 +413,15 @@ private struct RevenueCatPublicIdentity: Decodable {
            finalUser.id == finalUserID {
             schedulePublicAuthorIdentityRefreshIfNeeded(for: finalUser)
         }
-        if pendingAppleCredentialRevalidation {
-            pendingAppleCredentialRevalidation = false
-            revalidateAppleCredentialAfterRevocationNotification()
+        guard authSessionLifecycleLiveProvider
+            .scheduleCurrentSessionReconciliation(
+                authGeneration: authSessionGeneration,
+                dependencies: authSessionLifecycleLiveDependencies()
+            ) else {
+            appleCredentialRevocationCoordinator.resumeDeferredIfNeeded(
+                dependencies: appleCredentialRevocationDependencies()
+            )
+            return
         }
     }
 
@@ -531,8 +429,9 @@ private struct RevenueCatPublicIdentity: Decodable {
         for transition: AuthTransitionToken
     ) -> UInt {
         guard ownsAuthTransition(transition),
-              let generation =
-                authTransitionAnalyticsGenerations[transition.id] else {
+              let generation = authRuntimeState.analyticsGeneration(
+                  for: transition
+              ) else {
             // This path is defensive: a valid owner always receives its
             // generation atomically in `beginAuthTransition`.
             return 0
@@ -543,11 +442,9 @@ private struct RevenueCatPublicIdentity: Decodable {
     func currentSessionMatchesAuthTransition(
         _ token: AuthTransitionToken
     ) -> Bool {
-        guard ownsAuthTransition(token) else { return false }
-        return authTransitionCoordinator.validatesExpectedSession(
+        authRuntimeState.transitionMatchesCurrentSession(
             transitionSession(from: client.auth.currentSession?.user),
-            authGeneration: authSessionGeneration,
-            for: token
+            token: token
         )
     }
 
@@ -565,7 +462,7 @@ private struct RevenueCatPublicIdentity: Decodable {
         guard await OfflineQueueManager.shared
             .quiesceBackgroundAccountWorkForAuthTransition(
                 sourceUserID:
-                    authTransitionCoordinator.active?.sourceSession?.userID
+                    authRuntimeState.activeSourceUserID
             ) else {
             MerianLog.auth.error(
                 "Authentication transition stopped because background account work could not be durably paused."
@@ -574,14 +471,7 @@ private struct RevenueCatPublicIdentity: Decodable {
         }
         await OfflineQueueManager.shared
             .awaitCollectionSyncQuiescenceForAuthTransition()
-        guard !accountBoundWorkCoordinator.isEmpty else { return true }
-        await withCheckedContinuation { continuation in
-            if accountBoundWorkCoordinator.isEmpty {
-                continuation.resume()
-            } else {
-                accountBoundWorkDrainWaiters.append(continuation)
-            }
-        }
+        await authRuntimeState.awaitAccountWorkDrain()
         return true
     }
 
@@ -599,10 +489,9 @@ private struct RevenueCatPublicIdentity: Decodable {
         }
         let session = try await client.auth.session
         guard ownsAuthTransition(token),
-              authTransitionCoordinator.validatesExpectedSession(
+              authRuntimeState.transitionMatchesCurrentSession(
                 transitionSession(from: session.user),
-                authGeneration: authSessionGeneration,
-                for: token
+                token: token
               ) else {
             throw SupabaseAuthTransitionError.signOutSessionChanged
         }
@@ -618,14 +507,13 @@ private struct RevenueCatPublicIdentity: Decodable {
         guard ownsAuthTransition(token) else {
             throw SupabaseAuthTransitionError.signOutSessionChanged
         }
-        guard let expected = authTransitionCoordinator.active?.expectedSession
+        guard let expected = authRuntimeState.activeExpectedSession
         else {
             guard ownsAuthTransition(token),
                   client.auth.currentSession == nil,
-                  authTransitionCoordinator.validatesExpectedSession(
+                  authRuntimeState.transitionMatchesCurrentSession(
                     nil,
-                    authGeneration: authSessionGeneration,
-                    for: token
+                    token: token
                   ) else {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
@@ -639,352 +527,349 @@ private struct RevenueCatPublicIdentity: Decodable {
         return session
     }
 
-    private func revalidateAppleCredentialAfterRevocationNotification() {
-        guard !isAuthTransitionInProgress else {
-            pendingAppleCredentialRevalidation = true
-            return
+    private func appleCredentialRevocationIdentity()
+        -> AppleCredentialRevocationIdentity? {
+        guard isAuthenticated,
+              let user = currentUser,
+              let sdkSession = client.auth.currentSession,
+              !sdkSession.isExpired,
+              sdkSession.user.id == user.id,
+              sdkSession.user.isAnonymous == user.isAnonymous,
+              let session = transitionSession(from: user),
+              let providerSubject = user.identities?.first(where: {
+                  $0.provider == "apple" && !$0.id.isEmpty
+              })?.id else {
+            return nil
         }
-        guard let appleUserId = currentUser?.identities?.first(where: {
-            $0.provider == "apple" && !$0.id.isEmpty
-        })?.id else { return }
-
-        ASAuthorizationAppleIDProvider().getCredentialState(
-            forUserID: appleUserId
-        ) { [weak self] state, error in
-            Task { @MainActor [weak self] in
-                guard let self,
-                      self.currentUser?.identities?.contains(where: {
-                          $0.provider == "apple" && $0.id == appleUserId
-                      }) == true else { return }
-
-                guard !self.isAuthTransitionInProgress else {
-                    self.pendingAppleCredentialRevalidation = true
-                    return
-                }
-
-                guard Self.shouldClearLocalSessionAfterAppleCredentialState(
-                    state,
-                    lookupFailed: error != nil
-                ) else {
-                    MerianLog.auth.debug(
-                        "Apple credential remained authorized after a revocation notification; preserving the active session."
-                    )
-                    return
-                }
-
-                if error != nil {
-                    MerianLog.auth.notice(
-                        "Apple credential state lookup failed after a revocation notification; clearing the local session."
-                    )
-                } else {
-                    MerianLog.auth.notice(
-                        "Apple confirmed that the active credential is no longer authorized; clearing the local session."
-                    )
-                }
-                await self.clearLocalSessionAfterAuthFailure()
-            }
-        }
+        return AppleCredentialRevocationIdentity(
+            session: session,
+            providerSubject: providerSubject
+        )
     }
 
-    static func shouldClearLocalSessionAfterAppleCredentialState(
-        _ state: ASAuthorizationAppleIDProvider.CredentialState,
-        lookupFailed: Bool = false
-    ) -> Bool {
-        if lookupFailed { return true }
-
-        switch state {
-        case .authorized:
-            return false
-        case .revoked, .notFound, .transferred:
-            return true
-        @unknown default:
-            return true
-        }
-    }
-
-    private func setupAuthStateListener() {
-        let authStateChanges = client.auth.authStateChanges
-        authListenerTask = Task { [weak self] in
-            for await state in authStateChanges {
-                // Bind the manager only for one delivered event. The task spends
-                // its next suspension waiting on the stream with no strong owner
-                // reference, so the manager can deinitialize and cancel it.
-                guard let self else { return }
-                authSessionGeneration &+= 1
-                let eventAuthGeneration = authSessionGeneration
-                authTransitionCoordinator.observeAuthEvent(
-                    session: transitionSession(from: state.session?.user),
-                    authGeneration: eventAuthGeneration
-                )
-                let deletionCleanupPending =
-                    AccountDeletionLocalCleanupStore.isPending()
-                if deletionCleanupPending {
-                    // Server acceptance is a durable local-auth fence. A
-                    // cached source session must not restore, relink billing,
-                    // or start account work before launch recovery signs it
-                    // out and finishes local erasure.
-                    currentUser = nil
-                    isAuthenticated = false
-                    activePurchasePrincipalBinding = nil
-                    RevenueCatManager.shared.beginPurchaseIdentityResolution()
-                    MerianLog.auth.debug(
-                        "Deferred an SDK auth event until accepted account deletion cleanup finishes."
-                    )
-                    continue
+    private func appleCredentialRevocationDependencies()
+        -> AppleCredentialRevocationDependencies {
+        let liveProvider = appleCredentialRevocationLiveProvider
+        return AppleCredentialRevocationDependencies(
+            session: .init(
+                hasActiveTransition: { [weak self] in
+                    self?.isAuthTransitionInProgress ?? false
+                },
+                currentIdentity: { [weak self] in
+                    self?.appleCredentialRevocationIdentity()
                 }
-                if AuthTransitionPolicy.shouldDeferAuthListenerSideEffects(
-                    hasActiveTransition:
-                        authTransitionCoordinator.active != nil,
-                    accountDeletionCleanupPending: deletionCleanupPending
-                ) {
-                    // Auth events still advance the generation above so the
-                    // owner can adopt the exact SDK destination. Every
-                    // account-bound side effect remains owned by that one
-                    // transition until it has verified its final session.
-                    MerianLog.auth.debug(
-                        "Deferred an SDK auth event to the active authentication transition."
-                    )
-                    continue
-                }
-                do {
-                    let pendingHandoffs = try loadPendingGhostProfileMergeQueue()
-                    ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(
-                        !pendingHandoffs.isEmpty
-                    )
-                } catch {
-                    // A read or decode failure is uncertainty, not evidence that
-                    // the durable handoff is absent. Keep analytics fail-closed.
-                    ConsentManager.shared
-                        .setAnalyticsSuppressedForGhostHandoff(true)
-                    MerianLog.auth.error(
-                        "Could not read the signed-out handoff queue; analytics remains suppressed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-                    )
-                }
-                do {
-                    let pendingLegacyHandoff = try loadPendingSignOutPurchaseHandoff()
-                    let pendingStableRotation = try loadPendingPurchasePrincipalAuthRotation()
-                    RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
-                        pendingLegacyHandoff != nil || pendingStableRotation != nil
-                    )
-                } catch {
-                    RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-                    MerianLog.auth.error(
-                        "Could not read the sign-out purchase handoff; purchase mutations remain disabled; kind=\(MerianLog.errorKind(error), privacy: .public)"
-                    )
-                }
-                let sessionAdoption = AuthTransitionPolicy.authSessionAdoption(
-                    userId: state.session?.user.id,
-                    isExpired: state.session?.isExpired ?? false
-                )
-                let accountSessionOrigin: AppRouteAccountSessionOrigin = state.event == .initialSession
-                    ? .initialRestoration
-                    : .runtimeTransition
-                switch sessionAdoption {
-                case .authenticated:
-                    guard !isSigningOut else {
-                        MerianLog.auth.debug("Ignored authenticated SDK event while sign-out is in progress.")
-                        continue
-                    }
-                    guard let session = state.session else { continue }
-                    if transitionSession(from: currentUser) !=
-                        transitionSession(from: session.user) {
-                        activePurchasePrincipalBinding = nil
-                        lastLinkedUserId = nil
-                        RevenueCatManager.shared
-                            .beginPurchaseIdentityResolution()
-                        EntitlementManager.shared.handleSignOut()
-                    }
-                    self.currentUser = session.user
-                    self.isAuthenticated = true
-                    appRouteSessionController?.beginAccountSession(
-                        accountID: session.user.id.uuidString,
-                        origin: accountSessionOrigin,
-                        now: Date()
-                    )
-                    milestoneToastSessionController?.beginAccountSession(
-                        accountID: session.user.id.uuidString,
-                        origin: accountSessionOrigin,
-                        now: Date()
-                    )
-                    ConsentManager.shared.observeSession(userId: session.user.id)
-                    schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
-
-                    var didLinkExternalIdentity = false
-                    if !TestExecutionCoordinator.isRunningTests {
-                        if session.user.isAnonymous,
-                           RevenueCatManager.shared
-                            .isPurchaseIdentityHandoffPending {
-                            // A sign-out handoff binds the exact anonymous
-                            // destination before RevenueCat is allowed to
-                            // switch identities or restore a receipt.
-                            _ = await completePendingSignOutPurchaseHandoffIfNeeded(
-                                expectedDestinationUserId: session.user.id.uuidString,
-                                expectedAuthGeneration: eventAuthGeneration
-                            )
-                        } else {
-                            didLinkExternalIdentity = await self
-                                .ensureTelemetryLinkedWhenSafe(
-                                    for: session.user,
-                                )
-                        }
-                        if !session.user.isAnonymous,
-                           RevenueCatManager.shared
-                            .isPurchaseIdentityHandoffPending,
-                           !isUserSignOutTransitionInProgress {
-                            await abandonPendingPurchasePrincipalRotationIfSourceRestored(
-                                sourceUserId: session.user.id
-                            )
-                            await abandonPendingSignOutPurchaseHandoffIfSourceRestored(
-                                sourceUserId: session.user.id.uuidString
-                            )
-                            if !RevenueCatManager.shared
-                                .isPurchaseIdentityHandoffPending {
-                                didLinkExternalIdentity = await self
-                                    .ensureTelemetryLinkedWhenSafe(
-                                        for: session.user
-                                    )
-                            }
-                        }
-                    }
-                    guard hasCurrentPublishedSession(
-                        session.user,
-                        expectedAuthGeneration: eventAuthGeneration
-                    ) else {
-                        continue
-                    }
-                    if RevenueCatManager.shared
-                        .isPurchaseIdentityHandoffPending {
-                        // An unrelated permanent session must not gain either
-                        // provider-backed or account-backed paid readiness
-                        // while another source's sign-out rotation is live.
-                        EntitlementManager.shared.handleSignOut()
-                    } else {
-                        await EntitlementManager.shared.beginSession(
-                            userID: session.user.id,
-                            client: client
+            ),
+            operations: .init(
+                lookupCredentialState: { providerSubject in
+                    await liveProvider
+                        .lookupCredentialState(
+                            forProviderSubject: providerSubject
                         )
+                },
+                clearLocalSessionIfCurrent: { [weak self] expectedIdentity in
+                    guard let self,
+                          !self.isAuthTransitionInProgress,
+                          self.appleCredentialRevocationIdentity()
+                            == expectedIdentity else {
+                        return .contextChanged
                     }
-                    guard hasCurrentPublishedSession(
-                        session.user,
-                        expectedAuthGeneration: eventAuthGeneration
-                    ) else {
-                        continue
+                    switch await self.clearLocalSessionAfterAuthFailure() {
+                    case .cleared:
+                        return .cleared
+                    case .rejected, .blockedByPurchaseHandoff:
+                        return .deferred
                     }
-                    if didLinkExternalIdentity {
-                        // Trigger historical sync only when the active user identity changes.
-                        // The Supabase SDK fires two auth events on cold start (local cache +
-                        // server validation), both with the same user. A same-user event may
-                        // retry a failed RevenueCat link but cannot start a second history sync.
-                        // Sync historical scans on session restore to capture re-installs.
-                        // Stamp lastHistoricalSyncDate here so AppLifecycleManager's 15-minute
-                        // throttle gate sees this sync and skips its own redundant call — without
-                        // this write both callers fire concurrently on every cold launch.
-                        if let context = AppDIContainer.shared.offlineQueueManager.modelContext {
-                            Task { @MainActor [weak self] in
-                                guard let self,
-                                      self.hasCurrentPublishedSession(
-                                        session.user,
-                                        expectedAuthGeneration:
-                                            eventAuthGeneration
-                                      ) else { return }
-                                UserDefaults.standard.set(
-                                    Date(),
-                                    forKey:
-                                        UserDefaultsKeys.lastHistoricalSyncDate
-                                )
-                                await SpeciesPreferredNameRepository
-                                    .syncCloudPreferences(
-                                        modelContext: context
-                                    )
-                                guard self.hasCurrentPublishedSession(
-                                    session.user,
-                                    expectedAuthGeneration:
-                                        eventAuthGeneration
-                                ) else { return }
-                                await AppDIContainer.shared.scanRepository
-                                    .syncHistoricalScansDown(
-                                        modelContext: context
-                                    )
-                            }
-                        }
-                    }
-                case .awaitingRefresh(let userId):
-                    guard !isSigningOut else {
-                        MerianLog.auth.debug("Ignored refreshing SDK session while sign-out is in progress.")
-                        continue
-                    }
-
-                    // With emitLocalSessionAsInitialSession enabled, Supabase emits an
-                    // expired cached session before refreshing it. The account identity
-                    // is known even though authenticated requests must remain closed.
-                    // Preserve that identity for consent restoration so the app root
-                    // cannot briefly present approval UI before tokenRefreshed arrives.
-                    self.currentUser = nil
-                    self.isAuthenticated = false
-                    self.activePurchasePrincipalBinding = nil
-                    RevenueCatManager.shared.beginPurchaseIdentityResolution()
-                    appRouteSessionController?.beginAccountSession(
-                        accountID: userId.uuidString,
-                        origin: accountSessionOrigin,
-                        now: Date()
-                    )
-                    milestoneToastSessionController?.beginAccountSession(
-                        accountID: userId.uuidString,
-                        origin: accountSessionOrigin,
-                        now: Date()
-                    )
-                    ConsentManager.shared.observeSession(userId: userId)
-                    MerianLog.auth.debug(
-                        "Cached auth session is awaiting refresh; consent restoration remains pending."
-                    )
-                case .signedOut:
-                    self.currentUser = nil
-                    self.isAuthenticated = false
-                    self.activePurchasePrincipalBinding = nil
-                    appRouteSessionController?.beginAccountSession(
-                        accountID: nil,
-                        origin: accountSessionOrigin,
-                        now: Date()
-                    )
-                    milestoneToastSessionController?.beginAccountSession(
-                        accountID: nil,
-                        origin: accountSessionOrigin,
-                        now: Date()
-                    )
-                    ConsentManager.shared.observeSession(userId: nil)
-                    await RevenueCatManager.shared.handleSupabaseSignOut()
-                    lastLinkedUserId = nil
-                    lastPublicAuthorIdentityRefreshUserId = nil
-                    cancelPublicAuthorIdentityRefreshTask()
-                    cancelGhostProfileMergeTask()
                 }
-
-                MerianLog.auth.debug(
-                    "Processed an authentication state change."
+            ),
+            diagnose: { diagnostic in
+                AppleCredentialRevocationLiveDiagnostics.report(
+                    diagnostic
                 )
             }
-        }
+        )
     }
 
-    private func linkLegacyRevenueCatIdentity(user: User) async {
-        let publicIdentity = await fetchRevenueCatPublicIdentity(for: user.id)
-        let email = firstNonEmpty(user.email, publicIdentity?.email)
-        let fullName = firstNonEmpty(
+    private func authSessionLifecycleLiveDependencies()
+        -> AuthSessionLifecycleLiveDependencies {
+        AuthSessionLifecycleLiveDependencies(
+            advanceAuthGeneration: { [weak self] in
+                self?.authRuntimeState.advanceSessionGeneration()
+            },
+            authContextWillChange: { [weak self] in
+                self?.appleCredentialRevocationCoordinator
+                    .authContextWillChange()
+            },
+            observeAuthSession: { [weak self] session in
+                self?.authRuntimeState.observeAuthEvent(session: session)
+            },
+            accountDeletionCleanupPending: {
+                AccountDeletionLocalCleanupStore.isPending()
+            },
+            hasActiveTransition: { [weak self] in
+                self?.activeAuthTransition != nil
+            },
+            reconciliationContextIsCurrent: { [weak self] generation in
+                guard let self else { return false }
+                return activeAuthTransition == nil
+                    && authSessionGeneration == generation
+            },
+            makeLifecycleDependencies: { [weak self] sdkUser in
+                self?.authSessionLifecycleDependencies(sdkUser: sdkUser)
+            },
+            resumeDeferredCredentialRevocation: { [weak self] in
+                guard let self else { return }
+                appleCredentialRevocationCoordinator.resumeDeferredIfNeeded(
+                    dependencies: appleCredentialRevocationDependencies()
+                )
+            }
+        )
+    }
+
+    private func authSessionLifecycleDependencies(sdkUser: User?)
+        -> AuthSessionLifecycleDependencies {
+        AuthSessionLifecycleDependencies(
+            state: AuthSessionLifecycleStateBoundary(
+                accountDeletionCleanupPending: {
+                    AccountDeletionLocalCleanupStore.isPending()
+                },
+                hasActiveTransition: { [weak self] in
+                    self?.activeAuthTransition != nil
+                },
+                isSigningOut: { [weak self] in
+                    self?.isSigningOut ?? true
+                },
+                isUserSignOutTransitionInProgress: { [weak self] in
+                    self?.isUserSignOutTransitionInProgress ?? false
+                },
+                publishedSession: { [weak self] in
+                    guard let self else { return nil }
+                    return transitionSession(from: currentUser)
+                },
+                publishSDKSession: { [weak self] session in
+                    guard let self else { return false }
+                    guard let sdkUser,
+                          transitionSession(from: sdkUser) == session,
+                          let currentSDKSession = client.auth.currentSession,
+                          !currentSDKSession.isExpired,
+                          transitionSession(from: currentSDKSession.user)
+                            == session else {
+                        return false
+                    }
+                    currentUser = sdkUser
+                    isAuthenticated = true
+                    return true
+                },
+                clearPublishedSession: { [weak self] in
+                    self?.currentUser = nil
+                    self?.isAuthenticated = false
+                },
+                clearPurchasePrincipalBinding: { [weak self] in
+                    self?.purchaseIdentitySessionCoordinator.clearBinding()
+                },
+                clearLinkedUser: { [weak self] in
+                    self?.purchaseIdentitySessionCoordinator.clearLinkedUser()
+                },
+                beginPurchaseIdentityResolution: {
+                    RevenueCatManager.shared.beginPurchaseIdentityResolution()
+                },
+                beginAccountSession: { [weak self] userID, origin in
+                    self?.beginAccountSession(userID: userID, origin: origin)
+                },
+                observeConsentSession: { userID in
+                    ConsentManager.shared.observeSession(userId: userID)
+                },
+                schedulePublicAuthorIdentityRefresh: { [weak self] session in
+                    guard let self else { return }
+                    guard let sdkUser,
+                          transitionSession(from: sdkUser) == session else {
+                        return
+                    }
+                    schedulePublicAuthorIdentityRefreshIfNeeded(for: sdkUser)
+                },
+                clearPublicAuthorIdentityRefreshMarker: { [weak self] in
+                    self?.publicAuthorIdentityRefreshCoordinator
+                        .clearCompletedUser()
+                },
+                cancelPublicAuthorIdentityRefresh: { [weak self] in
+                    self?.publicAuthorIdentityRefreshCoordinator.cancel()
+                },
+                cancelAppleCredentialRevocation: { [weak self] in
+                    self?.appleCredentialRevocationCoordinator.cancel()
+                },
+                cancelGhostProfileMerge: { [weak self] in
+                    self?.ghostProfileMergeCoordinator.cancel()
+                },
+                isCurrentPublishedSession: { [weak self] session, generation in
+                    guard let self else { return false }
+                    guard let sdkUser,
+                          transitionSession(from: sdkUser) == session else {
+                        return false
+                    }
+                    return hasCurrentPublishedSession(
+                        sdkUser,
+                        expectedAuthGeneration: generation
+                    )
+                },
+                isCurrentLifecycleSession: { [weak self] session, generation in
+                    guard let self else { return false }
+                    guard !Task.isCancelled,
+                          generation == authSessionGeneration,
+                          activeAuthTransition == nil else {
+                        return false
+                    }
+                    let sdkSession = client.auth.currentSession
+                    guard transitionSession(from: sdkSession?.user)
+                        == session else {
+                        return false
+                    }
+                    if let sdkSession, sdkSession.isExpired {
+                        return false
+                    }
+                    return transitionSession(from: currentUser) == session
+                        && isAuthenticated == (session != nil)
+                }
+            ),
+            durability: AuthSessionLifecycleDurabilityBoundary(
+                hasPendingGhostProfileMerge: { [weak self] in
+                    guard let self else { return true }
+                    try ghostProfileMergeCoordinator.hasPendingHandoffs(
+                        dependencies: ghostProfileMergeDependencies()
+                    )
+                },
+                setAnalyticsSuppressedForGhostHandoff: { isSuppressed in
+                    ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(
+                        isSuppressed
+                    )
+                },
+                hasPendingPurchaseIdentityHandoff: { [weak self] in
+                    guard let self else { return true }
+                    return try purchaseIdentitySourceHandoffCoordinator()
+                        .hasPendingHandoff()
+                },
+                setPurchaseIdentityHandoffPending: { [weak self] isPending in
+                    self?.publishPurchaseIdentityHandoffPending(isPending)
+                }
+            ),
+            identity: AuthSessionLifecycleIdentityBoundary(
+                isTestExecution: { TestExecutionCoordinator.isRunningTests },
+                isPurchaseIdentityHandoffPending: {
+                    RevenueCatManager.shared.isPurchaseIdentityHandoffPending
+                },
+                completePendingPurchaseIdentityHandoff: { [weak self] session, generation in
+                    guard let self else { return }
+                    _ = await completePendingSignOutPurchaseHandoffIfNeeded(
+                        expectedDestinationUserId:
+                            session.userID.uuidString,
+                        expectedAuthGeneration: generation
+                    )
+                },
+                ensureTelemetryLinked: { [weak self] session in
+                    guard let self else { return false }
+                    guard let sdkUser,
+                          transitionSession(from: sdkUser) == session else {
+                        return false
+                    }
+                    return await ensurePurchaseIdentityReady(for: sdkUser)
+                },
+                abandonRestoredSourceHandoffs: { [weak self] session in
+                    guard let self else { return }
+                    let coordinator =
+                        purchaseIdentitySourceHandoffCoordinator()
+                    await coordinator
+                        .abandonStableRotationIfSourceRestored(
+                            sourceUserID: session.userID
+                        )
+                    await coordinator
+                        .abandonLegacyHandoffIfSourceRestored(
+                            sourceUserID: session.userID.uuidString
+                        )
+                },
+                clearEntitlementSession: {
+                    EntitlementManager.shared.handleSignOut()
+                },
+                beginEntitlementSession: { [weak self] session in
+                    guard let self else { return }
+                    await EntitlementManager.shared.beginSession(
+                        userID: session.userID,
+                        client: client
+                    )
+                },
+                handleSupabaseSignOut: {
+                    await RevenueCatManager.shared.handleSupabaseSignOut()
+                },
+                scheduleHistoricalSync: { [weak self] session, generation in
+                    guard let self else { return }
+                    guard let sdkUser,
+                          transitionSession(from: sdkUser) == session else {
+                        return
+                    }
+                    authHistoricalSessionSyncLiveService.schedule { [weak self] in
+                        self?.hasCurrentPublishedSession(
+                            sdkUser,
+                            expectedAuthGeneration: generation
+                        ) ?? false
+                    }
+                }
+            ),
+            diagnose: { diagnostic, error in
+                AuthSessionLifecycleLiveDiagnostics.report(
+                    diagnostic,
+                    error: error
+                )
+            }
+        )
+    }
+
+    private func beginAccountSession(
+        userID: UUID?, origin: AuthSessionLifecycleOrigin
+    ) {
+        let routeOrigin: AppRouteAccountSessionOrigin = switch origin {
+        case .initialRestoration: .initialRestoration
+        case .runtimeTransition: .runtimeTransition
+        }
+        appRouteSessionController?.beginAccountSession(
+            accountID: userID?.uuidString,
+            origin: routeOrigin,
+            now: Date()
+        )
+        milestoneToastSessionController?.beginAccountSession(
+            accountID: userID?.uuidString,
+            origin: routeOrigin,
+            now: Date()
+        )
+    }
+
+    private func linkLegacyPurchaseProviderIdentity(user: User) async {
+        let publicIdentity: LegacyPurchaseIdentityProfile?
+        do {
+            publicIdentity = try await legacyPurchaseIdentityProfileService
+                .fetch(for: user.id)
+        } catch {
+            publicIdentity = nil
+            MerianLog.auth.debug(
+                "RevenueCat public identity lookup failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
+            )
+        }
+        let email = RevenueCatIdentityContext.firstNonEmpty(
+            user.email,
+            publicIdentity?.email
+        )
+        let fullName = RevenueCatIdentityContext.firstNonEmpty(
             user.userMetadata["full_name"]?.stringValue,
             user.userMetadata["name"]?.stringValue,
             publicIdentity?.publicAuthorName
         )
-        let avatarUrl = firstNonEmpty(
+        let avatarURL = RevenueCatIdentityContext.firstNonEmpty(
             user.userMetadata["avatar_url"]?.stringValue,
             user.userMetadata["picture"]?.stringValue,
-            publicIdentity?.publicAvatarUrl
+            publicIdentity?.publicAvatarURL
         )
 
         await RevenueCatManager.shared.linkWithSupabase(
             userId: user.id,
             email: email,
             displayName: fullName,
-            avatarUrl: avatarUrl,
+            avatarUrl: avatarURL,
             publicUsername: publicIdentity?.publicUsername,
             publicAuthorName: publicIdentity?.publicAuthorName,
             publicIdentitySource: publicIdentity?.publicIdentitySource,
@@ -999,10 +884,10 @@ private struct RevenueCatPublicIdentity: Decodable {
     /// contract before allowing a concurrent stable-principal rollout to
     /// adopt the installation. Otherwise receipt sync could target the new
     /// principal while server completion still verifies the legacy UUID.
-    private func linkLegacyRevenueCatIdentityForSignOutHandoff(
+    private func linkLegacyPurchaseIdentityForSignOutHandoff(
         user: User
     ) async throws {
-        await linkLegacyRevenueCatIdentity(user: user)
+        await linkLegacyPurchaseProviderIdentity(user: user)
         let expectedAppUserID = RevenueCatAppUserIDPolicy.canonicalID(
             for: user.id
         )
@@ -1013,180 +898,36 @@ private struct RevenueCatPublicIdentity: Decodable {
             throw SupabaseAuthTransitionError
                 .signOutPurchaseContinuityPending
         }
-        activePurchasePrincipalBinding = .legacyFallback
+        purchaseIdentitySessionCoordinator.recordBinding(.legacyFallback)
     }
 
-    private func resolveAndLinkPurchasePrincipal(
+    private func purchaseIdentitySessionContext(
         for user: User,
-        expectedAuthGeneration: UInt64,
-        expectedCapabilityFingerprint: String? = nil,
-        allowsCapabilityCreation: Bool = true
-    ) async -> PurchasePrincipalBinding? {
-        if let existingTask = purchasePrincipalLinkTask,
-           purchasePrincipalLinkTaskUserId == user.id,
-           purchasePrincipalLinkTaskGeneration == expectedAuthGeneration,
-           purchasePrincipalLinkTaskCapabilityFingerprint
-            == expectedCapabilityFingerprint,
-           purchasePrincipalLinkTaskAllowsCapabilityCreation
-            == allowsCapabilityCreation {
-            return await existingTask.value
-        }
-        cancelPurchasePrincipalLinkTask()
-
-        let taskId = UUID()
-        let task: Task<PurchasePrincipalBinding?, Never> = Task { @MainActor [weak self] in
-            guard let self else { return nil }
-            return await self.performPurchasePrincipalLink(
-                for: user,
-                expectedAuthGeneration: expectedAuthGeneration,
-                expectedCapabilityFingerprint: expectedCapabilityFingerprint,
-                allowsCapabilityCreation: allowsCapabilityCreation
-            )
-        }
-        purchasePrincipalLinkTask = task
-        purchasePrincipalLinkTaskId = taskId
-        purchasePrincipalLinkTaskUserId = user.id
-        purchasePrincipalLinkTaskGeneration = expectedAuthGeneration
-        purchasePrincipalLinkTaskCapabilityFingerprint =
-            expectedCapabilityFingerprint
-        purchasePrincipalLinkTaskAllowsCapabilityCreation =
-            allowsCapabilityCreation
-        let result = await task.value
-        if purchasePrincipalLinkTaskId == taskId {
-            purchasePrincipalLinkTask = nil
-            purchasePrincipalLinkTaskId = nil
-            purchasePrincipalLinkTaskUserId = nil
-            purchasePrincipalLinkTaskGeneration = nil
-            purchasePrincipalLinkTaskCapabilityFingerprint = nil
-            purchasePrincipalLinkTaskAllowsCapabilityCreation = true
-        }
-        return result
-    }
-
-    private func performPurchasePrincipalLink(
-        for user: User,
-        expectedAuthGeneration: UInt64,
-        expectedCapabilityFingerprint: String?,
-        allowsCapabilityCreation: Bool
-    ) async -> PurchasePrincipalBinding? {
-        guard currentUser?.id == user.id,
-              authSessionGeneration == expectedAuthGeneration,
-              !Task.isCancelled else {
-            return nil
-        }
-        // A fresh resolver attempt invalidates any prior mode decision. If the
-        // request or its durable activation write fails, callers must not fall
-        // through using a stale legacy binding from an earlier auth event.
-        activePurchasePrincipalBinding = nil
-        RevenueCatManager.shared.beginPurchaseIdentityResolution()
-        do {
-            let binding = try await purchasePrincipalResolver.resolve(
-                expectedCapabilityFingerprint: expectedCapabilityFingerprint,
-                allowsCapabilityCreation: allowsCapabilityCreation
-            )
-            guard currentUser?.id == user.id,
-                  authSessionGeneration == expectedAuthGeneration,
-                  !Task.isCancelled else {
-                return nil
-            }
-            // The server's explicit mode is authoritative even if the
-            // provider SDK cannot finish linking in this attempt. Sign-out may
-            // use the legacy handoff only after an explicit legacy response;
-            // a transient stable-link failure must never fall through to a
-            // receipt-transfer protocol.
-            activePurchasePrincipalBinding = binding
-
-            let accountKind = RevenueCatAccountMutationPolicy.accountKind(
-                isAnonymous: user.isAnonymous
-            )
-            switch binding.mode {
-            case .stable:
-                await RevenueCatManager.shared.linkResolvedPurchasePrincipal(
-                    binding,
-                    authUserID: user.id,
-                    accountKind: accountKind
-                )
-            case .legacy:
-                await linkLegacyRevenueCatIdentity(user: user)
-            }
-
-            guard currentUser?.id == user.id,
-                  authSessionGeneration == expectedAuthGeneration,
-                  !Task.isCancelled,
-                  RevenueCatManager.shared.isIdentityReady else {
-                return nil
-            }
-            return binding
-        } catch {
-            MerianLog.auth.debug(
-                "Purchase identity resolution failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-            return nil
-        }
-    }
-
-    private func fetchRevenueCatPublicIdentity(for userId: UUID) async -> RevenueCatPublicIdentity? {
-        do {
-            let response: [RevenueCatPublicIdentity] = try await client.from("users")
-                .select("email,public_username,public_author_name,public_identity_source,public_avatar_url")
-                .eq("id", value: userId)
-                .limit(1)
-                .execute()
-                .value
-            return response.first
-        } catch {
-            MerianLog.auth.debug(
-                "RevenueCat public identity lookup failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-            return nil
-        }
-    }
-
-    private func firstNonEmpty(_ values: String?...) -> String? {
-        values.lazy.compactMap {
-            guard let trimmed = $0?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !trimmed.isEmpty else {
-                return nil
-            }
-            return trimmed
-        }.first
-    }
-
-    @discardableResult
-    private func ensureTelemetryLinkedIfNeeded(
-        for user: User,
-        expectedAuthGeneration: UInt64? = nil,
-        expectedCapabilityFingerprint: String? = nil,
-        allowsCapabilityCreation: Bool = true
-    ) async -> Bool {
-        let userId = user.id
-        let generation = expectedAuthGeneration ?? authSessionGeneration
-        let identityChanged = userId != lastLinkedUserId
-        let expectedAccountKind = RevenueCatAccountMutationPolicy.accountKind(
-            isAnonymous: user.isAnonymous
+        authGeneration: UInt64? = nil
+    ) -> PurchaseIdentitySessionContext {
+        PurchaseIdentitySessionContext(
+            userID: user.id,
+            isAnonymous: user.isAnonymous,
+            authGeneration: authGeneration ?? authSessionGeneration
         )
-        let accountKindChanged = RevenueCatManager.shared.linkedAccountKind
-            != expectedAccountKind
-        guard expectedCapabilityFingerprint != nil ||
-                activePurchasePrincipalBinding == nil || identityChanged ||
-                accountKindChanged ||
-                !RevenueCatManager.shared.isIdentityReady else {
-            return false
-        }
-        guard await resolveAndLinkPurchasePrincipal(
-            for: user,
-            expectedAuthGeneration: generation,
-            expectedCapabilityFingerprint: expectedCapabilityFingerprint,
-            allowsCapabilityCreation: allowsCapabilityCreation
-        ) != nil else {
-            return false
-        }
-        lastLinkedUserId = userId
-        return identityChanged
+    }
+
+    private func purchaseIdentitySessionSnapshot(
+        for user: User,
+        isExpired: Bool = false
+    ) -> PurchaseIdentitySessionSnapshot {
+        PurchaseIdentitySessionSnapshot(
+            userID: user.id,
+            isAnonymous: user.isAnonymous,
+            isExpired: isExpired,
+            linkLegacyProviderIdentity: { [weak self] in
+                await self?.linkLegacyPurchaseProviderIdentity(user: user)
+            }
+        )
     }
 
     @discardableResult
-    private func ensureTelemetryLinkedWhenSafe(
+    private func ensurePurchaseIdentityReady(
         for user: User,
         ownedBy transition: AuthTransitionToken? = nil
     ) async -> Bool {
@@ -1210,40 +951,26 @@ private struct RevenueCatPublicIdentity: Decodable {
             }
         }
 
-        let legacyHandoffPending: Bool
-        let stableRotationPending: Bool
-        do {
-            legacyHandoffPending = try loadPendingSignOutPurchaseHandoff() != nil
-            stableRotationPending =
-                try loadPendingPurchasePrincipalAuthRotation() != nil
-        } catch {
-            MerianLog.auth.error(
-                "Deferred external identity linking because sign-out purchase state is unreadable."
-            )
-            return false
-        }
-        guard !AuthTransitionPolicy.shouldDeferExternalIdentityLink(
-            purchaseIdentityHandoffPending:
-                legacyHandoffPending || stableRotationPending
-        ) else {
-            MerianLog.auth.debug(
-                "Deferred external identity linking until the sign-out purchase destination is bound."
-            )
-            return false
-        }
-        let didLink = await ensureTelemetryLinkedIfNeeded(for: user)
-        if let transition {
-            guard currentSessionMatchesAuthTransition(transition),
-                  transitionSession(from: client.auth.currentSession?.user) ==
-                    transitionSession(from: user) else {
-                return false
-            }
-        } else if let accountWorkLease {
-            guard isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
-                return false
-            }
-        }
-        return didLink
+        let context = purchaseIdentitySessionContext(for: user)
+        let snapshot = purchaseIdentitySessionSnapshot(for: user)
+        return await purchaseIdentitySessionCoordinator.ensureIdentity(
+            for: snapshot,
+            context: context,
+            isAdmissionCurrent: { [weak self] in
+                guard let self else { return false }
+                if let transition {
+                    return self.currentSessionMatchesAuthTransition(
+                        transition
+                    ) && self.transitionSession(
+                        from: self.client.auth.currentSession?.user
+                    ) == self.transitionSession(from: user)
+                }
+                return accountWorkLease.map(
+                    self.isAccountBoundWorkLeaseCurrent
+                ) ?? false
+            },
+            dependencies: purchaseIdentitySessionDependencies()
+        )
     }
 
     /// Repairs a fail-closed purchase-identity session when the app returns to
@@ -1253,308 +980,311 @@ private struct RevenueCatPublicIdentity: Decodable {
     /// generation and durable capability/handoff; never rotate either one.
     @discardableResult
     func retryPurchaseIdentityReadinessIfNeeded() async -> Bool {
-        guard !TestExecutionCoordinator.isRunningTests,
-              !AccountDeletionLocalCleanupStore.isPending(),
-              !isSigningOut,
-              isAuthenticated,
-              let expectedUser = currentUser else {
-            return false
-        }
-        guard let accountWorkLease = try? beginUnownedAccountBoundWork(
-            expectedUserID: expectedUser.id
-        ) else {
-            return false
-        }
-        defer { finishAccountBoundWork(accountWorkLease) }
-
-        let generation = authSessionGeneration
-        let session: Session
-        do {
-            session = try await client.auth.session
-        } catch {
-            return false
-        }
-        guard !session.isExpired,
-              session.user.id == expectedUser.id,
-              isAccountBoundWorkLeaseCurrent(accountWorkLease),
-              currentUser?.id == expectedUser.id,
-              authSessionGeneration == generation else {
-            return false
-        }
-
-        var legacyHandoffPending: Bool
-        var stableRotationPending: Bool
-        do {
-            legacyHandoffPending = try loadPendingSignOutPurchaseHandoff() != nil
-            stableRotationPending =
-                try loadPendingPurchasePrincipalAuthRotation() != nil
-        } catch {
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            return false
-        }
-        RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
-            legacyHandoffPending || stableRotationPending
-        )
-
-        if session.user.isAnonymous,
-           legacyHandoffPending || stableRotationPending {
-            return await completePendingSignOutPurchaseHandoffIfNeeded(
-                expectedDestinationUserId: session.user.id.uuidString,
-                expectedAuthGeneration: generation
-            )
-        }
-
-        // A failed local sign-out can restore the linked source without
-        // producing another Auth event. Retire only proofs issued by that exact
-        // source, then re-read the durable fence before relinking anything.
-        if !session.user.isAnonymous,
-           legacyHandoffPending || stableRotationPending,
-           !isUserSignOutTransitionInProgress {
-            await abandonPendingPurchasePrincipalRotationIfSourceRestored(
-                sourceUserId: session.user.id
-            )
-            await abandonPendingSignOutPurchaseHandoffIfSourceRestored(
-                sourceUserId: session.user.id.uuidString
-            )
-            do {
-                legacyHandoffPending =
-                    try loadPendingSignOutPurchaseHandoff() != nil
-                stableRotationPending =
-                    try loadPendingPurchasePrincipalAuthRotation() != nil
-            } catch {
-                RevenueCatManager.shared
-                    .setPurchaseIdentityHandoffPending(true)
-                return false
-            }
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
-                legacyHandoffPending || stableRotationPending
-            )
-            guard !legacyHandoffPending, !stableRotationPending else {
-                return false
-            }
-        }
-
-        let expectedAccountKind = RevenueCatAccountMutationPolicy.accountKind(
-            isAnonymous: session.user.isAnonymous
-        )
-        let identityWasAlreadyReady =
-            activePurchasePrincipalBinding != nil &&
-            RevenueCatManager.shared.isIdentityReady &&
-            RevenueCatManager.shared.linkedAuthUserID == session.user.id &&
-            RevenueCatManager.shared.linkedAccountKind == expectedAccountKind
-        if !identityWasAlreadyReady {
-            _ = await ensureTelemetryLinkedWhenSafe(
-                for: session.user
-            )
-        }
-
-        guard currentUser?.id == session.user.id,
-              authSessionGeneration == generation,
-              activePurchasePrincipalBinding != nil,
-              RevenueCatManager.shared.isIdentityReady,
-              RevenueCatManager.shared.linkedAuthUserID == session.user.id,
-              RevenueCatManager.shared.linkedAccountKind
-                == expectedAccountKind else {
-            return false
-        }
-
-        let entitlementIsReady: Bool
-        if EntitlementManager.shared.activeAccountID == session.user.id,
-           EntitlementManager.shared.isVerifiedForCurrentLaunch {
-            entitlementIsReady = true
-        } else {
-            entitlementIsReady = await EntitlementManager.shared.beginSession(
-                userID: session.user.id,
-                client: client
-            )
-        }
-        guard entitlementIsReady,
-              isAccountBoundWorkLeaseCurrent(accountWorkLease),
-              let verifiedSession = try? await client.auth.session,
-              !verifiedSession.isExpired,
-              verifiedSession.user.id == session.user.id,
-              currentUser?.id == session.user.id,
-              authSessionGeneration == generation,
-              RevenueCatManager.shared.isIdentityReady,
-              RevenueCatManager.shared.linkedAuthUserID == session.user.id else {
-            return false
-        }
-        return true
+        await PurchaseIdentityReadinessCoordinator(
+            sessionCoordinator: purchaseIdentitySessionCoordinator,
+            dependencies: purchaseIdentitySessionDependencies()
+        ).repair()
     }
 
-    private func cancelPurchasePrincipalLinkTask() {
-        purchasePrincipalLinkTask?.cancel()
-        purchasePrincipalLinkTask = nil
-        purchasePrincipalLinkTaskId = nil
-        purchasePrincipalLinkTaskUserId = nil
-        purchasePrincipalLinkTaskGeneration = nil
-        purchasePrincipalLinkTaskCapabilityFingerprint = nil
-        purchasePrincipalLinkTaskAllowsCapabilityCreation = true
+    private func purchaseIdentitySessionDependencies()
+        -> PurchaseIdentitySessionDependencies {
+        let resolver = purchasePrincipalResolver
+        return PurchaseIdentitySessionDependencies(
+            state: PurchaseIdentitySessionStateBoundary(
+                isTestExecution: {
+                    TestExecutionCoordinator.isRunningTests
+                },
+                accountDeletionCleanupPending: {
+                    AccountDeletionLocalCleanupStore.isPending()
+                },
+                isSigningOut: { [weak self] in
+                    self?.isSigningOut ?? true
+                },
+                isAuthenticated: { [weak self] in
+                    self?.isAuthenticated ?? false
+                },
+                isUserSignOutTransitionInProgress: { [weak self] in
+                    self?.isUserSignOutTransitionInProgress ?? true
+                },
+                currentPublishedSession: { [weak self] in
+                    guard let self, let user = self.currentUser else {
+                        return nil
+                    }
+                    return self.purchaseIdentitySessionContext(for: user)
+                },
+                isCurrentPublishedSession: { [weak self] context in
+                    guard let self, let user = self.currentUser else {
+                        return false
+                    }
+                    return user.id == context.userID
+                        && user.isAnonymous == context.isAnonymous
+                        && self.authSessionGeneration
+                            == context.authGeneration
+                },
+                beginAccountWork: { [weak self] userID in
+                    guard let self,
+                          let lease = try? self.beginUnownedAccountBoundWork(
+                              expectedUserID: userID
+                          ) else {
+                        return nil
+                    }
+                    return PurchaseIdentityAccountWorkLease(
+                        isCurrent: { [weak self] in
+                            self?.isAccountBoundWorkLeaseCurrent(lease)
+                                ?? false
+                        },
+                        finish: { [weak self] in
+                            self?.finishAccountBoundWork(lease)
+                        }
+                    )
+                },
+                loadSDKSession: { [weak self] in
+                    guard let self else {
+                        throw SupabaseAuthTransitionError
+                            .signOutSessionChanged
+                    }
+                    let session = try await self.client.auth.session
+                    return self.purchaseIdentitySessionSnapshot(
+                        for: session.user,
+                        isExpired: session.isExpired
+                    )
+                }
+            ),
+            provider: PurchaseIdentitySessionProviderBoundary(
+                beginResolution: {
+                    RevenueCatManager.shared
+                        .beginPurchaseIdentityResolution()
+                },
+                resolve: { fingerprint, allowsCreation in
+                    try await resolver.resolve(
+                        expectedCapabilityFingerprint: fingerprint,
+                        allowsCapabilityCreation: allowsCreation
+                    )
+                },
+                applyStableBinding: { binding, userID, accountKind in
+                    await RevenueCatManager.shared
+                        .linkResolvedPurchasePrincipal(
+                            binding,
+                            authUserID: userID,
+                            accountKind: accountKind
+                        )
+                },
+                currentState: {
+                    PurchaseIdentityProviderState(
+                        isIdentityReady:
+                            RevenueCatManager.shared.isIdentityReady,
+                        linkedAuthUserID:
+                            RevenueCatManager.shared.linkedAuthUserID,
+                        linkedAccountKind:
+                            RevenueCatManager.shared.linkedAccountKind
+                    )
+                }
+            ),
+            handoff: PurchaseIdentitySessionHandoffBoundary(
+                loadPending: { [weak self] in
+                    guard let self else {
+                        throw SupabaseAuthTransitionError
+                            .signOutSessionChanged
+                    }
+                    return try self
+                        .purchaseIdentitySourceHandoffCoordinator()
+                        .hasPendingHandoff()
+                },
+                setPending: { [weak self] pending in
+                    self?.publishPurchaseIdentityHandoffPending(pending)
+                },
+                completePending: { [weak self] context in
+                    guard let self else { return false }
+                    return await self
+                        .completePendingSignOutPurchaseHandoffIfNeeded(
+                            expectedDestinationUserId:
+                                context.userID.uuidString,
+                            expectedAuthGeneration: context.authGeneration
+                        )
+                },
+                abandonRestoredSource: { [weak self] context in
+                    guard let self else { return }
+                    let coordinator = self
+                        .purchaseIdentitySourceHandoffCoordinator()
+                    await coordinator
+                        .abandonStableRotationIfSourceRestored(
+                            sourceUserID: context.userID
+                        )
+                    await coordinator
+                        .abandonLegacyHandoffIfSourceRestored(
+                            sourceUserID: context.userID.uuidString
+                        )
+                }
+            ),
+            entitlement: PurchaseIdentityEntitlementBoundary(
+                isReady: { userID in
+                    EntitlementManager.shared.activeAccountID == userID
+                        && EntitlementManager.shared
+                            .isVerifiedForCurrentLaunch
+                },
+                beginSession: { [weak self] userID in
+                    guard let self else { return false }
+                    return await EntitlementManager.shared.beginSession(
+                        userID: userID,
+                        client: self.client
+                    )
+                }
+            ),
+            reportHandoffStateFailure: { _ in
+                MerianLog.auth.error(
+                    "Deferred external identity linking because sign-out purchase state is unreadable."
+                )
+            },
+            reportDeferredForHandoff: {
+                MerianLog.auth.debug(
+                    "Deferred external identity linking until the sign-out purchase destination is bound."
+                )
+            },
+            reportResolutionFailure: { error in
+                MerianLog.auth.debug(
+                    "Purchase identity resolution failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                )
+            }
+        )
     }
 
-    // MARK: - Ghost Session
+    // MARK: - Auth Session Bootstrap
 
-    /// Creates an anonymous session for new users. Skips creation if a session exists or
-    /// if the error is network/expiry — preserving any existing Apple Sign-In identity.
+    /// Resolves the current Auth session or creates an anonymous session for a
+    /// signed-out user. Network and expiry failures preserve any existing identity.
     @discardableResult
     func initializeGhostSession(
         ownedBy transition: AuthTransitionToken? = nil
     ) async -> User? {
-        guard !TestExecutionCoordinator.isRunningTests else { return nil }
-        guard !AccountDeletionLocalCleanupStore.isPending() else { return nil }
-
-        if let signOutTask {
-            await signOutTask.value
+        guard let identity = await authSessionBootstrapCoordinator.initialize(
+            ownedBy: transition,
+            dependencies: authSessionBootstrapDependencies()
+        ), let session = authSessionBootstrapLiveService.currentSession(),
+           session.identity == identity else {
+            return nil
         }
-
-        if let existingTask = ghostSessionTask {
-            guard ghostSessionTaskAuthTransitionId == transition?.id
-                    || transition == nil
-                        && activeAuthTransition?.token.kind
-                            == .anonymousBootstrap else {
-                return nil
-            }
-            return await existingTask.value
-        }
-
-        if transition == nil,
-           let currentSession = client.auth.currentSession,
-           !currentSession.isExpired,
-           currentUser?.id == currentSession.user.id,
-           currentUser?.isAnonymous == currentSession.user.isAnonymous,
-           isAuthenticated,
-           let lease = try? beginUnownedAccountBoundWork(
-                expectedUserID: currentSession.user.id
-           ) {
-            defer { finishAccountBoundWork(lease) }
-            _ = await ensureTelemetryLinkedWhenSafe(for: currentSession.user)
-            guard !Task.isCancelled,
-                  isAccountBoundWorkLeaseCurrent(lease) else { return nil }
-            return currentSession.user
-        }
-
-        let ownedTransition: AuthTransitionToken
-        let finishesOwnedTransition: Bool
-        if let transition {
-            guard authTransitionAllows(transition) else { return nil }
-            ownedTransition = transition
-            finishesOwnedTransition = false
-        } else {
-            guard let bootstrap = beginAuthTransition(.anonymousBootstrap)
-            else { return nil }
-            ownedTransition = bootstrap
-            finishesOwnedTransition = true
-        }
-
-        let taskId = UUID()
-        let task = Task { @MainActor [weak self] () -> User? in
-            guard let self else { return nil }
-            defer {
-                if finishesOwnedTransition {
-                    self.finishAuthTransition(ownedTransition)
-                }
-                if self.ghostSessionTaskId == taskId {
-                    self.ghostSessionTask = nil
-                    self.ghostSessionTaskId = nil
-                    self.ghostSessionTaskAuthTransitionId = nil
-                }
-            }
-            let user = await self.performGhostSessionInitialization(
-                ownedBy: ownedTransition
-            )
-            return user
-        }
-        ghostSessionTask = task
-        ghostSessionTaskId = taskId
-        ghostSessionTaskAuthTransitionId = ownedTransition.id
-        return await task.value
+        return session.user
     }
 
-    private func performGhostSessionInitialization(
-        ownedBy transition: AuthTransitionToken?
-    ) async -> User? {
-        guard !Task.isCancelled, authTransitionAllows(transition) else {
-            return nil
-        }
-        if transition != nil {
-            guard await awaitAccountBoundWorkQuiescenceForAuthTransition()
-            else { return nil }
-        }
-        guard !Task.isCancelled, authTransitionAllows(transition) else {
-            return nil
-        }
-
-        do {
-            let session = try await client.auth.session
-            guard !Task.isCancelled, authTransitionAllows(transition) else {
-                return nil
-            }
-            if let transition {
-                guard adoptAuthTransitionSession(
-                    session.user,
-                    for: transition
-                ) else { return nil }
-            }
-            currentUser = session.user
-            isAuthenticated = true
-            MerianLog.auth.debug("Existing session resolved on device.")
-            schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
-            _ = await ensureTelemetryLinkedWhenSafe(
-                for: session.user,
-                ownedBy: transition
-            )
-            guard hasCurrentPublishedSession(
-                session.user,
-                ownedBy: transition
-            ) else { return nil }
-            return session.user
-        } catch {
-            let errString = String(describing: error)
-
-            // Only create a new anonymous session if the session is genuinely missing —
-            // never on network failure, to avoid overwriting a real Apple/Google identity.
-            let isSessionMissing: Bool = {
-                if let authError = error as? AuthError, case .sessionMissing = authError { return true }
-                return errString.contains("sessionNotFound") || errString.contains("sessionMissing")
-            }()
-
-            if isSessionMissing {
-                guard !Task.isCancelled, authTransitionAllows(transition) else {
-                    return nil
-                }
-                do {
-                    let authResponse = try await client.auth.signInAnonymously()
-                    guard !Task.isCancelled, authTransitionAllows(transition)
-                    else { return nil }
-                    if let transition {
-                        guard adoptAuthTransitionSession(
-                            authResponse.user,
-                            for: transition
-                        ) else { return nil }
+    private func authSessionBootstrapDependencies()
+        -> AuthSessionBootstrapDependencies {
+        AuthSessionBootstrapDependencies(
+            state: AuthSessionBootstrapStateBoundary(
+                isTestExecution: {
+                    TestExecutionCoordinator.isRunningTests
+                },
+                isAccountDeletionCleanupPending: {
+                    AccountDeletionLocalCleanupStore.isPending()
+                },
+                isAuthenticated: { [self] in isAuthenticated },
+                currentPublishedSession: { [self] in
+                    transitionSession(from: currentUser)
+                },
+                awaitSignOutCompletion: { [self] in
+                    if let signOutTask {
+                        await signOutTask.value
                     }
-                    currentUser = authResponse.user
-                    isAuthenticated = true
-                    MerianLog.auth.debug("Signed-out session established.")
-                    _ = await ensureTelemetryLinkedWhenSafe(
-                        for: authResponse.user,
-                        ownedBy: transition
-                    )
-                    guard hasCurrentPublishedSession(
-                        authResponse.user,
-                        ownedBy: transition
-                    ) else { return nil }
-                    return authResponse.user
-                } catch {
-                    MerianLog.auth.debug(
-                        "Failed to establish a signed-out session; kind=\(MerianLog.errorKind(error), privacy: .public)"
-                    )
-                    return nil
                 }
-            } else {
-                MerianLog.auth.debug("Skipped anonymous sign-in — preserving existing identity despite network or expiration error.")
-                return nil
+            ),
+            transition: AuthSessionBootstrapTransitionBoundary(
+                activeTransition: { [self] in
+                    activeAuthTransition?.token
+                },
+                beginAnonymousBootstrap: { [self] in
+                    beginAuthTransition(.anonymousBootstrap)
+                },
+                allows: { [self] transition in
+                    authTransitionAllows(transition)
+                },
+                adopt: { [self] session, transition in
+                    guard let current = authSessionBootstrapLiveService
+                        .currentSession(),
+                        current.identity == session else {
+                        return false
+                    }
+                    return adoptAuthTransitionSession(
+                        current.user,
+                        for: transition
+                    )
+                },
+                finish: { [self] transition in
+                    finishAuthTransition(transition)
+                },
+                awaitAccountWorkQuiescence: { [self] in
+                    await awaitAccountBoundWorkQuiescenceForAuthTransition()
+                }
+            ),
+            work: AuthSessionBootstrapWorkBoundary(
+                beginUnownedAccountWork: { [self] userID in
+                    try? beginUnownedAccountBoundWork(
+                        expectedUserID: userID
+                    )
+                },
+                isAccountWorkCurrent: { [self] lease in
+                    isAccountBoundWorkLeaseCurrent(lease)
+                },
+                finishAccountWork: { [self] lease in
+                    finishAccountBoundWork(lease)
+                }
+            ),
+            operations: AuthSessionBootstrapOperationBoundary(
+                currentSDKSession: { [self] in
+                    authSessionBootstrapLiveService.currentSession().map(
+                        authSessionBootstrapSnapshot
+                    )
+                },
+                loadSDKSession: { [self] in
+                    authSessionBootstrapSnapshot(
+                        try await authSessionBootstrapLiveService.loadSession()
+                    )
+                },
+                createAnonymousSession: { [self] in
+                    authSessionBootstrapSnapshot(
+                        try await authSessionBootstrapLiveService
+                            .createAnonymousSession()
+                    )
+                },
+                isSessionMissingError: { [self] error in
+                    authSessionBootstrapLiveService
+                        .isSessionMissingError(error)
+                }
+            ),
+            diagnose: { diagnostic, error in
+                AuthSessionBootstrapLiveDiagnostics.report(
+                    diagnostic,
+                    error: error
+                )
             }
-        }
+        )
+    }
+
+    private func authSessionBootstrapSnapshot(
+        _ session: AuthSessionBootstrapLiveSession
+    ) -> AuthSessionBootstrapSnapshot {
+        let user = session.user
+        return AuthSessionBootstrapSnapshot(
+            identity: session.identity,
+            isExpired: session.isExpired,
+            publish: { [self] in
+                currentUser = user
+                isAuthenticated = true
+            },
+            schedulePublicAuthorIdentityRefresh: { [self] in
+                schedulePublicAuthorIdentityRefreshIfNeeded(for: user)
+            },
+            ensurePurchaseIdentityReady: { [self] transition in
+                _ = await ensurePurchaseIdentityReady(
+                    for: user,
+                    ownedBy: transition
+                )
+            },
+            isCurrentPublishedSession: { [self] transition in
+                hasCurrentPublishedSession(
+                    user,
+                    ownedBy: transition
+                )
+            }
+        )
     }
 
     // MARK: - Session Utilities
@@ -1659,270 +1389,19 @@ private struct RevenueCatPublicIdentity: Decodable {
         },
         purgeLocalData: @MainActor @escaping () -> Bool
     ) async throws -> AccountDeletionReceipt {
-        guard !hasPendingPurchaseIdentityHandoffFailClosed() else {
-            throw SupabaseAuthTransitionError.signOutPurchaseContinuityPending
-        }
-        guard !AccountDeletionLocalCleanupStore.isPending() else {
-            throw SupabaseAuthTransitionError.accountDeletionRecoveryPending
-        }
-        guard let transition = beginAuthTransition(.accountDeletion) else {
-            throw SupabaseAuthTransitionError.signOutInProgress
-        }
-        defer { finishAuthTransition(transition) }
-
-        _ = updateAuthTransition(transition, phase: .deletingAccount)
-        _ = try await verifiedExpectedSession(for: transition)
-        try Task.checkCancellation()
-
-        guard AccountDeletionLocalCleanupStore
-            .recordCapabilityPreparationPending() else {
-            throw SupabaseAuthTransitionError
-                .accountDeletionRecoveryPersistenceFailed
-        }
-        let preparedCapability = try recoveryCapabilityStore.prepare()
-
-        let receipt: AccountDeletionReceipt
-        do {
-            if preparedCapability.supportsPreparedCommit,
-               let acknowledgementCapability =
-                preparedCapability.acknowledgementValue {
-                receipt = try await AccountDeletionWorkflow
-                    .performPreparedIntake(
-                        prepareDeletion: {
-                            try await prepareDeletionV2(
-                                transition,
-                                preparedCapability.recoveryValue,
-                                acknowledgementCapability
-                            )
-                        },
-                        verifyPreparationContext: {
-                            self.currentSessionMatchesAuthTransition(transition)
-                        },
-                        recordCapabilityPreparedPending: {
-                            AccountDeletionLocalCleanupStore
-                                .recordCapabilityPreparedPending()
-                        },
-                        recordIntakePending: {
-                            AccountDeletionLocalCleanupStore
-                                .recordIntakePending()
-                        },
-                        commitDeletion: {
-                            try await commitDeletionV2(
-                                transition,
-                                preparedCapability.recoveryValue
-                            )
-                        },
-                        verifyCommitContext: {
-                            self.currentSessionMatchesAuthTransition(transition)
-                        }
-                    )
-            } else {
-                receipt = try await AccountDeletionWorkflow.performDurableIntake(
-                    recordIntakePending: {
-                        AccountDeletionLocalCleanupStore.recordIntakePending()
-                    },
-                    requestDeletion: {
-                        try await requestDeletion(
-                            transition,
-                            preparedCapability.recoveryValue
-                        )
-                    },
-                    verifyResultContext: {
-                        guard self.currentSessionMatchesAuthTransition(
-                            transition
-                        ) else {
-                            throw SupabaseAuthTransitionError
-                                .signOutSessionChanged
-                        }
-                    },
-                    clearIntakeAfterDefinitiveRejection: {
-                        _ = AccountDeletionWorkflow
-                            .performDefinitiveIntakeRejectionRetirement(
-                                recordRejectionRetirementPending: {
-                                    AccountDeletionLocalCleanupStore
-                                        .recordCapabilityRejectionRetirementPending()
-                                },
-                                retireRecoveryCapability: {
-                                    do {
-                                        try recoveryCapabilityStore
-                                            .clearVerified()
-                                        return true
-                                    } catch {
-                                        return false
-                                    }
-                                },
-                                resolveCleanup: {
-                                    AccountDeletionLocalCleanupStore.resolve()
-                                }
-                            )
-                    }
-                )
-            }
-        } catch {
-            if preparedCapability.protocolVersion == 2,
-               AccountDeletionTransitionPolicy.isDefinitiveIntakeRejection(error),
-               let cancellation = try? await recoverDeletionV2(
-                   preparedCapability.recoveryValue
-               ), self.currentSessionMatchesAuthTransition(transition),
-               cancellation.status == .notCommitted {
-                _ = AccountDeletionWorkflow
-                    .performDefinitiveIntakeRejectionRetirement(
-                        recordRejectionRetirementPending: {
-                            AccountDeletionLocalCleanupStore
-                                .recordCapabilityRejectionRetirementPending()
-                        },
-                        retireRecoveryCapability: {
-                            do {
-                                try recoveryCapabilityStore.clearVerified()
-                                return true
-                            } catch {
-                                return false
-                            }
-                        },
-                        resolveCleanup: {
-                            AccountDeletionLocalCleanupStore.resolve()
-                        }
-                    )
-            }
-            if preparedCapability.wasCreated,
-               !AccountDeletionLocalCleanupStore.isPending() {
-                try? recoveryCapabilityStore.clearVerified()
-            }
-            throw error
-        }
-
-        _ = updateAuthTransition(transition, phase: .finalizing)
-        let didPurge = await AccountDeletionWorkflow.performAcceptedCleanup(
-            receipt: receipt,
-            recordCleanupPending: {
-                AccountDeletionLocalCleanupStore.recordCleanupPending()
-            },
+        try await AccountDeletionCoordinator(
+            dependencies: accountDeletionDependencies()
+        ).deleteCurrentAccount(
+            prepareDeletionV2: prepareDeletionV2,
+            commitDeletionV2: commitDeletionV2,
+            recoverDeletionV2: recoverDeletionV2,
+            requestDeletion: requestDeletion,
+            acknowledgeDeletion: acknowledgeDeletion,
+            acknowledgeDeletionV2: acknowledgeDeletionV2,
+            recoveryCapabilityStore: recoveryCapabilityStore,
             recordManualProviderRevocation: recordManualProviderRevocation,
-            performLocalSignOut: {
-                await self.performVerifiedLocalSignOut(ownedBy: transition)
-            },
-            purgeLocalData: purgeLocalData,
-            acknowledgeRecovery: {
-                do {
-                    let acknowledgement: AccountDeletionReceipt
-                    if preparedCapability.protocolVersion == 2,
-                       let acknowledgementCapability =
-                        preparedCapability.acknowledgementValue {
-                        acknowledgement = try await acknowledgeDeletionV2(
-                            acknowledgementCapability
-                        )
-                    } else {
-                        acknowledgement = try await acknowledgeDeletion(
-                            preparedCapability.recoveryValue
-                        )
-                    }
-                    return acknowledgement.recoveryAcknowledged == true
-                        && self.currentSessionMatchesAuthTransition(transition)
-                } catch {
-                    MerianLog.auth.error(
-                        "Account deletion cleanup acknowledgement remains pending; kind=\(MerianLog.errorKind(error), privacy: .public)."
-                    )
-                    return false
-                }
-            },
-            recordRecoveryRetirementPending: {
-                AccountDeletionLocalCleanupStore
-                    .recordCapabilityRetirementPending()
-            },
-            retireRecoveryCapability: {
-                do {
-                    try recoveryCapabilityStore.clearVerified()
-                    return true
-                } catch {
-                    return false
-                }
-            },
-            resolveCleanup: {
-                AccountDeletionLocalCleanupStore.resolve()
-            }
+            purgeLocalData: purgeLocalData
         )
-        if !didPurge {
-            MerianLog.auth.error(
-                "Account deletion was accepted, but local cleanup remains pending."
-            )
-        }
-        return receipt
-    }
-
-    /// An account-deletion barrier intentionally suppresses SDK Auth events.
-    /// When recovery proves that no destructive commit won, adopt the exact
-    /// cached source session while the cleanup transition still owns Auth. Do
-    /// not bootstrap a replacement identity when that source is unavailable.
-    private func restoreDeferredCachedSessionAndResolveDeletionBarrier(
-        ownedBy transition: AuthTransitionToken
-    ) async -> Bool {
-        guard ownsAuthTransition(transition),
-              AccountDeletionLocalCleanupStore.isPending(),
-              let sourceSession = activeAuthTransition?.sourceSession else {
-            return false
-        }
-
-        let session: Session
-        do {
-            session = try await client.auth.session
-        } catch {
-            return false
-        }
-        guard AccountDeletionTransitionPolicy.canRestoreDeferredBarrierSession(
-            markerIsPending: AccountDeletionLocalCleanupStore.isPending(),
-            sourceSession: sourceSession,
-            cachedUserID: session.user.id,
-            cachedUserIsAnonymous: session.user.isAnonymous,
-            cachedSessionIsExpired: session.isExpired
-        ), ownsAuthTransition(transition),
-           client.auth.currentSession?.user.id == session.user.id,
-           client.auth.currentSession?.user.isAnonymous ==
-            session.user.isAnonymous else {
-            return false
-        }
-
-        return AccountDeletionWorkflow
-            .restoreDeferredBarrierSession(
-                markerIsPending: {
-                    AccountDeletionLocalCleanupStore.isPending()
-                },
-                adoptCachedSession: {
-                    guard self.ownsAuthTransition(transition),
-                          self.client.auth.currentSession?.user.id ==
-                            session.user.id,
-                          self.client.auth.currentSession?.user.isAnonymous ==
-                            session.user.isAnonymous else {
-                        return false
-                    }
-                    return self.adoptAuthTransitionSession(
-                        session.user,
-                        for: transition
-                    )
-                },
-                validateCachedSession: {
-                    self.client.auth.currentSession?.user.id == session.user.id
-                        && self.client.auth.currentSession?.user.isAnonymous ==
-                        session.user.isAnonymous
-                        && self.currentSessionMatchesAuthTransition(transition)
-                },
-                resolveCleanup: {
-                    AccountDeletionLocalCleanupStore.resolve()
-                },
-                publishCachedSession: {
-                    if self.currentUser?.id != session.user.id {
-                        self.activePurchasePrincipalBinding = nil
-                        self.lastLinkedUserId = nil
-                    }
-                    self.currentUser = session.user
-                    self.isAuthenticated = true
-                    ConsentManager.shared.observeSession(
-                        userId: session.user.id
-                    )
-                    self.schedulePublicAuthorIdentityRefreshIfNeeded(
-                        for: session.user
-                    )
-                }
-            )
     }
 
     /// Resumes the local half of a server-accepted deletion before any cached
@@ -1971,433 +1450,165 @@ private struct RevenueCatPublicIdentity: Decodable {
         },
         purgeLocalData: @MainActor @escaping () -> Bool
     ) async -> Bool {
-        guard let recoveryState = AccountDeletionLocalCleanupStore.state()
-        else { return true }
-        let transitionKind: AuthTransitionKind = recoveryState.isIntakePending
-            ? .accountDeletion
-            : .accountDeletionCleanup
-        guard let transition = beginAuthTransition(transitionKind) else {
-            return false
-        }
-        defer { finishAuthTransition(transition) }
-
-        if recoveryState == .capabilityRejectionRetirementPending {
-            let didRetireProof = AccountDeletionWorkflow
-                .retireRejectedRecoveryProof(
-                retireRecoveryCapability: {
-                    do {
-                        try recoveryCapabilityStore.clearVerified()
-                        return true
-                    } catch {
-                        return false
-                    }
-                }
-            )
-            guard didRetireProof else { return false }
-            return await restoreDeferredCachedSessionAndResolveDeletionBarrier(
-                ownedBy: transition
-            )
-        }
-
-        if recoveryState == .capabilityRetirementPending {
-            return await AccountDeletionWorkflow.performRecoveryRetirement(
-                performLocalSignOut: {
-                    await self.performVerifiedLocalSignOut(
-                        ownedBy: transition
-                    )
-                },
-                purgeLocalData: purgeLocalData,
-                retireRecoveryCapability: {
-                    do {
-                        try recoveryCapabilityStore.clearVerified()
-                        return true
-                    } catch {
-                        return false
-                    }
-                },
-                resolveCleanup: {
-                    AccountDeletionLocalCleanupStore.resolve()
-                }
-            )
-        }
-
-        let storedCapability: PreparedDeletionRecoveryCapability?
-        do {
-            storedCapability = try recoveryCapabilityStore
-                .loadExistingIfPresent()
-        } catch {
-            return false
-        }
-        if let storedCapability,
-           storedCapability.protocolVersion == 2 {
-            return await resumeCapabilityBackedAccountDeletionV2(
-                transition: transition,
-                capability: storedCapability,
-                recoverDeletion: recoverDeletionV2,
-                acknowledgeDeletion: acknowledgeDeletionV2,
-                recoveryCapabilityStore: recoveryCapabilityStore,
-                recordManualProviderRevocation:
-                    recordManualProviderRevocation,
-                purgeLocalData: purgeLocalData
-            )
-        }
-        if storedCapability == nil,
-           recoveryState == .capabilityLookupPending ||
-            recoveryState == .capabilityPreparationPending {
-            return await restoreDeferredCachedSessionAndResolveDeletionBarrier(
-                ownedBy: transition
-            )
-        }
-
-        if recoveryState == .capabilityLookupPending {
-            let capability: String?
-            do {
-                capability = try recoveryCapabilityStore
-                    .loadExistingValueIfPresent()
-            } catch {
-                return false
-            }
-            guard capability != nil else {
-                return await restoreDeferredCachedSessionAndResolveDeletionBarrier(
-                    ownedBy: transition
-                )
-            }
-            return await resumeCapabilityBackedAccountDeletion(
-                transition: transition,
-                requestDeletion: requestDeletion,
-                recoverDeletion: recoverDeletion,
-                recoveryCapabilityStore: recoveryCapabilityStore,
-                recordManualProviderRevocation:
-                    recordManualProviderRevocation,
-                purgeLocalData: purgeLocalData,
-                allowAuthenticatedIntakeReplay: false
-            )
-        }
-
-        if recoveryState.isIntakePending {
-            if !recoveryState.requiresRecoveryCapability {
-                // Upgrade a pre-capability intake only while its exact cached
-                // Auth session is still available. If Auth is already gone,
-                // no new proof can be bound retroactively and recovery remains
-                // fail-closed for support rather than guessing acceptance.
-                guard client.auth.currentSession != nil else { return false }
-                do {
-                    _ = try recoveryCapabilityStore.prepare()
-                    guard AccountDeletionLocalCleanupStore
-                        .recordIntakePending() else {
-                        return false
-                    }
-                } catch {
-                    return false
-                }
-            }
-            return await resumeCapabilityBackedAccountDeletion(
-                transition: transition,
-                requestDeletion: requestDeletion,
-                recoverDeletion: recoverDeletion,
-                recoveryCapabilityStore: recoveryCapabilityStore,
-                recordManualProviderRevocation:
-                    recordManualProviderRevocation,
-                purgeLocalData: purgeLocalData,
-                allowAuthenticatedIntakeReplay: true
-            )
-        }
-
-        if recoveryState.requiresRecoveryCapability {
-            return await resumeCapabilityBackedAccountDeletion(
-                transition: transition,
-                requestDeletion: requestDeletion,
-                recoverDeletion: recoverDeletion,
-                recoveryCapabilityStore: recoveryCapabilityStore,
-                recordManualProviderRevocation:
-                    recordManualProviderRevocation,
-                purgeLocalData: purgeLocalData,
-                allowAuthenticatedIntakeReplay: false
-            )
-        }
-
-        return await AccountDeletionWorkflow.performPendingLocalCleanup(
-            performLocalSignOut: {
-                await self.performVerifiedLocalSignOut(ownedBy: transition)
-            },
-            purgeLocalData: purgeLocalData,
-            resolveCleanup: {
-                AccountDeletionLocalCleanupStore.resolve()
-            }
+        await AccountDeletionRecoveryCoordinator(
+            dependencies: accountDeletionDependencies()
+        ).resumePendingLocalCleanup(
+            requestDeletion: requestDeletion,
+            recoverDeletion: recoverDeletion,
+            recoverDeletionV2: recoverDeletionV2,
+            acknowledgeDeletionV2: acknowledgeDeletionV2,
+            recoveryCapabilityStore: recoveryCapabilityStore,
+            recordManualProviderRevocation: recordManualProviderRevocation,
+            purgeLocalData: purgeLocalData
         )
     }
 
-    private func resumeCapabilityBackedAccountDeletionV2(
-        transition: AuthTransitionToken,
-        capability: PreparedDeletionRecoveryCapability,
-        recoverDeletion: @MainActor (String) async throws
-            -> AccountDeletionReceipt,
-        acknowledgeDeletion: @MainActor (String) async throws
-            -> AccountDeletionReceipt,
-        recoveryCapabilityStore: AccountDeletionRecoveryCapabilityStore,
-        recordManualProviderRevocation: @MainActor () -> Void,
-        purgeLocalData: @MainActor () -> Bool
-    ) async -> Bool {
-        guard capability.protocolVersion == 2,
-              let acknowledgementCapability =
-                capability.acknowledgementValue else {
-            return false
-        }
-
-        _ = updateAuthTransition(transition, phase: .deletingAccount)
-        let receipt: AccountDeletionReceipt
-        do {
-            receipt = try await recoverDeletion(
-                capability.recoveryValue
-            )
-            guard currentSessionMatchesAuthTransition(transition),
-                  receipt.protocolVersion == 2 else {
-                return false
-            }
-        } catch {
-            guard currentSessionMatchesAuthTransition(transition) else {
-                return false
-            }
-            if AccountDeletionTransitionPolicy.isUnknownRecovery(error) {
-                // A v2 destructive commit cannot run until its durable
-                // preparation exists. Unknown proof therefore proves there is
-                // no committed deletion receipt and authorizes proof-only
-                // retirement after a missing or never-completed preparation.
-                let didRetireProof = AccountDeletionWorkflow
-                    .retireDefinitiveIntakeRejectionProof(
-                        recordRejectionRetirementPending: {
-                            AccountDeletionLocalCleanupStore
-                                .recordCapabilityRejectionRetirementPending()
-                        },
-                        retireRecoveryCapability: {
-                            do {
-                                try recoveryCapabilityStore.clearVerified()
-                                return true
-                            } catch {
-                                return false
-                            }
-                        }
-                    )
-                guard didRetireProof else { return false }
-                return await restoreDeferredCachedSessionAndResolveDeletionBarrier(
-                    ownedBy: transition
-                )
-            }
-            if AccountDeletionTransitionPolicy.isAcceptedExpiredRecovery(error) {
-                receipt = AccountDeletionReceipt(
-                    success: true,
-                    status: .pending,
-                    manualProviderRevocationRequired: true,
-                    protocolVersion: 2
-                )
-            } else {
-                return false
-            }
-        }
-
-        if receipt.status == .notCommitted {
-            let didRetireProof = AccountDeletionWorkflow
-                .retireDefinitiveIntakeRejectionProof(
-                    recordRejectionRetirementPending: {
-                        AccountDeletionLocalCleanupStore
-                            .recordCapabilityRejectionRetirementPending()
-                    },
-                    retireRecoveryCapability: {
-                        do {
-                            try recoveryCapabilityStore.clearVerified()
-                            return true
-                        } catch {
-                            return false
-                        }
-                    }
-                )
-            guard didRetireProof else { return false }
-            return await restoreDeferredCachedSessionAndResolveDeletionBarrier(
-                ownedBy: transition
-            )
-        }
-        guard receipt.status == .pending || receipt.status == .completed else {
-            return false
-        }
-
-        _ = updateAuthTransition(transition, phase: .finalizing)
-        return await AccountDeletionWorkflow.performAcceptedCleanup(
-            receipt: receipt,
+    private func accountDeletionDependencies()
+        -> AccountDeletionCoordinationDependencies {
+        let localState = AccountDeletionLocalStateBoundary(
+            state: {
+                AccountDeletionLocalCleanupStore.state()
+            },
+            isPending: {
+                AccountDeletionLocalCleanupStore.isPending()
+            },
+            recordCapabilityPreparationPending: {
+                AccountDeletionLocalCleanupStore
+                    .recordCapabilityPreparationPending()
+            },
+            recordCapabilityPreparedPending: {
+                AccountDeletionLocalCleanupStore
+                    .recordCapabilityPreparedPending()
+            },
+            recordIntakePending: {
+                AccountDeletionLocalCleanupStore.recordIntakePending()
+            },
             recordCleanupPending: {
                 AccountDeletionLocalCleanupStore.recordCleanupPending()
             },
-            recordManualProviderRevocation: recordManualProviderRevocation,
-            performLocalSignOut: {
-                await self.performVerifiedLocalSignOut(ownedBy: transition)
-            },
-            purgeLocalData: purgeLocalData,
-            acknowledgeRecovery: {
-                do {
-                    let acknowledgement = try await acknowledgeDeletion(
-                        acknowledgementCapability
-                    )
-                    return acknowledgement.recoveryAcknowledged == true
-                        && self.currentSessionMatchesAuthTransition(transition)
-                } catch {
-                    return false
-                }
-            },
-            recordRecoveryRetirementPending: {
+            recordCapabilityRetirementPending: {
                 AccountDeletionLocalCleanupStore
                     .recordCapabilityRetirementPending()
             },
-            retireRecoveryCapability: {
-                do {
-                    try recoveryCapabilityStore.clearVerified()
-                    return true
-                } catch {
-                    return false
-                }
+            recordCapabilityRejectionRetirementPending: {
+                AccountDeletionLocalCleanupStore
+                    .recordCapabilityRejectionRetirementPending()
             },
-            resolveCleanup: {
+            resolve: {
                 AccountDeletionLocalCleanupStore.resolve()
             }
         )
-    }
-
-    private func resumeCapabilityBackedAccountDeletion(
-        transition: AuthTransitionToken,
-        requestDeletion: @MainActor (
-            AuthTransitionToken,
-            String
-        ) async throws -> AccountDeletionReceipt,
-        recoverDeletion: @MainActor (
-            String,
-            Bool
-        ) async throws -> AccountDeletionReceipt,
-        recoveryCapabilityStore: AccountDeletionRecoveryCapabilityStore,
-        recordManualProviderRevocation: @MainActor () -> Void,
-        purgeLocalData: @MainActor () -> Bool,
-        allowAuthenticatedIntakeReplay: Bool
-    ) async -> Bool {
-        let capability: String
-        do {
-            capability = try recoveryCapabilityStore.loadExistingValue()
-        } catch {
-            MerianLog.auth.error(
-                "Account deletion recovery proof is unavailable; cleanup remains pending."
-            )
-            return false
-        }
-
-        _ = updateAuthTransition(transition, phase: .deletingAccount)
-        let receipt: AccountDeletionReceipt
-        do {
-            if allowAuthenticatedIntakeReplay,
-               AccountDeletionLocalCleanupStore.state()?.isIntakePending == true,
-               client.auth.currentSession != nil {
-                do {
-                    _ = try await verifiedExpectedSession(for: transition)
-                    receipt = try await requestDeletion(
-                        transition,
-                        capability
-                    )
-                } catch {
-                    guard currentSessionMatchesAuthTransition(transition) else {
-                        return false
-                    }
-                    if AccountDeletionTransitionPolicy
-                        .isDefinitiveIntakeRejection(error) {
-                        let didRetireProof = AccountDeletionWorkflow
-                            .retireDefinitiveIntakeRejectionProof(
-                                recordRejectionRetirementPending: {
-                                    AccountDeletionLocalCleanupStore
-                                        .recordCapabilityRejectionRetirementPending()
-                                },
-                                retireRecoveryCapability: {
-                                    do {
-                                        try recoveryCapabilityStore
-                                            .clearVerified()
-                                        return true
-                                    } catch {
-                                        return false
-                                    }
-                                }
-                            )
-                        guard didRetireProof else { return false }
-                        return await restoreDeferredCachedSessionAndResolveDeletionBarrier(
-                            ownedBy: transition
-                        )
-                    }
-                    receipt = try await recoverDeletion(capability, false)
+        let session = AccountDeletionSessionBoundary(
+            beginTransition: { kind in
+                self.beginAuthTransition(kind)
+            },
+            finishTransition: { transition in
+                self.finishAuthTransition(transition)
+            },
+            updateTransition: { transition, phase in
+                _ = self.updateAuthTransition(transition, phase: phase)
+            },
+            ownsTransition: { transition in
+                self.ownsAuthTransition(transition)
+            },
+            verifyExpectedSession: { transition in
+                _ = try await self.verifiedExpectedSession(for: transition)
+            },
+            currentSessionMatchesTransition: { transition in
+                self.currentSessionMatchesAuthTransition(transition)
+            },
+            sourceSession: { transition in
+                guard self.ownsAuthTransition(transition),
+                      self.activeAuthTransition?.token == transition else {
+                    return nil
                 }
-            } else {
-                receipt = try await recoverDeletion(capability, false)
-            }
-            guard currentSessionMatchesAuthTransition(transition) else {
-                return false
-            }
-        } catch {
-            guard currentSessionMatchesAuthTransition(transition) else {
-                return false
-            }
-            let code = EdgeFunctionErrorPolicy.stableCode(from: error)
-            if AccountDeletionTransitionPolicy.isAcceptedExpiredRecovery(error) {
-                // The server emits this code only after the hash matched a
-                // durable deletion job. The expired proof cannot inspect the
-                // job, but that positive match is sufficient to
-                // finish local erasure. The post-cleanup acknowledge operation
-                // remains valid and converts it to a permanent receipt.
-                receipt = AccountDeletionReceipt(
-                    success: true,
-                    status: .pending,
-                    manualProviderRevocationRequired: true
+                return self.activeAuthTransition?.sourceSession
+            },
+            loadCachedSession: {
+                let session = try await self.client.auth.session
+                return AccountDeletionCachedSession(
+                    identity: AuthTransitionSession(
+                        userID: session.user.id,
+                        isAnonymous: session.user.isAnonymous
+                    ),
+                    isExpired: session.isExpired
                 )
-            } else {
-                // `account_deletion_recovery_invalid` is not a cancellation
-                // receipt. Authenticated intake may still be committing after
-                // an ambiguous transport failure, so retain both proof and
-                // local barrier for a later retry or operator recovery.
+            },
+            currentCachedSession: {
+                guard let user = self.client.auth.currentSession?.user else {
+                    return nil
+                }
+                return AuthTransitionSession(
+                    userID: user.id,
+                    isAnonymous: user.isAnonymous
+                )
+            },
+            adoptCachedSession: { expected, transition in
+                guard let user = self.client.auth.currentSession?.user,
+                      AuthTransitionSession(
+                          userID: user.id,
+                          isAnonymous: user.isAnonymous
+                      ) == expected else {
+                    return false
+                }
+                return self.adoptAuthTransitionSession(
+                    user,
+                    for: transition
+                )
+            },
+            publishCachedSession: { expected in
+                guard let user = self.client.auth.currentSession?.user,
+                      AuthTransitionSession(
+                          userID: user.id,
+                          isAnonymous: user.isAnonymous
+                      ) == expected else {
+                    return
+                }
+                if self.currentUser?.id != user.id {
+                    self.purchaseIdentitySessionCoordinator.clearBinding()
+                    self.purchaseIdentitySessionCoordinator.clearLinkedUser()
+                }
+                self.currentUser = user
+                self.isAuthenticated = true
+                ConsentManager.shared.observeSession(userId: user.id)
+                self.schedulePublicAuthorIdentityRefreshIfNeeded(for: user)
+            },
+            performVerifiedLocalSignOut: { transition in
+                await self.performVerifiedLocalSignOut(
+                    ownedBy: transition
+                )
+            }
+        )
+        let diagnostics = AccountDeletionDiagnostics(
+            reportAcknowledgementPending: { error in
+                MerianLog.auth.error(
+                    "Account deletion cleanup acknowledgement remains pending; kind=\(MerianLog.errorKind(error), privacy: .public)."
+                )
+            },
+            reportAcceptedCleanupPending: {
+                MerianLog.auth.error(
+                    "Account deletion was accepted, but local cleanup remains pending."
+                )
+            },
+            reportRecoveryProofUnavailable: {
+                MerianLog.auth.error(
+                    "Account deletion recovery proof is unavailable; cleanup remains pending."
+                )
+            },
+            reportCapabilityRecoveryPending: { error in
+                let code = EdgeFunctionErrorPolicy.stableCode(from: error)
                 MerianLog.auth.error(
                     "Account deletion capability recovery remains pending; code=\((code ?? "unavailable"), privacy: .public)."
                 )
-                return false
             }
-        }
-
-        _ = updateAuthTransition(transition, phase: .finalizing)
-        return await AccountDeletionWorkflow.performAcceptedCleanup(
-            receipt: receipt,
-            recordCleanupPending: {
-                AccountDeletionLocalCleanupStore.recordCleanupPending()
+        )
+        return AccountDeletionCoordinationDependencies(
+            hasPendingPurchaseIdentityHandoff: {
+                self.hasPendingPurchaseIdentityHandoffFailClosed()
             },
-            recordManualProviderRevocation: recordManualProviderRevocation,
-            performLocalSignOut: {
-                await self.performVerifiedLocalSignOut(ownedBy: transition)
-            },
-            purgeLocalData: purgeLocalData,
-            acknowledgeRecovery: {
-                do {
-                    let acknowledgement = try await recoverDeletion(
-                        capability,
-                        true
-                    )
-                    return acknowledgement.recoveryAcknowledged == true
-                        && self.currentSessionMatchesAuthTransition(transition)
-                } catch {
-                    return false
-                }
-            },
-            recordRecoveryRetirementPending: {
-                AccountDeletionLocalCleanupStore
-                    .recordCapabilityRetirementPending()
-            },
-            retireRecoveryCapability: {
-                do {
-                    try recoveryCapabilityStore.clearVerified()
-                    return true
-                } catch {
-                    return false
-                }
-            },
-            resolveCleanup: {
-                AccountDeletionLocalCleanupStore.resolve()
-            }
+            localState: localState,
+            session: session,
+            diagnostics: diagnostics
         )
     }
 
@@ -2455,7 +1666,7 @@ private struct RevenueCatPublicIdentity: Decodable {
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
             defer {
-                self.isSigningOut = false
+                self.authRuntimeState.finishSignOut()
                 self.signOutTask = nil
             }
 
@@ -2485,350 +1696,231 @@ private struct RevenueCatPublicIdentity: Decodable {
     @discardableResult
     func transitionToGhostSession() async -> Bool {
         await userSignOutSingleFlight.run { [weak self] in
-            guard let self,
-                  let transition = self.beginAuthTransition(.signOut) else {
-                return false
-            }
-            defer {
-                self.finishAuthTransition(transition)
-            }
-            return await self.performTransitionToGhostSession(
-                ownedBy: transition
-            )
+            guard let self else { return false }
+            return await PurchaseIdentitySignOutCoordinator(
+                dependencies: purchaseIdentitySignOutDependencies()
+            ).transitionToGhostSession()
         }
-    }
-
-    private func performTransitionToGhostSession(
-        ownedBy transition: AuthTransitionToken
-    ) async -> Bool {
-        guard ownsAuthTransition(transition) else { return false }
-        guard await awaitAccountBoundWorkQuiescenceForAuthTransition()
-        else { return false }
-        guard ownsAuthTransition(transition) else { return false }
-
-        let pendingHandoff: PendingSignOutPurchaseHandoff?
-        let pendingPrincipalRotation: PendingPurchasePrincipalAuthRotation?
-        do {
-            pendingHandoff = try loadPendingSignOutPurchaseHandoff()
-            pendingPrincipalRotation = try loadPendingPurchasePrincipalAuthRotation()
-        } catch {
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            MerianLog.auth.error(
-                "Refused sign-out because the purchase handoff proof is unreadable."
-            )
-            return false
-        }
-
-        let startingUser: User?
-        do {
-            let session = try await client.auth.session
-            startingUser = session.user
-        } catch {
-            // A known linked identity must never be closed without first
-            // securing its authoritative RevenueCat snapshot.
-            if currentUser?.isAnonymous == false
-                || KeychainManager.shared.bool(
-                    forKey: KeychainKeys.hasAuthenticatedOAuth
-                ) {
-                MerianLog.auth.debug(
-                    "Refused sign-out because the linked session could not be verified."
-                )
-                return false
-            }
-            startingUser = currentUser
-        }
-
-        if let pendingPrincipalRotation {
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            if let startingUser, startingUser.isAnonymous {
-                return await completePendingSignOutPurchaseHandoffIfNeeded(
-                    expectedDestinationUserId: startingUser.id.uuidString,
-                    ownedBy: transition
-                )
-            }
-            if startingUser == nil {
-                guard let destination = await initializeGhostSession(
-                    ownedBy: transition
-                ),
-                      destination.isAnonymous else {
-                    return false
-                }
-                return await completePendingSignOutPurchaseHandoffIfNeeded(
-                    expectedDestinationUserId: destination.id.uuidString,
-                    ownedBy: transition
-                )
-            }
-            guard startingUser?.id.uuidString.lowercased()
-                    == pendingPrincipalRotation.sourceUserId.lowercased() else {
-                MerianLog.auth.error(
-                    "Refused to replace an unrelated account while stable purchase identity rotation is pending."
-                )
-                return false
-            }
-            guard let startingUser else { return false }
-            await abandonPendingPurchasePrincipalRotationIfSourceRestored(
-                sourceUserId: startingUser.id,
-                ownedBy: transition
-            )
-            do {
-                guard try loadPendingPurchasePrincipalAuthRotation() == nil else {
-                    return false
-                }
-                RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
-                    pendingHandoff != nil
-                )
-            } catch {
-                return false
-            }
-        }
-
-        if let pendingHandoff {
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            if let startingUser, startingUser.isAnonymous {
-                return await completePendingSignOutPurchaseHandoffIfNeeded(
-                    expectedDestinationUserId: startingUser.id.uuidString,
-                    ownedBy: transition
-                )
-            }
-            if startingUser == nil {
-                guard let destination = await initializeGhostSession(
-                    ownedBy: transition
-                ),
-                      destination.isAnonymous else {
-                    return false
-                }
-                return await completePendingSignOutPurchaseHandoffIfNeeded(
-                    expectedDestinationUserId: destination.id.uuidString,
-                    ownedBy: transition
-                )
-            }
-            guard startingUser?.id.uuidString.lowercased()
-                    == pendingHandoff.sourceUserId.lowercased() else {
-                MerianLog.auth.error(
-                    "Refused to replace an unrelated account while purchase continuity is pending."
-                )
-                return false
-            }
-            await abandonPendingSignOutPurchaseHandoffIfSourceRestored(
-                sourceUserId: pendingHandoff.sourceUserId,
-                ownedBy: transition
-            )
-            do {
-                guard try loadPendingSignOutPurchaseHandoff() == nil else {
-                    return false
-                }
-            } catch {
-                RevenueCatManager.shared
-                    .setPurchaseIdentityHandoffPending(true)
-                return false
-            }
-        }
-
-        guard let startingUser, !startingUser.isAnonymous else {
-            return await PurchaseIdentitySignOutWorkflow.performUserSignOutTransition(
-                performSignOut: { [weak self] in
-                    await self?.performLocalSignOut(ownedBy: transition)
-                },
-                initializeAnonymousSession: { [weak self] in
-                    guard let user = await self?.initializeGhostSession(
-                        ownedBy: transition
-                    ) else {
-                        return false
-                    }
-                    return user.isAnonymous
-                }
-            )
-        }
-
-        let sourceAuthGeneration = authSessionGeneration
-        guard currentUser?.id == startingUser.id,
-              !startingUser.isAnonymous else {
-            return false
-        }
-        _ = await ensureTelemetryLinkedWhenSafe(
-            for: startingUser,
-            ownedBy: transition
-        )
-        guard currentUser?.id == startingUser.id,
-              authSessionGeneration == sourceAuthGeneration,
-              let verifiedSourceSession = try? await client.auth.session,
-              verifiedSourceSession.user.id == startingUser.id,
-              !verifiedSourceSession.user.isAnonymous,
-              let binding = activePurchasePrincipalBinding else {
-            return false
-        }
-        switch binding.mode {
-        case .stable:
-            guard RevenueCatManager.shared.isIdentityReady,
-                  RevenueCatManager.shared.linkedAuthUserID == startingUser.id else {
-                // Stable mode is already server-authoritative. Preserve the
-                // linked Auth session and retry resolution/linking instead of
-                // entering the incompatible legacy receipt-transfer path.
-                return false
-            }
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            let completed = await PurchaseIdentitySignOutWorkflow.performPurchaseSafeSignOutTransition(
-                prepareAndPersistHandoff: { [weak self] in
-                    guard let self else {
-                        throw SupabaseAuthTransitionError.signOutSessionChanged
-                    }
-                    let verified = try await self.client.auth.session
-                    guard !verified.user.isAnonymous,
-                          verified.user.id == startingUser.id,
-                          self.currentUser?.id == startingUser.id,
-                          self.authSessionGeneration == sourceAuthGeneration else {
-                        throw SupabaseAuthTransitionError.signOutSessionChanged
-                    }
-                    try await self
-                        .prepareAndPersistPendingPurchasePrincipalAuthRotation(
-                        sourceUserId: startingUser.id,
-                        binding: binding
-                    )
-                    let reverified = try await self.client.auth.session
-                    guard !reverified.user.isAnonymous,
-                          reverified.user.id == startingUser.id,
-                          self.currentUser?.id == startingUser.id,
-                          self.authSessionGeneration == sourceAuthGeneration else {
-                        throw SupabaseAuthTransitionError.signOutSessionChanged
-                    }
-                },
-                performSignOut: { [weak self] in
-                    await self?.performLocalSignOut(ownedBy: transition)
-                },
-                initializeAnonymousSession: { [weak self] in
-                    guard let user = await self?.initializeGhostSession(
-                        ownedBy: transition
-                    ) else {
-                        return false
-                    }
-                    return user.isAnonymous
-                },
-                completeHandoff: { [weak self] in
-                    guard let self,
-                          await self
-                            .completePendingSignOutPurchaseHandoffIfNeeded(
-                                ownedBy: transition
-                            )
-                    else {
-                        throw SupabaseAuthTransitionError
-                            .signOutPurchaseContinuityPending
-                    }
-                },
-                reportFailure: { error in
-                    MerianLog.auth.debug(
-                        "Purchase-safe sign-out remains incomplete; kind=\(MerianLog.errorKind(error), privacy: .public)"
-                    )
-                }
-            )
-            if !completed {
-                await abandonPendingPurchasePrincipalRotationIfSourceRestored(
-                    sourceUserId: startingUser.id,
-                    ownedBy: transition
-                )
-                await restoreSourceIdentityAfterFailedSignOutIfPossible(
-                    sourceUserId: startingUser.id,
-                    ownedBy: transition
-                )
-            }
-            return completed
-        case .legacy:
-            break
-        }
-
-        let sourceUserId = startingUser.id.uuidString.lowercased()
-        RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-        let completed = await PurchaseIdentitySignOutWorkflow.performPurchaseSafeSignOutTransition(
-            prepareAndPersistHandoff: { [weak self] in
-                guard let self else {
-                    throw SupabaseAuthTransitionError.signOutSessionChanged
-                }
-                try await self.prepareSignOutPurchaseHandoff(
-                    sourceUserId: sourceUserId,
-                    ownedBy: transition
-                )
-            },
-            performSignOut: { [weak self] in
-                await self?.performLocalSignOut(ownedBy: transition)
-            },
-            initializeAnonymousSession: { [weak self] in
-                guard let user = await self?.initializeGhostSession(
-                    ownedBy: transition
-                ) else {
-                    return false
-                }
-                return user.isAnonymous
-            },
-            completeHandoff: { [weak self] in
-                guard let self,
-                      await self.completePendingSignOutPurchaseHandoffIfNeeded(
-                        ownedBy: transition
-                      )
-                else {
-                    throw SupabaseAuthTransitionError
-                        .signOutPurchaseContinuityPending
-                }
-            },
-            reportFailure: { error in
-                MerianLog.auth.debug(
-                    "Purchase-safe sign-out remains incomplete; kind=\(MerianLog.errorKind(error), privacy: .public)"
-                )
-            }
-        )
-
-        if !completed {
-            await abandonPendingSignOutPurchaseHandoffIfSourceRestored(
-                sourceUserId: sourceUserId,
-                ownedBy: transition
-            )
-            await restoreSourceIdentityAfterFailedSignOutIfPossible(
-                sourceUserId: startingUser.id,
-                ownedBy: transition
-            )
-        }
-        return completed
     }
 
     /// Explicit foreground retry for an anonymous session whose device-durable
     /// purchase handoff did not finish during the original sign-out.
     @discardableResult
     func retryPendingSignOutPurchaseHandoff() async -> Bool {
-        guard let transition = beginAuthTransition(.recovery) else {
-            return false
-        }
-        defer { finishAuthTransition(transition) }
-        guard let session = try? await client.auth.session,
-              session.user.isAnonymous,
-              currentSessionMatchesAuthTransition(transition) else {
-            return false
-        }
-        _ = updateAuthTransition(transition, phase: .bindingPurchases)
-        return await completePendingSignOutPurchaseHandoffIfNeeded(
-            expectedDestinationUserId: session.user.id.uuidString,
-            ownedBy: transition
+        await PurchaseIdentitySignOutCoordinator(
+            dependencies: purchaseIdentitySignOutDependencies()
+        ).retryPendingHandoff()
+    }
+
+    private func purchaseIdentitySignOutDependencies()
+        -> PurchaseSignOutDependencies {
+        let session = PurchaseIdentitySignOutSessionBoundary(
+            beginTransition: { kind in
+                self.beginAuthTransition(kind)
+            },
+            finishTransition: { transition in
+                self.finishAuthTransition(transition)
+            },
+            updateTransition: { transition, phase in
+                _ = self.updateAuthTransition(transition, phase: phase)
+            },
+            ownsTransition: { transition in
+                self.ownsAuthTransition(transition)
+            },
+            awaitAccountBoundWorkQuiescence: {
+                await self.awaitAccountBoundWorkQuiescenceForAuthTransition()
+            },
+            loadSDKSession: {
+                let session = try await self.client.auth.session
+                let user = session.user
+                return PurchaseIdentitySignOutSessionSnapshot(
+                    identity: AuthTransitionSession(
+                        userID: user.id,
+                        isAnonymous: user.isAnonymous
+                    ),
+                    ensureTelemetryLinked: { transition in
+                        _ = await self.ensurePurchaseIdentityReady(
+                            for: user,
+                            ownedBy: transition
+                        )
+                    }
+                )
+            },
+            fallbackPublishedSession: {
+                guard let user = self.currentUser else { return nil }
+                return PurchaseIdentitySignOutSessionSnapshot(
+                    identity: AuthTransitionSession(
+                        userID: user.id,
+                        isAnonymous: user.isAnonymous
+                    ),
+                    ensureTelemetryLinked: { transition in
+                        _ = await self.ensurePurchaseIdentityReady(
+                            for: user,
+                            ownedBy: transition
+                        )
+                    }
+                )
+            },
+            hasKnownLinkedIdentity: {
+                self.currentUser?.isAnonymous == false
+                    || KeychainManager.shared.bool(
+                        forKey: KeychainKeys.hasAuthenticatedOAuth
+                    )
+            },
+            initializeAnonymousSession: { transition in
+                guard let user = await self.initializeGhostSession(
+                    ownedBy: transition
+                ) else {
+                    return nil
+                }
+                return AuthTransitionSession(
+                    userID: user.id,
+                    isAnonymous: user.isAnonymous
+                )
+            },
+            performLocalSignOut: { transition in
+                await self.performLocalSignOut(ownedBy: transition)
+            },
+            resolveLinkedSourceContext: { starting, transition in
+                let identity = starting.identity
+                let sourceAuthGeneration = self.authSessionGeneration
+                guard self.currentSessionMatchesAuthTransition(transition),
+                      self.currentUser?.id == identity.userID,
+                      !identity.isAnonymous else {
+                    return nil
+                }
+                await starting.ensureTelemetryLinked(transition)
+                guard self.currentSessionMatchesAuthTransition(transition),
+                      self.currentUser?.id == identity.userID,
+                      self.authSessionGeneration == sourceAuthGeneration,
+                      let verifiedSourceSession =
+                        try? await self.client.auth.session,
+                      verifiedSourceSession.user.id == identity.userID,
+                      !verifiedSourceSession.user.isAnonymous,
+                      let binding = self.purchaseIdentitySessionCoordinator
+                        .activeBinding else {
+                    return nil
+                }
+                return PurchaseIdentitySignOutSourceContext(
+                    session: identity,
+                    authGeneration: sourceAuthGeneration,
+                    binding: binding,
+                    purchaseProviderIsReady:
+                        RevenueCatManager.shared.isIdentityReady
+                            && RevenueCatManager.shared.linkedAuthUserID
+                                == identity.userID
+                )
+            },
+            currentSessionMatchesTransition: { transition in
+                self.currentSessionMatchesAuthTransition(transition)
+            }
+        )
+        let journal = PurchaseIdentitySignOutJournalBoundary(
+            loadLegacyHandoff: {
+                try self.purchaseIdentityHandoffJournal
+                    .loadLegacyHandoff()
+            },
+            loadStableRotation: {
+                try self.purchaseIdentityHandoffJournal
+                    .loadStableRotation()
+            },
+            setHandoffPending: { [weak self] isPending in
+                self?.publishPurchaseIdentityHandoffPending(isPending)
+            },
+            completePendingHandoff: { destinationUserID, transition in
+                await self.completePendingSignOutPurchaseHandoffIfNeeded(
+                    expectedDestinationUserId: destinationUserID,
+                    ownedBy: transition
+                )
+            },
+            abandonStableRotationIfSourceRestored: { sourceUserID, transition in
+                await self.purchaseIdentitySourceHandoffCoordinator()
+                    .abandonStableRotationIfSourceRestored(
+                        sourceUserID: sourceUserID,
+                        ownedBy: transition
+                    )
+            },
+            abandonLegacyHandoffIfSourceRestored: { sourceUserID, transition in
+                await self.purchaseIdentitySourceHandoffCoordinator()
+                    .abandonLegacyHandoffIfSourceRestored(
+                        sourceUserID: sourceUserID,
+                        ownedBy: transition
+                    )
+            },
+            prepareStableRotation: { source, transition in
+                try await self.purchaseIdentitySourceHandoffCoordinator()
+                    .prepareStableRotation(
+                        source: source,
+                        ownedBy: transition
+                    )
+            },
+            prepareLegacyHandoff: { sourceUserID, transition in
+                try await self.purchaseIdentitySourceHandoffCoordinator()
+                    .prepareLegacyHandoff(
+                        sourceUserID: sourceUserID,
+                        ownedBy: transition
+                    )
+            },
+            restoreSourceIdentityAfterFailedSignOut: { sourceUserID, transition in
+                await self.purchaseIdentitySourceHandoffCoordinator()
+                    .restoreSourceIdentityAfterFailedSignOut(
+                        sourceUserID: sourceUserID,
+                        ownedBy: transition
+                    )
+            }
+        )
+        let diagnostics = PurchaseIdentitySignOutDiagnostics(
+            reportUnreadableJournal: {
+                MerianLog.auth.error(
+                    "Refused sign-out because the purchase handoff proof is unreadable."
+                )
+            },
+            reportUnverifiedLinkedSession: {
+                MerianLog.auth.debug(
+                    "Refused sign-out because the linked session could not be verified."
+                )
+            },
+            reportUnrelatedStableRotation: {
+                MerianLog.auth.error(
+                    "Refused to replace an unrelated account while stable purchase identity rotation is pending."
+                )
+            },
+            reportUnrelatedLegacyHandoff: {
+                MerianLog.auth.error(
+                    "Refused to replace an unrelated account while purchase continuity is pending."
+                )
+            },
+            reportTransitionFailure: { error in
+                MerianLog.auth.debug(
+                    "Purchase-safe sign-out remains incomplete; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                )
+            }
+        )
+        return PurchaseSignOutDependencies(
+            session: session,
+            journal: journal,
+            diagnostics: diagnostics
         )
     }
 
     @discardableResult
-    private func beginLocalSignOutTransition() -> Task<User?, Never>? {
-        isSigningOut = true
-        authSessionGeneration &+= 1
+    private func beginLocalSignOutTransition()
+        -> Task<AuthTransitionSession?, Never>? {
+        authRuntimeState.beginSignOut()
+        appleCredentialRevocationCoordinator.cancel()
         currentUser = nil
         isAuthenticated = false
-        activePurchasePrincipalBinding = nil
-        lastLinkedUserId = nil
-        lastPublicAuthorIdentityRefreshUserId = nil
+        purchaseIdentitySessionCoordinator.clearBinding()
+        purchaseIdentitySessionCoordinator.clearLinkedUser()
+        publicAuthorIdentityRefreshCoordinator.clearCompletedUser()
         RevenueCatManager.shared.beginPurchaseIdentityResolution()
         EntitlementManager.shared.handleSignOut()
 
-        let cancelledGhostSessionTask = ghostSessionTask
-        cancelledGhostSessionTask?.cancel()
-        ghostSessionTask = nil
-        ghostSessionTaskId = nil
-        ghostSessionTaskAuthTransitionId = nil
+        let cancelledGhostSessionTask = authSessionBootstrapCoordinator.cancel()
 
-        cancelPublicAuthorIdentityRefreshTask()
-        cancelGhostProfileMergeTask()
-        cancelPurchasePrincipalLinkTask()
+        publicAuthorIdentityRefreshCoordinator.cancel()
+        ghostProfileMergeCoordinator.cancel()
+        purchaseIdentitySessionCoordinator.cancelResolution()
         KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
         KeychainManager.shared.removeObject(forKey: KeychainKeys.legacyGhostModeUserID)
         PostHogManager.shared.reset()
@@ -2845,55 +1937,9 @@ private struct RevenueCatPublicIdentity: Decodable {
     /// function reports that the backing Auth session is missing.
     @discardableResult
     func refreshActiveSessionForRetry() async -> Bool {
-        guard let transition = beginAuthTransition(.recovery) else {
-            return false
-        }
-        defer { finishAuthTransition(transition) }
-        return await refreshActiveSessionForRetry(ownedBy: transition)
-    }
-
-    private func refreshActiveSessionForRetry(
-        ownedBy transition: AuthTransitionToken
-    ) async -> Bool {
-        guard ownsAuthTransition(transition), !isSigningOut,
-              let expectedSession = activeAuthTransition?.expectedSession else {
-            return false
-        }
-        guard await awaitAccountBoundWorkQuiescenceForAuthTransition()
-        else { return false }
-        guard ownsAuthTransition(transition), !isSigningOut,
-              activeAuthTransition?.expectedSession == expectedSession else {
-            return false
-        }
-
-        do {
-            let session = try await client.auth.refreshSession()
-            guard ownsAuthTransition(transition), !isSigningOut,
-                  transitionSession(from: session.user) == expectedSession,
-                  adoptAuthTransitionSession(
-                    session.user,
-                    for: transition
-                  ), currentSessionMatchesAuthTransition(transition) else {
-                return false
-            }
-            currentUser = session.user
-            isAuthenticated = true
-            schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
-            _ = await ensureTelemetryLinkedWhenSafe(
-                for: session.user,
-                ownedBy: transition
-            )
-            guard currentSessionMatchesAuthTransition(transition) else {
-                return false
-            }
-            MerianLog.auth.debug("Supabase session refreshed after auth failure.")
-            return true
-        } catch {
-            MerianLog.auth.debug(
-                "Supabase session refresh after auth failure failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-            return false
-        }
+        await AuthSessionRecoveryCoordinator(
+            dependencies: authSessionRecoveryDependencies()
+        ).refreshActiveSessionForRetry()
     }
 
     /// Refreshes the JWT for an authenticated request already owned by the
@@ -2904,144 +1950,175 @@ private struct RevenueCatPublicIdentity: Decodable {
     func refreshExpectedSessionForAuthenticatedRequest(
         ownedBy transition: AuthTransitionToken
     ) async -> Bool {
-        guard ownsAuthTransition(transition),
-              let expected = authTransitionCoordinator.active?.expectedSession
-        else {
-            return false
-        }
-        guard await awaitAccountBoundWorkQuiescenceForAuthTransition()
-        else { return false }
-        guard ownsAuthTransition(transition),
-              authTransitionCoordinator.active?.expectedSession == expected
-        else {
-            return false
-        }
-
-        do {
-            let session = try await client.auth.refreshSession()
-            guard ownsAuthTransition(transition),
-                  transitionSession(from: session.user) == expected,
-                  adoptAuthTransitionSession(session.user, for: transition),
-                  currentSessionMatchesAuthTransition(transition) else {
-                return false
-            }
-            currentUser = session.user
-            isAuthenticated = true
-            MerianLog.auth.debug(
-                "Refreshed the exact session owned by an authentication transition."
-            )
-            return true
-        } catch {
-            MerianLog.auth.debug(
-                "Transition-owned session refresh failed; kind=\(MerianLog.errorKind(error), privacy: .public)."
-            )
-            return false
-        }
+        await AuthSessionRecoveryCoordinator(
+            dependencies: authSessionRecoveryDependencies()
+        ).refreshExpectedSessionForAuthenticatedRequest(
+            ownedBy: transition
+        )
     }
 
     /// Clears a broken anonymous session and creates a fresh ghost identity.
     @discardableResult
     func resetGhostSessionForRetry() async -> Bool {
-        guard let transition = beginAuthTransition(.recovery) else {
-            return false
-        }
-        defer { finishAuthTransition(transition) }
-        guard !hasPendingPurchaseIdentityHandoffFailClosed() else {
-            MerianLog.auth.error(
-                "Refused to rotate an anonymous session while purchase continuity is pending."
-            )
-            return false
-        }
-        guard await performTransitionToGhostSession(ownedBy: transition) else {
-            return false
-        }
-
-        do {
-            let session = try await client.auth.session
-            let generation = authSessionGeneration
-            _ = await ensureTelemetryLinkedWhenSafe(
-                for: session.user,
-                ownedBy: transition
-            )
-            guard session.user.isAnonymous,
-                  currentUser?.id == session.user.id,
-                  authSessionGeneration == generation,
-                  activePurchasePrincipalBinding != nil,
-                  RevenueCatManager.shared.isIdentityReady,
-                  RevenueCatManager.shared.linkedAuthUserID == session.user.id else {
-                MerianLog.auth.debug(
-                    "Anonymous session regenerated, but purchase identity is not ready for request replay."
-                )
-                return false
-            }
-            guard await EntitlementManager.shared.beginSession(
-                userID: session.user.id,
-                client: client,
-                authTransitionOwner: transition
-            ) else {
-                throw SupabaseAuthTransitionError
-                    .signOutPurchaseContinuityPending
-            }
-            let verifiedSession = try await client.auth.session
-            guard verifiedSession.user.isAnonymous,
-                  verifiedSession.user.id == session.user.id,
-                  currentUser?.id == session.user.id,
-                  authSessionGeneration == generation else {
-                return false
-            }
-            currentUser = session.user
-            isAuthenticated = true
-            MerianLog.auth.debug("Anonymous session regenerated after auth failure.")
-            return true
-        } catch {
-            MerianLog.auth.debug(
-                "Signed-out session regeneration after auth failure failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-            return false
-        }
+        await AuthSessionRecoveryCoordinator(
+            dependencies: authSessionRecoveryDependencies()
+        ).resetGhostSessionForRetry()
     }
 
-    func clearLocalSessionAfterAuthFailure() async {
-        guard let transition = beginAuthTransition(.recovery) else { return }
-        defer { finishAuthTransition(transition) }
-        await clearLocalSessionAfterAuthFailure(ownedBy: transition)
+    @discardableResult
+    func clearLocalSessionAfterAuthFailure() async
+        -> AuthSessionLocalClearOutcome {
+        await AuthSessionRecoveryCoordinator(
+            dependencies: authSessionRecoveryDependencies()
+        ).clearLocalSessionAfterAuthFailure()
     }
 
+    @discardableResult
     private func clearLocalSessionAfterAuthFailure(
-        ownedBy transition: AuthTransitionToken
-    ) async {
-        guard ownsAuthTransition(transition) else { return }
-        guard await awaitAccountBoundWorkQuiescenceForAuthTransition()
-        else { return }
-        guard ownsAuthTransition(transition) else { return }
-        guard !hasPendingPurchaseIdentityHandoffFailClosed() else {
-            MerianLog.auth.error(
-                "Preserved the exact local auth session because purchase continuity is pending."
-            )
-            return
-        }
+        ownedBy transition: AuthTransitionToken,
+        entryPolicy: AuthSessionRecoveryEntryPolicy = .requireActiveCaller
+    ) async -> AuthSessionLocalClearOutcome {
+        await AuthSessionRecoveryCoordinator(
+            dependencies: authSessionRecoveryDependencies()
+        ).clearLocalSessionAfterAuthFailure(
+            ownedBy: transition,
+            entryPolicy: entryPolicy
+        )
+    }
 
-        _ = updateAuthTransition(transition, phase: .installingSession)
-        _ = adoptAuthTransitionSession(nil, for: transition)
-        do {
-            try await client.auth.signOut(scope: .local)
-        } catch {
-            MerianLog.auth.debug(
-                "Local Supabase sign-out after auth failure failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-        }
+    private func authSessionRecoveryDependencies()
+        -> AuthSessionRecoveryDependencies {
+        let state = AuthSessionRecoveryStateBoundary(
+            isSigningOut: { [self] in
+                isSigningOut
+            },
+            hasPendingPurchaseIdentityHandoff: { [self] in
+                hasPendingPurchaseIdentityHandoffFailClosed()
+            },
+            clearLocalRecoveryState: { [self] in
+                currentUser = nil
+                isAuthenticated = false
+                appleCredentialRevocationCoordinator.cancel()
+                purchaseIdentitySessionCoordinator.clearLinkedUser()
+                publicAuthorIdentityRefreshCoordinator.clearCompletedUser()
+                publicAuthorIdentityRefreshCoordinator.cancel()
+                ghostProfileMergeCoordinator.cancel()
+                KeychainManager.shared.removeObject(
+                    forKey: KeychainKeys.hasAuthenticatedOAuth
+                )
+                KeychainManager.shared.removeObject(
+                    forKey: KeychainKeys.legacyGhostModeUserID
+                )
+                PostHogManager.shared.reset()
+            }
+        )
+        let authTransition = AuthSessionRecoveryTransitionBoundary(
+            beginRecovery: { [self] in
+                beginAuthTransition(.recovery)
+            },
+            finish: { [self] transition in
+                finishAuthTransition(transition)
+            },
+            owns: { [self] transition in
+                ownsAuthTransition(transition)
+            },
+            expectedSession: { [self] transition in
+                guard ownsAuthTransition(transition) else { return nil }
+                return activeAuthTransition?.expectedSession
+            },
+            awaitAccountWorkQuiescence: { [self] in
+                await awaitAccountBoundWorkQuiescenceForAuthTransition()
+            },
+            currentSessionMatches: { [self] transition in
+                currentSessionMatchesAuthTransition(transition)
+            },
+            updatePhase: { [self] transition, phase in
+                _ = updateAuthTransition(transition, phase: phase)
+            },
+            adoptSignedOutSession: { [self] transition in
+                _ = adoptAuthTransitionSession(nil, for: transition)
+            }
+        )
+        let operations = AuthSessionRecoveryOperationBoundary(
+            refreshSDKSession: { [self] in
+                let session = try await client.auth.refreshSession()
+                return authSessionRecoverySession(for: session.user)
+            },
+            loadSDKSession: { [self] in
+                let session = try await client.auth.session
+                return authSessionRecoverySession(for: session.user)
+            },
+            resetAnonymousSession: { [self] transition in
+                await PurchaseIdentitySignOutCoordinator(
+                    dependencies: purchaseIdentitySignOutDependencies()
+                ).resetGhostSessionForRetry(ownedBy: transition)
+            },
+            performLocalSDKSignOut: { [self] in
+                try await client.auth.signOut(scope: .local)
+            },
+            finishPurchaseIdentitySignOut: {
+                await RevenueCatManager.shared.handleSupabaseSignOut()
+            }
+        )
+        return AuthSessionRecoveryDependencies(
+            state: state,
+            transition: authTransition,
+            operations: operations,
+            diagnose: { diagnostic, error in
+                SupabaseAuthSessionRecoveryDiagnostics.report(
+                    diagnostic,
+                    error: error
+                )
+            }
+        )
+    }
 
-        currentUser = nil
-        isAuthenticated = false
-        lastLinkedUserId = nil
-        lastPublicAuthorIdentityRefreshUserId = nil
-        cancelPublicAuthorIdentityRefreshTask()
-        cancelGhostProfileMergeTask()
-        KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
-        KeychainManager.shared.removeObject(forKey: KeychainKeys.legacyGhostModeUserID)
-        PostHogManager.shared.reset()
-        await RevenueCatManager.shared.handleSupabaseSignOut()
-        MerianLog.auth.debug("Cleared local Supabase session after auth failure.")
+    private func authSessionRecoverySession(
+        for user: User
+    ) -> AuthSessionRecoverySession {
+        let generation = authSessionGeneration
+        return AuthSessionRecoverySession(
+            identity: AuthTransitionSession(
+                userID: user.id,
+                isAnonymous: user.isAnonymous
+            ),
+            adopt: { [self] transition in
+                adoptAuthTransitionSession(user, for: transition)
+            },
+            publish: { [self] in
+                currentUser = user
+                isAuthenticated = true
+            },
+            schedulePublicAuthorIdentityRefresh: { [self] in
+                schedulePublicAuthorIdentityRefreshIfNeeded(for: user)
+            },
+            ensurePurchaseIdentityReady: { [self] transition in
+                _ = await ensurePurchaseIdentityReady(
+                    for: user,
+                    ownedBy: transition
+                )
+            },
+            purchaseIdentityIsReady: { [self] in
+                currentUser?.id == user.id
+                    && currentUser?.isAnonymous == user.isAnonymous
+                    && authSessionGeneration == generation
+                    && purchaseIdentitySessionCoordinator.activeBinding != nil
+                    && RevenueCatManager.shared.isIdentityReady
+                    && RevenueCatManager.shared.linkedAuthUserID == user.id
+            },
+            beginEntitlementSession: { [self] transition in
+                await EntitlementManager.shared.beginSession(
+                    userID: user.id,
+                    client: client,
+                    authTransitionOwner: transition
+                )
+            },
+            isPublishedAtCapturedGeneration: { [self] in
+                currentUser?.id == user.id
+                    && currentUser?.isAnonymous == user.isAnonymous
+                    && authSessionGeneration == generation
+            }
+        )
     }
 
     /// Builds authenticated REST headers, initializing a ghost session if no token exists.
@@ -3116,397 +2193,422 @@ private struct RevenueCatPublicIdentity: Decodable {
     /// establish a session from no local session or refresh the exact existing
     /// linked account, but it may not replace an anonymous or different account.
     func handleAuthenticationCallbackURL(_ url: URL) async {
-        guard !hasPendingPurchaseIdentityHandoffFailClosed(),
-              let transition = beginAuthTransition(.authenticationCallback)
-        else {
-            MerianLog.auth.debug(
-                "Ignored an authentication callback while another identity transition is pending."
-            )
-            return
-        }
-        defer { finishAuthTransition(transition) }
+        await AuthenticationCallbackCoordinator(
+            dependencies: authenticationCallbackDependencies(url: url)
+        ).handle()
+    }
 
-        let sourceSession = activeAuthTransition?.sourceSession
-        guard sourceSession?.isAnonymous != true,
-              currentSessionMatchesAuthTransition(transition) else {
-            MerianLog.auth.debug(
-                "Ignored an authentication callback that cannot replace the current signed-out profile."
-            )
-            return
-        }
-
-        var didInstallSession = false
-        do {
-            _ = try await verifiedExpectedSessionIfPresent(for: transition)
-            _ = updateAuthTransition(transition, phase: .installingSession)
-            let session = try await Self.performOAuthSessionReplacement(
-                suspendAnalytics: {
-                    self.analyticsGeneration(for: transition)
+    private func authenticationCallbackDependencies(
+        url: URL
+    ) -> AuthenticationCallbackDependencies {
+        AuthenticationCallbackDependencies(
+            transition: AuthenticationCallbackTransitionBoundary(
+                hasPendingPurchaseIdentityHandoff: { [self] in
+                    hasPendingPurchaseIdentityHandoffFailClosed()
                 },
-                installSession: {
-                    let installed = try await self.client.auth.session(from: url)
-                    didInstallSession = true
+                isSignOutInProgress: { [self] in
+                    isSigningOut
+                },
+                begin: { [self] in
+                    beginAuthTransition(.authenticationCallback)
+                },
+                finish: { [self] transition in
+                    finishAuthTransition(transition)
+                },
+                owns: { [self] transition in
+                    ownsAuthTransition(transition)
+                },
+                sourceSession: { [self] transition in
+                    guard activeAuthTransition?.token == transition else {
+                        return nil
+                    }
+                    return activeAuthTransition?.sourceSession
+                },
+                currentSessionMatches: { [self] transition in
+                    currentSessionMatchesAuthTransition(transition)
+                },
+                verifyExpectedSessionIfPresent: { [self] transition in
+                    _ = try await verifiedExpectedSessionIfPresent(
+                        for: transition
+                    )
+                },
+                verifyExpectedSession: { [self] transition in
+                    _ = try await verifiedExpectedSession(for: transition)
+                },
+                updatePhase: { [self] transition, phase in
+                    _ = updateAuthTransition(transition, phase: phase)
+                }
+            ),
+            session: AuthenticationCallbackSessionBoundary(
+                analyticsGeneration: { [self] transition in
+                    analyticsGeneration(for: transition)
+                },
+                installAndAdopt: { [self] transition, didMutateSession in
+                    let session = try await client.auth.session(from: url)
+                    didMutateSession()
+                    let installed = authenticationCallbackSession(session)
+                    guard adoptAuthTransitionSession(
+                        session.user,
+                        for: transition
+                    ) else {
+                        throw SupabaseAuthTransitionError
+                            .signOutSessionChanged
+                    }
                     return installed
                 },
-                currentSession: {
-                    self.client.auth.currentSession
+                current: { [self] in
+                    client.auth.currentSession.map(
+                        authenticationCallbackSession
+                    )
                 },
-                reconcileSession: { _, installed in
-                    self.reconcileOAuthSessionReplacement(
-                        session: installed,
-                        transition: transition
+                clearPublishedSession: { [self] in
+                    currentUser = nil
+                    isAuthenticated = false
+                }
+            ),
+            completion: AuthenticationCallbackCompletionBoundary(
+                clearMutatedSession: { [self] transition in
+                    await clearLocalSessionAfterAuthFailure(
+                        ownedBy: transition,
+                        entryPolicy: .completeMutatedOAuthSession
+                    )
+                },
+                markAuthenticatedOAuth: { isAuthenticated in
+                    KeychainManager.shared.set(
+                        isAuthenticated,
+                        forKey: KeychainKeys.hasAuthenticatedOAuth
                     )
                 }
-            )
-            let target = transitionSession(from: session.user)!
-            guard ownsAuthTransition(transition),
-                  AuthTransitionPolicy.acceptsAuthenticationCallbackTarget(
-                    sourceSession: sourceSession,
-                    targetSession: target
-                  ),
-                  adoptAuthTransitionSession(session.user, for: transition),
-                  currentSessionMatchesAuthTransition(transition) else {
-                throw SupabaseAuthTransitionError.signOutSessionChanged
-            }
+            ),
+            diagnostics: .live
+        )
+    }
 
-            currentUser = session.user
-            isAuthenticated = true
-            _ = updateAuthTransition(transition, phase: .bindingPurchases)
-            _ = await ensureTelemetryLinkedWhenSafe(
-                for: session.user,
-                ownedBy: transition
-            )
-            guard currentSessionMatchesAuthTransition(transition),
-                  RevenueCatManager.shared.linkedAuthUserID == session.user.id,
-                  RevenueCatManager.shared.isIdentityReady else {
-                throw SupabaseAuthTransitionError.signOutSessionChanged
-            }
-            await EntitlementManager.shared.beginSession(
-                userID: session.user.id,
-                client: client,
-                authTransitionOwner: transition
-            )
-            _ = try await verifiedExpectedSession(for: transition)
-            _ = updateAuthTransition(transition, phase: .finalizing)
-            KeychainManager.shared.set(
-                !session.user.isAnonymous,
-                forKey: KeychainKeys.hasAuthenticatedOAuth
-            )
-        } catch {
-            if AuthTransitionPolicy.shouldClearOAuthSessionAfterFailure(
-                observedSessionMutation: didInstallSession,
-                sourceSession: sourceSession,
-                currentSession: transitionSession(
-                    from: client.auth.currentSession?.user
+    private func authenticationCallbackSession(
+        _ session: Session
+    ) -> AuthenticationCallbackSession {
+        AuthenticationCallbackSession(
+            identity: transitionSession(from: session.user)!,
+            isExpired: session.isExpired,
+            publish: { [self] in
+                currentUser = session.user
+                isAuthenticated = true
+            },
+            ensurePurchaseIdentityReady: { [self] transition in
+                _ = await ensurePurchaseIdentityReady(
+                    for: session.user,
+                    ownedBy: transition
                 )
-            ) {
-                await clearLocalSessionAfterAuthFailure(ownedBy: transition)
+            },
+            purchaseIdentityIsReady: {
+                RevenueCatManager.shared.linkedAuthUserID == session.user.id
+                    && RevenueCatManager.shared.isIdentityReady
+            },
+            beginEntitlementSession: { [self] transition in
+                await EntitlementManager.shared.beginSession(
+                    userID: session.user.id,
+                    client: client,
+                    authTransitionOwner: transition
+                )
             }
-            MerianLog.auth.debug(
-                "Authentication callback failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-        }
+        )
     }
 
     // MARK: - Google Sign-In
 
     func signInWithGoogle() async {
-        guard let transition = beginAuthTransition(.oauth(.google)) else {
-            MerianLog.auth.debug(
-                "Ignored Google Sign-In because another authentication transition owns the session."
-            )
-            return
-        }
-        _ = updateAuthTransition(transition, phase: .awaitingProvider)
-        defer { finishAuthTransition(transition) }
-
-        guard let rootVC = getRootViewController() else {
-            MerianLog.auth.debug("Failed to find root view controller for Google Sign-In.")
-            return
-        }
-
-        let sourceSession = activeAuthTransition?.sourceSession
-        var didInstallGoogleSession = false
-        do {
-            try Task.checkCancellation()
-            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootVC)
-            try Task.checkCancellation()
-            _ = try await verifiedExpectedSessionIfPresent(for: transition)
-            guard let idToken = result.user.idToken?.tokenString else {
-                MerianLog.auth.debug("Google Sign-In: no ID token returned.")
-                return
-            }
-            let accessToken = result.user.accessToken.tokenString
-
-            let completion = try await self.finalizeOAuthLogin(
-                provider: .google,
-                idToken: idToken,
-                accessToken: accessToken,
-                nonce: nil,
-                transition: transition,
-                didMutateSession: {
-                    didInstallGoogleSession = true
-                }
-            )
-            let didPersistGoogleMetadata = await updateGoogleUserMetadataIfAvailable(
-                from: result.user,
-                expectedUserID: completion.session.user.id,
-                transition: transition
-            )
-            let session = try await verifiedExpectedSession(for: transition)
-            currentUser = session.user
-            isAuthenticated = true
-            _ = updateAuthTransition(transition, phase: .bindingPurchases)
-            _ = await ensureTelemetryLinkedWhenSafe(
-                for: session.user,
-                ownedBy: transition
-            )
-            guard currentSessionMatchesAuthTransition(transition),
-                  RevenueCatManager.shared.linkedAuthUserID == session.user.id,
-                  RevenueCatManager.shared.isIdentityReady else {
-                throw SupabaseAuthTransitionError.signOutSessionChanged
-            }
-            await EntitlementManager.shared.beginSession(
-                userID: session.user.id,
-                client: client,
-                authTransitionOwner: transition
-            )
-            _ = try await verifiedExpectedSession(for: transition)
-            if didPersistGoogleMetadata {
-                _ = await refreshPublicAuthorIdentity(
-                    expectedUserID: session.user.id,
-                    ownedBy: transition
-                )
-            }
-            _ = updateAuthTransition(transition, phase: .finalizing)
-            _ = try await verifiedExpectedSession(for: transition)
-            publishPublicAuthorIdentityChanged(
-                previousUserId: completion.previousUserId,
-                currentUserId: session.user.id.uuidString
-            )
-
-            KeychainManager.shared.set(true, forKey: KeychainKeys.hasAuthenticatedOAuth)
-            MerianLog.auth.debug("Google Sign-In complete.")
-        } catch {
-            if AuthTransitionPolicy.shouldClearOAuthSessionAfterFailure(
-                observedSessionMutation: didInstallGoogleSession,
-                sourceSession: sourceSession,
-                currentSession: transitionSession(
-                    from: client.auth.currentSession?.user
-                )
-            ) {
-                await clearLocalSessionAfterAuthFailure(ownedBy: transition)
-            }
-            MerianLog.auth.debug(
-                "Google Sign-In failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-        }
+        await oauthProviderSignInCoordinator.signInWithGoogle(
+            dependencies: oauthProviderSignInDependencies()
+        )
     }
 
     // MARK: - Apple Sign-In
 
     func startAppleSignIn() {
-        guard let transition = beginAuthTransition(.oauth(.apple)) else {
-            MerianLog.auth.debug(
-                "Ignored Apple Sign-In because another authentication transition owns the session."
-            )
-            return
-        }
-        _ = updateAuthTransition(transition, phase: .awaitingProvider)
-
-        let nonce: String
-        do {
-            nonce = try randomNonceString()
-        } catch {
-            finishAuthTransition(transition)
-            MerianLog.auth.error(
-                "Apple Sign-In bootstrap failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-            return
-        }
-
-        let request = ASAuthorizationAppleIDProvider().createRequest()
-        request.requestedScopes = [.fullName, .email]
-        request.nonce = sha256(nonce)
-
-        guard keyWindowAnchor() != nil else {
-            finishAuthTransition(transition)
-            MerianLog.auth.error("Apple Sign-In aborted because no presentation anchor is available.")
-            return
-        }
-
-        let controller = ASAuthorizationController(authorizationRequests: [request])
-        controller.delegate = self
-        controller.presentationContextProvider = self
-
-        // Retained strongly to avoid deallocation during the sign-in flow.
-        activeAppleSignInAttempt = AppleSignInAttempt(
-            transition: transition,
-            nonce: nonce,
-            controller: controller
+        oauthProviderSignInCoordinator.startAppleSignIn(
+            dependencies: oauthProviderSignInDependencies()
         )
-        controller.performRequests()
     }
 
     // MARK: - Private OAuth Helpers
 
-    private func finalizeOAuthLogin(
-        provider: OpenIDConnectCredentials.Provider,
-        idToken: String,
-        accessToken: String?,
-        nonce: String?,
-        transition: AuthTransitionToken,
-        didMutateSession: @MainActor () -> Void
-    ) async throws -> OAuthLoginCompletion {
-        guard ownsAuthTransition(transition), !isSigningOut else {
-            throw SupabaseAuthTransitionError.signOutInProgress
-        }
-
-        let previousSession = try await verifiedExpectedSessionIfPresent(
-            for: transition
-        )
-        let previousUserId = previousSession?.user.id.uuidString
-
-        if previousSession?.user.isAnonymous == true {
-            guard await completePendingSignOutPurchaseHandoffIfNeeded(
-                expectedDestinationUserId: previousUserId,
-                ownedBy: transition
-            ) else {
-                throw SupabaseAuthTransitionError
-                    .signOutPurchaseContinuityPending
-            }
-            let credentials = OpenIDConnectCredentials(
-                provider: provider,
-                idToken: idToken,
-                accessToken: accessToken,
-                nonce: nonce
-            )
-
-            do {
-                try Task.checkCancellation()
-                _ = try await client.auth.linkIdentityWithIdToken(
-                    credentials: credentials
-                )
-                didMutateSession()
-                // A direct link may retire durable provider-bound recovery only
-                // after the SDK exposes and this transition adopts the exact
-                // anonymous-to-permanent UUID upgrade.
-                let linkedSession = try await client.auth.session
-                guard let sourceSession = transitionSession(
-                    from: previousSession?.user
-                ),
-                    let targetSession = transitionSession(
-                        from: linkedSession.user
-                    ),
-                    AuthTransitionPolicy.acceptsLinkedIdentityUpgrade(
-                        sourceSession: sourceSession,
-                        targetSession: targetSession
-                    ),
-                    adoptAuthTransitionSession(
-                        linkedSession.user,
-                        for: transition
-                    ),
-                    currentSessionMatchesAuthTransition(transition) else {
-                    throw SupabaseAuthTransitionError.signOutSessionChanged
-                }
-                if let previousUserId {
-                    try clearPendingGhostProfileMerges(
-                        ghostUserId: previousUserId
+    private func oauthProviderSignInDependencies()
+        -> OAuthProviderSignInDependencies {
+        let googleProvider = googleOAuthAuthorizationLiveProvider
+        let appleProvider = appleOAuthAuthorizationLiveProvider
+        return OAuthProviderSignInDependencies(
+            transition: OAuthProviderSignInTransitionBoundary(
+                begin: { [weak self] provider in
+                    self?.beginAuthTransition(.oauth(provider))
+                },
+                updateAwaitingProvider: { [weak self] transition in
+                    _ = self?.updateAuthTransition(
+                        transition,
+                        phase: .awaitingProvider
                     )
+                },
+                activeTransitionID: { [weak self] in
+                    self?.activeAuthTransition?.token.id
+                },
+                sourceSession: { [weak self] transition in
+                    guard self?.activeAuthTransition?.token == transition
+                    else {
+                        return nil
+                    }
+                    return self?.activeAuthTransition?.sourceSession
+                },
+                verifyExpectedSessionIfPresent: { [weak self] transition in
+                    guard let self else { throw CancellationError() }
+                    _ = try await self
+                        .verifiedExpectedSessionIfPresent(for: transition)
+                },
+                finish: { [weak self] transition in
+                    self?.finishAuthTransition(transition)
                 }
-            } catch {
-                guard Self.requiresProviderBoundGhostMerge(after: error) else {
-                    throw error
+            ),
+            authorization: OAuthProviderAuthorizationBoundary(
+                authorizeWithGoogle: {
+                    try await googleProvider.authorize()
+                },
+                startAppleAuthorization: { completion in
+                    try appleProvider.start(completion: completion)
+                },
+                cancelAppleAuthorization: {
+                    appleProvider.cancel()
                 }
-                guard ownsAuthTransition(transition), !isSigningOut else {
-                    throw SupabaseAuthTransitionError.signOutInProgress
-                }
-                guard let ghostId = previousUserId?.lowercased() else {
-                    throw SupabaseAuthTransitionError.guestMergeSessionChanged
-                }
-
-                let currentGuestSession = try await verifiedExpectedSession(
-                    for: transition
-                )
-                guard currentGuestSession.user.isAnonymous,
-                      currentGuestSession.user.id.uuidString.lowercased() == ghostId else {
-                    throw SupabaseAuthTransitionError.guestMergeSessionChanged
-                }
-
-                let providerSubject = try Self.oauthProviderSubject(from: idToken)
-                _ = try await prepareGhostProfileMerge(
-                    ghostUserId: ghostId,
-                    provider: provider,
-                    providerSubject: providerSubject,
-                    ownedBy: transition
-                )
-
-                _ = try await verifiedExpectedSession(for: transition)
-                _ = updateAuthTransition(
-                    transition,
-                    phase: .installingSession
-                )
-
-                let targetSession = try await installOAuthSessionReplacingCurrentAccount(
-                    credentials: credentials,
-                    transition: transition
-                )
-                didMutateSession()
-                guard adoptAuthTransitionSession(
-                    targetSession.user,
-                    for: transition
-                ), currentSessionMatchesAuthTransition(transition) else {
-                    throw SupabaseAuthTransitionError.signOutSessionChanged
-                }
-                if targetSession.user.id.uuidString.lowercased() == ghostId {
-                    try clearPendingGhostProfileMerges(ghostUserId: ghostId)
-                } else {
-                    _ = await completePendingGhostProfileMergeIfNeeded(
-                        expectedTargetUserId: targetSession.user.id.uuidString,
+            ),
+            completion: OAuthProviderSignInCompletionBoundary(
+                complete: { [weak self] authorization, transition, didMutateSession in
+                    guard let self else { throw CancellationError() }
+                    let registration: OAuthProviderCredentialRegistration?
+                    if let credential = authorization.appleCredentialRegistration {
+                        let identityToken = authorization.credentials.idToken
+                        registration = { [weak self] userID, token in
+                            guard let self else {
+                                throw CancellationError()
+                            }
+                            _ = try await self.verifiedExpectedSession(
+                                for: token
+                            )
+                            try await self.registerAppleRevocationCredential(
+                                registrationId: credential.registrationID,
+                                authorizationCode: credential.authorizationCode,
+                                identityToken: identityToken,
+                                expectedUserID: userID,
+                                ownedBy: token
+                            )
+                        }
+                    } else {
+                        registration = nil
+                    }
+                    _ = try await OAuthSignInCoordinator(
+                        dependencies: self.oauthSignInDependencies()
+                    ).complete(
+                        credentials: authorization.credentials,
+                        profileMetadata: authorization.profileMetadata,
+                        registerProviderCredential: registration,
+                        ownedBy: transition,
+                        didMutateSession: didMutateSession
+                    )
+                },
+                recoverAfterFailure: { [weak self] didMutateSession, sourceSession, transition in
+                    await self?.recoverOAuthSignInFailureIfNeeded(
+                        observedSessionMutation: didMutateSession,
+                        sourceSession: sourceSession,
                         ownedBy: transition
                     )
                 }
-            }
-        } else {
-            _ = updateAuthTransition(transition, phase: .installingSession)
-            let targetSession = try await installOAuthSessionReplacingCurrentAccount(
-                credentials: .init(
-                    provider: provider,
-                    idToken: idToken,
-                    accessToken: accessToken,
-                    nonce: nonce
-                ),
-                transition: transition
-            )
-            didMutateSession()
-            guard adoptAuthTransitionSession(
-                targetSession.user,
-                for: transition
-            ), currentSessionMatchesAuthTransition(transition) else {
-                throw SupabaseAuthTransitionError.signOutSessionChanged
-            }
-        }
-
-        let targetSession = try await client.auth.session
-        guard ownsAuthTransition(transition) else {
-            throw SupabaseAuthTransitionError.signOutSessionChanged
-        }
-        if authTransitionCoordinator.active?.expectedSession ==
-            transitionSession(from: previousSession?.user) {
-            guard adoptAuthTransitionSession(
-                targetSession.user,
-                for: transition
-            ) else {
-                throw SupabaseAuthTransitionError.signOutSessionChanged
-            }
-        }
-        guard currentSessionMatchesAuthTransition(transition) else {
-            throw SupabaseAuthTransitionError.signOutSessionChanged
-        }
-        return OAuthLoginCompletion(
-            previousUserId: previousUserId,
-            session: targetSession
+            ),
+            diagnostics: .live
         )
+    }
+
+    private func oauthSignInDependencies()
+        -> OAuthSignInCoordinationDependencies {
+        OAuthSignInCoordinationDependencies(
+            session: OAuthSignInSessionBoundary(
+                ownsTransition: { token in
+                    self.ownsAuthTransition(token)
+                },
+                isSignOutInProgress: {
+                    self.isSigningOut
+                },
+                expectedSession: { token in
+                    guard self.activeAuthTransition?.token == token else {
+                        return nil
+                    }
+                    return self.activeAuthTransition?.expectedSession
+                },
+                verifyExpectedSessionIfPresent: { token in
+                    guard let session = try await self
+                        .verifiedExpectedSessionIfPresent(for: token) else {
+                        return nil
+                    }
+                    return self.oauthSessionService.signInSession(
+                        from: session
+                    )
+                },
+                verifyExpectedSession: { token in
+                    let session = try await self.verifiedExpectedSession(
+                        for: token
+                    )
+                    return self.oauthSessionService.signInSession(
+                        from: session
+                    )
+                },
+                readSDKSession: {
+                    self.oauthSessionService.signInSession(
+                        from: try await self.oauthSessionService.readSession()
+                    )
+                },
+                linkIdentity: { credentials in
+                    try await self.oauthSessionService.linkIdentity(
+                        using: credentials
+                    )
+                },
+                replaceAndAdoptSession: { credentials, token, didMutateSession in
+                    self.oauthSessionService.signInSession(
+                        from: try await self
+                            .installOAuthSessionReplacingCurrentAccount(
+                                credentials: credentials,
+                                transition: token,
+                                didMutateSession: didMutateSession
+                            )
+                    )
+                },
+                adoptSession: { session, token in
+                    self.adoptOAuthSignInSession(session, for: token)
+                },
+                currentSessionMatchesTransition: { token in
+                    self.currentSessionMatchesAuthTransition(token)
+                },
+                updateTransition: { token, phase in
+                    _ = self.updateAuthTransition(token, phase: phase)
+                },
+                publishAuthenticatedSession: { token in
+                    let session = try await self.verifiedExpectedSession(
+                        for: token
+                    )
+                    self.currentUser = session.user
+                    self.isAuthenticated = true
+                    return self.oauthSessionService.signInSession(
+                        from: session
+                    )
+                }
+            ),
+            merge: OAuthSignInMergeBoundary(
+                completePendingPurchaseHandoff: { userID, token in
+                    await self
+                        .completePendingSignOutPurchaseHandoffIfNeeded(
+                            expectedDestinationUserId: userID,
+                            ownedBy: token
+                        )
+                },
+                requiresProviderBoundGhostMerge: { error in
+                    self.ghostProfileMergeRemoteService
+                        .requiresProviderBoundMerge(after: error)
+                },
+                prepareGhostMerge: { ghostID, provider, providerSubject, token in
+                    guard let sourceUserID = UUID(uuidString: ghostID) else {
+                        throw SupabaseAuthTransitionError
+                            .guestMergeSessionChanged
+                    }
+                    _ = try await self.ghostProfileMergeCoordinator.prepare(
+                        sourceUserID: sourceUserID,
+                        provider: provider,
+                        providerSubject: providerSubject,
+                        ownedBy: token,
+                        dependencies: self.ghostProfileMergeDependencies()
+                    )
+                },
+                clearGhostMerges: { ghostID in
+                    guard let sourceUserID = UUID(uuidString: ghostID) else {
+                        throw SupabaseAuthTransitionError
+                            .guestMergeSessionChanged
+                    }
+                    try self.ghostProfileMergeCoordinator.clearHandoffs(
+                        for: sourceUserID,
+                        dependencies: self.ghostProfileMergeDependencies()
+                    )
+                },
+                completePendingGhostMerge: { userID, token in
+                    guard let targetUserID = UUID(uuidString: userID) else {
+                        return false
+                    }
+                    return await self.ghostProfileMergeCoordinator
+                        .completePendingHandoffs(
+                            expectedTargetUserID: targetUserID,
+                            ownedBy: token,
+                            dependencies:
+                                self.ghostProfileMergeDependencies()
+                        )
+                }
+            ),
+            completion: OAuthSignInCompletionBoundary(
+                persistProfileMetadata: { metadata, provider, userID, token in
+                    await self.persistOAuthProfileMetadata(
+                        metadata,
+                        provider: provider,
+                        expectedUserID: userID,
+                        transition: token
+                    )
+                },
+                ensureTelemetryLinked: { userID, token in
+                    guard let user = self.oauthSessionService
+                        .currentSession()?.user,
+                          user.id == userID else {
+                        return
+                    }
+                    _ = await self.ensurePurchaseIdentityReady(
+                        for: user,
+                        ownedBy: token
+                    )
+                },
+                providerIdentityIsReady: { userID in
+                    RevenueCatManager.shared.linkedAuthUserID == userID
+                        && RevenueCatManager.shared.isIdentityReady
+                },
+                beginEntitlementSession: { userID, token in
+                    await EntitlementManager.shared.beginSession(
+                        userID: userID,
+                        client: self.client,
+                        authTransitionOwner: token
+                    )
+                },
+                refreshPublicAuthorIdentity: { userID, token in
+                    await self.publicAuthorIdentityRefreshCoordinator.refresh(
+                        expectedUserID: userID,
+                        ownedBy: token,
+                        dependencies:
+                            self.publicAuthorIdentityRefreshDependencies()
+                    )
+                },
+                publishPublicAuthorIdentityChange: { previousUserID, currentUserID in
+                    SupabasePublicAuthorRefreshLiveEffects
+                        .publishIdentityChanged(
+                            previousUserID: previousUserID,
+                            currentUserID: currentUserID
+                        )
+                },
+                markAuthenticatedOAuth: {
+                    KeychainManager.shared.set(
+                        true,
+                        forKey: KeychainKeys.hasAuthenticatedOAuth
+                    )
+                }
+            )
+        )
+    }
+
+    private func adoptOAuthSignInSession(
+        _ session: OAuthSignInSession,
+        for transition: AuthTransitionToken
+    ) -> Bool {
+        guard let user = oauthSessionService.currentSession()?.user,
+              transitionSession(from: user) == session.identity else {
+            return false
+        }
+        return adoptAuthTransitionSession(user, for: transition)
     }
 
     private func registerAppleRevocationCredential(
@@ -3516,78 +2618,58 @@ private struct RevenueCatPublicIdentity: Decodable {
         expectedUserID: UUID,
         ownedBy transition: AuthTransitionToken
     ) async throws {
-        try await Self.performAppleCredentialRegistrationWithRetry {
+        try await OAuthSignInWorkflow.registerAppleCredential {
             guard self.currentSessionMatchesAuthTransition(transition),
-                  self.client.auth.currentSession?.user.id
+                  self.oauthSessionService.currentSession()?.user.id
                     == expectedUserID else {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
-            let response: AppleRevocationCredentialResponse = try await self.client.functions.invoke(
-                "register-apple-revocation-token",
-                options: .init(
-                    body: AppleRevocationCredentialPayload(
-                        registration_id: registrationId.uuidString.lowercased(),
-                        authorization_code: authorizationCode,
-                        identity_token: identityToken
-                    )
-                )
+            try await self.appleOAuthCredentialRegistrationService.register(
+                registrationID: registrationId,
+                authorizationCode: authorizationCode,
+                identityToken: identityToken
             )
-            guard response.success,
-                  response.status == "registered" else {
-                throw AppleSignInBootstrapError.invalidCredentialRegistrationReceipt
-            }
             guard self.currentSessionMatchesAuthTransition(transition),
-                  self.client.auth.currentSession?.user.id
+                  self.oauthSessionService.currentSession()?.user.id
                     == expectedUserID else {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
         }
-    }
-
-    static func performAppleCredentialRegistrationWithRetry(
-        maximumAttempts: Int = 2,
-        invoke: () async throws -> Void,
-        waitBeforeRetry: () async throws -> Void = {
-            try await Task.sleep(for: .milliseconds(350))
-        }
-    ) async throws {
-        precondition(maximumAttempts > 0)
-        var lastError: Error?
-
-        for attempt in 1...maximumAttempts {
-            do {
-                try await invoke()
-                return
-            } catch {
-                lastError = error
-                guard attempt < maximumAttempts else { break }
-                try Task.checkCancellation()
-                try await waitBeforeRetry()
-            }
-        }
-
-        throw lastError ?? AppleSignInBootstrapError.invalidCredentialRegistrationReceipt
     }
 
     private func installOAuthSessionReplacingCurrentAccount(
-        credentials: OpenIDConnectCredentials,
-        transition: AuthTransitionToken
+        credentials: OAuthSignInCredentials,
+        transition: AuthTransitionToken,
+        didMutateSession: OAuthSessionMutationObserver
     ) async throws -> Session {
-        try await Self.performOAuthSessionReplacement(
+        try await OAuthSignInWorkflow.replacingSession(
             suspendAnalytics: {
                 self.analyticsGeneration(for: transition)
             },
             installSession: {
-                try await self.client.auth.signInWithIdToken(
-                    credentials: credentials
+                let session = try await self.oauthSessionService.installSession(
+                    using: credentials
                 )
+                didMutateSession()
+                let installed = self.oauthSessionService.signInSession(
+                    from: session
+                )
+                guard self.adoptOAuthSignInSession(
+                    installed,
+                    for: transition
+                ) else {
+                    throw SupabaseAuthTransitionError
+                        .signOutSessionChanged
+                }
+                return session
             },
             currentSession: {
-                self.client.auth.currentSession
+                self.oauthSessionService.currentSession()
             },
-            reconcileSession: { _, session in
+            reconcileSession: { _, session, disposition in
                 self.reconcileOAuthSessionReplacement(
                     session: session,
+                    disposition: disposition,
                     transition: transition
                 )
             }
@@ -3596,410 +2678,181 @@ private struct RevenueCatPublicIdentity: Decodable {
 
     private func reconcileOAuthSessionReplacement(
         session: Session?,
+        disposition: OAuthSessionReplacementDisposition,
         transition: AuthTransitionToken
     ) {
         guard ownsAuthTransition(transition) else { return }
-        let resolvedSession = client.auth.currentSession ?? session
-        let activeSession = !isSigningOut && resolvedSession?.isExpired == false
-            ? resolvedSession
-            : nil
+        let resolvedSession = oauthSessionService.currentSession() ?? session
+        let activeSession: Session?
+        switch disposition {
+        case .installed, .failed:
+            activeSession =
+                !isSigningOut && resolvedSession?.isExpired == false
+                ? resolvedSession
+                : nil
+        case .cancelled:
+            let sourceSession = activeAuthTransition?.sourceSession
+            activeSession =
+                !isSigningOut
+                && resolvedSession?.isExpired == false
+                && transitionSession(from: resolvedSession?.user)
+                    == sourceSession
+                ? resolvedSession
+                : nil
+        }
         currentUser = activeSession?.user
         isAuthenticated = activeSession != nil
     }
 
-    @discardableResult
-    private func prepareGhostProfileMerge(
-        ghostUserId: String,
-        provider: OpenIDConnectCredentials.Provider,
-        providerSubject: String,
-        ownedBy transition: AuthTransitionToken
-    ) async throws -> PendingGhostProfileMerge {
-        guard currentSessionMatchesAuthTransition(transition),
-              client.auth.currentSession?.user.id.uuidString.lowercased()
-                == ghostUserId.lowercased() else {
-            throw SupabaseAuthTransitionError.guestMergeSessionChanged
-        }
-        let response: GhostProfileMergePrepareResponse = try await client.functions.invoke(
-            "merge-ghost-profile",
-            options: .init(
-                body: GhostProfileMergePreparePayload(
-                    provider: provider.rawValue,
-                    provider_subject: providerSubject
-                )
-            )
-        )
-        guard currentSessionMatchesAuthTransition(transition),
-              client.auth.currentSession?.user.id.uuidString.lowercased()
-                == ghostUserId.lowercased() else {
-            throw SupabaseAuthTransitionError.guestMergeSessionChanged
-        }
-
-        let pending = PendingGhostProfileMerge(
-            ghostUserId: ghostUserId,
-            provider: provider.rawValue,
-            providerSubject: providerSubject,
-            handoffId: response.handoff_id,
-            handoffSecret: response.handoff_secret,
-            expiresAt: response.expires_at
-        )
-        let existingHandoffs = try loadPendingGhostProfileMergeQueue()
-        let queue = GhostProfileMergePolicy.enqueuing(
-            pending,
-            in: existingHandoffs
-        )
-        try persistPendingGhostProfileMergeQueue(queue)
-        ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(true)
-        MerianLog.auth.debug("Secured provider-bound guest profile handoff.")
-        return pending
-    }
-
-    @discardableResult
-    private func completePendingGhostProfileMergeIfNeeded(
-        expectedTargetUserId: String? = nil,
-        ownedBy transition: AuthTransitionToken? = nil
-    ) async -> Bool {
-        let expectedUserID = expectedTargetUserId.flatMap(UUID.init(uuidString:))
-            ?? currentUser?.id
-        guard let expectedUserID else { return false }
-        let accountWorkLease: AccountBoundWorkLease?
-        if let transition {
-            guard ownsAuthTransition(transition),
-                  currentSessionMatchesAuthTransition(transition),
-                  client.auth.currentSession?.user.id == expectedUserID else {
-                return false
-            }
-            accountWorkLease = nil
-        } else {
-            guard let lease = try? beginUnownedAccountBoundWork(
-                expectedUserID: expectedUserID
-            ) else { return false }
-            accountWorkLease = lease
-        }
-        defer {
-            if let accountWorkLease {
-                finishAccountBoundWork(accountWorkLease)
-            }
-        }
-
-        if let existingTask = ghostProfileMergeTask {
-            if ghostProfileMergeTaskTargetUserId
-                == expectedTargetUserId?.lowercased() {
-                return await existingTask.value
-            }
-
-            // A new authenticated identity superseded this in-flight attempt.
-            // The old request remains server-idempotent, but its task must not
-            // suppress completion for the new active session.
-            cancelGhostProfileMergeTask()
-        }
-
-        let taskId = UUID()
-        let task = Task { @MainActor [weak self] in
-            guard let self else { return false }
-            return await self.performPendingGhostProfileMerge(
-                expectedTargetUserId: expectedTargetUserId,
-                ownedBy: transition
-            )
-        }
-        ghostProfileMergeTaskId = taskId
-        ghostProfileMergeTaskTargetUserId = expectedTargetUserId?.lowercased()
-        ghostProfileMergeTask = task
-        let result = await task.value
-        if ghostProfileMergeTaskId == taskId {
-            ghostProfileMergeTask = nil
-            ghostProfileMergeTaskId = nil
-            ghostProfileMergeTaskTargetUserId = nil
-        }
-        return result
-    }
-
-    private func performPendingGhostProfileMerge(
-        expectedTargetUserId: String?,
-        ownedBy transition: AuthTransitionToken?
-    ) async -> Bool {
-        guard !Task.isCancelled, !isSigningOut else { return false }
-        let pendingHandoffs: [PendingGhostProfileMerge]
-        do {
-            pendingHandoffs = try loadPendingGhostProfileMergeQueue()
-        } catch {
-            ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(true)
-            MerianLog.auth.error(
-                "Signed-out profile upgrade remains pending because its durable queue is unreadable; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-            return false
-        }
-        guard !pendingHandoffs.isEmpty else {
-            ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(false)
-            return true
-        }
-        ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(true)
-
-        do {
-            let session = try await client.auth.session
-            guard !session.user.isAnonymous else { return false }
-
-            let targetUserId = session.user.id.uuidString.lowercased()
-            if let transition,
-               !currentSessionMatchesAuthTransition(transition) {
-                return false
-            }
-            if let expectedTargetUserId,
-               targetUserId != expectedTargetUserId.lowercased() {
-                MerianLog.auth.error("Refused guest merge retry for an unexpected active account.")
-                return false
-            }
-
-            guard let targetUUID = UUID(uuidString: targetUserId) else {
-                MerianLog.auth.error("Refused guest merge for an invalid active account UUID.")
-                return false
-            }
-
-            var allHandoffsResolved = true
-            for pending in pendingHandoffs {
-                guard !Task.isCancelled, !isSigningOut else { return false }
-
-                do {
-                    if let transition,
-                       !currentSessionMatchesAuthTransition(transition) {
-                        return false
-                    }
-                    guard let ghostUUID = UUID(uuidString: pending.ghostUserId) else {
-                        throw SupabaseAuthTransitionError.guestMergeSessionChanged
-                    }
-                    try await GhostProfileMergeWorkflow.finalizeHandoff(
-                        completeServerHandoff: {
-                            guard self.currentUser?.id == targetUUID,
-                                  self.client.auth.currentSession?.user.id
-                                    == targetUUID,
-                                  transition.map(
-                                    self.currentSessionMatchesAuthTransition
-                                  ) ?? true else {
-                                throw SupabaseAuthTransitionError
-                                    .guestMergeSessionChanged
-                            }
-                            try await self.client.functions.invoke(
-                                "merge-ghost-profile",
-                                options: .init(
-                                    body: GhostProfileMergeCompletePayload(
-                                        handoff_id: pending.handoffId,
-                                        handoff_secret: pending.handoffSecret
-                                    )
-                                )
-                            )
-                            guard self.currentUser?.id == targetUUID,
-                                  self.client.auth.currentSession?.user.id
-                                    == targetUUID,
-                                  transition.map(
-                                    self.currentSessionMatchesAuthTransition
-                                  ) ?? true else {
-                                throw SupabaseAuthTransitionError
-                                    .guestMergeSessionChanged
-                            }
-                        },
-                        synchronizeProviderPurchases: {
-                            guard self.currentUser?.id == targetUUID,
-                                  self.client.auth.currentSession?.user.id
-                                    == targetUUID,
-                                  transition.map(
-                                    self.currentSessionMatchesAuthTransition
-                                  ) ?? true else {
-                                throw SupabaseAuthTransitionError
-                                    .guestMergeSessionChanged
-                            }
-                            try await RevenueCatManager.shared
-                                .synchronizePurchasesAfterAccountMerge()
-                        },
-                        rebindAndSynchronizeLocalEvidence: {
-                            guard self.currentUser?.id == targetUUID,
-                                  self.client.auth.currentSession?.user.id
-                                    == targetUUID,
-                                  transition.map(
-                                    self.currentSessionMatchesAuthTransition
-                                  ) ?? true else {
-                                throw SupabaseAuthTransitionError
-                                    .guestMergeSessionChanged
-                            }
-                            try await ConsentManager.shared
-                                .rebindAndSynchronizeGhostEvidence(
-                                    from: ghostUUID,
-                                    to: targetUUID
-                                )
-                        },
-                        clearPendingHandoff: {
-                            guard !self.isSigningOut,
-                                  self.currentUser?.id == targetUUID,
-                                  self.client.auth.currentSession?.user.id
-                                    == targetUUID,
-                                  transition.map(
-                                    self.currentSessionMatchesAuthTransition
-                                  ) ?? true,
-                                  ConsentManager.shared.currentSessionUserId
-                                    == targetUUID else {
-                                throw SupabaseAuthTransitionError
-                                    .guestMergeSessionChanged
-                            }
-                            try self.clearPendingGhostProfileMerge(
-                                handoffId: pending.handoffId
-                            )
-                        }
+    private func ghostProfileMergeDependencies()
+        -> GhostProfileMergeDependencies {
+        GhostProfileMergeDependencies(
+            session: GhostProfileMergeSessionBoundary(
+                isSigningOut: { [self] in isSigningOut },
+                currentPublishedSession: { [self] in
+                    transitionSession(from: currentUser)
+                },
+                currentSDKSession: { [self] in
+                    transitionSession(
+                        from: client.auth.currentSession?.user
                     )
-                    guard !Task.isCancelled, !isSigningOut,
-                          transition.map(currentSessionMatchesAuthTransition)
-                            ?? true else { return false }
-                    MerianLog.auth.debug("Signed-out profile upgrade finalized.")
-                } catch {
-                    if Self.shouldDiscardPendingGhostProfileMerge(after: error) {
-                        do {
-                            // Terminal handoffs are never rebound locally, but
-                            // the permanent account must still be authoritative
-                            // before removing the durable suppression marker.
-                            if let transition {
-                                try await ConsentManager.shared
-                                    .synchronizeWithCurrentSession(
-                                        ownedBy: transition
-                                    )
-                            } else {
-                                try await ConsentManager.shared
-                                    .synchronizeWithCurrentSession()
-                            }
-                            try Task.checkCancellation()
-                            guard !isSigningOut,
-                                  currentUser?.id == targetUUID,
-                                  client.auth.currentSession?.user.id
-                                    == targetUUID,
-                                  transition.map(
-                                    currentSessionMatchesAuthTransition
-                                  ) ?? true,
-                                  ConsentManager.shared.currentSessionUserId
-                                    == targetUUID else {
-                                throw SupabaseAuthTransitionError
-                                    .guestMergeSessionChanged
-                            }
-                            try clearPendingGhostProfileMerge(
-                                handoffId: pending.handoffId
-                            )
-                            MerianLog.auth.error(
-                                "Discarded a terminal signed-out profile handoff; kind=\(MerianLog.errorKind(error), privacy: .public)"
-                            )
-                        } catch {
-                            allHandoffsResolved = false
-                            MerianLog.auth.error(
-                                "Terminal signed-out handoff cleanup remains pending; kind=\(MerianLog.errorKind(error), privacy: .public)"
-                            )
-                        }
-                    } else {
-                        allHandoffsResolved = false
-                        MerianLog.auth.error(
-                            "Signed-out profile upgrade remains pending and will retry; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                },
+                currentSessionMatchesTransition: { [self] transition in
+                    currentSessionMatchesAuthTransition(transition)
+                },
+                beginUnownedAccountWork: { [self] userID in
+                    try? beginUnownedAccountBoundWork(
+                        expectedUserID: userID
+                    )
+                },
+                finishAccountWork: { [self] lease in
+                    finishAccountBoundWork(lease)
+                },
+                loadSDKSession: { [self] in
+                    let user = try await client.auth.session.user
+                    return AuthTransitionSession(
+                        userID: user.id,
+                        isAnonymous: user.isAnonymous
+                    )
+                }
+            ),
+            queue: GhostProfileMergeQueueBoundary(
+                load: { [self] in
+                    let result = try ghostProfileMergeStore
+                        .loadPendingHandoffs()
+                    return GhostProfileMergeQueueSnapshot(
+                        handoffs: result.handoffs,
+                        legacyMigrationWasDeferred:
+                            result.legacyMigrationWasDeferred
+                    )
+                },
+                persist: { [self] handoffs in
+                    try ghostProfileMergeStore
+                        .persistPendingHandoffs(handoffs)
+                },
+                clear: { [self] handoffID in
+                    try ghostProfileMergeStore.clearPendingHandoff(
+                        handoffId: handoffID
+                    )
+                },
+                clearSource: { [self] sourceUserID in
+                    try ghostProfileMergeStore.clearPendingHandoffs(
+                        ghostUserId: sourceUserID
+                    )
+                }
+            ),
+            operations: GhostProfileMergeOperationBoundary(
+                prepare: { [self] provider, providerSubject in
+                    try await ghostProfileMergeRemoteService.prepare(
+                        provider: provider,
+                        providerSubject: providerSubject
+                    )
+                },
+                complete: { [self] handoff in
+                    try await ghostProfileMergeRemoteService.complete(handoff)
+                },
+                synchronizeProviderPurchases: {
+                    try await RevenueCatManager.shared
+                        .synchronizePurchasesAfterAccountMerge()
+                },
+                rebindAndSynchronizeLocalEvidence: { source, target in
+                    try await ConsentManager.shared
+                        .rebindAndSynchronizeGhostEvidence(
+                            from: source,
+                            to: target
                         )
+                },
+                synchronizeTargetEvidence: { transition in
+                    if let transition {
+                        try await ConsentManager.shared
+                            .synchronizeWithCurrentSession(
+                                ownedBy: transition
+                            )
+                    } else {
+                        try await ConsentManager.shared
+                            .synchronizeWithCurrentSession()
                     }
+                },
+                targetEvidenceMatches: { target in
+                    ConsentManager.shared.currentSessionUserId == target
+                },
+                isTerminalHandoffError: { [self] error in
+                    ghostProfileMergeRemoteService
+                        .isTerminalHandoffError(error)
+                }
+            ),
+            setAnalyticsSuppressed: { isSuppressed in
+                ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(
+                    isSuppressed
+                )
+            },
+            diagnose: { diagnostic, error in
+                let errorKind = error.map(MerianLog.errorKind)
+                    ?? "unavailable"
+                switch diagnostic {
+                case .secured:
+                    MerianLog.auth.debug(
+                        "Secured provider-bound guest profile handoff."
+                    )
+                case .legacyMigrationDeferred:
+                    MerianLog.auth.error(
+                        "Could not migrate the signed-out profile handoff queue; the original proof remains available."
+                    )
+                case .queueUnreadable:
+                    MerianLog.auth.error(
+                        "Signed-out profile upgrade remains pending because its durable queue is unreadable; kind=\(errorKind, privacy: .public)"
+                    )
+                case .unexpectedTarget:
+                    MerianLog.auth.error(
+                        "Refused guest merge retry for an unexpected active account."
+                    )
+                case .invalidSource:
+                    MerianLog.auth.error(
+                        "Refused guest merge for an invalid source account UUID."
+                    )
+                case .completed:
+                    MerianLog.auth.debug(
+                        "Signed-out profile upgrade finalized."
+                    )
+                case .terminalDiscarded:
+                    MerianLog.auth.error(
+                        "Discarded a terminal signed-out profile handoff; kind=\(errorKind, privacy: .public)"
+                    )
+                case .terminalCleanupPending:
+                    MerianLog.auth.error(
+                        "Terminal signed-out handoff cleanup remains pending; kind=\(errorKind, privacy: .public)"
+                    )
+                case .retryPending:
+                    MerianLog.auth.error(
+                        "Signed-out profile upgrade remains pending and will retry; kind=\(errorKind, privacy: .public)"
+                    )
+                case .sessionUnavailable:
+                    MerianLog.auth.error(
+                        "Signed-out profile upgrade retry could not read the active session; kind=\(errorKind, privacy: .public)"
+                    )
                 }
             }
-            let queueIsEmpty = try loadPendingGhostProfileMergeQueue().isEmpty
-            if allHandoffsResolved && queueIsEmpty {
-                ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(false)
-            }
-            return allHandoffsResolved && queueIsEmpty
-        } catch {
-            MerianLog.auth.error(
-                "Signed-out profile upgrade retry could not read the active session; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-            return false
-        }
-    }
-
-    @discardableResult
-    private func refreshPublicAuthorIdentity(
-        expectedUserID: UUID,
-        ownedBy transition: AuthTransitionToken? = nil
-    ) async -> Bool {
-        let accountWorkLease: AccountBoundWorkLease?
-        if let transition {
-            guard ownsAuthTransition(transition),
-                  currentSessionMatchesAuthTransition(transition),
-                  client.auth.currentSession?.user.id == expectedUserID else {
-                return false
-            }
-            accountWorkLease = nil
-        } else {
-            guard let lease = try? beginUnownedAccountBoundWork(
-                expectedUserID: expectedUserID
-            ) else { return false }
-            accountWorkLease = lease
-        }
-        defer {
-            if let accountWorkLease {
-                finishAccountBoundWork(accountWorkLease)
-            }
-        }
-
-        do {
-            try await client.functions.invoke(
-                "merge-ghost-profile",
-                options: .init(body: GhostProfileIdentityRefreshPayload())
-            )
-            if let transition {
-                return currentSessionMatchesAuthTransition(transition)
-                    && client.auth.currentSession?.user.id == expectedUserID
-            }
-            return accountWorkLease.map(isAccountBoundWorkLeaseCurrent)
-                ?? false
-        } catch {
-            MerianLog.auth.debug(
-                "Public author identity refresh failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-            return false
-        }
-    }
-
-    private func prepareSignOutPurchaseHandoff(
-        sourceUserId: String,
-        ownedBy transition: AuthTransitionToken
-    ) async throws {
-        let normalizedSourceUserId = sourceUserId.lowercased()
-        let startingSession = try await client.auth.session
-        guard currentSessionMatchesAuthTransition(transition),
-              !startingSession.user.isAnonymous,
-              startingSession.user.id.uuidString.lowercased()
-                == normalizedSourceUserId else {
-            throw SupabaseAuthTransitionError.signOutSessionChanged
-        }
-
-        let response: SignOutPurchasePrepareResponse = try await client.functions.invoke(
-            "transfer-signout-purchases",
-            options: .init(body: SignOutPurchasePreparePayload())
         )
-        guard response.success,
-              UUID(uuidString: response.handoff_id) != nil,
-              response.handoff_secret.range(
-                of: #"^[A-Za-z0-9_-]{43}$"#,
-                options: .regularExpression
-              ) != nil,
-              PurchasePrincipalTimestampPolicy.isValidServerTimestamp(
-                  response.expires_at
-              ) else {
-            throw SupabaseAuthTransitionError
-                .signOutPurchaseHandoffPersistenceFailed
-        }
-
-        let pending = PendingSignOutPurchaseHandoff(
-            sourceUserId: normalizedSourceUserId,
-            handoffId: response.handoff_id.lowercased(),
-            handoffSecret: response.handoff_secret,
-            expiresAt: response.expires_at
-        )
-        try persistPendingSignOutPurchaseHandoff(pending)
-
-        let verifiedSession = try await client.auth.session
-        guard currentSessionMatchesAuthTransition(transition),
-              !verifiedSession.user.isAnonymous,
-              verifiedSession.user.id.uuidString.lowercased()
-                == normalizedSourceUserId else {
-            // The durable proof remains available if a concurrent session
-            // transition already reached the anonymous destination.
-            throw SupabaseAuthTransitionError.signOutSessionChanged
-        }
-        MerianLog.auth.debug("Secured purchase continuity before sign-out.")
     }
 
     @discardableResult
@@ -4008,391 +2861,466 @@ private struct RevenueCatPublicIdentity: Decodable {
         expectedAuthGeneration: UInt64? = nil,
         ownedBy transition: AuthTransitionToken? = nil
     ) async -> Bool {
-        let normalizedExpected = expectedDestinationUserId?.lowercased()
-            ?? (currentUser?.isAnonymous == true
-                ? currentUser?.id.uuidString.lowercased()
-                : nil)
-        let accountWorkLease: AccountBoundWorkLease?
-        if let transition {
-            guard currentSessionMatchesAuthTransition(transition) else {
-                return false
-            }
-            accountWorkLease = nil
-        } else {
-            let expectedUserID = normalizedExpected.flatMap {
-                UUID(uuidString: $0)
-            }
-            guard let lease = try? beginUnownedAccountBoundWork(
-                expectedUserID: expectedUserID
-            ) else { return false }
-            accountWorkLease = lease
-        }
-        defer {
-            if let accountWorkLease {
-                finishAccountBoundWork(accountWorkLease)
-            }
-        }
-
-        let generation = expectedAuthGeneration ?? authSessionGeneration
-        if let existingTask = signOutPurchaseHandoffTask {
-            if signOutPurchaseHandoffTargetUserId == normalizedExpected,
-               signOutPurchaseHandoffAuthGeneration == generation {
-                return await existingTask.value
-            }
-            cancelSignOutPurchaseHandoffTask()
-        }
-
-        let taskId = UUID()
-        let task = Task { @MainActor [weak self] in
-            guard let self else { return false }
-            do {
-                if try self.loadPendingSignOutPurchaseHandoff() == nil,
-                   try self.loadPendingPurchasePrincipalAuthRotation() != nil {
-                    return await self
-                        .completePendingPurchasePrincipalAuthRotationIfNeeded(
-                            expectedDestinationUserId: normalizedExpected,
-                            expectedAuthGeneration: generation,
-                            ownedBy: transition
-                        )
-                }
-            } catch {
-                RevenueCatManager.shared
-                    .setPurchaseIdentityHandoffPending(true)
-                return false
-            }
-            return await self.performPendingSignOutPurchaseHandoff(
-                expectedDestinationUserId: normalizedExpected,
-                expectedAuthGeneration: generation,
-                ownedBy: transition
-            )
-        }
-        signOutPurchaseHandoffTaskId = taskId
-        signOutPurchaseHandoffTargetUserId = normalizedExpected
-        signOutPurchaseHandoffAuthGeneration = generation
-        signOutPurchaseHandoffTask = task
-        let result = await task.value
-        if signOutPurchaseHandoffTaskId == taskId {
-            signOutPurchaseHandoffTask = nil
-            signOutPurchaseHandoffTaskId = nil
-            signOutPurchaseHandoffTargetUserId = nil
-            signOutPurchaseHandoffAuthGeneration = nil
-        }
-        return result
+        await purchaseIdentityHandoffCoordinator.completePendingHandoff(
+            expectedDestinationUserID: expectedDestinationUserId,
+            expectedAuthGeneration: expectedAuthGeneration,
+            ownedBy: transition,
+            dependencies: purchaseIdentityHandoffDependencies()
+        )
     }
 
-    private func completePendingPurchasePrincipalAuthRotationIfNeeded(
-        expectedDestinationUserId: String?,
-        expectedAuthGeneration: UInt64?,
-        ownedBy transition: AuthTransitionToken?
-    ) async -> Bool {
-        let pending: ServerPrincipalRotation
-        do {
-            guard let loaded = try loadPendingPurchasePrincipalAuthRotation() else {
-                let legacyPending = try loadPendingSignOutPurchaseHandoff() != nil
-                RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
-                    legacyPending
-                )
-                return true
-            }
-            guard case let .server(serverRotation) = loaded,
-                  serverRotation.localState == .prepared else {
-                // A legacy client-only marker or a preparation that never
-                // durably received its server expiry cannot authorize an Auth
-                // destination. Keep the purchase boundary closed.
-                RevenueCatManager.shared
-                    .setPurchaseIdentityHandoffPending(true)
-                return false
-            }
-            pending = serverRotation
-        } catch {
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            return false
-        }
+    private func purchaseIdentityHandoffDependencies()
+        -> PurchaseIdentityHandoffDependencies {
+        let client = client
+        let resolver = purchasePrincipalResolver
+        let remoteService = legacyPurchaseHandoffRemoteService
 
-        RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-        let generation = expectedAuthGeneration ?? authSessionGeneration
-        do {
-            try Task.checkCancellation()
-            let session = try await client.auth.session
-            let destinationUserId = session.user.id.uuidString.lowercased()
-            guard session.user.isAnonymous,
-                  destinationUserId != pending.sourceUserId.lowercased(),
-                  expectedDestinationUserId.map({
-                      $0.lowercased() == destinationUserId
-                  }) ?? true,
-                  activeAnonymousSessionMatches(
-                    userId: destinationUserId,
-                    expectedAuthGeneration: generation,
-                    ownedBy: transition
-                  ) else {
-                throw SupabaseAuthTransitionError.signOutSessionChanged
-            }
-
-            try Task.checkCancellation()
-            guard let rotationId = UUID(uuidString: pending.rotationId) else {
-                throw SupabaseAuthTransitionError
-                    .purchasePrincipalRotationPersistenceFailed
-            }
-            let binding = try await purchasePrincipalResolver
-                .claimSignoutRotation(
-                    rotationId: rotationId,
-                    rotationSecret: pending.rotationSecret,
-                    expectedCapabilityFingerprint:
-                        pending.installationCapabilityFingerprint
-                )
-            try Task.checkCancellation()
-            guard activeAnonymousSessionMatches(
-                    userId: destinationUserId,
-                    expectedAuthGeneration: generation,
-                    ownedBy: transition
-                  ),
-                  binding.mode == .stable,
-                  binding.purchasePrincipalId?.uuidString.lowercased()
-                    == pending.purchasePrincipalId.lowercased(),
-                  binding.revenueCatAppUserId == pending.revenueCatAppUserId,
-                  binding.bindingGeneration.map({
-                      $0 > pending.bindingGeneration
-                  }) == true else {
-                throw SupabaseAuthTransitionError
-                    .signOutPurchaseContinuityPending
-            }
-
-            activePurchasePrincipalBinding = binding
-            RevenueCatManager.shared.beginPurchaseIdentityResolution()
-            await RevenueCatManager.shared.linkResolvedPurchasePrincipal(
-                binding,
-                authUserID: session.user.id,
-                accountKind: RevenueCatAccountMutationPolicy.accountKind(
-                    isAnonymous: true
-                )
-            )
-            try Task.checkCancellation()
-            guard activeAnonymousSessionMatches(
-                    userId: destinationUserId,
-                    expectedAuthGeneration: generation,
-                    ownedBy: transition
-                  ),
-                  RevenueCatManager.shared.isIdentityReady,
-                  RevenueCatManager.shared.linkedAuthUserID == session.user.id,
-                  RevenueCatManager.shared.linkedAccountKind ==
-                    RevenueCatAccountMutationPolicy.ghostAccountKind else {
-                throw SupabaseAuthTransitionError
-                    .signOutPurchaseContinuityPending
-            }
-
-            guard await EntitlementManager.shared.beginSession(
-                userID: session.user.id,
-                client: client,
-                authTransitionOwner: transition
-            ) else {
-                throw SupabaseAuthTransitionError
-                    .signOutPurchaseContinuityPending
-            }
-            try Task.checkCancellation()
-            let verifiedSession = try await client.auth.session
-            guard verifiedSession.user.isAnonymous,
-                  verifiedSession.user.id == session.user.id,
-                  activeAnonymousSessionMatches(
-                    userId: destinationUserId,
-                    expectedAuthGeneration: generation,
-                    ownedBy: transition
-                  ) else {
-                throw SupabaseAuthTransitionError.signOutSessionChanged
-            }
-            try Task.checkCancellation()
-            try clearPendingPurchasePrincipalAuthRotation()
-            let legacyPending = try loadPendingSignOutPurchaseHandoff() != nil
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
-                legacyPending
-            )
-            if !legacyPending {
-                await RevenueCatManager.shared.refreshCustomerInfo()
-            }
-            lastLinkedUserId = session.user.id
-            MerianLog.auth.debug(
-                "Claimed the server-authorized stable purchase identity after sign-out."
-            )
-            return true
-        } catch {
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            MerianLog.auth.debug(
-                "Stable purchase identity rotation remains pending; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-            return false
-        }
-    }
-
-    private func performPendingSignOutPurchaseHandoff(
-        expectedDestinationUserId: String?,
-        expectedAuthGeneration: UInt64,
-        ownedBy transition: AuthTransitionToken?
-    ) async -> Bool {
-        guard !Task.isCancelled, !isSigningOut else { return false }
-
-        let pending: PendingSignOutPurchaseHandoff
-        do {
-            guard let loaded = try loadPendingSignOutPurchaseHandoff() else {
-                let stablePending = try loadPendingPurchasePrincipalAuthRotation()
-                    != nil
-                RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
-                    stablePending
-                )
-                return true
-            }
-            pending = loaded
-        } catch {
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            MerianLog.auth.error(
-                "Purchase continuity remains pending because its device proof is unreadable; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-            return false
-        }
-        RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-
-        do {
-            let session = try await client.auth.session
-            let destinationUserId = session.user.id.uuidString.lowercased()
-            guard session.user.isAnonymous else {
-                if destinationUserId == pending.sourceUserId.lowercased() {
-                    await abandonPendingSignOutPurchaseHandoffIfSourceRestored(
-                        sourceUserId: pending.sourceUserId,
-                        ownedBy: transition
+        return PurchaseIdentityHandoffDependencies(
+            session: .init(
+                currentPublishedAnonymousUserID: { [weak self] in
+                    guard self?.currentUser?.isAnonymous == true else {
+                        return nil
+                    }
+                    return self?.currentUser?.id.uuidString.lowercased()
+                },
+                currentAuthGeneration: { [weak self] in
+                    self?.authSessionGeneration ?? 0
+                },
+                isLocalSignOutInProgress: { [weak self] in
+                    self?.isSigningOut ?? true
+                },
+                currentSessionMatchesTransition: { [weak self] transition in
+                    self?.currentSessionMatchesAuthTransition(transition)
+                        ?? false
+                },
+                beginUnownedAccountWork: { [weak self] expectedUserID in
+                    guard let self else { return nil }
+                    return try? self.beginUnownedAccountBoundWork(
+                        expectedUserID: expectedUserID
                     )
-                }
-                return false
-            }
-            if let expectedDestinationUserId,
-               destinationUserId != expectedDestinationUserId {
-                throw SupabaseAuthTransitionError.signOutSessionChanged
-            }
-            guard activeAnonymousSessionMatches(
-                userId: destinationUserId,
-                expectedAuthGeneration: expectedAuthGeneration,
-                ownedBy: transition
-            ) else {
-                throw SupabaseAuthTransitionError.signOutSessionChanged
-            }
-
-            try await PurchaseIdentitySignOutWorkflow.finalizeSignOutPurchaseHandoff(
-                bindDestination: {
-                    let bound: SignOutPurchaseBindResponse = try await self.client.functions.invoke(
-                        "transfer-signout-purchases",
-                        options: .init(
-                            body: SignOutPurchaseContinuePayload(
-                                operation: "bind",
-                                handoff_id: pending.handoffId,
-                                handoff_secret: pending.handoffSecret
+                },
+                finishAccountWork: { [weak self] lease in
+                    self?.finishAccountBoundWork(lease)
+                },
+                loadSDKSession: { [weak self] in
+                    guard let self else {
+                        throw SupabaseAuthTransitionError
+                            .signOutSessionChanged
+                    }
+                    let user = try await client.auth.session.user
+                    let identity = AuthTransitionSession(
+                        userID: user.id,
+                        isAnonymous: user.isAnonymous
+                    )
+                    return PurchaseIdentityHandoffSessionSnapshot(
+                        identity: identity,
+                        linkLegacyProviderIdentity: { [weak self] in
+                            guard let self else {
+                                throw SupabaseAuthTransitionError
+                                    .signOutSessionChanged
+                            }
+                            try await self
+                                .linkLegacyPurchaseIdentityForSignOutHandoff(
+                                    user: user
+                                )
+                        },
+                        ensureTelemetryLinked: { [weak self] transition in
+                            guard let self else { return }
+                            _ = await self.ensurePurchaseIdentityReady(
+                                for: user,
+                                ownedBy: transition
                             )
-                        )
+                        }
                     )
-                    guard bound.success,
-                          bound.handoff_id.caseInsensitiveCompare(
-                            pending.handoffId
-                          ) == .orderedSame,
-                          bound.destination_user_id.lowercased()
-                            == destinationUserId else {
+                },
+                activeAnonymousSessionMatches: { [weak self] userID, generation, transition in
+                    self?.activeAnonymousSessionMatches(
+                        userId: userID,
+                        expectedAuthGeneration: generation,
+                        ownedBy: transition
+                    ) ?? false
+                }
+            ),
+            journal: .init(
+                loadLegacyHandoff: { [weak self] in
+                    guard let self else {
+                        throw SupabaseAuthTransitionError
+                            .signOutSessionChanged
+                    }
+                    return try self.purchaseIdentityHandoffJournal
+                        .loadLegacyHandoff()
+                },
+                loadStableRotation: { [weak self] in
+                    guard let self else {
+                        throw SupabaseAuthTransitionError
+                            .signOutSessionChanged
+                    }
+                    return try self.purchaseIdentityHandoffJournal
+                        .loadStableRotation()
+                },
+                clearLegacyHandoff: { [weak self] in
+                    guard let self else {
+                        throw SupabaseAuthTransitionError
+                            .signOutSessionChanged
+                    }
+                    try self.purchaseIdentityHandoffJournal
+                        .clearLegacyHandoff()
+                },
+                clearStableRotation: { [weak self] in
+                    guard let self else {
+                        throw SupabaseAuthTransitionError
+                            .signOutSessionChanged
+                    }
+                    try self.purchaseIdentityHandoffJournal
+                        .clearStableRotation()
+                },
+                setHandoffPending: { [weak self] pending in
+                    self?.publishPurchaseIdentityHandoffPending(pending)
+                }
+            ),
+            operations: .init(
+                claimStableRotation: { rotationID, rotationSecret, capabilityFingerprint in
+                    try await resolver.claimSignoutRotation(
+                        rotationId: rotationID,
+                        rotationSecret: rotationSecret,
+                        expectedCapabilityFingerprint: capabilityFingerprint
+                    )
+                },
+                applyStableBinding: { [weak self] binding, userID in
+                    guard let self else { return }
+                    self.purchaseIdentitySessionCoordinator.recordBinding(
+                        binding
+                    )
+                    RevenueCatManager.shared.beginPurchaseIdentityResolution()
+                    await RevenueCatManager.shared
+                        .linkResolvedPurchasePrincipal(
+                            binding,
+                            authUserID: userID,
+                            accountKind: RevenueCatAccountMutationPolicy
+                                .accountKind(isAnonymous: true)
+                        )
+                },
+                stableProviderIdentityMatches: { userID in
+                    RevenueCatManager.shared.isIdentityReady
+                        && RevenueCatManager.shared.linkedAuthUserID == userID
+                        && RevenueCatManager.shared.linkedAccountKind ==
+                        RevenueCatAccountMutationPolicy.ghostAccountKind
+                },
+                bindLegacyHandoff: { handoff, destinationUserID in
+                    do {
+                        try await remoteService.bind(
+                            handoff,
+                            to: destinationUserID
+                        )
+                    } catch LegacyPurchaseHandoffRemoteError.invalidResponse {
                         throw SupabaseAuthTransitionError
                             .signOutSessionChanged
                     }
                 },
-                verifyBoundDestinationSession: {
-                    try await self.verifyActiveAnonymousSession(
-                        userId: destinationUserId,
-                        expectedAuthGeneration: expectedAuthGeneration,
-                        ownedBy: transition
-                    )
-                },
-                linkProviderIdentity: {
-                    try await self
-                        .linkLegacyRevenueCatIdentityForSignOutHandoff(
-                            user: session.user
-                        )
-                },
-                verifyLinkedDestinationSession: {
-                    try await self.verifyActiveAnonymousSession(
-                        userId: destinationUserId,
-                        expectedAuthGeneration: expectedAuthGeneration,
-                        ownedBy: transition
-                    )
-                },
-                synchronizeStorePurchases: {
+                synchronizeLegacyPurchases: { userID in
                     try await RevenueCatManager.shared
                         .synchronizePurchasesAfterIdentityHandoff(
-                            expectedUserId: session.user.id
+                            expectedUserId: userID
                         )
                 },
-                completeServerHandoff: {
-                    let completed: SignOutPurchaseOperationResponse = try await self.client.functions.invoke(
-                        "transfer-signout-purchases",
-                        options: .init(
-                            body: SignOutPurchaseContinuePayload(
-                                operation: "complete",
-                                handoff_id: pending.handoffId,
-                                handoff_secret: pending.handoffSecret
-                            )
-                        )
-                    )
-                    guard completed.success,
-                          completed.handoff_id.caseInsensitiveCompare(
-                            pending.handoffId
-                          ) == .orderedSame else {
+                completeLegacyHandoff: { handoff in
+                    do {
+                        try await remoteService.complete(handoff)
+                    } catch LegacyPurchaseHandoffRemoteError.invalidResponse {
                         throw SupabaseAuthTransitionError
                             .signOutSessionChanged
                     }
                 },
-                refreshServerEntitlement: {
+                refreshEntitlement: { userID, transition in
                     await EntitlementManager.shared.beginSession(
-                        userID: session.user.id,
-                        client: self.client,
+                        userID: userID,
+                        client: client,
                         authTransitionOwner: transition
                     )
                 },
-                verifyFinalDestinationSession: {
-                    try await self.verifyActiveAnonymousSession(
-                        userId: destinationUserId,
-                        expectedAuthGeneration: expectedAuthGeneration,
+                refreshCustomerInfo: {
+                    await RevenueCatManager.shared.refreshCustomerInfo()
+                },
+                recordLinkedUser: { [weak self] userID in
+                    self?.purchaseIdentitySessionCoordinator.recordLinkedUser(
+                        userID
+                    )
+                },
+                abandonLegacyHandoffIfSourceRestored: { [weak self] sourceUserID, transition in
+                    guard let self else { return }
+                    await self.purchaseIdentitySourceHandoffCoordinator()
+                        .abandonLegacyHandoffIfSourceRestored(
+                            sourceUserID: sourceUserID,
+                            ownedBy: transition
+                        )
+                },
+                shouldDiscardLegacyHandoff: { error in
+                    remoteService.isTerminalProofError(error)
+                }
+            ),
+            diagnostics: .init(
+                reportJournalSelectionFailure: { _ in },
+                reportStableCompletionFailure: { error in
+                    MerianLog.auth.debug(
+                        "Stable purchase identity rotation remains pending; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                    )
+                },
+                reportLegacyJournalFailure: { error in
+                    MerianLog.auth.error(
+                        "Purchase continuity remains pending because its device proof is unreadable; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                    )
+                },
+                reportLegacyCompletionFailure: { error in
+                    MerianLog.auth.debug(
+                        "Purchase continuity retry remains pending; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                    )
+                },
+                reportStableCompletion: {
+                    MerianLog.auth.debug(
+                        "Claimed the server-authorized stable purchase identity after sign-out."
+                    )
+                },
+                reportLegacyCompletion: {
+                    MerianLog.auth.debug(
+                        "Verified purchase continuity for the signed-out session."
+                    )
+                }
+            )
+        )
+    }
+
+    private func purchaseIdentitySourceHandoffCoordinator()
+        -> PurchaseIdentitySourceHandoffCoordinator {
+        PurchaseIdentitySourceHandoffCoordinator(
+            dependencies: purchaseIdentitySourceHandoffDependencies()
+        )
+    }
+
+    private func purchaseIdentitySourceHandoffDependencies()
+        -> SourceHandoffDependencies {
+        let client = client
+        let journal = purchaseIdentityHandoffJournal
+        let resolver = purchasePrincipalResolver
+        let remoteService = legacyPurchaseHandoffRemoteService
+        let preparation = PurchaseHandoffPreparationCoordinator(
+            dependencies: .init(
+                journal: .init(
+                    persistLegacyHandoff: { pending in
+                        try journal.persistLegacyHandoff(pending)
+                    },
+                    persistStableRotation: { pending in
+                        try journal.persistStableRotation(pending)
+                    }
+                ),
+                operations: .init(
+                    currentCapabilityFingerprint: {
+                        try resolver
+                            .currentInstallationCapabilityFingerprint()
+                    },
+                    makeRotationID: { UUID() },
+                    makeRotationSecret: {
+                        try PurchasePrincipalResolver
+                            .generateSignoutRotationSecret()
+                    },
+                    currentTimestamp: {
+                        DateUtilities.iso8601Formatter.string(from: Date())
+                    },
+                    prepareStableRotation: { rotationID, secret, binding, fingerprint in
+                        try await resolver.prepareSignoutRotation(
+                            rotationId: rotationID,
+                            rotationSecret: secret,
+                            expectedBinding: binding,
+                            expectedCapabilityFingerprint: fingerprint
+                        )
+                    },
+                    prepareLegacyHandoff: {
+                        try await remoteService.prepare()
+                    }
+                )
+            )
+        )
+
+        return SourceHandoffDependencies(
+            session: .init(
+                currentAuthGeneration: { [weak self] in
+                    self?.authSessionGeneration ?? 0
+                },
+                currentPublishedUserID: { [weak self] in
+                    self?.currentUser?.id
+                },
+                currentSDKUserID: {
+                    client.auth.currentSession?.user.id
+                },
+                ownsTransition: { [weak self] transition in
+                    self?.ownsAuthTransition(transition) ?? false
+                },
+                currentSessionMatchesTransition: { [weak self] transition in
+                    self?.currentSessionMatchesAuthTransition(transition)
+                        ?? false
+                },
+                beginUnownedAccountWork: { [weak self] sourceUserID in
+                    guard let self else { return nil }
+                    return try? self.beginUnownedAccountBoundWork(
+                        expectedUserID: sourceUserID
+                    )
+                },
+                isAccountWorkCurrent: { [weak self] lease in
+                    self?.isAccountBoundWorkLeaseCurrent(lease) ?? false
+                },
+                finishAccountWork: { [weak self] lease in
+                    self?.finishAccountBoundWork(lease)
+                },
+                loadSDKSession: {
+                    let user = try await client.auth.session.user
+                    return AuthTransitionSession(
+                        userID: user.id,
+                        isAnonymous: user.isAnonymous
+                    )
+                },
+                adoptSourceSession: { [weak self] sourceUserID, transition in
+                    guard let self,
+                          let user = client.auth.currentSession?.user,
+                          user.id == sourceUserID,
+                          !user.isAnonymous else {
+                        return false
+                    }
+                    return self.adoptAuthTransitionSession(
+                        user,
+                        for: transition
+                    )
+                },
+                publishRestoredSource: { [weak self] sourceUserID in
+                    guard let self,
+                          let user = client.auth.currentSession?.user,
+                          user.id == sourceUserID,
+                          !user.isAnonymous else {
+                        return false
+                    }
+                    self.currentUser = user
+                    self.isAuthenticated = true
+                    KeychainManager.shared.set(
+                        true,
+                        forKey: KeychainKeys.hasAuthenticatedOAuth
+                    )
+                    ConsentManager.shared.observeSession(userId: sourceUserID)
+                    self.schedulePublicAuthorIdentityRefreshIfNeeded(for: user)
+                    return true
+                },
+                restoredSourceIsCurrent: { [weak self] sourceUserID, transition in
+                    guard let self else { return false }
+                    return self.currentUser?.id == sourceUserID
+                        && self.currentSessionMatchesAuthTransition(transition)
+                }
+            ),
+            journal: .init(
+                loadLegacyHandoff: {
+                    try journal.loadLegacyHandoff()
+                },
+                loadStableRotation: {
+                    try journal.loadStableRotation()
+                },
+                clearLegacyHandoff: {
+                    try journal.clearLegacyHandoff()
+                },
+                clearStableRotation: {
+                    try journal.clearStableRotation()
+                },
+                setHandoffPending: { [weak self] pending in
+                    self?.publishPurchaseIdentityHandoffPending(pending)
+                }
+            ),
+            operations: .init(
+                prepareStableRotation: { sourceUserID, binding in
+                    try await preparation.prepareStableRotation(
+                        sourceUserID: sourceUserID,
+                        binding: binding
+                    )
+                },
+                prepareLegacyHandoff: { sourceUserID in
+                    try await preparation.prepareLegacyHandoff(
+                        sourceUserID: sourceUserID
+                    )
+                },
+                cancelStableRotation: { rotation in
+                    guard let rotationID = UUID(
+                        uuidString: rotation.rotationId
+                    ) else {
+                        throw SupabaseAuthTransitionError
+                            .purchasePrincipalRotationPersistenceFailed
+                    }
+                    _ = try await resolver.cancelSignoutRotation(
+                        rotationId: rotationID,
+                        rotationSecret: rotation.rotationSecret,
+                        expectedCapabilityFingerprint:
+                            rotation.installationCapabilityFingerprint
+                    )
+                },
+                cancelLegacyHandoff: { pending in
+                    do {
+                        try await remoteService.cancel(pending)
+                    } catch LegacyPurchaseHandoffRemoteError.invalidResponse {
+                        throw SupabaseAuthTransitionError
+                            .signOutSessionChanged
+                    }
+                },
+                ensurePurchaseIdentityReady: { [weak self] sourceUserID, transition in
+                    guard let self,
+                          let user = client.auth.currentSession?.user,
+                          user.id == sourceUserID,
+                          !user.isAnonymous else {
+                        return
+                    }
+                    _ = await self.ensurePurchaseIdentityReady(
+                        for: user,
                         ownedBy: transition
                     )
                 },
-                clearPendingHandoff: {
-                    try self.clearPendingSignOutPurchaseHandoff()
-                }
-            )
-            let stableRotationPending =
-                try loadPendingPurchasePrincipalAuthRotation() != nil
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
-                stableRotationPending
-            )
-            // Compatibility completion is the safety boundary. Once its proof
-            // is gone, a stable rollout may adopt/rebind this installation
-            // without changing which customer the completed handoff verified.
-            _ = await ensureTelemetryLinkedWhenSafe(
-                for: session.user,
-                ownedBy: transition
-            )
-            MerianLog.auth.debug(
-                "Verified purchase continuity for the signed-out session."
-            )
-            return true
-        } catch {
-            if Self.shouldDiscardPendingSignOutPurchaseHandoff(after: error) {
-                do {
-                    try clearPendingSignOutPurchaseHandoff()
-                    let stableRotationPending =
-                        try loadPendingPurchasePrincipalAuthRotation() != nil
-                    RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
-                        stableRotationPending
+                beginEntitlementSession: { sourceUserID, transition in
+                    await EntitlementManager.shared.beginSession(
+                        userID: sourceUserID,
+                        client: client,
+                        authTransitionOwner: transition
                     )
-                } catch {
-                    RevenueCatManager.shared
-                        .setPurchaseIdentityHandoffPending(true)
                 }
-            }
-            MerianLog.auth.debug(
-                "Purchase continuity retry remains pending; kind=\(MerianLog.errorKind(error), privacy: .public)"
+            ),
+            diagnostics: .init(
+                reportPendingStateFailure: { _ in
+                    MerianLog.auth.error(
+                        "Could not verify the purchase handoff proof; preserving the active identity."
+                    )
+                },
+                reportLegacyPreparation: {
+                    MerianLog.auth.debug(
+                        "Secured purchase continuity before sign-out."
+                    )
+                },
+                reportLegacyAbandonment: {
+                    MerianLog.auth.debug(
+                        "Abandoned an unused sign-out purchase proof after the source account was restored."
+                    )
+                },
+                reportLegacyAbandonmentFailure: { error in
+                    MerianLog.auth.error(
+                        "Could not clear an unused sign-out purchase proof; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                    )
+                },
+                reportSourceRestoration: {
+                    MerianLog.auth.debug(
+                        "Restored the linked purchase identity after local sign-out failed."
+                    )
+                }
             )
-            return false
-        }
+        )
+    }
+
+    /// Publishes the aggregate durable handoff fence and wakes a retained Apple
+    /// revocation only after every purchase-continuity proof is resolved.
+    private func publishPurchaseIdentityHandoffPending(_ isPending: Bool) {
+        RevenueCatManager.shared.setPurchaseIdentityHandoffPending(isPending)
+        guard !isPending else { return }
+        appleCredentialRevocationCoordinator.resumeDeferredIfNeeded(
+            dependencies: appleCredentialRevocationDependencies()
+        )
     }
 
     /// Re-reads the device proof before any operation that could replace the
@@ -4400,367 +3328,8 @@ private struct RevenueCatPublicIdentity: Decodable {
     /// unresolved handoff so a transient device-access failure cannot strand
     /// the one destination already bound on the server.
     func hasPendingPurchaseIdentityHandoffFailClosed() -> Bool {
-        do {
-            let pendingLegacyHandoff = try loadPendingSignOutPurchaseHandoff()
-            let pendingStableRotation = try loadPendingPurchasePrincipalAuthRotation()
-            let pending = pendingLegacyHandoff != nil || pendingStableRotation != nil
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(pending)
-            return pending
-        } catch {
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            MerianLog.auth.error(
-                "Could not verify the purchase handoff proof; preserving the active identity."
-            )
-            return true
-        }
-    }
-
-    private func loadPendingSignOutPurchaseHandoff() throws
-        -> PendingSignOutPurchaseHandoff? {
-        do {
-            return try purchaseIdentityHandoffStore
-                .loadPendingSignOutPurchaseHandoff()
-        } catch is PurchaseIdentityHandoffStoreError {
-            throw SupabaseAuthTransitionError
-                .signOutPurchaseHandoffPersistenceFailed
-        }
-    }
-
-    private func persistPendingSignOutPurchaseHandoff(
-        _ pending: PendingSignOutPurchaseHandoff
-    ) throws {
-        do {
-            try purchaseIdentityHandoffStore
-                .persistPendingSignOutPurchaseHandoff(pending)
-        } catch is PurchaseIdentityHandoffStoreError {
-            throw SupabaseAuthTransitionError
-                .signOutPurchaseHandoffPersistenceFailed
-        }
-    }
-
-    private func clearPendingSignOutPurchaseHandoff() throws {
-        try purchaseIdentityHandoffStore
-            .clearPendingSignOutPurchaseHandoff()
-    }
-
-    private func loadPendingPurchasePrincipalAuthRotation() throws
-        -> PendingPurchasePrincipalAuthRotation? {
-        do {
-            return try purchaseIdentityHandoffStore
-                .loadPendingPurchasePrincipalAuthRotation()
-        } catch is PurchaseIdentityHandoffStoreError {
-            throw SupabaseAuthTransitionError
-                .purchasePrincipalRotationPersistenceFailed
-        }
-    }
-
-    private func persistPendingPurchasePrincipalAuthRotation(
-        _ pending: ServerPrincipalRotation
-    ) throws {
-        do {
-            try purchaseIdentityHandoffStore
-                .persistPendingPurchasePrincipalAuthRotation(pending)
-        } catch is PurchaseIdentityHandoffStoreError {
-            throw SupabaseAuthTransitionError
-                .purchasePrincipalRotationPersistenceFailed
-        }
-    }
-
-    private func prepareAndPersistPendingPurchasePrincipalAuthRotation(
-        sourceUserId: UUID,
-        binding: PurchasePrincipalBinding
-    ) async throws {
-        guard binding.mode == .stable,
-              let principalId = binding.purchasePrincipalId,
-              let appUserId = binding.revenueCatAppUserId,
-              let bindingGeneration = binding.bindingGeneration,
-              bindingGeneration > 0 else {
-            throw SupabaseAuthTransitionError
-                .purchasePrincipalRotationPersistenceFailed
-        }
-        let capabilityFingerprint = try purchasePrincipalResolver
-            .currentInstallationCapabilityFingerprint()
-        let rotationId = UUID()
-        let rotationSecret = try PurchasePrincipalResolver
-            .generateSignoutRotationSecret()
-        let draft = ServerPrincipalRotation(
-            protocolVersion: 3,
-            localState: .preparing,
-            rotationId: rotationId.uuidString.lowercased(),
-            rotationSecret: rotationSecret,
-            sourceUserId: sourceUserId.uuidString.lowercased(),
-            purchasePrincipalId: principalId.uuidString.lowercased(),
-            revenueCatAppUserId: appUserId,
-            bindingGeneration: bindingGeneration,
-            installationCapabilityFingerprint: capabilityFingerprint,
-            startedAt: ISO8601DateFormatter().string(from: Date()),
-            expiresAt: nil
-        )
-        // Persist the idempotency key and proof before network I/O. The Auth
-        // session is still intact, and a relaunch can safely cancel an absent,
-        // in-flight, or already-prepared server reservation with the same ID.
-        try persistPendingPurchasePrincipalAuthRotation(draft)
-        let preparation = try await purchasePrincipalResolver
-            .prepareSignoutRotation(
-                rotationId: rotationId,
-                rotationSecret: rotationSecret,
-                expectedBinding: binding,
-                expectedCapabilityFingerprint: capabilityFingerprint
-            )
-        let prepared = ServerPrincipalRotation(
-            protocolVersion: 3,
-            localState: .prepared,
-            rotationId: rotationId.uuidString.lowercased(),
-            rotationSecret: rotationSecret,
-            sourceUserId: sourceUserId.uuidString.lowercased(),
-            purchasePrincipalId:
-                preparation.purchasePrincipalId.uuidString.lowercased(),
-            revenueCatAppUserId: preparation.revenueCatAppUserId,
-            bindingGeneration: preparation.bindingGeneration,
-            installationCapabilityFingerprint: capabilityFingerprint,
-            startedAt: draft.startedAt,
-            expiresAt: preparation.expiresAt
-        )
-        try persistPendingPurchasePrincipalAuthRotation(prepared)
-    }
-
-    private func clearPendingPurchasePrincipalAuthRotation() throws {
-        try purchaseIdentityHandoffStore
-            .clearPendingPurchasePrincipalAuthRotation()
-    }
-
-    private func abandonPendingPurchasePrincipalRotationIfSourceRestored(
-        sourceUserId: UUID,
-        ownedBy transition: AuthTransitionToken? = nil
-    ) async {
-        let accountWorkLease: AccountBoundWorkLease?
-        if let transition {
-            guard ownsAuthTransition(transition),
-                  currentSessionMatchesAuthTransition(transition),
-                  client.auth.currentSession?.user.id == sourceUserId else {
-                return
-            }
-            accountWorkLease = nil
-        } else {
-            guard let lease = try? beginUnownedAccountBoundWork(
-                expectedUserID: sourceUserId
-            ) else { return }
-            accountWorkLease = lease
-        }
-        defer {
-            if let accountWorkLease {
-                finishAccountBoundWork(accountWorkLease)
-            }
-        }
-
-        guard let session = try? await client.auth.session,
-              !session.user.isAnonymous,
-              session.user.id == sourceUserId else {
-            return
-        }
-        do {
-            if let pending = try loadPendingPurchasePrincipalAuthRotation(),
-               pending.sourceUserId.lowercased()
-                == sourceUserId.uuidString.lowercased() {
-                switch pending {
-                case .legacy:
-                    // The pre-v3 marker never created server state. It is safe
-                    // to retire only because its exact source is still active.
-                    break
-                case let .server(rotation):
-                    guard let rotationId = UUID(
-                        uuidString: rotation.rotationId
-                    ) else {
-                        return
-                    }
-                    _ = try await purchasePrincipalResolver
-                        .cancelSignoutRotation(
-                            rotationId: rotationId,
-                            rotationSecret: rotation.rotationSecret,
-                            expectedCapabilityFingerprint:
-                                rotation.installationCapabilityFingerprint
-                        )
-                }
-                guard transition.map(currentSessionMatchesAuthTransition) ??
-                        accountWorkLease.map(isAccountBoundWorkLeaseCurrent)
-                        ?? false,
-                      client.auth.currentSession?.user.id == sourceUserId,
-                      let reverified = try? await client.auth.session,
-                      !reverified.user.isAnonymous,
-                      reverified.user.id == sourceUserId else {
-                    return
-                }
-                try clearPendingPurchasePrincipalAuthRotation()
-            }
-            let legacyPending = try loadPendingSignOutPurchaseHandoff() != nil
-            let stablePending = try loadPendingPurchasePrincipalAuthRotation()
-                != nil
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
-                legacyPending || stablePending
-            )
-        } catch {
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-        }
-    }
-
-    /// A local sign-out error can leave the original linked Supabase session
-    /// intact after local RevenueCat/Auth readiness was already cleared. Once
-    /// every unused handoff is definitively absent, restore that exact source
-    /// session instead of leaving paid operations disabled until a later Auth
-    /// event happens to arrive.
-    private func restoreSourceIdentityAfterFailedSignOutIfPossible(
-        sourceUserId: UUID,
-        ownedBy transition: AuthTransitionToken
-    ) async {
-        guard ownsAuthTransition(transition) else { return }
-        guard let session = try? await client.auth.session else {
-            return
-        }
-
-        let purchaseContinuityPending: Bool
-        do {
-            let legacyPending = try loadPendingSignOutPurchaseHandoff() != nil
-            let stablePending = try loadPendingPurchasePrincipalAuthRotation() != nil
-            purchaseContinuityPending = legacyPending || stablePending
-        } catch {
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            return
-        }
-        guard AuthTransitionPolicy
-            .shouldRestoreSourceIdentityAfterFailedSignOut(
-                activeUserId: session.user.id,
-                activeUserIsAnonymous: session.user.isAnonymous,
-                sourceUserId: sourceUserId,
-                purchaseContinuityPending: purchaseContinuityPending
-            ) else {
-            if purchaseContinuityPending {
-                RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            }
-            return
-        }
-
-        guard ownsAuthTransition(transition),
-              adoptAuthTransitionSession(session.user, for: transition),
-              currentSessionMatchesAuthTransition(transition) else {
-            return
-        }
-        RevenueCatManager.shared.setPurchaseIdentityHandoffPending(false)
-        currentUser = session.user
-        isAuthenticated = true
-        KeychainManager.shared.set(
-            true,
-            forKey: KeychainKeys.hasAuthenticatedOAuth
-        )
-        ConsentManager.shared.observeSession(userId: sourceUserId)
-        schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
-
-        _ = await ensureTelemetryLinkedWhenSafe(
-            for: session.user,
-            ownedBy: transition
-        )
-        guard currentUser?.id == sourceUserId,
-              currentSessionMatchesAuthTransition(transition) else {
-            return
-        }
-        await EntitlementManager.shared.beginSession(
-            userID: sourceUserId,
-            client: client,
-            authTransitionOwner: transition
-        )
-        guard currentSessionMatchesAuthTransition(transition) else { return }
-        MerianLog.auth.debug(
-            "Restored the linked purchase identity after local sign-out failed."
-        )
-    }
-
-    private func abandonPendingSignOutPurchaseHandoffIfSourceRestored(
-        sourceUserId: String,
-        ownedBy transition: AuthTransitionToken? = nil
-    ) async {
-        let normalizedSourceUserId = sourceUserId.lowercased()
-        guard let sourceUserUUID = UUID(uuidString: normalizedSourceUserId)
-        else { return }
-        let accountWorkLease: AccountBoundWorkLease?
-        if let transition {
-            guard ownsAuthTransition(transition),
-                  currentSessionMatchesAuthTransition(transition),
-                  client.auth.currentSession?.user.id == sourceUserUUID else {
-                return
-            }
-            accountWorkLease = nil
-        } else {
-            guard let lease = try? beginUnownedAccountBoundWork(
-                expectedUserID: sourceUserUUID
-            ) else { return }
-            accountWorkLease = lease
-        }
-        defer {
-            if let accountWorkLease {
-                finishAccountBoundWork(accountWorkLease)
-            }
-        }
-
-        guard let session = try? await client.auth.session,
-              !session.user.isAnonymous,
-              session.user.id.uuidString.lowercased()
-                == normalizedSourceUserId else {
-            return
-        }
-
-        do {
-            guard let pending = try loadPendingSignOutPurchaseHandoff() else {
-                let stableRotation = try loadPendingPurchasePrincipalAuthRotation()
-                RevenueCatManager.shared
-                    .setPurchaseIdentityHandoffPending(stableRotation != nil)
-                return
-            }
-            guard pending.sourceUserId.lowercased()
-                    == normalizedSourceUserId else {
-                return
-            }
-            let cancelled: SignOutPurchaseOperationResponse = try await client.functions.invoke(
-                "transfer-signout-purchases",
-                options: .init(
-                    body: SignOutPurchaseContinuePayload(
-                        operation: "cancel",
-                        handoff_id: pending.handoffId,
-                        handoff_secret: pending.handoffSecret
-                    )
-                )
-            )
-            guard cancelled.success,
-                  cancelled.handoff_id.caseInsensitiveCompare(
-                    pending.handoffId
-                  ) == .orderedSame,
-                  transition.map(currentSessionMatchesAuthTransition) ??
-                    accountWorkLease.map(isAccountBoundWorkLeaseCurrent)
-                    ?? false,
-                  client.auth.currentSession?.user.id == sourceUserUUID else {
-                throw SupabaseAuthTransitionError.signOutSessionChanged
-            }
-            try clearPendingSignOutPurchaseHandoff()
-            let stableRotationPending =
-                try loadPendingPurchasePrincipalAuthRotation() != nil
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
-                stableRotationPending
-            )
-            MerianLog.auth.debug(
-                "Abandoned an unused sign-out purchase proof after the source account was restored."
-            )
-        } catch {
-            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
-            MerianLog.auth.error(
-                "Could not clear an unused sign-out purchase proof; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-        }
-    }
-
-    private func cancelSignOutPurchaseHandoffTask() {
-        signOutPurchaseHandoffTask?.cancel()
-        signOutPurchaseHandoffTask = nil
-        signOutPurchaseHandoffTaskId = nil
-        signOutPurchaseHandoffTargetUserId = nil
-        signOutPurchaseHandoffAuthGeneration = nil
+        purchaseIdentitySourceHandoffCoordinator()
+            .hasPendingHandoffFailClosed()
     }
 
     private func activeAnonymousSessionMatches(
@@ -4787,603 +3356,165 @@ private struct RevenueCatPublicIdentity: Decodable {
         return activeAuthTransition == nil
     }
 
-    private func verifyActiveAnonymousSession(
-        userId: String,
-        expectedAuthGeneration: UInt64,
-        ownedBy transition: AuthTransitionToken?
-    ) async throws {
-        try Task.checkCancellation()
-        let session = try await client.auth.session
-        guard session.user.isAnonymous,
-              session.user.id.uuidString.caseInsensitiveCompare(userId)
-                == .orderedSame,
-              activeAnonymousSessionMatches(
-                userId: userId,
-                expectedAuthGeneration: expectedAuthGeneration,
-                ownedBy: transition
-              )
-        else {
-            throw SupabaseAuthTransitionError.signOutSessionChanged
-        }
-    }
-
-    nonisolated static func shouldDiscardPendingSignOutPurchaseHandoff(
-        after error: Error
-    ) -> Bool {
-        guard case let FunctionsError.httpError(_, data) = error,
-              let payload = try? JSONDecoder().decode(
-                SignOutPurchaseErrorPayload.self,
-                from: data
-              ) else {
+    private func persistOAuthProfileMetadata(
+        _ profileMetadata: OAuthProfileMetadata,
+        provider: AuthTransitionProvider,
+        expectedUserID: UUID,
+        transition: AuthTransitionToken
+    ) async -> Bool {
+        guard !Task.isCancelled,
+              AuthTransitionPolicy.allowsOAuthMetadataMutation(
+            transitionIsCurrent:
+                currentSessionMatchesAuthTransition(transition),
+            transitionExpectedUserID:
+                authRuntimeState.activeExpectedSession?.userID,
+            currentSessionUserID:
+                oauthSessionService.currentSession()?.user.id,
+            expectedUserID: expectedUserID
+        ) else {
             return false
         }
-        return payload.code == "handoff_expired"
-            || payload.code == "handoff_invalid"
-    }
 
-    private func loadPendingGhostProfileMergeQueue() throws -> [PendingGhostProfileMerge] {
         do {
-            let result = try ghostProfileMergeStore.loadPendingHandoffs()
-            if result.legacyMigrationWasDeferred {
-                MerianLog.auth.error(
-                    "Could not migrate the signed-out profile handoff queue; the original proof remains available."
+            guard let updatedUser = try await oauthSessionService
+                .updateProfileMetadata(profileMetadata) else {
+                return false
+            }
+            guard !Task.isCancelled,
+                  AuthTransitionPolicy.allowsOAuthMetadataMutation(
+                transitionIsCurrent:
+                    currentSessionMatchesAuthTransition(transition),
+                transitionExpectedUserID:
+                    authRuntimeState.activeExpectedSession?.userID,
+                currentSessionUserID:
+                    oauthSessionService.currentSession()?.user.id,
+                expectedUserID: expectedUserID,
+                updatedUserID: updatedUser.id
+            ) else {
+                return false
+            }
+            currentUser = updatedUser
+            switch provider {
+            case .apple:
+                MerianLog.auth.debug(
+                    "Apple profile metadata persisted for public author identity."
+                )
+            case .google:
+                MerianLog.auth.debug(
+                    "Google profile metadata persisted for public author identity."
                 )
             }
-            return result.handoffs
-        } catch GhostProfileMergeStoreError.persistenceFailed {
-            MerianLog.auth.error(
-                "Retained an unreadable guest profile handoff queue; analytics remains suppressed."
-            )
-            throw SupabaseAuthTransitionError
-                .guestMergeHandoffPersistenceFailed
-        }
-    }
-
-    private func persistPendingGhostProfileMergeQueue(
-        _ handoffs: [PendingGhostProfileMerge]
-    ) throws {
-        do {
-            try ghostProfileMergeStore.persistPendingHandoffs(handoffs)
-        } catch GhostProfileMergeStoreError.persistenceFailed {
-            throw SupabaseAuthTransitionError
-                .guestMergeHandoffPersistenceFailed
-        }
-    }
-
-    private func clearPendingGhostProfileMerge(handoffId: String) throws {
-        do {
-            try ghostProfileMergeStore.clearPendingHandoff(
-                handoffId: handoffId
-            )
-        } catch GhostProfileMergeStoreError.persistenceFailed {
-            throw SupabaseAuthTransitionError
-                .guestMergeHandoffPersistenceFailed
-        }
-    }
-
-    private func clearPendingGhostProfileMerges(
-        ghostUserId: String
-    ) throws {
-        let remaining: [PendingGhostProfileMerge]
-        do {
-            remaining = try ghostProfileMergeStore.clearPendingHandoffs(
-                ghostUserId: ghostUserId
-            )
-        } catch GhostProfileMergeStoreError.persistenceFailed {
-            throw SupabaseAuthTransitionError
-                .guestMergeHandoffPersistenceFailed
-        }
-        ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(
-            !remaining.isEmpty
-        )
-    }
-
-    private func cancelGhostProfileMergeTask() {
-        ghostProfileMergeTask?.cancel()
-        ghostProfileMergeTask = nil
-        ghostProfileMergeTaskId = nil
-        ghostProfileMergeTaskTargetUserId = nil
-    }
-
-    nonisolated static func requiresProviderBoundGhostMerge(after error: Error) -> Bool {
-        guard let authError = error as? AuthError else { return false }
-        return authError.errorCode == .identityAlreadyExists
-    }
-
-    static func performOAuthSessionReplacement<Value>(
-        suspendAnalytics: () -> UInt,
-        installSession: () async throws -> Value,
-        currentSession: () -> Value?,
-        reconcileSession: (UInt, Value?) -> Void
-    ) async throws -> Value {
-        try Task.checkCancellation()
-        let generation = suspendAnalytics()
-        do {
-            // Cancellation can be requested from another executor while the
-            // synchronous suppression boundary runs. Reconcile that boundary
-            // without installing a replacement SDK session.
-            try Task.checkCancellation()
-            let installedSession = try await installSession()
-            reconcileSession(generation, installedSession)
-            return installedSession
-        } catch {
-            reconcileSession(generation, currentSession())
-            throw error
-        }
-    }
-
-    nonisolated static func shouldDiscardPendingGhostProfileMerge(
-        after error: Error
-    ) -> Bool {
-        guard case let FunctionsError.httpError(_, data) = error,
-              let payload = try? JSONDecoder().decode(
-                  GhostProfileMergeErrorPayload.self,
-                  from: data
-              ) else {
-            return false
-        }
-
-        return GhostProfileMergePolicy.shouldDiscardPendingHandoff(
-            serverCode: payload.code
-        )
-    }
-
-    nonisolated static func oauthProviderSubject(from idToken: String) throws -> String {
-        let segments = idToken.split(separator: ".", omittingEmptySubsequences: false)
-        guard segments.count == 3 else {
-            throw SupabaseAuthTransitionError.invalidOAuthIdentityToken
-        }
-
-        var payload = String(segments[1])
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-        let padding = (4 - payload.count % 4) % 4
-        payload.append(String(repeating: "=", count: padding))
-
-        guard let data = Data(base64Encoded: payload),
-              let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let subject = object["sub"] as? String else {
-            throw SupabaseAuthTransitionError.invalidOAuthIdentityToken
-        }
-
-        let normalizedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedSubject.isEmpty,
-              normalizedSubject.count <= 255,
-              normalizedSubject.rangeOfCharacter(from: .controlCharacters) == nil else {
-            throw SupabaseAuthTransitionError.invalidOAuthIdentityToken
-        }
-        return normalizedSubject
-    }
-
-    @discardableResult
-    private func updateGoogleUserMetadataIfAvailable(
-        from googleUser: GIDGoogleUser,
-        expectedUserID: UUID,
-        transition: AuthTransitionToken
-    ) async -> Bool {
-        guard AuthTransitionPolicy.allowsOAuthMetadataMutation(
-            transitionIsCurrent:
-                currentSessionMatchesAuthTransition(transition),
-            transitionExpectedUserID:
-                authTransitionCoordinator.active?.expectedSession?.userID,
-            currentSessionUserID: client.auth.currentSession?.user.id,
-            expectedUserID: expectedUserID
-        ) else {
-            return false
-        }
-        var metadata: [String: AnyJSON] = [:]
-
-        if let displayName = googleUser.profile?.name.trimmingCharacters(in: .whitespacesAndNewlines),
-           !displayName.isEmpty {
-            metadata["full_name"] = .string(displayName)
-            metadata["name"] = .string(displayName)
-        }
-
-        if let givenName = googleUser.profile?.givenName?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !givenName.isEmpty {
-            metadata["given_name"] = .string(givenName)
-        }
-
-        if let familyName = googleUser.profile?.familyName?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !familyName.isEmpty {
-            metadata["family_name"] = .string(familyName)
-        }
-
-        if let imageUrl = googleUser.profile?.imageURL(withDimension: 256)?.absoluteString,
-           !imageUrl.isEmpty {
-            metadata["avatar_url"] = .string(imageUrl)
-            metadata["picture"] = .string(imageUrl)
-        }
-
-        guard !metadata.isEmpty else { return false }
-
-        do {
-            let updatedUser = try await client.auth.update(user: UserAttributes(data: metadata))
-            guard AuthTransitionPolicy.allowsOAuthMetadataMutation(
-                transitionIsCurrent:
-                    currentSessionMatchesAuthTransition(transition),
-                transitionExpectedUserID:
-                    authTransitionCoordinator.active?.expectedSession?.userID,
-                currentSessionUserID: client.auth.currentSession?.user.id,
-                expectedUserID: expectedUserID,
-                updatedUserID: updatedUser.id
-            ) else {
-                return false
-            }
-            currentUser = updatedUser
-            MerianLog.auth.debug("Google profile metadata persisted for public author identity.")
             return true
         } catch {
-            MerianLog.auth.debug(
-                "Google profile metadata update failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-            return false
-        }
-    }
-
-    @discardableResult
-    private func updateAppleUserMetadataIfAvailable(
-        from components: PersonNameComponents?,
-        expectedUserID: UUID,
-        transition: AuthTransitionToken
-    ) async -> Bool {
-        guard AuthTransitionPolicy.allowsOAuthMetadataMutation(
-            transitionIsCurrent:
-                currentSessionMatchesAuthTransition(transition),
-            transitionExpectedUserID:
-                authTransitionCoordinator.active?.expectedSession?.userID,
-            currentSessionUserID: client.auth.currentSession?.user.id,
-            expectedUserID: expectedUserID
-        ) else {
-            return false
-        }
-        guard let components else { return false }
-
-        var metadata: [String: AnyJSON] = [:]
-        if let displayName = formattedAppleDisplayName(from: components) {
-            metadata["full_name"] = .string(displayName)
-            metadata["name"] = .string(displayName)
-        }
-        if let givenName = components.givenName?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !givenName.isEmpty {
-            metadata["given_name"] = .string(givenName)
-        }
-        if let familyName = components.familyName?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !familyName.isEmpty {
-            metadata["family_name"] = .string(familyName)
-        }
-
-        guard !metadata.isEmpty else { return false }
-
-        do {
-            let updatedUser = try await client.auth.update(user: UserAttributes(data: metadata))
-            guard AuthTransitionPolicy.allowsOAuthMetadataMutation(
-                transitionIsCurrent:
-                    currentSessionMatchesAuthTransition(transition),
-                transitionExpectedUserID:
-                    authTransitionCoordinator.active?.expectedSession?.userID,
-                currentSessionUserID: client.auth.currentSession?.user.id,
-                expectedUserID: expectedUserID,
-                updatedUserID: updatedUser.id
-            ) else {
+            guard !Task.isCancelled,
+                  !(error is CancellationError) else {
                 return false
             }
-            currentUser = updatedUser
-            MerianLog.auth.debug("Apple profile metadata persisted for public author identity.")
-            return true
-        } catch {
-            MerianLog.auth.debug(
-                "Apple profile metadata update failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
+            switch provider {
+            case .apple:
+                MerianLog.auth.debug(
+                    "Apple profile metadata update failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                )
+            case .google:
+                MerianLog.auth.debug(
+                    "Google profile metadata update failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                )
+            }
             return false
         }
     }
 
-    private func formattedAppleDisplayName(from components: PersonNameComponents) -> String? {
-        let formatter = PersonNameComponentsFormatter()
-        formatter.style = .medium
-
-        let formatted = formatter.string(from: components)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if !formatted.isEmpty { return formatted }
-
-        let fallbackParts = [
-            components.givenName,
-            components.familyName
-        ]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        guard !fallbackParts.isEmpty else { return nil }
-        return fallbackParts.joined(separator: " ")
+    private func recoverOAuthSignInFailureIfNeeded(
+        observedSessionMutation: Bool,
+        sourceSession: AuthTransitionSession?,
+        ownedBy transition: AuthTransitionToken
+    ) async {
+        guard AuthTransitionPolicy.shouldClearOAuthSessionAfterFailure(
+            observedSessionMutation: observedSessionMutation,
+            sourceSession: sourceSession,
+            currentSession: transitionSession(
+                from: oauthSessionService.currentSession()?.user
+            )
+        ) else {
+            return
+        }
+        await clearLocalSessionAfterAuthFailure(
+            ownedBy: transition,
+            entryPolicy: .completeMutatedOAuthSession
+        )
     }
 
     private func schedulePublicAuthorIdentityRefreshIfNeeded(for user: User) {
-        guard !TestExecutionCoordinator.isRunningTests,
-              !isAuthTransitionInProgress,
-              !user.isAnonymous else { return }
-
-        let userId = user.id.uuidString.lowercased()
-        guard userId != lastPublicAuthorIdentityRefreshUserId else { return }
-        if publicAuthorIdentityRefreshTaskUserId == userId {
-            return
-        }
-
-        cancelPublicAuthorIdentityRefreshTask()
-        let taskId = UUID()
-        publicAuthorIdentityRefreshTaskId = taskId
-        publicAuthorIdentityRefreshTaskUserId = userId
-        publicAuthorIdentityRefreshTask = Task { [weak self] in
-            await self?.refreshPublicAuthorIdentityForRestoredSession(
-                userId: userId,
-                taskId: taskId
-            )
-        }
-    }
-
-    private func refreshPublicAuthorIdentityForRestoredSession(
-        userId: String,
-        taskId: UUID
-    ) async {
-        defer {
-            if publicAuthorIdentityRefreshTaskId == taskId {
-                publicAuthorIdentityRefreshTask = nil
-                publicAuthorIdentityRefreshTaskId = nil
-                publicAuthorIdentityRefreshTaskUserId = nil
-            }
-        }
-        guard let expectedUserID = UUID(uuidString: userId),
-              let accountWorkLease = try? beginUnownedAccountBoundWork(
-                expectedUserID: expectedUserID
-              ) else {
-            return
-        }
-        defer { finishAccountBoundWork(accountWorkLease) }
-
-        guard !Task.isCancelled else { return }
-        _ = await completePendingGhostProfileMergeIfNeeded(
-            expectedTargetUserId: userId
+        publicAuthorIdentityRefreshCoordinator.scheduleIfNeeded(
+            for: AuthTransitionSession(
+                userID: user.id,
+                isAnonymous: user.isAnonymous
+            ),
+            dependencies: publicAuthorIdentityRefreshDependencies()
         )
-        guard !Task.isCancelled,
-              isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
-            return
-        }
-        guard await refreshPublicAuthorIdentity(
-            expectedUserID: expectedUserID
-        ) else { return }
-        guard !Task.isCancelled,
-              isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
-            return
-        }
-        guard currentUser?.id.uuidString.lowercased() == userId else { return }
-
-        lastPublicAuthorIdentityRefreshUserId = userId
-        publishPublicAuthorIdentityChanged(previousUserId: nil, currentUserId: userId)
     }
 
-    private func cancelPublicAuthorIdentityRefreshTask() {
-        publicAuthorIdentityRefreshTask?.cancel()
-        publicAuthorIdentityRefreshTask = nil
-        publicAuthorIdentityRefreshTaskId = nil
-        publicAuthorIdentityRefreshTaskUserId = nil
-    }
-
-    private func publishPublicAuthorIdentityChanged(previousUserId: String?, currentUserId: String) {
-        AppDIContainer.shared.appEventPublisher.send(
-            .publicAuthorIdentityChanged(
-                previousUserId: previousUserId?.lowercased(),
-                currentUserId: currentUserId.lowercased()
+    private func publicAuthorIdentityRefreshDependencies()
+        -> PublicAuthorIdentityRefreshDependencies {
+        let remoteService = ghostProfileMergeRemoteService
+        return PublicAuthorIdentityRefreshDependencies(
+            session: PublicAuthorRefreshSessionBoundary(
+                isTestExecution: {
+                    TestExecutionCoordinator.isRunningTests
+                },
+                hasActiveTransition: { [weak self] in
+                    self?.isAuthTransitionInProgress ?? true
+                },
+                currentPublishedUserID: { [weak self] in
+                    self?.currentUser?.id
+                },
+                transitionOwnsExpectedUser: { [weak self] transition, userID in
+                    guard let self else { return false }
+                    return self.ownsAuthTransition(transition)
+                        && self.currentSessionMatchesAuthTransition(transition)
+                        && self.client.auth.currentSession?.user.id == userID
+                },
+                beginUnownedAccountWork: { [weak self] userID in
+                    guard let self else { return nil }
+                    return try? self.beginUnownedAccountBoundWork(
+                        expectedUserID: userID
+                    )
+                },
+                finishAccountWork: { [weak self] lease in
+                    self?.finishAccountBoundWork(lease)
+                },
+                accountWorkIsCurrent: { [weak self] lease in
+                    self?.isAccountBoundWorkLeaseCurrent(lease) ?? false
+                }
+            ),
+            operations: PublicAuthorRefreshOperationBoundary(
+                completePendingGhostMerges: { [weak self] userID in
+                    guard let self else { return }
+                    _ = await self.ghostProfileMergeCoordinator.completePendingHandoffs(
+                        expectedTargetUserID: userID,
+                        dependencies: self.ghostProfileMergeDependencies()
+                    )
+                },
+                refreshRemoteIdentity: {
+                    try await remoteService.refreshIdentity()
+                }
+            ),
+            events: PublicAuthorRefreshEventBoundary(
+                publishIdentityChanged: { previousUserID, currentUserID in
+                    SupabasePublicAuthorRefreshLiveEffects
+                        .publishIdentityChanged(
+                            previousUserID: previousUserID,
+                            currentUserID: currentUserID
+                        )
+                }
+            ),
+            diagnostics: PublicAuthorRefreshDiagnostics(
+                reportRefreshFailure: { error in
+                    SupabasePublicAuthorRefreshLiveEffects
+                        .reportRefreshFailure(error)
+                }
             )
         )
     }
 
-    private func getRootViewController() -> UIViewController? {
-        guard let screen = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return nil }
-        return screen.windows.first(where: { $0.isKeyWindow })?.rootViewController
-    }
-
-    /// Shared key-window anchor used by both ASWebAuthentication and ASAuthorizationController delegates.
-    private func keyWindowAnchor() -> ASPresentationAnchor? {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        if let keyWindow = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
-            return keyWindow
-        }
-        if let firstWindow = scenes.flatMap(\.windows).first {
-            return firstWindow
-        }
-        if let windowScene = scenes.first {
-            return ASPresentationAnchor(windowScene: windowScene)
-        }
-
-        MerianLog.auth.error("No UIWindowScene available for authentication presentation.")
-        return nil
-    }
-
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        keyWindowAnchor() ?? ASPresentationAnchor()
-    }
-
-    // MARK: - Cryptographic Utilities
-
-    private func randomNonceString(length: Int = 32) throws -> String {
-        precondition(length > 0)
-        let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._")
-        let maxValidValue = UInt8(charset.count * (256 / charset.count))
-
-        var nonce = ""
-        nonce.reserveCapacity(length)
-
-        while nonce.count < length {
-            var buffer = [UInt8](repeating: 0, count: length - nonce.count)
-            let errorCode = SecRandomCopyBytes(kSecRandomDefault, buffer.count, &buffer)
-            if errorCode != errSecSuccess {
-                throw AppleSignInBootstrapError.nonceGenerationFailed(errorCode)
-            }
-            for byte in buffer where byte < maxValidValue {
-                nonce.append(charset[Int(byte) % charset.count])
-                if nonce.count == length { break }
-            }
-        }
-
-        return nonce
-    }
-
-    private func sha256(_ input: String) -> String {
-        let hashedData = SHA256.hash(data: Data(input.utf8))
-        return hashedData.compactMap { String(format: "%02x", $0) }.joined()
-    }
-}
-
-// MARK: - ASAuthorizationControllerDelegate
-
-extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
-
-    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        keyWindowAnchor() ?? ASPresentationAnchor()
-    }
-
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        guard let attempt = activeAppleSignInAttempt,
-              AuthTransitionPolicy.shouldAcceptAppleSignInCallback(
-                activeTransitionID: activeAuthTransition?.token.id,
-                attemptTransitionID: attempt.transition.id,
-                controllerMatches: controller === attempt.controller
-              ) else {
-            MerianLog.auth.error(
-                "Ignored a stale Apple Sign-In callback that no longer owns the authentication transition."
-            )
-            return
-        }
-        activeAppleSignInAttempt = nil
-        let transition = attempt.transition
-
-        guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-            finishAuthTransition(transition)
-            return
-        }
-
-        let nonce = attempt.nonce
-        guard let appleIDToken = appleIDCredential.identityToken else {
-            MerianLog.auth.debug("Apple Sign-In: unable to fetch identity token.")
-            finishAuthTransition(transition)
-            return
-        }
-        guard let appleAuthorizationCode = appleIDCredential.authorizationCode else {
-            MerianLog.auth.error("Apple Sign-In: unable to fetch the authorization code required for durable token revocation.")
-            finishAuthTransition(transition)
-            return
-        }
-        guard let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
-            MerianLog.auth.debug("Apple Sign-In: failed to serialize token string.")
-            finishAuthTransition(transition)
-            return
-        }
-        guard let authorizationCodeString = String(
-            data: appleAuthorizationCode,
-            encoding: .utf8
-        ), !authorizationCodeString.isEmpty else {
-            MerianLog.auth.error("Apple Sign-In: failed to serialize the authorization code required for durable token revocation.")
-            finishAuthTransition(transition)
-            return
-        }
-        let credentialRegistrationId = UUID()
-
-        Task {
-            defer { self.finishAuthTransition(transition) }
-            let sourceSession = self.activeAuthTransition?.sourceSession
-            var didInstallAppleSession = false
-            do {
-                let completion = try await self.finalizeOAuthLogin(
-                    provider: .apple,
-                    idToken: idTokenString,
-                    accessToken: nil,
-                    nonce: nonce,
-                    transition: transition,
-                    didMutateSession: {
-                        didInstallAppleSession = true
-                    }
-                )
-                _ = try await self.verifiedExpectedSession(for: transition)
-                try await self.registerAppleRevocationCredential(
-                    registrationId: credentialRegistrationId,
-                    authorizationCode: authorizationCodeString,
-                    identityToken: idTokenString,
-                    expectedUserID: completion.session.user.id,
-                    ownedBy: transition
-                )
-                let didPersistAppleMetadata = await updateAppleUserMetadataIfAvailable(
-                    from: appleIDCredential.fullName,
-                    expectedUserID: completion.session.user.id,
-                    transition: transition
-                )
-                let session = try await verifiedExpectedSession(
-                    for: transition
-                )
-                currentUser = session.user
-                isAuthenticated = true
-                _ = updateAuthTransition(transition, phase: .bindingPurchases)
-                _ = await ensureTelemetryLinkedWhenSafe(
-                    for: session.user,
-                    ownedBy: transition
-                )
-                guard currentSessionMatchesAuthTransition(transition),
-                      RevenueCatManager.shared.linkedAuthUserID
-                        == session.user.id,
-                      RevenueCatManager.shared.isIdentityReady else {
-                    throw SupabaseAuthTransitionError.signOutSessionChanged
-                }
-                await EntitlementManager.shared.beginSession(
-                    userID: session.user.id,
-                    client: client,
-                    authTransitionOwner: transition
-                )
-                _ = try await verifiedExpectedSession(for: transition)
-                if didPersistAppleMetadata {
-                    _ = await refreshPublicAuthorIdentity(
-                        expectedUserID: session.user.id,
-                        ownedBy: transition
-                    )
-                }
-                _ = updateAuthTransition(transition, phase: .finalizing)
-                _ = try await verifiedExpectedSession(for: transition)
-                publishPublicAuthorIdentityChanged(
-                    previousUserId: completion.previousUserId,
-                    currentUserId: session.user.id.uuidString
-                )
-                KeychainManager.shared.set(true, forKey: KeychainKeys.hasAuthenticatedOAuth)
-                MerianLog.auth.debug("Apple Sign-In complete.")
-            } catch {
-                if AuthTransitionPolicy.shouldClearOAuthSessionAfterFailure(
-                    observedSessionMutation: didInstallAppleSession,
-                    sourceSession: sourceSession,
-                    currentSession: self.transitionSession(
-                        from: self.client.auth.currentSession?.user
-                    )
-                ) {
-                    await self.clearLocalSessionAfterAuthFailure(
-                        ownedBy: transition
-                    )
-                }
-                MerianLog.auth.debug(
-                    "Apple Sign-In failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-                )
-            }
-        }
-    }
-
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        guard let attempt = activeAppleSignInAttempt,
-              AuthTransitionPolicy.shouldAcceptAppleSignInCallback(
-                activeTransitionID: activeAuthTransition?.token.id,
-                attemptTransitionID: attempt.transition.id,
-                controllerMatches: controller === attempt.controller
-              ) else {
-            return
-        }
-        activeAppleSignInAttempt = nil
-        finishAuthTransition(attempt.transition)
-        MerianLog.auth.debug(
-            "Apple Sign-In failed before completion; kind=\(MerianLog.errorKind(error), privacy: .public)"
-        )
-    }
 }

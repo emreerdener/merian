@@ -31,7 +31,7 @@ struct SpeciesHydrationArchitectureTests {
     @Test func inferenceAndThumbnailRecoveryReuseTheSharedOwner() throws {
         let root = try repositoryRoot()
         let inferenceFile = root.appendingPathComponent(
-            "apps/ios/Merian/Core/AI/InferenceEngine.swift"
+            "apps/ios/Merian/Core/AI/Inference/Hydration/InferenceSpeciesHydrationCoordinator.swift"
         )
         let thumbnailFile = root.appendingPathComponent(
             "apps/ios/Merian/Core/Data/Images/ScanThumbnailBackfillActor.swift"
@@ -58,9 +58,10 @@ struct SpeciesHydrationArchitectureTests {
         let inferenceSource = try contents(of: inferenceFile)
         #expect(
             inferenceSource.contains(
-                "let descriptionText = reference.overview"
+                "updated.wikipediaOverview = overview"
             )
         )
+        #expect(inferenceSource.contains(".fetchWikipediaReference(for: species)"))
         let thumbnailSource = try contents(of: thumbnailFile)
         #expect(
             thumbnailSource.contains(

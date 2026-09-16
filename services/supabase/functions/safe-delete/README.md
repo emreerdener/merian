@@ -131,16 +131,16 @@ two v2 values in separate recovery and acknowledgement domains; neither hash can
 be replayed through the legacy v1 namespace or through the other v2 operation.
 For legacy v1, `500`, transport failure, public-recovery `404`, or unknown proof
 never proves that intake failed: the database mutation may still be committing,
-so the client retains both proof and barrier. In v2, an unknown proof proves no
-commit because destructive intake requires the preparation. If another device
-commits first, the deletion-job insert trigger converts only still-live
-preparations into receipts. Expired proof hashes move to a permanent
-identity-free tombstone and can never be reused. An expired preparation with no
-committed deletion returns `not_committed`; one retired during another device's
-deletion commit returns the distinct fail-closed
-`410 account_deletion_recovery_preparation_expired`, which does not authorize
-local erasure. Only a 180-day capability actually bound to a job returns
-`410 account_deletion_recovery_expired`; that positive match permits
+so the client retains both proof and barrier. Outside the installed mixed-domain
+compatibility state below, an unknown v2 proof proves no v2 commit because
+destructive intake requires the preparation. If another device commits first,
+the deletion-job insert trigger converts only still-live preparations into
+receipts. Expired proof hashes move to a permanent identity-free tombstone and
+can never be reused. An expired preparation with no committed deletion returns
+`not_committed`; one retired during another device's deletion commit returns the
+distinct fail-closed `410 account_deletion_recovery_preparation_expired`, which
+does not authorize local erasure. Only a 180-day capability actually bound to a
+job returns `410 account_deletion_recovery_expired`; that positive match permits
 conservative local erasure but not pre-cleanup inspection. Post-cleanup
 acknowledgement uses only the independent second proof, remains valid after
 expiry, and converts the row to a permanent replay receipt. Late duplicate
@@ -148,12 +148,20 @@ authenticated intake returns that permanent receipt without clearing
 acknowledgement or extending its original expiry. For an authenticated
 rejection, only explicit `409 purchase_continuity_pending` can authorize
 retirement. V2 first requires recovery to return `not_committed`; legacy
-rejection may retire directly. Independent v2 recovery may also prove no commit
-through `not_committed` or a genuinely unknown proof. iOS persists
+rejection may retire directly. Outside the installed mixed-domain compatibility
+state below, independent v2 recovery may also prove no commit through
+`not_committed` or a genuinely unknown proof. iOS persists
 `capability_rejection_retirement_pending`, then read-after-delete verifies
 removal of the unused proof before removing the marker. Relaunch from that phase
 performs no local sign-out or data purge. Pre-capability `intake_pending` and
 `cleanup_pending` markers remain supported for installed-client compatibility.
+When a proofless `intake_pending` marker must replay, iOS persists the existing
+raw v1 proof format before calling legacy intake; it never pairs the v1 endpoint
+with a v2 envelope. A proofless `capability_prepared_pending` marker is safe to
+cancel because destructive commit had not started. If an earlier client already
+persisted a mixed v2 envelope around v1 intake, the native recovery owner treats
+a v2 unknown result as inconclusive and checks the v1 recovery route. An unknown
+result there retains the proof and barrier.
 
 This response addition is not usable by older binaries that do not decode the
 boolean. They can accept the deletion response while silently omitting Apple's
@@ -330,8 +338,18 @@ cannot invoke legacy intake or v2 commit.
 
 That cross-language guard reads these native owners:
 
-- `SupabaseManager`
+- `AccountDeletionCoordinator`
+- `AccountDeletionRecoveryCoordinator`
 - `AccountDeletionWorkflow`
+- `AppleOAuthAuthorizationLiveProvider` as the raw Apple credential mapper
+- `OAuthProviderSignInCoordinator` as the provider callback/task owner
+- `AppleOAuthCredentialRegistrationService` as the strict receipt boundary
+- `AppleOAuthCredentialRegistrationService+Live` as the sole registration
+  Function DTO and invocation owner
+- `OAuthSignInCoordinator`
+- `OAuthSignInWorkflow`
+- `SupabaseManager` as the live Supabase session and exact-session registration
+  assembly
 - `Core/Security/AccountDeletion/Models/AccountDeletionLocalRecoveryState.swift`
 - `Core/Security/AccountDeletion/Stores/AccountDeletionLocalCleanupStore.swift`
 - `Core/Security/AccountDeletion/Stores/AccountDeletionRecoveryCapabilityStore.swift`
@@ -345,7 +363,8 @@ for secret provisioning, rotation, client rollout, and production smokes.
 The iOS request methods live in
 `Core/Network/Endpoints/MerianNetworkClient+AccountDeletion.swift`; unchanged
 DTOs and pure receipt/proof validation have separate Core Network owners.
-Private transport stays in the client, while `SupabaseManager`,
+Private transport stays in the client. The two Auth deletion coordinators own
+runtime sequencing through injected effects; `SupabaseManager`,
 `Core/Security/AccountDeletion`, and the Settings adapter retain Auth
 transition, Keychain, durable recovery-phase, and local-cleanup authority. See
 the

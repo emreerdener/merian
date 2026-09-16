@@ -137,8 +137,9 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
     owners under `EnvironmentContext/`, the `AudioCaptureManager` facade plus
     focused recording/review controllers under `AudioCapture/`, and
     `SpectrogramActor`
-  - `Network/`: `MerianNetworkClient`, the live `SupabaseManager` orchestrator,
-    and `Auth/` value models, policies, and coordinators
+  - `Network/`: `MerianNetworkClient`, the live `SupabaseManager` Auth
+    facade/effect assembler, and `Auth/` value models, policies, and focused
+    coordinators
   - `Notifications/`: the stable push and app-icon-badge facades plus focused
     Models, Policies, Services, Coordination, and Badges owners for system
     notification effects and mutable lifecycle state

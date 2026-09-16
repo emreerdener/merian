@@ -1266,7 +1266,6 @@ struct InferenceArchitectureTests {
             "enqueueFlagReset(",
             "enqueueSpeciesPatch(",
             "reviewService.syncReview(mutation)",
-            "mutation.userReviewState",
             "dependencies.sendPostRefresh(postID)",
             "dependencies.processIdentificationUpdate(mutation.scanID)"
         ] {
@@ -1329,6 +1328,7 @@ struct InferenceArchitectureTests {
         }
         for token in [
             "BackgroundDatabaseActor(",
+            "userReviewState: mutation.userReviewState",
             "ExploreShareStateStore.sharedPostId(for:",
             "AppDIContainer.shared.appEventPublisher",
             "AppDIContainer.shared.scanMilestoneCoordinator",

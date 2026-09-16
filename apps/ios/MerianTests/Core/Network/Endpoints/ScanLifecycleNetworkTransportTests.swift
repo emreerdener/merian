@@ -34,9 +34,10 @@ struct ScanLifecycleNetworkTransportTests {
                 try await testCase.invoke(fixture.client)
                 Issue.record("A handler denial must not become success")
             } catch MerianError.httpError(let actualStatus, _) {
-                #expect(status != 401 && actualStatus == status)
+                #expect(status != 401 || testCase.kind == .bulk)
+                #expect(actualStatus == status)
             } catch MerianError.invalidResponse {
-                #expect(status == 401)
+                #expect(status == 401 && testCase.kind != .bulk)
             } catch {
                 Issue.record("Unexpected error type: \(type(of: error))")
             }

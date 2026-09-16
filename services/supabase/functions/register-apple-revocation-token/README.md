@@ -15,6 +15,22 @@ after Supabase installs the permanent Apple session. The endpoint:
 6. writes a 24-hour idempotency receipt so a lost HTTP response can be retried
    without attempting a second code exchange.
 
+On iOS, `OAuthSignInWorkflow` owns the bounded retry with the same registration
+UUID, and `OAuthSignInCoordinator` requires successful registration before
+metadata, purchase binding, entitlement, and final Auth publication. It rejects
+credentials whose provider does not match the owned OAuth transition, missing
+Apple registration, or an Apple-only registration effect supplied to Google
+before session mutation. `AppleOAuthAuthorizationLiveProvider` retains the raw
+Apple credential and maps its one-use code into provider-neutral registration
+evidence; `OAuthProviderSignInCoordinator` owns callback/task admission;
+`AppleOAuthCredentialRegistrationService+Live` alone owns the private wire DTOs,
+lowercased registration UUID, and live authenticated Function invocation; its
+provider-neutral service validates the exact registered receipt. The adapter
+performs exactly one authenticated Function invocation per service call. It owns
+neither retry policy nor asynchronous task state; `OAuthSignInWorkflow` remains
+the retry owner. `SupabaseManager` injects only exact-session completion around
+that service.
+
 If Apple issues a refresh token but the Vault transaction reports failure, the
 endpoint first rechecks the token-free receipt to reconcile a committed
 transaction whose response was lost. An absent or unreadable receipt triggers

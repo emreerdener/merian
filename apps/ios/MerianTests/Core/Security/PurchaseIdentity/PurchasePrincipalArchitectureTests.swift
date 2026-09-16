@@ -21,6 +21,11 @@ struct PurchasePrincipalArchitectureTests {
                 "Models/PurchasePrincipalModels.swift"
             )
         )
+        let sessionModels = try source(
+            at: purchaseRoot.appendingPathComponent(
+                "Models/PurchaseIdentitySessionModels.swift"
+            )
+        )
         let wireModels = try source(
             at: purchaseRoot.appendingPathComponent(
                 "Models/PurchasePrincipalWireModels.swift"
@@ -56,6 +61,46 @@ struct PurchasePrincipalArchitectureTests {
                 "Services/PurchasePrincipalRemoteService+Live.swift"
             )
         )
+        let legacyRemoteService = try source(
+            at: purchaseRoot.appendingPathComponent(
+                "Services/LegacyPurchaseHandoffRemoteService.swift"
+            )
+        )
+        let profileService = try source(
+            at: purchaseRoot.appendingPathComponent(
+                "Services/LegacyPurchaseIdentityProfileService.swift"
+            )
+        )
+        let liveProfileService = try source(
+            at: purchaseRoot.appendingPathComponent(
+                "Services/LegacyPurchaseIdentityProfileService+Live.swift"
+            )
+        )
+        let sessionDependencies = try source(
+            at: purchaseRoot.appendingPathComponent(
+                "Coordinators/PurchaseIdentitySessionCoordinationDependencies.swift"
+            )
+        )
+        let sessionCoordinator = try source(
+            at: purchaseRoot.appendingPathComponent(
+                "Coordinators/PurchaseIdentitySessionCoordinator.swift"
+            )
+        )
+        let readinessCoordinator = try source(
+            at: purchaseRoot.appendingPathComponent(
+                "Coordinators/PurchaseIdentityReadinessCoordinator.swift"
+            )
+        )
+        let handoffPreparationCoordinator = try source(
+            at: purchaseRoot.appendingPathComponent(
+                "Coordinators/PurchaseIdentityHandoffPreparationCoordinator.swift"
+            )
+        )
+        let liveLegacyRemoteService = try source(
+            at: purchaseRoot.appendingPathComponent(
+                "Services/LegacyPurchaseHandoffRemoteService+Live.swift"
+            )
+        )
         let secureRandom = try source(
             at: purchaseRoot.appendingPathComponent(
                 "Services/PurchasePrincipalSecureRandom.swift"
@@ -78,6 +123,10 @@ struct PurchasePrincipalArchitectureTests {
             ("enum PurchasePrincipalResolverError", models),
             ("struct PrincipalRotationPreparation", models),
             ("struct PrincipalRotationCancellation", models),
+            ("struct PurchaseIdentitySessionContext", sessionModels),
+            ("struct PurchaseIdentitySessionSnapshot", sessionModels),
+            ("struct PurchaseIdentityProviderState", sessionModels),
+            ("struct PurchaseIdentityAccountWorkLease", sessionModels),
             ("enum PurchasePrincipalProtocol", wireModels),
             ("struct PurchasePrincipalResolveResponse", wireModels),
             ("struct PrincipalRotationPrepareResponse", wireModels),
@@ -92,6 +141,67 @@ struct PurchasePrincipalArchitectureTests {
             ("struct PurchasePrincipalSecureStateStore", secureStateStore),
             ("protocol PurchasePrincipalSecureStore", secureStore),
             ("struct PurchasePrincipalRemoteService", remoteService),
+            (
+                "struct LegacyPurchaseHandoffRemoteService",
+                legacyRemoteService
+            ),
+            (
+                "struct LegacyPurchaseIdentityHandoffPreparation",
+                legacyRemoteService
+            ),
+            ("struct LegacyPurchaseIdentityProfile", profileService),
+            (
+                "struct LegacyPurchaseIdentityProfileService",
+                profileService
+            ),
+            (
+                "struct PurchaseIdentitySessionStateBoundary",
+                sessionDependencies
+            ),
+            (
+                "struct PurchaseIdentitySessionProviderBoundary",
+                sessionDependencies
+            ),
+            (
+                "struct PurchaseIdentitySessionHandoffBoundary",
+                sessionDependencies
+            ),
+            (
+                "struct PurchaseIdentityEntitlementBoundary",
+                sessionDependencies
+            ),
+            (
+                "struct PurchaseIdentitySessionDependencies",
+                sessionDependencies
+            ),
+            (
+                "class PurchaseIdentitySessionCoordinator",
+                sessionCoordinator
+            ),
+            (
+                "struct PurchaseIdentityReadinessCoordinator",
+                readinessCoordinator
+            ),
+            (
+                "enum PurchaseHandoffPreparationError",
+                handoffPreparationCoordinator
+            ),
+            (
+                "struct PurchaseHandoffPreparationJournal",
+                handoffPreparationCoordinator
+            ),
+            (
+                "struct PurchaseHandoffPreparationOperations",
+                handoffPreparationCoordinator
+            ),
+            (
+                "struct PurchaseHandoffPreparationDependencies",
+                handoffPreparationCoordinator
+            ),
+            (
+                "struct PurchaseHandoffPreparationCoordinator",
+                handoffPreparationCoordinator
+            ),
             ("enum PurchasePrincipalSecureRandom", secureRandom),
             ("class PurchasePrincipalResolver", resolver)
         ]
@@ -109,6 +219,16 @@ struct PurchasePrincipalArchitectureTests {
         #expect(!resolver.contains("functions.invoke"))
         #expect(!resolver.contains("KeychainManager.shared"))
         #expect(liveRemoteService.contains("import Supabase"))
+        #expect(liveLegacyRemoteService.contains("import Supabase"))
+        #expect(liveProfileService.contains("import Supabase"))
+        #expect(!liveProfileService.contains(".shared"))
+        #expect(liveProfileService.contains("private struct LegacyPurchaseIdentityProfileDTO"))
+        #expect(liveProfileService.contains(".from(\"users\")"))
+        #expect(
+            liveProfileService.contains(
+                "email,public_username,public_author_name,"
+            )
+        )
         #expect(
             occurrenceCount(
                 of: "client.functions.invoke(",
@@ -136,6 +256,68 @@ struct PurchasePrincipalArchitectureTests {
                 liveRemoteService.contains("private struct \(payload)")
             )
         }
+        #expect(
+            occurrenceCount(
+                of: "client.functions.invoke(",
+                in: liveLegacyRemoteService
+            ) == 3
+        )
+        #expect(
+            occurrenceCount(
+                of: "\"transfer-signout-purchases\"",
+                in: liveLegacyRemoteService
+            ) == 3
+        )
+        for payload in [
+            "LegacyPurchaseHandoffPreparePayload",
+            "LegacyPurchaseHandoffPrepareResponse",
+            "LegacyPurchaseHandoffContinuePayload",
+            "LegacyPurchaseHandoffOperationResponse",
+            "LegacyPurchaseHandoffBindResponse",
+            "LegacyPurchaseHandoffErrorPayload"
+        ] {
+            #expect(
+                liveLegacyRemoteService.contains("private struct \(payload)")
+            )
+        }
+        for operation in ["prepare", "bind", "complete", "cancel"] {
+            #expect(liveLegacyRemoteService.contains("\"\(operation)\""))
+        }
+        for forbiddenDependency in [
+            "import Supabase", "functions.invoke", "KeychainManager",
+            "RevenueCatManager", "EntitlementManager", "MerianLog"
+        ] {
+            #expect(!legacyRemoteService.contains(forbiddenDependency))
+        }
+        for coordinatorOwner in [
+            sessionDependencies,
+            sessionCoordinator,
+            readinessCoordinator,
+            handoffPreparationCoordinator,
+            profileService
+        ] {
+            for forbiddenDependency in [
+                "import Supabase", "RevenueCatManager", "EntitlementManager",
+                "KeychainManager", "MerianLog", ".shared"
+            ] {
+                #expect(!coordinatorOwner.contains(forbiddenDependency))
+            }
+        }
+        #expect(sessionCoordinator.contains("Task<PurchasePrincipalBinding?, Never>"))
+        #expect(sessionCoordinator.contains("private struct ResolutionKey"))
+        #expect(
+            sessionDependencies.contains(
+                "func loadAndPublishPendingState() throws -> Bool"
+            )
+        )
+        #expect(sessionDependencies.contains("let pending = try loadPending()"))
+        #expect(sessionDependencies.contains("setPending(pending)"))
+        #expect(
+            sessionCoordinator.contains(
+                "dependencies.handoff.setPending(true)"
+            )
+        )
+        #expect(readinessCoordinator.contains("let sessionCoordinator:"))
 
         for deterministicOwner in [models, wireModels, policies] {
             for forbiddenDependency in [
@@ -159,20 +341,109 @@ struct PurchasePrincipalArchitectureTests {
                 separator: "\n",
                 omittingEmptySubsequences: false
             ).count
-            #expect(lineCount <= 250, "\(file.lastPathComponent) has \(lineCount) lines")
+            #expect(
+                lineCount <= 250,
+                "\(file.lastPathComponent) has \(lineCount) lines"
+            )
         }
         let resolverLineCount = resolver.split(
             separator: "\n",
             omittingEmptySubsequences: false
         ).count
         #expect(resolverLineCount <= 300)
+
+        let legacyRemoteServiceTests = try source(
+            at: root.appendingPathComponent(
+                "apps/ios/MerianTests/Core/Security/PurchaseIdentity/LegacyPurchaseHandoffRemoteServiceTests.swift"
+            )
+        )
+        let sessionCoordinatorTests = try source(
+            at: root.appendingPathComponent(
+                "apps/ios/MerianTests/Core/Security/PurchaseIdentity/PurchaseIdentitySessionCoordinatorTests.swift"
+            )
+        )
+        let readinessCoordinatorTests = try source(
+            at: root.appendingPathComponent(
+                "apps/ios/MerianTests/Core/Security/PurchaseIdentity/PurchaseIdentityReadinessCoordinatorTests.swift"
+            )
+        )
+        let handoffPreparationCoordinatorTests = try source(
+            at: root.appendingPathComponent(
+                "apps/ios/MerianTests/Core/Security/PurchaseIdentity/PurchaseIdentityHandoffPreparationCoordinatorTests.swift"
+            )
+        )
+        let profileServiceTests = try source(
+            at: root.appendingPathComponent(
+                "apps/ios/MerianTests/Core/Security/PurchaseIdentity/LegacyPurchaseIdentityProfileServiceTests.swift"
+            )
+        )
+        let aggregateTests = try source(
+            at: root.appendingPathComponent(
+                "apps/ios/MerianTests/Core/Network/SupabaseManagerTests.swift"
+            )
+        )
+        for testName in [
+            "testInjectedOperationsPreserveTypedHandoffInputs",
+            "testTerminalProofClassifierRejectsTransientAndUnknownFailures"
+        ] {
+            #expect(legacyRemoteServiceTests.contains("func \(testName)("))
+        }
+        #expect(
+            sessionCoordinatorTests.contains(
+                "@Suite(\"Purchase Identity Session Coordinator\")"
+            )
+        )
+        #expect(
+            sessionCoordinatorTests.contains(
+                "sameContextSharesOneResolutionTask"
+            )
+        )
+        #expect(
+            sessionCoordinatorTests.contains(
+                "supersededResolutionCannotPublishOverTheNewerTask"
+            )
+        )
+        #expect(
+            readinessCoordinatorTests.contains(
+                "staleGenerationAfterEntitlementFailsFinalFence"
+            )
+        )
+        #expect(
+            handoffPreparationCoordinatorTests.contains(
+                "stableRotationPersistsDraftBeforeRemoteAndPreparedAfter"
+            )
+        )
+        #expect(
+            handoffPreparationCoordinatorTests.contains(
+                "cancellationAfterRemoteStillPersistsPreparedCheckpoint"
+            )
+        )
+        #expect(
+            profileServiceTests.contains(
+                "injectedFetchPreservesTheExactAccountAndProjection"
+            )
+        )
+        #expect(
+            !aggregateTests.contains(
+                "testPendingSignOutPurchaseProofIsDiscardedOnlyForTerminalCodes"
+            )
+        )
     }
 
     private static let ownerPaths: Set<String> = [
+        "Coordinators/PurchaseIdentityHandoffPreparationCoordinator.swift",
+        "Coordinators/PurchaseIdentityReadinessCoordinator.swift",
+        "Coordinators/PurchaseIdentitySessionCoordinationDependencies.swift",
+        "Coordinators/PurchaseIdentitySessionCoordinator.swift",
         "Models/PurchaseIdentityHandoffModels.swift",
+        "Models/PurchaseIdentitySessionModels.swift",
         "Models/PurchasePrincipalModels.swift",
         "Models/PurchasePrincipalWireModels.swift",
         "Policies/PurchasePrincipalPolicies.swift",
+        "Services/LegacyPurchaseHandoffRemoteService+Live.swift",
+        "Services/LegacyPurchaseHandoffRemoteService.swift",
+        "Services/LegacyPurchaseIdentityProfileService+Live.swift",
+        "Services/LegacyPurchaseIdentityProfileService.swift",
         "Services/PurchasePrincipalRemoteService+Live.swift",
         "Services/PurchasePrincipalRemoteService.swift",
         "Services/PurchasePrincipalSecureRandom.swift",

@@ -50,6 +50,30 @@ Species pages are server-rendered from the existing privacy-safe
 with complete attribution and intentionally omit observations, Community
 sightings, user media, locations, and scan-specific data.
 
+## Public design direction
+
+The homepage uses a forest-green hero, confident display typography, warm
+surfaces, and decorative 3D artwork from the iOS asset catalog. The hero retains
+the existing app screenshot. Community cards render the current server-fetched
+public Explore projection, with poster-only media, species labels, and public
+author names. An empty feed shows an explicit empty state rather than sample
+observations. The fetch limit remains 24.
+
+The shared header, working mobile navigation, footer, and Mantine theme extend
+this identity to reference, share, and policy pages. Light/dark preferences
+remain supported; the homepage hero and footer keep their campaign colors.
+Footer links point only to existing routes or homepage anchors. The standalone
+concept's sample stories, save controls, and proposed library search are not
+part of the public app.
+
+The existing Turnstile-protected waitlist form appears once on the homepage,
+inside its closing invitation. Secondary pages open that same form in the header
+modal. When the App Store URL is configured, download actions replace the beta
+invitation. Public sharing and mandatory Scientific Data contribution remain
+separate concepts in the homepage copy, with a link to the current privacy
+choices. No data access, API, or deployment configuration changes accompany this
+design.
+
 ## Setup
 
 ```bash
@@ -360,7 +384,7 @@ preference.
 
 ## Public Routes
 
-- `/` — lightweight Naturebook public home.
+- `/` — Naturebook discovery homepage, public Explore grid, and beta invitation.
 - `/explore/post/[postId]` — public Explore share page. The MVP is read-only:
   anonymous visitors can view post context and send a support-email report from
   the centered action below the Taxonomy card, but cannot like, comment, reply,

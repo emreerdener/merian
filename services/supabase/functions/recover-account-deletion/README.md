@@ -44,9 +44,10 @@ local sign-out and erasure and show the manual Apple notice. The same expired
 proof remains valid for the post-cleanup `acknowledge` operation; only after
 that durable receipt may iOS retire its proof. An unknown legacy-v1 `404` never
 authorizes local cleanup or marker removal: an earlier authenticated request may
-still be committing after an ambiguous transport failure. An unknown v2 proof
-also cannot authorize cleanup, but it definitively permits unused proof/intent
-retirement because destructive commit requires a prior server preparation.
+still be committing after an ambiguous transport failure. Outside the installed
+mixed-domain compatibility state described below, an unknown v2 proof also
+cannot authorize cleanup but definitively permits unused proof/intent retirement
+because destructive commit requires a prior server preparation.
 
 Preparation expiry is not capability expiry. Expired v2 preparation hashes are
 first moved to the permanent private, identity-free
@@ -84,19 +85,46 @@ Deploy the migration and this route before distributing an iOS build that sends
 and receive the legacy response shape. Never remove the compatibility path until
 the old-client support window closes.
 
+Installed iOS recovery keeps that compatibility path in the same proof domain: a
+proofless pre-capability `intake_pending` marker may create only the raw
+protocol-v1 proof and then uses the legacy authenticated intake and public
+recovery operations. It must not persist a protocol-v2 envelope and submit its
+recovery value to the v1 route, because v1 and v2 use distinct hash domains. A
+proofless `capability_prepared_pending` marker is cancelled locally against the
+exact cached session; v2 preparation is non-destructive and its durable phase
+shows that commit had not begun.
+
+An earlier iOS binary could already have left a v2 envelope whose recovery value
+was submitted through legacy intake. At an installed intake/cleanup phase, a v2
+unknown response therefore triggers v1 recovery with that same value. A positive
+legacy match continues cleanup and v1 acknowledgement; another unknown or
+unavailable result retains the local proof and lifecycle barrier.
+
 Executable coverage lives in `handler_test.ts`,
 `../safe-delete/protocol_test.ts`, `../safe-delete/db_recovery_test.ts`,
 `../_tests/accountDeletionCoverage.test.ts`,
 `../_tests/accountDeletionMigrationContract.test.ts`, and
 `../../tests/account_deletion_security.sql`. The coverage contract reads the
-native `SupabaseManager` adapter, extracted `AccountDeletionWorkflow`,
+native fresh/recovery coordinators, extracted `AccountDeletionWorkflow`, and
 Security-owned recovery-state model, durable phase store, and capability store
-together. Moving any owner requires updating that cross-language path and
-running the focused Deno test in the same change. The native workflow tests own
-preflight, post-legacy-marker, post-preparation, and post-v2-marker-pair
-cancellation. This cross-language guard additionally pins cancellation between
-the prepared/intake marker pair and destructive commit, preserving written
-recovery evidence without dispatching that commit.
+together. It also reads `AppleOAuthAuthorizationLiveProvider`,
+`OAuthProviderSignInCoordinator`, `OAuthSignInCoordinator`,
+`OAuthSignInWorkflow`, both `AppleOAuthCredentialRegistrationService` owners,
+and `SupabaseManager`'s exact-session assembly to pin raw credential mapping,
+callback/task admission, Apple credential registration before metadata/purchase
+binding, provider/transition agreement, exact-token forwarding, strict receipt
+validation, sole Function DTO ownership, exactly one live invocation per service
+call, rejection of adapter-owned retry/asynchronous task/facade/alternate
+transport, and bounded same-request retry. Moving any owner requires updating
+that cross-language path and running the focused Deno test in the same change.
+The native workflow tests own preflight, post-legacy-marker, post-preparation,
+and post-v2-marker-pair cancellation. This cross-language guard additionally
+pins cancellation between the prepared/intake marker pair and destructive
+commit, preserving written recovery evidence without dispatching that commit.
+Store and coordinator tests also pin raw-v1 proof reuse across an ambiguous
+request/relaunch and the non-destructive cancellation of a proofless prepared
+marker, plus v1 lookup for an already-installed mixed envelope before
+restoration.
 
 On iOS, `Core/Network/Endpoints/MerianNetworkClient+AccountDeletion.swift` owns
 the public legacy/v2 recovery and acknowledgement calls. A fixed-route bridge

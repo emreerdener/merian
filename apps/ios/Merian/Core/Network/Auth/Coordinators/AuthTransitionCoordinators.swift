@@ -114,6 +114,7 @@ final class AuthTransitionSingleFlight {
     func run(
         operation: @escaping @MainActor () async -> Bool
     ) async -> Bool {
+        guard !Task.isCancelled else { return false }
         if let task {
             return await task.value
         }

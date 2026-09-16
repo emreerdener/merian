@@ -4,6 +4,34 @@ const managerUrl = new URL(
   "../../../../apps/ios/Merian/Core/Network/SupabaseManager.swift",
   import.meta.url,
 );
+const oauthCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/OAuthSignInCoordinator.swift",
+  import.meta.url,
+);
+const oauthIdentityTokenPolicyUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Policies/OAuthIdentityTokenPolicy.swift",
+  import.meta.url,
+);
+const oauthWorkflowUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/OAuthSignInWorkflow.swift",
+  import.meta.url,
+);
+const oauthModelsUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Models/OAuthSignInModels.swift",
+  import.meta.url,
+);
+const oauthSessionServiceUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Services/OAuthSessionService.swift",
+  import.meta.url,
+);
+const oauthSessionLiveServiceUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Services/OAuthSessionService+Live.swift",
+  import.meta.url,
+);
+const oauthCancellationTestsUrl = new URL(
+  "../../../../apps/ios/MerianTests/Core/Network/Auth/OAuthSignInCancellationTests.swift",
+  import.meta.url,
+);
 const ghostMergeStoreUrl = new URL(
   "../../../../apps/ios/Merian/Core/Security/GhostProfileMerge/Stores/GhostProfileMergeStore.swift",
   import.meta.url,
@@ -16,12 +44,44 @@ const ghostMergeWorkflowUrl = new URL(
   "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/GhostProfileMergeWorkflow.swift",
   import.meta.url,
 );
+const ghostMergeCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/GhostProfileMergeCoordinator.swift",
+  import.meta.url,
+);
+const ghostMergeDependenciesUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/GhostProfileMergeCoordinationDependencies.swift",
+  import.meta.url,
+);
+const publicAuthorRefreshCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/PublicAuthorIdentityRefreshCoordinator.swift",
+  import.meta.url,
+);
+const publicAuthorRefreshDependenciesUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/PublicAuthorIdentityRefreshCoordinationDependencies.swift",
+  import.meta.url,
+);
+const ghostMergeRemoteServiceUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/GhostProfileMerge/Services/GhostProfileMergeRemoteService.swift",
+  import.meta.url,
+);
+const ghostMergeLiveRemoteServiceUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/GhostProfileMerge/Services/GhostProfileMergeRemoteService+Live.swift",
+  import.meta.url,
+);
 const ghostMergePolicyTestsUrl = new URL(
   "../../../../apps/ios/MerianTests/Core/Network/Auth/GhostProfileMergePolicyTests.swift",
   import.meta.url,
 );
-const ghostMergeErrorAdapterTestsUrl = new URL(
-  "../../../../apps/ios/MerianTests/Core/Network/Auth/GhostProfileMergeEndpointErrorAdapterTests.swift",
+const ghostMergeCoordinatorTestsUrl = new URL(
+  "../../../../apps/ios/MerianTests/Core/Network/Auth/GhostProfileMergeCoordinatorTests.swift",
+  import.meta.url,
+);
+const publicAuthorRefreshTestsUrl = new URL(
+  "../../../../apps/ios/MerianTests/Core/Network/Auth/PublicAuthorIdentityRefreshCoordinatorTests.swift",
+  import.meta.url,
+);
+const ghostMergeRemoteServiceTestsUrl = new URL(
+  "../../../../apps/ios/MerianTests/Core/Security/GhostProfileMerge/GhostProfileMergeRemoteServiceTests.swift",
   import.meta.url,
 );
 const consentManagerUrl = new URL(
@@ -98,30 +158,52 @@ function compact(value: string): string {
 }
 
 Deno.test("iOS persists a Ghost merge proof before switching sessions", async () => {
-  const [source, storeSource] = await Promise.all([
+  const [
+    source,
+    oauthCoordinatorSource,
+    tokenPolicySource,
+    storeSource,
+    ghostCoordinatorSource,
+    ghostDependenciesSource,
+    publicAuthorRefreshSource,
+    publicAuthorRefreshDependencies,
+    remoteServiceSource,
+    liveRemoteServiceSource,
+    oauthSessionService,
+    oauthSessionLiveService,
+  ] = await Promise.all([
     Deno.readTextFile(managerUrl).then(compact),
+    Deno.readTextFile(oauthCoordinatorUrl).then(compact),
+    Deno.readTextFile(oauthIdentityTokenPolicyUrl).then(compact),
     Deno.readTextFile(ghostMergeStoreUrl).then(compact),
+    Deno.readTextFile(ghostMergeCoordinatorUrl).then(compact),
+    Deno.readTextFile(ghostMergeDependenciesUrl).then(compact),
+    Deno.readTextFile(publicAuthorRefreshCoordinatorUrl).then(compact),
+    Deno.readTextFile(publicAuthorRefreshDependenciesUrl).then(compact),
+    Deno.readTextFile(ghostMergeRemoteServiceUrl).then(compact),
+    Deno.readTextFile(ghostMergeLiveRemoteServiceUrl).then(compact),
+    Deno.readTextFile(oauthSessionServiceUrl).then(compact),
+    Deno.readTextFile(oauthSessionLiveServiceUrl).then(compact),
   ]);
-  const conflictFallback = source.indexOf(
-    "guard Self.requiresProviderBoundGhostMerge(after: error)",
+  const conflictFallback = oauthCoordinatorSource.indexOf(
+    "guard dependencies.merge.requiresProviderBoundGhostMerge( error ) else",
   );
-  const prepare = source.indexOf(
-    "_ = try await prepareGhostProfileMerge(",
+  const prepare = oauthCoordinatorSource.indexOf(
+    "try await dependencies.merge.prepareGhostMerge(",
     conflictFallback,
   );
-  const sessionSwitch = source.indexOf(
-    "let targetSession = try await installOAuthSessionReplacingCurrentAccount(",
+  const sessionSwitch = oauthCoordinatorSource.indexOf(
+    "let targetSession = try await dependencies.session .replaceAndAdoptSession(",
     prepare,
   );
-  const prepareDefinition = source.indexOf(
-    "private func prepareGhostProfileMerge(",
-    sessionSwitch,
+  const prepareDefinition = ghostCoordinatorSource.indexOf(
+    "func prepare(",
   );
-  const persist = source.indexOf(
-    "try persistPendingGhostProfileMergeQueue(queue)",
+  const persist = ghostCoordinatorSource.indexOf(
+    "try persistQueue(updated, dependencies: dependencies)",
     prepareDefinition,
   );
-  const prepareReturn = source.indexOf(
+  const prepareReturn = ghostCoordinatorSource.indexOf(
     "return pending",
     persist,
   );
@@ -130,14 +212,54 @@ Deno.test("iOS persists a Ghost merge proof before switching sessions", async ()
     conflictFallback >= 0 &&
       prepare > conflictFallback &&
       sessionSwitch > prepare &&
-      prepareDefinition > sessionSwitch &&
+      prepareDefinition >= 0 &&
       persist > prepareDefinition &&
       prepareReturn > persist,
     "The provider-bound proof must be durably persisted before leaving the anonymous session",
   );
   assertStringIncludes(
     source,
-    "try ghostProfileMergeStore.persistPendingHandoffs(handoffs)",
+    "prepareGhostMerge: { ghostID, provider, providerSubject, token in guard let sourceUserID = UUID(uuidString: ghostID) else",
+  );
+  assertStringIncludes(
+    source,
+    "_ = try await self.ghostProfileMergeCoordinator.prepare(",
+  );
+  assertStringIncludes(
+    oauthCoordinatorSource,
+    "OAuthIdentityTokenPolicy .providerSubject(from: credentials.idToken)",
+  );
+  assertStringIncludes(
+    tokenPolicySource,
+    "throw SupabaseAuthTransitionError.invalidOAuthIdentityToken",
+  );
+  assertStringIncludes(
+    source,
+    "persist: { [self] handoffs in try ghostProfileMergeStore",
+  );
+  assertStringIncludes(
+    source,
+    ".persistPendingHandoffs(handoffs)",
+  );
+  assertStringIncludes(
+    liveRemoteServiceSource,
+    'client.functions.invoke( "merge-ghost-profile"',
+  );
+  assertStringIncludes(
+    liveRemoteServiceSource,
+    'let operation = "refresh_identity"',
+  );
+  assertStringIncludes(
+    source,
+    "refreshRemoteIdentity: { try await remoteService.refreshIdentity() }",
+  );
+  assertStringIncludes(
+    publicAuthorRefreshSource,
+    "try await dependencies.operations.refreshRemoteIdentity()",
+  );
+  assertStringIncludes(
+    ghostCoordinatorSource,
+    "guard transition.kind == .oauth(provider) else",
   );
   assertStringIncludes(
     storeSource,
@@ -152,22 +274,92 @@ Deno.test("iOS persists a Ghost merge proof before switching sessions", async ()
     !source.includes("KeychainKeys.pendingGhostProfileMerge"),
     "SupabaseManager must delegate Ghost queue persistence to the secure-store owner",
   );
+  assert(
+    !ghostCoordinatorSource.includes("import Supabase") &&
+      !ghostCoordinatorSource.includes(".shared") &&
+      !ghostDependenciesSource.includes("import Supabase") &&
+      !publicAuthorRefreshSource.includes("import Supabase") &&
+      !publicAuthorRefreshSource.includes(".shared") &&
+      !publicAuthorRefreshDependencies.includes("import Supabase") &&
+      !publicAuthorRefreshDependencies.includes(".shared") &&
+      !remoteServiceSource.includes("import Supabase"),
+    "Ghost orchestration and its typed boundary must remain independent of live SDK owners",
+  );
+  assert(
+    !source.includes("private struct GhostProfileMergePreparePayload") &&
+      !source.includes("private struct GhostProfileIdentityRefreshPayload") &&
+      !source.includes('"merge-ghost-profile"'),
+    "SupabaseManager must not reacquire Ghost endpoint DTOs",
+  );
+  for (
+    const retiredHelper of [
+      "private func prepareGhostProfileMerge(",
+      "private func completePendingGhostProfileMergeIfNeeded(",
+      "private func performPendingGhostProfileMerge(",
+      "private func loadPendingGhostProfileMergeQueue(",
+      "private func persistPendingGhostProfileMergeQueue(",
+      "private func clearPendingGhostProfileMerge(",
+      "private func clearPendingGhostProfileMerges(",
+      "private func cancelGhostProfileMergeTask(",
+      "nonisolated static func requiresProviderBoundGhostMerge(",
+      "nonisolated static func shouldDiscardPendingGhostProfileMerge(",
+    ]
+  ) {
+    assert(
+      !source.includes(retiredHelper),
+      `SupabaseManager must not reacquire ${retiredHelper}`,
+    );
+  }
   assertStringIncludes(
     source,
-    "try await self.client.auth.signInWithIdToken( credentials: credentials )",
+    "try await self.oauthSessionService.linkIdentity( using: credentials )",
+  );
+  assertStringIncludes(
+    source,
+    "try await self.oauthSessionService.installSession( using: credentials )",
+  );
+  assertStringIncludes(
+    oauthSessionService,
+    "Self.openIDConnectCredentials(from: credentials)",
+  );
+  assertStringIncludes(
+    oauthSessionLiveService,
+    "try await client.auth.linkIdentityWithIdToken( credentials: credentials )",
+  );
+  assertStringIncludes(
+    oauthSessionLiveService,
+    "try await client.auth.signInWithIdToken( credentials: credentials )",
+  );
+  assert(
+    !source.includes("client.auth.linkIdentityWithIdToken(") &&
+      !source.includes("client.auth.signInWithIdToken(") &&
+      !source.includes("private func supabaseOAuthCredentials("),
+    "SupabaseManager must inject rather than reacquire the OAuth SDK session adapter",
   );
 });
 
 Deno.test("iOS retries every retained Ghost handoff after permanent-session restoration", async () => {
-  const source = compact(await Deno.readTextFile(managerUrl));
-  const performer = source.indexOf(
-    "private func performPendingGhostProfileMerge(",
+  const [
+    source,
+    coordinatorSource,
+    coordinatorTests,
+    publicAuthorRefreshSource,
+    publicAuthorRefreshTests,
+  ] = await Promise.all([
+    Deno.readTextFile(managerUrl).then(compact),
+    Deno.readTextFile(ghostMergeCoordinatorUrl).then(compact),
+    Deno.readTextFile(ghostMergeCoordinatorTestsUrl).then(compact),
+    Deno.readTextFile(publicAuthorRefreshCoordinatorUrl).then(compact),
+    Deno.readTextFile(publicAuthorRefreshTestsUrl).then(compact),
+  ]);
+  const performer = coordinatorSource.indexOf(
+    "private func performPendingHandoffs(",
   );
-  const performerEnd = source.indexOf(
-    "private func refreshPublicAuthorIdentity(",
+  const performerEnd = coordinatorSource.indexOf(
+    "private func exactSessionMatches(",
     performer,
   );
-  const performerSource = source.slice(performer, performerEnd);
+  const performerSource = coordinatorSource.slice(performer, performerEnd);
 
   assertStringIncludes(
     performerSource,
@@ -175,22 +367,22 @@ Deno.test("iOS retries every retained Ghost handoff after permanent-session rest
   );
   assertStringIncludes(
     performerSource,
-    'try await self.client.functions.invoke( "merge-ghost-profile"',
+    "try await dependencies.operations.complete(pending)",
   );
   assertStringIncludes(
     performerSource,
     "allHandoffsResolved = false",
   );
 
-  const restoration = source.indexOf(
-    "private func refreshPublicAuthorIdentityForRestoredSession",
+  const restoration = publicAuthorRefreshSource.indexOf(
+    "private func performScheduledRefresh(",
   );
-  const retry = source.indexOf(
-    "_ = await completePendingGhostProfileMergeIfNeeded(",
+  const retry = publicAuthorRefreshSource.indexOf(
+    "await dependencies.operations.completePendingGhostMerges(",
     restoration,
   );
-  const identityRefresh = source.indexOf(
-    "guard await refreshPublicAuthorIdentity(",
+  const identityRefresh = publicAuthorRefreshSource.indexOf(
+    "guard await refresh(",
     restoration,
   );
   assert(
@@ -198,18 +390,73 @@ Deno.test("iOS retries every retained Ghost handoff after permanent-session rest
     "Restored permanent sessions must retry retained proofs before refreshing public identity",
   );
   assertStringIncludes(
-    source.slice(identityRefresh, identityRefresh + 180),
+    publicAuthorRefreshSource.slice(identityRefresh, identityRefresh + 180),
     "expectedUserID: expectedUserID",
   );
+  assertStringIncludes(
+    source,
+    "completePendingGhostMerges: { [weak self] userID in guard let self else { return } _ = await self.ghostProfileMergeCoordinator.completePendingHandoffs(",
+  );
+  assertStringIncludes(
+    source,
+    "refreshRemoteIdentity: { try await remoteService.refreshIdentity() }",
+  );
+  for (
+    const retiredOwner of [
+      "publicAuthorIdentityRefreshTask:",
+      "publicAuthorIdentityRefreshTaskId:",
+      "publicAuthorIdentityRefreshTaskUserId:",
+      "lastPublicAuthorIdentityRefreshUserId:",
+      "private func refreshPublicAuthorIdentity(",
+      "private func refreshPublicAuthorIdentityForRestoredSession(",
+      "private func cancelPublicAuthorIdentityRefreshTask(",
+      "private func publishPublicAuthorIdentityChanged(",
+    ]
+  ) {
+    assert(
+      !source.includes(retiredOwner),
+      `SupabaseManager must not reacquire ${retiredOwner}`,
+    );
+  }
+  for (
+    const testName of [
+      "testPreparationRejectsProviderTransitionMismatchBeforeRemoteWork",
+      "testPreparationRejectsChangedSessionBeforePersistingProof",
+      "testSameTargetAndOwnerShareOneCompletionTask",
+      "testDifferentTargetCancelsStaleTaskBeforeProofRemoval",
+      "testTransitionOwnerReplacesOwnerlessTaskForSameTarget",
+      "testCanceledTerminalResponseCannotSynchronizeOrClearProof",
+      "testRetryableHandoffDoesNotBlockLaterHandoffCompletion",
+    ]
+  ) {
+    assertStringIncludes(coordinatorTests, testName);
+  }
+  for (
+    const testName of [
+      "testScheduledRefreshPreservesMergeLeaseRefreshAndPublishOrder",
+      "testCanceledPredecessorCannotClearReplacementTaskState",
+      "testStaleScheduledUserCannotReplaceCurrentUserRefresh",
+      "testCancellationBeforeScheduledTaskStartsDoesNotOpenLease",
+      "testCancelDuringMergeStopsBeforeRemoteRefreshAndPublication",
+      "testStaleOuterLeaseAfterMergeStopsBeforeRemoteRefresh",
+      "testStaleLeaseAfterRemoteRefreshStopsBeforePublication",
+      "testTransitionOwnedRefreshRejectsStaleSessionBeforeRemoteWork",
+      "testAlreadyCancelledDirectRefreshDoesNotOpenLease",
+      "testCancellationDuringDirectRefreshRejectsSuccessfulPostflight",
+      "testCancelledRemoteFailureDoesNotReportDiagnostic",
+    ]
+  ) {
+    assertStringIncludes(publicAuthorRefreshTests, testName);
+  }
 });
 
 Deno.test("iOS keeps Ghost finalization cancellation-fenced and proof-removal-last", async () => {
-  const [source, workflow] = await Promise.all([
-    Deno.readTextFile(managerUrl).then(compact),
+  const [coordinator, workflow] = await Promise.all([
+    Deno.readTextFile(ghostMergeCoordinatorUrl).then(compact),
     Deno.readTextFile(ghostMergeWorkflowUrl).then(compact),
   ]);
   assertStringIncludes(
-    source,
+    coordinator,
     "try await GhostProfileMergeWorkflow.finalizeHandoff(",
   );
 
@@ -263,24 +510,19 @@ Deno.test("iOS keeps Ghost finalization cancellation-fenced and proof-removal-la
 });
 
 Deno.test("iOS deletes Ghost proofs only for invalid or expired handoffs", async () => {
-  const [source, policySource, policyTestSource, adapterTestSource] =
+  const [liveRemoteSource, policySource, policyTestSource, adapterTestSource] =
     await Promise.all([
-      Deno.readTextFile(managerUrl).then(compact),
+      Deno.readTextFile(ghostMergeLiveRemoteServiceUrl).then(compact),
       Deno.readTextFile(ghostMergePolicyUrl).then(compact),
       Deno.readTextFile(ghostMergePolicyTestsUrl).then(compact),
-      Deno.readTextFile(ghostMergeErrorAdapterTestsUrl).then(compact),
+      Deno.readTextFile(ghostMergeRemoteServiceTestsUrl).then(compact),
     ]);
-  const discardStart = source.indexOf(
-    "nonisolated static func shouldDiscardPendingGhostProfileMerge",
-  );
-  const discardEnd = source.indexOf(
-    "nonisolated static func oauthProviderSubject",
-    discardStart,
-  );
-  const discardSource = source.slice(discardStart, discardEnd);
-
   assertStringIncludes(
-    discardSource,
+    liveRemoteSource,
+    "nonisolated static func isTerminalHandoffError(",
+  );
+  assertStringIncludes(
+    liveRemoteSource,
     "GhostProfileMergePolicy.shouldDiscardPendingHandoff( serverCode: payload.code )",
   );
   assertStringIncludes(policySource, 'serverCode == "handoff_expired"');
@@ -790,16 +1032,21 @@ Deno.test("iOS independently owns and retries analytics-consent Realtime", async
   assertStringIncludes(liveAdapter, "client.removeChannel(channel)");
 });
 
-Deno.test("OAuth replacement suppresses analytics and reconciles failures", async () => {
+Deno.test("OAuth replacement suppresses analytics and reconciles every disposition", async () => {
   const source = compact(await Deno.readTextFile(managerUrl));
-  const helperStart = source.indexOf(
-    "static func performOAuthSessionReplacement<Value>(",
+  const workflow = compact(await Deno.readTextFile(oauthWorkflowUrl));
+  const models = compact(await Deno.readTextFile(oauthModelsUrl));
+  const cancellationTests = compact(
+    await Deno.readTextFile(oauthCancellationTestsUrl),
   );
-  const helperEnd = source.indexOf(
-    "nonisolated static func shouldDiscardPendingGhostProfileMerge",
+  const helperStart = workflow.indexOf(
+    "static func replacingSession<Value>(",
+  );
+  const helperEnd = workflow.indexOf(
+    "static func registerAppleCredential(",
     helperStart,
   );
-  const helper = source.slice(helperStart, helperEnd);
+  const helper = workflow.slice(helperStart, helperEnd);
   const cancellation = helper.indexOf("try Task.checkCancellation()");
   const suspend = helper.indexOf("let generation = suspendAnalytics()");
   const postSuppressionCancellation = helper.indexOf(
@@ -809,17 +1056,33 @@ Deno.test("OAuth replacement suppresses analytics and reconciles failures", asyn
   const install = helper.indexOf(
     "let installedSession = try await installSession()",
   );
+  const postInstallCancellation = helper.indexOf(
+    "try Task.checkCancellation()",
+    install + 1,
+  );
 
   assert(
     helperStart >= 0 && helperEnd > helperStart && cancellation >= 0 &&
       cancellation < suspend && suspend >= 0 &&
       postSuppressionCancellation > suspend &&
-      postSuppressionCancellation < install,
-    "Cancellation must win before analytics suspension and again before SDK session replacement",
+      postSuppressionCancellation < install &&
+      postInstallCancellation > install,
+    "Cancellation must win before analytics suspension and both before and after SDK session replacement",
   );
   assertStringIncludes(
     helper,
-    "reconcileSession(generation, currentSession())",
+    "wasCancelled ? .cancelled : .failed",
+  );
+  assertStringIncludes(helper, ".installed)");
+  assertStringIncludes(models, "enum OAuthSessionReplacementDisposition");
+  assertStringIncludes(models, "case installed");
+  assertStringIncludes(models, "case failed");
+  assertStringIncludes(models, "case cancelled");
+  assertStringIncludes(source, "case .cancelled:");
+  assertStringIncludes(source, "== sourceSession");
+  assertStringIncludes(
+    cancellationTests,
+    "testCancellationDuringReplacementAdoptsExactTargetBeforeStoppingCompletion",
   );
   assertStringIncludes(
     source,

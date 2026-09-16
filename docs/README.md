@@ -375,9 +375,12 @@ as their permanent engineering identity.
   deletion revokes and destroys that token after storage verification and before
   Auth. Pre-rollout Apple accounts receive a persistent manual-removal notice.
   Apple credential-revocation notifications are revalidated against the same
-  active provider subject before local session teardown. Production remains
-  gated on secrets, exact-SHA database evidence, real Apple smokes, and either
-  an enforceable minimum-supported-build gate or an independent server-delivered
+  active session, provider subject, and Auth-context generation after lookup and
+  again after account-work quiescence before local session teardown. A pending
+  purchase handoff retains the signal until its aggregate fence resolves; clear
+  diagnostics follow completed cleanup only. Production remains gated on
+  secrets, exact-SHA database evidence, real Apple smokes, and either an
+  enforceable minimum-supported-build gate or an independent server-delivered
   fallback for older iOS binaries. See the
   [canonical contract](./backend-and-data/20-sign-in-with-apple-account-deletion.md).
 - **Explore media-loss contract**: An unavailable object never auto-deletes or

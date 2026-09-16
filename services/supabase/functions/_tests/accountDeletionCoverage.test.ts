@@ -21,8 +21,52 @@ const swiftAuthUrl = new URL(
   "../../../../apps/ios/Merian/Core/Network/SupabaseManager.swift",
   import.meta.url,
 );
+const swiftOAuthCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/OAuthSignInCoordinator.swift",
+  import.meta.url,
+);
+const swiftOAuthProviderCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/OAuthProviderSignInCoordinator.swift",
+  import.meta.url,
+);
+const swiftOAuthModelsUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Models/OAuthSignInModels.swift",
+  import.meta.url,
+);
+const swiftAppleOAuthProviderUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Services/AppleOAuthAuthorizationLiveProvider.swift",
+  import.meta.url,
+);
+const swiftAppleCredentialRegistrationServiceUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Services/AppleOAuthCredentialRegistrationService+Live.swift",
+  import.meta.url,
+);
+const swiftAppleCredentialRegistrationCoreUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Services/AppleOAuthCredentialRegistrationService.swift",
+  import.meta.url,
+);
+const swiftOAuthWorkflowUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/OAuthSignInWorkflow.swift",
+  import.meta.url,
+);
+const swiftAppleRevocationCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/AppleCredentialRevocationCoordinator.swift",
+  import.meta.url,
+);
+const swiftAppleRevocationProviderUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/AppleCredentialRevocationLiveProvider.swift",
+  import.meta.url,
+);
 const swiftDeletionWorkflowUrl = new URL(
   "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/AccountDeletionWorkflow.swift",
+  import.meta.url,
+);
+const swiftDeletionCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/AccountDeletionCoordinator.swift",
+  import.meta.url,
+);
+const swiftDeletionRecoveryCoordinatorUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/AccountDeletionRecoveryCoordinator.swift",
   import.meta.url,
 );
 const storageWorkerUrl = new URL(
@@ -142,9 +186,32 @@ Deno.test("account deletion source preserves durable cleanup-provider-Auth order
 });
 
 Deno.test("Apple sign-in captures the one-use code through the authenticated durable endpoint", async () => {
-  const [registration, swiftAuth, config, workflow] = await Promise.all([
+  const [
+    registration,
+    swiftAuth,
+    swiftOAuthCoordinator,
+    swiftOAuthProviderCoordinator,
+    swiftOAuthModels,
+    swiftAppleOAuthProvider,
+    swiftAppleCredentialRegistrationService,
+    swiftAppleCredentialRegistrationCore,
+    swiftOAuthWorkflow,
+    swiftAppleRevocationCoordinator,
+    swiftAppleRevocationProvider,
+    config,
+    workflow,
+  ] = await Promise.all([
     Deno.readTextFile(appleRegistrationUrl),
     Deno.readTextFile(swiftAuthUrl),
+    Deno.readTextFile(swiftOAuthCoordinatorUrl),
+    Deno.readTextFile(swiftOAuthProviderCoordinatorUrl),
+    Deno.readTextFile(swiftOAuthModelsUrl),
+    Deno.readTextFile(swiftAppleOAuthProviderUrl),
+    Deno.readTextFile(swiftAppleCredentialRegistrationServiceUrl),
+    Deno.readTextFile(swiftAppleCredentialRegistrationCoreUrl),
+    Deno.readTextFile(swiftOAuthWorkflowUrl),
+    Deno.readTextFile(swiftAppleRevocationCoordinatorUrl),
+    Deno.readTextFile(swiftAppleRevocationProviderUrl),
     Deno.readTextFile(configUrl),
     Deno.readTextFile(workflowUrl),
   ]);
@@ -172,20 +239,242 @@ Deno.test("Apple sign-in captures the one-use code through the authenticated dur
 
   for (
     const fragment of [
-      "appleIDCredential.authorizationCode",
-      "ASAuthorizationAppleIDProvider.credentialRevokedNotification",
-      "getCredentialState(",
-      "self.currentUser?.identities?.contains(where:",
-      '$0.provider == "apple" && $0.id == appleUserId',
-      "shouldClearLocalSessionAfterAppleCredentialState",
-      '"register-apple-revocation-token"',
-      "performAppleCredentialRegistrationWithRetry",
-      "didInstallAppleSession",
-      "clearLocalSessionAfterAuthFailure",
+      '$0.provider == "apple" && !$0.id.isEmpty',
+      "appleCredentialRevocationCoordinator",
+      "appleCredentialRevocationDependencies()",
+      "appleOAuthCredentialRegistrationService = .live(client: client)",
+      "oauthProviderSignInCoordinator.signInWithGoogle(",
+      "oauthProviderSignInCoordinator.startAppleSignIn(",
+      "appleCredentialRegistration",
+      "registerAppleRevocationCredential(",
+      "recoverOAuthSignInFailureIfNeeded",
     ]
   ) {
     assertStringIncludes(swiftAuth, fragment);
   }
+  for (
+    const fragment of [
+      '"register-apple-revocation-token"',
+      "private struct AppleOAuthCredentialRegistrationPayload",
+      "private struct AppleOAuthCredentialRegistrationResponse",
+      "registration_id: registrationID",
+      ".uuidString.lowercased()",
+      "authorization_code: authorizationCode",
+      "identity_token: identityToken",
+    ]
+  ) {
+    assertStringIncludes(swiftAppleCredentialRegistrationService, fragment);
+  }
+  assert(
+    swiftAppleCredentialRegistrationService.split(
+      "client.functions.invoke(",
+    ).length === 2,
+    "The Apple credential registration adapter must retain one live Function invocation.",
+  );
+  for (
+    const forbiddenOwner of [
+      "SupabaseManager",
+      "Task {",
+      "Task.detached",
+      "URLSession",
+    ]
+  ) {
+    assert(
+      !swiftAppleCredentialRegistrationService.includes(forbiddenOwner),
+      `Apple registration transport acquired forbidden ownership: ${forbiddenOwner}`,
+    );
+  }
+  for (
+    const retiredManagerTransport of [
+      "AppleRevocationCredentialPayload",
+      "AppleRevocationCredentialResponse",
+      '"register-apple-revocation-token"',
+    ]
+  ) {
+    assert(
+      !swiftAuth.includes(retiredManagerTransport),
+      `SupabaseManager reacquired Apple registration transport: ${retiredManagerTransport}`,
+    );
+  }
+  assertStringIncludes(swiftAppleCredentialRegistrationCore, "receipt.success");
+  assertStringIncludes(
+    swiftAppleCredentialRegistrationCore,
+    'receipt.status == "registered"',
+  );
+  for (
+    const fragment of [
+      "credential.authorizationCode",
+      "AppleOAuthCredentialRegistration(",
+      "registrationID: dependencies.registrationID()",
+      "authorizationCode: authorizationCodeString",
+    ]
+  ) {
+    assertStringIncludes(swiftAppleOAuthProvider, fragment);
+  }
+  const appleRegistrationModelStart = swiftOAuthModels.indexOf(
+    "struct AppleOAuthCredentialRegistration",
+  );
+  const appleRegistrationModelEnd = swiftOAuthModels.indexOf(
+    "struct OAuthProviderAuthorization",
+    appleRegistrationModelStart,
+  );
+  const appleRegistrationModel = swiftOAuthModels.slice(
+    appleRegistrationModelStart,
+    appleRegistrationModelEnd,
+  );
+  assert(
+    appleRegistrationModelStart >= 0 &&
+      appleRegistrationModelEnd > appleRegistrationModelStart &&
+      !appleRegistrationModel.includes("identityToken"),
+    "The durable Apple registration value must not duplicate the identity token owned by OAuth credentials.",
+  );
+  assert(
+    swiftAppleOAuthProvider.indexOf("guard let authorizationCode else") <
+      swiftAppleOAuthProvider.indexOf(
+        "AppleOAuthCredentialRegistration(",
+      ),
+    "The Apple provider must validate the one-use authorization code before creating the durable registration value.",
+  );
+  for (
+    const fragment of [
+      "verifyExpectedSessionIfPresent",
+      "didMutateSession = true",
+      "recoverAfterFailure(",
+    ]
+  ) {
+    assertStringIncludes(swiftOAuthProviderCoordinator, fragment);
+  }
+  for (
+    const fragment of [
+      "ASAuthorizationAppleIDProvider.credentialRevokedNotification",
+      "getCredentialState(",
+      "lookupFailed: error != nil",
+    ]
+  ) {
+    assertStringIncludes(swiftAppleRevocationProvider, fragment);
+  }
+  for (
+    const fragment of [
+      "contextGeneration == attempt.contextGeneration",
+      "currentIdentity() == attempt.identity",
+      ".clearLocalSessionIfCurrent(",
+      "case .contextChanged:",
+      "case .deferred:",
+    ]
+  ) {
+    assertStringIncludes(swiftAppleRevocationCoordinator, fragment);
+  }
+  assert(
+    !swiftAppleRevocationCoordinator.includes(
+      "dependencies.operations.clearLocalSession()",
+    ),
+    "Apple credential revocation must not clear a session without fencing the expected identity.",
+  );
+  const providerAssemblyStart = swiftAuth.indexOf(
+    "private func oauthProviderSignInDependencies()",
+  );
+  const providerAssemblyEnd = swiftAuth.indexOf(
+    "private func oauthSignInDependencies()",
+    providerAssemblyStart,
+  );
+  const providerAssembly = swiftAuth.slice(
+    providerAssemblyStart,
+    providerAssemblyEnd,
+  );
+  assertStringIncludes(
+    providerAssembly,
+    "registerProviderCredential: registration",
+  );
+  assertStringIncludes(
+    providerAssembly,
+    "let identityToken = authorization.credentials.idToken",
+  );
+  assertStringIncludes(providerAssembly, "identityToken: identityToken");
+  assert(
+    !providerAssembly.includes("credential.identityToken"),
+    "Apple registration must use the exact identity token that installed the OAuth session.",
+  );
+  assert(
+    providerAssembly.indexOf(
+      "let registration: OAuthProviderCredentialRegistration?",
+    ) <
+      providerAssembly.indexOf(
+        "OAuthSignInCoordinator(",
+      ),
+    "The live Auth assembly must adapt the Apple registration value before provider-neutral session completion.",
+  );
+  const liveRegistrationStart = swiftAuth.indexOf(
+    "private func registerAppleRevocationCredential(",
+  );
+  const liveRegistrationEnd = swiftAuth.indexOf(
+    "private func installOAuthSessionReplacingCurrentAccount(",
+    liveRegistrationStart,
+  );
+  const liveRegistration = swiftAuth.slice(
+    liveRegistrationStart,
+    liveRegistrationEnd,
+  );
+  const preflightFence = liveRegistration.indexOf(
+    "currentSessionMatchesAuthTransition(transition)",
+  );
+  const serviceInvocation = liveRegistration.indexOf(
+    "appleOAuthCredentialRegistrationService.register(",
+  );
+  const postflightFence = liveRegistration.indexOf(
+    "currentSessionMatchesAuthTransition(transition)",
+    preflightFence + 1,
+  );
+  assert(
+    preflightFence >= 0 &&
+      serviceInvocation > preflightFence &&
+      postflightFence > serviceInvocation,
+    "Exact-session fences must surround the extracted Apple registration service.",
+  );
+  assert(
+    !liveRegistration.includes("client.functions.invoke("),
+    "The Auth facade must not reacquire the Apple registration transport.",
+  );
+  for (
+    const fragment of [
+      "static func registerAppleCredential(",
+      "maximumAttempts: Int = 2",
+      "try await waitBeforeRetry()",
+    ]
+  ) {
+    assertStringIncludes(swiftOAuthWorkflow, fragment);
+  }
+  const registrationValidation = swiftOAuthCoordinator.indexOf(
+    "let providerRegistrationIsValid = switch credentials.provider",
+  );
+  const transitionValidation = swiftOAuthCoordinator.indexOf(
+    "guard transition.kind == .oauth(credentials.provider) else",
+  );
+  const sessionInstallation = swiftOAuthCoordinator.indexOf(
+    "let installed = try await installSession(",
+  );
+  assert(
+    transitionValidation >= 0 &&
+      registrationValidation > transitionValidation &&
+      sessionInstallation > registrationValidation,
+    "Provider and credential-registration configuration must fail closed before session mutation",
+  );
+  const registrationStart = swiftOAuthCoordinator.indexOf(
+    "if let registerProviderCredential",
+  );
+  const registrationDispatch = swiftOAuthCoordinator.indexOf(
+    "try await registerProviderCredential(",
+    registrationStart,
+  );
+  const metadataPersistence = swiftOAuthCoordinator.indexOf(
+    "persistProfileMetadata(",
+    registrationDispatch,
+  );
+  assert(
+    registrationStart >= 0 &&
+      registrationDispatch > registrationStart &&
+      metadataPersistence > registrationDispatch,
+    "Apple credential registration must finish before optional profile metadata and purchase binding",
+  );
 
   const registrationConfigStart = config.indexOf(
     "[functions.register-apple-revocation-token]",
@@ -292,7 +581,8 @@ Deno.test("lost deletion responses recover through a hash-only public capability
     migration,
     preparedRecoveryV2Migration,
     swiftCapability,
-    swiftAuth,
+    swiftDeletionCoordinator,
+    swiftDeletionRecoveryCoordinator,
     swiftDeletionWorkflow,
     swiftDeletionStateModel,
     swiftDeletionStateStore,
@@ -305,7 +595,8 @@ Deno.test("lost deletion responses recover through a hash-only public capability
     Deno.readTextFile(recoveryMigrationUrl),
     Deno.readTextFile(preparedRecoveryV2MigrationUrl),
     Deno.readTextFile(swiftRecoveryCapabilityUrl),
-    Deno.readTextFile(swiftAuthUrl),
+    Deno.readTextFile(swiftDeletionCoordinatorUrl),
+    Deno.readTextFile(swiftDeletionRecoveryCoordinatorUrl),
     Deno.readTextFile(swiftDeletionWorkflowUrl),
     Deno.readTextFile(swiftDeletionStateModelUrl),
     Deno.readTextFile(swiftDeletionStateStoreUrl),
@@ -314,6 +605,8 @@ Deno.test("lost deletion responses recover through a hash-only public capability
   ]);
   const swiftDeletionState =
     `${swiftDeletionStateModel}\n${swiftDeletionStateStore}`;
+  const swiftDeletionOrchestration =
+    `${swiftDeletionCoordinator}\n${swiftDeletionRecoveryCoordinator}`;
 
   for (
     const fragment of [
@@ -374,22 +667,45 @@ Deno.test("lost deletion responses recover through a hash-only public capability
   for (
     const fragment of [
       ".whenUnlockedThisDeviceOnly",
-      "dataOrThrow(forKey: key) == encoded",
+      "dataOrThrow(forKey: key) == data",
       "recoveryCapability != acknowledgementCapability",
+      "func prepareLegacyIntake()",
       "removeObjectVerified",
     ]
   ) {
     assertStringIncludes(swiftCapability, fragment);
   }
+  assertStringIncludes(
+    swiftDeletionRecoveryCoordinator,
+    "recoveryCapabilityStore.prepareLegacyIntake()",
+  );
+  for (
+    const fragment of [
+      "recoveryState == .capabilityIntakePending",
+      "recoveryState == .capabilityCleanupPending",
+      "recoverDeletion: recoverDeletionV1",
+      "allowAuthenticatedIntakeReplay: false",
+    ]
+  ) {
+    assertStringIncludes(swiftDeletionRecoveryCoordinator, fragment);
+  }
   assert(
-    swiftAuth.indexOf("recordCapabilityPreparationPending()") <
-        swiftAuth.indexOf("recoveryCapabilityStore.prepare()") &&
-      swiftAuth.indexOf("recoveryCapabilityStore.prepare()") <
-        swiftAuth.indexOf("prepareDeletionV2(") &&
-      swiftAuth.indexOf("prepareDeletionV2(") <
-        swiftAuth.indexOf("recordCapabilityPreparedPending()") &&
-      swiftAuth.indexOf("recordCapabilityPreparedPending()") <
-        swiftAuth.indexOf("commitDeletionV2("),
+    !swiftDeletionRecoveryCoordinator.includes(
+      "recoveryCapabilityStore.prepare()",
+    ),
+    "Installed legacy intake recovery must persist a v1 proof instead of creating a v2 envelope for the v1 endpoint.",
+  );
+  assert(
+    swiftDeletionCoordinator.indexOf(
+          "recordCapabilityPreparationPending()",
+        ) <
+        swiftDeletionCoordinator.indexOf("recoveryCapabilityStore.prepare()") &&
+      swiftDeletionCoordinator.indexOf("recoveryCapabilityStore.prepare()") <
+        swiftDeletionCoordinator.indexOf("prepareDeletionV2(") &&
+      swiftDeletionCoordinator.indexOf("prepareDeletionV2(") <
+        swiftDeletionCoordinator.indexOf("recordCapabilityPreparedPending()") &&
+      swiftDeletionCoordinator.indexOf("recordCapabilityPreparedPending()") <
+        swiftDeletionCoordinator.indexOf("commitDeletionV2("),
     "The local barrier and verified two-proof Keychain envelope must precede non-destructive server preparation, and the prepared marker must precede destructive commit.",
   );
   assertStringIncludes(
@@ -405,15 +721,20 @@ Deno.test("lost deletion responses recover through a hash-only public capability
   ) {
     assertStringIncludes(swiftDeletionState, fragment);
   }
-  const rejectionMarker = swiftAuth.indexOf(
+  const interactiveRetirement = swiftDeletionCoordinator.slice(
+    swiftDeletionCoordinator.indexOf(
+      ".performDefinitiveIntakeRejectionRetirement(",
+    ),
+  );
+  const rejectionMarker = interactiveRetirement.indexOf(
     ".recordCapabilityRejectionRetirementPending()",
   );
-  const rejectionProofRemoval = swiftAuth.indexOf(
-    "recoveryCapabilityStore.clearVerified()",
+  const rejectionProofRemoval = interactiveRetirement.indexOf(
+    "clearCapability(",
     rejectionMarker,
   );
-  const rejectionMarkerRemoval = swiftAuth.indexOf(
-    "AccountDeletionLocalCleanupStore.resolve()",
+  const rejectionMarkerRemoval = interactiveRetirement.indexOf(
+    ".localState.resolve()",
     rejectionProofRemoval,
   );
   assert(
@@ -423,11 +744,11 @@ Deno.test("lost deletion responses recover through a hash-only public capability
     "Definitive rejection must persist its phase before verified proof removal and clear the marker last.",
   );
   assertStringIncludes(
-    swiftAuth,
+    swiftDeletionRecoveryCoordinator,
     "recoveryState == .capabilityRejectionRetirementPending",
   );
   assertStringIncludes(
-    swiftAuth,
+    swiftDeletionRecoveryCoordinator,
     ".retireRejectedRecoveryProof(",
   );
   assertStringIncludes(
@@ -462,10 +783,13 @@ Deno.test("lost deletion responses recover through a hash-only public capability
     "A cancelled non-destructive preparation must retain recovery state without dispatching destructive commit.",
   );
   assert(
-    (swiftAuth.match(
-      /\.performDefinitiveIntakeRejectionRetirement\(/g,
-    ) ?? []).length >= 2,
-    "Both interactive and relaunched definitive rejections must use the crash-safe retirement ordering.",
+    (swiftDeletionOrchestration.match(
+          /\.performDefinitiveIntakeRejectionRetirement\(/g,
+        ) ?? []).length >= 1 &&
+      (swiftDeletionRecoveryCoordinator.match(
+          /retireDefinitiveRejectionProof\(/g,
+        ) ?? []).length >= 3,
+    "Interactive and relaunched definitive rejections must use their crash-safe retirement owners.",
   );
 
   const configStart = config.indexOf(

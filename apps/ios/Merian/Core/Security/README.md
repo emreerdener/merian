@@ -43,24 +43,30 @@ pin lifecycle. See the
   [ownership guide](AccountDeletion/README.md).
 - `PurchaseIdentity/` owns purchase-principal domain and wire values,
   deterministic policies, capability and resolver-state Keychain stores, secure
-  random generation, and the typed remote-service boundary. Its live adapter is
-  the sole owner of the Supabase dependency, private request payloads, four
-  `resolve-purchase-principal` calls, and definite-404 classification.
-  `PurchasePrincipalResolver` remains the source-compatible orchestration
-  facade. The folder also owns the installed legacy and protocol-3 sign-out
-  journal models and injected secure store. It preserves every established
-  Keychain key, device-only accessibility rule, local format, fallback policy,
-  and endpoint behavior. Deterministic validation accepts bounded fractional or
-  whole-second server timestamps and exact 64-character lowercase activation
-  fingerprints. It owns no provider, Auth transition, entitlement, logger, or
-  task lifecycle; see its [ownership guide](PurchaseIdentity/README.md).
+  random generation, typed remote/query boundaries, and provider-neutral session
+  readiness. Its route-specific live adapters own the Supabase dependency,
+  private wire values, four `resolve-purchase-principal` calls, four
+  compatibility operations across three `transfer-signout-purchases` SDK
+  invocation paths, and the legacy `users` profile query, plus their exact error
+  classifications. `PurchasePrincipalResolver` remains the source-compatible
+  orchestration facade. The folder also owns the installed legacy and protocol-3
+  sign-out journal models and injected secure store. It preserves every
+  established Keychain key, device-only accessibility rule, local format,
+  fallback policy, and endpoint behavior. Deterministic validation accepts
+  bounded fractional or whole-second server timestamps and exact 64-character
+  lowercase activation fingerprints. Its session coordinator owns keyed resolver
+  task lifetime, and its readiness coordinator owns foreground repair. It owns
+  no provider SDK, Auth mutation, entitlement implementation, logger, or
+  sign-out task lifetime; see its [ownership guide](PurchaseIdentity/README.md).
 - `GhostProfileMerge/` owns the provider-bound ghost-profile handoff and
-  version-1 queue models plus their injected secure store. It preserves exact
-  local JSON fields, migrates the legacy single-record format without losing a
-  readable proof, validates restored evidence fail-closed, writes with
-  `WhenUnlockedThisDeviceOnly`, verifies exact bytes, and performs verified
-  removal. It owns no endpoint, provider, Auth transition, logger, or task; see
-  its [ownership guide](GhostProfileMerge/README.md).
+  version-1 queue models, their injected secure store, and the typed remote
+  service. It preserves exact local JSON fields, migrates the legacy
+  single-record format without losing a readable proof, validates restored
+  evidence fail-closed, writes with `WhenUnlockedThisDeviceOnly`, verifies exact
+  bytes, and performs verified removal. Its live service adapter alone owns the
+  Supabase Function DTOs, invocation, and error mapping. It owns no Auth
+  transition, provider/purchase mutation, logger, or orchestration task; see its
+  [ownership guide](GhostProfileMerge/README.md).
 - `RevenueCat/` owns RevenueCat value models, the typed registry for legacy
   subscriber attributes, immutable identity request/link contexts, the monotonic
   provider-operation context, and deterministic identity, access, offering,
@@ -222,17 +228,25 @@ changes neither string nor storage format.
 
 `Core/Network/Auth/` owns the value-only transition/session/lease models,
 deterministic admission and account-deletion classification policy, ghost-merge
-queue/error policy, exact-session coordinators, and closure-injected deletion,
-sign-out, and ghost-merge phase sequencing. `SupabaseManager` applies those
-decisions and retains live transition state, endpoint/SDK calls, injected
-secure-store adapters, marker effects, and local sign-out. `AppDIContainer` and
-the Settings purge adapter retain private-map/SwiftData cleanup composition.
-Only the workflow owner requests proof retirement; the store verifies Keychain
-removal before the workflow clears its marker. Every network result capable of
-advancing that sequence must still match the transition's exact UUID,
-anonymous/account kind, and Auth generation. Deferred noncommit restoration
-revalidates its cached source while the marker remains, then makes verified
-marker removal the last failable step before synchronous publication. A
+queue/error policy, exact-session coordinators, pure deletion phase order, and
+separate dependency-injected fresh/recovery deletion, sign-out, and ghost-merge
+coordination. Its provider-neutral Auth-session lifecycle coordinator owns
+session projection and fail-closed durable-fence ordering, including immediate
+closure of the published Auth session, purchase identity, and local server-
+verified entitlement projection when the listener observes accepted cleanup.
+`AuthSessionLifecycleLiveProvider` retains the SDK stream/listener task and maps
+lifecycle events. Listener replacement cancels the superseded task and deferred
+replay obligation, and cancellation fences its trailing credential-revocation
+resume effect; `SupabaseManager` supplies `AuthRuntimeState` transition
+projections, endpoint/SDK calls, injected secure-store adapters, marker effects,
+and local sign-out effects. `AppDIContainer` and the Settings purge adapter
+retain private-map/SwiftData cleanup composition. Only an admitted deletion
+coordinator path may delegate proof retirement through the workflow; the store
+verifies Keychain removal before that path clears its marker. Every network
+result capable of advancing that sequence must still match the transition's
+exact UUID, anonymous/account kind, and Auth generation. Deferred noncommit
+restoration revalidates its cached source while the marker remains, then makes
+verified marker removal the last failable step before synchronous publication. A
 definitive uncommitted v2 intent can retire its proof without signing out or
 purging, unlike accepted-deletion cleanup.
 
@@ -257,6 +271,25 @@ evidence. The operation-specific
 is source-verified; authorized real-session deletion remains separate release
 evidence.
 
+## Purchase-identity session readiness
+
+Provider-neutral purchase-session readiness lives under
+`PurchaseIdentity/{Models,Coordinators}`. `PurchaseIdentitySessionCoordinator`
+owns the active binding, last-linked Auth user, and one exact-context resolution
+task, records its last-linked cache only after final caller admission, and
+rejects late publication from a superseded resolution key. The shared handoff
+boundary republishes every successful durable journal read to the provider's
+synchronous mutation fence; both coordinators explicitly publish pending state
+when that read throws before resolution or repair fails closed.
+`PurchaseIdentityReadinessCoordinator` owns foreground repair behind an
+account-work lease, including journal recovery, entitlement order, and the final
+SDK/session/provider fence. Both receive state and effects through small closure
+boundaries and import no Supabase, RevenueCat, entitlement, Keychain, or logging
+owner. The typed legacy-profile service and its live companion isolate the
+existing `users` projection used by legacy provider linking. `SupabaseManager`
+constructs these owners and supplies their live SDK, query, persistence, and
+diagnostic effects.
+
 ## Purchase-identity handoff storage
 
 `PurchaseIdentityHandoffStore` is the sole codec and secure-storage owner for
@@ -271,20 +304,31 @@ unreadable restored evidence fails closed, and no journal value enters logs.
 
 `Core/Network/Auth/Coordinators/PurchaseIdentitySignOutWorkflow.swift` owns the
 deterministic phase order and checks cancellation before the legacy server
-destination bind and after each asynchronous phase. `SupabaseManager` retains
-server requests, Auth mutation, RevenueCat/StoreKit work, entitlement refresh,
-session checks, lifecycle recovery, logging, and conversion of store failures to
-the existing auth-transition errors. This split changes no Keychain key, JSON
-shape, API payload, or provider contract. Follow-up hardening rejects malformed
-values before secure-storage dispatch and stops already-cancelled finalization
-before the first server destination-bind request, leaving durable proof
-available for retry. Stable and legacy completion revalidate task cancellation,
+destination bind and after each asynchronous phase.
+`PurchaseIdentitySignOutCoordinator.swift` owns stable/legacy selection,
+pending-proof recovery or source-only abandonment, failed-attempt restoration,
+exact anonymous retry admission, recovery-only reset admission, and fail-closed
+stable-journal verification through injected boundaries.
+`PurchaseIdentityHandoffCoordinator.swift` owns stable/compatibility completion
+task lifetime keyed by destination, Auth generation, and transition owner;
+exact-session/cancellation fences; terminal-only proof retirement; and verified
+removal ordering. The typed/live compatibility service owns the private server
+DTO and request boundary. `SupabaseManager` retains Auth mutation and supplies
+the live RevenueCat/StoreKit, entitlement, SDK-session, and logging effects; the
+session/readiness coordinators own resolution state and foreground-repair
+ordering. The facade still converts store failures to the existing
+auth-transition errors. This split changes no Keychain key, JSON shape, API
+payload, or provider contract. Follow-up hardening rejects malformed values
+before secure-storage dispatch and stops already-cancelled finalization before
+the first server destination-bind request, leaving durable proof available for
+retry. Stable source discovery and preparation revalidate the exact transition
+around suspension; stable and legacy completion revalidate task cancellation,
 the exact anonymous manager-published user, nonexpired SDK session, captured
 Auth generation, and transition context throughout their suspended phases and
 immediately before verified removal. A retry without a transition owner becomes
 stale as soon as another Auth transition opens.
 
-## Ghost-profile merge storage
+## Ghost-profile merge
 
 `GhostProfileMergeStore` is the sole codec and secure-storage owner for
 `Merian_PendingGhostProfileMerge`. It accepts injected load, persist, and
@@ -304,9 +348,14 @@ formats; it deliberately does not compare expiry with the device clock.
 `GhostProfileMergePolicy` owns stable replacement and the two terminal server
 codes, while `GhostProfileMergeWorkflow` owns server → purchase → local-evidence
 → proof-removal order with cancellation fences around every asynchronous phase.
-`SupabaseManager` retains every live Auth, endpoint, RevenueCat, consent,
-session-fence, retry, lifecycle, and logging effect. This split changes no
-Keychain key, JSON shape, API payload, or provider contract.
+The Auth-owned `GhostProfileMergeCoordinator` owns preparation durability,
+provider-to-transition admission before remote preparation, source-session
+validation before and after that suspension, target-and-transition-keyed task
+lifetime, retry, terminal cleanup, and analytics-suppression projection through
+injected boundaries. `GhostProfileMergeRemoteService+Live` owns the endpoint
+DTOs and Supabase invocation. `SupabaseManager` assembles live Auth, RevenueCat,
+consent, Keychain, and logging effects. This split changes no Keychain key, JSON
+shape, API payload, or provider contract.
 
 ## Required-consent launch restoration
 

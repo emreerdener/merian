@@ -73,7 +73,9 @@ struct MilestoneFeedbackArchitectureTests {
         #expect(liveServices.contains("enum ScanMilestoneLiveServices"))
 
         let composition = try source("apps/ios/Merian/Core/AppDIContainer.swift")
-        #expect(composition.contains("self.scanMilestoneCoordinator = ScanMilestoneCoordinator("))
+        #expect(composition.contains("let scanMilestoneCoordinator = ScanMilestoneCoordinator("))
+        #expect(composition.contains("self.scanMilestoneCoordinator = scanMilestoneCoordinator"))
+        #expect(composition.contains("milestoneCoordinator: scanMilestoneCoordinator"))
         #expect(composition.contains("dependencies: .live"))
     }
 

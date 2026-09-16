@@ -40,13 +40,23 @@ struct SpeciesPresentationArchitectureTests {
             )
         )
         for requiredCall in [
-            ".scheduleLiveHydrationIfNeeded(",
             "speciesPresentationCoordinator.fetchAndApplyEnrichment(",
             ".makeReviewWorkflowCallbacks()",
             "speciesPresentationCoordinator.markAlternativesExhausted("
         ] {
             #expect(engine.contains(requiredCall))
         }
+        let livePresentation = try contents(
+            of: try inferenceRoot().appendingPathComponent(
+                "Pipeline/InferenceLivePresentationCoordinator.swift"
+            )
+        )
+        #expect(!engine.contains(".scheduleLiveHydrationIfNeeded("))
+        #expect(livePresentation.contains(
+            "self?.speciesPresentationCoordinator\n                    .scheduleLiveHydrationIfNeeded("
+        ))
+        #expect(livePresentation.contains("modelContainer: modelContainer"))
+        #expect(livePresentation.contains("referencePolicy: referencePolicy"))
         for retiredEngineOwnership in [
             "func speciesHydrationCallbacks()",
             "func identificationReviewWorkflowCallbacks()",

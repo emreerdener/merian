@@ -3387,9 +3387,26 @@ This ensures:
 - Non-biological bulk deletion now commits SwiftData and
   `PendingCloudDeletionTask` state before file removal, eliminating the broken
   "DB row survives but media is already gone" failure mode.
-- `SupabaseManager` now guards anonymous auth bootstrap with a single
-  `ghostSessionTask`, preventing multiple suspended callers from racing
-  `signInAnonymously()` against the same empty session state.
+- `AuthSessionBootstrapCoordinator` guards anonymous Auth bootstrap with one
+  keyed provider-neutral task, preventing multiple suspended callers from racing
+  `signInAnonymously()` against the same empty session state. Transition-context
+  matching compares the complete stored token with the still-active owner, while
+  caller-cancellation checks bracket sign-out waiting. Together with task UUID
+  comparison before cleanup, those fences prevent cancelled, unrelated,
+  replaced, or late work from joining or clearing replacement state;
+  `SupabaseManager` composes the task-free bootstrap service and state adapters,
+  while `AuthSessionBootstrapLiveService+Live` alone performs the corresponding
+  Supabase session reads and anonymous sign-in.
+- `AuthSessionRecoveryCoordinator` serializes request-triggered refresh,
+  anonymous replacement recovery, and terminal local clear through the active
+  Auth transition without acquiring another task. It snapshots the exact
+  expected session before account-work quiescence and checks cancellation,
+  transition ownership, Auth generation, SDK identity, and purchase/entitlement
+  readiness after suspended phases. Terminal clear repeats the expected/current-
+  session check after quiescence and returns a typed outcome. Pending purchase
+  handoffs preserve the source session, while cleanup deliberately finishes once
+  local SDK sign-out begins so cancellation or an SDK error cannot leave
+  observable account state behind.
 
 ## 2026-05 Stability Updates
 
@@ -3450,21 +3467,108 @@ This ensures:
 
 ## 2026-09 Auth Continuation Hardening
 
+- `AuthRuntimeState` is the effect-free main-actor owner for the active
+  transition, Auth generation, transition analytics generations, exact-session
+  leases and drain waiters, and local sign-out state. `SupabaseManager` retains
+  the SDK listener and facade sign-out tasks and supplies live effects without
+  duplicating that mutable state.
 - `SupabaseManager` revalidates the exact manager-published user, nonexpired SDK
   session, captured Auth generation, and transition context after listener,
   anonymous-bootstrap, entitlement, and purchase-continuity suspension points.
   Recovery without a transition owner becomes stale immediately when a
   transition opens, rather than waiting for the next SDK event to advance the
   generation.
-- Replaceable restored-session public-author refresh carries both its target
-  account and a unique task ID. Cleanup is compare-before-clear, and the
+- `AuthLifecycleReplayCoordinator` owns one replacement-safe main-actor task for
+  a listener event deferred by an active transition. Transition finish snapshots
+  the current SDK session, expiry, and Auth generation; a newer listener event
+  cancels the synthetic replay, while a newly admitted transition retains the
+  obligation for its next stable finish boundary. Signed-out lifecycle handling
+  separately rechecks that exact current context after purchase cleanup before
+  cancelling linked-user, public-author, Apple-revocation, or Ghost-merge work.
+  Every facade-facing lifecycle effect captures `SupabaseManager` weakly, so a
+  replay suspended in an injected effect cannot retain the facade or outlive
+  teardown cancellation.
+- Provider-neutral Auth recovery now lives in `AuthSessionRecoveryCoordinator`.
+  Ordinary refresh owns one recovery transition; deletion/OAuth callers can
+  reuse their existing owner without a nested transition or
+  purchase/public-author relink. Refresh and anonymous-replacement cancellation
+  fences run before mutation and after suspension, and a final SDK readback
+  protects anonymous request replay. Terminal clear fences cancellation before
+  mutation, repeats its expected/current-session check after account-work
+  quiescence, and reports whether cleanup completed, context changed, or
+  purchase continuity blocked it. It then invokes the remaining local and
+  purchase-identity cleanup even if cancellation arrives after SDK sign-out
+  begins. A dedicated entry policy lets a cancelled OAuth owner enter that
+  completion-owned cleanup only when its SDK session was already mutated;
+  ordinary cleanup still requires an active caller.
+- `PublicAuthorIdentityRefreshCoordinator` owns replaceable restored-session
+  public-author refresh with both its target account and a unique task ID. Stale
+  scheduling targets are rejected before replacement. Cleanup is
+  compare-before-clear, retained Ghost handoffs complete before the remote
+  refresh, nested account-work leases fence both phases, and cancellation is
+  checked before lease/remote admission and after remote suspension. The
   completed-account marker plus invalidation event are published only after a
-  successful exact-session result.
+  successful exact-session result, and cancellation is not reported as a remote
+  failure. SDK/session, remote, event, and diagnostics effects remain injected
+  by the live manager adapter.
+- `AppleCredentialRevocationCoordinator` owns one retained lookup task and a
+  monotonic Auth-context generation. A transition or SDK lifecycle event
+  invalidates the prior attempt before session publication changes; a deferred
+  notification resumes only against the final exact Apple session and provider
+  subject. Concurrent notifications coalesce to one follow-up, cancellation and
+  identity drift reject postflight, and task-ID comparison prevents an older
+  completion from clearing replacement task state. The Apple SDK notification
+  and callback live in `AppleCredentialRevocationLiveProvider`. The task keeps
+  its coordinator weak across that suspension, while live assembly captures the
+  provider rather than the manager; owner release therefore does not wait for
+  the SDK callback, and a late result cannot apply. Unsafe results cross one
+  final exact-identity/no-transition admission before local recovery; rejection
+  preserves the notification for stable-context revalidation. A purchase-
+  handoff-blocked outcome retains the signal without a hot lookup loop; the
+  manager's centralized aggregate handoff publication resumes it when the fence
+  becomes false. A context generation changed while clear was suspended replays
+  after the deferred result instead of losing an earlier lifecycle wakeup. Clear
+  diagnostics follow completed local cleanup only. Bootstrap likewise checks
+  cancellation immediately after purchase readiness before returning a loaded or
+  newly created identity.
+- `OAuthProviderSignInCoordinator` owns provider admission and the one retained
+  Apple completion task. Apple callback acceptance requires the exact active
+  transition; task cleanup compares a UUID before clearing shared state, while
+  explicit cancellation releases the handle and UUID before cancelling the task.
+  The Google live provider checks cancellation before entering its SDK and again
+  after the provider returns, while the Apple live provider retains exactly one
+  controller/nonce/anchor attempt and rejects an overlapping start. Provider-
+  neutral session installation and rollback remain in `OAuthSignInCoordinator`
+  and `AuthSessionRecoveryCoordinator`; a provider callback cannot bypass those
+  exact-session fences. Apple registration evidence does not duplicate the
+  identity token; the credentials remain its sole native owner throughout the
+  completion task. The typed credential-registration service creates no task and
+  owns strict receipt validation; its `+Live` adapter owns the single suspended
+  Function invocation. The initializer-injected OAuth session service creates no
+  task; it owns credential/session/metadata SDK adaptation while its live
+  adapter performs the one requested Auth operation. `SupabaseManager` retains
+  the exact transition/session checks, replacement reconciliation, diagnostics,
+  and observable publication around those injected suspensions.
+- Fallback authentication URLs keep the existing app-root `onOpenURL` task as
+  their sole asynchronous caller. The task-free
+  `AuthenticationCallbackCoordinator` rejects overlap, pending purchase
+  continuity, anonymous sources, and different-account targets; checks
+  cancellation after preflight; and reconciles the SDK's actual session after
+  installation. The live boundary first records the mutation and exact installed
+  identity as the transition expectation; the coordinator then rechecks
+  cancellation, source/target policy, transition ownership, and sign-out before
+  publication or completion and retains exact-session fences after purchase and
+  entitlement suspension. If installation already mutated the SDK session,
+  failure or cancellation enters completion-owned cleanup for only that target.
 - Account-deletion and sign-out workflows reject preflight cancellation before
   persistence or Auth mutation. Deletion repeats the check before and after
   non-destructive v2 preparation and after each durable pre-commit boundary so
   recovery evidence survives without destructive dispatch. Shared OAuth
-  replacement checks cancellation both before and after synchronous analytics
-  suppression and reconciles the source session when the second check fails.
-  Google provider presentation/return and the shared direct provider-link path
-  add their own pre-mutation cancellation fences.
+  replacement checks cancellation before suppression, before installation, and
+  after the SDK suspension; its installed/failed/cancelled disposition restores
+  only an exact source and fails closed for a newly installed target. Google
+  provider presentation/return and the shared direct provider-link path add
+  their own pre-mutation fences. Shared completion also checks cancellation
+  after Apple registration, metadata, authenticated publication, telemetry,
+  entitlement, expected-session readback, and public-author refresh; Apple
+  cancellation never enters the registration retry.

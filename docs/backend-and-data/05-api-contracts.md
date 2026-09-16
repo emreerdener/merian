@@ -60,6 +60,22 @@ because an expired access JWT was rejected while its refresh token remains
 valid. The rejected handler request has not crossed the endpoint's domain
 mutation boundary, so the one refresh replay is safe.
 
+On iOS, `AuthenticatedRequestExecutor` owns bounded replay selection and
+`AuthSessionRecoveryCoordinator` owns the task-free Auth transition sequence.
+The coordinator captures the exact expected session before quiescing account
+work and repeats the expected/current-session check afterward, alongside
+cancellation, transition ownership, SDK identity, purchase readiness,
+entitlement, and final SDK readback around the refresh and anonymous-replacement
+suspension points. Terminal clear returns a typed completed, rejected, or
+purchase-handoff-blocked outcome. It rejects cancellation, context drift, and
+pending handoff evidence before mutation; after SDK sign-out begins, it invokes
+the remaining local and purchase-identity cleanup even if the SDK call fails or
+cancellation arrives. A blocked Apple credential clear retains its signal
+without a hot retry loop and resumes when the aggregate purchase-handoff fence
+becomes false. Live Supabase, RevenueCat, Keychain, analytics, and logging
+adapters remain assembled by `SupabaseManager`. This ownership split changes no
+HTTP status, public code, payload, or retry count.
+
 Provider-backed routes additionally return HTTP `403` with code
 `ai_consent_required` when the authenticated account lacks the current 18+
 self-attestation, lacks the current Terms receipt, lacks the current Google
@@ -7732,25 +7748,55 @@ enter logs. The legacy sign-out proof remains unchanged while mode is `legacy`.
 On iOS, `PurchasePrincipalResolver` is the source-compatible orchestration
 facade over Purchase Identity's focused domain/wire models, deterministic
 policies, verified capability/resolver-state stores, secure-random helper, and
-typed remote service. Only the live service adapter imports Supabase, defines
-the request payloads, invokes this route, and classifies definite `404` fallback
+typed resolver service. Only its live adapter imports Supabase, defines the
+request payloads, invokes this route, and classifies definite `404` fallback
 eligibility. `Stores/PurchaseIdentityHandoffStore.swift` separately owns both
 installed journal codecs, validation before writes and after reads, exact
 device-only Keychain policy, read-back verification, and removal.
 `Core/Network/Auth/Coordinators/PurchaseIdentitySignOutWorkflow.swift` owns the
-deterministic preparation/sign-out/completion order, while `SupabaseManager`
-injects the live request, Auth, RevenueCat, entitlement, session, logging, and
-recovery effects. Legacy completion checks cancellation before dispatching its
-server destination-bind request and after every asynchronous phase, retaining
-the durable proof whenever completion does not reach its verified terminal
-state. Ordinary and purchase-safe sign-out also reject preflight cancellation
-before persistence or Auth mutation. Before an operation may replace the Auth
-identity, the manager rereads both store-backed journal types and derives
-readiness from those durable values. An unavailable secure read is treated as
-pending, and that derived pending projection keeps paid mutations closed. A
-cached false value alone is not authority to replace the identity. This
-ownership split changes none of the request, response, error, expiry, or retry
-contracts above.
+deterministic preparation/sign-out/completion order and checks cancellation
+before entry and between every identity phase, while
+`PurchaseIdentitySignOutCoordinator.swift` owns stable/legacy selection,
+pending-proof continuation, anonymous retry admission, recovery-only reset
+admission, and fail-closed stable-journal verification. Recovery drains
+account-bound work before loading or completing against the anonymous SDK
+session. `PurchaseIdentitySourceHandoffCoordinator.swift` owns aggregate
+fail-closed journal projection, exact-source preparation and abandonment, and
+failed-sign-out restoration. Cancellation after compatibility preparation's
+final SDK-session read cannot report success; the proof persisted before that
+read remains available for recovery. Both abandonment routes recheck the exact
+transition or unowned account-work lease after the initial suspended SDK session
+read and before remote cancellation; stable retirement repeats that fence after
+its final SDK read and before durable proof removal.
+`PurchaseIdentityHandoffAuthJournal.swift` owns Auth error translation over the
+Core Security store, while `PurchaseIdentityHandoffPreparationCoordinator.swift`
+contains `PurchaseHandoffPreparationCoordinator`, which owns construction and
+stable `preparing`/`prepared` durability checkpoints plus compatibility-proof
+persistence before honoring cancellation.
+`PurchaseIdentityHandoffCoordinator.swift` owns stable and compatibility
+completion keyed by destination, Auth generation, and transition owner;
+exact-session and cancellation fences; terminal-only legacy proof retirement;
+and proof removal. `PurchaseIdentitySessionCoordinator.swift` owns binding
+state, durable-handoff-to-provider-fence projection, and keyed resolver task
+lifetime with late superseded-result rejection, while
+`PurchaseIdentityReadinessCoordinator` owns foreground
+journal/provider/entitlement repair behind exact account and session fences. The
+typed legacy-profile service's live adapter alone owns the unchanged `users`
+query used by legacy linking. `SupabaseManager` injects live Auth, RevenueCat,
+entitlement, session, journal, query, logging, and recovery effects and
+revalidates the exact Auth transition through the source-handoff coordinator
+around suspended source discovery and stable preparation. Legacy completion
+checks cancellation before dispatching its server destination-bind request and
+after every asynchronous phase, retaining the durable proof whenever completion
+does not reach its verified terminal state. Fresh deletion and ordinary or
+purchase-safe sign-out also reject preflight cancellation before transition
+admission, persistence, or Auth mutation. Before an operation may replace the
+Auth identity, the source-handoff coordinator rereads both store-backed journal
+types and derives readiness from those durable values. An unavailable secure
+read is treated as pending, and that derived pending projection keeps paid
+mutations closed. A cached false value alone is not authority to replace the
+identity. This ownership split changes none of the request, response, error,
+expiry, or retry contracts above.
 
 Errors use `{ "code": "...", "error": "..." }` plus the shared request ID.
 
@@ -7861,6 +7907,29 @@ to 2 KiB, and never accepts a source or destination UUID. `config.toml` uses
 `verify_jwt = false` so the gateway does not couple this route to one JWT
 signing scheme; `withEdgeHandler` still requires the Authorization header and
 resolves the live Supabase Auth user before the handler runs.
+
+On iOS, `LegacyPurchaseHandoffRemoteService.swift` is the typed
+prepare/bind/complete/cancel boundary. Its `+Live` adapter alone owns this
+route's private wire DTOs, all four operations across three Supabase SDK
+invocation paths, exact handoff/destination response validation, and the
+terminal `handoff_expired`/`handoff_invalid` classifier.
+`PurchaseIdentityHandoffCoordinator.swift` owns the keyed completion task,
+exact-session/cancellation admission, provider and entitlement phase ordering,
+and proof removal through injected operations. `SupabaseManager` constructs both
+owners and supplies live effects; it does not own this route's DTOs or
+completion task state.
+
+The sign-out route coordinator drains account-bound work before a foreground
+recovery reads the anonymous SDK session. During preparation, iOS persists a
+successful compatibility response before honoring cancellation; cancellation
+then prevents the next session read or Auth mutation while retaining the only
+one-use recovery proof.
+
+The task key includes transition ownership as well as destination and Auth
+generation. A transition-owned request therefore replaces older ownerless work
+for the same session instead of joining a task whose exact-session policy has
+already become stale. Both caller admission and the coordinator-owned task body
+reject cancellation before selecting or reading either durable journal.
 
 ### Prepare
 
@@ -8008,7 +8077,20 @@ identity refresh. `withEdgeHandler` resolves the live Auth user after the
 gateway check.
 
 The iOS client may enter this fallback only for Supabase Auth code
-`identity_already_exists`. Other identity-link failures do not switch sessions.
+`identity_already_exists`. `OAuthSignInCoordinator` owns that routing and
+requires the provider-bound proof to prepare before its injected replacement-
+session effect. `OAuthIdentityTokenPolicy` validates the bounded token subject;
+`OAuthSignInWorkflow` reports installed, failed, or cancelled replacement so a
+cancelled new target cannot be republished as successful. The SDK-facing
+`OAuthSessionService` maps provider-neutral credentials and its `+Live` adapter
+owns the Supabase link and replacement calls. `SupabaseManager` retains Ghost
+prepare, exact-session replacement reconciliation, observable publication, and
+fail-closed cleanup assembly around that injected service. The live install
+boundary records the mutation and exact installed identity as the transition's
+recovery expectation before post-install cancellation can escape; this permits
+cleanup only for that target and is not successful-account publication. Other
+identity-link failures do not switch sessions. No request or response field
+changes at this boundary.
 
 ### Prepare
 
@@ -8031,6 +8113,18 @@ scalars. iOS persists the proof in a versioned Keychain queue using
 sole native codec, legacy-migration, validation, and verified-persistence owner
 for that queue. It validates the server timestamp's syntax but leaves expiry
 classification to this server contract.
+`Core/Security/GhostProfileMerge/Services/GhostProfileMergeRemoteService+Live.swift`
+is the sole native owner of the prepare, complete, and identity-refresh payload
+DTOs and Supabase Function invocation.
+
+Before invoking prepare, the native coordinator requires the owned Auth
+transition to encode the same provider. It validates the exact anonymous source
+session both before the request and after the response; source-session drift
+leaves the returned server capability unpersisted. Prepare transfers no profile
+data, and the unused server capability remains subject to the existing 30-day
+expiry policy. Caller cancellation is honored only after a still-valid returned
+capability becomes durable. These are client admission and recovery guarantees,
+not additional wire fields or server error codes.
 
 Successful response: HTTP 201.
 
@@ -8086,10 +8180,20 @@ On iOS, `Core/Network/Auth/Policies/GhostProfileMergePolicy.swift` owns stable
 queue replacement and terminal-code classification, while
 `Core/Network/Auth/Coordinators/GhostProfileMergeWorkflow.swift` owns server
 completion → purchase sync → local-evidence sync → proof removal with
-cancellation checks between phases. `SupabaseManager` remains the live endpoint,
-session-fence, provider, consent, retry, lifecycle, and logging orchestrator.
-These native ownership boundaries do not change the request, response, error, or
-idempotency contract above.
+cancellation checks between phases. `GhostProfileMergeCoordinator` owns durable
+preparation, exact source and provider-transition admission, exact target
+admission, target-and-transition-keyed completion, retry, terminal cleanup, and
+suppression through injected dependencies. The provider-neutral
+`PublicAuthorIdentityRefreshCoordinator` owns the restored-session ordering from
+retained Ghost completion through `refresh_identity`, nested account-work
+leases, exact-session validation, and identity-change publication. It rejects a
+stale scheduling target before task replacement and checks cancellation before
+lease/remote admission and after the remote suspension; these are client-side
+admission guarantees and do not change the Function payload or response.
+`SupabaseManager` assembles the live session, provider, consent, Keychain,
+lifecycle, remote-service, event, and logging effects. These native ownership
+boundaries do not change the request, response, error, or idempotency contract
+above.
 
 Successful response: HTTP 200.
 
@@ -8186,7 +8290,31 @@ immediate compensating Apple revocation. Validation/expired-authorization
 failures are bounded `4xx`; dependency, configuration, or persistence failures
 are retryable `503`. Public responses and logs never contain an Apple code,
 identity token, refresh token, client secret, or provider response body. The
-hosted-secret, rotation, rollout, and production evidence requirements are
+native `OAuthSignInWorkflow` owns the bounded same-request retry, and
+`OAuthSignInCoordinator` requires registration before profile metadata, purchase
+binding, entitlement, or final Auth publication. It rejects a missing Apple
+registration effect, an Apple-only effect attached to Google, or credentials
+whose provider does not match the owned OAuth transition before session
+mutation. Cancellation after registration does not retry and cannot advance the
+remaining native completion phases; an already-mutated session reaches
+completion-owned local cleanup. `AppleOAuthAuthorizationLiveProvider` owns the
+raw Apple credential and maps its one-use code into identity-token-free
+provider-neutral registration evidence. The provider-neutral OAuth credentials
+remain the sole native identity-token source, and the live registration adapter
+forwards that same token after session installation.
+`AppleOAuthCredentialRegistrationService+Live` alone owns the private wire DTOs,
+lowercased registration UUID, and authenticated Edge invocation; its provider-
+neutral service accepts only `success == true`, `status == "registered"`. The
+adapter performs exactly one authenticated Function invocation per service call.
+It owns neither retry policy nor asynchronous task state; `OAuthSignInWorkflow`
+remains the retry owner. `OAuthProviderSignInCoordinator` owns callback/task
+admission. `OAuthSessionService` and its `+Live` adapter own the corresponding
+OIDC/session/profile-metadata adaptation and Supabase Auth calls, while
+`SupabaseManager` retains the exact-session fences, diagnostics, publication,
+and cleanup assembly around both injected services. This ownership split changes
+no request or response field.
+
+The hosted-secret, rotation, rollout, and production evidence requirements are
 normative in the
 [Sign in with Apple account-deletion contract](./20-sign-in-with-apple-account-deletion.md).
 
@@ -8210,9 +8338,12 @@ operation-specific receipt/proof validation lives in
 `Decoding/AccountDeletionResponseDecoder.swift` and
 `AccountDeletionRecoveryValidation.swift`. Route-fixed client bridges retain
 private transport. `Core/Network/Auth/` owns deterministic error/session
-classification and closure-injected phase sequencing; `SupabaseManager`, Core
-Security, and `AppDIContainer` retain live transition state, endpoint and SDK
-calls, proof and marker persistence, sign-out, purge, and lifecycle effects. The
+classification, pure phase sequencing, and separate dependency-injected fresh
+deletion and recovery coordinators. `AuthRuntimeState` retains live transition,
+generation, and exact-session lease/drain state; `SupabaseManager`, Core
+Security, and `AppDIContainer` retain endpoint and SDK calls, proof and marker
+persistence, sign-out, purge, diagnostics, and lifecycle effects supplied to
+those coordinators. The
 [native ownership and verification guide](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-ownership)
 also covers public recovery. This file split changes no payload or lifecycle
 contract.
@@ -8418,22 +8549,27 @@ receipt arrives. Relaunch from either preparation marker is admitted only to
 that same deletion-owned recovery transition. A crash before commit uses public
 v2 recovery: `not_committed` retires only the proof and marker and preserves
 Auth and SwiftData; pending/completed proves another device or the interrupted
-commit created the job and proceeds to cleanup. An unknown v2 proof is also
-evidence of no commit because v2 commit cannot run without a server preparation.
-Legacy v1 unknown proofs remain ambiguous and fail closed. Transport, Auth,
-gateway, `5xx`, cancellation, or decode failure cannot reopen normal account
-work or cause a different account to inherit cleanup. The explicit
-`409 purchase_continuity_pending` is the only authenticated rejection that can
-authorize rejection retirement. V2 first requires public recovery to establish
-`not_committed`; legacy rejection may retire directly. iOS persists
+commit created the job and proceeds to cleanup. Outside the installed
+mixed-domain compatibility state described below, an unknown v2 proof is also
+evidence of no v2 commit because v2 commit cannot run without a server
+preparation. Legacy v1 unknown proofs remain ambiguous and fail closed.
+Transport, Auth, gateway, `5xx`, cancellation, or decode failure cannot reopen
+normal account work or cause a different account to inherit cleanup. The
+explicit `409 purchase_continuity_pending` is the only authenticated rejection
+that can authorize rejection retirement. V2 first requires public recovery to
+establish `not_committed`; legacy rejection may retire directly. iOS persists
 `capability_rejection_retirement_pending`, then read-after-delete verifies the
 unused proof is gone before clearing the marker. Relaunch in this phase performs
 neither local sign-out nor local data erasure.
 
 After a validated pending/completed receipt, iOS advances the marker to
-`capability_cleanup_pending`, persists any manual Apple disposition, performs
-verified local Supabase sign-out, and deletes every active-schema SwiftData row
-through
+`capability_cleanup_pending`. When the Auth listener observes this accepted-
+deletion barrier, it immediately clears the published Auth session,
+purchase-principal binding/readiness, and local server-verified entitlement
+projection. This is a local fail-closed reset: it does not mutate the server
+entitlement ledger, acknowledge deletion, or retire either proof or marker. iOS
+then persists any manual Apple disposition, performs verified local Supabase
+sign-out, and deletes every active-schema SwiftData row through
 `ScanRepository.purgeAllData(modelContext:userDefaults:resetDerivedState:resetRuntimeState:)`.
 The required app-owned private-map reset closure empties and epoch-fences
 exact-coordinate snapshots, index work, and preview rendering and advances the
@@ -8461,7 +8597,15 @@ acknowledgement or extend its expiry. The app establishes its ordinary
 signed-out state only after this sequence. Neither marker nor proof contains an
 account, job, provider, or request identifier. Legacy `intake_pending` and
 `cleanup_pending` remain supported during the installed-client compatibility
-window.
+window. A proofless `intake_pending` marker creates and verifies one raw v1
+proof before legacy replay; it never stores a v2 envelope for the v1 endpoint,
+preserving the same hash domain after an ambiguous response or relaunch. A
+proofless `capability_prepared_pending` marker cancels without deletion because
+the destructive `capability_intake_pending` phase was never recorded. For
+compatibility with an earlier mixed-state bug, a v2 unknown result while an
+installed intake/cleanup marker and v2 envelope coexist triggers a read-only v1
+recovery lookup with the same proof. Only a positive legacy match advances
+cleanup; a legacy unknown remains fail-closed and retains local evidence.
 
 ### Public `/recover-account-deletion` continuation
 
@@ -8505,14 +8649,14 @@ response is exact account-free state:
 `acknowledge` must return `recovery_acknowledged: true`. A wrong or unknown v1
 proof returns `404 account_deletion_recovery_invalid`; this is not evidence that
 the authenticated intake failed, because a prior request may still be
-committing. A wrong or unknown v2 proof cannot have committed because commit
-requires its prior server preparation, so supporting clients may retire only
-that proof and local intent without signing out or erasing data. Expired 24-hour
-preparations first move into the private, identity-free
-`internal.account_deletion_expired_preparation_proofs` ledger. If expiration
-happened before deletion committed, recovery returns `not_committed`; if another
-device committed in the transaction that retired this expired proof, recovery
-returns the distinct fail-closed
+committing. A wrong or unknown proof known to have remained in the v2 domain
+cannot have committed because v2 commit requires its prior server preparation,
+so supporting clients may retire only that proof and local intent without
+signing out or erasing data. Expired 24-hour preparations first move into the
+private, identity-free `internal.account_deletion_expired_preparation_proofs`
+ledger. If expiration happened before deletion committed, recovery returns
+`not_committed`; if another device committed in the transaction that retired
+this expired proof, recovery returns the distinct fail-closed
 `410 account_deletion_recovery_preparation_expired`. That code is not a deletion
 receipt and never authorizes local erasure. Its permanent hash tombstone
 prevents an older client from later interpreting the proof as unknown or reusing

@@ -49,6 +49,27 @@ follow, or edit on the web surface. A centered support-email report action sits
 below the Taxonomy card and contains the immutable post id; this is not an
 authenticated in-product report write.
 
+## Homepage and shared presentation
+
+The homepage introduces nearby discovery with the existing app screenshot and
+decorative iOS artwork. Its photo cards continue to consume
+`fetchExploreFeedPosts(24)` and `exploreGridPosterUrl(...)`, with public species
+labels and author names. Empty results show an empty state; the page does not
+substitute mock observations or autoplay media. It adds no species search,
+engagement controls, or broader data queries.
+
+The shared Mantine theme, header navigation, mobile drawer, and footer carry the
+same forest palette and rounded surfaces across the public routes. Reference and
+post detail content keep their existing component-based presentation and privacy
+boundaries. Light/dark preferences remain supported. Header and footer links
+resolve to existing pages or homepage anchors.
+
+The homepage contains one existing waitlist form in its closing invitation;
+secondary pages expose it through the header modal. App Store configuration
+switches the invitation to a download action. The introductory sharing copy
+distinguishes choosing to publish a post from the mandatory Scientific Data
+contribution of submitted scans and links to `/privacy-choices`.
+
 ## Data Flow
 
 1. The iOS app shares `https://naturebook.earth/explore/post/{postId}` in the

@@ -260,6 +260,47 @@ struct AuthenticatedRequestExecutorTests {
         })
     }
 
+    @Test func cancellationDuringUnauthorizedRefreshStopsBeforeAuthMutation()
+        async throws {
+        let userID = UUID()
+        let probe = AuthenticatedRequestExecutorProbe(
+            authUserIDs: [userID],
+            outcomes: [
+                .response(
+                    statusCode: 401,
+                    data: Data(#"{"code":"auth_session_missing"}"#.utf8)
+                )
+            ],
+            cancelDuringRefresh: true,
+            unauthorizedRecoveryState: .init(
+                hasAuthenticatedOAuth: false,
+                isGuestUser: true,
+                purchaseIdentityHandoffPending: false
+            ),
+            resetGhostSessionResult: true
+        )
+
+        let executor = makeExecutor(probe: probe)
+        let request = try makeRequest(function: "get-explore-feed")
+        let task = Task {
+            try await executor.execute(request)
+        }
+
+        do {
+            _ = try await task.value
+            Issue.record("Expected cancellation")
+        } catch is CancellationError {
+            // Expected only for the child request task.
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+
+        #expect(probe.refreshTargets == [.ordinary])
+        #expect(probe.resetGhostSessionCount == 0)
+        #expect(probe.clearLocalSessionCount == 0)
+        #expect(probe.attempts.count == 1)
+    }
+
     @Test func transientRetryNotifiesBodyReleaseForEachCompletedAttempt()
         async throws {
         let userID = UUID()
@@ -411,6 +452,7 @@ private final class AuthenticatedRequestExecutorProbe: @unchecked Sendable {
     private var capturedPaymentRequiredCount = 0
     private var capturedAIConsentRequiredCount = 0
     private let refreshResult: Bool
+    private let cancelDuringRefresh: Bool
     private let resetGhostSessionResult: Bool
 
     let unauthorizedRecoveryState:
@@ -421,6 +463,7 @@ private final class AuthenticatedRequestExecutorProbe: @unchecked Sendable {
         authUserIDs: [UUID],
         outcomes: [Outcome],
         refreshResult: Bool = false,
+        cancelDuringRefresh: Bool = false,
         unauthorizedRecoveryState:
             AuthenticatedRequestExecutor.UnauthorizedRecoveryState = .init(
                 hasAuthenticatedOAuth: true,
@@ -433,6 +476,7 @@ private final class AuthenticatedRequestExecutorProbe: @unchecked Sendable {
         remainingAuthUserIDs = authUserIDs
         remainingOutcomes = outcomes
         self.refreshResult = refreshResult
+        self.cancelDuringRefresh = cancelDuringRefresh
         self.unauthorizedRecoveryState = unauthorizedRecoveryState
         self.resetGhostSessionResult = resetGhostSessionResult
         self.purchaseIdentityHandoffPending =
@@ -530,6 +574,9 @@ private final class AuthenticatedRequestExecutorProbe: @unchecked Sendable {
     ) -> Bool {
         locked {
             capturedRefreshTargets.append(target)
+            if cancelDuringRefresh {
+                withUnsafeCurrentTask { $0?.cancel() }
+            }
             return refreshResult
         }
     }

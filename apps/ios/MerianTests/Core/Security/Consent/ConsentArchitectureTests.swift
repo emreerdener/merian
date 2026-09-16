@@ -783,6 +783,7 @@ struct ConsentArchitectureTests {
             mutationServicePath
         ]
         let cloudSessionCoordinatorAllowedPaths: Set<String> = [
+            managerPath,
             managerRuntimePath,
             cloudSessionCoordinatorPath,
             liveCloudSessionCoordinatorPath
@@ -854,6 +855,10 @@ struct ConsentArchitectureTests {
                     !containsToken("ConsentCloudSessionCoordinator", in: source),
                     "\(relativePath) bypasses the Consent cloud-session coordinator"
                 )
+            }
+            if relativePath == managerPath {
+                #expect(source.contains("ConsentCloudSessionCoordinator.Dependencies?"))
+                #expect(!source.contains("ConsentCloudSessionCoordinator("))
             }
             if !managerRuntimeAllowedPaths.contains(relativePath) {
                 #expect(

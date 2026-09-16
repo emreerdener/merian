@@ -373,19 +373,6 @@ final class AuthTransitionPolicyTests: XCTestCase {
         )
     }
 
-    func testEveryExternalIdentityLinkWaitsForPurchaseHandoffBinding() {
-        XCTAssertTrue(
-            AuthTransitionPolicy.shouldDeferExternalIdentityLink(
-                purchaseIdentityHandoffPending: true
-            )
-        )
-        XCTAssertFalse(
-            AuthTransitionPolicy.shouldDeferExternalIdentityLink(
-                purchaseIdentityHandoffPending: false
-            )
-        )
-    }
-
     func testFailedSignOutRestoresOnlyTheExactUnfencedSourceAccount() {
         let sourceUserID = UUID()
 

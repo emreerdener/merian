@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 @Suite("Account Deletion Recovery Capability Tests")
-struct AccountDeletionRecoveryCapabilityStoreTests {
+struct AccountDeletionCapabilityStoreTests {
     private final class SecureStoreStub:
         AccountDeletionRecoverySecureStore {
         var values: [String: Data] = [:]
@@ -177,11 +177,69 @@ struct AccountDeletionRecoveryCapabilityStoreTests {
         #expect(!capability.wasCreated)
     }
 
+    @Test("Pre-capability intake creates and reuses a verified v1 proof")
+    func preCapabilityIntakeCreatesLegacyProof() throws {
+        let secureStore = SecureStoreStub()
+        let expected = Data(repeating: 0x22, count: 32)
+        var generationCount = 0
+        let store = AccountDeletionRecoveryCapabilityStore(
+            secureStore: secureStore,
+            generateCapability: {
+                generationCount += 1
+                return expected
+            }
+        )
+
+        let created = try store.prepareLegacyIntake()
+        let reused = try store.prepareLegacyIntake()
+
+        #expect(created.protocolVersion == 1)
+        #expect(created.acknowledgementValue == nil)
+        #expect(created.wasCreated)
+        #expect(reused == PreparedDeletionRecoveryCapability(
+            protocolVersion: 1,
+            recoveryValue: created.recoveryValue,
+            acknowledgementValue: nil,
+            wasCreated: false
+        ))
+        #expect(generationCount == 1)
+        #expect(
+            secureStore.values[
+                KeychainKeys.accountDeletionRecoveryCapability
+            ] == expected
+        )
+        #expect(secureStore.writes.count == 1)
+        #expect(
+            secureStore.writes.first?.accessibility
+                == .whenUnlockedThisDeviceOnly
+        )
+    }
+
+    @Test("Legacy intake refuses an existing v2 envelope")
+    func legacyIntakeDoesNotReinterpretV2Proof() throws {
+        let secureStore = SecureStoreStub()
+        var generationCount = 0
+        let store = AccountDeletionRecoveryCapabilityStore(
+            secureStore: secureStore,
+            generateCapability: {
+                generationCount += 1
+                return Data(repeating: UInt8(generationCount), count: 32)
+            }
+        )
+        _ = try store.prepare()
+
+        #expect(throws: AccountDeletionRecoveryCapabilityError.self) {
+            try store.prepareLegacyIntake()
+        }
+        #expect(generationCount == 2)
+        #expect(secureStore.writes.count == 1)
+    }
+
     @MainActor
     @Test("A markerless or unreadable Keychain proof restores a pre-Auth barrier")
     func orphanedProofRestoresBarrierBeforeAuth() throws {
         let suiteName =
-            "AccountDeletionRecoveryCapabilityStoreTests.\(UUID())"
+            "AccountDeletionCapabilityStoreTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let secureStore = SecureStoreStub()
@@ -201,7 +259,7 @@ struct AccountDeletionRecoveryCapabilityStoreTests {
         )
 
         let uncertainSuiteName =
-            "AccountDeletionRecoveryCapabilityStoreTests.\(UUID())"
+            "AccountDeletionCapabilityStoreTests.\(UUID())"
         let uncertainDefaults = try #require(
             UserDefaults(suiteName: uncertainSuiteName)
         )
@@ -230,7 +288,7 @@ struct AccountDeletionRecoveryCapabilityStoreTests {
     @Test("Verified proof absence does not create a recovery barrier")
     func absentProofKeepsBootstrapOpen() throws {
         let suiteName =
-            "AccountDeletionRecoveryCapabilityStoreTests.\(UUID())"
+            "AccountDeletionCapabilityStoreTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let secureStore = SecureStoreStub()

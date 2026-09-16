@@ -547,15 +547,24 @@ verifies the presented and exchanged identity tokens, requires the same Apple
 subject, binds that subject to `auth.identities`, and atomically stores the
 refresh token in Supabase Vault with a token-free idempotency receipt. A failed
 Vault write triggers immediate compensating revocation, and iOS clears the new
-local session if registration cannot be confirmed.
+local session if registration cannot be confirmed. On iOS, the provider-neutral
+registration service strictly validates the success receipt, its `+Live` adapter
+alone owns this route's private DTOs and Function invocation, and
+`SupabaseManager` supplies only the surrounding exact-session assembly. The
+adapter performs exactly one authenticated Function invocation per service call.
+It owns neither retry policy nor asynchronous task state; `OAuthSignInWorkflow`
+remains the retry owner.
 
 The supporting iOS auth lifecycle also treats Apple's credential-revoked
-notification as a revalidation signal, not authoritative revocation by itself.
-It queries `getCredentialState` with the provider-specific Apple identity,
-discards a callback if that identity is no longer active, preserves an
-authoritative `.authorized` session, and otherwise clears only the matching
-local session. This client transition never marks the durable server provider
-stage complete.
+notification as a revalidation signal, not authoritative revocation by itself. A
+focused live provider owns `getCredentialState`; its provider-neutral retained
+coordinator defers across Auth transitions, coalesces overlap, and validates the
+captured session, provider-specific Apple identity, and Auth-context generation
+after suspension. It preserves an authoritative `.authorized` session and
+otherwise clears only the still-matching local session. The retained task keeps
+the coordinator weak and captures only the provider across lookup suspension;
+owner release does not wait for the callback, and a late result cannot apply.
+This client transition never marks the durable server provider stage complete.
 
 The SQL claim itself inner-joins the corresponding private job at
 `storage_pending`, requires completed relational cleanup and incomplete storage,
@@ -592,11 +601,14 @@ from a proof alone and returns no identity. iOS signs out and purges locally
 only after a positive receipt or a positive match to an actual committed
 capability whose 180-day window elapsed, acknowledges after cleanup, then
 read-after-delete verifies proof retirement before clearing its durable marker.
-Legacy unknown proofs and ambiguous transport failures remain fenced. A v2
-`not_committed` or genuinely unknown proof retires only the unused intent, then
-re-adopts the exact cached unexpired session before reopening account work. The
-raw proofs are never stored server-side, logged, or reused as authentication or
-purchase identity.
+When the native Auth listener observes the accepted-cleanup barrier, it first
+clears published Auth, purchase-principal readiness, and its local server-
+verified entitlement projection. That client-side invalidation does not mutate
+the entitlement ledger or advance server deletion state. Legacy unknown proofs
+and ambiguous transport failures remain fenced. A v2 `not_committed` or
+genuinely unknown proof retires only the unused intent, then re-adopts the exact
+cached unexpired session before reopening account work. The raw proofs are never
+stored server-side, logged, or reused as authentication or purchase identity.
 
 `reconcile-account-deletions` is a scheduled service-role worker that resumes
 due account and R2 work. It performs one bounded account pass, bounded storage
@@ -702,10 +714,19 @@ deadline promotion coverage lives in
 `scripts/resolve_deployed_health_monitor_modes_test.ts`.
 
 The cross-language `accountDeletionCoverage.test.ts` guard reads the native
-`SupabaseManager` and `AccountDeletionWorkflow` owners together with
+fresh/recovery deletion coordinators and `AccountDeletionWorkflow` together with
 `Core/Security/AccountDeletion`'s recovery-state model, durable phase store, and
-capability store. A native ownership move must update every executable source
-path and rerun that focused six-test contract.
+capability store. It also reads `AppleOAuthAuthorizationLiveProvider`,
+`OAuthProviderSignInCoordinator`, both `AppleOAuthCredentialRegistrationService`
+owners, the `SupabaseManager` exact-session assembly, `OAuthSignInCoordinator`,
+and `OAuthSignInWorkflow` to pin one-use Apple credential capture and mapping
+before authenticated registration, strict receipt handling, sole Function DTO
+ownership, exactly one live invocation per service call, no adapter-owned retry
+policy, asynchronous task, facade, or alternate transport, fail-closed
+provider/transition and Apple-required/Google-forbidden wiring, mutation-aware
+recovery, one credential-owned identity-token source, and bounded
+same-registration retry. A native ownership move must update every executable
+source path and rerun that focused six-test contract.
 
 The complete Apple authorization, provider-stage, legacy fallback, hosted
 secret, rotation, rollout, and smoke-test contract is
@@ -2086,13 +2107,23 @@ UUID.
 After commit, the foreground endpoint reads source/destination RevenueCat state,
 mirrors and verifies any active finite/lifetime Pro horizon, and only then
 deletes the obsolete anonymous Auth row. The proof-bearing client synchronizes
-the real store receipt before it may remove its durable handoff.
-`functions/reconcile-ghost-profile-merges/` is the five-minute, service-only
-recovery worker for interrupted provider preservation and Auth cleanup; it also
-preserves access before deletion. It has `verify_jwt = false` solely for
-`pg_net` compatibility and uses the shared exact environment-backed request
-policy, accepting an opaque key only in `apikey`. Neither path deletes the
-source RevenueCat customer. See the two function READMEs and the deployment
+the real store receipt before it may remove its durable handoff. On iOS,
+`GhostProfileMergeCoordinator` owns durable preparation with exact
+source/provider-transition admission and target-and-transition-keyed completion
+through injected dependencies, while `GhostProfileMergeRemoteService+Live` is
+the sole native owner of this Function's prepare, complete, and identity-refresh
+DTOs, calls, and error mapping. `SupabaseManager` remains the live Auth
+composition facade; the live OAuth install boundary records both the mutation
+and exact target transition expectation before post-install cancellation can
+escape. The provider-neutral coordinator fences every later suspended phase and
+sends an already-mutated cancelled session through exact-target, fail-closed
+local cleanup without treating that recovery expectation as successful account
+publication. `functions/reconcile-ghost-profile-merges/` is the five-minute,
+service-only recovery worker for interrupted provider preservation and Auth
+cleanup; it also preserves access before deletion. It has `verify_jwt = false`
+solely for `pg_net` compatibility and uses the shared exact environment-backed
+request policy, accepting an opaque key only in `apikey`. Neither path deletes
+the source RevenueCat customer. See the two function READMEs and the deployment
 runbook before changing this protocol. `tests/ghost_profile_merge_security.sql`
 runs in the disposable catalog through `make test-supabase-privileged-routines`.
 Ownership transfer is driven by the private, source-controlled
@@ -2463,7 +2494,7 @@ detail only. `20260718150932_add_credited_field_trip_progress.sql` extends both
 standard and Seasonal Challenge scan-progress responses with the level
 number/title and completed/target counts credited by the scan. It preserves the
 existing RPC signatures, permissions, and response fields; the added fields let
-a level- completion toast show the completed level rather than the newly active
+a level-completion toast show the completed level rather than the newly active
 level. `20260718162409_scope_credited_progress_to_current_attempt.sql` scopes
 those credited counts to checklist items matched by the current application
 attempt, so re-identifying an older scan cannot duplicate a destination or reuse
@@ -2816,7 +2847,7 @@ the iOS toast surface. Verify partial progress, level advancement, final
 completion, multiple standard/challenge destinations, re-identification after
 level advancement, and idempotent reapplication. Those two migrations add only
 response fields; legacy clients ignore them and newer clients fall back to
-current counts until the migrations are live. The later persistent- contribution
+current counts until the migrations are live. The later persistent-contribution
 release adds optional `preferred_goal` to the request.
 
 For persistent Insight contribution cards and selected-goal preference, apply

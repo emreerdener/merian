@@ -95,6 +95,31 @@ transition context. A retry without a transition owner becomes stale when a new
 Auth transition opens. Temporary failures retain the proof and block purchase
 mutations so app relaunch can safely retry.
 
+Foreground retry first drains account-bound work, then reads and verifies the
+anonymous SDK session. During initial preparation, iOS persists a successful
+server response before honoring cancellation. The preparation owner then checks
+cancellation before returning, so cancellation observed there stops before final
+source-session validation. If cancellation instead arrives while compatibility
+preparation's final SDK-session read is suspended, the source coordinator honors
+it immediately on return, before success can be reported. Both paths retain the
+one-use proof for relaunch recovery.
+
+`PurchaseIdentitySourceHandoffCoordinator` owns those source-session fences;
+Core Security's `PurchaseHandoffPreparationCoordinator` maps and persists the
+returned compatibility proof; and the focused Auth journal adapter owns error
+translation over the secure store. `SupabaseManager` remains only the live
+effect assembler for this client path. Exact-source abandonment revalidates its
+owned transition or unowned account-work lease after the initial suspended SDK
+read and before remote cancellation. Fence loss sends no cancellation and
+retains the compatibility proof plus pending purchase-mutation fence.
+
+The iOS completion task is keyed by transition ownership as well as destination
+and Auth generation. A transition-owned request replaces older ownerless work
+for that same session instead of joining a task whose session policy became
+stale when the transition opened. Caller admission and the coordinator-owned
+task body both reject cancellation before selecting or reading either durable
+journal.
+
 ## Entitlement policy
 
 - Active subscriptions and StoreKit non-renewing/lifetime purchases transfer

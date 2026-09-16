@@ -9,7 +9,10 @@ enum PurchaseIdentitySignOutWorkflow {
     ) async -> Bool {
         guard !Task.isCancelled else { return false }
         await performSignOut()
-        return await initializeAnonymousSession()
+        guard !Task.isCancelled else { return false }
+        let initialized = await initializeAnonymousSession()
+        guard !Task.isCancelled else { return false }
+        return initialized
     }
 
     /// Treats durable handoff preparation as the sign-out commit point. A
@@ -25,8 +28,12 @@ enum PurchaseIdentitySignOutWorkflow {
         do {
             try Task.checkCancellation()
             try await prepareAndPersistHandoff()
+            try Task.checkCancellation()
             await performSignOut()
-            guard await initializeAnonymousSession() else { return false }
+            try Task.checkCancellation()
+            let initialized = await initializeAnonymousSession()
+            try Task.checkCancellation()
+            guard initialized else { return false }
             try await completeHandoff()
             return true
         } catch {

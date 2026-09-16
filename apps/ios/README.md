@@ -157,27 +157,82 @@ its endpoint file. Pure operation-specific receipt and proof/timestamp
 validation live in `Decoding/AccountDeletionResponseDecoder.swift` and
 `AccountDeletionRecoveryValidation.swift`. `Core/Network/Auth/` owns value-only
 transition and lease models, presentation and transition-decision policies,
-coordinators, the sign-out single-flight, account-deletion classification, and
-ghost-profile queue/error policy plus closure-injected deletion, purchase-safe
-sign-out, and ghost-merge phase sequencing. Suspended deletion results are
+coordinators, `AuthRuntimeState` as the effect-free observable owner for
+transition, generation, transition-analytics, exact-session lease/drain, and
+local sign-out state, provider-neutral Auth-session bootstrap
+snapshots/dependencies and coordination, lifecycle models, coordination, and
+conditional deferred-event replay, provider-neutral OAuth models, identity-token
+policy, shared sign-in workflow/completion coordinator, provider-presentation
+admission coordinator, and focused Apple/Google presentation, mapping,
+nonce/controller, and diagnostics Services, the fallback authentication-callback
+dependency package, coordinator, and live diagnostics, the sign-out
+single-flight, account-deletion classification, and ghost-profile queue/error
+policy plus dependency-injected deletion, purchase-safe sign-out phase
+sequencing and stable/legacy recovery routing, stable/compatibility completion
+keyed by destination, Auth generation, and transition owner, and Ghost durable
+preparation plus completion keyed by target and transition owner. Fresh deletion
+and recovery have separate coordinators over one narrow
+local-state/exact-session dependency package. Suspended deletion results are
 admitted only for the transition's exact expected session and generation;
 deferred noncommit recovery revalidates the cached source before making marker
-removal its final failable stage. `SupabaseManager` applies those decisions and
-retains live transition state plus provider/SDK, endpoint, logging, local
-cleanup, and proof-retirement effects. `Core/Security/GhostProfileMerge/` owns
-the exact handoff/queue models, legacy migration, fail-closed validation,
-device-only Keychain persistence, byte verification, and verified removal
-through injected storage effects. `Core/Security/PurchaseIdentity/` owns the
-purchase-principal domain and wire values, deterministic policies, capability
-and resolver-state Keychain stores, secure random generation, typed remote
-service, and exact legacy/stable journal models and persistence. Its live
-adapter alone imports Supabase and issues the four resolver-route operations;
-`PurchasePrincipalResolver` remains the source-compatible orchestration facade.
-Other wire-model owners stay unchanged: enrichment responses remain hand-written
-in Core AI, while survey requests remain Settings Feedback-owned.
-`Core/Network/Transport/` owns stateless HTTPS endpoint construction,
-unavailable-route/error classification, retry allowlists and account binding,
-and value-only Auth-recovery decisions. Its request-scoped
+removal its final failable stage. The public-author refresh dependency package
+and coordinator own exact transition refresh plus the keyed restored-session
+Ghost-completion/refresh/publication sequence. The Apple credential-revocation
+dependency/coordinator pair owns transition deferral, notification coalescing,
+Auth-context generation, exact session/subject postflight, and retained lookup
+task lifetime. That task keeps the coordinator weak across provider suspension,
+and the live assembly captures the provider rather than the manager, so a late
+callback cannot retain or mutate a released owner. Public-author refresh rejects
+stale scheduling targets before replacement and cancellation before lease/remote
+admission or after remote suspension. `AuthSessionLifecycleLiveProvider` retains
+the SDK Auth stream/listener, maps SDK values into lifecycle events, and
+composes transition-deferred exact-current-state replay; replacing its listener
+also clears the replaced listener's replay obligation, and cancellation fences
+the replaced operation's trailing credential effect. The focused bootstrap
+service projects SDK sessions, classifies stable missing-session evidence, and
+delegates cached/loaded reads plus anonymous sign-in to its sole `+Live`
+adapter; bootstrap task lifetime and publication remain
+coordinator/facade-owned. `SupabaseManager` retains that provider, the
+historical-sync service, and facade sign-out tasks, adapts bootstrap identities
+back to the stable SDK `User` result, preserves the public provider entry
+points, and supplies the coordinators with the runtime owner's current
+transition projections plus Supabase session, exact-session registration
+assembly, endpoint, logging, local cleanup, journal, proof-retirement, and
+public-author event effects. Apple and Google provider admission/presentation
+and completion share extracted coordinators; provider callbacks and
+provider-value mapping live in focused Auth Services. A separate typed Auth
+service validates the Apple registration receipt, while its `+Live` adapter
+alone owns the Function DTOs and invocation. Before installing a session, the
+completion coordinator requires the credentials to match the provider encoded in
+the owned transition, requires the Apple credential-registration effect, and
+rejects that Apple-only effect for Google. Cancellation is checked after every
+suspended OAuth completion phase; the replacement workflow distinguishes
+installed, failed, and cancelled outcomes, and an already-mutated cancelled
+transition is admitted only to terminal cleanup. The existing
+`MerianApp.onOpenURL` task remains the fallback URL's async caller; its
+coordinator creates no task, stops after preflight cancellation, rejects
+adoption when sign-out begins during SDK installation, and keeps exact-session
+fences around purchase and entitlement completion. Already-cancelled deletion or
+sign-out requests cannot open a transition; purchase-safe sign-out rechecks
+cancellation between every identity phase, and recovery drains account-bound
+work before reading the anonymous session. A returned one-use preparation proof
+is always persisted before cancellation can stop subsequent Auth work; a
+cancelled or superseded completion cannot synchronize target evidence or remove
+proof. `Core/Security/GhostProfileMerge/` owns the exact handoff/queue models,
+legacy migration, fail-closed validation, device-only Keychain persistence, byte
+verification, verified removal, and the typed remote service whose live adapter
+alone owns the Supabase Function DTOs and calls.
+`Core/Security/PurchaseIdentity/` owns the purchase-principal domain and wire
+values, deterministic policies, capability and resolver-state Keychain stores,
+secure random generation, typed remote services, and exact legacy/stable journal
+models and persistence. Its route-specific live adapters alone import Supabase
+and issue the four resolver operations or four compatibility operations across
+three live SDK invocation paths; `PurchasePrincipalResolver` remains the
+source-compatible orchestration facade. Other wire-model owners stay unchanged:
+enrichment responses remain hand-written in Core AI, while survey requests
+remain Settings Feedback-owned. `Core/Network/Transport/` owns stateless HTTPS
+endpoint construction, unavailable-route/error classification, retry allowlists
+and account binding, and value-only Auth-recovery decisions. Its request-scoped
 `AuthenticatedRequestExecutor` applies those policies and injected Auth,
 entitlement, and consent effects across one logical request.
 `PinnedNetworkTransport` owns the single configured session and TLS delegate;
@@ -202,31 +257,57 @@ and mirrored test boundaries.
 freezes the 18 endpoint owners, prevents duplicate aggregate entry points,
 enforces the 600-line ceiling across extracted Auth, Endpoint, Inference, Media,
 Recovery, and Transport owners, and applies the same ceiling to the client
-façade. It freezes ownership of the exact nine Auth paths, relocated
-declarations and helper functions—including account-deletion and purchase-safe
-sign-out plus ghost-merge policy/sequencing and former helper names—the sole
-main-actor task owner, and the provider-SDK/singleton exclusion. It also freezes
-the ghost-merge and purchase-handoff model/store owners in Core Security. For
-direct anonymous provider linking, it requires SDK readback, same-UUID
-permanent-session admission, transition adoption, and exact-session validation
-before durable ghost-merge recovery retirement. It also requires exactly one
-endpoint owner for every safe-read or idempotency-aware replay classification
-and exactly six Transport owners: three stateless policies, the request-scoped
-executor, the pinned session, and the authenticated dispatcher. The guard
-freezes sole-session injection and keeps per-attempt Auth leasing out of both
-the façade and executor while the executor owns bounded retry state and applies
-ordinary versus transition-owned refresh through injected closures. Its joined
-live-manager checks also require listener and anonymous-bootstrap continuations
-to retain the exact manager-published user, nonexpired SDK session, and captured
-Auth generation after suspension. Stable and compatibility purchase-continuity
-completion must retain that session plus valid transition context and
-cancellation state through proof removal; Google provider return, direct
-provider linking, and shared OAuth replacement must retain their respective
-pre-mutation cancellation fences; and restored-session public-author work must
-use target-account and task-ID compare-before-clear ownership.
-`get-filtered-discovery-feed` remains a documented backend function but is
-intentionally absent from the iOS replay set because the app has no endpoint
-owner or caller for it. See the
+façade. It freezes ownership of the exact sixty Auth paths, relocated
+declarations and helper functions—including the effect-free observable runtime
+owner for transition, generation, analytics-token, exact-session lease/drain,
+and local sign-out state; the focused live listener/current-state and
+historical-sync owners; the live listener's generation/context/transition-
+observation order and replacement cleanup; the bootstrap dependency/coordinator
+pair plus SDK service/live adapter and diagnostics owner; and the recovery
+dependency/coordinator pair and lifecycle model/dependency/coordinator plus the
+conditional replay owner; the OAuth model, token policy, workflow, completion
+dependency package/coordinator, provider-admission dependency
+package/coordinator, focused live-provider Services, and the Apple
+credential-registration service/live-adapter pair, plus the OAuth SDK session
+service/live-adapter and canonical metadata mapping; the fallback
+authentication-callback dependency/coordinator/live-diagnostics split; the
+shared deletion dependency package, separate fresh/recovery coordinators,
+purchase-safe sign-out workflow, route, source-handoff, and destination-handoff
+coordinators plus dependency boundaries, the Auth handoff-journal adapter, the
+Core Security preparation owner, ghost-merge policy/sequencing, the
+public-author refresh and Apple credential-revocation dependency/coordinator
+pairs, and former helper names—the ten explicit main-actor task owners,
+provider-neutral SDK/singleton exclusion, and narrow provider-service exception.
+It also freezes the ghost-merge and purchase-handoff model/store owners in Core
+Security. For direct anonymous provider linking, it requires SDK readback,
+same-UUID permanent-session admission, transition adoption, and exact-session
+validation before durable ghost-merge recovery retirement. It also requires
+exactly one endpoint owner for every safe-read or idempotency-aware replay
+classification and exactly six Transport owners: three stateless policies, the
+request-scoped executor, the pinned session, and the authenticated dispatcher.
+The guard freezes sole-session injection and keeps per-attempt Auth leasing out
+of both the façade and executor while the executor owns bounded retry state and
+applies ordinary versus transition-owned refresh through injected closures. Its
+joined live-manager checks also require listener and anonymous-bootstrap
+continuations to retain the exact manager-published user, nonexpired SDK
+session, and captured Auth generation after suspension. A signed-out lifecycle
+event repeats that fence after purchase cleanup, and an event deferred by an
+active transition is replayed only from an exact current SDK snapshot after the
+transition finishes. Stable and compatibility purchase-continuity completion
+must retain that session plus valid transition context and cancellation state
+through proof removal; Google provider return, direct provider linking, and the
+extracted OAuth replacement workflow must retain cancellation fences before
+mutation and after every suspended completion phase. A successful live SDK
+install records both the mutation and exact target transition expectation before
+cancellation can escape, while an already-mutated cancelled session reaches
+exact-target, fail-closed cleanup; and restored-session public-author work must
+use coordinator-owned target-account and task-ID compare-before-clear ownership.
+The sole live event/logging adapter remains outside the provider-neutral Auth
+package. The same guard freezes the provider-to-transition match and
+Apple-required/Google-forbidden credential-registration configuration before
+session installation. `get-filtered-discovery-feed` remains a documented backend
+function but is intentionally absent from the iOS replay set because the app has
+no endpoint owner or caller for it. See the
 [integration-audit contract](Merian/Core/Network/README.md#core-network-integration-audit).
 
 ## Core Data Offline Sync Ownership
@@ -535,12 +616,88 @@ fallback, bounded fractional/whole-second server timestamps, encoding, and
 rotation-secret decisions; injected stores own the device-only capability,
 stable-activation fingerprint, intent generation, and sign-out journals. An
 invalid activation fingerprint is rejected before secure persistence. The
-closure-backed remote service keeps typed operations separate from its sole live
-Supabase adapter and private request payloads. `PurchasePrincipalResolver`
-composes those owners without importing Supabase or Security. Supabase Auth
-transitions, RevenueCat linking, entitlement refresh, and sign-out task lifetime
-remain caller-owned. The split changes no endpoint, payload, response, Keychain
-key, fallback, provider, or navigation contract.
+closure-backed remote services keep typed operations separate from their
+route-specific live Supabase adapters and private request payloads.
+`PurchasePrincipalResolver` composes those owners without importing Supabase or
+Security. The provider-neutral session coordinator owns the active binding,
+last-linked user, and keyed resolution task, and updates the last-linked cache
+only after final caller admission. Every resolution rereads the durable handoff
+journals and republishes the result to RevenueCat's synchronous mutation fence;
+an unreadable journal publishes pending state before the attempt fails closed. A
+differently keyed attempt cancels the older resolver task, whose late result
+cannot replace the newer binding or task state. The foreground-readiness
+coordinator owns account-work admission, journal recovery, entitlement order,
+and the final exact-session fence. The typed legacy-profile service separates
+the established `users` lookup from both coordination and presentation.
+`Core/Network/Auth/Coordinators/PurchaseIdentitySignOutCoordinator.swift` owns
+Auth-transition admission; stable/legacy and installed-proof routing; exact
+anonymous retry; recovery-only reset admission; and fail-closed journal
+verification. `PurchaseIdentitySourceHandoffCoordinator.swift` owns aggregate
+fail-closed journal projection, exact-session source preparation, exact-source
+proof abandonment, and failed-attempt source restoration through injected
+boundaries. Cancellation after compatibility preparation's final SDK-session
+read cannot report success or discard its already-durable recovery proof.
+`PurchaseIdentityHandoffAuthJournal.swift` alone translates the Core Security
+store's load/persist failures into established Auth errors while preserving
+verified-removal diagnostics. `PurchaseIdentityHandoffCoordinator.swift` owns
+stable/compatibility completion, single-flight task lifetime keyed by
+destination, Auth generation, and transition owner, session/cancellation fences,
+and proof removal. Core Security's
+`PurchaseIdentityHandoffPreparationCoordinator.swift` owns the stable
+`preparing` and `prepared` durability checkpoints and compatibility-proof
+mapping without acquiring Auth, SDK, Keychain, or task authority.
+`AuthSessionBootstrapCoordinator.swift` owns reusable-session admission and the
+single-flight for existing-session resolution or anonymous creation. It stores
+the task's complete transition token and shares only while that token remains
+the exact active owner; an ownerless caller can join only the active
+anonymous-bootstrap token. Cancellation before admission or during sign-out
+waiting stops before account-work or SDK-session effects. The coordinator drains
+account-bound work, creates an anonymous identity only for stable
+missing-session evidence, and revalidates session publication after purchase
+readiness, with a fresh cancellation fence before returning either identity.
+`SupabaseManager` retains the live SDK session/error adapters and its public
+SDK-typed entry point. `AuthSessionRecoveryCoordinator.swift` owns ordinary and
+transition-owned exact-session refresh, anonymous recovery, and terminal local
+cleanup with account-work, cancellation, purchase-handoff, and post-suspension
+session fences. Its explicit mutated-OAuth entry policy lets a cancelled owner
+finish only the cleanup made necessary by its prior SDK session mutation.
+`AuthSessionLifecycleCoordinator.swift` owns Auth-session projection plus
+purchase/entitlement/historical-sync admission and signed-out postflight.
+`AuthLifecycleReplayCoordinator.swift` owns one replacement-safe task that
+replays only an SDK event deferred by an active transition. Its live lifecycle
+dependencies capture `SupabaseManager` weakly, so suspended synthetic replay
+cannot retain the facade past teardown. When the listener observes an
+accepted-deletion cleanup barrier, it clears the published Auth session,
+purchase-principal binding/readiness, and the local server-verified entitlement
+projection before recovery continues.
+`PublicAuthorIdentityRefreshCoordinator.swift` owns transition-owned and keyed
+restored-session public-author refresh behind injected exact-session and
+account-work fences. `AppleCredentialRevocationCoordinator.swift` owns the
+generation-fenced, overlap-safe credential lookup task;
+`AppleCredentialRevocationLiveProvider.swift` alone owns its Apple framework
+notification and state lookup. The lookup task retains the provider, not the
+manager or coordinator, across callback suspension. Its terminal-clear boundary
+rechecks the exact captured Apple identity and absence of a replacement
+transition; recovery then repeats its expected/current-session check after
+account-work quiescence and reports whether cleanup completed, changed context,
+or was deferred by purchase continuity. Context changes retain the notification
+for stable revalidation; purchase-handoff deferral retains it without a hot
+lookup loop, and the centralized aggregate handoff publication resumes it when
+that fence becomes false. A context generation changed while clear was suspended
+replays after the deferred result instead of losing an earlier lifecycle wakeup.
+Clear diagnostics follow completed cleanup only. `SupabaseManager` retains the
+SDK stream/listener, facade sign-out, and live SDK continuation tasks, records
+transition-deferred listener events for conditional replay, launches the
+generation-fenced historical-sync task, and owns RevenueCat and entitlement
+effects, provider SDK composition, recovery diagnostics, public-author live
+effects, and dependency assembly. The recovery coordinator rejects cancellation
+before transition admission and after each suspended readiness phase; terminal
+local clear also preserves a pending purchase handoff and, after SDK sign-out
+begins, still invokes observable-state, secure-marker, analytics, and
+purchase-identity cleanup if the SDK call fails or cancellation arrives. The
+request executor independently stops a cancelled `401` chain before reset or
+local-session cleanup. The split changes no endpoint, payload, response,
+Keychain key, fallback, provider, or navigation contract.
 
 ## Core RevenueCat Ownership
 

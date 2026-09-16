@@ -100,7 +100,7 @@ struct RevenueCatIdentityContext: Equatable {
         return trimmed
     }
 
-    private static func firstNonEmpty(_ values: String?...) -> String? {
+    static func firstNonEmpty(_ values: String?...) -> String? {
         values.lazy.compactMap(normalized).first
     }
 
