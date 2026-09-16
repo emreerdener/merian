@@ -62,6 +62,10 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   session. If terminal clear reaches local SDK sign-out, the coordinator still
   invokes observable-state, secure-marker, analytics, and purchase-identity
   cleanup when the SDK call fails or caller cancellation arrives.
+  `AuthSessionRecoveryLiveService` projects refreshed/loaded SDK sessions; its
+  `+Live` adapter alone performs recovery refresh, read, and local sign-out,
+  while the facade retains purchase, entitlement, adoption, publication, and
+  cleanup effects.
 - `Core/Network/Auth/Policies/AccountPresentationPolicy.swift` owns the
   deterministic Guest-presentation decision that `SupabaseManager` exposes as
   `isGuestUser`. It is true only when the active Supabase session is anonymous
@@ -147,16 +151,18 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   mapping and conditional current-state replay. Replacing its listener cancels
   the superseded task and replay obligation, and a post-coordinator cancellation
   fence rejects that task's trailing credential-revocation resume effect; the
-  history service owns every listener-admitted synchronization task. exact
-  legacy/stable journal models, validation, and verified device-only Keychain
-  storage live in `Core/Security/PurchaseIdentity/`. That owner also contains
-  the resolver's domain and wire values, deterministic policies, verified
-  capability and resolver-state stores, secure-random helper, typed remote
-  services, session coordinators, and legacy-profile lookup. Its route-specific
-  live adapters alone import Supabase and issue the four
-  `resolve-purchase-principal` operations, four compatibility operations across
-  three `transfer-signout-purchases` SDK invocation paths, or the exact legacy
-  profile query. The manager supplies the live client and Keychain rather than
+  history service owns every listener-admitted synchronization task, and its
+  `+Live` adapter is the reviewed Auth owner of `AppDIContainer.shared` for
+  offline-queue context and scan-repository composition. Exact legacy/stable
+  journal models, validation, and verified device-only Keychain storage live in
+  `Core/Security/PurchaseIdentity/`. That owner also contains the resolver's
+  domain and wire values, deterministic policies, verified capability and
+  resolver-state stores, secure-random helper, typed remote services, session
+  coordinators, and legacy-profile lookup. Its route-specific live adapters
+  alone import Supabase and issue the four `resolve-purchase-principal`
+  operations, four compatibility operations across three
+  `transfer-signout-purchases` SDK invocation paths, or the exact legacy profile
+  query. The manager supplies the live client and Keychain rather than
   duplicating those policies.
   `Core/Network/Auth/Policies/GhostProfileMergePolicy.swift` owns deterministic
   ghost-handoff replacement and terminal-code classification, and

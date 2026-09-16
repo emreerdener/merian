@@ -427,22 +427,28 @@ A structured schema built on native SwiftData migrations:
   task's trailing credential-revocation resume effect; both dependency
   assemblies capture the facade weakly. The history service retains admitted
   synchronization work and repeats the session fence after preferred-name
-  synchronization. The coordinator owns complete-token exact-context
-  single-flight, cancellation checks around sign-out/quiescence waiting,
-  true-missing-only creation, transition adoption, purchase readiness, and final
-  exact-session validation. A separate task-free recovery coordinator owns
-  ordinary and transition-owned exact-session refresh, anonymous
-  purchase/entitlement restoration, and terminal local cleanup. It captures the
-  expected session before account-work quiescence, preserves pending purchase
-  handoffs, and repeats the expected/current-session check plus cancellation,
-  transition ownership, and Auth generation after suspension. Terminal local
-  clear returns a typed completed, rejected, or purchase-handoff- blocked
-  outcome. It stops before mutation for cancellation, context drift, or pending
-  handoff evidence; after SDK sign-out starts, it still invokes
-  observable-state, secure-marker, analytics, and purchase-identity cleanup if
-  the SDK call fails or cancellation arrives. A cancelled OAuth owner may enter
-  that path only through the explicit already-mutated-session cleanup policy. A
-  transition token does not authorize a suspended result by itself: deletion,
+  synchronization; its `+Live` adapter is the reviewed Auth owner of
+  `AppDIContainer.shared` for offline-queue context and scan-repository
+  composition. The coordinator owns complete-token exact-context single-flight,
+  cancellation checks around sign-out/quiescence waiting, true-missing-only
+  creation, transition adoption, purchase readiness, and final exact-session
+  validation. A separate task-free recovery coordinator owns ordinary and
+  transition-owned exact-session refresh, anonymous purchase/entitlement
+  restoration, and terminal local cleanup. It captures the expected session
+  before account-work quiescence, preserves pending purchase handoffs, and
+  repeats the expected/current-session check plus cancellation, transition
+  ownership, and Auth generation after suspension. Terminal local clear returns
+  a typed completed, rejected, or purchase-handoff-blocked outcome. It stops
+  before mutation for cancellation, context drift, or pending handoff evidence;
+  after SDK sign-out starts, it still invokes observable-state, secure-marker,
+  analytics, and purchase-identity cleanup if the SDK call fails or cancellation
+  arrives. A cancelled OAuth owner may enter that path only through the explicit
+  already-mutated-session cleanup policy. A focused recovery service projects
+  refreshed and loaded SDK sessions; its `+Live` adapter alone invokes recovery
+  refresh, session read, and local sign-out, while its diagnostics owner
+  preserves privacy-safe logging. The facade retains adoption, publication,
+  purchase, entitlement, and cleanup composition around that injected boundary.
+  A transition token does not authorize a suspended result by itself: deletion,
   ordinary Auth refresh, purchase linking, and failed-sign-out restoration
   revalidate the exact UUID, anonymous/account kind, and Auth generation before
   publishing or retiring durable state. Lifecycle-coordinator and

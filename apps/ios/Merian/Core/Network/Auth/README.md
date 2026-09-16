@@ -9,9 +9,10 @@ fallback authentication callback coordination, Auth-session recovery,
 ghost-merge orchestration, and public-author identity refresh coordination. Its
 focused Services own Apple/Google framework presentation and value mapping,
 bootstrap SDK-session projection, missing-session classification, live reads,
-anonymous sign-in, and diagnostics, fallback-callback live diagnostics, the
+anonymous sign-in, and diagnostics; recovery SDK-session projection, refresh,
+read, local sign-out, and diagnostics; fallback-callback live diagnostics; the
 typed Apple credential-registration boundary and its sole Supabase Function
-adapter, plus the narrow OAuth session SDK adapter. It does not own other
+adapter; plus the narrow OAuth session SDK adapter. It does not own other
 Supabase Auth SDK mutation, durable Keychain journals, purchase-identity
 mutation, other endpoint transport, local-data purge, or application lifecycle
 effects.
@@ -91,7 +92,10 @@ effects.
   history task, repeats cancellation and exact-session admission between
   preferred-name and scan synchronization, and cancels outstanding work on
   teardown. Its `+Live` adapter alone resolves the model context, timestamp,
-  repositories, and concrete synchronization effects.
+  repositories, and concrete synchronization effects. That adapter is the
+  reviewed Auth owner of `AppDIContainer.shared` for offline-queue context and
+  scan-repository acquisition; the retained service receives only prepared work
+  closures.
 - `Coordinators/AppleCredentialRevocationCoordinationDependencies.swift` defines
   provider-neutral current-identity, transition, lookup, identity-bound
   terminal-clear outcome, and diagnostic boundaries.
@@ -137,6 +141,15 @@ effects.
   owns no task, retry, transition, publication, purchase, or entitlement state.
 - `Services/AuthSessionBootstrapLiveDiagnostics.swift` maps bootstrap outcomes
   to the privacy-safe Auth log without logging SDK session values.
+- `Services/AuthSessionRecoveryLiveService.swift` projects refreshed and loaded
+  Supabase sessions into the provider-neutral recovery identity while retaining
+  the SDK user only for facade-owned adoption, publication, public-author
+  refresh, purchase-identity, entitlement, and generation-fence effects. It owns
+  no transition, task, retry, purchase, entitlement, or cleanup policy.
+- `Services/AuthSessionRecoveryLiveService+Live.swift` is the sole owner of the
+  recovery-specific `refreshSession()`, session read, and local SDK sign-out
+  calls. `Services/AuthSessionRecoveryLiveDiagnostics.swift` maps recovery
+  outcomes to the established privacy-safe Auth log.
 - `Coordinators/AuthSessionRecoveryCoordinationDependencies.swift` defines
   provider-neutral SDK-session capabilities plus narrow state, transition,
   operation, and diagnostic boundaries for authenticated-request recovery. It
@@ -299,10 +312,13 @@ effects.
   window/anchor policy for interactive OAuth. The Google and Apple live-provider
   services own their respective SDK presentation, provider-value mapping, and
   pre/post-return cancellation or controller-retention boundaries. The Apple
-  provider also owns secure nonce generation and hashing. The live diagnostics
-  services map provider and fallback-callback outcomes into privacy-safe logs.
-  The resolver and Apple provider retain only their local missing-scene and
-  stale-controller safety diagnostics.
+  provider also owns secure nonce generation and hashing. Both providers expose
+  an explicit zero-argument production initializer and a separate nonoptional
+  injected-dependencies initializer; optional live-dependency fallback is not
+  part of the boundary. The live diagnostics services map provider and
+  fallback-callback outcomes into privacy-safe logs. The resolver and Apple
+  provider retain only their local missing-scene and stale-controller safety
+  diagnostics.
 - `Services/AppleOAuthCredentialRegistrationService.swift` owns the injected,
   provider-neutral registration operation and accepts only the exact
   `success == true`, `status == "registered"` receipt. Its `+Live` adapter alone
@@ -350,7 +366,9 @@ services with exact transition/session checks, replacement reconciliation, and
 observable publication. Lifecycle replay dependencies capture this facade
 weakly, so a suspended synthetic replay cannot keep the manager alive after its
 external owner is released; coordinator teardown remains able to cancel the
-retained task. Facade teardown also explicitly cancels the retained purchase-
+retained task. The facade uses `isolated deinit` so its existing cancellation
+sequence runs on the main actor even when the final reference is released
+elsewhere. Facade teardown also explicitly cancels the retained purchase-
 handoff and purchase-identity resolution coordinators instead of relying on
 their eventual deinitialization. Its public `initializeGhostSession(ownedBy:)`
 entry point remains the source-compatible SDK-value adapter; the bootstrap
@@ -366,10 +384,11 @@ privacy-safe logging effects. The recovery coordinator rejects cancellation
 before opening a recovery transition and rechecks cancellation, ownership, and
 exact session identity after quiescence, SDK refresh/load, purchase readiness,
 entitlement, and final SDK readback, so a cancelled or stale `401` owner cannot
-regenerate or publish Auth state. `SupabaseAuthSessionRecoveryDiagnostics.swift`
-maps its value-only outcomes to the existing privacy-safe live log copy. Durable
-ghost-merge and purchase-handoff models, validation, and verified Keychain
-persistence live in
+regenerate or publish Auth state. `AuthSessionRecoveryLiveService+Live.swift`
+alone performs the recovery refresh, read, and local sign-out SDK operations;
+`AuthSessionRecoveryLiveDiagnostics.swift` maps value-only outcomes to the
+existing privacy-safe live log copy. Durable ghost-merge and purchase-handoff
+models, validation, and verified Keychain persistence live in
 [`Core/Security/GhostProfileMerge`](../../Security/GhostProfileMerge/README.md)
 and
 [`Core/Security/PurchaseIdentity`](../../Security/PurchaseIdentity/README.md),
@@ -549,9 +568,11 @@ replacement, pending-handoff preservation, local SDK sign-out failure,
 cancellation after SDK sign-out begins, caller-owned transition lifetime,
 completion-owned entry for a cancelled OAuth transition that already mutated its
 session, exact adopted-target cleanup, and replacement-session rejection after
-terminal-clear quiescence. The aggregate manager suite retains only live
-SDK/effect assembly for those entry points.
-`AccountDeletionTransitionPolicyTests.swift`,
+terminal-clear quiescence. The aggregate manager suite retains only live effect
+assembly for those entry points. `AuthSessionRecoveryLiveServiceTests.swift`
+owns five deterministic cases for refreshed/loaded identity and SDK-user
+projection, exactly-once local sign-out, and refresh, load, and sign-out failure
+forwarding. `AccountDeletionTransitionPolicyTests.swift`,
 `AccountDeletionIntakeWorkflowTests.swift`, and
 `AccountDeletionCleanupWorkflowTests.swift` own the pure classification,
 prepared/durable intake, cleanup, retirement, and deferred-restoration
@@ -693,16 +714,16 @@ replacement-cancellation regression suspends before simulated SDK mutation,
 cancels the caller, then resumes through mutation and an immediate cancellation
 check; it must record both the mutation and exact transition expectation while
 refusing completion and publication. The architecture suite also freezes the
-reviewed facade teardown list, including the two extracted task owners, and the
-residual generic Supabase Auth operation inventory in `SupabaseManager`.
-`PurchaseIdentityHandoffStoreTests.swift` independently locks exact local JSON
-field compatibility, fail-closed journal validation before writes and after
-reads, device-only accessibility, write verification, and exact-key removal.
-`GhostProfileMergeStoreTests.swift` independently locks the equivalent ghost
-queue boundary, including legacy migration, server-owned expiry, and
-proof-preserving migration failure. `ConsentManagerRestorationTests` remains the
-consumer-level regression proving an expired cached session keeps its launch
-root qualified to that account while SDK refresh is pending.
+main-actor-isolated facade teardown list, including the two extracted task
+owners, and the residual generic Supabase Auth operation inventory in
+`SupabaseManager`. `PurchaseIdentityHandoffStoreTests.swift` independently locks
+exact local JSON field compatibility, fail-closed journal validation before
+writes and after reads, device-only accessibility, write verification, and
+exact-key removal. `GhostProfileMergeStoreTests.swift` independently locks the
+equivalent ghost queue boundary, including legacy migration, server-owned
+expiry, and proof-preserving migration failure. `ConsentManagerRestorationTests`
+remains the consumer-level regression proving an expired cached session keeps
+its launch root qualified to that account while SDK refresh is pending.
 
 The live-task integration case additionally freezes post-suspension listener
 fences, conditional deferred-listener replay, signed-out postflight admission,

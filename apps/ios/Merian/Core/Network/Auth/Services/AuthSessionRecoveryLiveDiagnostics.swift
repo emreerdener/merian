@@ -1,9 +1,9 @@
 import Foundation
 import os
 
-/// Maps provider-neutral recovery outcomes onto the live privacy-safe Auth log.
+/// Maps provider-neutral recovery outcomes onto the privacy-safe Auth log.
 @MainActor
-enum SupabaseAuthSessionRecoveryDiagnostics {
+enum AuthSessionRecoveryLiveDiagnostics {
     static func report(
         _ diagnostic: AuthSessionRecoveryDiagnostic,
         error: Error?

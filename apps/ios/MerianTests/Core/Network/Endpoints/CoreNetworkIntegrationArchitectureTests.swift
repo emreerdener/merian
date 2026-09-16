@@ -126,8 +126,14 @@ struct CoreNetworkIntegrationArchitectureTests {
         let recoveryCoordinator = try networkSource(
             "Auth/Coordinators/AuthSessionRecoveryCoordinator.swift"
         )
-        let recoveryDiagnostics = try networkSource(
-            "SupabaseAuthSessionRecoveryDiagnostics.swift"
+        let recoveryLiveService = try networkSource(
+            "Auth/Services/AuthSessionRecoveryLiveService.swift"
+        )
+        let recoveryLiveAdapter = try networkSource(
+            "Auth/Services/AuthSessionRecoveryLiveService+Live.swift"
+        )
+        let recoveryLiveDiagnostics = try networkSource(
+            "Auth/Services/AuthSessionRecoveryLiveDiagnostics.swift"
         )
         let authenticationCallbackDependencies = try networkSource(
             "Auth/Coordinators/AuthenticationCallbackCoordinationDependencies.swift"
@@ -245,7 +251,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             in: aggregate
         )
         let managerDeinitialization = try sourceSection(
-            beginningWith: "    deinit {",
+            beginningWith: "    isolated deinit {",
             endingBefore:
                 "\n\n    func bindAppRouteSessionController(",
             in: aggregate
@@ -254,6 +260,13 @@ struct CoreNetworkIntegrationArchitectureTests {
             beginningWith:
                 "    private func authSessionBootstrapDependencies()",
             endingBefore: "\n    // MARK: - Session Utilities",
+            in: aggregate
+        )
+        let recoveryAssembly = try sourceSection(
+            beginningWith:
+                "    private func authSessionRecoveryDependencies()",
+            endingBefore:
+                "\n    /// Builds authenticated REST headers",
             in: aggregate
         )
         let oauthAssembly = try sourceSection(
@@ -791,12 +804,48 @@ struct CoreNetworkIntegrationArchitectureTests {
                 separatedBy: "AuthSessionRecoveryCoordinator("
             ).count == 6
         )
+        for token in [
+            "authSessionRecoveryLiveService",
+            ".refreshSession()",
+            ".loadSession()",
+            ".signOutLocalSession()",
+            "AuthSessionRecoveryLiveDiagnostics.report("
+        ] {
+            #expect(recoveryAssembly.contains(token))
+        }
+        for forbiddenToken in [
+            "client.auth.refreshSession()",
+            "client.auth.session",
+            "client.auth.signOut(scope: .local)",
+            "MerianLog.auth"
+        ] {
+            #expect(!recoveryAssembly.contains(forbiddenToken))
+        }
         #expect(
-            recoveryDiagnostics.contains(
-                "enum SupabaseAuthSessionRecoveryDiagnostics"
+            recoveryLiveService.contains(
+                "struct AuthSessionRecoveryLiveSession"
             )
         )
-        #expect(recoveryDiagnostics.contains("MerianLog.auth"))
+        #expect(
+            recoveryLiveService.contains(
+                "struct AuthSessionRecoveryLiveService"
+            )
+        )
+        for token in [
+            "client.auth.refreshSession()",
+            "client.auth.session",
+            "client.auth.signOut(scope: .local)"
+        ] {
+            #expect(recoveryLiveAdapter.contains(token))
+        }
+        #expect(
+            recoveryLiveDiagnostics.contains(
+                "enum AuthSessionRecoveryLiveDiagnostics"
+            )
+        )
+        #expect(recoveryLiveDiagnostics.contains("MerianLog.auth"))
+        #expect(!recoveryCoordinator.contains("import Supabase"))
+        #expect(!recoveryCoordinator.contains("client.auth"))
         for retiredManagerHelper in [
             "private func refreshActiveSessionForRetry(",
             "let session = try await client.auth.refreshSession()\n            guard ownsAuthTransition",
@@ -904,6 +953,15 @@ struct CoreNetworkIntegrationArchitectureTests {
                 "GIDSignIn.sharedInstance.signIn("
             )
         )
+        for provider in [
+            googleAuthorizationProvider,
+            appleAuthorizationProvider
+        ] {
+            #expect(provider.contains("init()"))
+            #expect(provider.contains("init(dependencies:"))
+            #expect(!provider.contains("Dependencies?"))
+            #expect(!provider.contains("dependencies ?? .live"))
+        }
         #expect(
             appleAuthorizationProvider.contains(
                 "ASAuthorizationControllerDelegate"
@@ -1186,22 +1244,46 @@ struct CoreNetworkIntegrationArchitectureTests {
                 separatedBy: "client.auth.signInAnonymously()"
             ).count == 2
         )
-        for (token, expectedCount) in [
-            ("client.auth.refreshSession()", 1),
-            ("client.auth.session(from: url)", 1),
-            ("client.auth.signOut(scope: .local)", 3)
-        ] {
-            expectOwners(
-                containing: token,
-                in: allNetworkSources,
-                equal: ["SupabaseManager.swift"]
-            )
-            #expect(
-                aggregate.components(separatedBy: token).count
-                    == expectedCount + 1,
-                "The live Auth facade operation inventory changed for \(token)"
-            )
-        }
+        expectOwners(
+            containing: "client.auth.refreshSession()",
+            in: allNetworkSources,
+            equal: [
+                "Auth/Services/AuthSessionRecoveryLiveService+Live.swift"
+            ]
+        )
+        #expect(
+            recoveryLiveAdapter.components(
+                separatedBy: "client.auth.refreshSession()"
+            ).count == 2
+        )
+        expectOwners(
+            containing: "client.auth.session(from: url)",
+            in: allNetworkSources,
+            equal: ["SupabaseManager.swift"]
+        )
+        #expect(
+            aggregate.components(
+                separatedBy: "client.auth.session(from: url)"
+            ).count == 2
+        )
+        expectOwners(
+            containing: "client.auth.signOut(scope: .local)",
+            in: allNetworkSources,
+            equal: [
+                "Auth/Services/AuthSessionRecoveryLiveService+Live.swift",
+                "SupabaseManager.swift"
+            ]
+        )
+        #expect(
+            aggregate.components(
+                separatedBy: "client.auth.signOut(scope: .local)"
+            ).count == 3
+        )
+        #expect(
+            recoveryLiveAdapter.components(
+                separatedBy: "client.auth.signOut(scope: .local)"
+            ).count == 2
+        )
         for token in [
             "OpenIDConnectCredentials(",
             "UserAttributes(data: values)"
@@ -2301,6 +2383,9 @@ struct CoreNetworkIntegrationArchitectureTests {
         let recoveryCoordinatorTests = try source(
             "apps/ios/MerianTests/Core/Network/Auth/AuthSessionRecoveryCoordinatorTests.swift"
         )
+        let recoveryLiveServiceTests = try source(
+            "apps/ios/MerianTests/Core/Network/Auth/AuthSessionRecoveryLiveServiceTests.swift"
+        )
         let oauthIdentityTokenPolicyTests = try source(
             "apps/ios/MerianTests/Core/Network/Auth/OAuthIdentityTokenPolicyTests.swift"
         )
@@ -2493,6 +2578,15 @@ struct CoreNetworkIntegrationArchitectureTests {
         ] {
             #expect(recoveryCoordinatorTests.contains("func \(name)("))
             #expect(!aggregateTests.contains("func \(name)("))
+        }
+        for name in [
+            "testRefreshedAndLoadedSessionsProjectIdentityAndUser",
+            "testLocalSignOutDelegatesExactlyOnce",
+            "testRefreshFailurePropagates",
+            "testLoadFailurePropagates",
+            "testLocalSignOutFailurePropagates"
+        ] {
+            #expect(recoveryLiveServiceTests.contains("func \(name)("))
         }
         #expect(
             recoveryCoordinatorTests.components(
@@ -3818,6 +3912,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             containing: "AppDIContainer.shared",
             in: sources,
             equal: [
+                "Auth/Services/AuthHistoricalSessionSyncLiveService+Live.swift",
                 "Endpoints/MerianNetworkClient+Inference.swift",
                 "Recovery/MerianNetworkClient+OwnedScanRecovery.swift",
                 "SupabasePublicAuthorIdentityRefreshLiveEffects.swift",
@@ -4211,6 +4306,9 @@ struct CoreNetworkIntegrationArchitectureTests {
         "Services/AuthSessionBootstrapLiveDiagnostics.swift",
         "Services/AuthSessionBootstrapLiveService+Live.swift",
         "Services/AuthSessionBootstrapLiveService.swift",
+        "Services/AuthSessionRecoveryLiveDiagnostics.swift",
+        "Services/AuthSessionRecoveryLiveService+Live.swift",
+        "Services/AuthSessionRecoveryLiveService.swift",
         "Services/AuthenticationCallbackLiveDiagnostics.swift",
         "Services/GoogleOAuthAuthorizationLiveProvider.swift",
         "Services/OAuthPresentationContextResolver.swift",

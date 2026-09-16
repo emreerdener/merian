@@ -6984,12 +6984,13 @@ before mutation, but once local SDK sign-out begins it completes observable,
 Keychain-marker, analytics, and purchase cleanup even if the SDK call fails or
 cancellation arrives.
 
-`SupabaseManager` preserves the existing public refresh, reset, and clear
-signatures and remains the sole live Supabase, RevenueCat, entitlement,
-persistence, analytics, and logging composition root.
-`SupabaseAuthSessionRecoveryDiagnostics.swift` retains the established
-privacy-safe log copy outside the provider-neutral coordinator. The split
-reduces the manager from 3,994 to 3,961 lines and raises the guarded Auth
+At this extraction stage, `SupabaseManager` preserved the existing public
+refresh, reset, and clear signatures and remained the sole live Supabase,
+RevenueCat, entitlement, persistence, analytics, and logging composition root.
+The then-named `SupabaseAuthSessionRecoveryDiagnostics.swift` retained the
+established privacy-safe log copy outside the provider-neutral coordinator; the
+later recovery-live-boundary slice below records its subsequent relocation. The
+split reduces the manager from 3,994 to 3,961 lines and raises the guarded Auth
 inventory from 28 to 30 production files; all extracted production files remain
 below 600 lines.
 
@@ -7874,6 +7875,63 @@ transition or bootstrap rule, observable public signature, persistence,
 Keychain, RevenueCat or entitlement order, SwiftData schema, feature flag,
 navigation, visible copy, backend behavior, deployment, or release control. No
 hosted operation was performed.
+
+### SupabaseManager Auth Session Recovery Live Boundary Extraction
+
+This slice moves the recovery-specific Supabase Auth SDK calls and diagnostics
+out of `SupabaseManager.swift`. `AuthSessionRecoveryLiveService` projects
+refreshed and loaded SDK sessions into the established provider-neutral recovery
+identity while retaining the SDK user only for facade-owned adoption and
+publication, public-author refresh, purchase-identity, entitlement, and
+generation-fence effects. Its `+Live` adapter is the sole owner of the recovery
+`refreshSession()`, session read, and local sign-out calls;
+`AuthSessionRecoveryLiveDiagnostics` retains the unchanged privacy-safe log
+copy.
+
+Transition and product policy do not move. `AuthSessionRecoveryCoordinator`
+continues to own ordinary and transition-owned recovery admission, account-work
+quiescence, cancellation and exact-session fences, anonymous replacement,
+purchase and entitlement readiness, final readback, and terminal cleanup
+completion. `SupabaseManager` only composes adoption, publication, purchase,
+entitlement, observable-state, secure-marker, analytics, and purchase identity
+effects around the injected live boundary. Existing public and internal recovery
+signatures remain unchanged.
+
+The guarded Auth inventory is now 63 production files and 7,633 lines, with no
+production owner above 520 lines. `SupabaseManager.swift` is 3,522 lines: the
+explicit injected service property and composition add two facade lines while
+removing direct recovery SDK and logging ownership. Five deterministic live-
+service cases freeze refreshed/loaded identity and SDK-user projection,
+exactly-once local sign-out, and refresh, load, and sign-out error forwarding.
+The Core Network architecture suite freezes the three focused owners, facade
+delegation, sole refresh ownership, the reviewed residual local-sign-out
+inventory, exact Auth inventory, and focused tests.
+
+Verification passed strict Swift 6 complete-concurrency production and XCTest
+typechecking against a temporary minimal Supabase/XCTest boundary, Swift
+parsing, strict affected-source SwiftLint with no cache and zero violations, the
+host-executable thirteen-case Core Network architecture suite, byte-stable
+XcodeGen regeneration, generated-project resource and source-membership checks,
+event routing, changed-Markdown formatting, all 26 documentation contracts,
+skill-link validation, and whitespace validation. An independent read-only Auth
+and concurrency review of the recovery boundary found no actionable issue. A
+subsequent whole-diff audit replaced nullable Apple/Google live dependencies
+with explicit zero-argument live initializers plus nonoptional injected
+initializers; the architecture guard now prevents nullable dependency injection
+from returning. The same audit added the historical-session `+Live` adapter to
+the explicit `AppDIContainer.shared` ownership inventory, matching its reviewed
+offline-queue context and scan-repository composition role. The canonical
+generic Simulator `build-for-testing` was attempted through
+`make ios-local-build`, but the wrapper refused before invoking Xcode because
+this sandbox cannot inspect whether `xcodebuild` is active. No fresh app-target
+build, Simulator XCTest, or complete `merianTests` runtime result is claimed for
+this slice.
+
+This extraction changes no endpoint, JSON field, request action, Auth transition
+or recovery rule, observable public signature, persistence, Keychain, RevenueCat
+or entitlement order, SwiftData schema, feature flag, navigation, visible copy,
+backend behavior, deployment, or release control. No hosted operation was
+performed.
 
 ## Validation Gates
 

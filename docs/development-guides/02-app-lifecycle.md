@@ -217,7 +217,12 @@ handoff fence as resolved resumes it. If Auth context changed while clear was
 suspended, the stale attempt revalidates after the deferred result instead of
 losing the earlier lifecycle wakeup. After local SDK sign-out begins, the
 coordinator still invokes observable-state, secure-marker, analytics, and
-purchase-identity cleanup if the SDK call fails or cancellation arrives.
+purchase-identity cleanup if the SDK call fails or cancellation arrives. The
+focused recovery service projects refreshed and loaded SDK sessions; its `+Live`
+adapter alone performs the recovery refresh, session read, and local sign-out
+calls, while its diagnostics owner retains privacy-safe logging.
+`SupabaseManager` composes lifecycle, adoption, purchase, entitlement, and
+cleanup effects around those injected operations.
 
 A transition closes new admission, snapshots, cancels, and awaits every
 outstanding scheduled and active consent synchronization handle—including

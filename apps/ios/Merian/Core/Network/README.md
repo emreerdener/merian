@@ -134,8 +134,11 @@ privacy-safe log copy. The provider-neutral Auth-session bootstrap
 snapshot/dependency package and keyed coordinator own reusable-session
 admission, sign-out/quiescence waiting, complete-token exact-context task
 sharing, pre-session cancellation fencing, true-missing-only anonymous creation,
-publication, purchase readiness, and final exact-session validation. The
-recovery dependency package and coordinator own ordinary and transition-owned
+publication, purchase readiness, and final exact-session validation. The focused
+recovery service projects refreshed and loaded SDK sessions; its `+Live` adapter
+alone invokes recovery refresh, read, and local sign-out, while its diagnostics
+owner retains the established privacy-safe recovery log copy. The recovery
+dependency package and coordinator own ordinary and transition-owned
 exact-session refresh, anonymous replacement recovery, and terminal local
 cleanup behind account-work, cancellation, transition, purchase-handoff, and
 final-session fences. Terminal cleanup snapshots the expected session before
@@ -205,7 +208,9 @@ effects only while the exact manager-published user, nonexpired SDK session,
 Auth-event generation, and absence of an active Auth transition remain current
 after suspension. The retained history service repeats that fence before each
 account-leased synchronization and cancels every outstanding task at facade
-teardown. Anonymous bootstrap uses the same publication fence after
+teardown. Its `+Live` adapter is the reviewed Auth composition owner of
+`AppDIContainer.shared` for offline-queue context and scan-repository
+acquisition. Anonymous bootstrap uses the same publication fence after
 complete-token task admission. Loaded and newly created bootstrap sessions
 repeat cancellation immediately after purchase readiness before returning an
 identity. Coordinator-owned replaceable public-author refresh uses a target
@@ -1221,20 +1226,23 @@ admission, pending-handoff preservation, local SDK sign-out failure,
 cancellation after SDK sign-out begins, and caller-owned transition lifetime
 plus cleanup admission for a cancelled OAuth owner that already mutated the SDK
 session, exact adopted-target cleanup, and rejection of a replacement session
-installed during quiescence. `PublicAuthorIdentityRefreshCoordinatorTests` owns
-eighteen deterministic cases covering stale-target scheduling, keyed
-replacement, exact phase order, direct and scheduled cancellation
-admission/postflight, cancellation-diagnostic suppression, lease/session drift,
-remote failure, and completed-marker reset. `AppleRevocationCoordinatorTests`
-owns seventeen deterministic cases for transition deferral, authorized
-preservation, fail-closed results, Auth-context and identity drift, transition
-overlap, terminal-clear rejection and stable-context replay, notification
-coalescing, cancellation, owner release during a suspended lookup, recovery
-deferral without a hot loop, explicit stable resume, context-change replay
-without a lost wakeup, and exactly-once clear. The four-case
-`AppleRevocationLiveProviderTests` suite owns the AuthenticationServices state
-mapping and observer replacement, explicit-stop, deinitialization cleanup, and
-off-main notification delivery into the main-actor handler.
+installed during quiescence. `AuthSessionRecoveryLiveServiceTests` owns five
+deterministic cases covering refreshed/loaded identity and SDK-user projection,
+exactly-once local sign-out, and refresh, load, and sign-out failure forwarding.
+`PublicAuthorIdentityRefreshCoordinatorTests` owns eighteen deterministic cases
+covering stale-target scheduling, keyed replacement, exact phase order, direct
+and scheduled cancellation admission/postflight, cancellation-diagnostic
+suppression, lease/session drift, remote failure, and completed-marker reset.
+`AppleRevocationCoordinatorTests` owns seventeen deterministic cases for
+transition deferral, authorized preservation, fail-closed results, Auth-context
+and identity drift, transition overlap, terminal-clear rejection and
+stable-context replay, notification coalescing, cancellation, owner release
+during a suspended lookup, recovery deferral without a hot loop, explicit stable
+resume, context-change replay without a lost wakeup, and exactly-once clear. The
+four-case `AppleRevocationLiveProviderTests` suite owns the
+AuthenticationServices state mapping and observer replacement, explicit-stop,
+deinitialization cleanup, and off-main notification delivery into the main-actor
+handler.
 
 Three cross-language Edge source contracts bind this split to its backend
 lifecycles: `accountDeletionCoverage.test.ts` reads both deletion coordinators,
@@ -1365,6 +1373,7 @@ xcodebuild test-without-building \
   -only-testing:merianTests/AuthSessionBootstrapCoordinatorTests \
   -only-testing:merianTests/AuthSessionBootstrapLiveServiceTests \
   -only-testing:merianTests/AuthSessionRecoveryCoordinatorTests \
+  -only-testing:merianTests/AuthSessionRecoveryLiveServiceTests \
   -only-testing:merianTests/AuthSessionLifecycleCoordinatorTests \
   -only-testing:merianTests/AuthSessionLifecycleLiveProviderTests \
   -only-testing:merianTests/HistoricalSessionSyncLiveServiceTests \
@@ -2314,6 +2323,7 @@ xcodebuild test \
   -only-testing:merianTests/AuthTransitionFoundationTests \
   -only-testing:merianTests/AuthTransitionPolicyTests \
   -only-testing:merianTests/AuthSessionRecoveryCoordinatorTests \
+  -only-testing:merianTests/AuthSessionRecoveryLiveServiceTests \
   -only-testing:merianTests/AuthSessionLifecycleCoordinatorTests \
   -only-testing:merianTests/AuthSessionLifecycleLiveProviderTests \
   -only-testing:merianTests/HistoricalSessionSyncLiveServiceTests \

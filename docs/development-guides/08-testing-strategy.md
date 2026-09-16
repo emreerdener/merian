@@ -3527,13 +3527,14 @@ import, and permission-denial UI require the physical-device checklist in
   in `MerianNetworkClient.swift`, applies the 600-line ceiling to every Swift
   owner in `Auth/`, `Endpoints/`, `Inference/`, `Media/`, `Models/`,
   `Recovery/`, and `Transport/` plus the client façade. It requires the exact
-  sixty Auth foundation paths, including the effect-free observable runtime
-  owner for transition, generation, analytics-token, exact-session lease/drain,
-  and local sign-out state; focused listener/current-state and historical-sync
-  task owners; lifecycle diagnostics; the listener's
+  sixty-three Auth foundation paths, including the effect-free observable
+  runtime owner for transition, generation, analytics-token, exact-session
+  lease/drain, and local sign-out state; focused listener/current-state and
+  historical-sync task owners; lifecycle diagnostics; the listener's
   generation/context/transition-observation order; the bootstrap dependency/
   coordinator pair plus focused SDK service/live adapter and diagnostics owner;
-  and the recovery dependency/coordinator pair with keyed bootstrap task,
+  and the recovery dependency/coordinator plus SDK
+  service/live-adapter/diagnostics owners with keyed bootstrap task,
   true-missing-only creation, exact-session refresh, anonymous readiness,
   terminal local clear, cancellation, and final-session guards; the lifecycle
   event model, dependency boundaries, coordinator, and deferred-event replay
@@ -3565,9 +3566,13 @@ import, and permission-denial UI require the physical-device checklist in
   requires exactly one endpoint owner for each classified route, and records the
   exact owners allowed to acquire the pinned session, private transport, request
   executor, consent/profile context, Auth manager, recovery Species Dictionary
-  query, or detached preparation bridge. The eleven policy tests own
-  URL/route/error classification, unavailable-route scheduling, retry account
-  binding, value-only Auth-recovery selection, and replay allowlists. Eleven
+  query, or detached preparation bridge. That inventory records the Auth
+  historical-session `+Live` adapter as one permitted `AppDIContainer.shared`
+  owner, limited to offline-queue context and scan-repository composition, and
+  rejects nullable live-dependency fallback in the Apple and Google
+  authorization providers. The eleven policy tests own URL/route/error
+  classification, unavailable-route scheduling, retry account binding,
+  value-only Auth-recovery selection, and replay allowlists. Eleven
   request-executor tests cover exact body/account replay, ordinary,
   transition-owned, durable-owner-deferred, and missing-guest Auth recovery,
   payment and consent effects, bounded route recovery, failed-attempt upload
@@ -3584,11 +3589,12 @@ import, and permission-denial UI require the physical-device checklist in
   `AuthTransitionFoundationTests`, `AuthRuntimeStateTests`,
   `AuthTransitionPolicyTests`, `AuthSessionBootstrapCoordinatorTests`,
   `AuthSessionBootstrapLiveServiceTests`, `AuthSessionRecoveryCoordinatorTests`,
-  `AuthSessionLifecycleCoordinatorTests`, `AuthLifecycleReplayCoordinatorTests`,
-  `AppleRevocationCoordinatorTests`, `AppleRevocationLiveProviderTests`,
-  `OAuthIdentityTokenPolicyTests`, `OAuthSignInModelsTests`,
-  `OAuthSignInWorkflowTests`, `OAuthSignInCoordinatorTests`,
-  `OAuthSignInCancellationTests`, `OAuthProviderSignInCoordinatorTests`,
+  `AuthSessionRecoveryLiveServiceTests`, `AuthSessionLifecycleCoordinatorTests`,
+  `AuthLifecycleReplayCoordinatorTests`, `AppleRevocationCoordinatorTests`,
+  `AppleRevocationLiveProviderTests`, `OAuthIdentityTokenPolicyTests`,
+  `OAuthSignInModelsTests`, `OAuthSignInWorkflowTests`,
+  `OAuthSignInCoordinatorTests`, `OAuthSignInCancellationTests`,
+  `OAuthProviderSignInCoordinatorTests`,
   `AuthenticationCallbackCoordinatorTests`, `GoogleOAuthLiveProviderTests`,
   `AppleOAuthAuthorizationLiveProviderTests`,
   `AppleOAuthRegistrationServiceTests`, `AccountDeletionTransitionPolicyTests`,
@@ -3991,6 +3997,13 @@ import, and permission-denial UI require the physical-device checklist in
   `AuthenticatedRequestExecutorTests`, `SupabaseManagerTests`, and
   `CoreNetworkIntegrationArchitectureTests`; live provider SDK calls and
   diagnostic adaptation remain outside this provider-neutral coordinator.
+- **`AuthSessionRecoveryLiveServiceTests.swift`**: Owns five deterministic
+  live-boundary cases covering refreshed and loaded identity/SDK-user
+  projection, exactly-once local sign-out delegation, and refresh, load, and
+  sign-out error forwarding. Run it with `AuthSessionRecoveryCoordinatorTests`,
+  `SupabaseManagerTests`, and `CoreNetworkIntegrationArchitectureTests`; the
+  service owns no transition, task, retry, purchase, entitlement, publication,
+  or cleanup policy.
 - **`PublicAuthorIdentityRefreshCoordinatorTests.swift`**: Owns eighteen
   deterministic cases for restored-session scheduling gates and stale-target
   rejection, Ghost completion and nested-lease order, same-target coalescing,
@@ -7786,11 +7799,12 @@ The identity test matrix now has two explicit lanes:
   through SDK mutation and an immediate cancellation check; it proves the
   mutation marker and exact transition expectation are recorded before the
   boundary throws and that neither completion nor publication follows. The Core
-  Network architecture suite separately freezes the reviewed facade teardown
-  list, including the two extracted task owners, and the exact residual generic
-  Supabase Auth operation inventory. `OAuthProviderSignInCoordinatorTests.swift`
-  owns transition admission, Google verification/recovery, Apple callback
-  acceptance, retained completion-task lifetime, stale callback rejection, and
+  Network architecture suite separately requires `isolated deinit` for
+  main-actor cleanup and freezes the reviewed facade teardown list, including
+  the two extracted task owners, and the exact residual generic Supabase Auth
+  operation inventory. `OAuthProviderSignInCoordinatorTests.swift` owns
+  transition admission, Google verification/recovery, Apple callback acceptance,
+  retained completion-task lifetime, stale callback rejection, and
   mutation-aware rollback. `AuthenticationCallbackCoordinatorTests.swift` owns
   fifteen deterministic fallback-URL cases covering success order, pending
   purchase continuity, overlapping transitions and sign-out, anonymous-source
@@ -7869,27 +7883,30 @@ The identity test matrix now has two explicit lanes:
   `AuthSessionBootstrapLiveServiceTests.swift` owns cached/loaded identity and
   expiry projection, newly anonymous fresh-session projection, exact SDK and
   compatibility missing-session classification, unrelated-error rejection, and
-  SDK failure forwarding. `AuthSessionRecoveryCoordinatorTests.swift` owns
-  ordinary and transition-owned exact-session refresh, cancellation/session
-  drift around suspended operations, anonymous
-  purchase/entitlement/final-readback admission, pending-handoff preservation,
-  SDK sign-out failure, cancellation after SDK sign-out begins, caller-owned
-  transition lifetime, and cleanup entry for a cancelled OAuth transition only
-  after its SDK mutation, plus rejection of a replacement session installed
-  during account-work quiescence. `AuthSessionLifecycleCoordinatorTests.swift`
-  owns provider-neutral listener orchestration, state order, durable fail
-  closure, accepted-deletion local entitlement projection reset,
-  replay-owner-driven deferred sign-out cleanup, signed-out postflight, and
-  post-suspension fences. `AuthLifecycleReplayCoordinatorTests.swift` owns
-  replacement cancellation, transition carry-forward, stable-event obligation
-  clearing, owner release during suspension, and no-op behavior when no listener
-  event was deferred. `AppleCredentialRevocationCoordinatorTests.swift` owns
-  transition deferral, overlap, generation/identity drift, exact terminal-clear
-  admission and stable-context replay, recovery deferral without immediate
-  retry, explicit stable resume, context-change replay without a lost wakeup,
-  cancellation, owner release during a suspended lookup, and fail-closed local
-  clear; `AppleCredentialRevocationLiveProviderTests.swift` owns the SDK-state
-  mapping and exact observer lifecycle. `SupabaseManagerTests.swift` retains
+  SDK failure forwarding. `AuthSessionRecoveryLiveServiceTests.swift` owns
+  refreshed/loaded identity and SDK-user projection, exactly-once local
+  sign-out, and SDK failure forwarding.
+  `AuthSessionRecoveryCoordinatorTests.swift` owns ordinary and transition-owned
+  exact-session refresh, cancellation/session drift around suspended operations,
+  anonymous purchase/entitlement/final-readback admission, pending-handoff
+  preservation, SDK sign-out failure, cancellation after SDK sign-out begins,
+  caller-owned transition lifetime, and cleanup entry for a cancelled OAuth
+  transition only after its SDK mutation, plus rejection of a replacement
+  session installed during account-work quiescence.
+  `AuthSessionLifecycleCoordinatorTests.swift` owns provider-neutral listener
+  orchestration, state order, durable fail closure, accepted-deletion local
+  entitlement projection reset, replay-owner-driven deferred sign-out cleanup,
+  signed-out postflight, and post-suspension fences.
+  `AuthLifecycleReplayCoordinatorTests.swift` owns replacement cancellation,
+  transition carry-forward, stable-event obligation clearing, owner release
+  during suspension, and no-op behavior when no listener event was deferred.
+  `AppleCredentialRevocationCoordinatorTests.swift` owns transition deferral,
+  overlap, generation/identity drift, exact terminal-clear admission and
+  stable-context replay, recovery deferral without immediate retry, explicit
+  stable resume, context-change replay without a lost wakeup, cancellation,
+  owner release during a suspended lookup, and fail-closed local clear;
+  `AppleCredentialRevocationLiveProviderTests.swift` owns the SDK-state mapping
+  and exact observer lifecycle. `SupabaseManagerTests.swift` retains
   account-work drain, consent-sync cancellation/await, deterministic Auth-header
   behavior, sign-out request-gate ordering, and facade-level state projection.
   The focused Apple/Google provider suites, not the manager suite, own provider

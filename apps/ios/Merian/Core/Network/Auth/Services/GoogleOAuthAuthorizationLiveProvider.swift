@@ -47,9 +47,11 @@ struct GoogleOAuthAuthorizationLiveDependencies {
 struct GoogleOAuthAuthorizationLiveProvider {
     private let dependencies: GoogleOAuthAuthorizationLiveDependencies
 
-    init(
-        dependencies: GoogleOAuthAuthorizationLiveDependencies = .live
-    ) {
+    init() {
+        dependencies = .live
+    }
+
+    init(dependencies: GoogleOAuthAuthorizationLiveDependencies) {
         self.dependencies = dependencies
     }
 

@@ -73,8 +73,11 @@ the remaining local and purchase-identity cleanup even if the SDK call fails or
 cancellation arrives. A blocked Apple credential clear retains its signal
 without a hot retry loop and resumes when the aggregate purchase-handoff fence
 becomes false. Live Supabase, RevenueCat, Keychain, analytics, and logging
-adapters remain assembled by `SupabaseManager`. This ownership split changes no
-HTTP status, public code, payload, or retry count.
+adapters remain assembled by `SupabaseManager`; the focused recovery service
+projects refreshed and loaded SDK sessions, and its `+Live` adapter alone
+performs the recovery-specific refresh, session read, and local sign-out calls.
+This ownership split changes no HTTP status, public code, payload, or retry
+count.
 
 Provider-backed routes additionally return HTTP `403` with code
 `ai_consent_required` when the authenticated account lacks the current 18+

@@ -85,13 +85,12 @@ Account deletion nulls its Auth UUID references while keeping non-identifying
 transition and delivery evidence for operations.
 
 Every ordinary resolver request also carries a positive device-persisted
-binding- intent generation that iOS advances and verifies before network I/O.
-The server accepts only a newer intent and requires completion to match it. This
-is the ordering authority across delayed HTTP execution: an old Auth request
-cannot become the final binding merely because it completes last. Stable
-sign-out uses its separate rotation UUID, one-use secret, expected binding
-generation, and a server-captured fence over every resolver intent issued before
-preparation.
+binding-intent generation that iOS advances and verifies before network I/O. The
+server accepts only a newer intent and requires completion to match it. This is
+the ordering authority across delayed HTTP execution: an old Auth request cannot
+become the final binding merely because it completes last. Stable sign-out uses
+its separate rotation UUID, one-use secret, expected binding generation, and a
+server-captured fence over every resolver intent issued before preparation.
 
 iOS also has one generation-bound `AuthTransitionCoordinator` for Apple, Google,
 Sign out, recovery, credential revocation, and account deletion. The value-state
@@ -136,11 +135,16 @@ recovery, and deletion effects. The lifecycle provider owns and maps the SDK
 stream/listener task. Listener replacement cancels both the superseded task and
 its replay obligation, and a post-coordinator cancellation fence rejects its
 trailing credential-revocation resume effect; the history service owns
-listener-admitted synchronization tasks. The focused bootstrap service/live
-adapter owns SDK-session projection, missing-session classification, bootstrap
-reads, and anonymous sign-in without acquiring publication or purchase-
-readiness authority. The facade's live linked-source and stable-preparation
-closures revalidate the exact Auth transition before and after suspension.
+listener-admitted synchronization tasks, while its `+Live` adapter is the
+reviewed Auth owner of `AppDIContainer.shared` for offline-queue context and
+scan-repository composition. The focused bootstrap service/live adapter owns
+SDK-session projection, missing-session classification, bootstrap reads, and
+anonymous sign-in without acquiring publication or purchase- readiness
+authority. The focused recovery service/live adapter owns refreshed/loaded
+session projection plus recovery-specific SDK refresh, read, and local sign-out
+without acquiring transition, purchase, entitlement, publication, or cleanup
+authority. The facade's live linked-source and stable-preparation closures
+revalidate the exact Auth transition before and after suspension.
 `Core/Security/PurchaseIdentity/` owns the resolver's domain/wire models,
 deterministic policies, verified capability and resolver-state stores, secure
 randomness, typed operations, and route-specific live Supabase adapters, plus

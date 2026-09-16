@@ -52,10 +52,14 @@ final class AppleOAuthAuthorizationLiveProvider: NSObject {
     private let dependencies: AppleOAuthAuthorizationLiveDependencies
     private var activeAttempt: Attempt?
 
-    init(
-        dependencies: AppleOAuthAuthorizationLiveDependencies = .live
-    ) {
+    override init() {
+        dependencies = .live
+        super.init()
+    }
+
+    init(dependencies: AppleOAuthAuthorizationLiveDependencies) {
         self.dependencies = dependencies
+        super.init()
     }
 
     func start(

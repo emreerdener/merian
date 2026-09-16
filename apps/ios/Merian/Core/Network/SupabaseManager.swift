@@ -17,6 +17,7 @@ import Supabase
         AppleOAuthCredentialRegistrationService
     private let authSessionBootstrapLiveService:
         AuthSessionBootstrapLiveService
+    private let authSessionRecoveryLiveService: AuthSessionRecoveryLiveService
     private let oauthSessionService: OAuthSessionService
     private let purchasePrincipalResolver: PurchasePrincipalResolver
     private let legacyPurchaseIdentityProfileService:
@@ -195,6 +196,7 @@ import Supabase
         self.authHistoricalSessionSyncLiveService =
             AuthHistoricalSessionSyncLiveService(dependencies: .live)
         self.authSessionBootstrapLiveService = .live(client: client)
+        self.authSessionRecoveryLiveService = .live(client: client)
         self.appleOAuthCredentialRegistrationService = .live(client: client)
         self.oauthSessionService = .live(client: client)
         self.purchasePrincipalResolver = PurchasePrincipalResolver(
@@ -242,7 +244,7 @@ import Supabase
         }
     }
 
-    deinit {
+    isolated deinit {
         authSessionLifecycleLiveProvider.cancel()
         authHistoricalSessionSyncLiveService.cancel()
         authSessionBootstrapCoordinator.cancel()
@@ -2041,12 +2043,14 @@ import Supabase
         )
         let operations = AuthSessionRecoveryOperationBoundary(
             refreshSDKSession: { [self] in
-                let session = try await client.auth.refreshSession()
-                return authSessionRecoverySession(for: session.user)
+                authSessionRecoverySession(
+                    from: try await authSessionRecoveryLiveService.refreshSession()
+                )
             },
             loadSDKSession: { [self] in
-                let session = try await client.auth.session
-                return authSessionRecoverySession(for: session.user)
+                authSessionRecoverySession(
+                    from: try await authSessionRecoveryLiveService.loadSession()
+                )
             },
             resetAnonymousSession: { [self] transition in
                 await PurchaseIdentitySignOutCoordinator(
@@ -2054,7 +2058,7 @@ import Supabase
                 ).resetGhostSessionForRetry(ownedBy: transition)
             },
             performLocalSDKSignOut: { [self] in
-                try await client.auth.signOut(scope: .local)
+                try await authSessionRecoveryLiveService.signOutLocalSession()
             },
             finishPurchaseIdentitySignOut: {
                 await RevenueCatManager.shared.handleSupabaseSignOut()
@@ -2065,7 +2069,7 @@ import Supabase
             transition: authTransition,
             operations: operations,
             diagnose: { diagnostic, error in
-                SupabaseAuthSessionRecoveryDiagnostics.report(
+                AuthSessionRecoveryLiveDiagnostics.report(
                     diagnostic,
                     error: error
                 )
@@ -2074,14 +2078,12 @@ import Supabase
     }
 
     private func authSessionRecoverySession(
-        for user: User
+        from session: AuthSessionRecoveryLiveSession
     ) -> AuthSessionRecoverySession {
+        let user = session.user
         let generation = authSessionGeneration
         return AuthSessionRecoverySession(
-            identity: AuthTransitionSession(
-                userID: user.id,
-                isAnonymous: user.isAnonymous
-            ),
+            identity: session.identity,
             adopt: { [self] transition in
                 adoptAuthTransitionSession(user, for: transition)
             },

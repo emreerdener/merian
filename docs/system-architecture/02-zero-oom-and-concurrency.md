@@ -3407,6 +3407,10 @@ This ensures:
   handoffs preserve the source session, while cleanup deliberately finishes once
   local SDK sign-out begins so cancellation or an SDK error cannot leave
   observable account state behind.
+- `AuthSessionRecoveryLiveService` creates no task. Its focused `+Live` adapter
+  owns only the suspended SDK refresh, session read, and local sign-out calls;
+  the coordinator and facade retain cancellation, transition, publication,
+  purchase, entitlement, and cleanup fencing around those operations.
 
 ## 2026-05 Stability Updates
 
@@ -3501,6 +3505,11 @@ This ensures:
   begins. A dedicated entry policy lets a cancelled OAuth owner enter that
   completion-owned cleanup only when its SDK session was already mutated;
   ordinary cleanup still requires an active caller.
+- Recovery SDK adaptation now lives in the task-free
+  `AuthSessionRecoveryLiveService`: the service projects refreshed/loaded
+  identities, its `+Live` adapter performs recovery refresh/read/local-sign-out,
+  and its diagnostics owner preserves the privacy-safe copy. It does not widen
+  the coordinator's transition or cleanup authority.
 - `PublicAuthorIdentityRefreshCoordinator` owns replaceable restored-session
   public-author refresh with both its target account and a unique task ID. Stale
   scheduling targets are rejected before replacement. Cleanup is
