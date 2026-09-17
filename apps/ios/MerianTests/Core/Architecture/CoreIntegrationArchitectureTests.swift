@@ -276,7 +276,8 @@ struct CoreIntegrationArchitectureTests {
             "Double.random("
         ],
         "Data/OfflineSync/Policies/OfflineQueueStoragePolicy.swift": [
-            ".resourceValues("
+            ".resourceValues(",
+            "FileManager.default"
         ],
         "Data/StoreRecovery/Policies/ModelStoreRecoveryPolicy.swift": [
             "fileManager: FileManager = .default",

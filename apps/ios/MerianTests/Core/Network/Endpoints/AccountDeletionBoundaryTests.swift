@@ -185,56 +185,74 @@ struct AccountDeletionBoundaryTests {
 
     @Test func recoveryResultsStayBoundToTheExactTransitionSession() throws {
         let manager = try networkSource("SupabaseManager.swift")
+        let coordinator = try networkSource(
+            "Auth/Coordinators/AccountDeletionCoordinator.swift"
+        )
+        let recoveryCoordinator = try networkSource(
+            "Auth/Coordinators/AccountDeletionRecoveryCoordinator.swift"
+        )
         let immediateDeletion = try section(
             beginningWith: "    func deleteCurrentAccount(",
-            endingBefore: "\n    /// An account-deletion barrier",
-            in: manager
+            endingBefore: "\n    private func clearCapability(",
+            in: coordinator
         )
         let versionTwoRecovery = try section(
             beginningWith:
-                "    private func resumeCapabilityBackedAccountDeletionV2(",
+                "    private func resumeCapabilityBackedV2(",
             endingBefore:
-                "\n    private func resumeCapabilityBackedAccountDeletion(",
-            in: manager
+                "\n    private func resumeCapabilityBackedV1(",
+            in: recoveryCoordinator
         )
         let legacyRecovery = try section(
             beginningWith:
-                "    private func resumeCapabilityBackedAccountDeletion(",
-            endingBefore: "\n    private func performLocalSignOut(",
+                "    private func resumeCapabilityBackedV1(",
+            endingBefore: "\n    private func performAcceptedCleanup(",
+            in: recoveryCoordinator
+        )
+        let acceptedCleanup = try section(
+            beginningWith: "    private func performAcceptedCleanup(",
+            endingBefore: "\n    private func retireDefinitiveRejectionProof(",
+            in: recoveryCoordinator
+        )
+
+        try expectOrder(
+            ["currentSessionMatchesTransition:",
+             "self.currentSessionMatchesAuthTransition(transition)"],
             in: manager
         )
 
         for workflow in [
             immediateDeletion,
             versionTwoRecovery,
-            legacyRecovery
+            legacyRecovery,
+            acceptedCleanup
         ] {
-            #expect(!workflow.contains("ownsAuthTransition(transition)"))
+            #expect(!workflow.contains(".ownsTransition(transition)"))
         }
 
         try expectOrder(
             [
                 "verifyPreparationContext:",
-                "currentSessionMatchesAuthTransition(transition)",
+                "currentSessionMatchesTransition(transition)",
                 "verifyCommitContext:",
-                "currentSessionMatchesAuthTransition(transition)",
+                "currentSessionMatchesTransition(transition)",
                 "verifyResultContext:",
-                "currentSessionMatchesAuthTransition(",
+                "currentSessionMatchesTransition(",
                 "recoverDeletionV2(",
-                "currentSessionMatchesAuthTransition(transition)",
+                "currentSessionMatchesTransition(",
                 "acknowledgeRecovery:",
-                "currentSessionMatchesAuthTransition(transition)"
+                "currentSessionMatchesTransition(transition)"
             ],
             in: immediateDeletion
         )
         try expectOrder(
             [
                 "receipt = try await recoverDeletion(",
-                "currentSessionMatchesAuthTransition(transition)",
+                "currentSessionMatchesTransition(transition)",
                 "} catch {",
-                "currentSessionMatchesAuthTransition(transition)",
-                "acknowledgeRecovery:",
-                "currentSessionMatchesAuthTransition(transition)"
+                "currentSessionMatchesTransition(transition)",
+                "return await performAcceptedCleanup(",
+                "acknowledgeRecovery:"
             ],
             in: versionTwoRecovery
         )
@@ -242,39 +260,62 @@ struct AccountDeletionBoundaryTests {
             [
                 "receipt = try await requestDeletion(",
                 "} catch {",
-                "currentSessionMatchesAuthTransition(transition)",
+                "currentSessionMatchesTransition(transition)",
                 "receipt = try await recoverDeletion(capability, false)",
-                "currentSessionMatchesAuthTransition(transition)",
+                "currentSessionMatchesTransition(transition)",
                 "} catch {",
-                "currentSessionMatchesAuthTransition(transition)",
-                "acknowledgeRecovery:",
-                "currentSessionMatchesAuthTransition(transition)"
+                "currentSessionMatchesTransition(transition)",
+                "return await performAcceptedCleanup(",
+                "acknowledgeRecovery:"
             ],
             in: legacyRecovery
+        )
+        try expectOrder(
+            ["await AccountDeletionWorkflow.performAcceptedCleanup(",
+             "acknowledgeRecovery:",
+             "try await acknowledgeRecovery()",
+             "currentSessionMatchesTransition(transition)"],
+            in: acceptedCleanup
         )
     }
 
     @Test func restoredDeletionBarrierCommitsBeforeLifecycleReadiness() throws {
-        let manager = try networkSource("SupabaseManager.swift")
+        let recoveryCoordinator = try networkSource(
+            "Auth/Coordinators/AccountDeletionRecoveryCoordinator.swift"
+        )
         let workflow = try networkSource(
             "Auth/Coordinators/AccountDeletionWorkflow.swift"
         )
         let restoration = try section(
             beginningWith:
-                "    private func restoreDeferredCachedSessionAndResolveDeletionBarrier(",
-            endingBefore: "\n    /// Resumes the local half",
-            in: manager
+                "    private func restoreDeferredCachedSessionAndResolveBarrier(",
+            endingBefore: "\n    private func resumeCapabilityBackedV2(",
+            in: recoveryCoordinator
         )
 
         #expect(restoration.components(separatedBy: "await ").count == 2)
         #expect(!restoration.contains("ensurePurchaseIdentityReady"))
         #expect(!restoration.contains("EntitlementManager.shared"))
         try expectOrder(
+            ["loadCachedSession()",
+             "canRestoreDeferredBarrierSession(",
+             "dependencies.session.currentCachedSession()",
+             "AccountDeletionWorkflow.restoreDeferredBarrierSession(",
+             "adoptCachedSession:",
+             "dependencies.session.currentCachedSession()",
+             "dependencies.session.adoptCachedSession(",
+             "validateCachedSession:",
+             ".currentSessionMatchesTransition(transition)",
+             "resolveCleanup:",
+             "publishCachedSession:"],
+            in: restoration
+        )
+        try expectOrder(
             [
-                "adoptCachedSession:",
-                "validateCachedSession:",
-                "resolveCleanup:",
-                "publishCachedSession:"
+                "adoptCachedSession()",
+                "validateCachedSession()",
+                "resolveCleanup()",
+                "publishCachedSession()"
             ],
             in: workflow
         )

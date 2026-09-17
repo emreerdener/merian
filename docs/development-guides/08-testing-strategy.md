@@ -5487,6 +5487,7 @@ iOS regression coverage is intentionally joined as well:
   relaunched exact-session lease adoption, and bounded retirement. The
   `BackgroundTransferArchitectureTests` suite freezes the four focused files,
   exact declarations and imports, private tracker and terminal-validation state,
+  manager-owned URLSession conformances and extension-owned callbacks,
   tracker/lease, rejected-retirement, and inference-completion consumer
   allowlists, ordering, mirrored test ownership, failed-retirement generation
   preservation, successful-retirement process completion, and 600-line ceilings.
@@ -5542,17 +5543,17 @@ iOS regression coverage is intentionally joined as well:
 - `SyncStateManagerTests` retains generation-aware upload, inference,
   finalizing, and forced-idle projection coverage.
 - `OfflineSyncFoundationArchitectureTests` freezes the complete relocated
-  declaration inventory, exact focused-file and framework-import inventory,
-  dependency direction, private task/diagnostic state, removal of the former
-  aggregate source, exact queued-scan-mapper and preferred-goal consumer
-  allowlists, the queued route projection's `@MainActor` isolation, mirrored
-  extraction-test ownership, and the 600-line ceiling for the foundation owners.
-  `QueuedScanExtractionTests` covers the detached route projection, gallery
-  timestamp provenance, persisted/sparse audio identity, conservative legacy
-  visual replay, and mixed-media timeline alignment without mutating shared
-  manager state. `OfflineQueuePolicyTests` preserves duplicate capture-file
-  accounting, Documents-first relative-path resolution (including an empty
-  file), queued-media deduplication, and remote-media exclusion.
+  declaration inventory (including static storage helpers), exact focused-file
+  and framework-import inventory, dependency direction, private task/diagnostic
+  state, removal of the former aggregate source, exact queued-scan-mapper and
+  preferred-goal consumer allowlists, the queued route projection's `@MainActor`
+  isolation, mirrored extraction-test ownership, and the 600-line ceiling for
+  the foundation owners. `QueuedScanExtractionTests` covers the detached route
+  projection, gallery timestamp provenance, persisted/sparse audio identity,
+  conservative legacy visual replay, and mixed-media timeline alignment without
+  mutating shared manager state. `OfflineQueuePolicyTests` preserves duplicate
+  capture-file accounting, Documents-first relative-path resolution (including
+  an empty file), queued-media deduplication, and remote-media exclusion.
 - `QueueMaintenanceTests` covers failed-state tombstoning, fresh-context
   automatic-work counts, invalid-media quarantine with its stable
   `queued_media_invalid` diagnostic, preservation of higher-authority completed
@@ -6161,8 +6162,11 @@ device-evidence checks:
   public-recovery acknowledgement state, admits `not_committed` only for v2
   recovery, and rejects it for legacy recovery and both acknowledgement routes.
   `AccountDeletionBoundaryTests` protects private transport, owner forwarding,
-  validation order, and rehomes. The existing protected shared-auth selector
-  stays in `MerianNetworkClientTests`. Run the
+  validation order, and rehomes. Its exact-session result and acknowledgement
+  checks follow the fresh-deletion and recovery coordinators, including their
+  shared acknowledgement helper and the cached-session restoration sequence. The
+  existing protected shared-auth selector stays in `MerianNetworkClientTests`.
+  Run the
   [account-deletion matrix](../../apps/ios/Merian/Core/Network/README.md#account-deletion-and-recovery-verification).
   V2 accepted-owner endpoint success is not simulated by weakening Auth: exact
   payload/decoder tests and stale-owner rejection complement the injected

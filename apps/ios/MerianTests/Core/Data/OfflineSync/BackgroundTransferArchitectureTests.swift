@@ -83,9 +83,12 @@ struct BackgroundTransferArchitectureTests {
             "validateOrAdoptBackgroundAccountWork("
         ))
 
-        #expect(delegate.contains(
-            "extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegate"
+        #expect(manager.contains(
+            "class OfflineQueueManager: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate"
         ))
+        #expect(delegate.contains("extension OfflineQueueManager {"))
+        #expect(!delegate.contains("URLSessionTaskDelegate"))
+        #expect(!delegate.contains("URLSessionDownloadDelegate"))
         #expect(delegate.components(
             separatedBy: "nonisolated func urlSession("
         ).count == 3)

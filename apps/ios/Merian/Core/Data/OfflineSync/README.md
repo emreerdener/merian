@@ -18,8 +18,10 @@ The canonical behavioral contract is the
   retry, and background-inference response/status contracts. The storage policy
   is the sole Offline Sync owner of admission, capture-file, and deduplicated
   queued-media byte estimates. Staging and storage policy may inspect local
-  files, and retry timing may apply bounded jitter; these files have no
-  observable state, actor dependency, or direct network work.
+  files: storage sizing reads file attributes through `FileManager`, and
+  capacity checks use URL resource values. Retry timing may apply bounded
+  jitter; these files have no observable state, actor dependency, or direct
+  network work.
 - `Coordinators/GenerationTaskRegistry.swift` contains the main-actor,
   compare-before-clear owner for process-local task cancellation. Its mutable
   entries remain private.
@@ -79,10 +81,11 @@ The canonical behavioral contract is the
 - `Services/BackgroundTransfer/` owns the lock-protected terminal-work tracker,
   Auth-bound lease retention and transition quiescence, relaunched-task owner
   validation/adoption, terminal callback routing, and the nonisolated URLSession
-  delegate adapter. Delegate callbacks route immutable snapshots into focused
-  main-actor terminal routing; accepted work then enters the existing
-  upload/inference processors. The delegate adapter does not own SwiftData
-  decisions.
+  delegate adapter. The manager declaration owns URLSession protocol
+  conformances; the delegate extension owns the nonisolated callbacks. Delegate
+  callbacks route immutable snapshots into focused main-actor terminal routing;
+  accepted work then enters the existing upload/inference processors. The
+  delegate adapter does not own SwiftData decisions.
 - `Core/Data/Database/BackgroundDatabaseActor+QueueSelection.swift` remains the
   actor-isolated persistence owner for pending upload selection and empty-media
   quarantine. Media Upload's `UploadSync` is its only production consumer and

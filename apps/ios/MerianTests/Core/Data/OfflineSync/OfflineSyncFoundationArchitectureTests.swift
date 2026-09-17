@@ -15,7 +15,7 @@ struct OfflineSyncFoundationArchitectureTests {
                 }
                 return relativePath(of: file, below: root)
             }
-            #expect(owners == [expectedPath])
+            #expect(owners == [expectedPath], "\(declaration) has unexpected owners")
         }
 
         #expect(
@@ -500,7 +500,7 @@ struct OfflineSyncFoundationArchitectureTests {
     ) -> Bool {
         let escaped = NSRegularExpression.escapedPattern(for: declaration)
         let pattern =
-            #"(?m)^\s*(?:(?:private|fileprivate|internal|package|public|final)\s+)*"#
+            #"(?m)^\s*(?:(?:private|fileprivate|internal|package|public|final|static)\s+)*"#
             + escaped
             + #"(?:\s*[:(<{=])"#
         return source.range(of: pattern, options: .regularExpression) != nil
