@@ -10,6 +10,121 @@ struct ConsentRemoteServiceTests {
         case unexpected
     }
 
+    @Test(arguments: [false, true])
+    func receiptReadBackMatchesTheSubmittedWireTimestamp(insertFailed: Bool) async throws {
+        let userId = UUID()
+        // This serializes to .002; reformatting the decoded Date can produce .001.
+        let occurredAt = Date(timeIntervalSince1970: 1_800_000_000.0025)
+        let adult = adultReceipt(userId: userId, confirmedAt: occurredAt)
+        let terms = termsReceipt(userId: userId, acceptedAt: occurredAt)
+        let service = makeService(
+            insertAdult: { _ in
+                if insertFailed { throw StubError.transport }
+            },
+            insertTerms: { _ in
+                if insertFailed { throw StubError.transport }
+            },
+            fetchAdult: { _, _ in [remoteAdultRow(from: adult, userId: userId)] },
+            fetchTerms: { _, _ in [remoteTermsRow(from: terms, userId: userId)] }
+        )
+
+        let synchronizedAdult = try await service.insertAdultEligibilityReceipt(
+            adult, for: userId, validateSynchronization: {}
+        )
+        let synchronizedTerms = try await service.insertTermsReceipt(
+            terms, for: userId, validateSynchronization: {}
+        )
+
+        #expect(synchronizedAdult.confirmedAt == parsedDate(timestamp(occurredAt)))
+        #expect(synchronizedTerms.acceptedAt == parsedDate(timestamp(occurredAt)))
+        #expect(synchronizedAdult.syncedUserId == userId)
+        #expect(synchronizedTerms.syncedUserId == userId)
+    }
+
+    @Test func eventRetryMatchesTheSubmittedWireTimestamp() async throws {
+        let userId = UUID()
+        let occurredAt = Date(timeIntervalSince1970: 1_800_000_000.0025)
+        let ai = aiEvent(
+            userId: userId, eventKind: .granted, causalParentId: UUID(), occurredAt: occurredAt
+        )
+        let analytics = analyticsEvent(
+            userId: userId, eventKind: .granted, causalParentId: UUID(), occurredAt: occurredAt
+        )
+        let service = makeService(
+            appendAI: { _ in throw StubError.transport },
+            appendAnalytics: { _ in throw StubError.transport },
+            fetchAI: { _, _ in [remoteAIEventRow(from: ai, userId: userId)] },
+            fetchAnalytics: { _, _ in [remoteAnalyticsEventRow(from: analytics, userId: userId)] }
+        )
+
+        let synchronizedAI = try await service.insertAIConsentEvent(
+            ai, for: userId, validateSynchronization: {}
+        )
+        let synchronizedAnalytics = try await service.insertAnalyticsConsentEvent(
+            analytics, for: userId, validateSynchronization: {}
+        )
+
+        #expect(synchronizedAI.occurredAt == parsedDate(timestamp(occurredAt)))
+        #expect(synchronizedAnalytics.occurredAt == parsedDate(timestamp(occurredAt)))
+        #expect(synchronizedAI.causalParentId == ai.causalParentId)
+        #expect(synchronizedAnalytics.causalParentId == analytics.causalParentId)
+    }
+
+    @Test(arguments: ["2027-01-15T08:00:00.003Z", "2027-01-15T08:00:00.0021Z"])
+    func readBackRejectsDifferentWireTimestamps(wireTimestamp: String) async {
+        let userId = UUID()
+        let occurredAt = Date(timeIntervalSince1970: 1_800_000_000.0025)
+        let adult = adultReceipt(userId: userId, confirmedAt: occurredAt)
+        let terms = termsReceipt(userId: userId, acceptedAt: occurredAt)
+        let ai = aiEvent(
+            userId: userId, eventKind: .granted, causalParentId: nil, occurredAt: occurredAt
+        )
+        let analytics = analyticsEvent(
+            userId: userId, eventKind: .granted, causalParentId: nil, occurredAt: occurredAt
+        )
+        let service = makeService(
+            insertAdult: { _ in },
+            insertTerms: { _ in },
+            appendAI: { _ in throw StubError.transport },
+            appendAnalytics: { _ in throw StubError.transport },
+            fetchAdult: { _, _ in
+                [remoteAdultRow(from: adult, userId: userId, wireTimestamp: wireTimestamp)]
+            },
+            fetchTerms: { _, _ in
+                [remoteTermsRow(from: terms, userId: userId, wireTimestamp: wireTimestamp)]
+            },
+            fetchAI: { _, _ in
+                [remoteAIEventRow(from: ai, userId: userId, wireTimestamp: wireTimestamp)]
+            },
+            fetchAnalytics: { _, _ in
+                [remoteAnalyticsEventRow(
+                    from: analytics, userId: userId, wireTimestamp: wireTimestamp
+                )]
+            }
+        )
+
+        await #expect(throws: MerianError.invalidResponse) {
+            try await service.insertAdultEligibilityReceipt(
+                adult, for: userId, validateSynchronization: {}
+            )
+        }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await service.insertTermsReceipt(
+                terms, for: userId, validateSynchronization: {}
+            )
+        }
+        await #expect(throws: StubError.transport) {
+            try await service.insertAIConsentEvent(
+                ai, for: userId, validateSynchronization: {}
+            )
+        }
+        await #expect(throws: StubError.transport) {
+            try await service.insertAnalyticsConsentEvent(
+                analytics, for: userId, validateSynchronization: {}
+            )
+        }
+    }
+
     @Test func receiptAdaptersPreservePayloadsAndMapReadBack() async throws {
         let userId = UUID()
         let adult = adultReceipt(userId: userId)

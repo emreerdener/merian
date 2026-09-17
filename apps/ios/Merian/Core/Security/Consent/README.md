@@ -77,10 +77,12 @@ not a feature-owned presentation layer.
 - `Services/ConsentRemoteService.swift` maps between wire and durable consent
   values, validates causal append results, performs receipt read-back recovery,
   and requires exact immutable receipt and causal-event matches before accepting
-  successful or ambiguous read-back evidence. A truly empty successful query is
-  absence; a present row that cannot map is `invalidResponse`, never absence.
-  Its narrow closure dependencies keep these rules deterministic and
-  independently testable.
+  successful or ambiguous read-back evidence. Timestamp checks compare decoded
+  instants against the decoded timestamp sent on the wire, without a tolerance;
+  reformatting a decoded `Date` can truncate another millisecond. A truly empty
+  successful query is absence; a present row that cannot map is
+  `invalidResponse`, never absence. Its narrow closure dependencies keep these
+  rules deterministic and independently testable.
 - `Services/ConsentRemoteService+Live.swift` is the sole direct PostgREST/RPC
   owner. It preserves the two receipt inserts, two causal append RPCs, four
   ID-scoped read-backs, and six concurrent authoritative reads.

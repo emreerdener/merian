@@ -485,6 +485,7 @@ struct ConsentRemoteService {
         )
     }
 
+    // Compare decoded wire instants; reformatting can truncate another millisecond.
     private static func matchesAdultEligibilityReceipt(
         _ existing: ConsentManager.AdultEligibilityReceipt,
         requested: ConsentManager.AdultEligibilityReceipt,
@@ -494,7 +495,7 @@ struct ConsentRemoteService {
             && existing.ownerUserId == userId
             && existing.syncedUserId == userId
             && existing.policyVersion == requested.policyVersion
-            && timestamp(existing.confirmedAt) == timestamp(requested.confirmedAt)
+            && existing.confirmedAt == date(timestamp(requested.confirmedAt))
             && existing.confirmationMethod == requested.confirmationMethod
             && existing.confirmationText == requested.confirmationText
             && existing.platform == requested.platform
@@ -512,7 +513,7 @@ struct ConsentRemoteService {
             && existing.ownerUserId == userId
             && existing.syncedUserId == userId
             && existing.termsVersion == requested.termsVersion
-            && timestamp(existing.acceptedAt) == timestamp(requested.acceptedAt)
+            && existing.acceptedAt == date(timestamp(requested.acceptedAt))
             && existing.acceptanceText == requested.acceptanceText
             && existing.platform == requested.platform
             && existing.appVersion == requested.appVersion
@@ -534,7 +535,7 @@ struct ConsentRemoteService {
             && existing.provider == requested.provider
             && existing.disclosureVersion == requested.disclosureVersion
             && existing.eventKind == requested.eventKind
-            && timestamp(existing.occurredAt) == timestamp(requested.occurredAt)
+            && existing.occurredAt == date(timestamp(requested.occurredAt))
             && existing.disclosureText == requested.disclosureText
             && existing.actionText == requested.actionText
             && existing.platform == requested.platform
@@ -559,7 +560,7 @@ struct ConsentRemoteService {
             && existing.provider == requested.provider
             && existing.disclosureVersion == requested.disclosureVersion
             && existing.eventKind == requested.eventKind
-            && timestamp(existing.occurredAt) == timestamp(requested.occurredAt)
+            && existing.occurredAt == date(timestamp(requested.occurredAt))
             && existing.disclosureText == requested.disclosureText
             && existing.actionText == requested.actionText
             && existing.platform == requested.platform

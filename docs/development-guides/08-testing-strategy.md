@@ -4644,12 +4644,14 @@ import, and permission-denial UI require the physical-device checklist in
   rebinding. `ConsentRemoteServiceTests` and its focused support owner validate
   exact adult/Terms inserts, both causal append payload adapters, accepted and
   superseded results, malformed-present-row rejection, immutable receipt/event
-  read-back validation and ambiguous-write recovery, current-disclosure versus
-  all-version-head mapping, and suspension-time synchronization fencing.
-  `ConsentRealtimeCoordinatorTests` exercise same-owner idempotency,
-  inactive-channel replacement, account replacement, stale-event fencing,
-  stream-completion and subscribe-failure retries, bounded backoff, stop-time
-  cancellation, explicit and deinitialization cleanup with a
+  read-back validation and ambiguous-write recovery, exact timestamp matching
+  after wire precision normalization (including fractional-second round-trip
+  drift and rejection of millisecond or sub-millisecond differences),
+  current-disclosure versus all-version-head mapping, and suspension-time
+  synchronization fencing. `ConsentRealtimeCoordinatorTests` exercise same-owner
+  idempotency, inactive-channel replacement, account replacement, stale-event
+  fencing, stream-completion and subscribe-failure retries, bounded backoff,
+  stop-time cancellation, explicit and deinitialization cleanup with a
   cancellation-uncooperative listener, coalesced exactly-once removal, a
   cancellation-uncooperative physical-removal drain, its inclusion in the
   manager Auth-transition barrier, and the disabled-live policy.

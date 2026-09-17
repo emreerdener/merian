@@ -66,14 +66,15 @@ extension ConsentRemoteServiceTests {
     }
 
     func adultReceipt(
-        userId: UUID
+        userId: UUID,
+        confirmedAt: Date = Date(timeIntervalSince1970: 1_786_000_000.125)
     ) -> ConsentManager.AdultEligibilityReceipt {
         .init(
             id: UUID(),
             ownerUserId: userId,
             syncedUserId: nil,
             policyVersion: ConsentPolicy.adultEligibilityVersion,
-            confirmedAt: Date(timeIntervalSince1970: 1_786_000_000.125),
+            confirmedAt: confirmedAt,
             confirmationMethod: .selfAttestation,
             confirmationText: ConsentPolicy.adultConfirmationText,
             platform: "ios",
@@ -84,14 +85,15 @@ extension ConsentRemoteServiceTests {
     }
 
     func termsReceipt(
-        userId: UUID
+        userId: UUID,
+        acceptedAt: Date = Date(timeIntervalSince1970: 1_786_000_001.25)
     ) -> ConsentManager.TermsAcceptanceReceipt {
         .init(
             id: UUID(),
             ownerUserId: userId,
             syncedUserId: nil,
             termsVersion: ConsentPolicy.termsVersion,
-            acceptedAt: Date(timeIntervalSince1970: 1_786_000_001.25),
+            acceptedAt: acceptedAt,
             acceptanceText: ConsentPolicy.combinedAcceptanceText,
             platform: "ios",
             appVersion: "1.0.3",
@@ -104,6 +106,7 @@ extension ConsentRemoteServiceTests {
         userId: UUID,
         eventKind: ConsentManager.AIConsentEventKind,
         causalParentId: UUID?,
+        occurredAt: Date = Date(timeIntervalSince1970: 1_786_000_002.375),
         disclosureVersion: String = ConsentPolicy.geminiDisclosureVersion
     ) -> ConsentManager.AIConsentEvent {
         .init(
@@ -113,7 +116,7 @@ extension ConsentRemoteServiceTests {
             provider: ConsentPolicy.geminiProvider,
             disclosureVersion: disclosureVersion,
             eventKind: eventKind,
-            occurredAt: Date(timeIntervalSince1970: 1_786_000_002.375),
+            occurredAt: occurredAt,
             disclosureText: ConsentPolicy.geminiDisclosureText,
             actionText: eventKind == .granted
                 ? ConsentPolicy.combinedAcceptanceText
@@ -133,6 +136,7 @@ extension ConsentRemoteServiceTests {
         userId: UUID,
         eventKind: ConsentManager.AnalyticsConsentEventKind,
         causalParentId: UUID?,
+        occurredAt: Date = Date(timeIntervalSince1970: 1_786_000_003.5),
         disclosureVersion: String = ConsentPolicy.analyticsDisclosureVersion
     ) -> ConsentManager.AnalyticsConsentEvent {
         .init(
@@ -142,7 +146,7 @@ extension ConsentRemoteServiceTests {
             provider: ConsentPolicy.analyticsProvider,
             disclosureVersion: disclosureVersion,
             eventKind: eventKind,
-            occurredAt: Date(timeIntervalSince1970: 1_786_000_003.5),
+            occurredAt: occurredAt,
             disclosureText: ConsentPolicy.analyticsDisclosureText,
             actionText: eventKind == .granted
                 ? ConsentPolicy.analyticsDisclosureText
@@ -161,6 +165,7 @@ extension ConsentRemoteServiceTests {
     func remoteAdultRow(
         from receipt: ConsentManager.AdultEligibilityReceipt,
         userId: UUID,
+        wireTimestamp: String? = nil,
         confirmationMethod: String? = nil,
         confirmationText: String? = nil
     ) -> ConsentRemoteWire.AdultEligibilityReceipt {
@@ -168,7 +173,7 @@ extension ConsentRemoteServiceTests {
             id: receipt.id,
             user_id: userId,
             policy_version: receipt.policyVersion,
-            confirmed_at: timestamp(receipt.confirmedAt),
+            confirmed_at: wireTimestamp ?? timestamp(receipt.confirmedAt),
             confirmation_method: confirmationMethod
                 ?? receipt.confirmationMethod.rawValue,
             confirmation_text: confirmationText ?? receipt.confirmationText,
@@ -182,13 +187,14 @@ extension ConsentRemoteServiceTests {
     func remoteTermsRow(
         from receipt: ConsentManager.TermsAcceptanceReceipt,
         userId: UUID,
+        wireTimestamp: String? = nil,
         acceptanceText: String? = nil
     ) -> ConsentRemoteWire.TermsReceipt {
         .init(
             id: receipt.id,
             user_id: userId,
             terms_version: receipt.termsVersion,
-            accepted_at: timestamp(receipt.acceptedAt),
+            accepted_at: wireTimestamp ?? timestamp(receipt.acceptedAt),
             acceptance_text: acceptanceText ?? receipt.acceptanceText,
             platform: receipt.platform,
             app_version: receipt.appVersion,
@@ -200,6 +206,7 @@ extension ConsentRemoteServiceTests {
     func remoteAIEventRow(
         from event: ConsentManager.AIConsentEvent,
         userId: UUID,
+        wireTimestamp: String? = nil,
         causalParentId: UUID? = nil,
         consentRevision: Int64 = 1
     ) -> ConsentRemoteWire.AIConsentEvent {
@@ -209,7 +216,7 @@ extension ConsentRemoteServiceTests {
             provider: event.provider,
             disclosure_version: event.disclosureVersion,
             event_kind: event.eventKind.rawValue,
-            occurred_at: timestamp(event.occurredAt),
+            occurred_at: wireTimestamp ?? timestamp(event.occurredAt),
             disclosure_text: event.disclosureText,
             action_text: event.actionText,
             platform: event.platform,
@@ -224,6 +231,7 @@ extension ConsentRemoteServiceTests {
     func remoteAnalyticsEventRow(
         from event: ConsentManager.AnalyticsConsentEvent,
         userId: UUID,
+        wireTimestamp: String? = nil,
         eventKind: String? = nil,
         actionText: String? = nil,
         causalParentId: UUID? = nil,
@@ -235,7 +243,7 @@ extension ConsentRemoteServiceTests {
             provider: event.provider,
             disclosure_version: event.disclosureVersion,
             event_kind: eventKind ?? event.eventKind.rawValue,
-            occurred_at: timestamp(event.occurredAt),
+            occurred_at: wireTimestamp ?? timestamp(event.occurredAt),
             disclosure_text: event.disclosureText,
             action_text: actionText ?? event.actionText,
             platform: event.platform,
