@@ -2866,7 +2866,7 @@
 		592022B37FA1ED14442FFE30 /* InferenceLiveMediaProjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceLiveMediaProjector.swift; sourceTree = "<group>"; };
 		59273CD01D7B652C5FE08FF3 /* SpeciesReferenceHydrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesReferenceHydrationService.swift; sourceTree = "<group>"; };
 		594B287C0C601E11A4FD8324 /* InferenceIdentificationReviewCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceIdentificationReviewCoordinatorTests.swift; sourceTree = "<group>"; };
-		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		59626A88754627D43B8F3B87 /* FloatingNavigationMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingNavigationMenu.swift; sourceTree = "<group>"; };
 		597122501F290DACB6BE5608 /* RevenueCatPrivacyPolicies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatPrivacyPolicies.swift; sourceTree = "<group>"; };
 		5994B62A34BB5F4D6CE32BD5 /* SpeciesDictionaryResponseValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryResponseValidatorTests.swift; sourceTree = "<group>"; };
@@ -2974,7 +2974,7 @@
 		65E57C004A23B5ABD60BC63E /* KeychainManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManagerTests.swift; sourceTree = "<group>"; };
 		65FE1432577491941A0A2608 /* SpeciesObservationStatsReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesObservationStatsReducer.swift; sourceTree = "<group>"; };
 		66B0BD2F70CA6F593DB38671 /* AuthenticationCallbackCoordinationDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationCallbackCoordinationDependencies.swift; sourceTree = "<group>"; };
-		66B6468625AB1E47BFE6C8B1 /* MerianMessagesExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = MerianMessagesExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		66B6468625AB1E47BFE6C8B1 /* MerianMessagesExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MerianMessagesExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		67381BDB402E2FC8ABA00EF7 /* CollectionsDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionsDependencies.swift; sourceTree = "<group>"; };
 		67649CBE0639D126D0C62176 /* FieldTripLevelsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldTripLevelsSection.swift; sourceTree = "<group>"; };
 		67B3B5F2ED5D8A8CC9B9A939 /* ViewfinderIntelligenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderIntelligenceTests.swift; sourceTree = "<group>"; };
@@ -3466,7 +3466,7 @@
 		A4E3C6B5C03A9BFD58F16EBE /* ImageDownsamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDownsamplerTests.swift; sourceTree = "<group>"; };
 		A4EA719006462D9A3C75B81D /* ZoomableScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomableScrollView.swift; sourceTree = "<group>"; };
 		A4F660B21769648E54D5BE08 /* ConsentRealtimeCoordinator+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ConsentRealtimeCoordinator+Live.swift"; sourceTree = "<group>"; };
-		A54AA33A22172FBAAF9AA233 /* MerianExploreWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = MerianExploreWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A54AA33A22172FBAAF9AA233 /* MerianExploreWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MerianExploreWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A563F2E78F2F34063A7AEF3A /* InferenceSessionLifecycleCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceSessionLifecycleCoordinatorTests.swift; sourceTree = "<group>"; };
 		A56958879385DBC6AADE0983 /* StagedCapturePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagedCapturePolicy.swift; sourceTree = "<group>"; };
 		A56B5B930F47C51AD8FB7761 /* CapturedMediaResolutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturedMediaResolutionTests.swift; sourceTree = "<group>"; };
@@ -3869,7 +3869,7 @@
 		D847381057EA6CF1E1710826 /* InsightQueuedHandoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightQueuedHandoffTests.swift; sourceTree = "<group>"; };
 		D89780207986CDB56FC4D4B1 /* InsightSharingDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSharingDependencies.swift; sourceTree = "<group>"; };
 		D94B3D1A11DD93C810BFC850 /* OfflineQueueAdmissionArchitectureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueAdmissionArchitectureTests.swift; sourceTree = "<group>"; };
-		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D9761EF8CD7D4074C50B4A62 /* MediaUploadTestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaUploadTestFixtures.swift; sourceTree = "<group>"; };
 		D98E43922B5411CDFDA13DDC /* MerianNetworkClient+Collections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MerianNetworkClient+Collections.swift"; sourceTree = "<group>"; };
 		D9BD04B54F3BBFD3FAC1AA6F /* KeychainKeysTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainKeysTests.swift; sourceTree = "<group>"; };
@@ -4036,7 +4036,7 @@
 		EDBB7ECA024EB5FFF5C49DB1 /* GamificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamificationModels.swift; sourceTree = "<group>"; };
 		EDC7BFDC2813A5EEE4B89D05 /* MerianLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianLogTests.swift; sourceTree = "<group>"; };
 		EDCDE0E0F02C73FC69F2BF88 /* ReadyStepViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadyStepViewModel.swift; sourceTree = "<group>"; };
-		EDF44D2D2C11B42AF00A726A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		EDF44D2D2C11B42AF00A726A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		EE1AC254C8B4E27C2D40B2A9 /* InferenceWriteCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceWriteCoordinator.swift; sourceTree = "<group>"; };
 		EE6FD42EE5836478F98F3FBC /* PushNotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationModels.swift; sourceTree = "<group>"; };
 		EEAB2261933AD80BCA7AE29A /* InsightMediaCarouselArchitectureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightMediaCarouselArchitectureTests.swift; sourceTree = "<group>"; };
@@ -4101,7 +4101,7 @@
 		F50F2EBE02C1166A56AE01E2 /* FeedbackSurveyDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackSurveyDependencies.swift; sourceTree = "<group>"; };
 		F548E2C7E6D6DEB03E2E48E1 /* GhostProfileMergeRemoteService+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GhostProfileMergeRemoteService+Live.swift"; sourceTree = "<group>"; };
 		F5641EACCFE269D4800558EB /* ConsentManagerRestorationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentManagerRestorationTests.swift; sourceTree = "<group>"; };
-		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F59C4B422501C362B96D135F /* CameraVideoRecordingCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraVideoRecordingCoordinatorTests.swift; sourceTree = "<group>"; };
 		F5B4D06C4B415DBBA2311E00 /* OAuthPresentationContextResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthPresentationContextResolver.swift; sourceTree = "<group>"; };
 		F5CABC6E5B9CA4216D429D92 /* FieldTripGoalCollection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldTripGoalCollection.swift; sourceTree = "<group>"; };
@@ -4126,7 +4126,7 @@
 		F79EB022550B4E0C4EB7308D /* CaptureRefinementReplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureRefinementReplayTests.swift; sourceTree = "<group>"; };
 		F7B17264CD1E3C0B615BF8A9 /* SpeciesDictionaryCatalogRemoteImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryCatalogRemoteImage.swift; sourceTree = "<group>"; };
 		F7FB7CF731023CAAABC498E8 /* SpeciesDictionaryNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryNavigation.swift; sourceTree = "<group>"; };
-		F7FD64297010563AAF256BEE /* merianPerformanceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianPerformanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F7FD64297010563AAF256BEE /* merianPerformanceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianPerformanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F80ACED007A6D9C497AA5021 /* AccountDeletionLocalCleanupStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionLocalCleanupStore.swift; sourceTree = "<group>"; };
 		F80C742D9CDF3893D5C6732D /* ConfidenceReviewPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceReviewPresentation.swift; sourceTree = "<group>"; };
 		F8223E5C967A0730F705EECE /* MediaPlaybackObservationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPlaybackObservationTests.swift; sourceTree = "<group>"; };
@@ -11711,7 +11711,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2660;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					0B94C342D2F7F49D11202598 = {
 						DevelopmentTeam = "$(MERIAN_DEVELOPMENT_TEAM)";
@@ -14163,6 +14163,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -14342,6 +14343,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
