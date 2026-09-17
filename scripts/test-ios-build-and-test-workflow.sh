@@ -359,6 +359,23 @@ assert_no_runner_context_in_job_env() {
 assert_contains "  pull_request:"
 assert_contains "  merge_group:"
 assert_contains "    name: Full iOS unit tests"
+# Keep the complete serial target bounded without restoring the deadline that
+# interrupted healthy execution. Reserve job time for package resolution,
+# compilation, UI smokes, and evidence collection as well.
+awk '
+  /^  ios-unit-tests:$/ { in_unit_job = 1; next }
+  in_unit_job && /^  [A-Za-z0-9_-]+:$/ { in_unit_job = 0 }
+  in_unit_job && /^    timeout-minutes:/ { job_timeout = $2 }
+  in_unit_job && /^      - name:/ { in_unit_step = 0 }
+  in_unit_job && /^      - name: Run complete unit-test target$/ {
+    in_unit_step = 1
+  }
+  in_unit_step && /^        timeout-minutes:/ { unit_timeout = $2 }
+  END {
+    exit !(unit_timeout == 40 && job_timeout == 100)
+  }
+' "$workflow" \
+  || fail "Full iOS tests require a 40-minute step and a 100-minute job budget."
 assert_contains 'group: ios-build-and-test-${{ github.event.pull_request.number || github.run_id }}'
 assert_contains "macos-26"
 assert_contains "/Applications/Xcode_26.6.app/Contents/Developer"

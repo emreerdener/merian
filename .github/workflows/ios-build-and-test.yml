@@ -59,7 +59,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.should_run == 'true'
     runs-on: macos-26
-    timeout-minutes: 80
+    timeout-minutes: 100
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
 
@@ -203,7 +203,8 @@ jobs:
 
       - name: Run complete unit-test target
         id: xcode-tests
-        timeout-minutes: 20
+        # The complete serial target outgrew the former 20-minute budget.
+        timeout-minutes: 40
         run: |
           set -o pipefail
           xcode_project="Merian.xcodeproj"

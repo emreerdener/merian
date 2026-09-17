@@ -620,10 +620,17 @@ HTTP request is dispatched. See the
    committed Xcode project was not regenerated. The unit-test selector does not
    select or skip any suite. Xcode process-level parallel testing is disabled
    because several hardware, networking, and persistence suites exercise shared
-   singletons. The result gate fails if Xcode returns success without a `Passed`
-   result, a non-empty test run, zero skipped tests, an exact passed/total count
-   match, and at least one passed test case from each critical concurrency
-   boundary: `CameraManagerTests`, `InferenceEngineTests`,
+   singletons. The complete unit-test step has a 40-minute limit: the expanded
+   suite was still making progress when the former 20-minute deadline stopped
+   run 405. The enclosing job has a 100-minute limit, covering the 10-minute
+   package resolution, 25-minute compilation, 40-minute unit tests, and
+   10-minute UI smokes with 15 minutes reserved for setup and evidence
+   collection. The portable workflow contract checks both limits. A timeout
+   still fails the gate; the complete-target selector and result requirements
+   remain unchanged. The result gate fails if Xcode returns success without a
+   `Passed` result, a non-empty test run, zero skipped tests, an exact
+   passed/total count match, and at least one passed test case from each
+   critical concurrency boundary: `CameraManagerTests`, `InferenceEngineTests`,
    `OfflineQueueManagerTests`, and `SyncStateManagerTests`. It also fails closed
    unless the structured test tree contains exactly one matching passed suite
    for each critical boundary and reports every named scan-flow regression
