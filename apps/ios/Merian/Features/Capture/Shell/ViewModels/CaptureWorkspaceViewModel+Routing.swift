@@ -264,12 +264,9 @@ extension CaptureWorkspaceViewModel {
         self.activePresentation = nil
     }
 
-    func queueNotificationPromptAfterInsightDismissal() {
-        operationState.queueLocalSheet(.notificationPrompt)
-    }
-
     func handleRootSheetDismissed(now: Date = Date()) {
-        if let dismissed = operationState.takeDismissedPresentation() {
+        let dismissed = operationState.takeDismissedPresentation()
+        if let dismissed {
             if dismissed.destination == .achievement {
                 pendingAchievementAward = nil
             }
@@ -295,6 +292,21 @@ extension CaptureWorkspaceViewModel {
            activePresentation == nil,
            let pendingLocalSheet = operationState.takePendingLocalSheet() {
             activeSheet = pendingLocalSheet
+        }
+
+        // Close, interactive dismissal, and binding-driven dismissal all reach
+        // this boundary after the presentation slot is released. Navigation
+        // takes priority; an interrupted handoff must not consume the opt-in.
+        if dismissed?.destination == .insight,
+           let result = diContainer.inferenceEngine.speciesData,
+           !result.isInferenceErrorPlaceholder,
+           !diContainer.inferenceEngine.isProcessing,
+           !diContainer.appSettings.isPushNotificationsEnabled,
+           !diContainer.appSettings.hasPromptedForNotificationsPostIdent,
+           diContainer.appRouteCoordinator.nextRequestID == nil,
+           activePresentation == nil {
+            diContainer.appSettings.hasPromptedForNotificationsPostIdent = true
+            activeSheet = .notificationPrompt
         }
     }
 

@@ -342,11 +342,7 @@ extension OfflineQueueManager {
               ) else {
             return .retryable
         }
-        // A server-side completion is not yet a local recovery success. Keep
-        // both its latest status and persisted retry/backoff history until the
-        // result has been hydrated, promoted, and the queue row has been
-        // deleted. Clearing either here made a failed local sync look like a
-        // fresh attempt and discarded useful recovery state.
+        // Preserve server ownership and retry history until hydration, promotion, and queue deletion commit.
         let targetedSyncOutcome: HistoricalScanDownOutcome
         if let context = modelContext {
             targetedSyncOutcome = await AppDIContainer.shared.scanRepository.syncHistoricalScanDown(
@@ -433,6 +429,10 @@ extension OfflineQueueManager {
             )
             return .retryable
         }
+        BackgroundScanNotificationService.live.notify(
+            speciesName: recoveredLocalRecord.commonName,
+            scanId: scanId
+        )
         do {
             let preferredGoal = try modelContext?.preferredGoalHint(
                 scanId: scanId

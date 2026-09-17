@@ -1055,12 +1055,26 @@ If `true` (user is on the insight sheet), the notification is delivered silently
 (`completionHandler([])`). If `false` (user is elsewhere in the app), the banner
 is shown (`completionHandler([.banner, .sound, .list])`).
 
-Both enabled notification scheduling paths
-(`InferenceLiveCompletionCoordinator+Live` after an authorized live commit and
-`OfflineQueueManager+InferenceCompletion` after a durable background commit)
-omit an `applicationState != .active` guard. Foreground suppression is delegated
+Enabled notification scheduling covers authorized live commits, direct
+background completions, and recovered server results. The two background paths
+use `BackgroundScanNotificationService` after local result persistence and
+successful queue deletion, before awaiting milestone work. It marks the scan
+unseen and refreshes the badge when Insight is not visible, and schedules the
+alert only when Discovery alerts are enabled. Both paths share the notification
+manager's scan-ID deduplication. Scheduling omits an
+`applicationState != .active` guard. Foreground suppression is delegated
 entirely to `PushNotificationManager.willPresent`. When the app is backgrounded,
 `willPresent` is never called and the OS shows the notification automatically.
+
+Discovery alerts default to disabled. Capture's `handleRootSheetDismissed`
+offers the notification opt-in after a completed Insight closes, including the
+Close button and swipe dismissal. Error placeholders and still-processing
+results do not qualify. The prompt is shown only when Discovery alerts are
+disabled and it has not previously been offered; the attempted-prompt flag is
+set when the prompt takes the presentation slot. Pending local navigation,
+global routes, and active presentations take priority without consuming that
+opportunity. Dismissing or declining the prompt does not enable notifications.
+Enabling still requires native authorization.
 
 ---
 

@@ -3,6 +3,31 @@ import Testing
 
 @Suite("Offline Queue Background Inference Architecture")
 struct BackgroundInferenceArchitectureTests {
+    @Test func completedBackgroundResultsNotifyAfterQueueCommitBeforeMilestones() throws {
+        let root = try offlineSyncRoot()
+        for (path, guardToken, resultToken) in [
+            (Self.recoveryPath, "guard didDeleteQueue else", "recoveredLocalRecord.commonName"),
+            (Self.completionPath, "guard didDeleteQueuedScan else", "speciesName: speciesName")
+        ] {
+            let contents = try source(path, below: root)
+            let commitGuard = try #require(contents.range(of: guardToken))
+            let notification = try #require(contents.range(
+                of: "BackgroundScanNotificationService.live.notify("
+            ))
+            let milestones = try #require(contents.range(of: ".processCompletedScan("))
+            #expect(commitGuard.lowerBound < notification.lowerBound)
+            #expect(notification.lowerBound < milestones.lowerBound)
+            #expect(contents[notification.lowerBound..<milestones.lowerBound].contains(resultToken))
+            // A failed durable cleanup exits before any alert; notification
+            // admission must not wait on asynchronous milestone processing.
+            let admission = contents[commitGuard.upperBound..<notification.lowerBound]
+            #expect(admission.contains("return"))
+            if path == Self.recoveryPath {
+                #expect(!admission.contains("await"))
+            }
+        }
+    }
+
     @Test func focusedFilesAndDeclarationsHaveExactOwners() throws {
         let root = try offlineSyncRoot()
         let sources = try swiftFiles(below: root)

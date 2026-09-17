@@ -431,6 +431,9 @@ as their permanent engineering identity.
 
 ### Incidents
 
+- **[Identification notification gaps](./incidents/2026-09-identification-notification-gaps.md)**
+  — Post-result permission-prompt dismissal and recovered-result alert/badge
+  omissions, source mitigation, and remaining candidate/device checks.
 - **[`/incidents/README.md`](./incidents/README.md)** — Incident authority,
   privacy, status, naming, and maintenance rules, plus the canonical new-record
   template.

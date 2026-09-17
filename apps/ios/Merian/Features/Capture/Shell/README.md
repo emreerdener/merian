@@ -76,6 +76,16 @@ clip can finish staging; a pending video admission or hardware start is
 cancelled. This prevents a late shutter or admission response from repopulating
 cleared state or auto-submitting behind another presentation.
 
+`CaptureWorkspaceViewModel.handleRootSheetDismissed` owns the post-result
+notification opt-in handoff for Close, swipe, and binding-driven dismissal. It
+requires a completed non-error Insight, an unasked disabled Discovery-alert
+preference, and a free presentation slot after pending navigation is handled.
+`CaptureWorkspaceNotificationPromptTests` covers that shared boundary, single
+presentation, declined/enabled preferences, incomplete/error results, and
+local/global navigation priority. The
+[Insight notification contract](../../../../../../docs/features-and-hardware/05-insight-sheet.md#push-notification-delivery)
+owns the full behavior.
+
 ## Reanalysis draft ownership
 
 `StagedCapturePolicy` defines two evidence slots plus one supplementary

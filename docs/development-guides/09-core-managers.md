@@ -547,12 +547,14 @@ drifting apart.
   result. Native achievement notifications are also foreground-suppressed via
   `completionHandler([])` so the SwiftUI milestone banner owns active in-app
   unlock UX without stacking under an iOS banner. Background delivery bypasses
-  the delegate and remains native. **Both enabled notification scheduling paths
-  (`InferenceLiveCompletionCoordinator+Live` after an authorized live commit and
-  `OfflineQueueManager+InferenceCompletion` after a durable background commit)
-  omit any `applicationState != .active` guard.** Foreground suppression is
-  delegated entirely to this `willPresent` path; background delivery bypasses
-  the delegate and is shown automatically by the OS.
+  the delegate and remains native. **Enabled notification scheduling after live,
+  direct background, and recovered-server commits omits any
+  `applicationState != .active` guard.** The two background paths share
+  `BackgroundScanNotificationService` after durable queue cleanup and before
+  awaiting milestones, preserving opt-out, unseen-scan badges, and the manager's
+  scan-ID deduplication. Foreground suppression is delegated entirely to this
+  `willPresent` path; background delivery bypasses the delegate and is shown
+  automatically by the OS.
 - **App Icon Badge Synchronization**: Exposes `setBadgeCount(_:)` to mirror the
   application's `hasUnseenScan` state into the OS-level app icon badge count,
   seamlessly providing a visual indicator on the Home screen. This cleanly

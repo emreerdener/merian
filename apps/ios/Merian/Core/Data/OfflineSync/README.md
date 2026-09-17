@@ -565,6 +565,11 @@ Focused tests mirror the extracted owners:
   loop. It is serialized, leases `.offlineQueueManager` process state, and
   cancels any shared scheduler wake it arms before restoring the manager
   context.
+- Direct background completion and server-result recovery invoke Core
+  Notifications' `BackgroundScanNotificationService` only after successful queue
+  cleanup and before awaiting milestones. Its tests cover alert opt-out,
+  unseen-scan suppression, shared deduplication, and scheduling retry;
+  `BackgroundInferenceArchitectureTests` locks the two caller admission points.
 - `BackgroundInferenceRetryTests` covers durable server-failure marker recovery
   when queue-row state drifts, cancellation-independent wake restoration for a
   committed retry, and stale poll-token rejection after owner replacement. It is

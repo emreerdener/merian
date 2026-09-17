@@ -257,18 +257,12 @@ extension OfflineQueueManager {
             )
             let capturedContainer = extracted.container
             await MainActor.run {
-                // Only set the badge when the insight sheet is not already open.
-                // If suppressInferenceBanners is true the user is viewing results in the
-                // sheet — the badge would appear and immediately need clearing on dismiss.
-                if !AppSettings.shared.suppressInferenceBanners {
-                    AppSettings.shared.hasUnseenScan = true
-                    AppIconBadgeCoordinator.updateAppIconBadge()
-                }
+                BackgroundScanNotificationService.live.notify(
+                    speciesName: speciesName,
+                    scanId: dbScanId
+                )
                 if processingResult.isNewDiscovery {
                     GamificationManager.shared.recordNewSpeciesDiscovered()
-                }
-                if AppSettings.shared.isPushNotificationsEnabled {
-                    PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: dbScanId)
                 }
                 Task {
                     await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(

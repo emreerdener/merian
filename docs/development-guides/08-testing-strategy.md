@@ -2443,8 +2443,17 @@ prove visual parity, live Auth/provider behavior, or migration execution.
   failure retry, and stale-result rejection after both local mark-read and
   account cleanup. `NotificationArchitectureTests` locks live-effect ownership,
   local-only account scope, stable facades, retired paths, and the 400-line
-  production ceiling. Run those 34 Core tests with the five
-  `NotificationSettingsViewModelTests` boundary cases using the canonical
+  production ceiling. `BackgroundScanNotificationServiceTests` covers the four
+  enabled/suppressed combinations and duplicate/retried delivery through the
+  real notification manager with an injected system center.
+  `BackgroundInferenceArchitectureTests` proves source ordering after durable
+  queue cleanup and before milestones for both direct and recovered completions.
+  `CaptureWorkspaceNotificationPromptTests`, in the existing
+  `CaptureWorkspaceViewModelRefinementTests` selector, exercises completed
+  Insight dismissal, duplicate callbacks, declined/enabled preferences,
+  incomplete/error results, and local/global navigation priority. Run the Core
+  suites with `NotificationSettingsViewModelTests` boundary cases using the
+  canonical
   [Core Notifications focused matrix](../../apps/ios/Merian/Core/Notifications/README.md#verification).
 - **`Core/Routing/AppEventPublisherTests.swift`**: Locks synchronous and
   reentrant `AppEvent` delivery plus cancellation behavior.

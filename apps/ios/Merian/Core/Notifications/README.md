@@ -38,6 +38,11 @@ reply-thread presentation, pagination, and mark-read interaction state.
 - `Services/AppIconBadgeDependencies.swift` composes persisted unread state,
   unseen-scan state, OS badge presentation, time, diagnostics, and the unread
   count endpoint for the badge controller.
+- `Services/BackgroundScanNotificationService.swift` shares Discovery-alert
+  preference and unseen-scan badge effects between direct background completion
+  and server-result recovery. Callers prove result persistence and queue cleanup
+  before invoking it, before any milestone suspension. The push manager retains
+  scheduling deduplication and foreground presentation policy.
 - `Views/PostIdentificationNotificationSheetView.swift` owns the reusable
   permission-prompt presentation shared by Capture and Profile Settings. Its
   callers inject authorization and completion actions; the view performs no
@@ -94,6 +99,11 @@ Mirrored deterministic tests live in `MerianTests/Core/Notifications/`:
   synchronization, idempotent permission persistence, token synchronization,
   scheduling retry/deduplication, and typed route emission through injected
   effects.
+- `BackgroundScanNotificationServiceTests` covers all opt-out/suppression
+  combinations plus shared manager deduplication and retry after scheduling
+  failure. `BackgroundInferenceArchitectureTests` locks both caller paths after
+  successful queue cleanup and before milestone processing; this source guard
+  supplements the service behavior tests.
 - `AppIconBadgeControllerTests` covers normalization, aggregation, reuse, clock
   rollback, overflow saturation, coalescing, local-mutation and reset fencing,
   failure preservation, and retry.
@@ -103,8 +113,7 @@ Mirrored deterministic tests live in `MerianTests/Core/Notifications/`:
 - `NotificationSettingsViewModelTests` remains under Profile Settings and locks
   the feature-side permission and remote-registration adapter boundary.
 
-The five Core suites contain 34 deterministic tests. Run them with the six
-Profile Settings boundary tests for the 40-test focused matrix:
+Run the Core suites with the Profile Settings boundary tests:
 
 ```sh
 xcodebuild test \
@@ -115,6 +124,7 @@ xcodebuild test \
   -only-testing:merianTests/PushNotificationPolicyTests \
   -only-testing:merianTests/PushRegistrationCoordinatorTests \
   -only-testing:merianTests/PushNotificationManagerTests \
+  -only-testing:merianTests/BackgroundScanNotificationServiceTests \
   -only-testing:merianTests/AppIconBadgeControllerTests \
   -only-testing:merianTests/NotificationArchitectureTests \
   -only-testing:merianTests/NotificationSettingsViewModelTests

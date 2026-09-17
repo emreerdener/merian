@@ -47,10 +47,6 @@ struct CameraSheetRouter: ViewModifier {
                                 if !$0 && viewModel.activeSheet == .insight {
                                     inferenceEngine.dismissAnalyzingPresentation()
                                     isPresentingInsight = false
-                                    if !appSettings.hasPromptedForNotificationsPostIdent {
-                                        appSettings.hasPromptedForNotificationsPostIdent = true
-                                        viewModel.queueNotificationPromptAfterInsightDismissal()
-                                    }
                                     viewModel.dismissActivePresentation()
                                 }
                             }
