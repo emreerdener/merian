@@ -19,6 +19,8 @@ on:
           - swiftdata
           - supabase
           - api-contracts
+          - docs
+          - incidents
           - web-admin
           - release
           - agents

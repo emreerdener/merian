@@ -1,0 +1,57 @@
+name: iOS Runtime Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-runtime-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Select available simulator
+        id: simulator
+        run: |
+          destination="$(bash scripts/select-ios-simulator-destination.sh)"
+          echo "destination=$destination" >> "$GITHUB_OUTPUT"
+      - name: Verify toolchain
+        run: |
+          test "$(xcodebuild -version | head -n 1)" = "Xcode 26.6"
+          make test-ios-ci-tooling
+          make validate-ios-project
+          bash scripts/check-ios-project-source-membership.sh
+      - name: Build once and run runtime audit
+        env:
+          IOS_AUDIT_DESTINATION: ${{ steps.simulator.outputs.destination }}
+        run: |
+          baseline_args=""
+          if [ -f scripts/config/ios-performance-baseline.json ]; then
+            baseline_args="--baseline scripts/config/ios-performance-baseline.json"
+          fi
+          make ios-local-build ARGS="audit --destination '$IOS_AUDIT_DESTINATION' --environment-label 'github-macos-26-xcode-26.6' $baseline_args"
+      - name: Publish summary
+        if: always()
+        run: |
+          for summary in .artifacts/local-ios/audit-*/summary.md; do
+            if [ -f "$summary" ]; then cat "$summary" >> "$GITHUB_STEP_SUMMARY"; fi
+          done
+      - name: Retain audit evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-runtime-audit-${{ github.sha }}-${{ github.run_attempt }}
+          path: .artifacts/local-ios
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

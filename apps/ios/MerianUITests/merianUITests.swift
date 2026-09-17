@@ -1421,58 +1421,29 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
-    func testBackgroundSyncOfflineDisappearance() throws {
-        try XCTSkipIf(true, "Offline Simulator execution boundaries trigger severe UI timeout execution flakes randomly.")
-        let app = UITestAppLauncher.launchConfiguredApp()
+    func testBackgroundInterruptionPreservesQueuedAudioInsight() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedQueuedAudioHandoffFlow"])
+        defer { app.terminate() }
+        let scans = app.buttons["MainTabBar_Scans"]
+        XCTAssertTrue(scans.waitForExistence(timeout: 8))
+        scans.tap()
+        let tile = app.buttons["QueuedScanTile_ui_test_queued_audio_handoff"]
+        XCTAssertTrue(tile.waitForExistence(timeout: 8))
+        tile.tap()
+        let insight = app.otherElements["InsightSheetView"]
+        let audio = app.buttons["AudioPlaybackControl_ui_test_queued_audio_handoff.wav"]
+        XCTAssertTrue(insight.waitForExistence(timeout: 8))
+        XCTAssertTrue(audio.waitForExistence(timeout: 8))
 
-        // 1. Wait for Main Camera View
-        let libraryButton = app.descendants(matching: .any).matching(identifier: "PhotoLibraryButton").firstMatch
-        XCTAssertTrue(libraryButton.waitForExistence(timeout: 8.0), "Camera root view failed to load library button")
-
-        // 2. Perform Capture (via Image Picker bypass)
-        libraryButton.tap()
-        
-        // Wait for iOS Photos picker to populate and tap the first default simulator element
-        let photoImages = app.scrollViews.images
-        guard photoImages.firstMatch.waitForExistence(timeout: 5.0) else {
-            // If the simulator lacks local mock photos natively, we gracefully exit the test as skipped
-            return
-        }
-        photoImages.firstMatch.tap()
-
-        // 3. Wait for the Insight Sheet to mechanically slide up. We target the specific sheet element natively.
-        let insightSheet = app.scrollViews.element(boundBy: 0)
-        XCTAssertTrue(insightSheet.waitForExistence(timeout: 10.0), "Insight Sheet failed to present after mock capture")
-
-        // 4. Force Background Transition (Triggering memory reclamation sequence!)
         XCUIDevice.shared.press(.home)
-        
-        // Sleep to grant iOS URLSession background transfer daemons time to boot and OS garbage collection to sweep Caches/
-        sleep(4)
-
-        // 5. Foreground Transition (User naturally returns to application)
+        XCTAssertTrue(app.wait(for: .runningBackground, timeout: 8))
         app.activate()
-
-        // 6. Dismiss Insight Sheet by targeting close mechanisms or swiping down natively
-        let closeButton = insightSheetCloseButtonElement(in: app)
-        if closeButton.exists {
-            closeButton.tap()
-        } else {
-            insightSheet.swipeDown(velocity: .fast)
-        }
-
-        // 7. Verify the OfflineQueuedScan visually persisted over the library collection
-        // We ensure that it wasn't tombsoned by NSURLErrorFileDoesNotExist!
-        let scansLibraryTab = app.tabBars.buttons["Scans"]
-        if scansLibraryTab.waitForExistence(timeout: 3.0) {
-            scansLibraryTab.tap()
-        }
-        
-        // Assert mathematical UI existence of the pending dot or image grid cell
-        // A generic UI test checks if the grid is populated rather than fully blank.
-        let gridCells = app.collectionViews.cells
-        // XCUIElementQuery exposes count but not Collection.isEmpty.
-        // swiftlint:disable:next empty_count
-        XCTAssertTrue(gridCells.count > 0, "Disappearance Bug: The backgrounded offline scan was wrongly tombstoned and vanished from the Library!")
+        XCTAssertTrue(insight.waitForExistence(timeout: 8))
+        XCTAssertTrue(audio.waitForExistence(timeout: 8))
+        app.buttons["Back"].tap()
+        XCTAssertTrue(tile.waitForExistence(timeout: 8))
+        tile.tap()
+        XCTAssertTrue(insight.waitForExistence(timeout: 8))
+        XCTAssertTrue(audio.waitForExistence(timeout: 8))
     }
 }

@@ -55,6 +55,17 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "D0CC283E7CAE8B022FFB0C44"
+               BuildableName = "merianPerformanceTests.xctest"
+               BlueprintName = "merianPerformanceTests"
+               ReferencedContainer = "container:Merian.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "0B94C342D2F7F49D11202598"
                BuildableName = "merianUITests.xctest"
                BlueprintName = "merianUITests"

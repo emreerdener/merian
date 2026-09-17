@@ -25,7 +25,7 @@ import SwiftData
 /// - `Services/BackgroundTransfer` — Auth quiescence, terminal tracking, and URLSession delegate routing
 /// - `OfflineQueueDurability` — durable retry and state mutations
 @MainActor
-@Observable final class OfflineQueueManager: NSObject {
+@Observable final class OfflineQueueManager: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate {
 
     // MARK: - Singleton
 

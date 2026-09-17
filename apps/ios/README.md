@@ -12,6 +12,8 @@ apps/ios/
   Merian/          Main iPhone app
   MerianTests/     Unit tests for the main app
   MerianUITests/   UI tests for the main app
+  MerianPerformanceTests/  Report-only XCTest benchmarks
+  TestSupport/     Canonical fixtures shared by test bundles only
   messages/        Messages extension and shared message-scan code
   photos/          Photos import extension and shared import code
   widgets/         Widget extension sources
@@ -34,6 +36,16 @@ Merian/
 presentation, routing, delegate, lifecycle, and UI-test ownership boundaries.
 [`Models/README.md`](Merian/Models/README.md) defines cross-feature value,
 active-schema, historical-snapshot, and migration-registry ownership.
+
+## Runtime audit
+
+`MerianPerformanceTests/` owns isolated, report-only XCTest measurements.
+`scripts/config/ios-runtime-audit.json` selects the existing behavioral owners,
+critical UI fixtures and separate benchmarks. Run the shared-cache audit through
+`make ios-local-build ARGS='audit --destination "platform=iOS Simulator,id=UDID" --environment-label "hardware-runtime"'`.
+See the
+[canonical audit methodology](../../docs/development-guides/08-testing-strategy.md#automated-runtime-acceptance-and-performance-audit)
+for selectors, baselines, CI policy, evidence and unmeasured device gaps.
 
 ## Feature Folders
 

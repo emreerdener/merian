@@ -1,6 +1,6 @@
 import Foundation
 
-extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegate {
+extension OfflineQueueManager {
     /// Fires when an inference background download task delivers its response body to a temp file.
     ///
     /// The temp file is only valid for the duration of this callback — copy it immediately.

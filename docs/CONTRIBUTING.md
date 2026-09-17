@@ -54,7 +54,7 @@ code that violates these principles will not be merged.
 ## Codex Repository Setup
 
 Codex is the only supported repository development agent. Universal rules live
-in root `AGENTS.md`; six focused `$merian-*` skills are canonical under
+in root `AGENTS.md`; eight focused `$merian-*` skills are canonical under
 `skills/` and discovered through `.agents/skills/`. Three project-scoped,
 read-only specialist agents under `.codex/agents/` support evidence gathering
 and independent review, never parallel edits.
@@ -70,6 +70,28 @@ Use `$merian-release` only for an explicit operation and target. Successful
 implementation or validation never authorizes TestFlight/App Store actions,
 Supabase production mutation, RevenueCat changes, or other external release
 work.
+
+## Documentation ownership
+
+Documentation has different authority and retention rules. Choose the correct
+owner before editing, and use `$merian-docs-sync` for repository-wide updates or
+drift audits.
+
+| Document class                                                        | Canonical location                                                                                                               | Ownership rule                                                                                                                                          |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current architecture, behavior, security, privacy, and data contracts | `docs/system-architecture/`, `docs/features-and-hardware/`, `docs/backend-and-data/`, `docs/development-guides/`, `docs/legal/`  | Update with the implementing change and executable checks; link rather than duplicate                                                                   |
+| Source-tree ownership and contributor entry points                    | Root and nearest package/feature `README.md`; `docs/codebase-map.md`                                                             | Update when files, responsibilities, target membership, or entry points move                                                                            |
+| Operator and release runbooks                                         | Canonical deployment/release guide for the surface                                                                               | Keep authorization, exact target/SHA, evidence, recovery, and rollback explicit                                                                         |
+| Test and CI ownership                                                 | `docs/development-guides/08-testing-strategy.md`, focused quality guides, executable selector manifests, workflow contract tests | Executable selectors and workflows win; prose explains rather than duplicates them                                                                      |
+| RFCs                                                                  | `docs/rfcs/`                                                                                                                     | Preserve proposal and implementation history; add completion/supersession status and link to the current contract                                       |
+| Incidents                                                             | `docs/incidents/`                                                                                                                | Preserve evidence and dated corrections; separately report source mitigation, candidate validation, deployment, runtime verification, and data recovery |
+| Release evidence                                                      | `docs/release-evidence/` and immutable external artifacts referenced there                                                       | One candidate/environment per record; do not rewrite accepted evidence for a later run                                                                  |
+
+When current documents disagree with source or tests, report the drift and
+resolve the owning invariant rather than silently choosing whichever statement
+is convenient. Historical facts remain historical even after the architecture
+changes. Format every changed Markdown file and never claim an unrun check
+passed.
 
 ## Setting Up the Development Environment
 

@@ -197,6 +197,7 @@ jobs:
             -derivedDataPath "$XCODE_DERIVED_DATA" \
             -only-testing:merianTests \
             -only-testing:merianUITests \
+            -only-testing:merianPerformanceTests \
             COMPILER_INDEX_STORE_ENABLE=NO \
             2>&1 | tee "$XCODE_BUILD_LOG"
 

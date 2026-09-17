@@ -182,7 +182,24 @@ targets:
     type: bundle.unit-test
     platform: iOS
     deploymentTarget: "17.2"
-    sources: [apps/ios/MerianTests]
+    sources: [apps/ios/MerianTests, apps/ios/TestSupport]
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - target: Merian
+
+  merianPerformanceTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.2"
+    sources:
+      - path: apps/ios/MerianPerformanceTests
+      - path: apps/ios/TestSupport
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig
@@ -221,6 +238,8 @@ schemes:
       config: Debug
       targets:
         - name: merianTests
+          parallelizable: false
+        - name: merianPerformanceTests
           parallelizable: false
         - name: merianUITests
           parallelizable: false

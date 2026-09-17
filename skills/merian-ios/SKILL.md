@@ -29,7 +29,15 @@ production capture path for simulator convenience.
   [capture-performance-and-fixtures.md](references/capture-performance-and-fixtures.md)
   for camera, image/audio/video processing, thermal or memory constraints,
   simulator behavior, previews, Debug seeds, and UI-test fixtures.
-- Read both when a feature connects native capture to UI state or persistence.
+- Read
+  [runtime-quality-and-benchmarks.md](references/runtime-quality-and-benchmarks.md)
+  when adding acceptance selectors, UI smokes, performance measurements,
+  XCResult evidence, baselines, or runtime-audit CI.
+- Read [architecture-hygiene.md](references/architecture-hygiene.md) for
+  ownership cleanup, file splitting, dependency extraction, component naming,
+  DRY reviews, or feature-wide integration audits.
+- Read both the architecture/project and capture/performance references when a
+  feature connects native capture to UI state or persistence.
 
 ## Implement safely
 

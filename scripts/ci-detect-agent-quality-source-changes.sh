@@ -17,7 +17,7 @@ emit() {
 
 valid_suite() {
   case "$1" in
-    all|ios|swiftdata|supabase|api-contracts|web-admin|release|agents) return 0 ;;
+    all|ios|swiftdata|supabase|api-contracts|docs|incidents|web-admin|release|agents) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -73,6 +73,8 @@ need_ios=false
 need_swiftdata=false
 need_supabase=false
 need_api=false
+need_docs=false
+need_incidents=false
 need_web=false
 need_release=false
 need_agents=false
@@ -103,6 +105,14 @@ for path in "${changed_files[@]}"; do
     skills/merian-api-contracts/*|apps/ios/.agents/workflows/verify_api_contracts.md)
       agent_scope=true
       need_api=true
+      ;;
+    skills/merian-docs-sync/*)
+      agent_scope=true
+      need_docs=true
+      ;;
+    skills/merian-incident-response/*)
+      agent_scope=true
+      need_incidents=true
       ;;
     skills/merian-web-admin/*)
       agent_scope=true
@@ -154,6 +164,8 @@ append_suite() {
 [[ "$need_swiftdata" == true ]] && append_suite swiftdata
 [[ "$need_supabase" == true ]] && append_suite supabase
 [[ "$need_api" == true ]] && append_suite api-contracts
+[[ "$need_docs" == true ]] && append_suite docs
+[[ "$need_incidents" == true ]] && append_suite incidents
 [[ "$need_web" == true ]] && append_suite web-admin
 [[ "$need_release" == true ]] && append_suite release
 [[ "$need_agents" == true ]] && append_suite agents

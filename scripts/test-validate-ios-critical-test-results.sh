@@ -71,6 +71,14 @@ write_test_tree() {
       {
         testNodes: (
           [
+            suite("Disk Backed Inference Acceptance"; [
+              "reopenedQueueRejectsStaleAndDuplicateResultsAndRestoresInsight",
+              "invalidResponseAfterRestartPreservesDurableWork"
+            ]),
+            suite("Inference Live Pipeline Durable Visual Success"; [
+              "completedAttemptCannotDispatchOrPublishTwice",
+              "cancellationDuringPersistenceSuppressesLatePublication"
+            ]),
             suite("CameraManagerTests"; [
               "generationFenceTest"
             ]),
@@ -379,6 +387,10 @@ for omitted_suite in \
 done
 
 required_cases=(
+  "reopenedQueueRejectsStaleAndDuplicateResultsAndRestoresInsight"
+  "invalidResponseAfterRestartPreservesDurableWork"
+  "completedAttemptCannotDispatchOrPublishTwice"
+  "cancellationDuringPersistenceSuppressesLatePublication"
   "decodedButUnusableSuccessEnvelopeRemainsRecoverable"
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
   "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"

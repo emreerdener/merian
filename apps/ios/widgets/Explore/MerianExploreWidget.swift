@@ -196,7 +196,7 @@ struct ExploreImageWidgetView: View {
                         fallbackImage
                     }
                 }
-            @unknown default:
+            default:
                 fallbackImage
             }
         }
@@ -213,7 +213,7 @@ struct ExploreImageWidgetView: View {
                 }
             case .systemMedium, .systemExtraLarge, .accessoryCircular, .accessoryRectangular, .accessoryInline:
                 Color(.systemBackground)
-            @unknown default:
+            default:
                 Color(.systemBackground)
             }
         }

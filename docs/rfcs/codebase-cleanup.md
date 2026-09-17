@@ -1,5 +1,10 @@
 # Codebase Cleanup Plan
 
+> **Status: completed historical implementation record.** The cleanup round is
+> closed. Do not append new normative refactoring policy here; use the current
+> [Code Ownership and Refactoring guide](../development-guides/19-code-ownership-and-refactoring.md).
+> Preserve the sequence and verification notes below as historical evidence.
+
 This RFC defines the cleanup path for Merian after the public web share-page
 work lands. The goal is easier navigation and safer future changes, not a broad
 architecture rewrite.

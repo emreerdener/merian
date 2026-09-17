@@ -431,6 +431,9 @@ as their permanent engineering identity.
 
 ### Incidents
 
+- **[`/incidents/README.md`](./incidents/README.md)** — Incident authority,
+  privacy, status, naming, and maintenance rules, plus the canonical new-record
+  template.
 - **[`/incidents/2026-08-live-scan-connectivity-handoff-gap.md`](./incidents/2026-08-live-scan-connectivity-handoff-gap.md)**
   — Bounded pre-queue admission fallback, required first-failure **Queued for
   later** behavior, the durable-owner versus local-presentation ownership
@@ -867,6 +870,12 @@ as their permanent engineering identity.
 - **[`/development-guides/17-ios-transport-security.md`](./development-guides/17-ios-transport-security.md)**
   — ATS-default and HTTPS-only URL boundary, source/archive/IPA validation,
   contributor rules, and release evidence requirements.
+- **[`/development-guides/18-ios-runtime-quality-and-benchmarking.md`](./development-guides/18-ios-runtime-quality-and-benchmarking.md)**
+  — Executable iOS acceptance/UI/performance audit ownership, XCResult evidence,
+  baseline policy, report-only metrics, and device/provider boundaries.
+- **[`/development-guides/19-code-ownership-and-refactoring.md`](./development-guides/19-code-ownership-and-refactoring.md)**
+  — Durable ownership, extraction, parity, affected-delta, integration-audit,
+  and stop-condition rules for future hygiene work.
 
 ## About Naturebook
 

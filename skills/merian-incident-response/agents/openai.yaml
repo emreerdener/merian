@@ -1,0 +1,4 @@
+interface:
+  display_name: "Merian Incident Response"
+  short_description: "Diagnose and document Merian incidents safely"
+  default_prompt: "Use $merian-incident-response to reproduce, remediate, verify, and document this Merian incident without assuming deployment authority."

@@ -1,0 +1,295 @@
+{
+  "acceptance": [
+    {
+      "selector": "merianTests/CaptureWorkspaceSubmissionTests",
+      "suite_names": [
+        "CaptureWorkspaceSubmissionTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Capture/Submission/CaptureWorkspaceSubmissionTests.swift"
+    },
+    {
+      "selector": "merianTests/CaptureAdmissionTests",
+      "suite_names": [
+        "CaptureAdmissionTests",
+        "Capture Admission Tests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/CaptureAdmissionTests.swift"
+    },
+    {
+      "selector": "merianTests/CaptureScanOperationStateTests",
+      "suite_names": [
+        "CaptureScanOperationStateTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Capture/Scan/CaptureScanOperationStateTests.swift"
+    },
+    {
+      "selector": "merianTests/CaptureSubmissionEnvironmentContextGraceTests",
+      "suite_names": [
+        "CaptureSubmissionEnvironmentContextGraceTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Capture/Submission/CaptureSubmissionEnvironmentContextGraceTests.swift"
+    },
+    {
+      "selector": "merianTests/CaptureSubmissionDeferredContextServiceTests",
+      "suite_names": [
+        "CaptureSubmissionDeferredContextServiceTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Capture/Submission/CaptureSubmissionDeferredContextServiceTests.swift"
+    },
+    {
+      "selector": "merianTests/InferenceLivePipelineCoordinatorTests",
+      "suite_names": [
+        "InferenceLivePipelineCoordinatorTests",
+        "Inference Live Pipeline Coordinator"
+      ],
+      "owner": "apps/ios/MerianTests/Core/AI/Inference/InferenceLivePipelineCoordinatorTests.swift"
+    },
+    {
+      "selector": "merianTests/InferenceLivePipelineDurableVisualTests",
+      "suite_names": [
+        "InferenceLivePipelineDurableVisualTests",
+        "Inference Live Pipeline Durable Visual Success"
+      ],
+      "owner": "apps/ios/MerianTests/Core/AI/Inference/InferenceLivePipelineDurableVisualTests.swift"
+    },
+    {
+      "selector": "merianTests/InferenceLiveResultServiceTests",
+      "suite_names": [
+        "InferenceLiveResultServiceTests",
+        "Inference Live Result Service"
+      ],
+      "owner": "apps/ios/MerianTests/Core/AI/Inference/InferenceLiveResultServiceTests.swift"
+    },
+    {
+      "selector": "merianTests/InferenceLiveRecoveryIntegrationTests",
+      "suite_names": [
+        "InferenceLiveRecoveryIntegrationTests",
+        "Inference Live Recovery Integration"
+      ],
+      "owner": "apps/ios/MerianTests/Core/AI/Inference/InferenceLiveRecoveryIntegrationTests.swift"
+    },
+    {
+      "selector": "merianTests/InferenceLifecyclePersistenceTests",
+      "suite_names": [
+        "InferenceLifecyclePersistenceTests",
+        "Inference Lifecycle Persistence"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/Database/InferenceLifecyclePersistenceTests.swift"
+    },
+    {
+      "selector": "merianTests/LiveCaptureLifecycleTests",
+      "suite_names": [
+        "LiveCaptureLifecycleTests",
+        "Live Capture Lifecycle Tests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/LiveCaptureLifecycleTests.swift"
+    },
+    {
+      "selector": "merianTests/BackgroundInferenceCompletionTests",
+      "suite_names": [
+        "BackgroundInferenceCompletionTests",
+        "Background Inference Completion"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/BackgroundInferenceCompletionTests.swift"
+    },
+    {
+      "selector": "merianTests/InferenceReplayTests",
+      "suite_names": [
+        "InferenceReplayTests",
+        "Inference Replay Tests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/InferenceReplayTests.swift"
+    },
+    {
+      "selector": "merianTests/DiskBackedInferenceAcceptanceTests",
+      "suite_names": [
+        "DiskBackedInferenceAcceptanceTests",
+        "Disk Backed Inference Acceptance"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/DiskBackedInferenceAcceptanceTests.swift"
+    },
+    {
+      "selector": "merianTests/InsightQueuedHandoffTests",
+      "suite_names": [
+        "InsightQueuedHandoffTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Insights/Shell/InsightQueuedHandoffTests.swift"
+    },
+    {
+      "selector": "merianTests/InsightShellLifecycleTests",
+      "suite_names": [
+        "InsightShellLifecycleTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Insights/Shell/InsightShellLifecycleTests.swift"
+    },
+    {
+      "selector": "merianTests/MediaStagingBudgetTests",
+      "suite_names": [
+        "MediaStagingBudgetTests",
+        "Media Staging Budget"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/MediaStagingBudgetTests.swift"
+    },
+    {
+      "selector": "merianTests/ModelContainerBootstrapperTests",
+      "suite_names": [
+        "ModelContainerBootstrapperTests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/StoreRecovery/ModelContainerBootstrapperTests.swift"
+    },
+    {
+      "selector": "merianTests/ModelStoreRecoveryCoordinatorTests",
+      "suite_names": [
+        "ModelStoreRecoveryCoordinatorTests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinatorTests.swift"
+    },
+    {
+      "selector": "merianTests/MigrationPlanTests",
+      "suite_names": [
+        "MigrationPlanTests"
+      ],
+      "owner": "apps/ios/MerianTests/Models/MigrationPlanTests.swift"
+    },
+    {
+      "selector": "merianTests/OnboardingViewModelTests",
+      "suite_names": [
+        "OnboardingViewModelTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Onboarding/OnboardingViewModelTests.swift"
+    },
+    {
+      "selector": "merianTests/ExploreFeedViewModelTests",
+      "suite_names": [
+        "ExploreFeedViewModelTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Explore/Feed/ExploreFeedViewModelTests.swift"
+    },
+    {
+      "selector": "merianTests/AuthLocalSignOutCoordinatorTests",
+      "suite_names": [
+        "AuthLocalSignOutCoordinatorTests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Network/Auth/AuthLocalSignOutCoordinatorTests.swift"
+    },
+    {
+      "selector": "merianTests/AuthSessionLifecycleCoordinatorTests",
+      "suite_names": [
+        "AuthSessionLifecycleCoordinatorTests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Network/Auth/AuthSessionLifecycleCoordinatorTests.swift"
+    },
+    {
+      "selector": "merianTests/OfflineJobSchedulerTests",
+      "suite_names": [
+        "OfflineJobSchedulerTests",
+        "Offline Job Scheduler"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/OfflineJobSchedulerTests.swift"
+    },
+    {
+      "selector": "merianTests/InferenceEngineTests",
+      "suite_names": [
+        "InferenceEngineTests",
+        "Inference Engine Tests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/AI/InferenceEngineTests.swift"
+    },
+    {
+      "selector": "merianTests/OnboardingConsentRecoveryTests",
+      "suite_names": [
+        "OnboardingConsentRecoveryTests",
+        "Onboarding Consent Recovery Tests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Onboarding/OnboardingViewModelTests.swift"
+    }
+  ],
+  "ui": [
+    {
+      "selector": "merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow",
+      "suite_names": [
+        "merianUITests"
+      ]
+    },
+    {
+      "selector": "merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue",
+      "suite_names": [
+        "merianUITests"
+      ]
+    },
+    {
+      "selector": "merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy",
+      "suite_names": [
+        "merianUITests"
+      ]
+    },
+    {
+      "selector": "merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
+      "suite_names": [
+        "merianUITests"
+      ]
+    },
+    {
+      "selector": "merianUITests/merianUITests/testBackgroundInterruptionPreservesQueuedAudioInsight",
+      "suite_names": [
+        "merianUITests"
+      ]
+    }
+  ],
+  "performance": [
+    {
+      "selector": "merianPerformanceTests/MediaPerformanceTests/testRepeatedBoundedImageDecode",
+      "suite_names": [
+        "MediaPerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianPerformanceTests/MediaPerformanceTests/testAudioVideoFileAdmission",
+      "suite_names": [
+        "MediaPerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianPerformanceTests/MediaPerformanceTests/testInferenceResponseMapping",
+      "suite_names": [
+        "MediaPerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianPerformanceTests/PersistencePerformanceTests/testDurableQueueCommit",
+      "suite_names": [
+        "PersistencePerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianPerformanceTests/PersistencePerformanceTests/testLargeLibraryScalarHydration",
+      "suite_names": [
+        "PersistencePerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianPerformanceTests/PersistencePerformanceTests/testLargeOfflineQueueProjection",
+      "suite_names": [
+        "PersistencePerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianUITests/RuntimePerformanceTests/testProcessColdLaunch",
+      "suite_names": [
+        "RuntimePerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianUITests/RuntimePerformanceTests/testWarmForeground",
+      "suite_names": [
+        "RuntimePerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianUITests/RuntimePerformanceTests/testRepeatedAudioInsightPresentation",
+      "suite_names": [
+        "RuntimePerformanceTests"
+      ]
+    }
+  ]
+}

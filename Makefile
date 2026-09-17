@@ -48,7 +48,7 @@ help:
 	@printf "  make functions-deploy                 Deploy all Supabase Edge Functions\n"
 
 ios-local-build:
-	python3 scripts/local-ios-build.py run $(ARGS)
+	python3 scripts/local-ios-build.py $(if $(filter audit,$(firstword $(ARGS))),,run) $(ARGS)
 
 ios-build-storage:
 	python3 scripts/local-ios-build.py report
@@ -133,6 +133,7 @@ test-ios-xcode-release-workflow:
 	bash scripts/test-ios-xcode-release-workflow.sh
 
 test-ios-ci-tooling:
+	python3 -B scripts/test-ios-runtime-audit.py
 	python3 -B scripts/test-local-ios-build.py
 	bash scripts/test-check-ios-project-resources.sh
 	bash scripts/test-check-ios-event-routing.sh

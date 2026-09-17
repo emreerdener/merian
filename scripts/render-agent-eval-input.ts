@@ -28,6 +28,8 @@ if (import.meta.main) {
     suite,
     skillCatalog: [
       "merian-api-contracts",
+      "merian-docs-sync",
+      "merian-incident-response",
       "merian-ios",
       "merian-release",
       "merian-supabase",

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Merian Docs Sync"
+  short_description: "Synchronize Merian documentation and ownership"
+  default_prompt: "Use $merian-docs-sync to reconcile this Merian change with every current canonical document while preserving historical records."

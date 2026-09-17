@@ -473,6 +473,7 @@ fi
 # below the target level can silently remove Camera, inference, or offline-sync
 # coverage while leaving xcodebuild green. The UI bundle is compiled in full,
 # then exactly four deterministic critical-path regressions are executed.
+assert_count 1 "-only-testing:merianPerformanceTests"
 assert_count 2 "-only-testing:merianTests"
 assert_count 5 "-only-testing:merianUITests"
 assert_count 4 "-only-testing:merianUITests/"
@@ -1132,9 +1133,9 @@ done < <(
     }
   ' "$critical_results_check"
 )
-[[ "$protected_case_count" == "99" ]] \
+[[ "$protected_case_count" == "103" ]] \
   || fail \
-    "Expected 99 exact protected iOS test cases; found $protected_case_count."
+    "Expected 103 exact protected iOS test cases; found $protected_case_count."
 
 for exact_scan_regression in \
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual" \

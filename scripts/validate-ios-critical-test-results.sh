@@ -628,4 +628,24 @@ assert_suite_has_passed_test_case \
   "FieldChatPresentationPreparationTests" \
   "Field Chat Presentation Preparation Tests" \
   "testFieldChatReplacesPreparationForChangedSubject"
+assert_suite_has_passed_test_case \
+  "Disk-backed restart and duplicate finalization" \
+  "DiskBackedInferenceAcceptanceTests" \
+  "Disk Backed Inference Acceptance" \
+  "reopenedQueueRejectsStaleAndDuplicateResultsAndRestoresInsight"
+assert_suite_has_passed_test_case \
+  "Interrupted response durability" \
+  "DiskBackedInferenceAcceptanceTests" \
+  "Disk Backed Inference Acceptance" \
+  "invalidResponseAfterRestartPreservesDurableWork"
+assert_suite_has_passed_test_case \
+  "Duplicate live execution fence" \
+  "InferenceLivePipelineDurableVisualTests" \
+  "Inference Live Pipeline Durable Visual Success" \
+  "completedAttemptCannotDispatchOrPublishTwice"
+assert_suite_has_passed_test_case \
+  "Cancelled persistence publication fence" \
+  "InferenceLivePipelineDurableVisualTests" \
+  "Inference Live Pipeline Durable Visual Success" \
+  "cancellationDuringPersistenceSuppressesLatePublication"
 echo "Critical iOS suites and exact scan-flow regressions reported passed test cases."

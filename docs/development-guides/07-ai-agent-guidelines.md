@@ -488,6 +488,10 @@ dependency audit, tests, type-check, and production build; preserve the required
 
 ## 9. Documentation Maintenance
 
+- Load `$merian-docs-sync` for repository-wide updates, ownership changes, or
+  documentation drift audits. Classify current contracts, local READMEs,
+  runbooks, verification matrices, RFCs, incidents, and release evidence before
+  editing; historical evidence must not be rewritten as current behavior.
 - **ALWAYS create and update documentation accordingly.** Whenever you implement
   a new feature, modify a system's architecture, or alter an API contract,
   update the corresponding markdown file in the `docs/` folder to reflect
@@ -523,16 +527,18 @@ delegation rules. Task procedures use progressive disclosure: canonical skills
 live under `skills/` and their repository discovery links live only under
 `.agents/skills/`.
 
-The six project skills are:
+The eight project skills are:
 
-| Skill                          | Responsibility                                                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `$merian-ios`                  | SwiftUI/watchOS, XcodeGen, dependency injection, offline capture, hardware limits, and safe Debug/UI-test fixtures |
-| `$merian-swiftdata-migrations` | Outgoing-schema freeze order, historical types, migration stages, and startup recovery                             |
-| `$merian-supabase`             | Merian database, RLS, Edge, security, client, and candidate-validation overlay                                     |
-| `$merian-api-contracts`        | Deno, generated Swift, and web payload coordination through generate → review diff → validate                      |
-| `$merian-web-admin`            | Public web/internal admin trust boundaries and package-local verification                                          |
-| `$merian-release`              | Explicitly authorized TestFlight, Supabase production, RevenueCat, and rollout procedures                          |
+| Skill                          | Responsibility                                                                                                       |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `$merian-ios`                  | SwiftUI/watchOS, XcodeGen, dependency injection, offline capture, architecture hygiene, and runtime-quality evidence |
+| `$merian-swiftdata-migrations` | Outgoing-schema freeze order, historical types, migration stages, and startup recovery                               |
+| `$merian-supabase`             | Merian database, RLS, Edge, security, client, and candidate-validation overlay                                       |
+| `$merian-api-contracts`        | Deno, generated Swift, and web payload coordination through generate → review diff → validate                        |
+| `$merian-web-admin`            | Public web/internal admin trust boundaries and package-local verification                                            |
+| `$merian-docs-sync`            | Documentation authority, ownership synchronization, stale-reference cleanup, and historical-record preservation      |
+| `$merian-incident-response`    | Regression-first incident diagnosis, remediation, status separation, privacy, and evidence-backed closure            |
+| `$merian-release`              | Explicitly authorized TestFlight, Supabase production, RevenueCat, and rollout procedures                            |
 
 `$merian-release` cannot be invoked implicitly. Implementation, preparation,
 candidate validation, or green CI never authorizes a deployment or publication.

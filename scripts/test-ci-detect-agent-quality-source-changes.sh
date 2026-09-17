@@ -21,6 +21,12 @@ assert_output() {
 assert_output true '["ios"]' skills/merian-ios/SKILL.md
 assert_output true '["ios","supabase"]' \
   skills/merian-ios/SKILL.md skills/merian-supabase/SKILL.md
+assert_output true '["docs"]' skills/merian-docs-sync/SKILL.md
+assert_output true '["incidents"]' skills/merian-incident-response/SKILL.md
+assert_output true '["ios","docs","incidents"]' \
+  skills/merian-ios/SKILL.md \
+  skills/merian-docs-sync/SKILL.md \
+  skills/merian-incident-response/SKILL.md
 assert_output true '["all"]' AGENTS.md
 assert_output true '["all"]' skills/merian-unknown/SKILL.md
 assert_output false '[]' apps/ios/Merian/Features/Explore/ExploreView.swift

@@ -2,12 +2,14 @@
 """Exercise local build retention and cleanup against disposable fixtures."""
 
 import importlib.util
+import json
+from types import SimpleNamespace
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location('local_ios_build', Path(__file__).with_name('local-ios-build.py'))
 build = importlib.util.module_from_spec(spec)
@@ -177,6 +179,97 @@ class LocalBuildTests(unittest.TestCase):
         self.assertNotIn('pass_fds', launch.call_args.kwargs)
         self.assertTrue(launch.call_args.kwargs['start_new_session'])
         self.assertEqual(kill.call_count, 2)
+
+
+class AuditBuildTests(unittest.TestCase):
+    def test_environment_uses_stable_model_runtime_and_hardware_not_udid(self):
+        workspace = build.Workspace(Path('/tmp'))
+        devices = {'devices': {'iOS-fixture': [
+            {'udid': 'one', 'name': 'iPhone fixture', 'isAvailable': True},
+            {'udid': 'two', 'name': 'iPhone fixture', 'isAvailable': True}]}}
+        def read(command, **kwargs):
+            if command[0] == 'xcrun':
+                return json.dumps(devices)
+            return 'fixture'
+        with patch.object(build.subprocess, 'check_output', side_effect=read), \
+             patch.object(build.host_platform, 'platform', return_value='fixture'):
+            first = workspace.audit_environment('platform=iOS Simulator,id=one', 'pool')
+            second = workspace.audit_environment('platform=iOS Simulator,id=two', 'pool')
+        self.assertEqual(first, second)
+        self.assertEqual(first['runtime'], 'iOS-fixture')
+        self.assertNotIn('destination', first)
+
+    def exercise(self, fail_at=None, config_text=None):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            workspace = build.Workspace(root)
+            config = root / 'scripts/config/ios-runtime-audit.json'
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({name: [dict(selector='target/Suite/testCase', suite_names=['Suite'])]
+                                          for name in ('acceptance', 'ui', 'performance')}))
+            if config_text is not None:
+                config.write_text(config_text)
+            calls = []
+            reports = []
+
+            def run(platform, isolated, args):
+                # The full build/test chain must retain one uninterrupted cache lease.
+                with self.assertRaises(RuntimeError):
+                    with workspace.lock():
+                        pass
+                self.assertEqual(platform, 'simulator')
+                self.assertFalse(isolated)
+                calls.append(args)
+                workspace.last_report = workspace.reports / f'{len(calls)}.xcresult'
+                return 65 if len(calls) == fail_at else 0
+
+            reporter = SimpleNamespace(extract=Mock(return_value={}),
+                                       write_report=lambda output, evidence, baseline=None: reports.append(evidence))
+            module_spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda module: None))
+            with patch.object(build.importlib.util, 'spec_from_file_location', return_value=module_spec), \
+                 patch.object(build.importlib.util, 'module_from_spec', return_value=reporter), \
+                 patch.object(build.subprocess, 'check_output', return_value='fixture'), \
+                 patch.object(workspace, 'audit_environment', return_value={'runner': 'fixture'}), \
+                 patch.object(workspace, 'resolve_audit_packages'), \
+                 patch.object(workspace, 'run_locked', side_effect=run):
+                status = workspace.audit('platform=iOS Simulator,id=fixture', 'fixture')
+            return status, calls, reports[0], reporter
+
+    def test_malformed_manifest_retains_preflight_failure_without_building(self):
+        for malformed in ('{broken', '{}', '[]'):
+            with self.subTest(malformed=malformed):
+                status, calls, evidence, reporter = self.exercise(config_text=malformed)
+                self.assertEqual(status, 1)
+                self.assertEqual(calls, [])
+                self.assertEqual(evidence['phases'][0]['name'], 'preflight')
+                self.assertEqual(evidence['phases'][0]['status'], 'failed')
+                reporter.extract.assert_not_called()
+
+    def test_builds_once_and_measurements_are_separate(self):
+        status, calls, evidence, reporter = self.exercise()
+        self.assertEqual(status, 0)
+        self.assertEqual([args[0] for args in calls],
+                         ['build-for-testing'] + ['test-without-building'] * 3)
+        self.assertNotIn('-test-iterations', calls[1])
+        self.assertIn('-test-iterations', calls[3])
+        self.assertEqual(len(evidence['phases']), 4)
+        self.assertEqual(reporter.extract.call_count, 3)
+
+    def test_compile_failure_never_runs_stale_products(self):
+        status, calls, evidence, reporter = self.exercise(fail_at=1)
+        self.assertEqual(status, 1)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual([phase['status'] for phase in evidence['phases']],
+                         ['failed', 'blocked', 'blocked', 'blocked'])
+        reporter.extract.assert_not_called()
+
+    def test_acceptance_failure_is_preserved_while_other_phases_collect_evidence(self):
+        status, calls, evidence, reporter = self.exercise(fail_at=2)
+        self.assertEqual(status, 1)
+        self.assertEqual(len(calls), 4)
+        self.assertEqual(evidence['phases'][1]['status'], 'failed')
+        self.assertEqual(evidence['phases'][3]['status'], 'passed')
+        self.assertEqual(reporter.extract.call_count, 2)
 
 
 if __name__ == '__main__':

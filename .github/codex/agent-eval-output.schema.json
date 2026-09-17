@@ -11,6 +11,8 @@
         "swiftdata",
         "supabase",
         "api-contracts",
+        "docs",
+        "incidents",
         "web-admin",
         "release",
         "agents"
@@ -37,6 +39,8 @@
             "items": {
               "enum": [
                 "merian-api-contracts",
+                "merian-docs-sync",
+                "merian-incident-response",
                 "merian-ios",
                 "merian-release",
                 "merian-supabase",

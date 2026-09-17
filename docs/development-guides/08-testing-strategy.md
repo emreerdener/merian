@@ -4,6 +4,11 @@ Merian uses a lightweight, Swift-native testing structure built on the `Testing`
 framework, isolating offline UI queues and core engine components from Apple
 lifecycle dependencies.
 
+This document is the repository-wide verification index and release-gate map.
+Focused iOS runtime-audit and benchmark methodology now belongs to
+[iOS Runtime Quality and Benchmarking](./18-ios-runtime-quality-and-benchmarking.md);
+future benchmark detail should move there instead of expanding this index.
+
 The public web app in `apps/web/` has its own checks:
 
 ```bash
@@ -332,6 +337,170 @@ isolation cleanup, evidence retention, low-space refusal, process inspection,
 exclusive locking, and symlink boundaries. The complete
 `make test-ios-ci-tooling` gate includes this suite; Python iOS tooling changes
 also trigger the iOS scope detector.
+
+## Automated runtime acceptance and performance audit
+
+The acceptance selector manifest is
+[`scripts/config/ios-runtime-audit.json`](../../scripts/config/ios-runtime-audit.json).
+It reuses the owning unit suites and the existing Debug UI seeds. Do not copy
+those behaviors into another fixture framework. The local build wrapper owns one
+exclusive cache lease across package resolution, a generic Simulator
+`build-for-testing`, acceptance, UI acceptance, and separate performance runs:
+
+```bash
+# Obtain a real available Simulator destination; failure means runtime is blocked.
+destination="$(bash scripts/select-ios-simulator-destination.sh)"
+make ios-local-build ARGS="audit --destination '$destination' --environment-label 'local-hardware-description'"
+
+# Compare with a reviewed baseline captured on the same hardware/runtime.
+make ios-local-build ARGS="audit --destination '$destination' --environment-label 'local-hardware-description' --baseline scripts/config/ios-performance-baseline.json"
+```
+
+The wrapper resolves only the checked-in package versions, refuses a changed
+lockfile, retains the existing disk/process preflight, and never runs stale test
+products after compilation fails. Every test phase uses `test-without-building`.
+A behavioral failure stays failed while subsequent phases collect diagnostic
+evidence. Cancellation still terminates the child process group before releasing
+the cache lock. This focused audit supplements the complete `merianTests` gate;
+it does not replace it or authorize a release.
+
+### Test ownership and selector matrix
+
+Every selector below has the `merianTests/` prefix unless marked UI. The
+manifest is executable and retains each suite's source owner and XCResult
+display alias. The evidence validator rejects failed, skipped, empty, or missing
+selected suites and requires each selected UI/benchmark case. Source assertions
+here cover only selector ownership and build/tooling contracts.
+
+| Behavior                                                             | Existing or new owner                                                                                                                                                                             |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Capture admission, cancellation, durable enqueue and failure cleanup | `CaptureWorkspaceSubmissionTests`, `CaptureAdmissionTests`, `CaptureScanOperationStateTests`                                                                                                      |
+| Context grace and bounded retry                                      | `CaptureSubmissionEnvironmentContextGraceTests`, `CaptureSubmissionDeferredContextServiceTests`                                                                                                   |
+| Live dispatch, completion, cancellation and generation fences        | `InferenceLivePipelineCoordinatorTests`, `InferenceLivePipelineDurableVisualTests`, `InferenceLiveResultServiceTests`, `InferenceLiveRecoveryIntegrationTests`                                    |
+| Durable claims, recovery, duplicate records and restart              | `InferenceLifecyclePersistenceTests`, `LiveCaptureLifecycleTests`, `BackgroundInferenceCompletionTests`, `InferenceReplayTests`, `DiskBackedInferenceAcceptanceTests`                             |
+| Insight restoration, media continuity and dismissal                  | `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, new disk-backed acceptance; five exact UI cases in the manifest                                                                        |
+| Resource admission and task ownership                                | `MediaStagingBudgetTests`, `AsyncPermitPoolTests`, `InferenceEngineTests` (including backlog cap and Auth hydration/write drains)                                                                 |
+| Startup and V50/V51 compatibility                                    | `ModelContainerBootstrapperTests`, `ModelStoreRecoveryCoordinatorTests`, `MigrationPlanTests`                                                                                                     |
+| Secondary product and account transitions                            | `OnboardingViewModelTests`, `OnboardingConsentRecoveryTests`, `ExploreFeedViewModelTests`, `AuthLocalSignOutCoordinatorTests`, `AuthSessionLifecycleCoordinatorTests`, `OfflineJobSchedulerTests` |
+
+The new disk-backed test closes and reopens a private SQLite store, reconciles
+an interrupted inference, rejects the old generation, races two finalization
+contexts, and binds the resulting record to Insight. It preserves the production
+split: finalization writes the record, while terminal delivery owns queue
+retirement. It explicitly checks the retained queue row; it does **not** claim
+to exercise URLSession replay, queue deletion, funding settlement or
+publication. The visual-pipeline regressions verify that a completed attempt
+cannot dispatch or publish twice, and that cancellation during a suspended
+persistence callback prevents late presentation, notification, hydration and
+milestone effects.
+
+The formerly unconditionally skipped Photos-based background UI test is replaced
+by `testBackgroundInterruptionPreservesQueuedAudioInsight`, which uses the
+existing synthetic audio seed, waits for actual background/foreground state and
+checks the exact scan/audio identity across dismissal and reopening. The UI seed
+uses an in-memory store: this is interruption coverage, not disk relaunch proof.
+
+### Benchmark methodology and supported metrics
+
+`merianPerformanceTests` is a separate unit bundle. The ordinary compiled CI
+gate builds it alongside the app, unit and UI bundles, but its complete-unit
+execution still selects only `merianTests`. The audit selects benchmarks
+separately from acceptance; the ordinary Xcode scheme includes all test bundles,
+so use explicit selectors when running acceptance from the command line. UI
+benchmarks live in `RuntimePerformanceTests` and reuse `UITestAppLauncher`; no
+new production Debug arguments or services are introduced.
+
+| Benchmark                                                      | Measurement and scope                                                                                                                                                                                         |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PersistencePerformanceTests/testDurableQueueCommit`           | Clock, process CPU and memory for real SQLite queue/job insertion and save. Verification and cleanup are outside timing; each iteration uses a fresh context and empty queue. This excludes capture encoding. |
+| `PersistencePerformanceTests/testLargeLibraryScalarHydration`  | Clock, CPU and memory for 1,000 records' scalar media hydration with a fresh context per sample.                                                                                                              |
+| `PersistencePerformanceTests/testLargeOfflineQueueProjection`  | Clock, CPU and memory for 1,000 queue-row snapshots. This does not measure provider throughput.                                                                                                               |
+| `MediaPerformanceTests/testRepeatedBoundedImageDecode`         | Clock, CPU and memory across 20 real ImageIO decodes per sample, using a synthetic 4,032 × 3,024 image and 512-pixel bound.                                                                                   |
+| `MediaPerformanceTests/testAudioVideoFileAdmission`            | Clock, CPU and memory for 100 file-backed budget validations over two 1 MiB sparse files and the shared one-second PCM WAV fixture. This is metadata admission, not WAV/MP4 decoding or playback.             |
+| `MediaPerformanceTests/testInferenceResponseMapping`           | Clock, CPU and memory for 100 synthetic response decodes and domain mappings; excludes provider time and async persistence.                                                                                   |
+| `RuntimePerformanceTests/testProcessColdLaunch`                | XCTest launch-until-responsive after process termination; simulator caches/app state stay warm. This is not first-install or post-reboot launch.                                                              |
+| `RuntimePerformanceTests/testWarmForeground`                   | Clock and app CPU for background-to-active return in the existing process.                                                                                                                                    |
+| `RuntimePerformanceTests/testRepeatedAudioInsightPresentation` | Clock, app CPU/memory, and iOS 26+ hitch metrics for repeated seeded Insight opening and audio-control hydration. Dismissal occurs between measured samples.                                                  |
+
+Each benchmark requests ten XCTest iterations; the audit requests three test
+iterations, retaining raw samples, count, mean, median, sample standard
+deviation, coefficient of variation, min and max. Inspect the actual exported
+count rather than assuming the requested samples were collected. XCResult is the
+authority for each metric's identifier and unit. Memory metrics expose XCTest's
+footprint measurements, not a heap leak diagnosis. Hitch measurements expose UI
+hitches, not every possible main-thread stall. Measurements use Debug, without
+sanitizer or coverage changes; do not compare them with Release/device numbers.
+
+The app already logs capture tap, durable commit, context grace, dispatch,
+response/persistence and first render durations. Those are log boundaries, not
+signposts. The new benchmarks do not pretend to convert those logs into measured
+end-to-end capture-to-stage, stage-to-dispatch or first-render latency. Device
+Instruments traces and a fully composed injected pipeline remain required for
+those intervals and for image/audio/video peak-memory attribution.
+
+### Baseline creation, update and CI policy
+
+No numerical baseline is checked in until real repeated runs exist. A missing
+baseline is reported as pending, never as zero latency or a passing regression
+comparison. To establish one:
+
+1. Use a quiet runner with a recorded hardware label, fixed Simulator model and
+   runtime, Xcode version, host OS, Debug configuration and the same workload.
+   Disable concurrent test runs; the wrapper disables parallel XCTest execution.
+2. Run the audit on a reviewed candidate. Retain its XCResult, `audit.json`,
+   source fingerprint, dirty-tree flag, and simulator identity. Keep at least 30
+   raw samples per metric; investigate high variance before adopting a baseline.
+3. Repeat the run to check reproducibility. Review the measured workload and
+   correctness results, then copy the approved `audit.json` to
+   `scripts/config/ios-performance-baseline.json`. Commit the evidence reference
+   and reason with that baseline. Do not invent numbers or lower a budget to
+   hide a regression. Rebaseline intentionally after a toolchain, runtime,
+   hardware or workload change, keeping the previous evidence.
+4. Supply `--baseline` locally. The manually dispatched **iOS Runtime Audit**
+   workflow automatically loads that checked-in file when present. Stable
+   model/runtime/toolchain/host metadata must match; simulator UDIDs remain
+   evidence only. Never pool measurements from different device/configuration
+   identities. Hardware labels must distinguish otherwise identical hosts.
+
+Behavioral failures, missing cases, unreadable results, malformed baselines and
+incompatible environments fail the audit. Timing/CPU/memory values are
+**report-only** on shared hosted runners. The report marks an increase for
+review only when the mean increases by more than both 20% and three combined
+standard errors, with at least 30 samples on each side. This is a screening
+heuristic, not a statistically independent or hardware-stable release threshold.
+CV above 15% is flagged; missing/new metrics are visible. Existing deterministic
+byte/count, retry/generation, image-size and retained-task caps remain CI-gated.
+Do not add absolute millisecond/RSS gates until dedicated-runner stability is
+established.
+
+### Evidence, triage and remaining coverage
+
+The wrapper retains `.artifacts/local-ios/<uuid>.xcresult` and
+`.artifacts/local-ios/audit-<uuid>/{audit.json,summary.md}` plus each successful
+phase's exported summary, test tree and metrics. Build and test failures retain
+their XCResult; a failed preflight has only its explicit failure report. The
+manual CI workflow uploads this directory for 14 days even after failure. The
+existing complete-unit and four critical UI gates remain required on PRs.
+
+Start with `summary.md`, identify the failing phase and open its XCResult in
+Xcode. Check the exact case and error before using the console log. Compare
+matching environments and raw distributions before investigating a performance
+warning. A large-library or media regression should be profiled with Allocations
+and Time Profiler; use Animation Hitches for UI intervals. The wrapper's cache
+cleanup preserves all evidence. SQLite fixtures deliberately retain temporary
+WAL files until the test process exits to avoid Core Data vnode traps; remove
+leftover temporary fixtures only after Simulator/test processes stop.
+
+Remaining automated-integration gaps are a single composed capture→queue→live
+response→Insight test, active sign-out across that whole chain, concurrent
+terminal-download callbacks with once-only queue cleanup/publication, injected
+partial-file/save failure, and production-bootstrap V50 plan selection through
+an injected store URL. Onboarding and Explore have selected behavioral suites
+but lack complete hermetic UI flows. Physical devices are required for camera,
+microphone, video codec/playback peak memory, thermal throttling, OS background
+transfer/process termination, first-install cold launch, actual main-thread
+stalls and sustained full-flow retained-memory growth. Simulator measurements
+cannot establish those outcomes or a provider/network performance baseline.
 
 ## Compiled iOS CI Gate
 
@@ -3142,10 +3311,10 @@ before release.
   outside Views, Components, and Modifiers, verifies the ownership directories,
   and enforces the 600-line production-file ceiling. Shared inference-audio
   fixture generation lives in
-  `apps/ios/MerianTests/Support/InferenceAudioTestFixtures.swift`, not in an
-  unrelated Core test class. This gives deterministic coverage without
-  simulator-driven UI automation. The complete unit target, including these
-  workspace and camera-generation tests plus `InferenceEngineTests`,
+  `apps/ios/TestSupport/InferenceAudioTestFixtures.swift`, not in an unrelated
+  Core test class. This gives deterministic coverage without simulator-driven UI
+  automation. The complete unit target, including these workspace and
+  camera-generation tests plus `InferenceEngineTests`,
   `OfflineQueueManagerTests`, `BackgroundTransferOwnershipTests`,
   `BackgroundTransferArchitectureTests`, `BackgroundInferenceLifecycleTests`,
   `BackgroundInferenceDispatchTests`, `BackgroundInferenceCompletionTests`,

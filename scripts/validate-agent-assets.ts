@@ -5,6 +5,8 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const projectSkills = [
   "merian-api-contracts",
+  "merian-docs-sync",
+  "merian-incident-response",
   "merian-ios",
   "merian-release",
   "merian-supabase",
@@ -27,6 +29,8 @@ const suites = new Set([
   "swiftdata",
   "supabase",
   "api-contracts",
+  "docs",
+  "incidents",
   "web-admin",
   "release",
   "agents",

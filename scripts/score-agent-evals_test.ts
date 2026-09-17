@@ -67,6 +67,8 @@ Deno.test("checked-in eval expectations are internally scoreable", async () => {
     "swiftdata",
     "supabase",
     "api-contracts",
+    "docs",
+    "incidents",
     "web-admin",
     "release",
     "agents",

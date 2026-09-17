@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// Composes the primary Profile tab from prepared feature state.
