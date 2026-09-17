@@ -49,7 +49,7 @@ private struct InferenceSessionLifecycleTraitExtractor: LocalVisualTraitExtracti
 private struct InferenceSessionLifecycleCueProvider: FoundationVisualCueProviding {
     func cueSnapshots(
         for _: FoundationVisualCueRequest
-    ) async throws -> AsyncThrowingStream<FoundationVisualCueSnapshot, Error>? {
+    ) async throws -> FoundationVisualCueStream? {
         nil
     }
 }

@@ -989,10 +989,15 @@ See the focused
 - `Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift` — the
   private classification, deterministic-trait, Foundation-cue, and phrase-
   rotation task owner. It contains the bounded derivative, provisional Vision
-  state, request-body gate, phrase cursor, and inactivity pause/resume state;
-  the engine supplies exact presentation validity and receives phrase values.
-  Sibling files separate classifier/category, image, deterministic-trait,
-  Foundation contract/validation/eligibility, and phrase policy.
+  state, request-body gate, phrase cursor, inactivity pause/resume state, and
+  session-scoped power/thermal subscription. Runtime ineligibility cancels even
+  a silent Foundation stream; explicit stream handles cancel their producer on
+  every consumer exit. The engine supplies exact presentation validity and
+  receives phrase values. Sibling files separate classifier/category, image,
+  deterministic-trait, staged `AppleFoundationVisualCueProvider`, Foundation
+  contract/validation/eligibility, and phrase policy. The
+  [activation checklist](../system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist)
+  owns the provider's default-off release gate and required validation.
 - `Inference/Request/InferenceLiveRequestService.swift` — the initializer-
   injected visual/nonvisual provider boundary. It owns base64 filtering, MIME
   detection, observation-context JSON, descriptor forwarding, staged-video

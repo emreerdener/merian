@@ -85,7 +85,24 @@ intent from a destination that can actually be opened in Explore.
 
 ## Verification pipeline
 
-`reconcile-explore-media-health` runs every five minutes:
+The `reconcile-explore-media-health` cron checks every five minutes. Fixed clock
+minutes `:00`, `:10`, `:20`, etc. always dispatch a health heartbeat. Alternate
+ticks dispatch only if media is due (`next_health_check_at <=` the captured
+clock time), its post is published and unmoderated, its scan is not tombstoned,
+and no claim has `claimed_until >` that time. Expiry equality permits dispatch.
+The precheck is read-only and runs before credentials or `net.http_post`;
+claiming and locking remain exclusively inside the existing claim RPC.
+
+Migration `20260917144755_skip_idle_explore_media_dispatch.sql` changes only the
+existing job command, preserving schedule and paused state. Scheduled payload
+(`limit: 200`, `leaseSeconds: 300`), authentication headers, and 120-second HTTP
+timeout remain unchanged. Every actual invocation retains its audit, even an
+empty heartbeat; a skipped tick produces no worker invocation or worker audit.
+With normally timed ticks, fully idle operation produces 144 scheduled worker
+invocations per day instead of 288. Delayed cron starts use their actual clock
+minute, so the existing 15-minute missing-success alert remains essential. This
+count is not an estimate of disk savings. Due work retains five-minute
+opportunities; health/retry intervals below do not change.
 
 The gateway uses `verify_jwt = false` because current Supabase project secret
 keys are not JWTs. This does not make the worker public. The handler accepts the

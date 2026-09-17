@@ -70,6 +70,11 @@ the two existing source-compatible facades.
   user decision therefore remains authoritative. Its completion returns before
   remote preference synchronization, so network latency cannot hold the
   permission sheet open; the coordinator still drains the resulting snapshot.
+- The facade's `hasAuthorization` reads the system-permission mirror separately
+  from Discovery alerts, which default on when no saved preference exists.
+  Capture uses both to offer native permission after a completed result without
+  re-prompting an explicit Discovery-alert opt-out or an already authorized
+  user.
 - Remote registration drains the latest admitted snapshot. A token or preference
   change that arrives during an active request is never silently discarded. The
   snapshot includes a non-wire account scope, so an otherwise-identical

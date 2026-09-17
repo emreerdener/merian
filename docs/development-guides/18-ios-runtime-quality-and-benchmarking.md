@@ -159,3 +159,15 @@ transfer, first-install launch, actual provider latency, network throughput, or
 sustained full-flow retained-memory behavior. Record those gaps explicitly and
 use a physical-device matrix, Instruments trace, or authorized staging smoke as
 appropriate. Never summarize an unrun device or hosted check as passed.
+
+The current Xcode 26.6 hosted audit cannot compile or exercise the staged Swift
+6.4 / iOS 27 Foundation visual-cue adapter, and its selector manifest does not
+include the focused Foundation regression matrix. A passing runtime audit
+therefore supplies no acceptance claim for this provider. Before production
+activation, run the
+[three focused suites and physical-device matrix](./08-testing-strategy.md#staged-foundation-visual-cue-validation)
+on stable Xcode 27 and complete the
+[canonical activation checklist](../system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist).
+During the toolchain migration, review whether those suites belong in the audit;
+any additions must update the JSON selectors and suite aliases together. Do not
+add the iOS 27 parser suite while the audit remains on Xcode 26.6.

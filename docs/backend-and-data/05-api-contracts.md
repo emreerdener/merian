@@ -9042,7 +9042,14 @@ falsely claiming recovery.
 
 ## Deno `/reconcile-explore-media-health` Edge Node
 
-Scheduled service-role worker for direct R2-origin health verification.
+Scheduled service-role worker for direct R2-origin health verification. The
+five-minute cron dispatches unconditionally at fixed ten-minute clock
+boundaries, and on alternate ticks only when published, unmoderated,
+non-tombstoned media is due without an active lease. That read-only precheck
+precedes credentials and HTTP; claims remain inside the existing claim RPC.
+Skipped ticks do not call this endpoint. Payload, headers, lease, timeout, and
+one audit attempt per actual invocation remain unchanged. The 15-minute
+missing-success alert still applies.
 
 Request:
 
@@ -9818,10 +9825,17 @@ order/family, and pass the same checks again in
 `persist_species_model_lookalikes(target_species_id uuid, candidates jsonb, resolution_complete boolean)`.
 That service-only RPC returns exactly one row containing `persisted_count`,
 `unresolved_count`, and `rejected_count`; the worker rejects malformed or
-incomplete accounting. Provider errors, unresolved identities, partial results,
-and database identity conflicts fail the job for retry. A verified empty result
-or candidates proven incompatible/rejected complete as `no_data` and set the
-existing attempt flag so foreground enrichment does not repeat the request.
+incomplete accounting. A valid existing relation still counts as persisted even
+when its data is unchanged. Candidate taxonomy, eligible unreviewed relation
+values, and subject compatibility/attempt values are compared before updating;
+unchanged dictionary and relation timestamps remain stable. Successful refreshes
+retaining or materializing an unreviewed model relationship still advance
+non-curated provenance freshness. Reviewed/curated relations and curated
+provenance retain their protection, and no request or response shape changes.
+Provider errors, unresolved identities, partial results, and database identity
+conflicts fail the job for retry. A verified empty result or candidates proven
+incompatible/rejected complete as `no_data` and set the existing attempt flag so
+foreground enrichment does not repeat the request.
 
 `claim_species_model_enrichment_jobs(max_rows integer, as_of timestamptz, target_content_groups text[], preview_only boolean)`
 is the paired service-only claim RPC. It applies one priority-ordered limit

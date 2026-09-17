@@ -1212,8 +1212,16 @@ most three exact-GBIF candidate proofs. It preserves reviewed relations and
 curated provenance, fills only missing/placeholder taxonomy, rebuilds the legacy
 `similar_species` cache from every nonrejected directional relation, and records
 valid empty outcomes without recursively expanding the lookalike graph.
-`community-taxonomy-status` exposes queue counts, next queued jobs, and recent
-failures for service-role monitoring.
+Migration `20260917144804_avoid_unchanged_lookalike_writes.sql` preserves the
+signature, service-only privilege boundary, and transaction advisory lock.
+Candidate taxonomy, eligible unreviewed relations, and the subject's attempt
+flag/compatibility array are updated only when their proposed values differ.
+Unchanged dictionary and relationship rows retain their update timestamps.
+Already-persisted valid relations still count as persisted and successful
+refreshes retaining or materializing an unreviewed model relationship still
+advance non-curated provenance freshness; curated/rejected relations and curated
+provenance remain protected. `community-taxonomy-status` exposes queue counts,
+next queued jobs, and recent failures for service-role monitoring.
 
 ### `taxonomy_coverage_targets`
 
@@ -2981,6 +2989,13 @@ adds:
 - `public.explore_media_health_reconciliation_runs`: service-written audit rows
   with run status, claimed/healthy/missing/retryable/error counts, timestamps,
   and bounded structured errors.
+
+The five-minute cron command skips idle alternate ticks, with unconditional
+heartbeats at fixed ten-minute clock boundaries. Its read-only eligibility check
+mirrors the claim predicates and runs before credential lookup; it does not
+create leases. Every actual invocation still attempts one audit row, and the
+15-minute missing-success alert remains. The command-only forward migration
+preserves paused state; it does not change tables or expose a new RPC.
 
 Service-only RPCs:
 

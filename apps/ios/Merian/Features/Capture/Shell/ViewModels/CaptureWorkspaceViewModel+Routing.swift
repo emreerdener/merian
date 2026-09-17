@@ -301,7 +301,8 @@ extension CaptureWorkspaceViewModel {
            let result = diContainer.inferenceEngine.speciesData,
            !result.isInferenceErrorPlaceholder,
            !diContainer.inferenceEngine.isProcessing,
-           !diContainer.appSettings.isPushNotificationsEnabled,
+           diContainer.appSettings.isPushNotificationsEnabled,
+           !diContainer.pushNotificationManager.hasAuthorization,
            !diContainer.appSettings.hasPromptedForNotificationsPostIdent,
            diContainer.appRouteCoordinator.nextRequestID == nil,
            activePresentation == nil {

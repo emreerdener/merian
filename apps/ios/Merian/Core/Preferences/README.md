@@ -58,6 +58,9 @@ Account-deletion recovery models and local stores live in
   remain isolated.
 - `AppSettings.gridColumns` clamps runtime mutations to the supported 1...3
   range and persists that normalized value.
+- Discovery alerts register an enabled default without writing over a saved
+  `isPushNotificationsEnabled` value. Explicit opt-outs survive startup and
+  reloads. Native notification authorization remains a separate system gate.
 - `ExploreShareStateStore` and `FieldNotesStore` clear only their own key
   prefixes. The species store partitions every live tombstone/diagnostic key by
   lowercased account UUID and must not erase unrelated defaults. Its accepted
@@ -79,7 +82,8 @@ Account-deletion recovery models and local stores live in
 Mirrored tests live in `MerianTests/Core/Preferences/`:
 
 - `AppSettingsTests.swift` covers defaults, normalized persistence, explicit
-  reloads, and external-change observation.
+  reloads, and external-change observation, including Discovery-alert default-on
+  behavior without overwriting saved choices or granting system authorization.
 - `KeyedPreferenceStoreTests.swift` covers normalization, clearing, and prefix
   isolation for Explore share and field-note bridges.
 - `FirstFieldTripProgressStoreTests.swift` covers first-Field-trip cache round

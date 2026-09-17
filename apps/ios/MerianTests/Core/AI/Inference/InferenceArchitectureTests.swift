@@ -35,6 +35,7 @@ struct InferenceArchitectureTests {
             "LocalAnalysis/LocalVisualAnalysisImageBuilder.swift",
             "LocalAnalysis/LocalVisualTraitExtraction.swift",
             "LocalAnalysis/FoundationVisualCues.swift",
+            "LocalAnalysis/AppleFoundationVisualCueProvider.swift",
             "LocalAnalysis/ScanningPhrasePolicy.swift",
             "LocalAnalysis/ScanningPhraseCoordinator.swift",
             "Pipeline/InferenceLivePipelineModels.swift",

@@ -16,7 +16,8 @@ extension CaptureWorkspaceViewModelRefinementTests {
 
         XCTAssertEqual(viewModel.activeSheet, .notificationPrompt)
         XCTAssertTrue(settings.hasPromptedForNotificationsPostIdent)
-        XCTAssertFalse(settings.isPushNotificationsEnabled)
+        XCTAssertTrue(settings.isPushNotificationsEnabled)
+        XCTAssertFalse(viewModel.diContainer.pushNotificationManager.hasAuthorization)
         let promptID = viewModel.activePresentation?.id
         viewModel.handleRootSheetDismissed()
         XCTAssertEqual(viewModel.activePresentation?.id, promptID)
@@ -53,9 +54,9 @@ extension CaptureWorkspaceViewModelRefinementTests {
         }
     }
 
-    func testNotificationPromptRequiresACompletedResultAndAnUnaskedDisabledPreference() {
-        for scenario in ["noResult", "error", "processing", "enabled", "declined", "otherSheet"] {
-            let viewModel = notificationPromptWorkspace()
+    func testNotificationPromptRespectsOptOutAndExistingSystemAuthorization() {
+        for scenario in ["noResult", "error", "processing", "disabled", "authorized", "declined", "otherSheet"] {
+            let viewModel = notificationPromptWorkspace(authorized: scenario == "authorized")
             let container = viewModel.diContainer
             switch scenario {
             case "noResult": container.inferenceEngine.speciesData = nil
@@ -69,7 +70,8 @@ extension CaptureWorkspaceViewModelRefinementTests {
                     isBiological: false
                 )
             case "processing": container.inferenceEngine.isProcessing = true
-            case "enabled": container.appSettings.isPushNotificationsEnabled = true
+            case "disabled": container.appSettings.isPushNotificationsEnabled = false
+            case "authorized": break
             case "declined": container.appSettings.hasPromptedForNotificationsPostIdent = true
             default:
                 viewModel.activePresentation = .init(
@@ -88,8 +90,26 @@ extension CaptureWorkspaceViewModelRefinementTests {
         }
     }
 
-    private func notificationPromptWorkspace() -> CaptureWorkspaceViewModel {
+    private func notificationPromptWorkspace(authorized: Bool = false) -> CaptureWorkspaceViewModel {
         let container = AppDIContainer.preview
+        let preferences = PushNotificationPreferencesProbe()
+        preferences.booleans[UserDefaultsKeys.hasPushNotificationAuthorization] = authorized
+        container.pushNotificationManager = PushNotificationManager(
+            dependencies: .init(
+                notificationCenter: SystemNotificationCenterProbe().makeService(),
+                preferences: preferences.makeStore(),
+                registrationCoordinator: PushRegistrationCoordinator(
+                    dependencies: .init(
+                        service: PushRegistrationService(register: { _ in }),
+                        reportFailure: { _, _ in }
+                    )
+                ),
+                registrationContext: .init(currentAccountScopeID: { nil }),
+                pushEnvironment: "test",
+                makeIdentifier: { "test" }
+            ),
+            requestRoute: { _, _ in }
+        )
         container.inferenceEngine.speciesData = SpeciesData(
             scanId: "notification-test-scan",
             commonName: "Monarch",

@@ -2213,6 +2213,116 @@ Canonical product, schema, API, security, recovery, and monitoring details are
 in
 [Explore Media Health and Quarantine](./12-explore-media-health-and-quarantine.md).
 
+#### Idle dispatch and lookalike write efficiency
+
+The separate forward migrations
+`20260917144755_skip_idle_explore_media_dispatch.sql` and
+`20260917144804_avoid_unchanged_lookalike_writes.sql` reduce verified
+unnecessary work. They do not establish the cause of the Disk I/O warning. No
+worker bundle, client, request/response shape, or new public RPC is required.
+Deployment to a named project remains a separate explicitly authorized
+operation, with the existing exact-SHA Candidate Validation and release
+controls.
+
+The media migration changes only the named job command, preserving its
+`*/5 * * * *` schedule and paused state. Fixed clock minutes divisible by ten
+always dispatch; alternate ticks first check due media using the claim RPC's
+publication, moderation, tombstone, due-time, and active-lease predicates. An
+idle skipped tick reads no credentials and queues no HTTP request. Claiming and
+locking stay in the claim RPC. Scheduled headers, batch 200, 300-second lease,
+and 120-second timeout remain unchanged. Every actual invocation retains its
+audit. Normally timed, fully idle operation therefore produces 144 scheduled
+worker invocations daily instead of 288, without implying proportional disk
+savings. Delayed starts use actual clock time; retain the existing 15-minute
+missing-success alert and due-backlog alerts.
+
+Lookalike persistence keeps service-only authorization, taxonomy validation, the
+advisory lock, reviewed decisions, and curated provenance. Unchanged candidate
+taxonomy and relationship values cause no dictionary/relationship updates; the
+subject changes only when its compatibility array or attempt flag changes.
+Existing valid relationships still count as persisted. Successful refreshes
+retaining or materializing an unreviewed model relationship continue advancing
+non-curated provenance freshness even when the relationship is unchanged.
+Verified empty or wholly rejected results retain their existing provenance
+behavior and do not create a refresh solely for the empty result. This
+deliberately retains provenance writes for qualifying model relationships.
+
+Before release, run the full **Supabase Candidate Validation** gate on the
+reviewed candidate, including fresh disposable migration replay, catalogs,
+privileges, recursive type checks, lint, database lint/advisors, and Deno tests
+with a configured disposable database. The discovered pgTAP fixtures include
+`explore_media_dispatch.sql`, `lookalike_write_efficiency.sql`, and the existing
+`species_lookalike_recovery.sql`. The cron fixture executes the installed
+command after substituting a controlled clock, covering idle heartbeat/skip, due
+equality, active/expired leases, unpublication, moderation, and tombstones.
+Synthetic HTTP requests are rolled back before pg_net can dispatch. Never run
+these write fixtures against a hosted project.
+
+The focused disposable benchmark and reciprocal concurrency test run with:
+
+```sh
+SUPABASE_DB_TEST_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres \
+  deno test --frozen --config services/supabase/functions/deno.json \
+  --allow-env --allow-net --allow-read=services/supabase \
+  services/supabase/functions/_tests/backendWriteEfficiencyDb.test.ts
+```
+
+The benchmark extracts the historical routine into a temporary function and
+compares 50 identical synthetic replays against the installed RPC, in separate
+rolled-back transactions. It asserts identical accounting and compatibility
+results, 100 dictionary/50 relationship updates before versus zero after, and 50
+provenance updates in both cases. A disposable PostgreSQL 17 run on 2026-09-17
+confirmed those counts, unchanged accounting/cache results, and successful
+reciprocal concurrency. The instrumented 50-call batches took 157 ms
+historically and 186 ms with the installed routine; this run demonstrates fewer
+tuple updates, not a latency improvement. Trigger instrumentation and client
+round trips affect elapsed time; do not extrapolate production latency or
+physical I/O from this benchmark. The separate concurrency fixture commits two
+synthetic species only within the disposable database, observes advisory-lock
+blocking for reciprocal requests, verifies both directions, and cleans up its
+rows. An ignored or inaccessible-database test is not passing evidence.
+
+For hosted measurement, use `services/supabase/scripts/backend_io_snapshot.sql`
+with an existing authenticated PostgreSQL 17 connection that can read monitoring
+counters. It opens a short read-only transaction and records timestamps, reset
+markers, tuple operations (including `net` and `cron`), query-ID
+execution/block/WAL counters, server I/O/WAL counters, and media-worker
+aggregate outcomes/backlog. It excludes query text, credentials, response
+bodies, object keys, and owner identifiers. It does not install extensions or
+reset statistics. If monitoring views are unavailable, record that limitation
+rather than changing the server.
+
+Run it twice, 15 minutes apart, retaining outputs outside the repository:
+
+```sh
+# Existing libpq connection settings must already identify the intended project.
+# Do not place connection secrets in command arguments or retained evidence.
+psql -X -q -f services/supabase/scripts/backend_io_snapshot.sql > /tmp/merian-io-before.jsonl
+# Wait 15 minutes, then run the identical read-only query set.
+psql -X -q -f services/supabase/scripts/backend_io_snapshot.sql > /tmp/merian-io-after.jsonl
+```
+
+Compare counter deltas only across matching server/reset intervals; a restart,
+reset, deallocation, or disappearing query ID makes affected deltas incomplete.
+Table counters can also be reset individually; reject negative or otherwise
+inconsistent deltas. Keep nested and top-level query totals separate. The
+15-minute worker aggregates are window summaries, not cumulative counters to
+subtract. No returned status rows means no starts in that window. Tuple/block
+counters and WAL are not a substitute for platform disk throughput/IOPS;
+Supabase CLI 2.109.1 `traffic-profile` estimates its write blocks from relation
+pages and tuple operations. See
+[Supabase inspection guidance](https://supabase.com/docs/guides/observability/inspect)
+and
+[PostgreSQL statement counters](https://www.postgresql.org/docs/17/pgstatstatements.html).
+
+After a separately authorized deployment, compare worker invocation counts,
+oldest due backlog, errors, memory/swap, and actual disk throughput/IOPS and
+burst budget over 24–48 hours. Record compute size and any resize timestamp;
+measure a Nano-to-Micro upgrade separately. Do not reset counters, clean data,
+or perform a compute upgrade as part of this measurement. Fix forward if needed,
+preserving media health, publication intent, provenance, and audit history.
+Never reactivate an intentionally paused job as an optimization step.
+
 #### Run 1461 partial-production recovery
 
 Run 1461 committed the species-count, export, and durable deletion-state

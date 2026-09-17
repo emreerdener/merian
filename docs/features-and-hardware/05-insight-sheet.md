@@ -184,9 +184,10 @@ narrow callback, from generic visible analysis to a qualifying broad Apple
 Vision category, then to five bounded image-specific dominant-color, saturation,
 lighting, light-contrast, and surface-detail cues from the current deterministic
 local extractor. The category handoff is immediate; later automatic label
-changes use the shared 2.3-second clock. A future eligible Foundation Models
-provider may replace the deterministic trait deck with richer visible cues.
-Source priority is monotonic, so generic or category text never returns after
+changes use the shared 2.3-second clock. The staged, default-off
+`AppleFoundationVisualCueProvider` can replace the deterministic trait deck with
+richer complete cues during eligible iOS 27 Debug device evaluation. Source
+priority is monotonic, so generic or category text never returns after
 more-specific trait context arrives. The pill shows every phrase in its active
 deck before wrapping to the first phrase for a new round.
 
@@ -196,12 +197,16 @@ and shadow areas**, never labeled `Color: description` fields. Trait kinds and
 numeric buckets stay internal and only select the visible wording; midpoint copy
 never says **moderate color levels** or **balanced light and dark**.
 
-The pill does not claim a species, confidence, candidate match, records lookup,
+The pill must not claim a species, confidence, candidate match, records lookup,
 range check, or completed cloud result. Deterministic local analysis is limited
-to five complete, unique labels of at most 36 rendered characters; the future
-Foundation stream remains limited to three. Partial stream snapshots and invalid
-identity-bearing text never reach SwiftUI. Gemini remains the only source for
-the completed identification and Insight content.
+to five complete, unique labels of at most 36 rendered characters; the staged
+Foundation stream remains limited to three. Partial cue objects and text
+rejected by the validator never reach SwiftUI. The identity filter covers fixed
+forbidden vocabulary and Vision candidate tokens, not every possible subject
+name; follow the
+[Foundation acceptance contract](../system-architecture/04-ai-engineering.md#stable-xcode-27-foundation-models-milestone)
+before production activation. Gemini remains the only source for the completed
+identification and Insight content.
 
 When iOS emits the normal inactive-then-background callback pair, the
 coordinator cancels current local model and cadence tasks once while retaining
@@ -217,12 +222,14 @@ that the native Button's accessibility frame remains inside the application
 window at every label width.
 
 Unsupported devices silently retain Vision plus deterministic image-trait
-wording. The Xcode 26.6 build injects a no-op Foundation visual-cue provider;
-stable Xcode 27 is a prerequisite for the availability-gated generative
-multimodal implementation. Low Power Mode, serious/critical thermal pressure,
-inactive app state, unavailable or not-ready Apple Intelligence, result arrival,
-and every scan-ownership handoff all suppress or cancel the richer stage without
-changing the visible fallback.
+wording. `AppleFoundationVisualCueProvider` is staged behind the default-off
+`foundationVisualCues` release flag. Debug builds with stable Xcode 27 can opt
+in on iOS 27 for device acceptance; Xcode 26.6 compiles an inert branch. Stable
+hosted Xcode 27 validation and physical-device acceptance remain prerequisites
+for enabling it in production. Low Power Mode, serious/critical thermal
+pressure, inactive app state, unavailable or not-ready Apple Intelligence,
+result arrival, and every scan-ownership handoff all suppress or cancel the
+richer stage without changing the visible fallback.
 
 Daily-quota presentation is normally decided before Insight exists. Online
 Capture runs the caller-scoped scan-admission preview before the camera shutter,
@@ -1066,15 +1073,20 @@ manager's scan-ID deduplication. Scheduling omits an
 entirely to `PushNotificationManager.willPresent`. When the app is backgrounded,
 `willPresent` is never called and the OS shows the notification automatically.
 
-Discovery alerts default to disabled. Capture's `handleRootSheetDismissed`
-offers the notification opt-in after a completed Insight closes, including the
-Close button and swipe dismissal. Error placeholders and still-processing
-results do not qualify. The prompt is shown only when Discovery alerts are
-disabled and it has not previously been offered; the attempted-prompt flag is
-set when the prompt takes the presentation slot. Pending local navigation,
-global routes, and active presentations take priority without consuming that
-opportunity. Dismissing or declining the prompt does not enable notifications.
-Enabling still requires native authorization.
+Discovery alerts default to enabled when no preference has been saved. Existing
+saved choices, including an explicit off value, are preserved. This app
+preference is separate from iOS notification authorization; changing the default
+does not grant system permission. Capture's `handleRootSheetDismissed` offers
+the notification opt-in after a completed Insight closes, including the Close
+button and swipe dismissal. Error placeholders and still-processing results do
+not qualify. The prompt is shown only when Discovery alerts are enabled, the
+notification manager's system-authorization mirror is false, and it has not
+previously been offered; the attempted-prompt flag is set when the prompt takes
+the presentation slot. Pending local navigation, global routes, and active
+presentations take priority without consuming that opportunity. A saved off
+preference is not prompted automatically. Declining the prompt or denying native
+authorization saves Discovery alerts as off; dismissing the sheet does not grant
+permission. Delivery still requires native authorization.
 
 ---
 

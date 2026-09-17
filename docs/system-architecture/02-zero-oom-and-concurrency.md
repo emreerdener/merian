@@ -988,8 +988,14 @@ it; otherwise `isProcessing` can be left true with no live task to clear it. It:
   `InferenceLocalAnalysisCoordinator` to cancel and release its classification,
   deterministic-trait, Foundation-cue, and phrase-rotation task slots plus the
   bounded local derivative, Vision candidates, request-dispatch flag, exact
-  session callback, and phrase coordinator state. None of this ephemeral work
-  joins the Auth-transition quiescence drain or delays the next scan.
+  session callback, and phrase coordinator state. It also releases the
+  Foundation stage's power/thermal subscription. A `FoundationVisualCueStream`
+  handle gives the consumer explicit non-blocking producer cancellation on every
+  exit; ending iteration alone is insufficient for a retained continuation.
+  System power/thermal changes cancel a silent Foundation stream without waiting
+  for its next snapshot. None of this ephemeral work joins the Auth-transition
+  quiescence drain or delays the next scan. See the
+  [Foundation lifecycle contract](./04-ai-engineering.md#stable-xcode-27-foundation-models-milestone).
 - Advances and cancels bounded background-write ownership through
   `InferenceWriteCoordinator`, without exposing raw write-task handles.
 - Clears the temporary enrichment backoff so a new presentation does not inherit

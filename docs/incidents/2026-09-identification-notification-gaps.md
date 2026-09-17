@@ -92,3 +92,12 @@ or its fixtures.
 - [ ] Release owner determines affected shipped versions and deployment need.
 - [ ] iOS owner verifies the physical-device delivery matrix.
 - [ ] Production impact and closure are assessed from sanitized evidence.
+
+## Dated corrections
+
+On 2026-09-17, the subsequent default-preference change made Discovery alerts
+enabled when no saved value exists, preserving all stored choices. The initial
+disabled default described above is historical. The post-result prompt now
+requires enabled Discovery alerts and missing system authorization, so the new
+default does not bypass the native permission flow. Saved opt-outs suppress the
+automatic prompt. See the current notification contract linked above.

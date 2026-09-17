@@ -347,18 +347,23 @@ its capture integration:
   bridge.
 - **`Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift`**: The
   private `@MainActor` owner for Vision classification, deterministic trait,
-  future Foundation-cue, and phrase-rotation task slots; the bounded derivative
-  and provisional classification; request-body gate; phrase cursor; and
-  application-inactivity pause/resume state.
-  `InferenceLiveSubmissionCoordinator` supplies a typed scan/presentation/
-  durable-generation session plus the attempt and presentation coordinators'
-  authoritative current-session predicate and receives only phrase values. Raw
-  task handles, the derivative, provisional candidates, and mutable phrase state
-  do not escape the coordinator or participate in durable Auth draining. Sibling
-  files under `Inference/LocalAnalysis/` own the classifier/category policy,
-  image builder, deterministic extractor, Foundation
+  Foundation-cue, and phrase-rotation task slots; the bounded derivative and
+  provisional classification; request-body gate; phrase cursor; and
+  application-inactivity pause/resume state. A session-scoped power/thermal
+  subscription cancels the Foundation stage even when no snapshot arrives; the
+  returned stream handle supplies explicit producer cancellation on every
+  consumer exit. `InferenceLiveSubmissionCoordinator` supplies a typed
+  scan/presentation/ durable-generation session plus the attempt and
+  presentation coordinators' authoritative current-session predicate and
+  receives only phrase values. Raw task handles, the derivative, provisional
+  candidates, and mutable phrase state do not escape the coordinator or
+  participate in durable Auth draining. Sibling files under
+  `Inference/LocalAnalysis/` own the classifier/category policy, image builder,
+  deterministic extractor, staged Apple Foundation Models adapter, Foundation
   contract/validation/eligibility, and phrase policy; each remains below 600
-  lines.
+  lines. The [activation checklist](#stable-toolchain-activation-checklist)
+  governs the default-off adapter independently of the existing deterministic
+  observations.
 - **`Inference/Request/InferenceLiveRequestService.swift`**: The immutable,
   initializer-injected live request boundary shared by visual and nonvisual
   flows. It owns image base64 filtering and MIME detection, observation-context
@@ -1698,13 +1703,16 @@ A broad-category phrase series is only activated if all four conditions are met:
 
 Generic, category, and image-trait decks describe only directly visible
 morphology: form, color, contrast, texture, structure, arrangement, proportions,
-and markings. Deterministic traits and future Foundation cues share the bounded
-cue validator: details contain 2–5 words, the rendered pill plus ellipsis is at
-most 36 characters, and duplicate, identity-bearing, certainty, match, taxonomy,
-`-like`, or unsupported text is discarded. Local copy must not imply species
-identity, confidence, a candidate match, a database or record lookup, geographic
-range, or Gemini completion. `ConfidenceBadge` auto-appends `...` to any phrase
-not already ending with one.
+and markings. Deterministic traits and staged Foundation cues share the bounded
+cue validator: details contain 2–5 words, and the rendered pill plus ellipsis is
+at most 36 characters. It rejects duplicates, fixed identity/certainty/match/
+taxonomy vocabulary, Vision candidate tokens, `-like` wording, and unsupported
+characters. This is not a complete detector of names outside the candidate set;
+see the
+[Foundation provider contract](#stable-xcode-27-foundation-models-milestone).
+Local copy must not imply species identity, confidence, a candidate match, a
+database or record lookup, geographic range, or Gemini completion.
+`ConfidenceBadge` auto-appends `...` to any phrase not already ending with one.
 
 The constrained trait kind selects a natural action verb but is never exposed as
 a field label. Render **Analyzing gray and green colors**, for example, rather
@@ -1771,12 +1779,48 @@ from generic copy to deterministic image-trait wording.
 ### Stable Xcode 27 Foundation Models Milestone
 
 The release toolchain remains Xcode 26.6 with an iOS 17.2 deployment target.
-`UnavailableFoundationVisualCueProvider` is therefore the current injected
-implementation; no beta Foundation Models API ships. After stable Xcode 27 is
-available locally and in hosted CI, the provider can be implemented behind iOS
-27 availability without changing the deployment target.
+`AppDIContainer` now injects `AppleFoundationVisualCueProvider`, staged behind
+`FeatureFlag.foundationVisualCues` (production default `false`). Xcode 26.6
+compiles its inert branch; Swift 6.4 / Xcode 27 compiles the Foundation Models
+adapter, which additionally checks iOS 27 availability and model readiness.
+Release builds ignore Debug overrides. No generative cues are
+production-enabled.
 
-This no-op applies only to generative multimodal cues. The injected
+As of September 17, 2026, stable Xcode 27.0 (27A266a) and its iOS 27 SDK are
+installed locally. GitHub's published arm64 `xcode-27` runner manifest (image
+`20260907.0173.1`) still lists beta build `27A5252f`; its preview label alone
+does not prove a stable toolchain. Keep all release/CI pins at 26.6 until every
+hosted macOS lane can verify the selected stable compiler. See the
+[runner announcement](https://github.com/actions/runner-images/issues/14404) and
+[image manifest](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md).
+
+For local acceptance with stable Xcode 27 on an eligible iOS 27 device, enable
+**On-device visual observations** in Debug Settings → Feature Flags before a new
+scan. Unsupported toolchains, devices, and OS versions return no stream. The
+adapter creates one fresh `SystemLanguageModel.default` session with the
+existing 512-pixel image derivative, no tools, and no cloud model. Its
+structured schema permits zero to three cues, constrains the trait kind, and
+budgets 256 response tokens. Instructions request short visible noun phrases and
+explicitly treat text in the image as content rather than instructions. Vision
+labels are used only by the downstream identity denylist, never as model
+instructions. Only complete cue objects are emitted; each original array index
+is emitted once. The detached utility worker has a three-element stream buffer.
+`FoundationVisualCueStream` returns the snapshots with an idempotent,
+non-blocking cancellation callback. The coordinator invokes it on every scope
+exit, including an early return after eligibility loss or the third accepted
+cue; relying on `AsyncThrowingStream.onTermination` alone would leave that
+producer alive. Stream termination also cancels the worker. The existing
+coordinator still validates every phrase and fences publication to the exact
+attempt.
+
+While the Foundation stage is running, the coordinator observes system power and
+thermal notifications through a session-scoped subscription. Losing runtime
+eligibility cancels the consumer and model worker even if the model has not
+produced a snapshot. The subscription ends on completion or cancellation;
+recovering eligibility never restarts model work in the same scan attempt.
+Admission is rechecked inside the scheduled task before requesting a stream.
+
+The release gate applies only to generative multimodal cues. The injected
 `AppleImageVisualTraitExtractor` already supplies image-specific color,
 lighting, contrast, and surface wording on the current toolchain and remains the
 silent fallback when the richer provider is unavailable or ineligible.
@@ -1791,8 +1835,13 @@ The provider contract is deliberately stricter than its UI consumer:
 3. Request at most three broad-to-specific indexed cues, each with a constrained
    trait kind and a generated 2–5-word visible detail.
 4. Buffer cumulative snapshots until each indexed cue object is complete.
-5. Accept only unique rendered phrases of at most 36 characters, rejecting
-   certainty, match, taxonomy, identity/candidate, `-like`, or unsupported text.
+5. Accept only unique rendered phrases of at most 36 characters. Reject the
+   validator's fixed certainty, match, taxonomy, and identity vocabulary, tokens
+   from Vision candidates, `-like` wording, and unsupported characters. The
+   prompt separately prohibits naming the subject. This token filter cannot
+   recognize every common or scientific name absent from Vision's candidates;
+   adversarial image/prompt evaluation remains required before production
+   activation.
 6. Skip or stop the stage when the app is inactive, Low Power Mode is enabled,
    or thermal state is serious/critical.
 
@@ -1826,23 +1875,51 @@ change, not an isolated source edit:
    rather than editing it manually.
 2. Update the `DEVELOPER_DIR` checks, asserted version strings, and Xcode-scoped
    Swift package cache keys in `.github/workflows/ios-build-and-test.yml` and
-   `.github/workflows/ios-startup-safety.yml`.
+   `.github/workflows/ios-startup-safety.yml`. Migrate
+   `.github/workflows/ios-runtime-audit.yml` too, including its environment
+   label, so performance baselines cannot silently mix toolchains. Verify the
+   stable compiler's exact version and build number in every lane, not just the
+   runner label or an Xcode path alias.
 3. Update the matching project guard in `scripts/check-ios-project-resources.sh`
    and workflow-contract expectations in
    `scripts/test-ios-build-and-test-workflow.sh`.
 4. Update the supported-toolchain statements in `docs/CONTRIBUTING.md`,
    `docs/README.md`, the testing strategy, and the codebase map in the same
    change.
-5. Add an iOS 27 availability-gated provider using only
+5. Validate the staged `AppleFoundationVisualCueProvider` using only
    `SystemLanguageModel.default`. Preserve the request-body-sent start gate,
    readiness and runtime checks, structured buffering, cue validation,
-   cancellation fences, and no-Private-Cloud-Compute rule above.
+   cancellation fences, and no-Private-Cloud-Compute rule above. Change
+   `FeatureFlag.foundationVisualCues` to production-enabled only after hosted
+   stable-toolchain and physical-device acceptance are complete.
 6. Format every changed Markdown file with `deno fmt`, then run `make xcodegen`,
    `make validate-ios-project`, the focused AI and Insight suites, the complete
    iOS unit and critical UI suites, and `make test-ios-ci-tooling`. Build the
    iOS 17.2 fallback and iOS 27 path, then verify enabled, disabled,
    model-not-ready, Low Power Mode, and serious/critical thermal states on a
    physical Apple Intelligence-capable device before release acceptance.
+
+The testing strategy owns the
+[exact focused commands, evidence requirements,
+and physical-device acceptance matrix](../development-guides/08-testing-strategy.md#staged-foundation-visual-cue-validation).
+
+The staged adapter's `AppleFoundationVisualCueProviderTests` uses Apple's real
+`GeneratedContent` parser without model inference. It covers unfinished objects,
+complete objects in an unfinished array, malformed fields, index preservation,
+bounded output, and the downstream identity filter. Run that suite on iOS 27;
+the existing `LocalVisualAnalysisTests` owns request-body gating, fallback,
+cancellation (including early consumer exits), stale/hung streams, and lifecycle
+behavior, including power/thermal notifications during a silent stream.
+`FeatureFlagsTests` freezes the default-off gate and Debug-only override
+behavior. These tests do not establish image quality, latency, memory/thermal
+cost, or model cancellation on physical hardware. On September 17, the local
+Debug app/test build passed with stable Xcode 27.0 (27A266a), followed by all 50
+tests in these three suites on an iOS 27 Simulator. Expanded build permissions
+resolved the earlier sandbox preflight and Simulator blockers. Compilation also
+caught and fixed the Debug settings flag's missing icon/color switch cases and
+moved parser-test availability annotations from the suite to each test. See the
+[testing evidence](../development-guides/08-testing-strategy.md#staged-foundation-visual-cue-validation)
+for remaining full-suite, Release, hosted, and physical-device acceptance gaps.
 
 ---
 

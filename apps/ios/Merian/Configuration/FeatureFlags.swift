@@ -8,6 +8,7 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
     case fieldTrips
     case dwcaExports
     case unlimitedFreeScans
+    case foundationVisualCues
 
     var id: String { rawValue }
 
@@ -22,6 +23,10 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
             false
         case .unlimitedFreeScans:
             false
+        case .foundationVisualCues:
+            // Enable only after stable Xcode 27 hosted validation and physical
+            // Apple Intelligence acceptance. Debug Settings can opt in locally.
+            false
         }
     }
 
@@ -33,6 +38,8 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
             "Darwin Core exports"
         case .unlimitedFreeScans:
             "Bypass local scan meter"
+        case .foundationVisualCues:
+            "On-device visual observations"
         }
     }
 
@@ -44,6 +51,8 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
             "Shows the staged scan-export controls. The server gate remains authoritative."
         case .unlimitedFreeScans:
             "Debug-only bypass for the advisory local scan meter."
+        case .foundationVisualCues:
+            "Adds temporary Apple Intelligence image observations on supported iOS 27 devices."
         }
     }
 }

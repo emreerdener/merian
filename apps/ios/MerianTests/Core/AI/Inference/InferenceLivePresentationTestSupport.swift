@@ -22,7 +22,7 @@ struct LivePipelinePresentationTraitExtractor: LocalVisualTraitExtracting {
 struct LivePipelinePresentationCueProvider: FoundationVisualCueProviding {
     func cueSnapshots(
         for _: FoundationVisualCueRequest
-    ) async throws -> AsyncThrowingStream<FoundationVisualCueSnapshot, Error>? {
+    ) async throws -> FoundationVisualCueStream? {
         nil
     }
 }
@@ -50,7 +50,7 @@ actor LivePipelinePresentationCueRecorder: FoundationVisualCueProviding {
 
     func cueSnapshots(
         for _: FoundationVisualCueRequest
-    ) async throws -> AsyncThrowingStream<FoundationVisualCueSnapshot, Error>? {
+    ) async throws -> FoundationVisualCueStream? {
         requestCount += 1
         return nil
     }

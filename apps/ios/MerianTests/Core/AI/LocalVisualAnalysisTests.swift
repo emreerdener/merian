@@ -10,6 +10,12 @@ private struct AlwaysEligibleFoundationCueChecker: FoundationVisualCueEligibilit
     func isEligibleForVisualCues() -> Bool { true }
 }
 
+@MainActor
+private final class MutableFoundationCueEligibility: FoundationVisualCueEligibilityChecking {
+    var isEligible = true
+    func isEligibleForVisualCues() -> Bool { isEligible }
+}
+
 private struct StubLocalVisualTraitExtractor: LocalVisualTraitExtracting {
     let cues: [FoundationVisualCue]
 
@@ -129,22 +135,26 @@ private actor ControlledFoundationVisualCueProvider: FoundationVisualCueProvidin
         AsyncThrowingStream<FoundationVisualCueSnapshot, Error>.Continuation?
     private var started = false
     private var terminated = false
+    private(set) var requestCount = 0
 
     func cueSnapshots(
         for _: FoundationVisualCueRequest
-    ) async throws -> AsyncThrowingStream<FoundationVisualCueSnapshot, Error>? {
-        var streamContinuation:
-            AsyncThrowingStream<FoundationVisualCueSnapshot, Error>.Continuation?
-        let stream = AsyncThrowingStream<FoundationVisualCueSnapshot, Error> { continuation in
-            streamContinuation = continuation
-            continuation.onTermination = { @Sendable _ in
-                Task { await self.markTerminated() }
-            }
+    ) async throws -> FoundationVisualCueStream? {
+        let (stream, streamContinuation) = AsyncThrowingStream<
+            FoundationVisualCueSnapshot, Error
+        >.makeStream()
+        streamContinuation.onTermination = { @Sendable _ in
+            Task { await self.markTerminated() }
         }
         continuation = streamContinuation
         started = true
-        return stream
+        requestCount += 1
+        return FoundationVisualCueStream(snapshots: stream) {
+            streamContinuation.finish()
+        }
     }
+
+    var isTerminated: Bool { terminated }
 
     func yield(_ snapshot: FoundationVisualCueSnapshot) {
         continuation?.yield(snapshot)
@@ -180,7 +190,7 @@ private struct ThrowingFoundationVisualCueProvider: FoundationVisualCueProviding
 
     func cueSnapshots(
         for _: FoundationVisualCueRequest
-    ) async throws -> AsyncThrowingStream<FoundationVisualCueSnapshot, Error>? {
+    ) async throws -> FoundationVisualCueStream? {
         throw ExpectedError()
     }
 }
@@ -1148,6 +1158,105 @@ struct LocalVisualAnalysisTests {
         engine.cancelActiveRequest()
     }
 
+    @Test func eligibilityLossAfterDeliveryCancelsProducerWithoutFinishingIt() async throws {
+        let provider = ControlledFoundationVisualCueProvider()
+        let eligibility = MutableFoundationCueEligibility()
+        let engine = InferenceEngine(
+            foundationVisualCueProvider: provider,
+            foundationVisualCueEligibilityChecker: eligibility
+        )
+        defer { engine.cancelActiveRequest() }
+        engine.debugStartFoundationCueStream(
+            image: try makeImage(),
+            classification: VisionSubjectClassification(category: nil, candidates: [])
+        )
+        await provider.waitUntilStarted()
+        eligibility.isEligible = false
+        await provider.yield(FoundationVisualCueSnapshot(
+            index: 0, kind: .shape, detail: "rounded edges", isComplete: true
+        ))
+        await engine.debugWaitForFoundationVisualCueStream()
+        try await expectFoundationTermination(provider)
+        #expect(engine.debugAcceptedFoundationPhraseCount == 0)
+    }
+
+    @Test func threeAcceptedCuesCancelProducerWithoutWaitingForItsEnd() async throws {
+        let provider = ControlledFoundationVisualCueProvider()
+        let engine = InferenceEngine(
+            foundationVisualCueProvider: provider,
+            foundationVisualCueEligibilityChecker: AlwaysEligibleFoundationCueChecker()
+        )
+        defer { engine.cancelActiveRequest() }
+        engine.debugStartFoundationCueStream(
+            image: try makeImage(),
+            classification: VisionSubjectClassification(category: nil, candidates: [])
+        )
+        await provider.waitUntilStarted()
+        for (index, cue) in [
+            FoundationVisualCue(kind: .shape, detail: "rounded edges"),
+            FoundationVisualCue(kind: .marking, detail: "dark bands"),
+            FoundationVisualCue(kind: .arrangement, detail: "radial lines")
+        ].enumerated() {
+            await provider.yield(FoundationVisualCueSnapshot(
+                index: index, kind: cue.kind, detail: cue.detail, isComplete: true
+            ))
+        }
+        await engine.debugWaitForFoundationVisualCueStream()
+        try await expectFoundationTermination(provider)
+        #expect(engine.debugAcceptedFoundationPhraseCount == 3)
+    }
+
+    @Test(arguments: [
+        ProcessInfo.thermalStateDidChangeNotification,
+        Notification.Name.NSProcessInfoPowerStateDidChange
+    ])
+    func runtimeChangesCancelSilentFoundationStream(_ name: Notification.Name) async throws {
+        let provider = ControlledFoundationVisualCueProvider()
+        let eligibility = MutableFoundationCueEligibility()
+        let notifications = NotificationCenter()
+        let coordinator = InferenceLocalAnalysisCoordinator(
+            dependencies: .init(
+                classifier: ControlledVisionSubjectClassifier(
+                    result: VisionSubjectClassification(category: nil, candidates: [])
+                ),
+                traitExtractor: StubLocalVisualTraitExtractor(cues: []),
+                foundationCueProvider: provider,
+                foundationCueEligibilityChecker: eligibility,
+                phraseSleeper: ControlledScanningPhraseClock(),
+                startFeedback: {}
+            ),
+            notificationCenter: notifications
+        )
+        defer { coordinator.cancel() }
+        let session = InferenceLocalAnalysisCoordinator.Session(
+            scanId: "runtime-change-scan",
+            attemptGeneration: UUID(),
+            foregroundGeneration: nil
+        )
+        var phrases: [String] = []
+        coordinator.startDebugFoundationCueStream(
+            image: try makeImage(),
+            classification: VisionSubjectClassification(category: nil, candidates: []),
+            session: session,
+            isCurrent: { $0 == session },
+            publishPhrase: { phrases.append($0) }
+        )
+        await provider.waitUntilStarted()
+        let fallback = phrases
+        eligibility.isEligible = false
+        // No snapshot or provider.finish(): the runtime event must interrupt
+        // a model that is waiting indefinitely before producing its first cue.
+        notifications.post(name: name, object: nil)
+        try await expectFoundationTermination(provider)
+        #expect(coordinator.acceptedFoundationPhraseCount == 0)
+        #expect(phrases == fallback)
+
+        eligibility.isEligible = true
+        notifications.post(name: name, object: nil)
+        coordinator.markInferenceRequestBodySent(for: session)
+        #expect(await provider.requestCount == 1)
+    }
+
     @Test func invalidAndThrowingFoundationStreamsRemainSilent() async throws {
         let provider = ControlledFoundationVisualCueProvider()
         let engine = InferenceEngine(
@@ -1397,6 +1506,16 @@ struct LocalVisualAnalysisTests {
         #expect(engine.scanningPhaseText == "Analyzing subject")
         engine.finishAuthTransitionWriteFence()
         engine.cancelActiveRequest()
+    }
+
+    private func expectFoundationTermination(
+        _ provider: ControlledFoundationVisualCueProvider
+    ) async throws {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while !(await provider.isTerminated), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        #expect(await provider.isTerminated)
     }
 
     private func makeImage() throws -> ImageDownsampler.SendableImage {

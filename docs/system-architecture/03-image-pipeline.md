@@ -121,13 +121,17 @@ first visual item's accepted focus region. The local-analysis coordinator passes
 those bounded inputs to `LocalVisualAnalysisImageBuilder`. The builder
 downsamples that square image to at most 512 px, then crops the derivative to
 the already-padded top-left focus rectangle when one exists. An absent or
-invalid region keeps the full bounded square. Vision and the future on-device
-Foundation Models provider reuse this single derivative. The current
-`AppleImageVisualTraitExtractor` also samples it at 32×32 pixels to derive five
-bounded dominant-color, saturation-distribution, lighting-distribution,
-light-contrast, and surface-detail cues; no additional capture is decoded for
-local analysis. User-facing wording describes the visible result rather than the
-extractor's numeric buckets.
+invalid region keeps the full bounded square. Vision and the staged
+`AppleFoundationVisualCueProvider` reuse this single derivative. The Foundation
+adapter is default-off, with Debug opt-in for eligible iOS 27 devices built with
+stable Xcode 27; it sends the derivative only to `SystemLanguageModel.default`
+on the device and adds no image to the remote request. See the
+[activation contract](./04-ai-engineering.md#stable-xcode-27-foundation-models-milestone).
+The current `AppleImageVisualTraitExtractor` also samples it at 32×32 pixels to
+derive five bounded dominant-color, saturation-distribution,
+lighting-distribution, light-contrast, and surface-detail cues; no additional
+capture is decoded for local analysis. User-facing wording describes the visible
+result rather than the extractor's numeric buckets.
 
 This derivative is ephemeral, privately owned by the coordinator, and
 independent of the remote image pipeline. It does not replace, crop, reorder, or

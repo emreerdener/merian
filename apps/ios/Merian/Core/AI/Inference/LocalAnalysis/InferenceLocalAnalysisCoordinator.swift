@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// Owns the ephemeral on-device analysis session that enriches foreground
@@ -29,11 +30,13 @@ final class InferenceLocalAnalysisCoordinator {
     }
 
     private let dependencies: Dependencies
+    private let notificationCenter: NotificationCenter
 
     private var activeContext: SessionContext?
     private var classificationTask: Task<Void, Never>?
     private var traitTask: Task<Void, Never>?
     private var foundationCueTask: Task<Void, Never>?
+    private var foundationRuntimeObservation: AnyCancellable?
     private var phraseRotationTask: Task<Void, Never>?
     private var analysisImage: ImageDownsampler.SendableImage?
     private var visionClassification: VisionSubjectClassification?
@@ -46,8 +49,12 @@ final class InferenceLocalAnalysisCoordinator {
     private var progressiveAnalyzingStep = 0
     #endif
 
-    init(dependencies: Dependencies) {
+    init(
+        dependencies: Dependencies,
+        notificationCenter: NotificationCenter = .default
+    ) {
         self.dependencies = dependencies
+        self.notificationCenter = notificationCenter
     }
 
     /// Starts one local visual session. Image preparation and model work remain
@@ -234,17 +241,29 @@ final class InferenceLocalAnalysisCoordinator {
         let eligibilityChecker =
             dependencies.foundationCueEligibilityChecker
 
+        observeFoundationRuntimeChanges(session: session)
         foundationCueTask = Task(priority: .utility) { [weak self] in
+            defer {
+                if self?.activeContext?.session == session {
+                    self?.foundationRuntimeObservation = nil
+                }
+            }
             do {
-                guard let snapshots = try await provider.cueSnapshots(
+                guard !Task.isCancelled,
+                      self?.isSessionCurrent(session) == true,
+                      eligibilityChecker.isEligibleForVisualCues() else {
+                    return
+                }
+                guard let stream = try await provider.cueSnapshots(
                     for: request
                 ) else {
                     return
                 }
+                defer { stream.cancel() }
                 var buffer = FoundationVisualCueBuffer()
                 var acceptedCount = 0
 
-                for try await snapshot in snapshots {
+                for try await snapshot in stream.snapshots {
                     guard !Task.isCancelled,
                           let self,
                           self.isSessionCurrent(session),
@@ -277,6 +296,24 @@ final class InferenceLocalAnalysisCoordinator {
                 // user-visible error.
             }
         }
+    }
+
+    private func observeFoundationRuntimeChanges(session: Session) {
+        foundationRuntimeObservation = notificationCenter
+            .publisher(for: ProcessInfo.thermalStateDidChangeNotification)
+            .merge(with: notificationCenter.publisher(for: .NSProcessInfoPowerStateDidChange))
+            .sinkOnMainActor { [weak self] _ in
+                guard let self,
+                      self.activeContext?.session == session,
+                      !self.dependencies.foundationCueEligibilityChecker
+                          .isEligibleForVisualCues() else {
+                    return
+                }
+                // Cancel even if no model snapshot ever arrives. Keep the task
+                // handle as a one-shot admission fence until this attempt ends.
+                self.foundationCueTask?.cancel()
+                self.foundationRuntimeObservation = nil
+            }
     }
 
     private func startPhraseRotation() {
@@ -315,6 +352,7 @@ final class InferenceLocalAnalysisCoordinator {
         classificationTask?.cancel()
         traitTask?.cancel()
         foundationCueTask?.cancel()
+        foundationRuntimeObservation = nil
         phraseRotationTask?.cancel()
         classificationTask = nil
         traitTask = nil

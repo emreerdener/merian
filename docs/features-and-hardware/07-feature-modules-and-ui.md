@@ -1840,7 +1840,7 @@ dependency composition.
   `InsightSheetView` entirely while it is still in the `AnalyzingContentView`
   processing state. Every Insight dismissal route invokes
   `InferenceEngine.dismissAnalyzingPresentation()`, which fences Vision,
-  deterministic trait extraction, future Foundation work, and phrase cadence,
+  deterministic trait extraction, staged Foundation work, and phrase cadence,
   then clears presentation-owned contextual copy and in-memory media. The
   already-durable Gemini request, upload, persistence, and queue recovery remain
   active; dismissal never creates a second queue insertion or inference request.
@@ -1878,29 +1878,31 @@ dependency composition.
   bucket labels such as **moderate** and **balanced**. `AppDIContainer` injects
   the live classifier, deterministic trait extractor, Foundation visual-cue
   seam, eligibility provider, and light-impact start feedback. Direct/default
-  engine instances use inert start feedback. The Xcode 26.6 Foundation provider
-  is intentionally a no-op, but deterministic image traits are active; after
-  stable Xcode 27, an iOS 27 availability-gated on-device provider may start
-  only after the Gemini request body is sent and local Vision completes. Partial
-  or unsafe cue snapshots never reach SwiftUI. Scan ID, presentation-attempt,
-  and durable foreground-generation fences discard stale completions. Result
-  arrival, dismissal, replacement, queue handoff, Auth transition, and failure
-  fence local producers without joining network or persistence work. Consecutive
-  inactive/background callbacks are idempotent: the coordinator stops local work
-  once while retaining the exact visual owner, current phrase, and at most one
-  pending cadence resume. Reactivation resumes only that visual cadence and
-  never restarts Vision, deterministic traits, or Foundation work. An exact
-  active visual queue handoff requires scan-and-attempt ownership and retains
-  validated phrase order and live carousel media. Prepared visual handoff has
-  generic copy without media, while audio and Describe remain nonvisual. Durable
-  save and connectivity changes do not restart the visual cursor. The exact
-  visual handoff also keeps the same selected carousel page, focus state, and
-  time-derived scan sweep through pending, uploading, staged, and inferencing
-  queue states while none requires attention; ordinary queued scans animate only
-  while inferencing. Its queued trash action fades into the existing trailing
-  toolbar slot once durable ownership is bound. The app enforces an automatic
-  multi-capture rapid-capture loop via `ActiveScanToolbar`. This isolated
-  `.ultraThinMaterial` glassmorphic capsule swaps views using
+  engine instances use inert start feedback. `AppleFoundationVisualCueProvider`
+  is staged behind the default-off `foundationVisualCues` release flag, with a
+  Debug opt-in for Swift 6.4 / iOS 27 device acceptance and an inert Xcode 26.6
+  branch. It starts only after the Gemini request body is sent and local Vision
+  completes. Production activation awaits stable hosted Xcode 27 validation and
+  physical-device acceptance. Partial or unsafe cue snapshots never reach
+  SwiftUI. Scan ID, presentation-attempt, and durable foreground-generation
+  fences discard stale completions. Result arrival, dismissal, replacement,
+  queue handoff, Auth transition, and failure fence local producers without
+  joining network or persistence work. Consecutive inactive/background callbacks
+  are idempotent: the coordinator stops local work once while retaining the
+  exact visual owner, current phrase, and at most one pending cadence resume.
+  Reactivation resumes only that visual cadence and never restarts Vision,
+  deterministic traits, or Foundation work. An exact active visual queue handoff
+  requires scan-and-attempt ownership and retains validated phrase order and
+  live carousel media. Prepared visual handoff has generic copy without media,
+  while audio and Describe remain nonvisual. Durable save and connectivity
+  changes do not restart the visual cursor. The exact visual handoff also keeps
+  the same selected carousel page, focus state, and time-derived scan sweep
+  through pending, uploading, staged, and inferencing queue states while none
+  requires attention; ordinary queued scans animate only while inferencing. Its
+  queued trash action fades into the existing trailing toolbar slot once durable
+  ownership is bound. The app enforces an automatic multi-capture rapid-capture
+  loop via `ActiveScanToolbar`. This isolated `.ultraThinMaterial` glassmorphic
+  capsule swaps views using
   `.transition(.move(edge: .bottom).combined(with: .opacity))` when thumbnails
   are generated. Video thumbnails carry a play badge and open
   `StagedVideoPreviewModal`, a full-screen `VideoPlayer` preview with top-bar

@@ -112,7 +112,7 @@ import SwiftUI
     private init(bindGlobalManagers: Bool) {
         let visionSubjectClassifier = AppleVisionSubjectClassifier()
         let localVisualTraitExtractor = AppleImageVisualTraitExtractor()
-        let foundationVisualCueProvider = UnavailableFoundationVisualCueProvider()
+        let foundationVisualCueProvider = AppleFoundationVisualCueProvider()
         let foundationVisualCueEligibilityChecker =
             SystemFoundationCueEligibility()
         let liveInferenceRequestService = InferenceLiveRequestService.live

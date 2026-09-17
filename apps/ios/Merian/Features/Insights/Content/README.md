@@ -100,13 +100,18 @@ Foreground visual analysis begins with morphology-only generic copy. A
 qualifying Apple Vision category replaces it immediately. The current toolchain
 then publishes five validated, image-specific dominant-color, saturation,
 lighting, light-contrast, and surface-detail cues from the bounded local
-derivative on the shared 2.3-second phrase clock. A future eligible Foundation
-Models provider may replace that deterministic trait deck with richer complete
-cues. Source priority is monotonic, so generic or category text cannot return
-after more-specific context arrives. Every currently available phrase appears
-before the active deck loops to its first phrase. Partial streamed cue objects
-never reach the view. The pill never claims a species, confidence, candidate
-match, records or range lookup, or completed Gemini result. Audio-only,
+derivative on the shared 2.3-second phrase clock. The staged
+`AppleFoundationVisualCueProvider` can replace that deck with richer complete
+cues on eligible iOS 27 devices when the Debug **On-device visual observations**
+flag is enabled. Production remains default-off; see the
+[activation contract](../../../../../../docs/system-architecture/04-ai-engineering.md#stable-xcode-27-foundation-models-milestone).
+Source priority is monotonic, so generic or category text cannot return after
+more-specific context arrives. Every currently available phrase appears before
+the active deck loops to its first phrase. Partial streamed cue objects never
+reach the view. Copy must not claim a species, confidence, candidate match,
+records or range lookup, or completed Gemini result. The shared token filter and
+prompt constrain generated copy, but names absent from Vision's candidates still
+require adversarial evaluation before production activation. Audio-only,
 Describe, and queued processing keep their existing cloud-analysis phrase decks.
 
 Trait cues render as natural verb-led copy such as **Analyzing gray and green

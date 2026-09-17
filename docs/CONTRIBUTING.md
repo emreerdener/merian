@@ -99,7 +99,13 @@ passed.
    [compiled CI and supported host baseline](https://developer.apple.com/xcode/system-requirements/).
    The app deploys to iOS 17.2+, but the codebase relies on Swift 6-era
    concurrency diagnostics and modern SDK APIs such as
-   `AVCaptureEventInteraction`.
+   `AVCaptureEventInteraction`. The staged on-device visual-cue adapter requires
+   stable Xcode 27 / Swift 6.4 and an iOS 27 device for local acceptance; it is
+   default-off and compiles an inert branch with Xcode 26.6. Enable **On-device
+   visual observations** in Debug Settings → Feature Flags to evaluate it. Keep
+   production toolchain pins at 26.6 until the
+   [hosted activation checklist](./system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist)
+   is satisfied.
 2. **Supabase CLI**: For testing edge functions locally, you will need the
    Supabase CLI installed.
 3. **Project Generation**: `project.yml` is the source of truth.

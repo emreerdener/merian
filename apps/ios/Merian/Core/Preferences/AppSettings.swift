@@ -163,7 +163,7 @@ final class AppSettings {
             UserDefaultsKeys.isExpeditionModeActive: false,
             UserDefaultsKeys.isHapticsEnabled: true,
             UserDefaultsKeys.hasUnseenScan: false,
-            UserDefaultsKeys.isPushNotificationsEnabled: false,
+            UserDefaultsKeys.isPushNotificationsEnabled: true,
             UserDefaultsKeys.hasPromptedForNotificationsPostIdent: false,
             UserDefaultsKeys.isAchievementNotificationsEnabled: true,
             UserDefaultsKeys.isExploreNotificationsEnabled: true,

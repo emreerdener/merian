@@ -1406,14 +1406,16 @@ live services and effect adapters.
 `Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift` privately owns
 the classification, deterministic-trait, Foundation-cue, and phrase-clock task
 slots plus the bounded derivative, provisional classification, phrase cursor,
-request-body gate, and inactivity pause/resume state. The engine supplies an
-exact-session predicate and receives phrase values; raw handles and mutable
-local-analysis state do not escape the coordinator. Its sibling files separate
-the Vision classifier/category policy, bounded image builder, deterministic
-pixel-trait extractor, Foundation cue contract and validation, runtime
-eligibility, and phrase coordination. `AppDIContainer` owns the live
-implementations and start feedback; direct/default engine instances use inert
-feedback. `Inference/Request/InferenceLiveRequestService.swift` is the injected
+request-body gate, inactivity pause/resume state, and the Foundation stage's
+power/thermal subscription and explicit stream-cancellation lifetime. The engine
+supplies an exact-session predicate and receives phrase values; raw handles and
+mutable local-analysis state do not escape the coordinator. Its sibling files
+separate the Vision classifier/category policy, bounded image builder,
+deterministic pixel-trait extractor, staged Apple Foundation Models adapter,
+Foundation cue contract and validation, runtime eligibility, and phrase
+coordination. `AppDIContainer` owns the live implementations and start feedback;
+direct/default engine instances use inert feedback.
+`Inference/Request/InferenceLiveRequestService.swift` is the injected
 visual/nonvisual request boundary. It owns base64 filtering, MIME selection,
 observation-context JSON, descriptor forwarding, staged-video upload, and the
 single provider invocation, while the pipeline coordinator supplies exact-
@@ -1497,8 +1499,12 @@ queued scans animate only while inferencing. The trailing Insight toolbar slot
 stays mounted and fades in its queued delete action only after the durable ID is
 bound. The same visual cursor survives save and connectivity changes, while
 dismissal or Auth removes contextual phrase/media exposure without blocking
-durable result recovery. Generative multimodal cues remain the stable-Xcode-27
-milestone.
+durable result recovery. `AppleFoundationVisualCueProvider` is implemented for
+Swift 6.4 / iOS 27 behind the default-off `foundationVisualCues` release flag.
+Debug Settings can opt in to on-device visual observations for acceptance; older
+toolchains and OS versions silently retain deterministic cues. Production
+activation still requires stable Xcode 27 on all hosted lanes and
+physical-device acceptance under the canonical AI engineering checklist.
 
 Gemini remains the sole authority for identification and completed Insight
 content. Local classifications and cue text are never persisted, logged,

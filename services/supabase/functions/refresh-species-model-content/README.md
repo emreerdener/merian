@@ -79,6 +79,15 @@ generation and same-genus fan-out for that transaction; the later explicit
 subject-to-candidate write is the only relation created. Ordinary dictionary
 inserts keep the established enrichment and same-genus behavior.
 
+Repeated valid lookalike results still count as persisted. The persistence RPC
+compares proposed taxonomy against the locked candidate row, updates eligible
+unreviewed relationships only when values differ, and updates the subject only
+when its compatibility array or attempt flag changes. Unchanged dictionary and
+relationship rows retain their update timestamps. Successful refreshes retaining
+or materializing an unreviewed model relationship still refresh non-curated
+provenance independently of physical row changes; reviewed decisions and curated
+provenance remain protected.
+
 ## Rollout and Recovery
 
 Apply the database migration before deploying the updated worker. The migration
@@ -103,6 +112,15 @@ deno test --frozen --config services/supabase/functions/deno.json --allow-env --
 make validate-supabase-migrations
 make test-supabase-privileged-routines
 ```
+
+The separate forward migration
+`20260917144804_avoid_unchanged_lookalike_writes.sql` preserves the existing RPC
+signature and requires no worker or client change. The replay benchmark and
+reciprocal concurrency test in `_tests/backendWriteEfficiencyDb.test.ts` require
+an explicitly configured loopback `SUPABASE_DB_TEST_URL`; without one they are
+ignored, not passing database evidence. See the deployment runbook's
+[measurement procedure](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#idle-dispatch-and-lookalike-write-efficiency)
+for the full validation and before/after commands.
 
 The last target starts a disposable local Supabase catalog and discovers
 `services/supabase/tests/species_lookalike_recovery.sql` with every other pgTAP

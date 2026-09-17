@@ -733,17 +733,20 @@ For a foreground visual scan, that single text binding progresses from a
 morphology-only generic phrase to an immediate qualifying Vision category and,
 on the current toolchain, five complete validated dominant-color, saturation,
 lighting, light-contrast, and surface-detail cues derived from the bounded image
-at the next phrase tick. An eligible future Foundation provider may replace that
-deterministic deck with richer visible traits. Specificity never moves backward.
-Visible traits use natural verb-led copy such as **Analyzing gray and green
-colors**, **Reviewing softly colored areas**, or **Observing light and shadow
-areas**, not `Color: description` labels or internal **moderate**/**balanced**
-buckets. The badge keeps an opacity-only label transition and intrinsic native
-Button bounds across these width changes. Every foreground visual label in the
-active deck appears before that deck loops to its first phrase. Do not
-reintroduce translated label geometry or a second foreground scanning component.
-Audio-only and Describe analysis, plus active queued inference, retain their
-existing cloud-analysis phrase sources.
+at the next phrase tick. The staged `AppleFoundationVisualCueProvider` can
+replace that deck with richer visible traits in an eligible iOS 27 Debug build
+when **On-device visual observations** is enabled in Feature Flags. Production
+remains default-off pending the
+[activation checklist](../system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist).
+Specificity never moves backward. Visible traits use natural verb-led copy such
+as **Analyzing gray and green colors**, **Reviewing softly colored areas**, or
+**Observing light and shadow areas**, not `Color: description` labels or
+internal **moderate**/**balanced** buckets. The badge keeps an opacity-only
+label transition and intrinsic native Button bounds across these width changes.
+Every foreground visual label in the active deck appears before that deck loops
+to its first phrase. Do not reintroduce translated label geometry or a second
+foreground scanning component. Audio-only and Describe analysis, plus active
+queued inference, retain their existing cloud-analysis phrase sources.
 
 Queued lifecycle polling and the exact one-second/350-millisecond task timing
 remain in `QueuedContentView`. `QueuedContentViewModel` owns retry single-flight

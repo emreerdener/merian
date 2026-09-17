@@ -20,11 +20,26 @@ struct FeatureFlagsTests {
         #expect(FeatureFlag.allCases == [
             .fieldTrips,
             .dwcaExports,
-            .unlimitedFreeScans
+            .unlimitedFreeScans,
+            .foundationVisualCues
         ])
         #expect(FeatureFlag.fieldTrips.defaultValue)
         #expect(!FeatureFlag.dwcaExports.defaultValue)
         #expect(!FeatureFlag.unlimitedFreeScans.defaultValue)
+        #expect(!FeatureFlag.foundationVisualCues.defaultValue)
+    }
+
+    @Test func foundationCuesRequireExplicitDebugOptInBeforeReleaseAcceptance() throws {
+        let suiteName = "FoundationCueGateTests.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        #expect(!FeatureFlags.isEnabled(.foundationVisualCues, userDefaults: userDefaults))
+        userDefaults.set(true, forKey: "Merian.DebugFeatureFlag.foundationVisualCues")
+        #if DEBUG
+        #expect(FeatureFlags.isEnabled(.foundationVisualCues, userDefaults: userDefaults))
+        #else
+        #expect(!FeatureFlags.isEnabled(.foundationVisualCues, userDefaults: userDefaults))
+        #endif
     }
 
     @Test func dwcaExportsRemainStagedUntilTheExplicitReleaseChange() throws {
@@ -46,7 +61,8 @@ struct FeatureFlagsTests {
         let installedKeys: [(flag: FeatureFlag, key: String)] = [
             (.fieldTrips, "Merian.DebugFeatureFlag.fieldTrips"),
             (.dwcaExports, "Merian.DebugFeatureFlag.dwcaExports"),
-            (.unlimitedFreeScans, "Merian.DebugFeatureFlag.unlimitedFreeScans")
+            (.unlimitedFreeScans, "Merian.DebugFeatureFlag.unlimitedFreeScans"),
+            (.foundationVisualCues, "Merian.DebugFeatureFlag.foundationVisualCues")
         ]
 
         for installedKey in installedKeys {

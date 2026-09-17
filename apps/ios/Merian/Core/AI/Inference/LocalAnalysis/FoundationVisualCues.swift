@@ -55,21 +55,27 @@ struct FoundationVisualCueRequest: Sendable {
     let forbiddenIdentityTerms: Set<String>
 }
 
+struct FoundationVisualCueStream: Sendable {
+    let snapshots: AsyncThrowingStream<FoundationVisualCueSnapshot, Error>
+    /// Idempotent and non-blocking. Consumers must cancel on every scope exit,
+    /// including early return, which AsyncThrowingStream does not terminate.
+    let cancel: @Sendable () -> Void
+}
+
 protocol FoundationVisualCueProviding: Sendable {
     /// Stable iOS 27 implementations must use `SystemLanguageModel.default`,
     /// return nil when its on-device model is unavailable or not ready, and
     /// must never opt into a Private Cloud Compute fallback.
     func cueSnapshots(
         for request: FoundationVisualCueRequest
-    ) async throws -> AsyncThrowingStream<FoundationVisualCueSnapshot, Error>?
+    ) async throws -> FoundationVisualCueStream?
 }
 
-/// Xcode 26.6 has no stable multimodal Foundation Models API. AppDI owns this
-/// no-op provider until the release toolchain moves to stable Xcode 27.
+/// Inert default for engines constructed outside production dependency assembly.
 struct UnavailableFoundationVisualCueProvider: FoundationVisualCueProviding {
     func cueSnapshots(
         for _: FoundationVisualCueRequest
-    ) async throws -> AsyncThrowingStream<FoundationVisualCueSnapshot, Error>? {
+    ) async throws -> FoundationVisualCueStream? {
         nil
     }
 }

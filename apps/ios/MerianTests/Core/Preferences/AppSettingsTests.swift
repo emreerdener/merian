@@ -5,6 +5,32 @@ import Testing
 @MainActor
 @Suite("App Settings")
 struct AppSettingsTests {
+    @Test func testDiscoveryAlertsDefaultOnWithoutOverwritingStoredChoices() throws {
+        for savedChoice in [nil, false, true] as [Bool?] {
+            let suiteName = "merian.tests.discovery-defaults.\(UUID().uuidString)"
+            let defaults = try #require(UserDefaults(suiteName: suiteName))
+            defer { defaults.removePersistentDomain(forName: suiteName) }
+            if let savedChoice {
+                defaults.set(savedChoice, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
+            }
+
+            let settings = AppSettings(userDefaults: defaults, observeExternalChanges: false)
+            #expect(settings.isPushNotificationsEnabled == (savedChoice ?? true))
+            #expect(!defaults.bool(forKey: UserDefaultsKeys.hasPushNotificationAuthorization))
+            #expect(
+                defaults.persistentDomain(forName: suiteName)?[
+                    UserDefaultsKeys.isPushNotificationsEnabled
+                ] as? Bool == savedChoice
+            )
+
+            settings.isPushNotificationsEnabled = false
+            let restored = AppSettings(userDefaults: defaults, observeExternalChanges: false)
+            #expect(!restored.isPushNotificationsEnabled)
+            restored.refreshFromDefaults()
+            #expect(!restored.isPushNotificationsEnabled)
+        }
+    }
+
     @Test func testAppSettingsOwnsTransientUIFlags() {
         let suiteName = "merian.tests.app-settings.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard

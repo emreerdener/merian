@@ -286,10 +286,11 @@ This README maps that contract to native source and test ownership.
 - `Inference/LocalAnalysis/InferenceLocalAnalysisCoordinator.swift` privately
   owns the classification, deterministic-trait, Foundation-cue, and phrase-
   rotation task slots; bounded derivative and provisional classification;
-  request-body gate; phrase cursor; and inactivity pause/resume state. The
-  engine supplies the exact visual-session predicate and receives presentation
-  phrase values. Local task handles and mutable lifecycle state do not escape
-  the coordinator or participate in durable Auth quiescence.
+  request-body gate; phrase cursor; inactivity pause/resume state; and the
+  Foundation stage's power/thermal subscription and explicit stream-cancellation
+  lifetime. The engine supplies the exact visual-session predicate and receives
+  presentation phrase values. Local task handles and mutable lifecycle state do
+  not escape the coordinator or participate in durable Auth quiescence.
 - `Inference/Request/InferenceLiveRequestService.swift` is the initializer-
   injected boundary for visual/nonvisual live request preparation and provider
   dispatch. It owns base64 filtering, image MIME detection, observation-context
@@ -521,12 +522,12 @@ its first phrase. When all five deterministic cues qualify, that deck spans 11.5
 seconds before any image-trait wording repeats. Newly accepted phrases join the
 current round before a wrap. Source priority is generic → Vision category →
 deterministic image trait → Foundation Models cue, so context never regresses
-and a future richer cue can replace the deterministic deck. Pixel-derived traits
-use the same validator as Foundation cues and are limited to complete, unique,
-2–5-word details whose rendered pill text fits within 36 characters. All local
-phrases describe only visible form, color, tone, contrast, texture, arrangement,
-markings, and proportions; they do not imply an identity, confidence, record
-lookup, geographic range, or Gemini completion.
+and an eligible staged Foundation cue can replace the deterministic deck.
+Pixel-derived traits use the same validator as Foundation cues and are limited
+to complete, unique, 2–5-word details whose rendered pill text fits within 36
+characters. All local phrases describe only visible form, color, tone, contrast,
+texture, arrangement, markings, and proportions; they do not imply an identity,
+confidence, record lookup, geographic range, or Gemini completion.
 
 Image-trait pills use natural verb-led sentences rather than labeled fields: for
 example, **Analyzing gray and green colors**, **Reviewing softly colored
@@ -577,31 +578,49 @@ inherit a visual phrase or image.
 
 ### Foundation Models milestone
 
-The current Xcode 26.6 release toolchain injects the deterministic
-`AppleImageVisualTraitExtractor` and `UnavailableFoundationVisualCueProvider`.
-Five image-specific dominant-color, saturation, lighting, light-contrast, and
-surface-detail cues are therefore available now, but generative multimodal
-wording is not; there is no beta API or cloud fallback.
-`FoundationVisualCueProviding` is the stable integration seam for the multimodal
-API after stable Xcode 27 is installed locally and in hosted CI. That provider
-must use only `SystemLanguageModel.default`, start only after both the Identify
-request body's completion callback and local Vision completion, and return at
-most three indexed structured snapshots with a constrained trait kind and
-2–5-word visible detail.
+AppDI injects `AppleImageVisualTraitExtractor` and the staged
+`AppleFoundationVisualCueProvider`. Five deterministic dominant-color,
+saturation, lighting, light-contrast, and surface-detail cues remain active. The
+generative provider is guarded by `FeatureFlag.foundationVisualCues`, whose
+production default is false; Release ignores local overrides. Debug Settings →
+Feature Flags → **On-device visual observations** enables local acceptance on an
+eligible iOS 27 device built with stable Xcode 27.
+
+The Swift 6.4 branch uses only `SystemLanguageModel.default`, a fresh image-only
+session, a bounded structured schema and 256 response tokens. Older compilers
+and OS versions return no stream. It emits each completed cue object once,
+preserving its array index while later objects are incomplete. The returned
+`FoundationVisualCueStream` owns an explicit cancellation callback; the
+coordinator cancels it on every scope exit, including early return after
+eligibility loss. Stream termination also cancels the detached utility worker.
+`FoundationVisualCueProviding` remains the integration seam. Its coordinator
+starts work only after both Identify's request-body completion callback and
+local Vision completion, and accepts at most three indexed cues with a
+constrained trait kind and 2–5-word detail.
+
+The coordinator observes power and thermal notifications for the active
+Foundation session. Losing eligibility cancels even a silent model stream;
+subscriptions end with the stage, and recovered eligibility does not restart it
+within the same attempt. Its injectable notification center keeps these
+lifecycle regressions independent of process-global notifications.
 
 The engine buffers partial snapshots until the indexed object is complete. It
-silently rejects duplicates, identity/candidate language, certainty or match
-claims, taxonomy terms, `-like` wording, unsupported characters, and rendered
-pill labels over 36 characters. The richer stage does not start while Apple
-Intelligence is unavailable or not ready, Low Power Mode is on, thermal state is
-serious/critical, or the app is inactive. A future stable provider must report
-unavailable rather than use Private Cloud Compute.
+silently rejects duplicates, fixed identity/taxonomy/certainty/match vocabulary,
+Vision candidate tokens, `-like` wording, unsupported characters, and rendered
+pill labels over 36 characters. The prompt prohibits naming the subject, but the
+token filter cannot recognize every name missing from Vision's candidates; this
+remains part of adversarial device acceptance before production enablement. The
+richer stage does not start while Apple Intelligence is unavailable or not
+ready, Low Power Mode is on, thermal state is serious/critical, or the app is
+inactive. The provider reports unavailable rather than use Private Cloud
+Compute.
 
-Follow the canonical
+Stable Xcode 27 is installed locally, but the published GitHub Xcode 27 image
+still lists a beta compiler as of September 17, 2026. Follow the canonical
 [stable-toolchain activation checklist](../../../../../docs/system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist)
-when Xcode 27 becomes eligible; the provider, toolchain pins, generated project,
-CI cache keys and assertions, documentation, fallback build, and physical-device
-evidence must move together.
+before enabling the production flag: all hosted toolchains, generated project,
+CI cache keys and exact-build assertions, documentation, fallback validation,
+and physical-device evidence must move together. Release/CI pins remain 26.6.
 
 ## Inference Invariants
 

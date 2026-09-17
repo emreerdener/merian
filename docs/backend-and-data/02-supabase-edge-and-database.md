@@ -492,7 +492,11 @@ Published observation availability is verified separately from client display
 and from author/moderation state. The service-role worker leases due active
 `explore_post_media` rows, performs signed direct R2-origin `HEAD` requests with
 required bucket-scoped read-only credentials, and records every result through a
-claim-token-fenced RPC.
+claim-token-fenced RPC. The five-minute cron checks for eligible unleased due
+media before dispatch, except fixed ten-minute clock heartbeats which always
+invoke the worker. Each actual invocation retains its audit; idle alternate
+ticks skip credentials and HTTP entirely. The 15-minute missing-success alert
+and all claim, lease, and media-recovery timing contracts remain unchanged.
 
 One `404` creates `suspected_missing`; a second direct `404` at least five
 minutes later confirms `missing`. Transport errors, timeouts, credential

@@ -78,11 +78,13 @@ cleared state or auto-submitting behind another presentation.
 
 `CaptureWorkspaceViewModel.handleRootSheetDismissed` owns the post-result
 notification opt-in handoff for Close, swipe, and binding-driven dismissal. It
-requires a completed non-error Insight, an unasked disabled Discovery-alert
-preference, and a free presentation slot after pending navigation is handled.
-`CaptureWorkspaceNotificationPromptTests` covers that shared boundary, single
-presentation, declined/enabled preferences, incomplete/error results, and
-local/global navigation priority. The
+requires a completed non-error Insight, enabled Discovery alerts, missing system
+authorization, no previous prompt, and a free presentation slot after pending
+navigation is handled. Discovery alerts default on; saved opt-outs are preserved
+and suppress the automatic prompt. `CaptureWorkspaceNotificationPromptTests`
+covers that shared boundary, single presentation, declined/disabled preferences,
+existing system authorization, incomplete/error results, and local/global
+navigation priority. The
 [Insight notification contract](../../../../../../docs/features-and-hardware/05-insight-sheet.md#push-notification-delivery)
 owns the full behavior.
 

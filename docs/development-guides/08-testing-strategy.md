@@ -542,7 +542,17 @@ changed-file ceiling and treats an unresolved event range as in-scope rather
 than silently skipping verification.
 
 Two independent `macos-26` jobs use the reviewed Xcode 26.6 toolchain and the
-checked-in `Package.resolved` file. Checkout, Swift package caching, and
+checked-in `Package.resolved` file. The staged Foundation Models visual-cue
+adapter is excluded by its Swift 6.4 compiler guard on these lanes. Its
+`AppleFoundationVisualCueProviderTests` must also run on stable Xcode 27 with an
+iOS 27 destination before production activation, alongside
+`LocalVisualAnalysisTests`, `FeatureFlagsTests`, the complete unit target, and
+critical Insight UI suites. Debug Settings → Feature Flags → **On-device visual
+observations** opts in for physical-device acceptance; Release stays
+default-off. Follow the
+[activation checklist](../system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist),
+including every hosted lane and the runtime-audit environment label, when the
+stable compiler is available in CI. Checkout, Swift package caching, and
 artifact retention use reviewed, immutable action commits whose current major
 versions run on Node.js 24. The portable workflow contract pins those exact
 commits so a downgrade cannot silently restore a deprecated action runtime.
@@ -554,6 +564,70 @@ every use to one immutable commit with its matching inline release comment; then
 advance the reviewed major in `scripts/test-ios-build-and-test-workflow.sh`. Do
 not relax commit pinning or accept a floating action tag to make the upgrade
 pass.
+
+### Staged Foundation visual-cue validation
+
+The canonical
+[AI contract and activation checklist](../system-architecture/04-ai-engineering.md#stable-xcode-27-foundation-models-milestone)
+own provider eligibility, cancellation, privacy, and the production gate. On
+stable Xcode 27, run the focused regression matrix against a concrete iOS 27
+Simulator destination using the checkout-local build wrapper. Replace
+`IOS27_SIMULATOR_UDID` with an available iOS 27 Simulator; an older runtime
+cannot validate the parser suite.
+
+```bash
+make ios-local-build ARGS='simulator -- test -configuration Debug -destination "platform=iOS Simulator,id=IOS27_SIMULATOR_UDID" -only-testing:merianTests/AppleFoundationVisualCueProviderTests -only-testing:merianTests/LocalVisualAnalysisTests -only-testing:merianTests/FeatureFlagsTests'
+```
+
+| Suite                                   | Evidence supplied                                                                                                                                                                                                                                                                                    |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AppleFoundationVisualCueProviderTests` | Real `GeneratedContent` parsing and schema construction: incomplete cue objects, completed objects inside unfinished arrays, malformed fields, stable indices, three-cue bounds, and downstream identity filtering. Requires Swift 6.4 and iOS 27; does not invoke the model.                        |
+| `LocalVisualAnalysisTests`              | Request-body admission, fallback and exact-attempt publication fences, explicit producer cancellation on early consumer exit or the third accepted cue, and power/thermal notifications cancelling a silent stream without restarting that attempt. Uses injected providers and runtime eligibility. |
+| `FeatureFlagsTests`                     | Production default remains off and overrides apply only in Debug.                                                                                                                                                                                                                                    |
+
+Confirm every selected suite appears and executes in the XCResult; a successful
+command with a missing or skipped parser suite is not acceptance. Retain
+evidence outside `.build` using the
+[local storage procedure](#local-ios-build-storage). Also run the complete unit
+target and required critical UI suite. The existing
+`merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`
+smoke uses deterministic seeded phrases; it validates presentation, not real
+Foundation inference.
+
+Physical-device acceptance requires an Apple Intelligence-capable iOS 27 device
+with stable Xcode 27 and **On-device visual observations** enabled in Debug
+Settings → Feature Flags. Record the exact source revision, device, OS/compiler
+versions, flag/model state, and observations without retaining scan images,
+model text, or personal data in evidence.
+
+| Device scenario                                                                                               | Required observation                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Flag disabled, unsupported OS/device, or model unavailable/not ready                                          | Existing generic, Vision, and deterministic visual-trait fallback remains available; no Foundation stream starts.                                                                |
+| Eligible visual scan                                                                                          | Gemini upload precedes model admission; at most three complete, unique, valid cues appear without delaying the final result.                                                     |
+| Low Power Mode or serious/critical thermal state, including before the first model snapshot                   | Model work stops or is skipped; fallback remains, and eligibility recovery does not restart the same attempt. Measure actual hardware cancellation and resource cost.            |
+| App deactivation, Insight dismissal, scan replacement, Auth transition, or Gemini completion                  | Local work stops and late output cannot publish to the retired presentation. Durable inference follows its existing lifecycle contract.                                          |
+| Images with embedded instructions, ambiguous traits, or common/scientific names absent from Vision candidates | Cues remain visible-trait wording without identities or invented features. The token filter alone cannot establish this; adversarial model evaluation is required.               |
+| Repeated scans                                                                                                | Record latency, memory, and thermal behavior, including model readiness changes and cancellation. No physical-model performance baseline is established by parser or mock tests. |
+
+On September 17, 2026, local unsigned Debug `build-for-testing` passed with
+stable Xcode 27.0 (27A266a), Swift 6.4, and the iOS 27 SDK. All 50 tests in the
+three focused suites then passed on the iOS 27 iPhone 18 Pro Simulator,
+including the real `GeneratedContent` parser cases. Expanded build permissions
+resolved the earlier process-inspection and CoreSimulator restrictions.
+Compilation caught two missing Debug settings switch cases for the new flag and
+unsupported suite-level availability annotations; the passing run includes both
+fixes.
+
+The local working-tree build evidence is
+`.artifacts/local-ios/fcc6125477a4418e8fde777b882cd947.xcresult`; focused
+execution evidence is
+`.artifacts/local-ios/e7b32c92bc9544c29f6fddc38a3a29a5.xcresult`. Project
+generation, source membership, and portable iOS CI-tooling checks also passed.
+This is local candidate evidence, not hosted exact-SHA release evidence. The
+complete unit execution, critical UI suite, Release archive, older-OS fallback
+execution, physical-device acceptance, and hosted stable-Xcode-27 matrix remain
+unrun for this staged change. Keep the production flag off until the canonical
+activation checklist is complete.
 
 ### Privacy Manifest Validation
 
@@ -2450,10 +2524,12 @@ prove visual parity, live Auth/provider behavior, or migration execution.
   queue cleanup and before milestones for both direct and recovered completions.
   `CaptureWorkspaceNotificationPromptTests`, in the existing
   `CaptureWorkspaceViewModelRefinementTests` selector, exercises completed
-  Insight dismissal, duplicate callbacks, declined/enabled preferences,
-  incomplete/error results, and local/global navigation priority. Run the Core
-  suites with `NotificationSettingsViewModelTests` boundary cases using the
-  canonical
+  Insight dismissal, duplicate callbacks, declined/disabled preferences,
+  existing system authorization, incomplete/error results, and local/global
+  navigation priority. `AppSettingsTests` locks default-on Discovery alerts,
+  preservation of saved on/off choices, and opt-out persistence across reloads
+  without granting OS authorization. Run the Core suites with
+  `NotificationSettingsViewModelTests` boundary cases using the canonical
   [Core Notifications focused matrix](../../apps/ios/Merian/Core/Notifications/README.md#verification).
 - **`Core/Routing/AppEventPublisherTests.swift`**: Locks synchronous and
   reentrant `AppEvent` delivery plus cancellation behavior.
@@ -6789,12 +6865,14 @@ Foundation source handoff; and full-deck exhaustion before a phrase cycle wraps.
 They also cover natural verb-led rendering without `Kind: detail` labels,
 handoff ordering that consumes unseen entries before any prior phrase repeats,
 focus-region crop math, partial snapshot buffering, duplicate and unsafe cue
-rejection, runtime power/thermal/lifecycle eligibility, provider errors,
-replacement fences, idempotent consecutive inactive/background handling,
-app-deactivation cancellation without visible-copy regression, phrase rotation
-and Foundation streams, and cancellation of a permanently hung stream at
-simulated Gemini response arrival. The architecture suite separately locks the
-coordinator's private task/image/phrase ownership, aggregate removal, and
+rejection, runtime power/thermal/lifecycle eligibility, explicit producer
+cancellation on an early consumer exit or the third accepted cue, power/thermal
+notifications cancelling a silent stream without restarting the attempt,
+provider errors, replacement fences, idempotent consecutive inactive/background
+handling, app-deactivation cancellation without visible-copy regression, phrase
+rotation and Foundation streams, and cancellation of a permanently hung stream
+at simulated Gemini response arrival. The architecture suite separately locks
+the coordinator's private task/image/phrase ownership, aggregate removal, and
 600-line split. `InsightQueuedHandoffTests` and `InsightMediaSuppressionTests`
 separately prove that an exact active-visual live-to-queue handoff carries
 contextual phrases and in-memory carousel media, that save plus offline/online

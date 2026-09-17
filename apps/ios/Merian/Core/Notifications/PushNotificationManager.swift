@@ -36,6 +36,10 @@ final class PushNotificationManager: NSObject,
 
     static let shared = PushNotificationManager()
 
+    var hasAuthorization: Bool {
+        dependencies.preferences.hasAuthorization
+    }
+
     @ObservationIgnored private let dependencies: Dependencies
     @ObservationIgnored private let requestRoute:
         @MainActor @Sendable (AppRoute, AppRouteSource) -> Void

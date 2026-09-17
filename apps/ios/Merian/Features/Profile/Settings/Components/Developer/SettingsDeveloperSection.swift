@@ -209,6 +209,8 @@ private struct FeatureFlagDeveloperControls: View {
             "shippingbox.fill"
         case .unlimitedFreeScans:
             "infinity.circle.fill"
+        case .foundationVisualCues:
+            "sparkles"
         }
     }
 
@@ -220,6 +222,8 @@ private struct FeatureFlagDeveloperControls: View {
             .teal
         case .unlimitedFreeScans:
             .blue
+        case .foundationVisualCues:
+            .purple
         }
     }
 }

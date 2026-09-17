@@ -29,9 +29,17 @@ omitted from projections; a post is reversibly quarantined only when all of its
 items are missing. No scan, post, like, comment, or publication-intent row is
 deleted.
 
-The scheduled invocation runs every five minutes. Healthy objects are checked
-daily, distinct impaired posters and confirmed-missing objects hourly, and
-retryable primary failures after fifteen minutes. Production uses dedicated
+The cron schedule remains every five minutes. At clock minutes `:00`, `:10`,
+`:20`, and so on, it invokes the worker as a health heartbeat. Alternate ticks
+invoke only when an active, published, unmoderated, non-tombstoned media item is
+due with no unexpired lease. This read-only existence check precedes credential
+lookup and HTTP dispatch; claiming and locking stay in the claim RPC. Each
+actual invocation still attempts one audit record, including empty heartbeats.
+Normally timed, fully idle operation produces 144 scheduled invocations per day
+instead of 288; the 15-minute missing-success alert remains unchanged. This is
+an invocation reduction, not a measured Disk I/O reduction. Healthy objects are
+checked daily, distinct impaired posters and confirmed-missing objects hourly,
+and retryable primary failures after fifteen minutes. Production uses dedicated
 bucket-scoped `R2_READ_ACCESS_KEY_ID` / `R2_READ_SECRET_ACCESS_KEY` credentials;
 the worker never receives object-write or object-delete authority.
 

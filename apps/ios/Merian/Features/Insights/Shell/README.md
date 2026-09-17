@@ -195,7 +195,7 @@ additional presentation owners.
 
 Closing an analyzing Insight also calls
 `InferenceEngine.dismissAnalyzingPresentation()`. That lifecycle boundary stops
-and fences Vision, deterministic trait extraction, future Foundation work, and
+and fences Vision, deterministic trait extraction, staged Foundation work, and
 phrase cadence, then removes any contextual phrase/live-media exposure. It does
 not cancel the durable Gemini request, upload, persistence, or queued result
 recovery, so a completed result can still appear in Scans later.

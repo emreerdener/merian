@@ -290,11 +290,14 @@ as their permanent engineering identity.
   reactivation resumes at most the exact visual session's phrase cadence rather
   than restarting model work. Gemini remains the only identification authority;
   local image, category, and cue text are ephemeral and absent from payloads,
-  persistence, analytics, and logs. Xcode 26.6 ships the improved Vision path
-  and a no-op Foundation visual-cue provider. The multimodal
-  `SystemLanguageModel.default` implementation remains gated on stable Xcode 27
-  locally and in hosted CI, iOS 27 availability, on-device readiness, power,
-  thermal, and active-app checks, and the request-body-sent boundary. See the
+  persistence, analytics, and logs. The staged
+  `AppleFoundationVisualCueProvider` now implements multimodal
+  `SystemLanguageModel.default` cues for Swift 6.4 / iOS 27 behind the
+  default-off `foundationVisualCues` release flag. Debug builds can opt in for
+  local acceptance; Xcode 26.6 and older OS versions keep the inert path.
+  Production activation still requires stable Xcode 27 in every hosted lane and
+  physical-device acceptance. Readiness, power, thermal, active-app, and
+  request-body-sent gates remain enforced. See the
   [AI engineering contract](./system-architecture/04-ai-engineering.md#on-device-pre-classification--scanning-phase-ux)
   and
   [Insight UX contract](./features-and-hardware/05-insight-sheet.md#progressive-analyzing-pill).
