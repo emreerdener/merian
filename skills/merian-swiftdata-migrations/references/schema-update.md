@@ -111,9 +111,9 @@ Do not edit an older stage to make the new version work. Add forward logic.
 
 ## 6. Preserve startup recovery semantics
 
-Review `MerianApp.bootstrapModelContainer`, `ModelStoreRecoveryCoordinator`, and
-the recent-version recovery plans whenever the new stage affects which stores
-can open.
+Review `ModelContainerBootstrapper`, `ModelContainerFactory`,
+`ModelStoreRecoveryCoordinator`, and the recent-version recovery plans whenever
+the new stage affects which stores can open.
 
 - Keep error classification explicit. A migration error is not automatically a
   corruption signature.
@@ -123,6 +123,9 @@ can open.
   data and raw store contents.
 - Extend store-version selection and known-good recent plans when the new
   current schema requires it.
+- Keep the empty in-memory safe-mode container on `CurrentSchema` and plan-free.
+  Validate the complete historical migration plan independently so a defective
+  old stage cannot disable the final recovery path.
 
 ## 7. Verify real store paths
 

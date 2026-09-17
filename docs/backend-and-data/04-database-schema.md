@@ -4973,15 +4973,19 @@ pricing semantics, see [`10-internal-admin.md`](./10-internal-admin.md).
 
 ## SwiftData Schema (Local Offline Queue)
 
-_Note: The iOS persistence layer is enforced via `ModelContainer` in
-`MerianApp.swift`. If a store open fails during a production app update, the
-application first uses store metadata to choose the narrowest safe migration
-strategy, attempts corruption-specific quarantine and retry only for verified
-store corruption, archives non-corrupt legacy migration failures under
-`store-rescue/` before opening a fresh persistent store, then falls back to an
-in-memory safe-mode container if recovery fails, and finally shows a
-startup-blocked recovery surface if no container can be created. It must not
-silently wipe `URL.documentsDirectory`, and it must not hard-crash from
+_Note: The iOS persistence layer is enforced by
+`Core/Data/StoreRecovery/Services/ModelContainerFactory.swift` and
+`ModelContainerBootstrapper.swift`; `MerianApp.swift` attaches their bootstrap
+outcome. If a store open fails during a production app update, the bootstrapper
+first uses store metadata to choose the narrowest safe migration strategy,
+attempts corruption-specific quarantine and retry only for verified store
+corruption, archives non-corrupt legacy migration failures under `store-rescue/`
+before opening a fresh persistent store, then falls back to an in-memory
+safe-mode container if recovery fails, and finally returns a startup-blocked
+result if no container can be created. That empty current-schema safe-mode
+container is plan-free so historical-plan validation cannot defeat the final
+fallback; the full `MerianMigrationPlan` is validated independently in tests. It
+must not silently wipe `URL.documentsDirectory`, and it must not hard-crash from
 bootstrap with `fatalError`. To prevent schema failures as the app evolves,
 Merian uses `MerianMigrationPlan` with lightweight and custom `.migrationStage`
 closures that safely transpose old structures (e.g. `MerianSchemaV8` to
@@ -4993,7 +4997,10 @@ snapshots live under `apps/ios/Merian/Models/Schema/`, including the dedicated
 `SchemaV49Snapshots.swift` freeze for all eight relationship-aware V49 models.
 The file `apps/ios/Merian/Models/SchemaVersions.swift` declares
 `MerianMigrationPlan` — the ordered list of schemas and migration stages. When
-bumping to V{N+1}, follow the runbook at `.agents/workflows/schema_update.md`:
+bumping to V{N+1}, follow the checked-in
+[`merian-swiftdata-migrations` skill](../../skills/merian-swiftdata-migrations/SKILL.md)
+and its
+[schema-update reference](../../skills/merian-swiftdata-migrations/references/schema-update.md):
 
 1. Manually freeze the outgoing schema V{N} from the current `ActiveSchema/`
    before any changes. Declare changed models inside the schema enum body, not
@@ -5024,9 +5031,10 @@ migrate both V50 graphs through their source-isolated custom plans. That proves
 candidate self-consistency; genuine released-binary physical install-over and
 second-launch gates remain separate release evidence.
 
-There is **no need** to update model references in `MerianApp.swift`, nor
-anywhere else in the application, because the entire app dynamically inherits
-`CurrentSchema` and the active global models natively.
+There is **no direct model list** in `MerianApp.swift`. The app dynamically
+inherits `CurrentSchema` and the active global models. A schema bump must still
+update the ordered migration plans, immediate-predecessor recent-source model,
+and `ModelContainerFactory` routing required by the migration workflow.
 
 Custom migration stages must save through the shared migration save helper in
 `SchemaVersions.swift`. The helper rolls back and rethrows on save failure, and
@@ -5098,7 +5106,9 @@ The current active schema is `MerianSchemaV51`. Recent milestones:
   deliberately use one matching source representative each before the V49 repair
   target. Stores that still hit SwiftData's duplicate-checksum validator during
   plan construction retry with the same source-isolated recent plans before
-  legacy rescue or safe mode.
+  legacy rescue or safe mode. Safe mode itself creates an empty in-memory V51
+  container without any migration plan; it does not validate this historical
+  ladder again.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.
@@ -5170,7 +5180,8 @@ Function response, update both the TypeScript schema and the corresponding Swift
 `Codable` struct simultaneously.
 
 **`SpeciesData` pet display field**
-(`apps/ios/Merian/Models/SpeciesData.swift`): `PetIdentification` is a
+(`apps/ios/Merian/Models/Species/SpeciesObservationModels.swift` and
+`apps/ios/Merian/Models/Species/SpeciesData.swift`): `PetIdentification` is a
 `Codable`, `Equatable`, `Hashable`, and `Sendable` value with `speciesGroup`,
 `label`, `labelType`, `confidenceScore`, and `evidence`.
 `SpeciesData.petIdentification` is optional and display-only. It can make the
@@ -5178,10 +5189,10 @@ Insight headline read like "Australian Cattle Dog mix" while the subtitle still
 shows the underlying scientific name, such as `Canis lupus familiaris`. It must
 not be stored as a species preferred common name.
 
-**`SpeciesData` override fields** (`apps/ios/Merian/Models/SpeciesData.swift`):
-`SpeciesData` carries four identification-review fields that are never part of
-the Edge response but are synthesised from `LocalScanRecord` when opening a
-historical scan:
+**`SpeciesData` override fields**
+(`apps/ios/Merian/Models/Species/SpeciesData.swift`): `SpeciesData` carries four
+identification-review fields that are never part of the Edge response but are
+synthesised from `LocalScanRecord` when opening a historical scan:
 
 - `aiScientificName: String` — always set to `LocalScanRecord.scientificName`
   (the AI's original identification). Preserved immutably (`let`) so the UI can
@@ -5790,8 +5801,15 @@ both queued and completed scans.
   descriptions)
 - `observationContextJSON`: String (serialized `ObservationContext`; empty for
   images/video/audio)
-- `localScanRecord`: Local scan relationship (cascade delete)
-- `offlineQueuedScan`: Queue relationship (cascade delete)
+- `LocalScanRecord.capturedMediaEntries`: optional to-many owner relationship
+  with cascade delete
+- `OfflineQueuedScan.capturedMediaEntries`: optional to-many owner relationship
+  with cascade delete
+
+`CapturedMediaEntry` does not declare inverse parent properties; both parent
+models own unidirectional relationship arrays. Do not document or introduce
+synthetic `localScanRecord` or `offlineQueuedScan` fields without a schema
+migration.
 
 `CapturedMediaEntry` is intentionally low-level. Higher-level readers should go
 through `CapturedMediaSnapshot`, which rebuilds the shared derived views used by
@@ -5799,6 +5817,14 @@ the queue, insight sheet, export, and thumbnail code paths. The snapshot bridge
 intentionally reads `capturedMediaJSON` before touching this relationship so
 layout and export code do not fault child rows unless the scalar mirror is
 unavailable.
+
+The active persisted declaration remains in
+`Models/ActiveSchema/CapturedMediaEntry.swift`. The Foundation-only
+`ObservationContext` and captured-media timeline values live in `Models/Media/`,
+while `Core/Data/CapturedMedia/CapturedMediaRecordPersistence.swift` owns mirror
+replacement and scalar-first fallback. This is a source-ownership split only:
+V51 fields, relationships, model names, checksums, and migration stages are
+unchanged.
 
 - image paths and image references
 - video paths, poster references, and extracted-audio references

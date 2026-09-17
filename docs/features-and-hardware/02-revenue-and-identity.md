@@ -62,10 +62,13 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   session. If terminal clear reaches local SDK sign-out, the coordinator still
   invokes observable-state, secure-marker, analytics, and purchase-identity
   cleanup when the SDK call fails or caller cancellation arrives.
-  `AuthSessionRecoveryLiveService` projects refreshed/loaded SDK sessions; its
-  `+Live` adapter alone performs recovery refresh, read, and local sign-out,
-  while the facade retains purchase, entitlement, adoption, publication, and
-  cleanup effects.
+  `SupabaseAuthSessionService` projects refreshed/loaded SDK sessions and owns
+  the shared request-scoped OAuth, recovery, and local-sign-out SDK boundary.
+  Its `+Live` adapter alone performs those Supabase Auth calls, while the
+  recovery coordinator owns terminal local-clear sequencing and the separate
+  local-sign-out coordinator owns ordinary/account-cleanup task lifetime and
+  cleanup order. The facade retains purchase, entitlement, adoption,
+  publication, and cleanup effects.
 - `Core/Network/Auth/Policies/AccountPresentationPolicy.swift` owns the
   deterministic Guest-presentation decision that `SupabaseManager` exposes as
   `isGuestUser`. It is true only when the active Supabase session is anonymous
@@ -186,10 +189,11 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   Google credential-registration wiring, Apple registration retry, and the
   common post-auth purchase/entitlement/public-author sequence. Focused Auth
   Services own Apple/Google presentation, provider-value mapping, shared window
-  policy, Apple nonce/controller retention, provider diagnostics, and the
-  SDK-facing OAuth session boundary. That session service maps OIDC credentials,
-  SDK identities, and canonical profile metadata; its live adapter performs the
-  Auth read, link, install, and update calls. `SupabaseManager` retains the
+  policy, Apple nonce/controller retention, provider diagnostics, and the shared
+  SDK-facing Supabase Auth session boundary. That task-free service maps OIDC
+  credentials, SDK identities, recovery sessions, and canonical profile
+  metadata; its live adapter performs the request-scoped Auth read, refresh,
+  link, install, update, and local-sign-out calls. `SupabaseManager` retains the
   stable entry points, transition and publication fences, endpoint, Keychain,
   telemetry, and lifecycle adapters.
   `Core/Network/Auth/Policies/AccountDeletionTransitionPolicy.swift` owns
@@ -452,11 +456,16 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     `PurchaseHandoffPreparationCoordinator` own error translation and proof
     checkpointing respectively; `PurchaseIdentityHandoffCoordinator` owns
     completion keyed by destination, Auth generation, and transition owner;
-    exact-session/cancellation fencing; and proof removal; `SupabaseManager`
-    supplies the live Auth, RevenueCat, entitlement, session, logging, journal,
-    and retry effects. The compatibility live service owns its server DTO and
-    request boundary. Before an operation may replace the Auth identity, the
-    source-handoff coordinator rereads both durable journal types and treats
+    exact-session/cancellation fencing; and proof removal. The task-free
+    `PurchaseIdentitySessionLiveService` owns legacy attribute precedence and
+    provider/entitlement/diagnostic boundary assembly; its `+Live` adapter alone
+    acquires RevenueCat, `EntitlementManager`, the resolver, profile service,
+    Supabase client, and privacy-safe logger. Its reference lifetime weakly
+    gates deferred legacy linking and entitlement refresh after facade teardown.
+    `SupabaseManager` supplies Auth state, exact-session/account-work, journal,
+    handoff, and retry closures. The compatibility live service owns its server
+    DTO and request boundary. Before an operation may replace the Auth identity,
+    the source-handoff coordinator rereads both durable journal types and treats
     either unavailable secure read as still pending. Paid actions consume that
     derived projection; cached UI state is not absence authority for identity
     replacement. No payload or provider behavior moves into the store or

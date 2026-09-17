@@ -17,11 +17,10 @@ import Supabase
         AppleOAuthCredentialRegistrationService
     private let authSessionBootstrapLiveService:
         AuthSessionBootstrapLiveService
-    private let authSessionRecoveryLiveService: AuthSessionRecoveryLiveService
-    private let oauthSessionService: OAuthSessionService
+    private let supabaseAuthSessionService: SupabaseAuthSessionService
     private let purchasePrincipalResolver: PurchasePrincipalResolver
-    private let legacyPurchaseIdentityProfileService:
-        LegacyPurchaseIdentityProfileService
+    private let purchaseIdentitySessionLiveService:
+        PurchaseIdentitySessionLiveService
     private let ghostProfileMergeStore: GhostProfileMergeStore
     private let ghostProfileMergeRemoteService:
         GhostProfileMergeRemoteService
@@ -142,6 +141,10 @@ import Supabase
     /// Owns existing-session resolution and anonymous-bootstrap single-flight.
     @ObservationIgnored private let authSessionBootstrapCoordinator =
         AuthSessionBootstrapCoordinator()
+    /// Owns local sign-out task lifetime and sequencing after transition
+    /// admission closes authenticated request creation.
+    @ObservationIgnored private let authLocalSignOutCoordinator =
+        AuthLocalSignOutCoordinator()
     /// Owns durable preparation and keyed completion for Ghost merges.
     @ObservationIgnored private let ghostProfileMergeCoordinator =
         GhostProfileMergeCoordinator()
@@ -169,9 +172,8 @@ import Supabase
     /// Owns Apple authorization-controller retention and delegate callbacks.
     @ObservationIgnored private let appleOAuthAuthorizationLiveProvider =
         AppleOAuthAuthorizationLiveProvider()
-    /// Single-flight sign-out handle. Authenticated request creation is closed as
-    /// soon as this transition begins, before the SDK invalidates the session.
-    @ObservationIgnored private var signOutTask: Task<Void, Never>?
+    /// Serializes purchase-safe transitions from a linked user to a fresh
+    /// anonymous identity.
     @ObservationIgnored private let userSignOutSingleFlight =
         AuthTransitionSingleFlight()
     @ObservationIgnored private weak var appRouteSessionController: (any AppRouteSessionControlling)?
@@ -196,13 +198,19 @@ import Supabase
         self.authHistoricalSessionSyncLiveService =
             AuthHistoricalSessionSyncLiveService(dependencies: .live)
         self.authSessionBootstrapLiveService = .live(client: client)
-        self.authSessionRecoveryLiveService = .live(client: client)
         self.appleOAuthCredentialRegistrationService = .live(client: client)
-        self.oauthSessionService = .live(client: client)
-        self.purchasePrincipalResolver = PurchasePrincipalResolver(
+        self.supabaseAuthSessionService = .live(client: client)
+        let purchasePrincipalResolver = PurchasePrincipalResolver(
             client: client
         )
-        self.legacyPurchaseIdentityProfileService = .live(client: client)
+        self.purchasePrincipalResolver = purchasePrincipalResolver
+        let legacyPurchaseIdentityProfileService =
+            LegacyPurchaseIdentityProfileService.live(client: client)
+        self.purchaseIdentitySessionLiveService = .live(
+            client: client,
+            resolver: purchasePrincipalResolver,
+            legacyProfileService: legacyPurchaseIdentityProfileService
+        )
         let keychain = KeychainManager.shared
         self.ghostProfileMergeStore = GhostProfileMergeStore(
             dependencies: .live(keychain: keychain)
@@ -251,7 +259,7 @@ import Supabase
         ghostProfileMergeCoordinator.cancel()
         purchaseIdentityHandoffCoordinator.cancel()
         purchaseIdentitySessionCoordinator.cancelResolution()
-        signOutTask?.cancel()
+        authLocalSignOutCoordinator.cancel()
         publicAuthorIdentityRefreshCoordinator.cancel()
         appleCredentialRevocationCoordinator.cancel()
         appleCredentialRevocationLiveProvider.stopObserving()
@@ -734,7 +742,7 @@ import Supabase
             durability: AuthSessionLifecycleDurabilityBoundary(
                 hasPendingGhostProfileMerge: { [weak self] in
                     guard let self else { return true }
-                    try ghostProfileMergeCoordinator.hasPendingHandoffs(
+                    return try ghostProfileMergeCoordinator.hasPendingHandoffs(
                         dependencies: ghostProfileMergeDependencies()
                     )
                 },
@@ -841,46 +849,6 @@ import Supabase
         )
     }
 
-    private func linkLegacyPurchaseProviderIdentity(user: User) async {
-        let publicIdentity: LegacyPurchaseIdentityProfile?
-        do {
-            publicIdentity = try await legacyPurchaseIdentityProfileService
-                .fetch(for: user.id)
-        } catch {
-            publicIdentity = nil
-            MerianLog.auth.debug(
-                "RevenueCat public identity lookup failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
-            )
-        }
-        let email = RevenueCatIdentityContext.firstNonEmpty(
-            user.email,
-            publicIdentity?.email
-        )
-        let fullName = RevenueCatIdentityContext.firstNonEmpty(
-            user.userMetadata["full_name"]?.stringValue,
-            user.userMetadata["name"]?.stringValue,
-            publicIdentity?.publicAuthorName
-        )
-        let avatarURL = RevenueCatIdentityContext.firstNonEmpty(
-            user.userMetadata["avatar_url"]?.stringValue,
-            user.userMetadata["picture"]?.stringValue,
-            publicIdentity?.publicAvatarURL
-        )
-
-        await RevenueCatManager.shared.linkWithSupabase(
-            userId: user.id,
-            email: email,
-            displayName: fullName,
-            avatarUrl: avatarURL,
-            publicUsername: publicIdentity?.publicUsername,
-            publicAuthorName: publicIdentity?.publicAuthorName,
-            publicIdentitySource: publicIdentity?.publicIdentitySource,
-            accountKind: RevenueCatAccountMutationPolicy.accountKind(
-                isAnonymous: user.isAnonymous
-            )
-        )
-    }
-
     /// An already-issued v1 sign-out proof is bound to the destination Auth
     /// UUID's RevenueCat customer. Finish that immutable compatibility
     /// contract before allowing a concurrent stable-principal rollout to
@@ -889,14 +857,13 @@ import Supabase
     private func linkLegacyPurchaseIdentityForSignOutHandoff(
         user: User
     ) async throws {
-        await linkLegacyPurchaseProviderIdentity(user: user)
-        let expectedAppUserID = RevenueCatAppUserIDPolicy.canonicalID(
+        await purchaseIdentitySessionLiveService
+            .linkLegacyProviderIdentity(
+                for: purchaseIdentityLegacySessionProfile(for: user)
+            )
+        guard purchaseIdentitySessionLiveService.legacyProviderIsReady(
             for: user.id
-        )
-        guard RevenueCatManager.shared.isIdentityReady,
-              !RevenueCatManager.shared.usesStablePurchasePrincipal,
-              RevenueCatManager.shared.linkedAppUserID == expectedAppUserID,
-              RevenueCatManager.shared.linkedAuthUserID == user.id else {
+        ) else {
             throw SupabaseAuthTransitionError
                 .signOutPurchaseContinuityPending
         }
@@ -918,13 +885,23 @@ import Supabase
         for user: User,
         isExpired: Bool = false
     ) -> PurchaseIdentitySessionSnapshot {
-        PurchaseIdentitySessionSnapshot(
+        purchaseIdentitySessionLiveService.snapshot(
+            for: purchaseIdentityLegacySessionProfile(for: user),
+            isExpired: isExpired
+        )
+    }
+
+    private func purchaseIdentityLegacySessionProfile(
+        for user: User
+    ) -> PurchaseIdentityLegacySessionProfile {
+        PurchaseIdentityLegacySessionProfile(
             userID: user.id,
             isAnonymous: user.isAnonymous,
-            isExpired: isExpired,
-            linkLegacyProviderIdentity: { [weak self] in
-                await self?.linkLegacyPurchaseProviderIdentity(user: user)
-            }
+            email: user.email,
+            fullName: user.userMetadata["full_name"]?.stringValue,
+            name: user.userMetadata["name"]?.stringValue,
+            avatarURL: user.userMetadata["avatar_url"]?.stringValue,
+            pictureURL: user.userMetadata["picture"]?.stringValue
         )
     }
 
@@ -990,163 +967,103 @@ import Supabase
 
     private func purchaseIdentitySessionDependencies()
         -> PurchaseIdentitySessionDependencies {
-        let resolver = purchasePrincipalResolver
-        return PurchaseIdentitySessionDependencies(
-            state: PurchaseIdentitySessionStateBoundary(
-                isTestExecution: {
-                    TestExecutionCoordinator.isRunningTests
-                },
-                accountDeletionCleanupPending: {
-                    AccountDeletionLocalCleanupStore.isPending()
-                },
-                isSigningOut: { [weak self] in
-                    self?.isSigningOut ?? true
-                },
-                isAuthenticated: { [weak self] in
-                    self?.isAuthenticated ?? false
-                },
-                isUserSignOutTransitionInProgress: { [weak self] in
-                    self?.isUserSignOutTransitionInProgress ?? true
-                },
-                currentPublishedSession: { [weak self] in
-                    guard let self, let user = self.currentUser else {
-                        return nil
-                    }
-                    return self.purchaseIdentitySessionContext(for: user)
-                },
-                isCurrentPublishedSession: { [weak self] context in
-                    guard let self, let user = self.currentUser else {
-                        return false
-                    }
-                    return user.id == context.userID
-                        && user.isAnonymous == context.isAnonymous
-                        && self.authSessionGeneration
-                            == context.authGeneration
-                },
-                beginAccountWork: { [weak self] userID in
-                    guard let self,
-                          let lease = try? self.beginUnownedAccountBoundWork(
-                              expectedUserID: userID
-                          ) else {
-                        return nil
-                    }
-                    return PurchaseIdentityAccountWorkLease(
-                        isCurrent: { [weak self] in
-                            self?.isAccountBoundWorkLeaseCurrent(lease)
-                                ?? false
-                        },
-                        finish: { [weak self] in
-                            self?.finishAccountBoundWork(lease)
-                        }
-                    )
-                },
-                loadSDKSession: { [weak self] in
-                    guard let self else {
-                        throw SupabaseAuthTransitionError
-                            .signOutSessionChanged
-                    }
-                    let session = try await self.client.auth.session
-                    return self.purchaseIdentitySessionSnapshot(
-                        for: session.user,
-                        isExpired: session.isExpired
-                    )
+        let state = PurchaseIdentitySessionStateBoundary(
+            isTestExecution: {
+                TestExecutionCoordinator.isRunningTests
+            },
+            accountDeletionCleanupPending: {
+                AccountDeletionLocalCleanupStore.isPending()
+            },
+            isSigningOut: { [weak self] in
+                self?.isSigningOut ?? true
+            },
+            isAuthenticated: { [weak self] in
+                self?.isAuthenticated ?? false
+            },
+            isUserSignOutTransitionInProgress: { [weak self] in
+                self?.isUserSignOutTransitionInProgress ?? true
+            },
+            currentPublishedSession: { [weak self] in
+                guard let self, let user = self.currentUser else {
+                    return nil
                 }
-            ),
-            provider: PurchaseIdentitySessionProviderBoundary(
-                beginResolution: {
-                    RevenueCatManager.shared
-                        .beginPurchaseIdentityResolution()
-                },
-                resolve: { fingerprint, allowsCreation in
-                    try await resolver.resolve(
-                        expectedCapabilityFingerprint: fingerprint,
-                        allowsCapabilityCreation: allowsCreation
-                    )
-                },
-                applyStableBinding: { binding, userID, accountKind in
-                    await RevenueCatManager.shared
-                        .linkResolvedPurchasePrincipal(
-                            binding,
-                            authUserID: userID,
-                            accountKind: accountKind
-                        )
-                },
-                currentState: {
-                    PurchaseIdentityProviderState(
-                        isIdentityReady:
-                            RevenueCatManager.shared.isIdentityReady,
-                        linkedAuthUserID:
-                            RevenueCatManager.shared.linkedAuthUserID,
-                        linkedAccountKind:
-                            RevenueCatManager.shared.linkedAccountKind
-                    )
+                return self.purchaseIdentitySessionContext(for: user)
+            },
+            isCurrentPublishedSession: { [weak self] context in
+                guard let self, let user = self.currentUser else {
+                    return false
                 }
-            ),
-            handoff: PurchaseIdentitySessionHandoffBoundary(
-                loadPending: { [weak self] in
-                    guard let self else {
-                        throw SupabaseAuthTransitionError
-                            .signOutSessionChanged
+                return user.id == context.userID
+                    && user.isAnonymous == context.isAnonymous
+                    && self.authSessionGeneration == context.authGeneration
+            },
+            beginAccountWork: { [weak self] userID in
+                guard let self,
+                      let lease = try? self.beginUnownedAccountBoundWork(
+                          expectedUserID: userID
+                      ) else {
+                    return nil
+                }
+                return PurchaseIdentityAccountWorkLease(
+                    isCurrent: { [weak self] in
+                        self?.isAccountBoundWorkLeaseCurrent(lease) ?? false
+                    },
+                    finish: { [weak self] in
+                        self?.finishAccountBoundWork(lease)
                     }
-                    return try self
-                        .purchaseIdentitySourceHandoffCoordinator()
-                        .hasPendingHandoff()
-                },
-                setPending: { [weak self] pending in
-                    self?.publishPurchaseIdentityHandoffPending(pending)
-                },
-                completePending: { [weak self] context in
-                    guard let self else { return false }
-                    return await self
-                        .completePendingSignOutPurchaseHandoffIfNeeded(
-                            expectedDestinationUserId:
-                                context.userID.uuidString,
-                            expectedAuthGeneration: context.authGeneration
-                        )
-                },
-                abandonRestoredSource: { [weak self] context in
-                    guard let self else { return }
-                    let coordinator = self
-                        .purchaseIdentitySourceHandoffCoordinator()
-                    await coordinator
-                        .abandonStableRotationIfSourceRestored(
-                            sourceUserID: context.userID
-                        )
-                    await coordinator
-                        .abandonLegacyHandoffIfSourceRestored(
-                            sourceUserID: context.userID.uuidString
-                        )
-                }
-            ),
-            entitlement: PurchaseIdentityEntitlementBoundary(
-                isReady: { userID in
-                    EntitlementManager.shared.activeAccountID == userID
-                        && EntitlementManager.shared
-                            .isVerifiedForCurrentLaunch
-                },
-                beginSession: { [weak self] userID in
-                    guard let self else { return false }
-                    return await EntitlementManager.shared.beginSession(
-                        userID: userID,
-                        client: self.client
-                    )
-                }
-            ),
-            reportHandoffStateFailure: { _ in
-                MerianLog.auth.error(
-                    "Deferred external identity linking because sign-out purchase state is unreadable."
                 )
             },
-            reportDeferredForHandoff: {
-                MerianLog.auth.debug(
-                    "Deferred external identity linking until the sign-out purchase destination is bound."
-                )
-            },
-            reportResolutionFailure: { error in
-                MerianLog.auth.debug(
-                    "Purchase identity resolution failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
+            loadSDKSession: { [weak self] in
+                guard let self else {
+                    throw SupabaseAuthTransitionError
+                        .signOutSessionChanged
+                }
+                let session = try await self.client.auth.session
+                return self.purchaseIdentitySessionSnapshot(
+                    for: session.user,
+                    isExpired: session.isExpired
                 )
             }
+        )
+        let handoff = PurchaseIdentitySessionHandoffBoundary(
+            loadPending: { [weak self] in
+                guard let self else {
+                    throw SupabaseAuthTransitionError
+                        .signOutSessionChanged
+                }
+                return try self
+                    .purchaseIdentitySourceHandoffCoordinator()
+                    .hasPendingHandoff()
+            },
+            setPending: { [weak self] pending in
+                self?.publishPurchaseIdentityHandoffPending(pending)
+            },
+            completePending: { [weak self] context in
+                guard let self else { return false }
+                return await self
+                    .completePendingSignOutPurchaseHandoffIfNeeded(
+                        expectedDestinationUserId:
+                            context.userID.uuidString,
+                        expectedAuthGeneration: context.authGeneration
+                    )
+            },
+            abandonRestoredSource: { [weak self] context in
+                guard let self else { return }
+                let coordinator = self
+                    .purchaseIdentitySourceHandoffCoordinator()
+                await coordinator
+                    .abandonStableRotationIfSourceRestored(
+                        sourceUserID: context.userID
+                    )
+                await coordinator
+                    .abandonLegacyHandoffIfSourceRestored(
+                        sourceUserID: context.userID.uuidString
+                    )
+            }
+        )
+        return purchaseIdentitySessionLiveService.dependencies(
+            state: state,
+            handoff: handoff
         )
     }
 
@@ -1183,9 +1100,7 @@ import Supabase
                     transitionSession(from: currentUser)
                 },
                 awaitSignOutCompletion: { [self] in
-                    if let signOutTask {
-                        await signOutTask.value
-                    }
+                    await authLocalSignOutCoordinator.waitForCompletion()
                 }
             ),
             transition: AuthSessionBootstrapTransitionBoundary(
@@ -1293,16 +1208,14 @@ import Supabase
 
     func signOut() async {
         guard let transition = beginAuthTransition(.recovery) else {
-            if let signOutTask {
-                await signOutTask.value
-            }
+            await authLocalSignOutCoordinator.waitForCompletion()
             return
         }
         defer { finishAuthTransition(transition) }
         await performLocalSignOut(
             ownedBy: transition,
-            performRemoteSignOut: { [client] in
-                try await client.auth.signOut(scope: .local)
+            performRemoteSignOut: { [supabaseAuthSessionService] in
+                try await supabaseAuthSessionService.signOutLocal()
             },
             performExternalSignOut: {
                 await RevenueCatManager.shared.handleSupabaseSignOut()
@@ -1619,8 +1532,8 @@ import Supabase
     ) async {
         await performLocalSignOut(
             ownedBy: transition,
-            performRemoteSignOut: { [client] in
-                try await client.auth.signOut(scope: .local)
+            performRemoteSignOut: { [supabaseAuthSessionService] in
+                try await supabaseAuthSessionService.signOutLocal()
             },
             performExternalSignOut: {
                 await RevenueCatManager.shared.handleSupabaseSignOut()
@@ -1653,43 +1566,13 @@ import Supabase
         performRemoteSignOut: @MainActor @escaping () async throws -> Void,
         performExternalSignOut: @MainActor @escaping () async -> Void
     ) async {
-        guard ownsAuthTransition(transition) else { return }
-        guard await awaitAccountBoundWorkQuiescenceForAuthTransition()
-        else { return }
-        guard ownsAuthTransition(transition) else { return }
-        if let signOutTask {
-            await signOutTask.value
-            return
-        }
-
-        let cancelledGhostSessionTask = beginLocalSignOutTransition()
-        _ = updateAuthTransition(transition, phase: .installingSession)
-        _ = adoptAuthTransitionSession(nil, for: transition)
-        let task = Task { @MainActor [weak self] in
-            guard let self else { return }
-            defer {
-                self.authRuntimeState.finishSignOut()
-                self.signOutTask = nil
-            }
-
-            if let cancelledGhostSessionTask {
-                _ = await cancelledGhostSessionTask.value
-            }
-            guard self.ownsAuthTransition(transition) else { return }
-
-            do {
-                try await performRemoteSignOut()
-            } catch {
-                MerianLog.auth.debug(
-                    "Supabase sign-out failed; continuing local cleanup; kind=\(MerianLog.errorKind(error), privacy: .public)"
-                )
-            }
-
-            await performExternalSignOut()
-            MerianLog.auth.debug("User signed out.")
-        }
-        signOutTask = task
-        await task.value
+        await authLocalSignOutCoordinator.signOut(
+            ownedBy: transition,
+            dependencies: authLocalSignOutDependencies(
+                performRemoteSignOut: performRemoteSignOut,
+                performExternalSignOut: performExternalSignOut
+            )
+        )
     }
 
     /// Replaces the active account with a fresh anonymous identity. Linked
@@ -1905,9 +1788,56 @@ import Supabase
         )
     }
 
-    @discardableResult
-    private func beginLocalSignOutTransition()
-        -> Task<AuthTransitionSession?, Never>? {
+    private func authLocalSignOutDependencies(
+        performRemoteSignOut: @MainActor @escaping () async throws -> Void,
+        performExternalSignOut: @MainActor @escaping () async -> Void
+    ) -> AuthLocalSignOutDependencies {
+        AuthLocalSignOutDependencies(
+            state: AuthLocalSignOutStateBoundary(
+                begin: { [weak self] in
+                    guard let self else {
+                        return AuthLocalSignOutPreparation(
+                            awaitCancelledBootstrap: {}
+                        )
+                    }
+                    return prepareLocalSignOutState()
+                },
+                finish: { [weak self] in
+                    self?.authRuntimeState.finishSignOut()
+                }
+            ),
+            transition: AuthLocalSignOutTransitionBoundary(
+                owns: { [weak self] transition in
+                    self?.ownsAuthTransition(transition) ?? false
+                },
+                awaitAccountWorkQuiescence: { [weak self] in
+                    guard let self else { return false }
+                    return await awaitAccountBoundWorkQuiescenceForAuthTransition()
+                },
+                updateForSessionInstallation: { [weak self] transition in
+                    _ = self?.updateAuthTransition(
+                        transition,
+                        phase: .installingSession
+                    )
+                },
+                adoptSignedOutSession: { [weak self] transition in
+                    _ = self?.adoptAuthTransitionSession(nil, for: transition)
+                }
+            ),
+            operations: AuthLocalSignOutOperationBoundary(
+                signOutSDKSession: performRemoteSignOut,
+                finishExternalSignOut: performExternalSignOut
+            ),
+            diagnose: { diagnostic, error in
+                AuthLocalSignOutLiveDiagnostics.report(
+                    diagnostic,
+                    error: error
+                )
+            }
+        )
+    }
+
+    private func prepareLocalSignOutState() -> AuthLocalSignOutPreparation {
         authRuntimeState.beginSignOut()
         appleCredentialRevocationCoordinator.cancel()
         currentUser = nil
@@ -1918,7 +1848,7 @@ import Supabase
         RevenueCatManager.shared.beginPurchaseIdentityResolution()
         EntitlementManager.shared.handleSignOut()
 
-        let cancelledGhostSessionTask = authSessionBootstrapCoordinator.cancel()
+        let cancelledBootstrapTask = authSessionBootstrapCoordinator.cancel()
 
         publicAuthorIdentityRefreshCoordinator.cancel()
         ghostProfileMergeCoordinator.cancel()
@@ -1926,7 +1856,13 @@ import Supabase
         KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
         KeychainManager.shared.removeObject(forKey: KeychainKeys.legacyGhostModeUserID)
         PostHogManager.shared.reset()
-        return cancelledGhostSessionTask
+        return AuthLocalSignOutPreparation(
+            awaitCancelledBootstrap: {
+                if let cancelledBootstrapTask {
+                    _ = await cancelledBootstrapTask.value
+                }
+            }
+        )
     }
 
     /// Returns the JWT access token from the active session.
@@ -2044,12 +1980,14 @@ import Supabase
         let operations = AuthSessionRecoveryOperationBoundary(
             refreshSDKSession: { [self] in
                 authSessionRecoverySession(
-                    from: try await authSessionRecoveryLiveService.refreshSession()
+                    from: try await supabaseAuthSessionService
+                        .refreshRecoverySession()
                 )
             },
             loadSDKSession: { [self] in
                 authSessionRecoverySession(
-                    from: try await authSessionRecoveryLiveService.loadSession()
+                    from: try await supabaseAuthSessionService
+                        .loadRecoverySession()
                 )
             },
             resetAnonymousSession: { [self] transition in
@@ -2058,7 +1996,7 @@ import Supabase
                 ).resetGhostSessionForRetry(ownedBy: transition)
             },
             performLocalSDKSignOut: { [self] in
-                try await authSessionRecoveryLiveService.signOutLocalSession()
+                try await supabaseAuthSessionService.signOutLocal()
             },
             finishPurchaseIdentitySignOut: {
                 await RevenueCatManager.shared.handleSupabaseSignOut()
@@ -2246,7 +2184,8 @@ import Supabase
                     analyticsGeneration(for: transition)
                 },
                 installAndAdopt: { [self] transition, didMutateSession in
-                    let session = try await client.auth.session(from: url)
+                    let session = try await supabaseAuthSessionService
+                        .installCallbackSession(from: url)
                     didMutateSession()
                     let installed = authenticationCallbackSession(session)
                     guard adoptAuthTransitionSession(
@@ -2259,7 +2198,7 @@ import Supabase
                     return installed
                 },
                 current: { [self] in
-                    client.auth.currentSession.map(
+                    supabaseAuthSessionService.currentSession().map(
                         authenticationCallbackSession
                     )
                 },
@@ -2446,7 +2385,7 @@ import Supabase
                         .verifiedExpectedSessionIfPresent(for: token) else {
                         return nil
                     }
-                    return self.oauthSessionService.signInSession(
+                    return self.supabaseAuthSessionService.signInSession(
                         from: session
                     )
                 },
@@ -2454,22 +2393,22 @@ import Supabase
                     let session = try await self.verifiedExpectedSession(
                         for: token
                     )
-                    return self.oauthSessionService.signInSession(
+                    return self.supabaseAuthSessionService.signInSession(
                         from: session
                     )
                 },
                 readSDKSession: {
-                    self.oauthSessionService.signInSession(
-                        from: try await self.oauthSessionService.readSession()
+                    self.supabaseAuthSessionService.signInSession(
+                        from: try await self.supabaseAuthSessionService.readSession()
                     )
                 },
                 linkIdentity: { credentials in
-                    try await self.oauthSessionService.linkIdentity(
+                    try await self.supabaseAuthSessionService.linkIdentity(
                         using: credentials
                     )
                 },
                 replaceAndAdoptSession: { credentials, token, didMutateSession in
-                    self.oauthSessionService.signInSession(
+                    self.supabaseAuthSessionService.signInSession(
                         from: try await self
                             .installOAuthSessionReplacingCurrentAccount(
                                 credentials: credentials,
@@ -2493,7 +2432,7 @@ import Supabase
                     )
                     self.currentUser = session.user
                     self.isAuthenticated = true
-                    return self.oauthSessionService.signInSession(
+                    return self.supabaseAuthSessionService.signInSession(
                         from: session
                     )
                 }
@@ -2556,7 +2495,7 @@ import Supabase
                     )
                 },
                 ensureTelemetryLinked: { userID, token in
-                    guard let user = self.oauthSessionService
+                    guard let user = self.supabaseAuthSessionService
                         .currentSession()?.user,
                           user.id == userID else {
                         return
@@ -2606,7 +2545,7 @@ import Supabase
         _ session: OAuthSignInSession,
         for transition: AuthTransitionToken
     ) -> Bool {
-        guard let user = oauthSessionService.currentSession()?.user,
+        guard let user = supabaseAuthSessionService.currentSession()?.user,
               transitionSession(from: user) == session.identity else {
             return false
         }
@@ -2622,7 +2561,7 @@ import Supabase
     ) async throws {
         try await OAuthSignInWorkflow.registerAppleCredential {
             guard self.currentSessionMatchesAuthTransition(transition),
-                  self.oauthSessionService.currentSession()?.user.id
+                  self.supabaseAuthSessionService.currentSession()?.user.id
                     == expectedUserID else {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
@@ -2632,7 +2571,7 @@ import Supabase
                 identityToken: identityToken
             )
             guard self.currentSessionMatchesAuthTransition(transition),
-                  self.oauthSessionService.currentSession()?.user.id
+                  self.supabaseAuthSessionService.currentSession()?.user.id
                     == expectedUserID else {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
@@ -2649,11 +2588,11 @@ import Supabase
                 self.analyticsGeneration(for: transition)
             },
             installSession: {
-                let session = try await self.oauthSessionService.installSession(
+                let session = try await self.supabaseAuthSessionService.installSession(
                     using: credentials
                 )
                 didMutateSession()
-                let installed = self.oauthSessionService.signInSession(
+                let installed = self.supabaseAuthSessionService.signInSession(
                     from: session
                 )
                 guard self.adoptOAuthSignInSession(
@@ -2666,7 +2605,7 @@ import Supabase
                 return session
             },
             currentSession: {
-                self.oauthSessionService.currentSession()
+                self.supabaseAuthSessionService.currentSession()
             },
             reconcileSession: { _, session, disposition in
                 self.reconcileOAuthSessionReplacement(
@@ -2684,7 +2623,7 @@ import Supabase
         transition: AuthTransitionToken
     ) {
         guard ownsAuthTransition(transition) else { return }
-        let resolvedSession = oauthSessionService.currentSession() ?? session
+        let resolvedSession = supabaseAuthSessionService.currentSession() ?? session
         let activeSession: Session?
         switch disposition {
         case .installed, .failed:
@@ -3371,14 +3310,14 @@ import Supabase
             transitionExpectedUserID:
                 authRuntimeState.activeExpectedSession?.userID,
             currentSessionUserID:
-                oauthSessionService.currentSession()?.user.id,
+                supabaseAuthSessionService.currentSession()?.user.id,
             expectedUserID: expectedUserID
         ) else {
             return false
         }
 
         do {
-            guard let updatedUser = try await oauthSessionService
+            guard let updatedUser = try await supabaseAuthSessionService
                 .updateProfileMetadata(profileMetadata) else {
                 return false
             }
@@ -3389,7 +3328,7 @@ import Supabase
                 transitionExpectedUserID:
                     authRuntimeState.activeExpectedSession?.userID,
                 currentSessionUserID:
-                    oauthSessionService.currentSession()?.user.id,
+                    supabaseAuthSessionService.currentSession()?.user.id,
                 expectedUserID: expectedUserID,
                 updatedUserID: updatedUser.id
             ) else {
@@ -3435,7 +3374,7 @@ import Supabase
             observedSessionMutation: observedSessionMutation,
             sourceSession: sourceSession,
             currentSession: transitionSession(
-                from: oauthSessionService.currentSession()?.user
+                from: supabaseAuthSessionService.currentSession()?.user
             )
         ) else {
             return

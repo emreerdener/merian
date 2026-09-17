@@ -272,7 +272,7 @@ extension InsightSheetViewModel {
         guard let scan = (try? modelContext.fetch(descriptor))?.first else {
             return false
         }
-        bindQueuedPresentation(QueuedScanContext(from: scan))
+        bindQueuedPresentation(scan.queuedScanContext())
         return true
     }
 

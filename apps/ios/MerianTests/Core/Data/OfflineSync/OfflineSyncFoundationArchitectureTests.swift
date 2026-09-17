@@ -157,6 +157,16 @@ struct OfflineSyncFoundationArchitectureTests {
         #expect(!extraction.contains("AppDIContainer.shared"))
         #expect(!extraction.contains("MerianNetworkClient"))
         #expect(!extraction.contains("URLSession"))
+        #expect(
+            extraction.contains(
+                "@MainActor\n    func queuedScanContext()"
+            )
+        )
+        #expect(
+            extraction.contains(
+                "OfflineQueueStoragePolicy.queuedMediaBytes("
+            )
+        )
         #expect(extraction.contains(
             ") throws -> ExtractedScanData?"
         ))
@@ -257,6 +267,14 @@ struct OfflineSyncFoundationArchitectureTests {
             "Persistence/ModelContext+OfflineJobs.swift",
         "func ensureOfflineJobRecord":
             "Persistence/ModelContext+OfflineJobs.swift",
+        "func ensurePendingCloudDeletionTask":
+            "Persistence/ModelContext+OfflineJobs.swift",
+        "func approximateBytes":
+            "Policies/OfflineQueueStoragePolicy.swift",
+        "func estimatedBytes":
+            "Policies/OfflineQueueStoragePolicy.swift",
+        "func queuedMediaBytes":
+            "Policies/OfflineQueueStoragePolicy.swift",
         "struct OfflineQueueDurableAuthority":
             "Persistence/OfflineQueueDurableAuthorityReader.swift",
         "enum OfflineQueueDurableAuthorityReadError":
@@ -264,6 +282,8 @@ struct OfflineSyncFoundationArchitectureTests {
         "enum OfflineQueueDurableAuthorityReader":
             "Persistence/OfflineQueueDurableAuthorityReader.swift",
         "enum QueuedScanExtractionError":
+            "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
+        "func queuedScanContext":
             "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
         "func extractedQueuedScanData":
             "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
@@ -386,6 +406,7 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let queuedScanExtractionTestDeclarations = [
+        "func queuedContextProjectionPreservesRouteSnapshotFields()",
         "func galleryQueueReplayOmitsBookkeepingTimestampWhenPhotoHasNoEmbeddedDate()",
         "func queueReplayReusesPersistedStandaloneAudioIdentity()",
         "func legacyQueueReplayDoesNotRenumberSparseAudioIdentity()",

@@ -7,7 +7,11 @@ test_root="$(mktemp -d "${TMPDIR:-/tmp}/merian-startup-scope-tests.XXXXXX")"
 trap 'rm -rf "$test_root"' EXIT
 
 test_repo="$test_root/repository"
-mkdir -p "$test_repo/apps/ios/Merian/Core/Data/StoreRecovery" "$test_repo/docs"
+mkdir -p \
+  "$test_repo/apps/ios/Merian/App/Presentation" \
+  "$test_repo/apps/ios/Merian/Configuration" \
+  "$test_repo/apps/ios/Merian/Core/Data/StoreRecovery" \
+  "$test_repo/docs"
 git -C "$test_repo" init -q
 git -C "$test_repo" config user.name "Startup Scope Test"
 git -C "$test_repo" config user.email "startup-scope@example.invalid"
@@ -40,7 +44,7 @@ push_event "$base" "$docs_head"
 assert_event false push "$test_root/event.json"
 
 # Earlier scoped input must survive an unrelated tip commit.
-scoped_path='apps/ios/Merian/Core/Data/StoreRecovery/Scope.swift'
+scoped_path='apps/ios/Merian/App/Presentation/Scope.swift'
 printf 'startup\n' > "$test_repo/$scoped_path"
 git -C "$test_repo" add .
 git -C "$test_repo" commit -qm Startup
@@ -128,6 +132,11 @@ assert_local() {
     echo "Unexpected local scope: $output" >&2; exit 1;
   }
 }
+configuration_scope='apps/ios/Merian/Configuration/TestExecutionCoordinator.swift'
+printf 'test execution\n' > "$test_repo/$configuration_scope"
+assert_local true
+git -C "$test_repo" add .
+git -C "$test_repo" commit -qm TestExecution
 printf 'local docs\n' >> "$test_repo/docs/README.md"
 assert_local false
 # NUL-delimited handling preserves scoped filenames with embedded newlines.

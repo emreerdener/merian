@@ -36,17 +36,23 @@ production file above the 600-line review ceiling:
 
 - `Network/SupabaseManager.swift`
 
-This is a residual inventory, not an exemption for new growth. Split these
-owners in behavior-preserving slices, update the inventory in the same change,
-and keep wire DTOs separate from UI policy.
+This is a residual inventory, not an exemption for new growth or an automatic
+instruction to create another owner. The macro extraction audit pauses further
+`SupabaseManager` splitting for this round: a future change must fix a concrete
+correctness boundary or demonstrate a net-negative affected production delta.
+Prefer consolidation and deletion, update the inventory in the same change, and
+keep wire DTOs separate from UI policy.
 
-The current Auth extraction leaves `SupabaseManager.swift` at 3,522 lines. The
-facade retains its sign-out task and live-effect assembly while the focused
-`AuthSessionLifecycleLiveProvider` owns the Supabase stream/listener task, SDK
-value mapping, and deferred current-state replay. Replacing that listener
-cancels both the superseded task and its replay obligation, and a
-post-coordinator cancellation fence prevents the superseded operation from
-resuming deferred credential revocation. The retained
+The current Auth/Purchase Identity extraction leaves `SupabaseManager.swift` at
+3,461 lines. The Core Network architecture guard caps Auth at 7,734 production
+lines, Purchase Identity at 2,016, this facade at 3,461, and their combined
+surface at 13,211 so another file split cannot silently grow the total. The
+facade retains the local-sign-out coordinator and Auth-owned state/handoff
+assembly while the focused `AuthSessionLifecycleLiveProvider` owns the Supabase
+stream/listener task, SDK value mapping, and deferred current-state replay.
+Replacing that listener cancels both the superseded task and its replay
+obligation, and a post-coordinator cancellation fence prevents the superseded
+operation from resuming deferred credential revocation. The retained
 `AuthHistoricalSessionSyncLiveService` owns listener-admitted synchronization
 tasks and cancels them on teardown. Its `+Live` adapter is the reviewed Auth
 composition owner of `AppDIContainer.shared` for offline-queue context and
@@ -58,19 +64,24 @@ service owns cached/loaded SDK-session projection, anonymous sign-in, and
 missing-session classification. Its `+Live` adapter alone invokes those Supabase
 Auth operations, and bootstrap diagnostics have a separate privacy-safe log
 owner. The facade retains transition admission, publication, purchase readiness,
-and the stable `User?` compatibility result. A separate recovery service
-projects refreshed/loaded SDK sessions, its `+Live` adapter alone performs the
-recovery refresh, read, and local sign-out calls, and a focused diagnostics
-owner retains the privacy-safe recovery copy. The facade continues to assemble
-adoption, publication, purchase, entitlement, and cleanup effects around that
-boundary. The typed Apple credential-registration service and its sole Supabase
-live adapter own strict receipt validation and Function transport, while the
-facade retains exact-session assembly around that effect. The adapter performs
-exactly one authenticated invocation per service call and owns neither retry
-policy nor asynchronous task state. The injected OAuth session service and its
-live adapter now own OIDC credential mapping, session reads/link/install calls,
-canonical profile-metadata construction, and the SDK metadata update; the facade
-retains transition admission, replacement reconciliation, diagnostics, and
+and the stable `User?` compatibility result. The task-free
+`SupabaseAuthSessionService` projects refreshed/loaded recovery sessions and
+maps OAuth credentials, callback URLs, and canonical profile metadata. Its one
+`+Live` adapter alone performs the corresponding session read/current snapshot,
+refresh, link, ID-token or callback-URL install, metadata update, and local
+sign-out calls, and owns the privacy-safe recovery and sign-out diagnostics. The
+local-sign-out coordinator owns retained task lifetime and exact cleanup
+sequencing for ordinary and account cleanup; the recovery coordinator retains
+its own terminal-clear sequencing. The facade continues to assemble transition,
+adoption, publication, and cleanup around that shared SDK boundary while
+injecting Auth state and handoff closures into Purchase Identity's ordinary
+readiness adapter instead of reacquiring its RevenueCat or entitlement
+dependencies. The typed Apple credential-registration service and its sole
+Supabase live adapter own strict receipt validation and Function transport,
+while the facade retains exact-session assembly around that effect. The adapter
+performs exactly one authenticated invocation per service call and owns neither
+retry policy nor asynchronous task state. The facade retains OAuth transition
+admission, exact-session adoption, replacement reconciliation, diagnostics, and
 observable publication. Provider-neutral bootstrap task state, lifecycle
 projection, conditional deferred-event replay, authenticated-request recovery
 sequencing, OAuth provider admission/presentation and completion, task-free
@@ -79,8 +90,13 @@ coordination, generation-fenced Apple credential revalidation, source-side
 purchase-handoff fencing/restoration, Auth journal error adaptation, and
 historical sync admission live under `Network/Auth/`. Keyed purchase resolution,
 binding state, foreground repair, and stable/compatibility proof construction
-and checkpointing live under `Security/PurchaseIdentity/`. Recovery captures the
-exact expected session before account-work quiescence. Refresh and
+and checkpointing live under `Security/PurchaseIdentity/`. That package's
+focused session live-effects adapter acquires RevenueCat, entitlement, resolver,
+legacy-profile, and diagnostic dependencies; the facade supplies only Auth
+state, account-work, and handoff closures to it. The adapter is reference-owned
+by the facade, and its deferred legacy-link and entitlement-refresh closures
+weakly capture that lifetime so neither effect begins after teardown. Recovery
+captures the exact expected session before account-work quiescence. Refresh and
 anonymous-replacement paths fence cancellation and transition/session drift
 after their suspended phases; terminal clear preserves durable purchase handoffs
 and invokes the remaining local and purchase-identity cleanup after SDK sign-out

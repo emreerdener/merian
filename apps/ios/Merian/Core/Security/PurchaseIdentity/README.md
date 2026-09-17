@@ -2,9 +2,11 @@
 
 This folder owns the iOS purchase-principal domain, secure device state, route
 adapters, provider-neutral session readiness, and the two durable purchase-
-continuity journals used while iOS changes Supabase Auth identity. It does not
-own Supabase Auth mutation, RevenueCat SDK work, entitlement refresh, sign-out
-task lifetime, user-facing presentation, or the server-side resolver
+continuity journals used while iOS changes Supabase Auth identity. It also owns
+the narrow live-effects adapter that binds provider-neutral session readiness to
+RevenueCat, entitlement, resolver, and legacy-profile operations. It does not
+own Supabase Auth mutation, RevenueCat or entitlement state/task lifetime,
+sign-out task lifetime, user-facing presentation, or the server-side resolver
 implementation.
 
 ## Ownership
@@ -15,8 +17,9 @@ implementation.
 - `Models/PurchasePrincipalWireModels.swift` owns the protocol version and the
   exact decoded response DTOs for resolve and stable sign-out rotation.
 - `Models/PurchaseIdentitySessionModels.swift` owns the provider-neutral exact
-  Auth-session context, SDK snapshot, provider-readiness projection, and
-  account-work lease used by identity resolution and foreground repair.
+  Auth-session context, legacy Auth/profile projection and link request, SDK
+  snapshot, provider-readiness projection, and account-work lease used by
+  identity resolution and foreground repair.
 - `Policies/PurchasePrincipalPolicies.swift` owns deterministic capability
   fingerprint, binding-intent generation, legacy-fallback, bounded server
   timestamp, base64url, and rotation-secret rules. The timestamp policy accepts
@@ -50,6 +53,18 @@ implementation.
   profile lookup boundary. Its live companion is the sole owner of the private
   profile DTO, Supabase import, and established `users` projection/query used to
   link legacy provider attributes. The service changes no row or wire shape.
+- `Services/PurchaseIdentitySessionLiveService.swift` owns the task-free,
+  initializer-injected assembly of legacy attribute precedence, snapshot
+  linking, provider resolution/binding, entitlement readiness, and diagnostics.
+  It imports no provider SDK, Supabase, logger, or singleton. Its reference
+  lifetime is the fail-closed teardown fence for deferred snapshot linking and
+  entitlement refresh; both closures weakly capture that owner and cannot start
+  their live effect after the Auth facade releases it.
+  `PurchaseIdentitySessionLiveService+Live.swift` is the explicit composition
+  edge for `RevenueCatManager`, `EntitlementManager`, the resolver, the legacy
+  profile query service, the Supabase client required by entitlement refresh,
+  and privacy-safe diagnostics. It owns no Auth state, transition admission,
+  handoff journal, observable publication, or asynchronous task.
 - `Coordinators/PurchaseIdentitySessionCoordinationDependencies.swift` defines
   narrow session-state, provider, handoff, entitlement, and diagnostic closure
   boundaries. `PurchaseIdentitySessionCoordinator.swift` owns active binding and
@@ -110,12 +125,15 @@ claim and compatibility completion routing; exact-session/cancellation fences;
 and proof-removal-last policy through an independent dependency package. The
 provider-neutral `AuthSessionLifecycleCoordinator` owns listener-driven
 readiness projection, including purchase and local entitlement closure behind an
-accepted-deletion barrier. `SupabaseManager` constructs the live resolver, three
-live remote/query services, the session-readiness coordinators, and the Auth
-journal around the handoff store. `PurchaseIdentityHandoffAuthJournal` maps
-domain load/persist failures to the existing Auth-transition errors;
-`SupabaseManager` retains Supabase SDK, RevenueCat, entitlement, logging, and
-lifecycle effects. Source-handoff coordination revalidates that manager-owned
+accepted-deletion barrier. `SupabaseManager` constructs the live resolver, the
+three route/query services, the session live-effects adapter, the session-
+readiness coordinators, and the Auth journal around the handoff store.
+`PurchaseIdentityHandoffAuthJournal` maps domain load/persist failures to the
+existing Auth-transition errors. The manager retains Auth-owned observable
+state, exact-session/account-work admission, handoff closures, and lifecycle
+sequencing; the session live-effects adapter exclusively acquires RevenueCat,
+entitlement, resolver, profile-query, and diagnostic dependencies for ordinary
+session readiness. Source-handoff coordination revalidates that manager-owned
 exact transition around linked-source discovery and stable preparation. Each
 returned stable or compatibility preparation proof is persisted before
 cancellation can stop the next Auth phase. The handoff coordinator rejects an
@@ -145,7 +163,8 @@ prepare/claim/cancel mapping with the fractional server timestamp shape. Store
 coverage rejects malformed activation evidence before any secure write and
 accepts both supported timestamp forms. The architecture suite freezes
 declaration uniqueness, the exact owner inventory, dependency confinement, all
-three live Supabase adapters, private payload ownership, and file-size ceilings.
+three route/query live adapters plus the session live-effects adapter, private
+payload ownership, facade delegation, and file-size ceilings.
 
 `PurchaseIdentityHandoffStoreTests` covers both installed journal formats,
 validation, exact keys, accessibility, verified writes/removal, and secure-store
@@ -179,12 +198,18 @@ same-context single-flight resolution, and differently keyed task supersession.
 account-work completion, fail-closed journal publication, anonymous completion,
 restored-source retirement, already-ready identity/entitlement reuse, and the
 final post-entitlement generation fence.
+`PurchaseIdentitySessionLiveServiceTests` freezes legacy profile precedence,
+blank-Auth public fallback, profile-failure fallback, account-kind mapping,
+provider/entitlement/diagnostic forwarding, exact-account legacy readiness, and
+owner-release rejection for deferred legacy linking and entitlement refresh
+independently of Supabase and the provider SDK.
 `LegacyPurchaseIdentityProfileServiceTests` freezes exact account and projection
 forwarding independently of Supabase. The cross-language
 `purchasePrincipalMigrationContract.test.ts` pins the iOS protocol and live
-route linkage, including all three live adapters, both session-readiness
-coordinators, the source-handoff/Auth-journal owners, and the preparation
-coordinator alongside the Edge and database contracts.
+route linkage, including the three route/query live adapters and the session
+live-effects adapter, both session-readiness coordinators, the source-handoff/
+Auth-journal owners, and the preparation coordinator alongside the Edge and
+database contracts.
 
 See the canonical
 [Keychain contract](../../../../../../docs/development-guides/05-keychain-and-secrets.md),

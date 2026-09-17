@@ -237,7 +237,7 @@ struct ScanFinalizationArchitectureTests {
     private static let coordinatorsPath =
         "apps/ios/Merian/Core/Data/Database/ScanPersistenceCoordinators.swift"
     private static let mediaServicePath =
-        "apps/ios/Merian/Core/Data/CapturedMediaPersistenceService.swift"
+        "apps/ios/Merian/Core/Data/CapturedMedia/CapturedMediaPersistenceService.swift"
     private static let finalizationServicePath =
         "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/BackgroundInferenceFinalizationService.swift"
     private static let inferenceProcessingPath =
@@ -315,7 +315,7 @@ struct ScanFinalizationArchitectureTests {
         .init(
             name: "CapturedMediaPersistenceService",
             signature: "struct CapturedMediaPersistenceService: Sendable",
-            owner: "Core/Data/CapturedMediaPersistenceService.swift"
+            owner: "Core/Data/CapturedMedia/CapturedMediaPersistenceService.swift"
         ),
         .init(
             name: "LocalScanRecordFactory",

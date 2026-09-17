@@ -878,8 +878,10 @@ validated enrichment can repopulate them.
 When a user stages an `ObservationContext` alongside a camera capture (or a
 gallery image), `InferenceEngine.analyze()` runs a **multi-modal combined path**
 that sends both the image and a structured text description to the edge
-function. Current `ObservationContext` is text-only. Capture-composition time
-belongs to the staged timeline wrapper; durable chronology belongs to
+function. The current text-only durable value is declared in
+`Models/Media/ObservationContext.swift`; Capture Staging owns its chronological
+wrapper, and Core AI only consumes the value. Capture-composition time belongs
+to that staged timeline wrapper; durable chronology belongs to
 `ownerMediaTimeline` and final Captured Media array order, not to an `addedAt`
 field inside the description payload:
 

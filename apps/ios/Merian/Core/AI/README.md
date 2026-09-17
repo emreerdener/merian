@@ -11,6 +11,13 @@ This README maps that contract to native source and test ownership.
 
 ## Responsibilities
 
+- `Models/CaptureTelemetry.swift` owns the inference capture-context value and
+  its deterministic live/environment adapters.
+  `Models/SpeciesData+EdgeResponse.swift` is the sole handwritten
+  `EdgeResponse`-to-`SpeciesData` adapter. The platform-neutral species value
+  graph and display/identity policies remain under `Merian/Models/Species`,
+  while generated Edge DTOs remain under Core Network. Neither Core AI model
+  file resolves networking, persistence, task, or singleton effects.
 - `InferenceEngine` retains the stable live-analysis entry points and
   source-compatible observable and foreground-task accessors. It delegates
   live-submission startup to `InferenceLiveSubmissionCoordinator`, callback
@@ -944,6 +951,14 @@ records slice completion, integration-audit outcomes, and outstanding runtime
 evidence.
 
 Focused tests live under `apps/ios/MerianTests/Core/AI/`.
+`Core/AI/Models/CaptureTelemetryTests.swift` preserves live and historical
+capture-context mapping, while the colocated
+`SpeciesDataEdgeResponseTests.swift` preserves the handwritten wire-to-domain
+adapter. The shared Models suites exercise only the platform-neutral domain
+graph, and `SpeciesModelsArchitectureTests.swift` enforces that ownership and
+effect-free boundary. Native-default camera zoom normalization remains a Capture
+Submission policy and is covered by `CaptureSubmissionPolicyTests`, not the Core
+AI telemetry suite.
 `Core/AI/Inference/InferenceEngineAssemblyArchitectureTests.swift` freezes the
 sole production owner-graph constructor, exact construction order and injected
 edges, exhaustive engine-to-assembly dependency forwarding and consumption,

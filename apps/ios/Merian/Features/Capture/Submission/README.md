@@ -33,14 +33,17 @@ The canonical bounded-image and focus handoff is documented in the
   snapshot. It also owns `CaptureSubmissionMediaTimeline`, the aligned
   `CaptureSubmissionMediaProjection`, and the hand-written `Identify*` request/
   replay descriptors. Staging owns chronological draft nodes; Submission alone
-  maps those nodes into live and durable transport values.
-  `CaptureSubmissionPayload` appends a video's cover to `displayImages` and
-  records that exact index on the timeline's `.video` item. It intentionally
-  does not emit a separate `.image` timeline item for the cover. A real still
-  immediately before a video therefore remains independent user media; only an
-  image whose index explicitly matches `posterImageIndex` is poster fallback
-  content. Core AI's `InferenceLiveMediaProjector` owns that presentation-time
-  suppression and fallback policy.
+  maps those nodes into live and durable transport values. The
+  `CapturedMediaSnapshot.submissionMediaProjection` adapter is colocated with
+  that projection owner; the cross-feature snapshot value therefore does not
+  import or resolve Capture transport concepts. `CaptureSubmissionPayload`
+  appends a video's cover to `displayImages` and records that exact index on the
+  timeline's `.video` item. It intentionally does not emit a separate `.image`
+  timeline item for the cover. A real still immediately before a video therefore
+  remains independent user media; only an image whose index explicitly matches
+  `posterImageIndex` is poster fallback content. Core AI's
+  `InferenceLiveMediaProjector` owns that presentation-time suppression and
+  fallback policy.
 - `Services/` composes narrow live admission and context closures, owns the 150
   ms one-shot context race, formats submission telemetry, and owns the optional
   LiDAR/Vision `SizeEstimator`. That estimator consumes the shared bounded
@@ -66,6 +69,10 @@ boundaries and the 600-line production-file review guard.
 
 `CaptureSubmissionMediaTimelineTests` locks chronological staging conversion,
 legacy fallback order, and snapshot cleanup.
+`Services/CaptureSubmissionTelemetry.swift` owns normalization that omits the
+camera's native-default zoom while retaining meaningful non-default zoom
+factors. `CaptureSubmissionPolicyTests` locks that behavior together with the
+other deterministic admission and media policies.
 `CaptureSubmissionMediaProjectionTests` locks interleaved video/standalone audio
 alignment, sparse persisted source indexes, compact indexing after omitted
 inputs, local Codable provenance, network-key omission, focus lookup, and

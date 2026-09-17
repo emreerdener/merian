@@ -1,20 +1,20 @@
 # Capture Shared
 
 The `Shared` directory owns Capture-domain code consumed by more than one
-product area or modality. Code that is also used outside Capture belongs in
-`Core` instead. The canonical image preparation, focus, and handoff behavior is
-documented in the
+product area or modality. Cross-feature infrastructure belongs in `Core`, while
+cross-feature deterministic value graphs belong in top-level `Models`. The
+canonical image preparation, focus, and handoff behavior is documented in the
 [image pipeline](../../../../../../docs/system-architecture/03-image-pipeline.md).
 
 ## Ownership
 
-- `Models/` contains shared Capture values such as observation context, the
-  file-backed Photos transfer wrapper, and `IdentifiableImage` source context,
-  provenance, distance, and resumable crop geometry. It also owns the fixed
-  `CaptureControlBarLayout` consumed by Shell, Scan, Record, and Describe, plus
-  the platform-neutral feedback and source vocabulary in
-  `CaptureControlHapticPolicy.swift`, shared by Shell controls and Scan's
-  video-start transition. These values do not invoke platform effects.
+- `Models/` contains shared Capture values such as the file-backed Photos
+  transfer wrapper and `IdentifiableImage` source context, provenance, distance,
+  and resumable crop geometry. It also owns the fixed `CaptureControlBarLayout`
+  consumed by Shell, Scan, Record, and Describe, plus the platform-neutral
+  feedback and source vocabulary in `CaptureControlHapticPolicy.swift`, shared
+  by Shell controls and Scan's video-start transition. These values do not
+  invoke platform effects.
 - `ViewModels/` contains the action coordinator shared by the Shell and capture
   modes.
 - `Services/ImageFocusRegionDetector.swift` owns the Capture-only Vision
@@ -33,7 +33,9 @@ documented in the
   consumes it for aligned audio presentation.
 
 Generic bounded media transport, including `SendableCGImage`, belongs to
-`Core/Media` because both Capture and Insights consume it.
+`Core/Media` because both Capture and Insights consume it. The durable
+`ObservationContext` belongs to `Models/Media` because Capture, Core AI,
+persistence, historical loading, and Insights all consume it.
 
 ## Verification
 

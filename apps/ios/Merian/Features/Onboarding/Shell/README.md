@@ -20,8 +20,8 @@ onboarding sequence after `MerianApp` has selected onboarding as the app root.
 ## Root-presentation boundary
 
 The shell does not decide whether missing consent is still being restored.
-`AppRootPresentationPolicy` in `MerianApp.swift` owns that decision using
-completed onboarding, current required consent, and
+`AppRootPresentationPolicy` in `App/Presentation/AppRootPresentation.swift` owns
+that decision using completed onboarding, current required consent, and
 `ConsentManager.isRestoringRequiredConsent`:
 
 - a first-time user enters this shell at `.welcome`;

@@ -158,7 +158,9 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
     platform bridges to their platform domain, UI to `Core/UI`, and feature
     terminology to its feature rather than this cross-domain fallback
   - `Analytics/`, `Intents/`
-- `Models/`: Standardized pure Data structures and `SwiftData` logic.
+- `Models/`: Cross-feature deterministic values, active SwiftData declarations,
+  immutable historical snapshots, and the ordered migration registry. SwiftData
+  fetch/mutation workflows belong to focused `Core/Data` persistence owners.
 - `Configuration/`: target-owned Info.plist, entitlement, and privacy-manifest
   files. Repo-level project files such as `project.yml`, `Config.xcconfig`, and
   signing config remain at the repository root.
@@ -478,7 +480,7 @@ dependency audit, tests, type-check, and production build; preserve the required
   before registering the immutable projection with
   `InferenceHistoricalHydrationCoordinator` for deferred hydration. Projection
   tests may assert serialized media items directly without creating files;
-  filesystem resolution behavior belongs to `SerializedMediaItemTests`.
+  filesystem resolution behavior belongs to `CapturedMediaResolutionTests`.
 - **No `await` needed for `ImageDownsampler` in tests.** `ImageDownsampler` is a
   `public enum` with static methods. Call
   `ImageDownsampler.downsample(data:maxSize:)` directly — no actor isolation, no

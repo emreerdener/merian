@@ -9,14 +9,18 @@ telemetry, and verification.
 
 | Area                         | File                                                                                                                                           | Responsibility                                                                                                                                                                                                                                                    |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App bootstrap                | `apps/ios/Merian/App/MerianApp.swift`                                                                                                          | Orchestrates startup, builds the model container, provides safe-mode/recovery details to Profile, and emits recovery telemetry after analytics starts.                                                                                                            |
+| App composition              | `apps/ios/Merian/App/MerianApp.swift`                                                                                                          | Requests one Store Recovery bootstrap outcome, attaches the returned container, provides its state/notice to Profile, and emits its recovery telemetry after analytics starts.                                                                                    |
+| Startup presentation         | `apps/ios/Merian/App/Presentation/AppRootPresentation.swift`                                                                                   | Owns startup-store environment keys, notice rendering, and configuration-warning composition without owning container construction or recovery effects.                                                                                                           |
+| Test-execution admission     | `apps/ios/Merian/Configuration/TestExecutionCoordinator.swift`                                                                                 | Sole owner of UI-test and XCTest process detection used to choose the in-memory test store and suppress startup telemetry, lifecycle maintenance, and live cloud-image repair during tests.                                                                       |
 | Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`                                                                                              | Converts Objective-C `NSException`s raised by SwiftData/Core Data into Swift errors.                                                                                                                                                                              |
 | Store configuration façade   | `apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`                                                                  | Preserves the source-compatible production configuration and exact SwiftData-configured store URL.                                                                                                                                                                |
-| Models                       | `apps/ios/Merian/Core/Data/StoreRecovery/Models/`                                                                                              | Owns recent-source and V50 graph values, migration decisions, startup diagnostics/telemetry projection, the recovery-manifest format, and recovery-local deterministic JSON coding.                                                                               |
+| Models                       | `apps/ios/Merian/Core/Data/StoreRecovery/Models/`                                                                                              | Owns recent-source and V50 graph values, migration decisions, bootstrap outcomes, startup state/notice/telemetry values, diagnostics projection, the recovery-manifest format, and recovery-local deterministic JSON coding.                                      |
 | Policies                     | `apps/ios/Merian/Core/Data/StoreRecovery/Policies/`                                                                                            | Owns migration-hint selection, corruption/migration/checksum classification, quarantine/rescue eligibility, safe-mode feedback, and privacy-safe fingerprints.                                                                                                    |
-| Services                     | `apps/ios/Merian/Core/Data/StoreRecovery/Services/`                                                                                            | Reads Core Data metadata, interprets schema/checksum evidence, persists local diagnostics, discovers exact SQLite artifacts, and transactionally writes or rolls back quarantine/rescue archives.                                                                 |
-| Focused tests                | `apps/ios/MerianTests/Core/Data/StoreRecovery/`                                                                                                | Verifies configuration, policy, metadata redaction, diagnostics, privacy-safe manifests, archive failure rollback, focused ownership, and isolation from auth/session managers.                                                                                   |
-| Migration tests              | `apps/ios/MerianTests/Models/MigrationPlanTests.swift`                                                                                         | Verifies recent source-isolated migration plans and disk-backed production plan selection.                                                                                                                                                                        |
+| Container factory            | `apps/ios/Merian/Core/Data/StoreRecovery/Services/ModelContainerFactory.swift`                                                                 | Owns Objective-C-exception-safe SwiftData construction, exhaustive source-isolated plan routing, attempt recording, ordered duplicate-checksum fallback, and the plan-free current-schema container used by safe mode.                                            |
+| Bootstrap orchestration      | `apps/ios/Merian/Core/Data/StoreRecovery/Services/ModelContainerBootstrapper.swift`                                                            | Owns launch diagnostics and the normal, quarantine, rescue, in-memory safe-mode, and terminal blocked outcomes.                                                                                                                                                   |
+| Recovery services            | `apps/ios/Merian/Core/Data/StoreRecovery/Services/StoreRecoveryMetadataService.swift`, `StoreRecoveryArtifactArchiver.swift`                   | Reads Core Data metadata, interprets schema/checksum evidence, persists local diagnostics, discovers exact SQLite artifacts, and transactionally writes or rolls back quarantine/rescue archives.                                                                 |
+| Focused tests                | `apps/ios/MerianTests/Core/Data/StoreRecovery/`                                                                                                | Verifies configuration, policy, metadata redaction, diagnostics, the live plan-free safe-mode container, terminal-blocked bootstrap results, privacy-safe manifests, archive rollback, focused ownership, and isolation from auth/session managers.               |
+| Migration tests              | `apps/ios/MerianTests/Models/MigrationPlanTests.swift`                                                                                         | Validates full-plan initialization independently from safe mode, plus recent source-isolated migrations and disk-backed production plan selection.                                                                                                                |
 | Image recovery tests         | `apps/ios/MerianTests/Core/Data/Images/`                                                                                                       | Verifies read-only legacy rescue-store consumption independently from launch-time Store Recovery.                                                                                                                                                                 |
 | Startup CI guardrails        | `.github/workflows/ios-project-guardrails.yml`, `.github/workflows/ios-startup-safety.yml`, `scripts/check-ios-migration-source-guardrails.sh` | Runs fast source/project/release-tooling checks on Ubuntu, then focused startup store-recovery and migration tests on macOS when startup inputs change.                                                                                                           |
 | Broad compiled CI            | `.github/workflows/ios-build-and-test.yml`, `scripts/check-ios-project-source-membership.sh`, `scripts/validate-ios-critical-test-results.sh`  | Compiles both shared test bundles, executes the complete unit-test target including the startup suites, runs all four deterministic progressive-analyzing, live-to-queue, queued-retry, and queued-completion UI smokes, and verifies an exact-SHA Release build. |
@@ -91,8 +95,10 @@ of that coverage.
    SwiftData migration failures out of the safe-mode loop while preserving the
    old files for support or future import work. An unrecognized V50 checksum is
    never guessed; it reaches this preserved rescue boundary.
-9. If recovery still fails, boot an in-memory safe-mode container and show a
-   startup notice.
+9. If recovery still fails, boot an empty in-memory `CurrentSchema` safe-mode
+   container without a migration plan and show a startup notice. Historical plan
+   validation remains a separate test obligation and cannot defeat this
+   last-resort path.
 10. If even the in-memory container fails, show the startup-blocked fallback UI.
 
 Generic current-store startup failures must not move local store files. They
@@ -407,20 +413,24 @@ V49→V50→V51 and both checksum-distinct V50→V51 plans plus current-store V5
 routing, pins the frozen V49 and both V50 snapshots, and verifies both the
 account-scoped V51 preference identity and active
 `isPendingDeletion`/`isDeleted` mapping plus unchanged `is_deleted` projection.
-It also guards the disk-backed migration tests from unlinking SQLite files and
-locks checksum retry order to current store, both V50 graphs, then V49 through
-V42, newest to oldest. The exhaustive recent-source enum must remain consecutive
-and end at the schema immediately before `CurrentSchema`; the app has no generic
-recent fallback, so adding a future source case also requires a dedicated
-runtime plan at compile time. Runtime tests separately assert that V48
-required-value validation failures are rescue-eligible because current SwiftData
-may reject malformed historical V48 rows before a repair migration can run. The
-V49 and V50 disk fixtures invoke the same production metadata decision used at
-launch, prove stored major `49` selects `.recentSource(.v49)` and stored major
-`50` selects `.recentSource(.v50)`, then open through the corresponding
-source-isolated migration path. Both V50 fixtures additionally prove their
-checksum variant is recognized and that unowned preferred-name rows are
-discarded without disturbing the rest of either graph.
+It also keeps the empty in-memory safe-mode factory on `CurrentSchema` and
+rejects any historical migration-plan argument there, guards the disk-backed
+migration tests from unlinking SQLite files, and locks checksum retry order to
+current store, both V50 graphs, then V49 through V42, newest to oldest. Its
+adversarial fixtures also reject replacing the independent full-plan
+initialization test with a recent-source plan. The exhaustive recent-source enum
+must remain consecutive and end at the schema immediately before
+`CurrentSchema`; the container factory has no generic recent fallback, so adding
+a future source case also requires a dedicated runtime plan at compile time.
+Runtime tests separately assert that V48 required-value validation failures are
+rescue-eligible because current SwiftData may reject malformed historical V48
+rows before a repair migration can run. The V49 and V50 disk fixtures invoke the
+same production metadata decision used at launch, prove stored major `49`
+selects `.recentSource(.v49)` and stored major `50` selects
+`.recentSource(.v50)`, then open through the corresponding source-isolated
+migration path. Both V50 fixtures additionally prove their checksum variant is
+recognized and that unowned preferred-name rows are discarded without disturbing
+the rest of either graph.
 
 The same source guardrail requires metadata and error-domain sanitizers,
 throwing manifest writes, rollback ownership, and deterministic tests for both
@@ -440,6 +450,8 @@ make validate-ios-migration-guardrails
 jq empty apps/ios/Merian/Resources/Changelog/changelog.json
 swiftlint lint \
   apps/ios/Merian/App/MerianApp.swift \
+  apps/ios/Merian/App/Presentation \
+  apps/ios/Merian/Configuration/TestExecutionCoordinator.swift \
   apps/ios/Merian/Core/Data/StoreRecovery \
   apps/ios/Merian/Core/Data/Images/LocalImageLoader.swift \
   apps/ios/Merian/Core/Data/Images/Concurrency/AsyncPermitPool.swift \
@@ -467,6 +479,8 @@ swiftlint lint \
   apps/ios/MerianTests/Core/Data/Database/CoreDataIntegrationArchitectureTests.swift \
   apps/ios/MerianTests/Core/Data/OfflineSync/QueueActorCacheTests.swift \
   apps/ios/MerianTests/Core/Data/OfflineSync/ProfileActorCacheTests.swift \
+  apps/ios/MerianTests/App \
+  apps/ios/MerianTests/Configuration/TestExecutionCoordinatorTests.swift \
   apps/ios/MerianTests/Models/MigrationPlanTests.swift \
   apps/ios/MerianTests/Core/Analytics/AppTelemetryTests.swift
 git diff --check
@@ -484,6 +498,9 @@ xcodebuild test \
   -only-testing:merianTests/StartupStoreDiagnosticTests \
   -only-testing:merianTests/StoreRecoveryArtifactArchiverTests \
   -only-testing:merianTests/StoreRecoveryArchitectureTests \
+  -only-testing:merianTests/ModelContainerBootstrapperTests \
+  -only-testing:merianTests/AppRootArchitectureTests \
+  -only-testing:merianTests/AppRootPresentationTests \
   -only-testing:merianTests/LocalImageLoaderTests \
   -only-testing:merianTests/LocalScanMediaRecoveryRevisionTests \
   -only-testing:merianTests/ScanThumbnailLoaderTests \

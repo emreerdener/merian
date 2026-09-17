@@ -4,6 +4,27 @@ import Testing
 
 @Suite("Capture submission policies")
 struct CaptureSubmissionPolicyTests {
+    @Test func testNonDefaultZoomFactor_usesNativeCameraDefault() {
+        #expect(
+            CaptureTelemetry.nonDefaultZoomFactor(
+                2.0,
+                defaultZoomFactor: 2.0
+            ) == nil
+        )
+        #expect(
+            CaptureTelemetry.nonDefaultZoomFactor(
+                1.0,
+                defaultZoomFactor: 2.0
+            ) == 1.0
+        )
+        #expect(
+            CaptureTelemetry.nonDefaultZoomFactor(
+                3.0,
+                defaultZoomFactor: 2.0
+            ) == 3.0
+        )
+    }
+
     @Test func admissionResolutionFailsClosedAndUsesQueueOnlyFallback() {
         let allowed = ScanAdmissionPreview(
             decision: .allowed,

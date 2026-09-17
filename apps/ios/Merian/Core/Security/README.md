@@ -286,9 +286,15 @@ account-work lease, including journal recovery, entitlement order, and the final
 SDK/session/provider fence. Both receive state and effects through small closure
 boundaries and import no Supabase, RevenueCat, entitlement, Keychain, or logging
 owner. The typed legacy-profile service and its live companion isolate the
-existing `users` projection used by legacy provider linking. `SupabaseManager`
-constructs these owners and supplies their live SDK, query, persistence, and
-diagnostic effects.
+existing `users` projection used by legacy provider linking. The task-free
+`PurchaseIdentitySessionLiveService` owns legacy attribute precedence and
+provider/entitlement/diagnostic boundary assembly without importing Supabase or
+resolving a singleton; its `+Live` adapter acquires RevenueCat, entitlement, the
+resolver, profile query, Supabase client, and privacy-safe diagnostics. Its
+reference lifetime weakly gates facade-owned deferred legacy linking and
+entitlement refresh. `SupabaseManager` constructs these owners and supplies only
+Auth state, exact-session/account-work, durable-handoff, and lifecycle closures
+to this ordinary readiness path.
 
 ## Purchase-identity handoff storage
 
@@ -383,9 +389,10 @@ callbacks.
 
 `isRestoringRequiredConsent` is true only while required consent is missing and
 the enum has not resolved. Current required evidence always wins and makes the
-computed value false. `AppRootPresentationPolicy` in `MerianApp.swift` uses that
-signal to hold a completed user on a launch-matched neutral surface instead of
-mounting the approval screen during an in-flight restore.
+computed value false. `AppRootPresentationPolicy` in
+`App/Presentation/AppRootPresentation.swift` uses that signal to hold a
+completed user on a launch-matched neutral surface instead of mounting the
+approval screen during an in-flight restore.
 
 Supabase token expiry does not mean the account is absent. On cold launch, an
 expired cached session contributes its user ID to this restoration state while

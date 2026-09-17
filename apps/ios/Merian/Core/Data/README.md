@@ -28,10 +28,16 @@ owns generation validation/adoption and prepared background-result commits; and
 actor-isolated fetch/insert support. `LocalScanRecordFactory` owns value
 mapping, while `CapturedMediaPersistenceService` owns ordered media
 serialization and delegates file adoption through narrow injected closures.
-`BackgroundDatabaseActor+SpeciesMetadata.swift` owns Wikipedia/reference-image
-patches, inference enrichment, lookalike-cache recovery, and identification
-review persistence. `BackgroundDatabaseActor+NonBiologicalRetention.swift` owns
-the bounded retention purge and atomic record/cloud-tombstone commit;
+`CapturedMedia/` owns cloud hydration/replacement policy and the SwiftData
+relationship-mirror write/fallback bridge. The ordered Codable values live in
+`Models/Media`, local and approved-remote path resolution lives in `Core/Media`,
+and Capture submission projection stays in Capture. See the
+[Captured Media README](CapturedMedia/README.md) for the exact boundary and
+regression suites. `BackgroundDatabaseActor+SpeciesMetadata.swift` owns
+Wikipedia/reference-image patches, inference enrichment, lookalike-cache
+recovery, and identification review persistence.
+`BackgroundDatabaseActor+NonBiologicalRetention.swift` owns the bounded
+retention purge and atomic record/cloud-tombstone commit;
 `NonBiologicalRetentionPolicy` owns its retention and batch values. Actor
 extensions perform no networking, authentication, direct file I/O, or UI work.
 
@@ -873,9 +879,12 @@ persistence.
 
 - `ModelStoreRecoveryCoordinator` remains the source-compatible façade for the
   production store configuration. `Models/`, `Policies/`, and `Services/`
-  separately own migration values and diagnostics, error/privacy decisions, Core
-  Data metadata inspection, and artifact archiving. See the
-  [Store Recovery README](StoreRecovery/README.md) for the focused boundaries.
+  separately own migration/bootstrap values and diagnostics, error/privacy
+  decisions, Objective-C-exception-safe container construction, exhaustive plan
+  routing, bootstrap recovery orchestration, Core Data metadata inspection, and
+  artifact archiving. `MerianApp` only requests and attaches the bootstrap
+  outcome. See the [Store Recovery README](StoreRecovery/README.md) for the
+  focused boundaries.
 - `ModelStoreRecoveryPolicy` decides whether a `ModelContainer` startup failure
   is a verified SQLite/Core Data corruption case.
 - It resolves the store URL from the same automatic SwiftData configuration used
@@ -908,6 +917,10 @@ persistence.
   write; a failure rolls completed moves back before startup continues.
 - Successful persistent opens and lossless migrations are silent. Recovery and
   safe-mode notices remain visible only after an actual fallback boundary.
+- The final safe-mode factory creates an empty in-memory `CurrentSchema`
+  container without a migration plan. The complete historical plan is exercised
+  independently by `MigrationPlanTests`, so a defective retired stage cannot
+  disable the last-resort workspace.
 - Each quarantine or rescue directory includes `recovery-manifest.json` with
   app/build/OS metadata, archive reason, moved artifact names, error code, an
   allowlisted stable error domain or its fingerprint, and deterministic

@@ -20,12 +20,12 @@ const oauthModelsUrl = new URL(
   "../../../../apps/ios/Merian/Core/Network/Auth/Models/OAuthSignInModels.swift",
   import.meta.url,
 );
-const oauthSessionServiceUrl = new URL(
-  "../../../../apps/ios/Merian/Core/Network/Auth/Services/OAuthSessionService.swift",
+const authSessionServiceUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Services/SupabaseAuthSessionService.swift",
   import.meta.url,
 );
-const oauthSessionLiveServiceUrl = new URL(
-  "../../../../apps/ios/Merian/Core/Network/Auth/Services/OAuthSessionService+Live.swift",
+const authSessionLiveServiceUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Network/Auth/Services/SupabaseAuthSessionService+Live.swift",
   import.meta.url,
 );
 const oauthCancellationTestsUrl = new URL(
@@ -169,8 +169,8 @@ Deno.test("iOS persists a Ghost merge proof before switching sessions", async ()
     publicAuthorRefreshDependencies,
     remoteServiceSource,
     liveRemoteServiceSource,
-    oauthSessionService,
-    oauthSessionLiveService,
+    authSessionService,
+    authSessionLiveService,
   ] = await Promise.all([
     Deno.readTextFile(managerUrl).then(compact),
     Deno.readTextFile(oauthCoordinatorUrl).then(compact),
@@ -182,8 +182,8 @@ Deno.test("iOS persists a Ghost merge proof before switching sessions", async ()
     Deno.readTextFile(publicAuthorRefreshDependenciesUrl).then(compact),
     Deno.readTextFile(ghostMergeRemoteServiceUrl).then(compact),
     Deno.readTextFile(ghostMergeLiveRemoteServiceUrl).then(compact),
-    Deno.readTextFile(oauthSessionServiceUrl).then(compact),
-    Deno.readTextFile(oauthSessionLiveServiceUrl).then(compact),
+    Deno.readTextFile(authSessionServiceUrl).then(compact),
+    Deno.readTextFile(authSessionLiveServiceUrl).then(compact),
   ]);
   const conflictFallback = oauthCoordinatorSource.indexOf(
     "guard dependencies.merge.requiresProviderBoundGhostMerge( error ) else",
@@ -312,22 +312,22 @@ Deno.test("iOS persists a Ghost merge proof before switching sessions", async ()
   }
   assertStringIncludes(
     source,
-    "try await self.oauthSessionService.linkIdentity( using: credentials )",
+    "try await self.supabaseAuthSessionService.linkIdentity( using: credentials )",
   );
   assertStringIncludes(
     source,
-    "try await self.oauthSessionService.installSession( using: credentials )",
+    "try await self.supabaseAuthSessionService.installSession( using: credentials )",
   );
   assertStringIncludes(
-    oauthSessionService,
+    authSessionService,
     "Self.openIDConnectCredentials(from: credentials)",
   );
   assertStringIncludes(
-    oauthSessionLiveService,
+    authSessionLiveService,
     "try await client.auth.linkIdentityWithIdToken( credentials: credentials )",
   );
   assertStringIncludes(
-    oauthSessionLiveService,
+    authSessionLiveService,
     "try await client.auth.signInWithIdToken( credentials: credentials )",
   );
   assert(

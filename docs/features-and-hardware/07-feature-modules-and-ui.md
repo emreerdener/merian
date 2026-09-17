@@ -55,20 +55,21 @@ instances.
   Ready Models, editable projection in its view model, and the repeated row in
   its component owner; the view retains only reactive manager projection,
   bindings, layout, and accessibility.
-- **Root View Handoff (`MerianApp`)**: `AppRootPresentationPolicy` combines the
-  injected onboarding flag, `ConsentManager.hasCurrentRequiredConsent`, and
-  `ConsentManager.isRestoringRequiredConsent`. When the user completes Step 4
-  with current required evidence, SwiftUI rewires the `WindowGroup`, unmounting
-  `OnboardingView` and mapping the camera layers to
-  `CaptureWorkspaceView(appSettings:)`. A completed user with unresolved account
-  evidence remains on a black, launch-matched restoration surface; a short
-  restore shows no additional chrome, and a progress indicator appears after 350
-  milliseconds. Failed synchronization keeps that surface active with bounded
-  automatic retry and an immediate **Try Again** action. An authoritative
-  no-session result may enter `.ready`; an authenticated account may do so only
-  after reconciliation proves evidence absent. An expired cached session is
-  classified as a known account awaiting refresh—not as no session— so it cannot
-  transiently select `.ready`. Because both `OnboardingView` and
+- **Root View Handoff (`App/Presentation` + `MerianApp`)**:
+  `AppRootPresentationPolicy` owns the deterministic combination of the injected
+  onboarding flag, `ConsentManager.hasCurrentRequiredConsent`, and
+  `ConsentManager.isRestoringRequiredConsent`; `MerianApp` applies its result.
+  When the user completes Step 4 with current required evidence, SwiftUI rewires
+  the `WindowGroup`, unmounting `OnboardingView` and mapping the camera layers
+  to `CaptureWorkspaceView(appSettings:)`. A completed user with unresolved
+  account evidence remains on a black, launch-matched restoration surface; a
+  short restore shows no additional chrome, and a progress indicator appears
+  after 350 milliseconds. Failed synchronization keeps that surface active with
+  bounded automatic retry and an immediate **Try Again** action. An
+  authoritative no-session result may enter `.ready`; an authenticated account
+  may do so only after reconciliation proves evidence absent. An expired cached
+  session is classified as a known account awaiting refresh—not as no session—
+  so it cannot transiently select `.ready`. Because both `OnboardingView` and
   `CaptureWorkspaceView` remain uninitialized during restoration, approval
   controls, hardware, and provider work cannot flash into an indeterminate
   launch frame.
@@ -241,7 +242,9 @@ production Shell and Library file remains below the 600-line review guard.
   eligible SwiftData rows into `QueuedScanSnapshot` values, preventing
   `LazyVGrid` from retaining deleted `@Model` references. The `q_` grid identity
   namespace and completed-only selection lookup keep queued IDs outside batch
-  selection.
+  selection. That Shell data store owns only the lightweight grid projection;
+  Offline Sync's main-actor persistence extension owns the fresh live-row-to-
+  `QueuedScanContext` projection used for the pushed Insight route.
 - **Presentation-only queue refresh**: While queued tiles are visible,
   `ScansShellViewModel` requests a fresh value snapshot from
   `ScansShellDataStore` every 1.5 seconds to work around dropped presented-sheet

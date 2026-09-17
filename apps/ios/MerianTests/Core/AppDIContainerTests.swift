@@ -32,42 +32,4 @@ struct AppDIContainerTests {
         #expect(previewA.hardwareOrchestrator === HardwareOrchestrator.shared)
     }
 
-    @Test func testExploreLaunchPresentationRequiresOnboardingAndOptIn() {
-        #expect(!AppLaunchPresentationPolicy.shouldOpenExplore(
-            hasCompletedOnboarding: false,
-            opensExploreOnLaunch: true
-        ))
-        #expect(!AppLaunchPresentationPolicy.shouldOpenExplore(
-            hasCompletedOnboarding: true,
-            opensExploreOnLaunch: false
-        ))
-        #expect(AppLaunchPresentationPolicy.shouldOpenExplore(
-            hasCompletedOnboarding: true,
-            opensExploreOnLaunch: true
-        ))
-    }
-
-    @Test func testRootPresentationWaitsForRequiredConsentRestoration() {
-        #expect(AppRootPresentationPolicy.presentation(
-            hasCompletedOnboarding: false,
-            hasCurrentRequiredConsent: false,
-            isRestoringRequiredConsent: true
-        ) == .onboarding)
-        #expect(AppRootPresentationPolicy.presentation(
-            hasCompletedOnboarding: true,
-            hasCurrentRequiredConsent: false,
-            isRestoringRequiredConsent: true
-        ) == .restoringConsent)
-        #expect(AppRootPresentationPolicy.presentation(
-            hasCompletedOnboarding: true,
-            hasCurrentRequiredConsent: true,
-            isRestoringRequiredConsent: true
-        ) == .workspace)
-        #expect(AppRootPresentationPolicy.presentation(
-            hasCompletedOnboarding: true,
-            hasCurrentRequiredConsent: false,
-            isRestoringRequiredConsent: false
-        ) == .onboarding)
-    }
-
 }

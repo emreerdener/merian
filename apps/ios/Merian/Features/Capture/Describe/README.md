@@ -4,6 +4,11 @@
 an `ObservationContext` for Capture staging or submission; it does not own
 network dispatch, persistence, or offline recovery.
 
+The Foundation-only `ObservationContext` value itself lives in `Models/Media`
+because inference, persistence, historical loading, and Insights also consume
+the durable representation. Describe owns its editing and composition policy,
+not the cross-feature value declaration.
+
 ## Ownership
 
 - `Models/` owns guided-question values, curated funnels, prompt copy and flow,

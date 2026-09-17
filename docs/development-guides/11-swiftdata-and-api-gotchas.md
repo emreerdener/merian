@@ -491,7 +491,8 @@ if let capturedMediaEntries, !capturedMediaEntries.isEmpty {
 Keep the relationship mirror populated for migration/debugging/fallback
 durability, but do not make SwiftUI hot paths depend on it while the scalar
 timeline is valid. Regression coverage lives in
-`SerializedMediaItemTests.swift`.
+`CapturedMediaRecordPersistenceTests.swift`; the implementation owner is
+`Core/Data/CapturedMedia/CapturedMediaRecordPersistence.swift`.
 
 ---
 
@@ -587,9 +588,12 @@ These are operational failures, not programmer assertions.
   construction should throw `MerianError.invalidURL` until config is valid.
 - `ModelContainer` creation should attempt corruption-specific quarantine once,
   archive non-corrupt legacy migration failures under `store-rescue/`, and then
-  fall back to an in-memory safe mode if recovery still fails. Archive success
-  requires every SQLite/WAL/SHM move and the atomic support manifest; a move or
-  manifest failure must restore completed moves before safe-mode fallback.
+  fall back to an empty in-memory `CurrentSchema` safe mode without a migration
+  plan if recovery still fails. The complete historical plan must be validated
+  independently so a defective retired stage cannot disable this last resort.
+  Archive success requires every SQLite/WAL/SHM move and the atomic support
+  manifest; a move or manifest failure must restore completed moves before
+  safe-mode fallback.
 - If in-memory safe mode also fails, render a startup-blocked recovery surface
   without attaching `.modelContainer`; do not use `try!`.
 - User-facing startup banners are acceptable; crash loops are not.
@@ -1284,8 +1288,11 @@ struct QueuedScanContext: Identifiable {
     let gpsElevation: Double?
     let gpsLatitude: Double?
     let gpsLongitude: Double?
-    init(from scan: OfflineQueuedScan) { /* copy while live */ }
 }
+
+// In Core/Data/OfflineSync/Persistence — copy while the row is live and ask
+// OfflineQueueStoragePolicy for the local-media footprint at this boundary.
+let queuedContext = queuedScan.queuedScanContext()
 
 // In ScansShellDataStore.queuedSnapshots(in:) — map before deletion can fire
 let queuedSnapshots = fetched.map {
@@ -1315,15 +1322,19 @@ the same UUID (both use `client_scan_id`). Without namespacing, `LazyVGrid`'s
 tile entirely. `gridId = "q_\(id)"` guarantees a distinct key for every
 queued-scan tile.
 
+**Projection ownership**: `ScansShellDataStore` owns the lightweight grid
+snapshot. Offline Sync's main-actor queued-scan persistence extension owns the
+live-row-to-`QueuedScanContext` route projection and supplies its byte estimate
+through `OfflineQueueStoragePolicy`.
+
 **`InsightSheetViewModel.queuedContext: QueuedScanContext?`**: All computed
 properties that previously switched on a live `OfflineQueuedScan?` now switch on
 `queuedContext == nil`. `QueuedContentView` receives `QueuedScanContext` rather
 than a `@Model` reference, and the queued media path is always rebuilt from
 `queuedContext.capturedMediaSnapshot` instead of faulting properties off the
-deleted model. `ScansShellDataStore` owns the queue-to-value projection;
-`ScansSheetView` retains the resulting context in its private pushed route while
-hashing and comparing by scan ID, so the destination survives queue deletion and
-completed-result handoff without a nested sheet.
+deleted model. `ScansSheetView` retains the resulting context in its private
+pushed route while hashing and comparing by scan ID, so the destination survives
+queue deletion and completed-result handoff without a nested sheet.
 
 ---
 

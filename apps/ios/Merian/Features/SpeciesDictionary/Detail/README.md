@@ -161,9 +161,9 @@ Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Detail/`:
   and reference-image behavior/ownership is guarded by
   `SpeciesDictionarySharedPresentationTests` and the sibling Shared architecture
   suite.
-- `SpeciesDataTests` owns lookalike identity filtering, including canonical self
-  IDs, normalized-name duplicates, invalid or missing IDs, and distinct species
-  that share one common name.
+- `SimilarSpeciesTests` owns lookalike identity filtering, including canonical
+  self IDs, normalized-name duplicates, invalid or missing IDs, and distinct
+  species that share one common name.
 - `SpeciesDictionaryDetailServiceTests` owns both UUID-first and scientific-name
   endpoint-adapter paths plus failure classification.
 - `SpeciesDictionaryDetailArchitectureTests` enforces directory ownership,

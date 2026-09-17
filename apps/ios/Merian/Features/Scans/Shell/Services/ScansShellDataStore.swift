@@ -133,7 +133,7 @@ struct ScansShellDataStore {
             queueNextRetryAt: queuedScan.queueNextRetryAt,
             queueLastErrorMessage: queuedScan.queueLastErrorMessage,
             queueNeedsAttention: queuedScan.queueNeedsAttention,
-            approximateQueuedBytes: QueuedScanContext.approximateQueuedBytes(
+            approximateQueuedBytes: OfflineQueueStoragePolicy.queuedMediaBytes(
                 mediaItems: capturedMediaItems,
                 inferenceImagePaths: queuedScan.inferenceImagePaths
             )

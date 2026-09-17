@@ -343,9 +343,11 @@ struct OfflineQueueAdmissionArchitectureTests {
         "enum OfflineCaptureFileStore":
             "Services/CaptureAdmission/OfflineCaptureFileStore.swift",
         "func approximateBytes":
-            "Services/CaptureAdmission/OfflineCaptureFileStore.swift",
+            "Policies/OfflineQueueStoragePolicy.swift",
         "func estimatedBytes":
-            "Services/CaptureAdmission/OfflineCaptureFileStore.swift",
+            "Policies/OfflineQueueStoragePolicy.swift",
+        "func queuedMediaBytes":
+            "Policies/OfflineQueueStoragePolicy.swift",
         "func persistFiles":
             "Services/CaptureAdmission/OfflineCaptureFileStore.swift",
         "func persistFile":

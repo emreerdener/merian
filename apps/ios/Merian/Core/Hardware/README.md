@@ -221,10 +221,11 @@ and never prompts.
 
 The common Debug UI-test launcher supplies
 `-seedLocationPermissionPromptSuppressed`. The flag is honored only when the
-`UITesting` environment contract is also active; it suppresses the Core Location
-prompt without fabricating authorization, coordinates, or cached environment
-context. A future UI test that intentionally exercises the iOS location prompt
-must use a launcher that omits this argument. The Release
+`UITesting` environment contract resolved by
+`Configuration/TestExecutionCoordinator.swift` is also active; it suppresses the
+Core Location prompt without fabricating authorization, coordinates, or cached
+environment context. A future UI test that intentionally exercises the iOS
+location prompt must use a launcher that omits this argument. The Release
 `UITestSeedCoordinator` implementation always disables the fixture, and archive
 validation rejects the marker if it reaches the main executable.
 

@@ -191,9 +191,11 @@ orphaned object does not reconstruct its relational context.
 ### 4. Ephemeral Offline-First Sync (`OfflineQueueManager`, `OfflineJobScheduler`, `SwiftData`)
 
 - Employs a zero-data-loss queue structure tracking users without cellular data
-  using `SwiftData` inside `MerianApp`. The durable unit is a canonical ordered
-  mixed-media timeline, persisted once at submission time and reused across live
-  inference, offline replay, thumbnails, and result hydration.
+  in the app-scoped SwiftData container. Store Recovery creates that container,
+  and `MerianApp` attaches it to the root environment and repository wiring. The
+  durable unit is a canonical ordered mixed-media timeline, persisted once at
+  submission time and reused across live inference, offline replay, thumbnails,
+  and result hydration.
 - Visual submissions wait for the queue acceptance callback before starting live
   analysis. If the queue cannot durably write the scan, the UI reports the
   failure and discards orphaned source media instead of showing a false queued

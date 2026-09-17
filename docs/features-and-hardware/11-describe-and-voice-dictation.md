@@ -24,7 +24,9 @@ the same ingestion ledger so text-only legacy rows can recover through
 It is the value type that carries the user's input from the UI through
 `InferenceEngine` and `InferenceLivePipelineCoordinator` to
 `InferenceLiveRequestService`, which serializes it for the shared nonvisual
-request.
+request. Its cross-feature declaration lives in
+`Models/Media/ObservationContext.swift`; Capture Describe owns editing and
+composition policy, not the durable value type.
 
 `@State private var observationContext = ObservationContext()` lives in
 **`CaptureWorkspaceView`**, not in `DescribeInputView`. This lift is required

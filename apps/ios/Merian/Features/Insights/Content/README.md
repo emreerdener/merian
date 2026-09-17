@@ -45,7 +45,7 @@ It supplies `activeConfirmedSpeciesId` as the current canonical identity;
 normalized scientific name remains the fallback for historical records without
 one. Shared common names never remove a distinct species. Gallery filtering,
 image fallback, and navigation behavior remain owned by
-`Features/SpeciesReference`, while `SpeciesDataTests` owns the identity
+`Features/SpeciesReference`, while `SimilarSpeciesTests` owns the identity
 regressions.
 
 ## Audio Subject Routing

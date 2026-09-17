@@ -22,6 +22,55 @@ struct QueuedScanExtractionTests {
         return String(decoding: data, as: UTF8.self)
     }
 
+    @Test func queuedContextProjectionPreservesRouteSnapshotFields() throws {
+        let timestamp = try #require(
+            ISO8601DateFormatter().date(from: "2026-09-16T12:34:56Z")
+        )
+        let retryAt = timestamp.addingTimeInterval(90)
+        let mediaItems: [SerializedMediaItem] = [
+            .description(ObservationContext(freeText: "Wing bars visible"))
+        ]
+        let visualMediaItemsJSON = "[{\"kind\":\"image\"}]"
+        let scan = OfflineQueuedScan(
+            id: "queued-context-projection",
+            timestamp: timestamp,
+            capturedMediaJSON: try encodedJSONString(mediaItems),
+            gpsLatitude: 41.8781,
+            gpsLongitude: -87.6298,
+            gpsElevation: 181,
+            weatherCondition: "Clear",
+            weatherTemperatureF: 72,
+            locationName: "Chicago",
+            scanState: .failed,
+            visualMediaItemsJSON: visualMediaItemsJSON,
+            queueAttemptCount: 3,
+            queueNextRetryAt: retryAt,
+            queueLastErrorCode: "temporary_failure",
+            queueLastErrorMessage: "Try again",
+            queueNeedsAttention: true
+        )
+
+        let snapshot = scan.queuedScanContext()
+
+        #expect(snapshot.id == scan.id)
+        #expect(snapshot.capturedMediaItems == mediaItems)
+        #expect(snapshot.queueState == .failed)
+        #expect(snapshot.timestamp == timestamp)
+        #expect(snapshot.locationName == "Chicago")
+        #expect(snapshot.weatherTemperatureF == 72)
+        #expect(snapshot.weatherCondition == "Clear")
+        #expect(snapshot.gpsElevation == 181)
+        #expect(snapshot.gpsLatitude == 41.8781)
+        #expect(snapshot.gpsLongitude == -87.6298)
+        #expect(snapshot.queueAttemptCount == 3)
+        #expect(snapshot.queueNextRetryAt == retryAt)
+        #expect(snapshot.queueLastErrorCode == "temporary_failure")
+        #expect(snapshot.queueLastErrorMessage == "Try again")
+        #expect(snapshot.queueNeedsAttention)
+        #expect(snapshot.approximateQueuedBytes == 0)
+        #expect(snapshot.visualMediaItemsJSON == visualMediaItemsJSON)
+    }
+
     @Test func galleryQueueReplayOmitsBookkeepingTimestampWhenPhotoHasNoEmbeddedDate() throws {
         let context = try OfflineSyncTestSupport.makeIsolatedContext()
         let queueTimestamp = try #require(

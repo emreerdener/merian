@@ -107,3 +107,26 @@ extension Array where Element == CaptureSubmissionMediaItem {
         submissionMediaProjection.observationContexts
     }
 }
+
+extension CapturedMediaSnapshot {
+    var submissionMediaProjection: CaptureSubmissionMediaProjection {
+        items.map { item in
+            switch item {
+            case .image:
+                return CaptureSubmissionProjectionItem.image
+            case .audio(let reference):
+                return .audio(
+                    reference.serializedPath,
+                    sourceIndex: reference.sourceIndex
+                )
+            case .video(let reference):
+                return .video(
+                    reference.video.serializedPath,
+                    audioFilePath: reference.audio?.serializedPath
+                )
+            case .description(let context):
+                return .description(context)
+            }
+        }.submissionMediaProjection
+    }
+}

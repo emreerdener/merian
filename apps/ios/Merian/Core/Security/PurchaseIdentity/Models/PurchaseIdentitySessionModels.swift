@@ -12,6 +12,33 @@ struct PurchaseIdentitySessionContext: Equatable {
     }
 }
 
+struct PurchaseIdentityLegacySessionProfile: Equatable {
+    let userID: UUID
+    let isAnonymous: Bool
+    let email: String?
+    let fullName: String?
+    let name: String?
+    let avatarURL: String?
+    let pictureURL: String?
+
+    var accountKind: String {
+        RevenueCatAccountMutationPolicy.accountKind(
+            isAnonymous: isAnonymous
+        )
+    }
+}
+
+struct PurchaseIdentityLegacyLinkRequest: Equatable {
+    let userID: UUID
+    let email: String?
+    let displayName: String?
+    let avatarURL: String?
+    let publicUsername: String?
+    let publicAuthorName: String?
+    let publicIdentitySource: String?
+    let accountKind: String
+}
+
 struct PurchaseIdentitySessionSnapshot {
     let userID: UUID
     let isAnonymous: Bool

@@ -146,8 +146,9 @@ Services-only live resolution, platform-neutral Models, absence of feature-
 owned unchecked sendability, private map helpers, aggregate removal, and the
 600-line ceiling. The suite also includes the common-name presentation tests.
 
-`MerianTests/Models/SpeciesDataTests.swift` separately owns lookalike identity
-filtering and the shared-common-name regression.
+`MerianTests/Models/Species/SpeciesDataTests.swift` and
+`SimilarSpeciesTests.swift` separately own shared species presentation,
+lookalike identity filtering, and the shared-common-name regression.
 `MerianTests/Features/FieldChat/FieldChatPresentationTests.swift` verifies that
 the corresponding suggestion chip uses the scientific name.
 
@@ -168,6 +169,10 @@ xcodebuild -project Merian.xcodeproj -scheme Merian \
   -only-testing:merianTests/GBIFHeatmapViewModelTests \
   -only-testing:merianTests/SimilarSpeciesImageFetcherTests \
   -only-testing:merianTests/SpeciesDataTests \
+  -only-testing:merianTests/SimilarSpeciesTests \
+  -only-testing:merianTests/SpeciesObservationModelsTests \
+  -only-testing:merianTests/SpeciesDataEdgeResponseTests \
+  -only-testing:merianTests/SpeciesModelsArchitectureTests \
   -only-testing:merianTests/FieldChatPresentationTests \
   -only-testing:merianTests/SpeciesReferenceArchitectureTests \
   -only-testing:merianTests/SpeciesObservationStatsEndpointTests \

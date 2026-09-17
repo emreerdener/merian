@@ -33,8 +33,13 @@ final class StoreRecoveryArchitectureTests: XCTestCase {
     func testStoreRecoveryDeclarationsHaveFocusedOwners() throws {
         let expectedOwners = [
             ("enum ModelStoreRecoveryCoordinator {", "ModelStoreRecoveryCoordinator.swift"),
+            ("enum ModelContainerFactory {", "ModelContainerFactory.swift"),
+            ("enum ModelContainerBootstrapper {", "ModelContainerBootstrapper.swift"),
             ("enum RecentSourceSchema:", "StoreMigrationModels.swift"),
             ("struct StoreMigrationDecision:", "StoreMigrationModels.swift"),
+            ("enum StartupStoreState:", "StartupStoreBootstrapModels.swift"),
+            ("struct StartupRecoveryNotice:", "StartupStoreBootstrapModels.swift"),
+            ("struct ModelContainerBootstrapOutcome {", "StartupStoreBootstrapModels.swift"),
             ("struct StartupStoreDiagnostic:", "StartupStoreDiagnostic.swift"),
             ("enum StoreRecoveryJSONCoding {", "StoreRecoveryJSONCoding.swift"),
             ("struct ModelStoreRecoveryManifest:", "StoreRecoveryManifest.swift"),
@@ -100,6 +105,7 @@ final class StoreRecoveryArchitectureTests: XCTestCase {
             .appendingPathComponent("App")
             .appendingPathComponent("ModelStoreRecoveryCoordinatorTests.swift")
         let expectedTestFiles = [
+            "ModelContainerBootstrapperTests.swift",
             "ModelStoreRecoveryCoordinatorTests.swift",
             "StartupStoreDiagnosticTests.swift",
             "StoreRecoveryArchitectureTests.swift",
@@ -137,6 +143,49 @@ final class StoreRecoveryArchitectureTests: XCTestCase {
         XCTAssertTrue(profile.contains("DisclosureGroup(\"Local library status\")"))
         XCTAssertTrue(profile.contains("StartupRecoveryNoticeView(notice: startupRecoveryNotice)"))
         XCTAssertTrue(source.contains("title: \"Startup Blocked\""))
+    }
+
+    func testAppRootDelegatesContainerConstructionToStoreRecovery() throws {
+        let appRoot = iosRoot.appendingPathComponent("Merian")
+        let source = try String(
+            contentsOf: appRoot.appendingPathComponent("App/MerianApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("ModelContainerBootstrapper.bootstrap()"))
+        XCTAssertFalse(source.contains("ModelContainer("))
+        XCTAssertFalse(source.contains("SchemaMigrationPlan"))
+        XCTAssertFalse(source.contains("quarantineStoreArtifacts"))
+        XCTAssertFalse(
+            source.contains("rescueStoreArtifactsAfterMigrationFailure")
+        )
+    }
+
+    func testSafeModeInMemoryContainerDoesNotValidateMigrationPlan() throws {
+        let source = try String(
+            contentsOf: storeRecoverySourceRoot
+                .appendingPathComponent("Services")
+                .appendingPathComponent("ModelContainerFactory.swift"),
+            encoding: .utf8
+        )
+        let start = try XCTUnwrap(
+            source.range(of: "private static func makeInMemoryContainerUnchecked()")
+        )
+        let end = try XCTUnwrap(
+            source.range(
+                of: "static func makeContainerCatchingObjectiveCExceptions(",
+                range: start.upperBound..<source.endIndex
+            )
+        )
+        let function = source[start.lowerBound..<end.lowerBound]
+
+        XCTAssertTrue(
+            function.contains("Schema(versionedSchema: CurrentSchema.self)")
+        )
+        XCTAssertTrue(function.contains("isStoredInMemoryOnly: true"))
+        XCTAssertTrue(function.contains("ModelContainer("))
+        XCTAssertFalse(function.contains("migrationPlan:"))
+        XCTAssertFalse(function.contains("MerianMigrationPlan.self"))
     }
 
     private var iosRoot: URL {

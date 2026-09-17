@@ -399,56 +399,67 @@ A structured schema built on native SwiftData migrations:
   fallback. It is not billing authority. `Core/Network/Auth/` owns the
   value-only `AuthTransitionCoordinator`, deterministic transition policy,
   provider-neutral Auth-session bootstrap and recovery dependency/coordinator
-  pairs, a focused bootstrap SDK service/live adapter and diagnostics owner,
-  plus the lifecycle and conditional replay coordinators, account-deletion
-  classification, ghost-merge queue/error policy, pure deletion phase
-  sequencing, separate dependency-injected fresh/recovery deletion coordinators,
-  purchase-safe sign-out ordering, and ghost-merge finalization order. The
-  lifecycle coordinator owns session projection and signed-out postflight;
-  closes published Auth, purchase identity, and the local server-verified
-  entitlement projection behind an accepted deletion barrier; and owns purchase,
-  entitlement, and historical-sync admission behind injected effects. The
-  public-author refresh coordinator owns transition-owned refresh and the keyed
-  restored-session Ghost-completion/refresh/event sequence behind injected
-  exact-session and account-work fences. `AuthRuntimeState` stores and advances
-  the transition coordinator and Auth generation, owns transition analytics
-  generations, exact-session work leases and drain waiters, and retains local
-  sign-out state without acquiring live effects. `SupabaseManager` retains the
-  lifecycle provider, history service, and facade sign-out task and supplies the
-  focused owners' live account-deletion and purchase-identity effects, and
-  resolves an existing session or creates an anonymous Supabase session through
-  the bootstrap coordinator while preserving its SDK-typed entry point. The
-  bootstrap service projects SDK identity/expiry and classifies missing-session
-  evidence; its `+Live` adapter alone reads bootstrap sessions and performs
-  anonymous sign-in, while the facade owns publication and purchase readiness.
-  The lifecycle provider owns the SDK stream, value mapping, and exact
-  current-state replay. Replacing its listener cancels the superseded task and
-  replay obligation, while a post-coordinator cancellation fence blocks that
-  task's trailing credential-revocation resume effect; both dependency
-  assemblies capture the facade weakly. The history service retains admitted
-  synchronization work and repeats the session fence after preferred-name
-  synchronization; its `+Live` adapter is the reviewed Auth owner of
-  `AppDIContainer.shared` for offline-queue context and scan-repository
-  composition. The coordinator owns complete-token exact-context single-flight,
-  cancellation checks around sign-out/quiescence waiting, true-missing-only
-  creation, transition adoption, purchase readiness, and final exact-session
-  validation. A separate task-free recovery coordinator owns ordinary and
-  transition-owned exact-session refresh, anonymous purchase/entitlement
-  restoration, and terminal local cleanup. It captures the expected session
-  before account-work quiescence, preserves pending purchase handoffs, and
-  repeats the expected/current-session check plus cancellation, transition
-  ownership, and Auth generation after suspension. Terminal local clear returns
-  a typed completed, rejected, or purchase-handoff-blocked outcome. It stops
-  before mutation for cancellation, context drift, or pending handoff evidence;
-  after SDK sign-out starts, it still invokes observable-state, secure-marker,
-  analytics, and purchase-identity cleanup if the SDK call fails or cancellation
-  arrives. A cancelled OAuth owner may enter that path only through the explicit
-  already-mutated-session cleanup policy. A focused recovery service projects
-  refreshed and loaded SDK sessions; its `+Live` adapter alone invokes recovery
-  refresh, session read, and local sign-out, while its diagnostics owner
-  preserves privacy-safe logging. The facade retains adoption, publication,
-  purchase, entitlement, and cleanup composition around that injected boundary.
-  A transition token does not authorize a suspended result by itself: deletion,
+  pairs, a focused bootstrap SDK service/live adapter and diagnostics owner, one
+  shared task-free Supabase Auth service/live adapter for OAuth, recovery, and
+  local sign-out, plus the lifecycle and conditional replay coordinators,
+  account-deletion classification, ghost-merge queue/error policy, pure deletion
+  phase sequencing, separate dependency-injected fresh/recovery deletion
+  coordinators, purchase-safe sign-out ordering, and ghost-merge finalization
+  order. The lifecycle coordinator owns session projection and signed-out
+  postflight; closes published Auth, purchase identity, and the local
+  server-verified entitlement projection behind an accepted deletion barrier;
+  and owns purchase, entitlement, and historical-sync admission behind injected
+  effects. The public-author refresh coordinator owns transition-owned refresh
+  and the keyed restored-session Ghost-completion/refresh/event sequence behind
+  injected exact-session and account-work fences. `AuthRuntimeState` stores and
+  advances the transition coordinator and Auth generation, owns transition
+  analytics generations, exact-session work leases and drain waiters, and
+  retains local sign-out state without acquiring live effects. `SupabaseManager`
+  retains the lifecycle provider, history service, and local-sign-out
+  coordinator and supplies the focused owners' live account-deletion effects.
+  For ordinary purchase readiness, Core Security's
+  `PurchaseIdentitySessionLiveService+Live` acquires RevenueCat, entitlement,
+  resolver, profile-query, and diagnostic dependencies while the manager injects
+  Auth state, exact-session/account-work, and handoff closures. Deferred legacy
+  linking and entitlement refresh weakly capture the service lifetime and fail
+  closed after facade teardown. The manager resolves an existing session or
+  creates an anonymous Supabase session through the bootstrap coordinator while
+  preserving its SDK-typed entry point. The bootstrap service projects SDK
+  identity/expiry and classifies missing-session evidence; its `+Live` adapter
+  alone reads bootstrap sessions and performs anonymous sign-in, while the
+  facade owns publication and purchase readiness. The lifecycle provider owns
+  the SDK stream, value mapping, and exact current-state replay. Replacing its
+  listener cancels the superseded task and replay obligation, while a
+  post-coordinator cancellation fence blocks that task's trailing
+  credential-revocation resume effect; both dependency assemblies capture the
+  facade weakly. The history service retains admitted synchronization work and
+  repeats the session fence after preferred-name synchronization; its `+Live`
+  adapter is the reviewed Auth owner of `AppDIContainer.shared` for
+  offline-queue context and scan-repository composition. The coordinator owns
+  complete-token exact-context single-flight, cancellation checks around
+  sign-out/quiescence waiting, true-missing-only creation, transition adoption,
+  purchase readiness, and final exact-session validation. A separate task-free
+  recovery coordinator owns ordinary and transition-owned exact-session refresh,
+  anonymous purchase/entitlement restoration, and terminal local cleanup. It
+  captures the expected session before account-work quiescence, preserves
+  pending purchase handoffs, and repeats the expected/current-session check plus
+  cancellation, transition ownership, and Auth generation after suspension.
+  Terminal local clear returns a typed completed, rejected, or
+  purchase-handoff-blocked outcome. It stops before mutation for cancellation,
+  context drift, or pending handoff evidence; after SDK sign-out starts, it
+  still invokes observable-state, secure-marker, analytics, and
+  purchase-identity cleanup if the SDK call fails or cancellation arrives. A
+  cancelled OAuth owner may enter that path only through the explicit
+  already-mutated-session cleanup policy. The task-free
+  `SupabaseAuthSessionService` projects refreshed and loaded SDK sessions and
+  maps OAuth values; its one `+Live` adapter performs the corresponding
+  recovery, OAuth, and local-sign-out SDK calls and owns their privacy-safe
+  diagnostics. The recovery coordinator owns terminal local-clear sequencing. A
+  separate local-sign-out coordinator owns ordinary and account-cleanup retained
+  task lifetime and exact cleanup sequence; neither moves task or cleanup policy
+  into the shared adapter. The facade retains adoption, publication, purchase,
+  entitlement, and cleanup composition around that injected boundary. A
+  transition token does not authorize a suspended result by itself: deletion,
   ordinary Auth refresh, purchase linking, and failed-sign-out restoration
   revalidate the exact UUID, anonymous/account kind, and Auth generation before
   publishing or retiring durable state. Lifecycle-coordinator and
@@ -496,31 +507,34 @@ A structured schema built on native SwiftData migrations:
   raw provider results into provider-neutral authorization values;
   `AppleOAuthCredentialRegistrationService` owns strict receipt validation, and
   its `+Live` adapter alone owns the registration Function DTOs and invocation.
-  `OAuthSessionService` owns OIDC and canonical profile-metadata adaptation, and
-  its `+Live` adapter alone performs the OAuth Auth-session read, link, install,
-  and update calls. `SupabaseManager` preserves the public entry points and
-  injects those services inside exact-session transition, reconciliation,
-  publication, registration, endpoint, and recovery effects. Apple registration
-  evidence carries the one-use code and idempotency UUID but not a second
-  identity-token field; the adapter forwards the token from the OAuth
-  credentials that install the session. The SDK must expose a permanent session
-  for that same UUID and the active Auth transition must adopt and revalidate it
-  before durable provider-bound merge recovery is retired. If that provider
-  already belongs to another permanent account, only the source-proof fallback
-  may move profile ownership into the permanent UUID. Its server completion
-  makes provider reconciliation due before obsolete source Auth cleanup. PostHog
-  identity remains a separate analytics-consent boundary; account/profile
-  identity never selects a stable RevenueCat customer. Shared completion checks
-  cancellation after every suspended phase. Session replacement reports
-  installed, failed, or cancelled so pre-install cancellation may restore only
-  the exact source, while cancellation after SDK mutation fails closed and
-  completes terminal local cleanup instead of finalizing the target. The
-  mutation marker is raised immediately after the live SDK install returns, and
-  that exact target becomes the transition expectation before the replacement
-  workflow performs its post-install cancellation check. This is a recovery
-  fence, not successful-login publication: cancellation cannot hide an installed
-  session behind a nominally pre-mutation path, and cleanup still rejects any
-  later unrelated identity. Facade teardown explicitly cancels retained
+  `SupabaseAuthSessionService` centralizes the task-free request-scoped SDK
+  boundary for OAuth, recovery, and local sign-out. It owns OIDC, fallback-
+  callback URL, canonical profile-metadata, and recovery-session projection; its
+  `+Live` adapter alone performs the corresponding Auth read, refresh, link,
+  ID-token or callback-URL install, metadata update, and local sign-out calls.
+  `SupabaseManager` preserves the public entry points and injects those services
+  inside exact-session transition, reconciliation, publication, registration,
+  endpoint, and recovery effects. Apple registration evidence carries the
+  one-use code and idempotency UUID but not a second identity-token field; the
+  adapter forwards the token from the OAuth credentials that install the
+  session. The SDK must expose a permanent session for that same UUID and the
+  active Auth transition must adopt and revalidate it before durable
+  provider-bound merge recovery is retired. If that provider already belongs to
+  another permanent account, only the source-proof fallback may move profile
+  ownership into the permanent UUID. Its server completion makes provider
+  reconciliation due before obsolete source Auth cleanup. PostHog identity
+  remains a separate analytics-consent boundary; account/profile identity never
+  selects a stable RevenueCat customer. Shared completion checks cancellation
+  after every suspended phase. Session replacement reports installed, failed, or
+  cancelled so pre-install cancellation may restore only the exact source, while
+  cancellation after SDK mutation fails closed and completes terminal local
+  cleanup instead of finalizing the target. The mutation marker is raised
+  immediately after the live SDK install returns, and that exact target becomes
+  the transition expectation before the replacement workflow performs its
+  post-install cancellation check. This is a recovery fence, not
+  successful-login publication: cancellation cannot hide an installed session
+  behind a nominally pre-mutation path, and cleanup still rejects any later
+  unrelated identity. Facade teardown explicitly cancels retained
   purchase-handoff and purchase-identity resolution work in addition to the Auth
   listener and other coordinator-owned tasks. The separate task-free fallback
   authentication-callback coordinator allows only an absent source or the same

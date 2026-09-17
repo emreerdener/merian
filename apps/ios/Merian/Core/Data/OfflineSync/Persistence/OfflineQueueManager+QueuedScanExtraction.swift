@@ -6,6 +6,37 @@ enum QueuedScanExtractionError: Error {
     case missingModelContext
 }
 
+extension OfflineQueuedScan {
+    /// Resolves one live SwiftData row into the detached value routed through
+    /// Scans and Insights. Call before deleting or detaching the receiver.
+    @MainActor
+    func queuedScanContext() -> QueuedScanContext {
+        let capturedMediaItems = serializedCapturedMediaItems
+        return QueuedScanContext(
+            id: id,
+            capturedMediaItems: capturedMediaItems,
+            queueState: queueState,
+            timestamp: timestamp,
+            locationName: locationName,
+            weatherTemperatureF: weatherTemperatureF,
+            weatherCondition: weatherCondition,
+            gpsElevation: gpsElevation,
+            gpsLatitude: gpsLatitude,
+            gpsLongitude: gpsLongitude,
+            queueAttemptCount: queueAttemptCount,
+            queueNextRetryAt: queueNextRetryAt,
+            queueLastErrorCode: queueLastErrorCode,
+            queueLastErrorMessage: queueLastErrorMessage,
+            queueNeedsAttention: queueNeedsAttention,
+            approximateQueuedBytes: OfflineQueueStoragePolicy.queuedMediaBytes(
+                mediaItems: capturedMediaItems,
+                inferenceImagePaths: inferenceImagePaths
+            ),
+            visualMediaItemsJSON: visualMediaItemsJSON
+        )
+    }
+}
+
 extension OfflineQueueManager {
     /// Reads and maps one queued scan while preserving the distinction between
     /// an absent row and an unavailable persistence boundary.

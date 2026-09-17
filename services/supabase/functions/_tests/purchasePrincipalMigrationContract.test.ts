@@ -88,6 +88,10 @@ const legacyPurchaseIdentityProfileServiceUrl = new URL(
   "../../../../apps/ios/Merian/Core/Security/PurchaseIdentity/Services/LegacyPurchaseIdentityProfileService+Live.swift",
   import.meta.url,
 );
+const purchaseIdentitySessionLiveServiceUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/PurchaseIdentity/Services/PurchaseIdentitySessionLiveService+Live.swift",
+  import.meta.url,
+);
 const purchaseIdentitySignOutWorkflowUrl = new URL(
   "../../../../apps/ios/Merian/Core/Network/Auth/Coordinators/PurchaseIdentitySignOutWorkflow.swift",
   import.meta.url,
@@ -692,6 +696,7 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
     sessionCoordinator,
     readinessCoordinator,
     legacyProfileService,
+    sessionLiveService,
     signOutWorkflow,
     signOutCoordinator,
   ] = await Promise.all([
@@ -712,6 +717,7 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
     Deno.readTextFile(purchaseIdentitySessionCoordinatorUrl),
     Deno.readTextFile(purchaseIdentityReadinessCoordinatorUrl),
     Deno.readTextFile(legacyPurchaseIdentityProfileServiceUrl),
+    Deno.readTextFile(purchaseIdentitySessionLiveServiceUrl),
     Deno.readTextFile(purchaseIdentitySignOutWorkflowUrl),
     Deno.readTextFile(purchaseIdentitySignOutCoordinatorUrl),
   ]);
@@ -953,8 +959,28 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
     "linkLegacyPurchaseIdentityForSignOutHandoff",
   );
   assertStringIncludes(
+    sessionLiveService,
+    "!manager.usesStablePurchasePrincipal",
+  );
+  assertStringIncludes(
+    sessionLiveService,
+    "RevenueCatManager.shared.linkWithSupabase(",
+  );
+  assertStringIncludes(
+    sessionLiveService,
+    ".linkResolvedPurchasePrincipal(",
+  );
+  assertStringIncludes(
+    sessionLiveService,
+    "EntitlementManager.shared.beginSession(",
+  );
+  assertStringIncludes(
     supabaseManager,
-    "!RevenueCatManager.shared.usesStablePurchasePrincipal",
+    "purchaseIdentitySessionLiveService.legacyProviderIsReady(",
+  );
+  assert(
+    !supabaseManager.includes("RevenueCatManager.shared.linkWithSupabase("),
+    "the Auth facade must not reacquire legacy provider linking",
   );
   assertStringIncludes(
     supabaseManager,

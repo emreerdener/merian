@@ -161,8 +161,9 @@ presentation state only: they do not rewrite `NormalizedImageFocusRegion`,
 queued metadata, or the already-dispatched AI request, whose original Vision
 coordinates remain the model hint. Reduce Motion holds the illumination band at
 the region's midpoint. Queued Insight caches use the focus-aware
-`QueuedScanContext.activeScanMedia`, and interaction state is keyed by scan ID
-plus the canonical still-image source index. User-adjusted geometry is stored in
+`QueuedScanContext.activeScanMedia` adapter owned by Insight Shell's media-
+presentation extension, and interaction state is keyed by scan ID plus the
+canonical still-image source index. User-adjusted geometry is stored in
 normalized carousel coordinates by the stable Insight view model rather than a
 mounted overlay. It therefore survives queue refreshes, overlay remounts, and
 the queued-to-foreground or completed-result media handoffs while remaining
@@ -1009,11 +1010,13 @@ restored.
 `Services/CloudScanImageRepairActor.swift` retains this workflow behind a small
 injected `Dependencies` value. Its live adapter is the only owner in this layer
 that resolves `MerianNetworkClient.shared` or publishes the library-change app
-event. The actor keeps a canonical source URL in its queued-or-in-flight set
-across inspection, signing, upload, and repair suspensions, so a duplicate
-enqueue cannot start a second workflow while the first request is in flight.
-Equivalent scheme/host casing, explicit `:443`, query, and fragment variants
-share that identity. Network's
+event. Its live admission closure delegates process detection to
+`Configuration/TestExecutionCoordinator.swift`, while focused tests inject the
+desired admission value. The actor keeps a canonical source URL in its
+queued-or-in-flight set across inspection, signing, upload, and repair
+suspensions, so a duplicate enqueue cannot start a second workflow while the
+first request is in flight. Equivalent scheme/host casing, explicit `:443`,
+query, and fragment variants share that identity. Network's
 `Endpoints/MerianNetworkClient+MediaStorage.swift` owns the thin
 inspect/sign/repair requests, `MediaStorageAPIModels.swift` owns their wire
 DTOs, and `Media/` owns signed-request policy and file-backed PUTs. The

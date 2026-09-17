@@ -25,7 +25,8 @@ versioned consent receipts, and the three-part required completion gate.
 
 | Owner                                                                 | Role                                                                                                                                                 |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `App/MerianApp.swift`                                                 | Applies the three-state root presentation policy and injects the selected app-scoped managers into Onboarding                                        |
+| `App/Presentation/AppRootPresentation.swift`                          | Owns the deterministic three-state root presentation policy                                                                                          |
+| `App/MerianApp.swift`                                                 | Applies the policy result and injects the selected app-scoped managers into Onboarding                                                               |
 | `Steps/Models/OnboardingStep.swift`                                   | Defines the four steps in order                                                                                                                      |
 | `Shell/Services/OnboardingDependencies.swift`                         | Narrow live adapters for completion state, consent, telemetry, queue recovery, and hardware-animation policy                                         |
 | `Shell/ViewModels/OnboardingViewModel.swift`                          | `@Observable @MainActor` state owner for ordered progression, expected-step guarding, and completion effect sequencing                               |
@@ -131,12 +132,12 @@ var hasCompletedOnboarding: Bool {
 }
 ```
 
-`MerianApp.swift` reads this flag together with
-`ConsentManager.hasCurrentRequiredConsent` and
-`ConsentManager.isRestoringRequiredConsent`. Production construction injects the
-exact app-scoped settings, consent, offline queue, and hardware manager
-instances selected by `MerianApp`; tests inject deterministic closures or
-isolated settings and consent ledgers.
+`AppRootPresentationPolicy` in `App/Presentation/AppRootPresentation.swift`
+evaluates this flag together with `ConsentManager.hasCurrentRequiredConsent` and
+`ConsentManager.isRestoringRequiredConsent`. `MerianApp` applies the returned
+presentation and injects the exact app-scoped settings, consent, offline queue,
+and hardware manager instances. Tests inject deterministic closures or isolated
+settings and consent ledgers.
 
 | Root inputs                                                                                          | Presentation                                   |
 | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------- |

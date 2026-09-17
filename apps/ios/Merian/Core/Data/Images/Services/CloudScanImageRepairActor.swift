@@ -25,8 +25,7 @@ actor CloudScanImageRepairActor {
 
         static let live = Dependencies(
             shouldRun: {
-                ProcessInfo.processInfo
-                    .environment["XCTestConfigurationFilePath"] == nil
+                !TestExecutionCoordinator.isRunningTests
             },
             now: { Date() },
             fileExists: { url in

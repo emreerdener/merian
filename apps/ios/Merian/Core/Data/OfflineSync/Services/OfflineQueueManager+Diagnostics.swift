@@ -184,7 +184,8 @@ extension OfflineQueueManager {
         scanDescriptor.fetchLimit =
             OfflineQueueDiagnosticsExportPolicy.maximumRowsPerSection
         let scans = try context.fetch(scanDescriptor).map { scan in
-            OfflineQueueDiagnosticsScan(
+            let queuedContext = scan.queuedScanContext()
+            return OfflineQueueDiagnosticsScan(
                 id: scan.id,
                 queueState: String(scan.queueState.rawValue),
                 timestamp: scan.timestamp,
@@ -208,13 +209,8 @@ extension OfflineQueueManager {
                 lastServerRetryAfter: scan.queueLastServerRetryAfter,
                 updatedAt: scan.queueUpdatedAt,
                 needsAttention: scan.queueNeedsAttention,
-                mediaKinds: QueuedScanContext(
-                    from: scan
-                ).mediaKinds,
-                approximateBytes: QueuedScanContext.approximateQueuedBytes(
-                    mediaItems: scan.serializedCapturedMediaItems,
-                    inferenceImagePaths: scan.inferenceImagePaths
-                )
+                mediaKinds: queuedContext.mediaKinds,
+                approximateBytes: queuedContext.approximateQueuedBytes
             )
         }
 

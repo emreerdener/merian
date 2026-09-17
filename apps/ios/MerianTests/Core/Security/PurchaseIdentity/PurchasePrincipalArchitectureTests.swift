@@ -81,6 +81,16 @@ struct PurchasePrincipalArchitectureTests {
                 "Coordinators/PurchaseIdentitySessionCoordinationDependencies.swift"
             )
         )
+        let sessionLiveService = try source(
+            at: purchaseRoot.appendingPathComponent(
+                "Services/PurchaseIdentitySessionLiveService.swift"
+            )
+        )
+        let sessionLiveAdapter = try source(
+            at: purchaseRoot.appendingPathComponent(
+                "Services/PurchaseIdentitySessionLiveService+Live.swift"
+            )
+        )
         let sessionCoordinator = try source(
             at: purchaseRoot.appendingPathComponent(
                 "Coordinators/PurchaseIdentitySessionCoordinator.swift"
@@ -109,6 +119,11 @@ struct PurchasePrincipalArchitectureTests {
         let securitySources = try swiftFiles(below: securityRoot).map {
             try source(at: $0)
         }
+        let supabaseManager = try source(
+            at: root.appendingPathComponent(
+                "apps/ios/Merian/Core/Network/SupabaseManager.swift"
+            )
+        )
 
         let actualPaths = try Set(
             swiftFiles(below: purchaseRoot).map {
@@ -124,6 +139,11 @@ struct PurchasePrincipalArchitectureTests {
             ("struct PrincipalRotationPreparation", models),
             ("struct PrincipalRotationCancellation", models),
             ("struct PurchaseIdentitySessionContext", sessionModels),
+            (
+                "struct PurchaseIdentityLegacySessionProfile",
+                sessionModels
+            ),
+            ("struct PurchaseIdentityLegacyLinkRequest", sessionModels),
             ("struct PurchaseIdentitySessionSnapshot", sessionModels),
             ("struct PurchaseIdentityProviderState", sessionModels),
             ("struct PurchaseIdentityAccountWorkLease", sessionModels),
@@ -175,6 +195,14 @@ struct PurchasePrincipalArchitectureTests {
                 sessionDependencies
             ),
             (
+                "struct PurchaseIdentitySessionLiveOperations",
+                sessionLiveService
+            ),
+            (
+                "class PurchaseIdentitySessionLiveService",
+                sessionLiveService
+            ),
+            (
                 "class PurchaseIdentitySessionCoordinator",
                 sessionCoordinator
             ),
@@ -222,6 +250,24 @@ struct PurchasePrincipalArchitectureTests {
         #expect(liveLegacyRemoteService.contains("import Supabase"))
         #expect(liveProfileService.contains("import Supabase"))
         #expect(!liveProfileService.contains(".shared"))
+        #expect(sessionLiveAdapter.contains("import Supabase"))
+        for requiredLiveDependency in [
+            "RevenueCatManager.shared",
+            "EntitlementManager.shared",
+            "legacyProfileService.fetch(for: userID)",
+            "resolver.resolve("
+        ] {
+            #expect(sessionLiveAdapter.contains(requiredLiveDependency))
+        }
+        for forbiddenLiveDependency in [
+            "import Supabase", "RevenueCatManager", "EntitlementManager",
+            "MerianLog", ".shared"
+        ] {
+            #expect(!sessionLiveService.contains(forbiddenLiveDependency))
+        }
+        #expect(
+            occurrenceCount(of: "[weak self]", in: sessionLiveService) == 2
+        )
         #expect(liveProfileService.contains("private struct LegacyPurchaseIdentityProfileDTO"))
         #expect(liveProfileService.contains(".from(\"users\")"))
         #expect(
@@ -294,7 +340,8 @@ struct PurchasePrincipalArchitectureTests {
             sessionCoordinator,
             readinessCoordinator,
             handoffPreparationCoordinator,
-            profileService
+            profileService,
+            sessionLiveService
         ] {
             for forbiddenDependency in [
                 "import Supabase", "RevenueCatManager", "EntitlementManager",
@@ -318,6 +365,21 @@ struct PurchasePrincipalArchitectureTests {
             )
         )
         #expect(readinessCoordinator.contains("let sessionCoordinator:"))
+        #expect(
+            supabaseManager.contains(
+                "purchaseIdentitySessionLiveService.dependencies("
+            )
+        )
+        #expect(
+            !supabaseManager.contains(
+                "private func linkLegacyPurchaseProviderIdentity("
+            )
+        )
+        #expect(
+            !supabaseManager.contains(
+                "RevenueCatManager.shared.linkWithSupabase("
+            )
+        )
 
         for deterministicOwner in [models, wireModels, policies] {
             for forbiddenDependency in [
@@ -377,6 +439,11 @@ struct PurchasePrincipalArchitectureTests {
                 "apps/ios/MerianTests/Core/Security/PurchaseIdentity/LegacyPurchaseIdentityProfileServiceTests.swift"
             )
         )
+        let sessionLiveServiceTests = try source(
+            at: root.appendingPathComponent(
+                "apps/ios/MerianTests/Core/Security/PurchaseIdentity/PurchaseIdentitySessionLiveServiceTests.swift"
+            )
+        )
         let aggregateTests = try source(
             at: root.appendingPathComponent(
                 "apps/ios/MerianTests/Core/Network/SupabaseManagerTests.swift"
@@ -423,6 +490,16 @@ struct PurchasePrincipalArchitectureTests {
                 "injectedFetchPreservesTheExactAccountAndProjection"
             )
         )
+        for testName in [
+            "legacySnapshotPreservesProfilePrecedenceAndAccountKind",
+            "failedProfileLookupStillLinksAuthMetadata",
+            "blankAuthMetadataFallsBackToPublicProfile",
+            "dependenciesForwardProviderEntitlementAndDiagnostics",
+            "legacyReadinessForwardsTheExactAccount",
+            "releasedServiceRejectsDeferredFacadeOwnedEffects"
+        ] {
+            #expect(sessionLiveServiceTests.contains("func \(testName)("))
+        }
         #expect(
             !aggregateTests.contains(
                 "testPendingSignOutPurchaseProofIsDiscardedOnlyForTerminalCodes"
@@ -444,6 +521,8 @@ struct PurchasePrincipalArchitectureTests {
         "Services/LegacyPurchaseHandoffRemoteService.swift",
         "Services/LegacyPurchaseIdentityProfileService+Live.swift",
         "Services/LegacyPurchaseIdentityProfileService.swift",
+        "Services/PurchaseIdentitySessionLiveService+Live.swift",
+        "Services/PurchaseIdentitySessionLiveService.swift",
         "Services/PurchasePrincipalRemoteService+Live.swift",
         "Services/PurchasePrincipalRemoteService.swift",
         "Services/PurchasePrincipalSecureRandom.swift",

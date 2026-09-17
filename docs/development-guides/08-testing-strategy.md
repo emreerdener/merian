@@ -1137,15 +1137,22 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
 
 - **`scripts/test-check-ios-migration-source-guardrails.sh`**: Runs the source
   guardrail against isolated fixtures, including a valid V47 plan padded beyond
-  pipe capacity, missing source/stage entries, and a forbidden recent source.
+  pipe capacity, missing source/stage entries, a forbidden recent source, and a
+  safe-mode factory that incorrectly reintroduces the historical plan. A
+  separate adversarial fixture replaces the independent full-plan initialization
+  with a recent-source plan and proves the guard rejects that weakened coverage.
   Extracted-text checks use here-strings so an early `grep -q` match cannot
   produce a `printf` SIGPIPE failure under `pipefail` or hide a forbidden match.
   Run this regression through `make test-ios-ci-tooling`.
 - **`MigrationPlanTests.swift`**: Two-tier structural guard for the SwiftData
   migration plan.
-  - `migrationPlanContainerInitializesWithoutCrash`: mirrors `MerianApp.init()`
-    (in-memory store, no migration). Catches init-time stage validation failures
-    on iOS 26.
+  - `migrationPlanContainerInitializesWithoutCrash`: exercises the full
+    `MerianMigrationPlan` through the Objective-C-exception-safe construction
+    boundary. It catches init-time stage validation failures on iOS 26 as an
+    independent plan contract; fresh/current persistent stores and the empty
+    in-memory safe-mode store intentionally open without a migration plan and
+    have separate disk-backed, bootstrap, architecture, and source-guardrail
+    coverage.
   - `migrationFromV30ToV33DoesNotCrash`: creates a real V30 disk store then
     reopens with a short source-isolated V30→V33 test plan. On iOS 26+ this
     keeps the historical lightweight/custom hop covered without forcing the
@@ -1194,16 +1201,21 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     processed-release V50 opens with `MerianReleasedActiveV50MigrationPlan`.
     Each V50 plan contains its exact source graph and one custom hop to V51.
     Store-recovery tests keep the exhaustive recent-source enum consecutive and
-    ending at `CurrentSchema - 1`; app dispatch has no default branch, so a
-    future source case cannot silently use the full historical plan. Queue and
-    collection tests cover hint/tombstone persistence through foreground and
-    background completion, inbound shielding, acknowledgement purge, and
-    deletion/orphan cleanup. The real-device install-over gate remains separate
-    release evidence; simulator-created stores cannot satisfy it.
+    ending at `CurrentSchema - 1`; container-factory dispatch has no default
+    branch, so a future source case cannot silently use the full historical
+    plan. Queue and collection tests cover hint/tombstone persistence through
+    foreground and background completion, inbound shielding, acknowledgement
+    purge, and deletion/orphan cleanup. The real-device install-over gate
+    remains separate release evidence; simulator-created stores cannot satisfy
+    it.
 - **`Core/Data/StoreRecovery/ModelStoreRecoveryCoordinatorTests.swift`**:
   Launch-recovery guard for configuration, store metadata parsing, V50 checksum
   routing, migration hints, corruption-only quarantine eligibility, legacy
   rescue eligibility, and safe-mode policy.
+- **`Core/Data/StoreRecovery/ModelContainerBootstrapperTests.swift`**: Verifies
+  the live plan-free in-memory safe-mode factory, an injected successful
+  fallback, and the terminal blocked outcome when even in-memory container
+  construction fails.
 - **`Core/Data/StoreRecovery/StartupStoreDiagnosticTests.swift`**: Verifies
   fresh-store metadata behavior, opaque metadata-identifier and custom-domain
   fingerprints, telemetry projection, and rescue outcome flags.
@@ -1215,14 +1227,16 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   its original bytes and never report archive success.
 - **`Core/Data/StoreRecovery/StoreRecoveryArchitectureTests.swift`**: Freezes
   declaration ownership, pure-layer imports, mirrored test ownership, the
-  600-line boundary, and the Store Recovery-wide exclusion of Auth, Keychain,
-  Supabase, sign-out, and current-user state. The focused drift lane is
-  `.github/workflows/ios-startup-safety.yml`; it runs all four Store Recovery
-  suites and `MigrationPlanTests` alongside the loader, cloud-repair, and
-  image-ownership suites, `LocalScanMediaRecoveryRevisionTests`, and
-  `ScanThumbnailLoaderTests`. It also selects recovery registration, Core Data
-  integration, and queue-container cache regressions so startup recovery and
-  post-startup image-loading boundary failures are caught together. The cheap
+  600-line boundary, safe mode's independence from historical plan validation,
+  and the Store Recovery-wide exclusion of Auth, Keychain, Supabase, sign-out,
+  and current-user state. The focused drift lane is
+  `.github/workflows/ios-startup-safety.yml`; it runs all five Store Recovery
+  suites, the App-root architecture and presentation suites, and
+  `MigrationPlanTests` alongside the loader, cloud-repair, and image-ownership
+  suites, `LocalScanMediaRecoveryRevisionTests`, and `ScanThumbnailLoaderTests`.
+  It also selects recovery registration, Core Data integration, and
+  queue-container cache regressions so startup recovery and post-startup
+  image-loading boundary failures are caught together. The cheap
   `.github/workflows/ios-project-guardrails.yml` lane runs
   `make validate-ios-project`, `make validate-ios-migration-guardrails`, and
   `make validate-ios-event-routing` first, so known-bad source shapes fail on
@@ -1282,16 +1296,19 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     those build-only failures as `unknown` with zero tests. The startup-safety
     workflow also runs on a daily schedule as a drift check, but it is separate
     from the Supabase production deploy gate.
-- **`SerializedMediaItemTests.swift`**: Locks the active-schema mixed-media read
-  precedence. `localScanRecordPrefersCapturedMediaJSONOverRelationshipMirror`
-  and `offlineQueuedScanPrefersCapturedMediaJSONOverRelationshipMirror` seed
-  divergent JSON and relationship mirrors and assert
-  `serializedCapturedMediaItems` / `capturedMediaSnapshot` return the JSON
-  timeline. This guards the May 12, 2026 TestFlight crash class where SwiftUI
-  layout faulted `CapturedMediaEntry.kindRaw` through an invalid SwiftData
-  future backing object. The suite also proves queued inference audio accepts
-  local WAV references, including video companion audio, while flagging local
-  M4A and remote WAV references as unsupported.
+- **Captured-media focused suites**: `CapturedMediaRecordPersistenceTests.swift`
+  locks scalar-JSON-first read precedence for both active record types and
+  relationship/active-media round trips. This guards the May 12, 2026 TestFlight
+  crash class where SwiftUI layout faulted `CapturedMediaEntry.kindRaw` through
+  an invalid SwiftData future backing object. `CapturedMediaValuesTests.swift`
+  locks `ObservationContext` normalization and Codable behavior, reference
+  Codable compatibility, canonical description/audio order, and audio-path
+  filtering; `CapturedMediaResolutionTests.swift` locks HTTPS-only remote
+  resolution; `CapturedMediaCloudHydrationTests.swift` locks compatibility
+  hydration and replacement; and `CapturedMediaArchitectureTests.swift` locks
+  focused owners, the unchanged V51 persisted shape, the retired aggregate, and
+  the 600-line review ceiling. Queued inference format admission remains in
+  `QueuedInferenceMediaPolicyTests.swift`.
 - **`InferenceEngineTests.swift`**: Asserts decoding of `EdgeResponseWrapper`
   and `EnrichScanResponse` payloads via `JSONDecoder`. Also covers
   `activeScanId` lifecycle: `testPrepareForNewScanClearsActiveScanId` verifies
@@ -2093,9 +2110,65 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   safe retry copy, and an architecture guard for Services-only live resolution,
   render-layer network isolation, legacy-owner removal, and the 600-line
   ceiling.
-- **`CaptureTelemetryTests.swift`**: Directly validates that offline/historic
-  captures explicitly decouple live sensor leakage (like LiDAR distance vectors
-  or view-finder zoom scopes) away from EXIF bounds.
+- **`Core/AI/Models/CaptureTelemetryTests.swift`**: Directly validates that
+  offline/historic captures explicitly decouple live sensor leakage (like LiDAR
+  distance vectors or view-finder zoom scopes) away from EXIF bounds.
+- **`Core/AI/Models/SpeciesDataEdgeResponseTests.swift`**: Preserves the sole
+  handwritten Edge-response-to-domain mapping, including unresolved and Human
+  presentation, novelty, candidates, pet identification, habitat trimming, and
+  identification-review defaults.
+- **`Models/Species/*Tests.swift`**: Preserves the shared `SpeciesData` value
+  graph, presentation and identity policy, Codable observation values, rich
+  lookalike behavior, and the absence of Edge DTO coupling. The architecture
+  suite locks exact focused ownership, unique declarations, Foundation-only
+  shared models, absence of live effects, retired aggregate paths, and the
+  600-line ceiling.
+- **`Models/ModelsIntegrationArchitectureTests.swift`**: Audits the complete
+  Models boundary after the Species and Captured Media slices. It freezes the
+  root and V51 active-schema inventories, rejects filesystem/network/task and
+  `ModelContext` workflow ownership there, verifies the queued-row projection,
+  queued-byte, queued-media-presentation, and cloud-deletion persistence
+  adapters have one owner each, requires the live queued-row projection to stay
+  on `@MainActor`, and applies the 600-line ceiling to every nonhistorical
+  Models source. `SchemaVersions.swift` remains the explicit ordered
+  migration-registry exception and is still covered by `MigrationPlanTests`.
+
+After a successful current-source `build-for-testing` through
+`make ios-local-build`, reuse its managed simulator cache for the Models closure
+matrix. This matrix covers value behavior, declaration ownership, the V51
+migration boundary, queued-row projection and storage policy, and the
+Insight/Capture adapters moved out of shared Models. It supplements, rather than
+replaces, the complete `merianTests` target:
+
+```bash
+models_test_destination="$(bash scripts/select-ios-simulator-destination.sh)"
+make ios-local-build ARGS="simulator -- test-without-building \
+  -configuration Debug \
+  -destination \"$models_test_destination\" \
+  -parallel-testing-enabled NO \
+  -only-testing:merianTests/ModelsIntegrationArchitectureTests \
+  -only-testing:merianTests/SpeciesModelsArchitectureTests \
+  -only-testing:merianTests/SpeciesDataTests \
+  -only-testing:merianTests/SpeciesObservationModelsTests \
+  -only-testing:merianTests/SimilarSpeciesTests \
+  -only-testing:merianTests/CaptureTelemetryTests \
+  -only-testing:merianTests/SpeciesDataEdgeResponseTests \
+  -only-testing:merianTests/CapturedMediaArchitectureTests \
+  -only-testing:merianTests/CapturedMediaValuesTests \
+  -only-testing:merianTests/CapturedMediaResolutionTests \
+  -only-testing:merianTests/CapturedMediaCloudHydrationTests \
+  -only-testing:merianTests/CapturedMediaPersistenceServiceTests \
+  -only-testing:merianTests/CapturedMediaRecordPersistenceTests \
+  -only-testing:merianTests/QueuedScanExtractionTests \
+  -only-testing:merianTests/OfflineQueuePolicyTests \
+  -only-testing:merianTests/OfflineSyncFoundationArchitectureTests \
+  -only-testing:merianTests/InsightQueuedHandoffTests \
+  -only-testing:merianTests/InsightMediaSuppressionTests \
+  -only-testing:merianTests/InsightFieldNotesStateTests \
+  -only-testing:merianTests/CaptureSubmissionPolicyTests \
+  -only-testing:merianTests/MigrationPlanTests"
+```
+
 - **`ScansManagerTests.swift`**: Validates local string-index mapping (group
   name taxonomies, semantic tags, explicitly added `customTags`, and
   one-character unigram candidates). Asserts typed, main-actor `AppEvent`
@@ -2179,6 +2252,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   Concurrency source. App lifecycle, detached execution, Field Notes, Offline
   Sync, Hardware, Media, Core UI, and Species Reference tests mirror their
   production owners.
+- **`App/AppRootArchitectureTests.swift`,
+  `App/Presentation/AppRootPresentationTests.swift`, and
+  `App/Routing/AppURLRoutingTests.swift`**: Freeze the focused App inventory,
+  the production line ceiling, Store Recovery bootstrap delegation,
+  Debug/Release UI-test seed separation, root scene and fallback-Auth-task
+  ownership, deterministic root presentation and notice composition, and Google
+  → app route → file import → Supabase URL precedence.
 - **`AppDIContainerTests.swift`**: Proves preview graphs receive independent
   event publishers, route coordinators, milestone presenters, and host
   registries. The event-routing source guard separately rejects any shared
@@ -2309,7 +2389,8 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   de-duplication when another enqueue arrives during suspended inspection.
   Parameterized cases invalidate evidence at admission, inspection, signing, and
   upload; no following side effect may run, and later verified evidence must be
-  able to retry successfully.
+  able to retry successfully. The suite injects admission rather than depending
+  on process-global test detection.
 - **`Core/Data/Images/ScanMediaRecoveryRegistrationTests.swift`**: Uses an
   in-memory V51 container and injected registration probes to verify
   cancellation, the hard 200-record cap, stable pages, the complete
@@ -3084,26 +3165,27 @@ before release.
   `SpeechManagerTests` remain under `Core/Hardware`.
 - **`apps/ios/MerianTests/Features/Capture/Submission/`**: Mirrors the durable
   admission/dispatch owner. `CaptureSubmissionPolicyTests` locks deterministic
-  media, goal-preference, admission, and latency mapping.
-  `CaptureSubmissionMediaTimelineTests` locks chronological staging conversion,
-  legacy grouped fallback order, and source-file cleanup inventory.
-  `CaptureSubmissionMediaProjectionTests` locks interleaved video/standalone
-  audio alignment, sparse source identities, compact omission behavior,
-  descriptor JSON keys, local-only Codable provenance, and focus lookup.
-  `CaptureSubmissionEnvironmentContextGraceTests` proves the one-shot 150 ms
-  race returns a sendable snapshot, rejects a late loser, and leaves telemetry
-  work outside the deadline. `CaptureSubmissionDeferredContextServiceTests`
-  locks local-before-remote ordering, success, exactly one 500 ms retry, and
-  endpoint, transport, delay, and post-delay cancellation without a second
-  endpoint call. The rehomed `CaptureWorkspaceSubmissionTests` retains the
-  stable workspace test selector and exact queue-first, scan/generation
-  identity, presentation, and visual/nonvisual behavior, including cancellation
-  of captured environment work when queue rejection or queue-only routing leaves
-  no live consumer. `CaptureSubmissionArchitectureTests` rejects old aggregate
-  files, endpoint calls in ViewModels, live resolution or UI imports in Models,
-  unchecked sendability, misplaced size-estimation ownership, and production
-  files over 600 lines. `SizeEstimatorTests` retains corrupt and empty bounded
-  input failure coverage for the optional LiDAR/Vision telemetry service.
+  media, native-default zoom normalization, goal-preference, admission, and
+  latency mapping. `CaptureSubmissionMediaTimelineTests` locks chronological
+  staging conversion, legacy grouped fallback order, and source-file cleanup
+  inventory. `CaptureSubmissionMediaProjectionTests` locks interleaved
+  video/standalone audio alignment, sparse source identities, compact omission
+  behavior, descriptor JSON keys, local-only Codable provenance, and focus
+  lookup. `CaptureSubmissionEnvironmentContextGraceTests` proves the one-shot
+  150 ms race returns a sendable snapshot, rejects a late loser, and leaves
+  telemetry work outside the deadline.
+  `CaptureSubmissionDeferredContextServiceTests` locks local-before-remote
+  ordering, success, exactly one 500 ms retry, and endpoint, transport, delay,
+  and post-delay cancellation without a second endpoint call. The rehomed
+  `CaptureWorkspaceSubmissionTests` retains the stable workspace test selector
+  and exact queue-first, scan/generation identity, presentation, and
+  visual/nonvisual behavior, including cancellation of captured environment work
+  when queue rejection or queue-only routing leaves no live consumer.
+  `CaptureSubmissionArchitectureTests` rejects old aggregate files, endpoint
+  calls in ViewModels, live resolution or UI imports in Models, unchecked
+  sendability, misplaced size-estimation ownership, and production files over
+  600 lines. `SizeEstimatorTests` retains corrupt and empty bounded input
+  failure coverage for the optional LiDAR/Vision telemetry service.
 - **`apps/ios/MerianTests/Features/Capture/Staging/`**: Mirrors the ephemeral
   mixed-media draft owner. `StagedCaptureTests` covers state, capacity, cleanup,
   chronological nodes, stable tray identities, allowed combinations, and image
@@ -3121,13 +3203,14 @@ before release.
   bounded sendable `CGImage` values, and invalid files are rejected before any
   staged media is produced.
 - **`ExternalImageImportStoreTests.swift`**: Covers the Photos document-import
-  boundary without UI automation. Tests lock Google/deep-link/file/Supabase URL
-  precedence, prove security scope begins before validation, verify the inbox
-  survives a new store instance, recover committed orphan copies, remove
-  interrupted copies, persist onboarding-safe terminal feedback, and exercise
-  real ImageIO plus dictionary fixtures for date/GPS, date-only,
-  coordinate-only, absent, incomplete, and malformed metadata. Telemetry tests
-  prove a gallery item never falls back to the current device location.
+  boundary without UI automation. `AppURLRoutingTests` locks
+  Google/deep-link/file/Supabase URL precedence; the store suite proves security
+  scope begins before validation, verifies the inbox survives a new store
+  instance, recover committed orphan copies, remove interrupted copies, persist
+  onboarding-safe terminal feedback, and exercise real ImageIO plus dictionary
+  fixtures for date/GPS, date-only, coordinate-only, absent, incomplete, and
+  malformed metadata. Telemetry tests prove a gallery item never falls back to
+  the current device location.
 - **`QueuedScanExtractionTests` gallery replay cases**: Persist gallery
   provenance in the existing visual-media manifest and prove offline replay
   keeps embedded dates while omitting a queue bookkeeping timestamp when the
@@ -3527,28 +3610,36 @@ import, and permission-denial UI require the physical-device checklist in
   in `MerianNetworkClient.swift`, applies the 600-line ceiling to every Swift
   owner in `Auth/`, `Endpoints/`, `Inference/`, `Media/`, `Models/`,
   `Recovery/`, and `Transport/` plus the client façade. It requires the exact
-  sixty-three Auth foundation paths, including the effect-free observable
-  runtime owner for transition, generation, analytics-token, exact-session
-  lease/drain, and local sign-out state; focused listener/current-state and
-  historical-sync task owners; lifecycle diagnostics; the listener's
-  generation/context/transition-observation order; the bootstrap dependency/
-  coordinator pair plus focused SDK service/live adapter and diagnostics owner;
-  and the recovery dependency/coordinator plus SDK
-  service/live-adapter/diagnostics owners with keyed bootstrap task,
+  sixty-one Auth foundation paths and caps Auth, Purchase Identity,
+  `SupabaseManager.swift`, and their combined production surface at 7,734,
+  2,016, 3,461, and 13,211 lines, respectively. It includes the effect-free
+  observable runtime owner for transition, generation, analytics-token,
+  exact-session lease/drain, and local sign-out state; focused
+  listener/current-state and historical-sync task owners; lifecycle diagnostics;
+  the listener's generation/context/transition-observation order; the bootstrap
+  dependency/coordinator pair plus focused SDK service/live adapter and
+  diagnostics owner; the recovery dependency/coordinator and local-sign-out
+  coordinator with its colocated dependency boundaries; one shared task-free
+  Supabase Auth service/live adapter and diagnostics owner for OAuth, recovery,
+  and local sign-out; keyed bootstrap and local-sign-out tasks,
   true-missing-only creation, exact-session refresh, anonymous readiness,
   terminal local clear, cancellation, and final-session guards; the lifecycle
   event model, dependency boundaries, coordinator, and deferred-event replay
   owner; the OAuth model, identity-token policy, replacement/retry workflow,
   completion dependency package/coordinator, provider-admission dependency
   package/coordinator, focused provider presentation/mapping Services, and the
-  Apple credential-registration service/live-adapter pair, plus the OAuth SDK
-  session service/live-adapter and canonical profile-metadata mapping. The guard
-  scans every Core Network Swift source to prove that OIDC and `UserAttributes`
-  construction remain exclusive to the service core and that direct Supabase
-  Auth link, ID-token install, and metadata-update calls remain exclusive to the
-  live adapter. It also freezes the shared account-deletion dependency package,
-  separate fresh/recovery coordinators, the purchase-sign-out and
-  destination-handoff dependency and route owners, the source-handoff dependency
+  Apple credential-registration service/live-adapter pair, plus canonical OAuth
+  profile-metadata mapping in the shared Supabase Auth service/live adapter. The
+  guard scans every Core Network Swift source to prove that OIDC and
+  `UserAttributes` construction remain exclusive to the service core and that
+  direct Supabase Auth link, ID-token install, callback-URL install, and
+  metadata-update calls remain exclusive to the live adapter. The
+  callback-install token deliberately excludes the argument expression so
+  renaming the URL variable cannot evade the ownership scan, and callback
+  assembly is forbidden from reading `client.auth.currentSession` directly. It
+  also freezes the shared account-deletion dependency package, separate
+  fresh/recovery coordinators, the purchase-sign-out and destination-handoff
+  dependency and route owners, the source-handoff dependency
   package/coordinator, the Auth journal adapter, and the Core Security
   preparation owner; relocated declarations and helper functions; absence of
   current and legacy aggregate account-deletion, purchase-safe sign-out,
@@ -3589,7 +3680,8 @@ import, and permission-denial UI require the physical-device checklist in
   `AuthTransitionFoundationTests`, `AuthRuntimeStateTests`,
   `AuthTransitionPolicyTests`, `AuthSessionBootstrapCoordinatorTests`,
   `AuthSessionBootstrapLiveServiceTests`, `AuthSessionRecoveryCoordinatorTests`,
-  `AuthSessionRecoveryLiveServiceTests`, `AuthSessionLifecycleCoordinatorTests`,
+  `SupabaseAuthSessionServiceTests`, `AuthLocalSignOutCoordinatorTests`,
+  `AuthLocalSignOutFacadeTests`, `AuthSessionLifecycleCoordinatorTests`,
   `AuthLifecycleReplayCoordinatorTests`, `AppleRevocationCoordinatorTests`,
   `AppleRevocationLiveProviderTests`, `OAuthIdentityTokenPolicyTests`,
   `OAuthSignInModelsTests`, `OAuthSignInWorkflowTests`,
@@ -3997,13 +4089,20 @@ import, and permission-denial UI require the physical-device checklist in
   `AuthenticatedRequestExecutorTests`, `SupabaseManagerTests`, and
   `CoreNetworkIntegrationArchitectureTests`; live provider SDK calls and
   diagnostic adaptation remain outside this provider-neutral coordinator.
-- **`AuthSessionRecoveryLiveServiceTests.swift`**: Owns five deterministic
-  live-boundary cases covering refreshed and loaded identity/SDK-user
-  projection, exactly-once local sign-out delegation, and refresh, load, and
-  sign-out error forwarding. Run it with `AuthSessionRecoveryCoordinatorTests`,
-  `SupabaseManagerTests`, and `CoreNetworkIntegrationArchitectureTests`; the
-  service owns no transition, task, retry, purchase, entitlement, publication,
-  or cleanup policy.
+- **`SupabaseAuthSessionServiceTests.swift`**: Owns fourteen deterministic
+  request-scoped SDK-boundary cases covering OAuth session reads, OIDC and
+  callback installation, profile metadata, refreshed/loaded recovery projection
+  and failures, and exactly-once local sign-out plus failure forwarding. Run it
+  with `AuthSessionRecoveryCoordinatorTests`,
+  `AuthLocalSignOutCoordinatorTests`, `SupabaseManagerTests`, and
+  `CoreNetworkIntegrationArchitectureTests`; the service owns no transition,
+  task, retry, purchase, entitlement, publication, or cleanup policy.
+- **`AuthLocalSignOutCoordinatorTests.swift`**: Owns eight provider-neutral
+  cases for exact phase order, overlap sharing, best-effort SDK failure, failed
+  quiescence, transition loss, cancellation while bootstrap teardown is
+  suspended, canceled-task ownership through deferred cleanup, and post-SDK
+  external cleanup. The separate colocated `AuthLocalSignOutFacadeTests` suite
+  retains the request-gate regression rehomed from `SupabaseManagerTests`.
 - **`PublicAuthorIdentityRefreshCoordinatorTests.swift`**: Owns eighteen
   deterministic cases for restored-session scheduling gates and stale-target
   rejection, Ghost completion and nested-lease order, same-target coalescing,
@@ -4109,6 +4208,15 @@ import, and permission-denial UI require the physical-device checklist in
   completion, restored-source retirement, ready-state reuse, entitlement
   sequencing, and the final SDK/session/provider fence. Their shared harness
   resolves no SDK or singleton.
+- **`PurchaseIdentitySessionLiveServiceTests.swift`**: Typechecks and executes
+  the task-free live-boundary core without Supabase or provider SDKs. Six cases
+  freeze Auth-over-public profile precedence, blank-Auth public fallback,
+  profile-query failure fallback, exact anonymous/authenticated account-kind
+  mapping, provider/entitlement/diagnostic forwarding, exact-account legacy
+  readiness, and rejection of deferred facade-owned effects after service
+  release. Run it with `PurchasePrincipalArchitectureTests`,
+  `CoreNetworkIntegrationArchitectureTests`, `SupabaseManagerTests`, and the
+  cross-language purchase-principal contract.
 - **`LegacyPurchaseIdentityProfileServiceTests.swift`**: Freezes exact account
   and profile-projection forwarding through the typed service independently of
   the live Supabase query adapter. `PurchasePrincipalArchitectureTests` and the
@@ -4217,6 +4325,11 @@ import, and permission-denial UI require the physical-device checklist in
   smoke tests can proceed, and suppresses only the warning when
   `MERIAN_ALLOW_PRODUCTION_SUPABASE_IN_DEBUG_SIMULATOR=1`. It also verifies that
   non-production projects and non-simulator/release contexts do not warn.
+- **`Configuration/TestExecutionCoordinatorTests.swift` process-detection
+  coverage**: Freezes the exact UI-test environment value, XCTest configuration
+  marker, loaded-runtime fallback, non-test result, sole Configuration owner,
+  and absence of duplicate raw signal reads. Startup and reusable Core
+  side-effect gates—including live cloud-image repair—consume that policy.
 - **Domain policy suites**: `InferenceConfidencePolicyTests`,
   `InferenceLookalikeCachePolicyTests`, `ScanningPhrasePolicyTests`,
   `HistoricalSyncPolicyTests`, `NonBiologicalRetentionPolicyTests`,
@@ -4823,7 +4936,7 @@ occurrence `5938154750`. iOS coverage must prove:
 - blocked-only/all-failed dictionary galleries use the leaf placeholder.
 
 These assertions live in `Core/Data/Images/LocalImageLoaderTests.swift`,
-`SpeciesDataTests.swift`,
+`Models/Species/SimilarSpeciesTests.swift`,
 `Features/SpeciesDictionary/Detail/SpeciesDictionaryDetailPresentationTests.swift`,
 and `Features/SpeciesReference/SimilarSpeciesImageFetcherTests.swift`. Do not
 replace them with a brittle assertion that merely skips array index zero.
@@ -5216,11 +5329,14 @@ iOS regression coverage is intentionally joined as well:
   declaration inventory, exact focused-file and framework-import inventory,
   dependency direction, private task/diagnostic state, removal of the former
   aggregate source, exact queued-scan-mapper and preferred-goal consumer
-  allowlists, mirrored extraction-test ownership, and the 600-line ceiling for
-  the foundation owners. `QueuedScanExtractionTests` covers gallery timestamp
-  provenance, persisted/sparse audio identity, conservative legacy visual
-  replay, and mixed-media timeline alignment without mutating shared manager
-  state.
+  allowlists, the queued route projection's `@MainActor` isolation, mirrored
+  extraction-test ownership, and the 600-line ceiling for the foundation owners.
+  `QueuedScanExtractionTests` covers the detached route projection, gallery
+  timestamp provenance, persisted/sparse audio identity, conservative legacy
+  visual replay, and mixed-media timeline alignment without mutating shared
+  manager state. `OfflineQueuePolicyTests` preserves duplicate capture-file
+  accounting, Documents-first relative-path resolution (including an empty
+  file), queued-media deduplication, and remote-media exclusion.
 - `QueueMaintenanceTests` covers failed-state tombstoning, fresh-context
   automatic-work counts, invalid-media quarantine with its stable
   `queued_media_invalid` diagnostic, preservation of higher-authority completed
@@ -5317,12 +5433,12 @@ iOS regression coverage is intentionally joined as well:
   600-line focused-file ceilings. The critical-XCResult validator maps the
   protected paging, funding-priority, and quarantine regressions to this focused
   suite rather than the residual actor suite.
-- `SpeciesDataTests`, `InferenceEngineTests`, `InsightShellCapabilitiesTests`,
-  `InsightMediaSuppressionTests`, `FieldChatViewModelStateTests`, and
-  `ScanRepositoryTests` cover Human canonical presentation/safeguards,
-  unresolved-audio confidence and reference suppression, historical placeholder
-  reanalysis, direct-chat gating, and preservation of cloud
-  `is_biological_subject` during historical sync.
+- `SpeciesDataTests`, `SpeciesDataEdgeResponseTests`, `InferenceEngineTests`,
+  `InsightShellCapabilitiesTests`, `InsightMediaSuppressionTests`,
+  `FieldChatViewModelStateTests`, and `ScanRepositoryTests` cover Human
+  canonical presentation/safeguards, unresolved-audio confidence and reference
+  suppression, historical placeholder reanalysis, direct-chat gating, and
+  preservation of cloud `is_biological_subject` during historical sync.
 
 Do not replace the executable SQL fixtures with source inspection. Static
 migration contracts are useful when Docker is unavailable, but only a disposable
@@ -5893,8 +6009,8 @@ device-evidence checks:
   before restoration. `AccountDeletionSecurityArchitectureTests`,
   `KeychainKeysTests`, and `UserDefaultsKeysTests` freeze the Security and
   Preferences ownership plus every exact persisted key string.
-  `AppDIContainerTests` remains scoped to container identity, preview-graph
-  isolation, and launch/root-presentation policy.
+  `AppDIContainerTests` remains scoped to container identity and preview-graph
+  isolation; `AppRootPresentationTests` owns launch/root-presentation policy.
 - The final fail-closed audit ran a freshly built combined
   account-deletion/Auth/Core Network and Explore media regression matrix on an
   iPhone 17 Pro iOS 26.4 Simulator. It passed 50 XCTest cases and 29 Swift
@@ -7437,7 +7553,7 @@ and detail seeking still behaves as documented.
   curation/provenance preservation, identity conflicts, bounded fan-out, and
   settled-empty behavior. It must execute through the database catalog runner; a
   connection-refused skip is not passing evidence.
-- **Native similar-species identity**: `SpeciesDataTests` covers canonical
+- **Native similar-species identity**: `SimilarSpeciesTests` covers canonical
   self/duplicate IDs, normalized scientific names, missing or malformed IDs, and
   distinct species sharing one common name. `FieldChatPresentationTests`
   verifies the matching comparison prompt uses the scientific name when the
@@ -7825,16 +7941,14 @@ The identity test matrix now has two explicit lanes:
   `AppleOAuthCredentialRegistrationServiceTests.swift` owns exact operation
   forwarding, rejection of every non-registered receipt, and unchanged
   transport-error propagation; its runtime selector is
-  `AppleOAuthRegistrationServiceTests`. `OAuthSessionServiceTests.swift` owns
-  seven deterministic SDK-boundary cases: session read/current forwarding, Apple
-  and Google OIDC credential mapping, provider-neutral identity projection,
-  canonical metadata aliases, empty-update suppression, and SDK-error
-  propagation. Run it with the OAuth coordinator/workflow suites and
-  `CoreNetworkIntegrationArchitectureTests`. The Ghost merge client contract
-  complements those tests by requiring manager delegation for both direct-link
-  and replacement-session paths, requiring the live adapter to own both SDK
-  operations, and rejecting either call's reacquisition by the facade.
-  `AccountDeletionTransitionPolicyTests.swift`,
+  `AppleOAuthRegistrationServiceTests`. The consolidated
+  `SupabaseAuthSessionServiceTests.swift` suite owns the OAuth cases alongside
+  recovery projection and local sign-out forwarding. Run it with the OAuth
+  coordinator/workflow suites and `CoreNetworkIntegrationArchitectureTests`. The
+  Ghost merge client contract complements those tests by requiring manager
+  delegation for both direct-link and replacement-session paths, requiring the
+  live adapter to own both SDK operations, and rejecting either call's
+  reacquisition by the facade. `AccountDeletionTransitionPolicyTests.swift`,
   `AccountDeletionIntakeWorkflowTests.swift`, and
   `AccountDeletionCleanupWorkflowTests.swift` exercise exact deletion
   classification plus durable intake, cleanup, restoration, and proof-retirement
@@ -7883,35 +7997,38 @@ The identity test matrix now has two explicit lanes:
   `AuthSessionBootstrapLiveServiceTests.swift` owns cached/loaded identity and
   expiry projection, newly anonymous fresh-session projection, exact SDK and
   compatibility missing-session classification, unrelated-error rejection, and
-  SDK failure forwarding. `AuthSessionRecoveryLiveServiceTests.swift` owns
-  refreshed/loaded identity and SDK-user projection, exactly-once local
-  sign-out, and SDK failure forwarding.
-  `AuthSessionRecoveryCoordinatorTests.swift` owns ordinary and transition-owned
-  exact-session refresh, cancellation/session drift around suspended operations,
-  anonymous purchase/entitlement/final-readback admission, pending-handoff
-  preservation, SDK sign-out failure, cancellation after SDK sign-out begins,
-  caller-owned transition lifetime, and cleanup entry for a cancelled OAuth
-  transition only after its SDK mutation, plus rejection of a replacement
-  session installed during account-work quiescence.
-  `AuthSessionLifecycleCoordinatorTests.swift` owns provider-neutral listener
-  orchestration, state order, durable fail closure, accepted-deletion local
-  entitlement projection reset, replay-owner-driven deferred sign-out cleanup,
-  signed-out postflight, and post-suspension fences.
-  `AuthLifecycleReplayCoordinatorTests.swift` owns replacement cancellation,
-  transition carry-forward, stable-event obligation clearing, owner release
-  during suspension, and no-op behavior when no listener event was deferred.
-  `AppleCredentialRevocationCoordinatorTests.swift` owns transition deferral,
-  overlap, generation/identity drift, exact terminal-clear admission and
-  stable-context replay, recovery deferral without immediate retry, explicit
-  stable resume, context-change replay without a lost wakeup, cancellation,
-  owner release during a suspended lookup, and fail-closed local clear;
-  `AppleCredentialRevocationLiveProviderTests.swift` owns the SDK-state mapping
-  and exact observer lifecycle. `SupabaseManagerTests.swift` retains
+  SDK failure forwarding. `SupabaseAuthSessionServiceTests.swift` owns the
+  consolidated OAuth, recovery, and local-sign-out SDK boundary.
+  `AuthLocalSignOutCoordinatorTests.swift` owns phase order, overlap, failure,
+  transition, pre-SDK cancellation, canceled-task cleanup, and post-SDK external
+  cleanup. Its separate colocated `AuthLocalSignOutFacadeTests` suite owns
+  facade request-gate timing. `AuthSessionRecoveryCoordinatorTests.swift` owns
+  ordinary and transition-owned exact-session refresh, cancellation/session
+  drift around suspended operations, anonymous
+  purchase/entitlement/final-readback admission, pending-handoff preservation,
+  SDK sign-out failure, cancellation after SDK sign-out begins, caller-owned
+  transition lifetime, and cleanup entry for a cancelled OAuth transition only
+  after its SDK mutation, plus rejection of a replacement session installed
+  during account-work quiescence. `AuthSessionLifecycleCoordinatorTests.swift`
+  owns provider-neutral listener orchestration, state order, durable fail
+  closure, accepted-deletion local entitlement projection reset,
+  replay-owner-driven deferred sign-out cleanup, signed-out postflight, and
+  post-suspension fences. `AuthLifecycleReplayCoordinatorTests.swift` owns
+  replacement cancellation, transition carry-forward, stable-event obligation
+  clearing, owner release during suspension, and no-op behavior when no listener
+  event was deferred. `AppleCredentialRevocationCoordinatorTests.swift` owns
+  transition deferral, overlap, generation/identity drift, exact terminal-clear
+  admission and stable-context replay, recovery deferral without immediate
+  retry, explicit stable resume, context-change replay without a lost wakeup,
+  cancellation, owner release during a suspended lookup, and fail-closed local
+  clear; `AppleCredentialRevocationLiveProviderTests.swift` owns the SDK-state
+  mapping and exact observer lifecycle. `SupabaseManagerTests.swift` retains
   account-work drain, consent-sync cancellation/await, deterministic Auth-header
-  behavior, sign-out request-gate ordering, and facade-level state projection.
-  The focused Apple/Google provider suites, not the manager suite, own provider
-  SDK presentation, mapping, cancellation, and observer behavior. The Core
-  Network integration architecture suite additionally pins exact-generation
+  behavior, and facade-level state projection. The colocated
+  `AuthLocalSignOutFacadeTests` suite owns sign-out request-gate ordering. The
+  focused Apple/Google provider suites, not the manager suite, own provider SDK
+  presentation, mapping, cancellation, and observer behavior. The Core Network
+  integration architecture suite additionally pins exact-generation
   listener/bootstrap publication, replacement-session invalidation of the
   purchase principal, RevenueCat readiness, and server entitlement before Auth
   publication, transition-aware stable and legacy proof retirement, Google

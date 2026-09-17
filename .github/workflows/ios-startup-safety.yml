@@ -176,6 +176,9 @@ jobs:
             -only-testing:merianTests/StartupStoreDiagnosticTests \
             -only-testing:merianTests/StoreRecoveryArtifactArchiverTests \
             -only-testing:merianTests/StoreRecoveryArchitectureTests \
+            -only-testing:merianTests/ModelContainerBootstrapperTests \
+            -only-testing:merianTests/AppRootArchitectureTests \
+            -only-testing:merianTests/AppRootPresentationTests \
             -only-testing:merianTests/LocalImageLoaderTests \
             -only-testing:merianTests/LocalScanMediaRecoveryRevisionTests \
             -only-testing:merianTests/ScanThumbnailLoaderTests \

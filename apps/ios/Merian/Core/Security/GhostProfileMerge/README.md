@@ -64,13 +64,13 @@ owns typed forwarding plus provider and terminal error classification. The Core
 Network integration architecture suite prevents these declarations, wire DTOs,
 orchestration, and storage rules from drifting back into the aggregate manager.
 `services/supabase/functions/_tests/ghostProfileMergeClientContract.test.ts`
-reads `SupabaseManager`, the OAuth owner and SDK session service/live adapter,
-Ghost coordinator and dependencies, typed merge service and live adapter, store,
-policy, workflow, and focused tests, plus the Consent owners. Those direct
-inputs require the manager to delegate both direct identity linking and
-replacement-session installation, require the live adapter to own both SDK
-operations, reject direct SDK reacquisition by the facade, and require a
-successful replacement to record its mutation and exact target transition
+reads `SupabaseManager`, the OAuth owner and shared Supabase Auth session
+service/live adapter, Ghost coordinator and dependencies, typed merge service
+and live adapter, store, policy, workflow, and focused tests, plus the Consent
+owners. Those direct inputs require the manager to delegate both direct identity
+linking and replacement-session installation, require the live adapter to own
+both SDK operations, reject direct SDK reacquisition by the facade, and require
+a successful replacement to record its mutation and exact target transition
 expectation before post-install cancellation. They also keep durable
 preparation, keyed retry, terminal-only retirement, cancellation/stale-account
 fences, provider and local evidence completion, verified consent persistence,

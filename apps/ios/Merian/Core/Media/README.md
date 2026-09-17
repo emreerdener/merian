@@ -77,6 +77,11 @@ replaced and detached player callbacks cannot mutate current observation state.
 
 ## Bounded media helpers
 
+- `CapturedMediaResolution` is the sole effectful adapter from stored captured-
+  media references to Documents, temporary, file, or approved HTTPS URLs. It
+  also maps a deterministic snapshot into `ActiveScanMedia`; it does not own
+  Codable values, cloud reconciliation, SwiftData writes, or Capture transport
+  projection.
 - `ScanMediaPayloadPolicy` owns the shared staged-image, inference and restored-
   publication audio, saved-video, and playback-video byte/dimension limits
   consumed across Capture, Images, OfflineSync, Network, Profile, and Media. It

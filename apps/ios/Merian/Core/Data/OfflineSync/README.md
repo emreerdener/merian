@@ -15,17 +15,20 @@ The canonical behavioral contract is the
   accumulators, and extracted scan results. These values do not start work or
   resolve services.
 - `Policies/` contains stateless metadata, task-description, staging, storage,
-  retry, and background-inference response/status contracts. Staging and storage
-  policy may inspect local files, and retry timing may apply bounded jitter;
-  these files have no observable state, actor dependency, or direct network
-  work.
+  retry, and background-inference response/status contracts. The storage policy
+  is the sole Offline Sync owner of admission, capture-file, and deduplicated
+  queued-media byte estimates. Staging and storage policy may inspect local
+  files, and retry timing may apply bounded jitter; these files have no
+  observable state, actor dependency, or direct network work.
 - `Coordinators/GenerationTaskRegistry.swift` contains the main-actor,
   compare-before-clear owner for process-local task cancellation. Its mutable
   entries remain private.
 - `Persistence/` contains narrow throwing SwiftData lookups for offline jobs,
-  durable Field Trip goal-hint reads/deletion, one fresh-context projection of
-  mirrored scan/job retry authority, and mapping from queued records to
-  `ExtractedScanData`. Queue extensions consume these helpers instead of
+  idempotent cloud-deletion task/job creation, durable Field Trip goal-hint
+  reads/deletion, one fresh-context projection of mirrored scan/job retry
+  authority, the main-actor detached `QueuedScanContext` route projection with
+  its storage estimate, and mapping from queued records to `ExtractedScanData`.
+  Queue extensions and feature read boundaries consume these helpers instead of
   duplicating persistence reads or widening file-local manager details. A
   missing row and an unavailable persistence boundary remain distinct.
 - `Services/OfflineQueueManager+Diagnostics.swift` contains diagnostics export
@@ -112,8 +115,8 @@ The canonical behavioral contract is the
   `BackgroundDatabaseActor+ScanRecordSupport.swift` contains their shared
   actor-isolated fetch/insert support. `LocalScanRecordFactory` maps the
   complete record without owning a context, and
-  `Core/Data/CapturedMediaPersistenceService` serializes ordered media through
-  injected file-adoption closures.
+  `Core/Data/CapturedMedia/CapturedMediaPersistenceService` serializes ordered
+  media through injected file-adoption closures.
 - `OfflineQueueDurability.swift` contains live `OfflineQueueManager` durable
   state mutations and retry orchestration. It consumes the extracted policies;
   it does not own their definitions.
@@ -133,14 +136,14 @@ The canonical behavioral contract is the
 | `Policies/QueuedInferenceMediaPolicy.swift`                                       | Manifest-only local-WAV admission for durable queue inference; byte validation remains with media staging.                                                                                         |
 | `Policies/OfflineQueueRetryPolicy.swift`                                          | Retry classification, capped base delays, and bounded jitter.                                                                                                                                      |
 | `Policies/OfflineQueueBatchPolicy.swift`                                          | Pending-row fetch and per-cycle scan dispatch counts.                                                                                                                                              |
-| `Policies/OfflineQueueStoragePolicy.swift`                                        | File-backed queue admission and available-capacity checks.                                                                                                                                         |
+| `Policies/OfflineQueueStoragePolicy.swift`                                        | File-backed queue admission, available-capacity checks, capture-file sizing, and deduplicated queued-media footprint projection.                                                                   |
 | `Policies/ScanConnectivityFailurePolicy.swift`                                    | Bounded, fail-closed transport classification shared by pre-durability admission and durable inference recovery.                                                                                   |
 | `Policies/BackgroundInferencePolicy.swift`                                        | Actor-independent response, route, status-recovery, restaging, dispatch-admission, retry-date, and consent-attention decisions.                                                                    |
 | `Coordinators/GenerationTaskRegistry.swift`                                       | Compare-before-clear process-local generation task cancellation.                                                                                                                                   |
 | `Persistence/ModelContext+FieldTripGoalHints.swift`                               | Durable Field Trip goal-hint reads and deletion shared by replay, recovery, progress acknowledgement, and queue cleanup.                                                                           |
-| `Persistence/ModelContext+OfflineJobs.swift`                                      | Shared `ModelContext` lookup and job-creation helpers.                                                                                                                                             |
+| `Persistence/ModelContext+OfflineJobs.swift`                                      | Shared `ModelContext` job lookup/creation plus idempotent pending cloud-deletion task, job, and event insertion.                                                                                   |
 | `Persistence/OfflineQueueDurableAuthorityReader.swift`                            | One fresh throwing context for mirrored scan/job error codes, retry counts, and required-video authority.                                                                                          |
-| `Persistence/OfflineQueueManager+QueuedScanExtraction.swift`                      | Throwing main-actor lookup and mapping from a queued SwiftData row to the Sendable inference-replay snapshot.                                                                                      |
+| `Persistence/OfflineQueueManager+QueuedScanExtraction.swift`                      | Live-row projection to the detached queued route context plus throwing main-actor lookup and mapping to the Sendable inference-replay snapshot.                                                    |
 | `Services/OfflineQueueManager+Diagnostics.swift`                                  | Bounded, redacted diagnostics export and event retention.                                                                                                                                          |
 | `OfflineJobScheduler.swift`                                                       | Persisted wake restoration and the ordered foreground drain.                                                                                                                                       |
 | `OfflineQueueManager.swift`                                                       | Observable queue facade, connectivity/lifecycle state, background-session setup, and retained transfer state.                                                                                      |
@@ -168,7 +171,7 @@ The canonical behavioral contract is the
 | `Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift`        | Server-status lookup, durable result evidence, retryable-status persistence, durable-wake-first post-save fencing, hydration, and cleanup.                                                         |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceReconciliation.swift`  | Durable-authority projection of server-owned inferencing scan IDs for orphan reconciliation.                                                                                                       |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceRetry.swift`           | Compare-before-clear poll-token validation, general transport-retry preflight/persistence, server polling, and retry wake restoration.                                                             |
-| `Services/CaptureAdmission/OfflineCaptureFileStore.swift`                         | Internal stateless size estimation, Documents persistence, rollback, and captured-media serialization, consumed only by `CaptureEnqueue`.                                                          |
+| `Services/CaptureAdmission/OfflineCaptureFileStore.swift`                         | Documents persistence, rollback, and captured-media serialization, consumed only by `CaptureEnqueue`; size estimation belongs to `OfflineQueueStoragePolicy`.                                      |
 | `Services/CaptureAdmission/OfflineQueueManager+CaptureEnqueue.swift`              | Funding-gated visual and nonvisual admission plus durable record insertion.                                                                                                                        |
 | `Services/CaptureAdmission/OfflineQueueManager+DescribeEnqueue.swift`             | Description-only compatibility entry point into nonvisual admission.                                                                                                                               |
 | `Services/CaptureAdmission/OfflineQueueManager+LiveCaptureLifecycle.swift`        | Deferred-upload release and generation-fenced foreground inference ownership.                                                                                                                      |
@@ -289,8 +292,9 @@ validation/adoption and prepared background-result commits.
 `BackgroundDatabaseActor+ScanRecordSupport.swift` contains their shared
 actor-isolated fetch/insert support, and `LocalScanRecordFactory` maps the
 complete record without owning a context. The stateless
-`Core/Data/CapturedMediaPersistenceService` preserves canonical media order and
-delegates audio/video adoption through injected `FileIOActor` closures.
+`Core/Data/CapturedMedia/CapturedMediaPersistenceService` preserves canonical
+media order and delegates audio/video adoption through injected `FileIOActor`
+closures.
 
 `BackgroundInferenceFinalizationService` holds the per-scan persistence fence
 across durable generation validation, shared response preparation, exact
@@ -495,9 +499,11 @@ Focused tests mirror the extracted owners:
   completion accumulation.
 - `OfflineQueuePolicyTests` freezes the queue's 5-scan dispatch and 50-row fetch
   limits plus the 100 MiB free-space reserve and 25 MiB single-payload soft
-  ceiling. `MediaStagingContractTests` separately keeps signing counts and
-  shared media byte budgets aligned with the executable upload-manifest
-  contract.
+  ceiling. It also preserves duplicate capture-file accounting, Documents-first
+  relative-path resolution (including an empty file), deduplicated queued-media
+  sizing, and remote-media exclusion. `MediaStagingContractTests` separately
+  keeps signing counts and shared media byte budgets aligned with the executable
+  upload-manifest contract.
 - `InferenceURLSessionTaskContractTests` covers current and legacy inference
   task identities.
 - `OfflineQueueRetryPolicyTests` covers retry eligibility, deterministic base
@@ -508,9 +514,10 @@ Focused tests mirror the extracted owners:
   Profile actor cache regression and shares the serialized Offline Queue
   process-state lease.
 - `QueuedScanExtractionTests` owns deterministic gallery timestamp, legacy
-  visual/audio, sparse identity, and mixed-timeline mapping without installing
-  process-wide manager state. The foundation architecture suite freezes its test
-  ownership plus the exact mapper and preferred-goal consumer allowlists.
+  visual/audio, sparse identity, mixed-timeline mapping, and complete detached
+  queued-route projection without installing process-wide manager state. The
+  foundation architecture suite freezes its test ownership plus the exact mapper
+  and preferred-goal consumer allowlists.
 - `QueueMaintenanceTests` covers tombstoning, fresh-context automatic-work
   counts, invalid-media quarantine, completed-result/funding preservation,
   non-actionable failed-record purging, and queue/goal-hint flushes. Its cases

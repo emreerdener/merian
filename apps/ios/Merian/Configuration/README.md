@@ -9,6 +9,12 @@ Info.plist, privacy manifest, and bridging header in the `Merian` target.
 - `MerianEnvironment.swift` validates and projects the client-safe values
   bundled through Info.plist and the process environment. It does not make
   network requests or own server secrets.
+- `TestExecutionCoordinator.swift` is the sole process-level test detector. It
+  centralizes the UI-test environment marker, XCTest configuration marker, and
+  loaded-XCTest-runtime fallback used to suppress production side effects and
+  admit Debug fixtures. Production consumers call this policy rather than
+  reading those process signals directly; the cloud-image repair live adapter is
+  one such consumer.
 - `FeatureFlags.swift` is the single registry for app-wide client-build flags:
   product release gates plus the advisory local scan-meter bypass. Each
   `FeatureFlag.defaultValue` is the value shipped by Release builds. DEBUG
@@ -41,3 +47,8 @@ paths, bounded source files, and the effect boundary.
 `MerianTests/Configuration/MerianEnvironmentTests.swift` owns the existing
 production-endpoint warning matrix. It was separated from the retired mixed Core
 Utilities policy suite; runtime configuration behavior is unchanged.
+
+`MerianTests/Configuration/TestExecutionCoordinatorTests.swift` freezes every
+accepted process signal, the fail-closed non-test case, the coordinator's sole
+Configuration owner, and the absence of duplicate raw process-signal reads in
+production sources.

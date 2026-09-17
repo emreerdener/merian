@@ -14,7 +14,9 @@ critical_results_check="$repo_root/scripts/validate-ios-critical-test-results.sh
 focused_results_check="$repo_root/scripts/validate-ios-focused-test-results.sh"
 failure_diagnostics_extractor="$repo_root/scripts/extract-ios-test-failure-diagnostics.sh"
 ui_test_source="$repo_root/apps/ios/MerianUITests/merianUITests.swift"
-ui_seed_source="$repo_root/apps/ios/Merian/App/MerianApp.swift"
+app_source="$repo_root/apps/ios/Merian/App/MerianApp.swift"
+ui_seed_source="$repo_root/apps/ios/Merian/App/UITesting/UITestSeedCoordinator.swift"
+test_execution_source="$repo_root/apps/ios/Merian/Configuration/TestExecutionCoordinator.swift"
 environment_context_source="$repo_root/apps/ios/Merian/Core/Hardware/EnvironmentContextManager.swift"
 environment_location_controller_source="$repo_root/apps/ios/Merian/Core/Hardware/EnvironmentContext/Services/EnvironmentLocationController.swift"
 environment_location_policy_source="$repo_root/apps/ios/Merian/Core/Hardware/EnvironmentContext/Policies/EnvironmentLocationPolicy.swift"
@@ -329,7 +331,10 @@ assert_no_runner_context_in_job_env() {
 [[ -f "$failure_diagnostics_extractor" ]] \
   || fail "Missing iOS failure-diagnostics extractor: $failure_diagnostics_extractor"
 [[ -f "$ui_test_source" ]] || fail "Missing iOS UI-test source: $ui_test_source"
+[[ -f "$app_source" ]] || fail "Missing iOS app source: $app_source"
 [[ -f "$ui_seed_source" ]] || fail "Missing iOS UI seed source: $ui_seed_source"
+[[ -f "$test_execution_source" ]] \
+  || fail "Missing test-execution source: $test_execution_source"
 [[ -f "$audio_page_source" ]] || fail "Missing shared audio page: $audio_page_source"
 [[ -f "$audio_components_source" ]] \
   || fail "Missing shared audio components: $audio_components_source"
@@ -526,6 +531,17 @@ assert_file_contains "$ui_seed_source" "#if DEBUG"
 assert_file_contains "$ui_seed_source" "#else"
 assert_file_contains "$ui_seed_source" "return TestExecutionCoordinator.isRunningUITests"
 assert_file_contains \
+  "$test_execution_source" \
+  'environment["UITesting"] == "true"'
+assert_file_contains \
+  "$test_execution_source" \
+  'environment["XCTestConfigurationFilePath"] != nil'
+assert_file_contains \
+  "$test_execution_source" \
+  'NSClassFromString("XCTestCase") != nil'
+assert_file_count "$test_execution_source" 1 "enum TestExecutionCoordinator {"
+assert_file_count "$app_source" 0 "enum TestExecutionCoordinator {"
+assert_file_contains \
   "$ui_seed_source" \
   'private static let requiredConsentArgument = "-seedCurrentRequiredConsent"'
 assert_file_contains \
@@ -583,10 +599,10 @@ assert_file_contains \
 assert_file_contains "$ui_seed_source" "analyticsEnabled: false"
 assert_file_contains "$ui_seed_source" "consentManager _: ConsentManager"
 assert_file_contains \
-  "$ui_seed_source" \
+  "$app_source" \
   "UITestSeedCoordinator.prepareRequiredConsentIfNeeded("
 assert_file_before \
-  "$ui_seed_source" \
+  "$app_source" \
   "UITestSeedCoordinator.prepareRequiredConsentIfNeeded(" \
   "shouldOpenExploreOnFreshLaunch = AppLaunchPresentationPolicy.shouldOpenExplore("
 assert_file_count \
@@ -1207,6 +1223,9 @@ for startup_suite in \
   "StartupStoreDiagnosticTests" \
   "StoreRecoveryArtifactArchiverTests" \
   "StoreRecoveryArchitectureTests" \
+  "ModelContainerBootstrapperTests" \
+  "AppRootArchitectureTests" \
+  "AppRootPresentationTests" \
   "LocalImageLoaderTests" \
   "CloudScanImageRepairActorTests" \
   "ScanMediaRecoveryRegistrationTests" \

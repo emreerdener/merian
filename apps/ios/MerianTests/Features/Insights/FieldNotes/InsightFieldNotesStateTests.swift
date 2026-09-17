@@ -106,7 +106,7 @@ struct InsightFieldNotesStateTests {
         defer { FieldNotesStore.setFieldNotes(nil, for: queuedScan.id) }
 
         let viewModel = InsightSheetViewModel(
-            queuedContext: QueuedScanContext(from: queuedScan)
+            queuedContext: queuedScan.queuedScanContext()
         )
         viewModel.syncFieldNotesFromCurrentScan(modelContext: context)
         #expect(viewModel.currentFieldNotesScanId == queuedScan.id)
@@ -133,7 +133,7 @@ struct InsightFieldNotesStateTests {
         defer { FieldNotesStore.setFieldNotes(nil, for: queuedScan.id) }
 
         let viewModel = InsightSheetViewModel(
-            queuedContext: QueuedScanContext(from: queuedScan)
+            queuedContext: queuedScan.queuedScanContext()
         )
         viewModel.syncFieldNotesFromCurrentScan(modelContext: context)
 
@@ -190,7 +190,7 @@ struct InsightFieldNotesStateTests {
             cardDismissFeedback: { feedbackCount += 1 }
         )
         let viewModel = InsightSheetViewModel(
-            queuedContext: QueuedScanContext(from: queuedScan),
+            queuedContext: queuedScan.queuedScanContext(),
             fieldNotesDependencies: dependencies
         )
 

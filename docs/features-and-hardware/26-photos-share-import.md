@@ -204,11 +204,12 @@ toast.
 
 Automated coverage lives in:
 
-- `apps/ios/MerianTests/Core/Data/ExternalImageImportStoreTests.swift` for URL
-  routing precedence, security-scope ordering, durable copy/recovery,
-  interrupted-copy reconciliation, acknowledgement, onboarding-safe failure
-  feedback, real ImageIO fixtures, EXIF combinations, and current-location
-  exclusion;
+- `apps/ios/MerianTests/App/Routing/AppURLRoutingTests.swift` for URL routing
+  precedence;
+- `apps/ios/MerianTests/Core/Data/ExternalImageImportStoreTests.swift` for
+  security-scope ordering, durable copy/recovery, interrupted-copy
+  reconciliation, acknowledgement, onboarding-safe failure feedback, real
+  ImageIO fixtures, EXIF combinations, and current-location exclusion;
 - `apps/ios/MerianTests/Core/Data/OfflineQueueManagerTests.swift` for durable
   gallery provenance and offline replay with and without an embedded date;
 - `apps/ios/MerianTests/Features/Capture/Shell/` for the stable

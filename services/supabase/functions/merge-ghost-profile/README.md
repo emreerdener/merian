@@ -173,37 +173,38 @@ Edge, and iOS tests cover their source contracts, and
 `ghostProfileMergeConcurrencyDb.test.ts` provides the two-session deadlock
 schedules. `ghostProfileMergeClientContract.test.ts` reads `SupabaseManager`,
 `OAuthSignInCoordinator`, `OAuthIdentityTokenPolicy`, `OAuthSignInWorkflow`,
-`OAuthSessionService` and its live adapter, `GhostProfileMergeCoordinator`, its
-dependencies, the typed service/live adapter, `GhostProfileMergeStore`,
-`GhostProfileMergePolicy`, `GhostProfileMergeWorkflow`, and their focused tests,
-plus the Consent facade, runtime, cloud-session coordinator and live adapter,
-synchronization, merge, state-projection, Realtime, restoration, repository, and
-retry owners and their focused tests. It pins proof persistence before the
-session switch, account-work lease/session adoption, provider-transition
-agreement before prepare, post-response source-session rejection before
-persistence, retry on permanent- session restoration, first-scan
-unowned-evidence synchronization through authoritative fetch, stale
-inference-generation rejection without reapproval, cancellation fences around
-each asynchronous finalization phase, provider sync before local evidence
-rebind, verified consent persistence before state publication, owner-filtered
-Realtime construction and retry fencing, complete synchronization-task draining,
-UUID-keyed restoration-task retention through exact completion and the combined
-Auth-transition drain, canceled-retry admission after manual retry reuses an
-attempt number, stale-account rejection, proof removal last, device-only
-Keychain storage, terminal-only deletion, target-consent synchronization order,
-and every exact retired Ghost helper exclusion in `SupabaseManager`. It requires
-the manager to delegate both direct identity linking and replacement-session
-installation, requires the live adapter to own both Supabase Auth SDK calls, and
-rejects either call's reacquisition by the facade. It also pins the shared OAuth
-replacement boundary: cancellation is checked before analytics suppression and
-again before SDK session installation. A successful install records its mutation
-and exact target transition expectation before the post-install cancellation
-check; pre-install cancellation may reconcile only the exact source, while
-post-install cancellation may clean up only that installed target. This changes
-no Function payload or server authority. Do not deploy or enable the
-existing-account conflict fallback until the production workflow's exact-CLI
-disposable replay, complete catalog and Edge suites, two-session schedules,
-strict lint, and advisors clear the release hold in the
+`SupabaseAuthSessionService` and its live adapter,
+`GhostProfileMergeCoordinator`, its dependencies, the typed service/live
+adapter, `GhostProfileMergeStore`, `GhostProfileMergePolicy`,
+`GhostProfileMergeWorkflow`, and their focused tests, plus the Consent facade,
+runtime, cloud-session coordinator and live adapter, synchronization, merge,
+state-projection, Realtime, restoration, repository, and retry owners and their
+focused tests. It pins proof persistence before the session switch, account-work
+lease/session adoption, provider-transition agreement before prepare,
+post-response source-session rejection before persistence, retry on permanent-
+session restoration, first-scan unowned-evidence synchronization through
+authoritative fetch, stale inference-generation rejection without reapproval,
+cancellation fences around each asynchronous finalization phase, provider sync
+before local evidence rebind, verified consent persistence before state
+publication, owner-filtered Realtime construction and retry fencing, complete
+synchronization-task draining, UUID-keyed restoration-task retention through
+exact completion and the combined Auth-transition drain, canceled-retry
+admission after manual retry reuses an attempt number, stale-account rejection,
+proof removal last, device-only Keychain storage, terminal-only deletion,
+target-consent synchronization order, and every exact retired Ghost helper
+exclusion in `SupabaseManager`. It requires the manager to delegate both direct
+identity linking and replacement-session installation, requires the live adapter
+to own both Supabase Auth SDK calls, and rejects either call's reacquisition by
+the facade. It also pins the shared OAuth replacement boundary: cancellation is
+checked before analytics suppression and again before SDK session installation.
+A successful install records its mutation and exact target transition
+expectation before the post-install cancellation check; pre-install cancellation
+may reconcile only the exact source, while post-install cancellation may clean
+up only that installed target. This changes no Function payload or server
+authority. Do not deploy or enable the existing-account conflict fallback until
+the production workflow's exact-CLI disposable replay, complete catalog and Edge
+suites, two-session schedules, strict lint, and advisors clear the release hold
+in the
 [deployment runbook](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
 ## Operations

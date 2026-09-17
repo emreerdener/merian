@@ -321,7 +321,7 @@ struct LibraryView: View {
         )
         descriptor.fetchLimit = 1
         guard let scan = (try? readContext.fetch(descriptor))?.first else { return nil }
-        return QueuedScanContext(from: scan)
+        return scan.queuedScanContext()
     }
 }
 

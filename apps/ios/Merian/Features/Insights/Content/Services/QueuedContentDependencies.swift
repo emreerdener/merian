@@ -62,7 +62,7 @@ struct QueuedContentDependencies {
                 guard let scan = try? readContext.fetch(descriptor).first else {
                     return nil
                 }
-                return QueuedScanContext(from: scan)
+                return scan.queuedScanContext()
             },
             publishScanLibraryChanged: {
                 container.appEventPublisher.send(.scanLibraryChanged)

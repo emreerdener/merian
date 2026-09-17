@@ -46,7 +46,10 @@ contract is the
   timestamp fallback pass.
 - `Services/CloudScanImageRepairActor.swift` owns the serial inspect, sign,
   file-backed upload, repair, and library-invalidation workflow. Only its live
-  dependency adapter resolves the network client and app event publisher.
+  dependency adapter resolves the network client and app event publisher. Its
+  live admission closure delegates test detection to
+  `Configuration/TestExecutionCoordinator.swift`; focused actor tests inject
+  admission explicitly.
 - `ExternalImageImportStore.swift` owns the durable document-import inbox;
   `MediaPreparationActor.swift` owns bounded still-image preparation;
   `PhotoLibraryManager.swift` owns add-only Photos writes; `ImageCache.swift`
@@ -95,7 +98,8 @@ contract is the
   effect after a suspension; loss of evidence permits a later verified retry.
   Cloud repair keeps each canonical source URL single-flight across every
   suspension. Network failures pause the process-local queue for 15 minutes. The
-  live adapter is the only owner of endpoint and app-event effects.
+  live adapter is the only owner of endpoint and app-event effects, and it does
+  not run those effects during any recognized unit- or UI-test process.
 - Every production Swift file in this directory stays at or below the 600-line
   review guard.
 - Capture-only Vision focus detection remains under
@@ -117,7 +121,8 @@ contract is the
 - `CloudScanImageRepairActorTests` covers the injected missing-image workflow
   order, equivalent-URL duplicate enqueue while inspection is suspended, and
   evidence invalidation at admission, inspection, signing, and upload with a
-  successful later verified retry.
+  successful later verified retry. `TestExecutionCoordinatorTests` separately
+  freezes the shared live-process admission signals and their sole owner.
 - `ScanMediaRecoveryRegistrationTests` covers the no-index fast path,
   cancellation, the hard 200-record cap, stable paging, and
   strong-evidence-before-timestamp ordering.

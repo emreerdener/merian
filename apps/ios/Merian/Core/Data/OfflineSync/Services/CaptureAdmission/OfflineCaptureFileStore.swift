@@ -2,33 +2,6 @@ import Foundation
 
 /// File-backed capture staging shared by visual and non-visual queue admission.
 enum OfflineCaptureFileStore {
-    static func approximateBytes(for urls: [URL]) -> Int64 {
-        urls.reduce(Int64(0)) { total, url in
-            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
-            return total + size
-        }
-    }
-
-    static func estimatedBytes(_ paths: [String]) -> Int64 {
-        paths.reduce(Int64(0)) { total, path in
-            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return total }
-            let candidates: [URL]
-            if trimmed.hasPrefix("/") {
-                candidates = [URL(fileURLWithPath: trimmed)]
-            } else {
-                candidates = [
-                    URL.documentsDirectory.appendingPathComponent(trimmed),
-                    FileManager.default.temporaryDirectory.appendingPathComponent(trimmed)
-                ]
-            }
-            let size = candidates.lazy.compactMap {
-                (try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? NSNumber)?.int64Value
-            }.first ?? 0
-            return total + size
-        }
-    }
-
     static func persistFiles(
         _ filePaths: [String],
         documentsDirectory: URL

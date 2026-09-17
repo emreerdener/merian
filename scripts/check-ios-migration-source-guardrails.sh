@@ -30,7 +30,10 @@ recovery_privacy_file="$recovery_root/Policies/StoreRecoveryPrivacyPolicy.swift"
 recovery_manifest_file="$recovery_root/Models/StoreRecoveryManifest.swift"
 recovery_archive_file="$recovery_root/Services/StoreRecoveryArtifactArchiver.swift"
 recovery_metadata_file="$recovery_root/Services/StoreRecoveryMetadataService.swift"
+container_factory_file="$recovery_root/Services/ModelContainerFactory.swift"
+container_bootstrapper_file="$recovery_root/Services/ModelContainerBootstrapper.swift"
 recovery_test_root="apps/ios/MerianTests/Core/Data/StoreRecovery"
+container_bootstrapper_test_file="$recovery_test_root/ModelContainerBootstrapperTests.swift"
 recovery_test_file="$recovery_test_root/ModelStoreRecoveryCoordinatorTests.swift"
 recovery_diagnostic_test_file="$recovery_test_root/StartupStoreDiagnosticTests.swift"
 recovery_archive_test_file="$recovery_test_root/StoreRecoveryArtifactArchiverTests.swift"
@@ -117,7 +120,9 @@ for recovery_source_file in \
   "$recovery_privacy_file" \
   "$recovery_manifest_file" \
   "$recovery_archive_file" \
-  "$recovery_metadata_file"; do
+  "$recovery_metadata_file" \
+  "$container_factory_file" \
+  "$container_bootstrapper_file"; do
   if [ ! -f "$recovery_source_file" ]; then
     echo "Missing $recovery_source_file" >&2
     exit 1
@@ -125,6 +130,7 @@ for recovery_source_file in \
 done
 
 for recovery_test_source_file in \
+  "$container_bootstrapper_test_file" \
   "$recovery_test_file" \
   "$recovery_diagnostic_test_file" \
   "$recovery_archive_test_file" \
@@ -673,41 +679,67 @@ contains "$recovery_test_file" "testRecognizesReleasedActiveV50ModelChecksum" \
   || fail "Store recovery tests must lock processed-release V50 checksum classification."
 contains "$recovery_test_file" "testSourceIsolatedSchemasAreConsecutiveAndEndAtCurrentPredecessor" \
   || fail "Store recovery tests must fail when a future schema bump omits its immediate-predecessor plan."
-contains "$app_file" "private static func makePersistentContainerForRecentSource(" \
-  || fail "MerianApp must dispatch recent sources through an exhaustive plan selector."
+contains "$container_factory_file" "private static func makePersistentContainerForRecentSource(" \
+  || fail "ModelContainerFactory must dispatch recent sources through an exhaustive plan selector."
+safe_mode_container_factory="$(
+  awk '
+    /private static func makeInMemoryContainerUnchecked\(\)/ { printing = 1 }
+    printing { print }
+    printing && /static func makeContainerCatchingObjectiveCExceptions\(/ { exit }
+  ' "$container_factory_file"
+)"
+grep -Fq "Schema(versionedSchema: CurrentSchema.self)" <<< "$safe_mode_container_factory" \
+  || fail "The safe-mode container must use the current schema."
+grep -Fq "isStoredInMemoryOnly: true" <<< "$safe_mode_container_factory" \
+  || fail "The safe-mode container must remain in memory."
+if grep -Fq "migrationPlan:" <<< "$safe_mode_container_factory" \
+  || grep -Fq "MerianMigrationPlan.self" <<< "$safe_mode_container_factory"; then
+  fail "The empty current-schema safe-mode container must not validate the historical migration plan."
+fi
+full_plan_initialization_test="$(
+  awk '
+    /@Test func migrationPlanContainerInitializesWithoutCrash\(\)/ { printing = 1 }
+    printing { print }
+    printing && /@Test func currentSchemaFreshDiskStoreOpensWithoutMigrationPlan\(\)/ { exit }
+  ' "$test_file"
+)"
+grep -Fq "isStoredInMemoryOnly: true" <<< "$full_plan_initialization_test" \
+  || fail "MigrationPlanTests must initialize the full historical plan in an isolated in-memory store."
+grep -Fq "migrationPlan: MerianMigrationPlan.self" <<< "$full_plan_initialization_test" \
+  || fail "MigrationPlanTests must validate the full historical plan independently from safe mode."
 recent_source_dispatch="$(
   awk '
     /private static func makePersistentContainerForRecentSource\(/ { printing = 1 }
     printing { print }
     printing && /forStoreMigrationHint hint:/ { exit }
-  ' "$app_file"
+  ' "$container_factory_file"
 )"
 for recent_major in $(seq 42 50); do
   grep -Fq "case .v${recent_major}:" <<< "$recent_source_dispatch" \
-    || fail "MerianApp recent-source dispatch must handle V${recent_major} explicitly."
+    || fail "ModelContainerFactory recent-source dispatch must handle V${recent_major} explicitly."
 done
 if grep -Eq '^[[:space:]]*(@unknown[[:space:]]+)?default:' <<< "$recent_source_dispatch"; then
-  fail "MerianApp recent-source dispatch must remain compiler-exhaustive without a default branch."
+  fail "ModelContainerFactory recent-source dispatch must remain compiler-exhaustive without a default branch."
 fi
-not_contains "$app_file" "recent-fallback-full"
-contains "$app_file" "named: \"recent-v49\"" \
-  || fail "MerianApp must record the selected recent-v49 startup attempt."
-contains "$app_file" "named: \"recent-v50-released-active\"" \
-  || fail "MerianApp must record the selected processed-release V50 startup attempt."
-contains "$app_file" "named: \"recent-v50-frozen-snapshot\"" \
-  || fail "MerianApp must record the selected original V50 startup attempt."
-contains "$app_file" "named: \"checksum-recent-v49\"" \
+not_contains "$container_factory_file" "recent-fallback-full"
+contains "$container_factory_file" "named: \"recent-v49\"" \
+  || fail "ModelContainerFactory must record the selected recent-v49 startup attempt."
+contains "$container_factory_file" "named: \"recent-v50-released-active\"" \
+  || fail "ModelContainerFactory must record the selected processed-release V50 startup attempt."
+contains "$container_factory_file" "named: \"recent-v50-frozen-snapshot\"" \
+  || fail "ModelContainerFactory must record the selected original V50 startup attempt."
+contains "$container_factory_file" "named: \"checksum-recent-v49\"" \
   || fail "The checksum retry ladder must try the V49 plan before older sources."
-contains "$app_file" "named: \"checksum-recent-v50-released-active\"" \
+contains "$container_factory_file" "named: \"checksum-recent-v50-released-active\"" \
   || fail "The checksum retry ladder must try the processed-release V50 plan before V49."
-contains "$app_file" "named: \"checksum-recent-v50-frozen-snapshot\"" \
+contains "$container_factory_file" "named: \"checksum-recent-v50-frozen-snapshot\"" \
   || fail "The checksum retry ladder must try the original V50 plan before V49."
 checksum_retry_dispatch="$(
   awk '
     /private static func makePersistentContainerRetryingChecksumRepresentative\(/ { printing = 1 }
     printing { print }
     printing && /private static func makePersistentContainerForV48Source\(/ { exit }
-  ' "$app_file"
+  ' "$container_factory_file"
 )"
 checksum_retry_markers=(
   'named: "checksum-current-store"'
@@ -743,10 +775,13 @@ contains "$recovery_file" "groupContainer: .automatic" \
 if rg -Fq -- 'URL.applicationSupportDirectory.appending(path: "default.store")' "$recovery_root"; then
   fail "Store recovery must not reconstruct the SwiftData store under Application Support."
 fi
-contains "$app_file" "ModelStoreRecoveryCoordinator.productionStoreConfiguration(for: schema)" \
-  || fail "MerianApp and recovery must share one production SwiftData configuration factory."
-contains "$app_file" "let storeURL = ModelStoreRecoveryCoordinator.defaultStoreURL()" \
-  || fail "MerianApp must inspect the exact SwiftData-configured store URL before migration selection."
+contains "$container_factory_file" "ModelStoreRecoveryCoordinator.productionStoreConfiguration(" \
+  || fail "ModelContainerFactory and recovery must share one production SwiftData configuration factory."
+contains "$container_bootstrapper_file" "let storeURL = ModelStoreRecoveryCoordinator.defaultStoreURL()" \
+  || fail "ModelContainerBootstrapper must inspect the exact SwiftData-configured store URL before migration selection."
+contains "$app_file" "ModelContainerBootstrapper.bootstrap()" \
+  || fail "MerianApp must delegate startup store construction to ModelContainerBootstrapper."
+not_contains "$app_file" "ModelContainer("
 contains "$recovery_archive_file" "store-rescue" \
   || fail "Store recovery must archive unrecoverable legacy stores under store-rescue."
 contains "$recovery_archive_file" "legacy_migration_rescue" \
@@ -767,10 +802,16 @@ contains "$recovery_manifest_file" "schemaVersion: Int = 2" \
   || fail "Store recovery manifests must use the current schema version."
 contains "$recovery_diagnostic_file" "schemaVersion: Int = 2" \
   || fail "Startup store diagnostics must use the current schema version."
-contains "$app_file" "legacy_store_rescued" \
-  || fail "MerianApp must recover legacy migration failures with legacy_store_rescued telemetry."
-contains "$app_file" "post-migration-rescue-current-store" \
-  || fail "MerianApp must reopen a fresh persistent store after legacy migration rescue."
+contains "$container_bootstrapper_file" "legacy_store_rescued" \
+  || fail "ModelContainerBootstrapper must recover legacy migration failures with legacy_store_rescued telemetry."
+contains "$container_bootstrapper_file" "post-migration-rescue-current-store" \
+  || fail "ModelContainerBootstrapper must reopen a fresh persistent store after legacy migration rescue."
+contains "$container_bootstrapper_test_file" "testFallbackInMemoryBootstrapMarksSafeMode" \
+  || fail "ModelContainerBootstrapperTests must cover the safe-mode in-memory fallback."
+contains "$container_bootstrapper_test_file" "testFallbackInMemoryBootstrapCreatesLivePlanFreeContainer" \
+  || fail "ModelContainerBootstrapperTests must construct the live plan-free safe-mode container."
+contains "$container_bootstrapper_test_file" "testFallbackInMemoryBootstrapReportsBlockedWhenMemoryStoreFails" \
+  || fail "ModelContainerBootstrapperTests must cover a blocked in-memory fallback."
 contains "$recovery_test_file" "testRescuesLegacyMigrationFailuresEvenWhenSwiftDataErrorIsGeneric" \
   || fail "ModelStoreRecoveryCoordinatorTests must cover generic SwiftDataError legacy rescue."
 contains "$recovery_archive_test_file" "testRescueArchivesStoreArtifacts" \
@@ -783,6 +824,8 @@ contains "$recovery_archive_test_file" "testArchiveRollsBackAllArtifactsWhenMani
   || fail "Store recovery tests must cover rollback after a failed manifest write."
 contains "$recovery_architecture_test_file" "testStoreRecoveryTestsUseMirroredOwnership" \
   || fail "Store recovery architecture tests must freeze mirrored test ownership."
+contains "$recovery_architecture_test_file" "testSafeModeInMemoryContainerDoesNotValidateMigrationPlan" \
+  || fail "Store recovery architecture tests must keep safe mode independent of historical plan validation."
 contains "$recovery_test_file" "testRecoveryStoreURLMatchesSwiftDataAutomaticConfiguration" \
   || fail "ModelStoreRecoveryCoordinatorTests must keep recovery aligned with SwiftData's configured store URL."
 contains "$recovery_diagnostic_test_file" "testFreshStoreDiagnosticDoesNotReportMetadataReadFailure" \

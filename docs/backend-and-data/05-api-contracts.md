@@ -73,11 +73,13 @@ the remaining local and purchase-identity cleanup even if the SDK call fails or
 cancellation arrives. A blocked Apple credential clear retains its signal
 without a hot retry loop and resumes when the aggregate purchase-handoff fence
 becomes false. Live Supabase, RevenueCat, Keychain, analytics, and logging
-adapters remain assembled by `SupabaseManager`; the focused recovery service
-projects refreshed and loaded SDK sessions, and its `+Live` adapter alone
-performs the recovery-specific refresh, session read, and local sign-out calls.
-This ownership split changes no HTTP status, public code, payload, or retry
-count.
+adapters remain assembled by `SupabaseManager`; the task-free
+`SupabaseAuthSessionService` centralizes request-scoped OAuth, recovery, and
+local-sign-out SDK adaptation, while its `+Live` companion alone performs those
+Auth calls. The recovery coordinator owns terminal local-clear sequencing. The
+separate `AuthLocalSignOutCoordinator` owns ordinary and account-cleanup task
+lifetime and sequencing. This ownership split changes no HTTP status, public
+code, payload, or retry count.
 
 Provider-backed routes additionally return HTTP `403` with code
 `ai_consent_required` when the authenticated account lacks the current 18+
@@ -2333,10 +2335,12 @@ fence are in [`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
 
 `description` is an optional plain-text string generated client-side by
 `ObservationContext.serialized()` — a pre-rendered prompt summary of the user's
-structured observation. It is appended to the Gemini context string at the edge
-function to ground identification before the vision model runs.
-`observation_context` is the full structured JSON object matching the iOS
-`ObservationContext` model; it is persisted server-side as
+structured observation. The Foundation-only value declaration lives in
+`Models/Media/ObservationContext.swift`; Capture owns staging and request
+projection rather than a second wire model. The rendered string is appended to
+the Gemini context at the edge function to ground identification before the
+vision model runs. `observation_context` is the full structured JSON object
+matching that iOS value; it is persisted server-side as
 `public.scans.user_observation_context` (JSONB) and lands in the local
 mixed-media scan representation via `LocalScanRecord.observationContextsJSON`,
 the scalar `capturedMediaJSON` timeline, and the V41 `capturedMediaEntries`
@@ -6496,20 +6500,20 @@ compatibility details are unchanged by the native endpoint extraction.
 **iOS mapping**: The array is decoded as
 `[EnrichScanResponse.SimilarSpeciesEntry]` (snake_case Codable DTO in
 `InferenceEdgeDTOs.swift`) and mapped to the domain `SimilarSpecies` struct
-(camelCase, in `SpeciesData.swift`) by the initializer-injected
-`InferenceSpeciesEnrichmentService`, whose core has no direct live-client
-dependency. The enrichment coordinator applies that typed patch only to the
-current presentation through the species-presentation callback, then submits an
-immutable snapshot through the bridge's bounded write admission.
-`InferenceHydrationPersistenceService+Live` encodes `[SimilarSpeciesEntry]`
-off-main and delegates the admitted mutation to `BackgroundDatabaseActor`, which
-persists the `Data` blob as `LocalScanRecord.lookalikesData` (added in
-`MerianSchemaV27`) — the primary SwiftData storage for rich lookalike data. The
-metadata mapping crosses the persistence boundary as domain `TaxonomyData`; wire
-DTOs do not enter the database actor. The legacy
-`LocalScanRecord.similarSpecies: [String]?` field is retained as a
-backwards-compatible fallback for pre-V27 records where `lookalikesData` is nil.
-`InferenceHistoricalRecordProjection`, constructed by
+(camelCase, in `apps/ios/Merian/Models/Species/SimilarSpecies.swift`) by the
+initializer-injected `InferenceSpeciesEnrichmentService`, whose core has no
+direct live-client dependency. The enrichment coordinator applies that typed
+patch only to the current presentation through the species-presentation
+callback, then submits an immutable snapshot through the bridge's bounded write
+admission. `InferenceHydrationPersistenceService+Live` encodes
+`[SimilarSpeciesEntry]` off-main and delegates the admitted mutation to
+`BackgroundDatabaseActor`, which persists the `Data` blob as
+`LocalScanRecord.lookalikesData` (added in `MerianSchemaV27`) — the primary
+SwiftData storage for rich lookalike data. The metadata mapping crosses the
+persistence boundary as domain `TaxonomyData`; wire DTOs do not enter the
+database actor. The legacy `LocalScanRecord.similarSpecies: [String]?` field is
+retained as a backwards-compatible fallback for pre-V27 records where
+`lookalikesData` is nil. `InferenceHistoricalRecordProjection`, constructed by
 `InferenceHistoricalLoadCoordinator` behind `InferenceEngine.load(from:)`, owns
 that fallback and turns the injected reset decision into a value-only hydration
 plan. The load coordinator publishes the initial projection and registers
@@ -7785,21 +7789,27 @@ lifetime with late superseded-result rejection, while
 `PurchaseIdentityReadinessCoordinator` owns foreground
 journal/provider/entitlement repair behind exact account and session fences. The
 typed legacy-profile service's live adapter alone owns the unchanged `users`
-query used by legacy linking. `SupabaseManager` injects live Auth, RevenueCat,
-entitlement, session, journal, query, logging, and recovery effects and
-revalidates the exact Auth transition through the source-handoff coordinator
-around suspended source discovery and stable preparation. Legacy completion
-checks cancellation before dispatching its server destination-bind request and
-after every asynchronous phase, retaining the durable proof whenever completion
-does not reach its verified terminal state. Fresh deletion and ordinary or
-purchase-safe sign-out also reject preflight cancellation before transition
-admission, persistence, or Auth mutation. Before an operation may replace the
-Auth identity, the source-handoff coordinator rereads both store-backed journal
-types and derives readiness from those durable values. An unavailable secure
-read is treated as pending, and that derived pending projection keeps paid
-mutations closed. A cached false value alone is not authority to replace the
-identity. This ownership split changes none of the request, response, error,
-expiry, or retry contracts above.
+query used by legacy linking. The task-free `PurchaseIdentitySessionLiveService`
+owns legacy attribute precedence and provider/entitlement/diagnostic boundary
+assembly; its `+Live` adapter alone acquires RevenueCat, `EntitlementManager`,
+the resolver, profile service, Supabase client, and privacy-safe logger. The
+service's reference lifetime preserves fail-closed facade teardown for deferred
+legacy linking and entitlement refresh without changing a wire contract.
+`SupabaseManager` injects Auth state, exact-session/account-work, session,
+journal, handoff, and recovery closures and revalidates the exact Auth
+transition through the source-handoff coordinator around suspended source
+discovery and stable preparation. Legacy completion checks cancellation before
+dispatching its server destination-bind request and after every asynchronous
+phase, retaining the durable proof whenever completion does not reach its
+verified terminal state. Fresh deletion and ordinary or purchase-safe sign-out
+also reject preflight cancellation before transition admission, persistence, or
+Auth mutation. Before an operation may replace the Auth identity, the
+source-handoff coordinator rereads both store-backed journal types and derives
+readiness from those durable values. An unavailable secure read is treated as
+pending, and that derived pending projection keeps paid mutations closed. A
+cached false value alone is not authority to replace the identity. This
+ownership split changes none of the request, response, error, expiry, or retry
+contracts above.
 
 Errors use `{ "code": "...", "error": "..." }` plus the shared request ID.
 
@@ -8085,10 +8095,10 @@ requires the provider-bound proof to prepare before its injected replacement-
 session effect. `OAuthIdentityTokenPolicy` validates the bounded token subject;
 `OAuthSignInWorkflow` reports installed, failed, or cancelled replacement so a
 cancelled new target cannot be republished as successful. The SDK-facing
-`OAuthSessionService` maps provider-neutral credentials and its `+Live` adapter
-owns the Supabase link and replacement calls. `SupabaseManager` retains Ghost
-prepare, exact-session replacement reconciliation, observable publication, and
-fail-closed cleanup assembly around that injected service. The live install
+`SupabaseAuthSessionService` maps provider-neutral credentials and its `+Live`
+adapter owns the Supabase link and replacement calls. `SupabaseManager` retains
+Ghost prepare, exact-session replacement reconciliation, observable publication,
+and fail-closed cleanup assembly around that injected service. The live install
 boundary records the mutation and exact installed identity as the transition's
 recovery expectation before post-install cancellation can escape; this permits
 cleanup only for that target and is not successful-account publication. Other
@@ -8311,11 +8321,11 @@ neutral service accepts only `success == true`, `status == "registered"`. The
 adapter performs exactly one authenticated Function invocation per service call.
 It owns neither retry policy nor asynchronous task state; `OAuthSignInWorkflow`
 remains the retry owner. `OAuthProviderSignInCoordinator` owns callback/task
-admission. `OAuthSessionService` and its `+Live` adapter own the corresponding
-OIDC/session/profile-metadata adaptation and Supabase Auth calls, while
-`SupabaseManager` retains the exact-session fences, diagnostics, publication,
-and cleanup assembly around both injected services. This ownership split changes
-no request or response field.
+admission. `SupabaseAuthSessionService` and its `+Live` adapter own the
+corresponding OIDC/session/profile-metadata adaptation and Supabase Auth calls,
+while `SupabaseManager` retains the exact-session fences, diagnostics,
+publication, and cleanup assembly around both injected services. This ownership
+split changes no request or response field.
 
 The hosted-secret, rotation, rollout, and production evidence requirements are
 normative in the

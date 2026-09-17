@@ -680,7 +680,7 @@ struct OfflineQueueManagerTests {
 
         let wakeDate = try #require(scheduler.scheduledWakeDate)
         #expect(abs(wakeDate.timeIntervalSince(retryAt)) < 0.1)
-        #expect(QueuedScanContext(from: scheduled).canRetryNow)
+        #expect(scheduled.queuedScanContext().canRetryNow)
     }
 
     @Test func retryUpdateReportsOnlyCommittedPersistence() throws {

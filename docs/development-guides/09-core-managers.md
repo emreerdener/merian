@@ -1668,18 +1668,18 @@ Policy constants live beside the behavior they constrain. This keeps a single
 source of truth for each value without coupling unrelated Core domains through
 one configuration aggregate.
 
-| Owner                           | Values                                                                  | Primary consumers                                      |
-| ------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------ |
-| `OfflineQueueBatchPolicy`       | 5 uploads; 50 pending rows                                              | Offline queue selection and upload sync                |
-| `MediaStagingContract`          | 6 total items; 5 images; 2 audio files; 1 video                         | Signing manifests and publication-media restore        |
-| `OfflineQueueStoragePolicy`     | 100 MiB free-space reserve; 25 MiB single-payload soft limit            | Offline queue admission                                |
-| `ScanMediaPayloadPolicy`        | 5 MiB image; 2.7 MB audio; 12 MiB video; 1,280 px / 3 MiB video targets | Capture, inference, staging, restoration, and playback |
-| `HistoricalSyncPolicy`          | 200 scan rows; 100 collection rows; 100-record save checkpoints         | `ScanRepository` and `HistoricalDatabaseActor`         |
-| `NonBiologicalRetentionPolicy`  | 30-day retention; 250-record purge batches                              | Non-biological cleanup and presentation                |
-| `ImagePreparationPolicy`        | 0.85 compression; 768/1,024 px inference; 2,048 px display              | Bounded image preparation and rendering                |
-| `InferenceConfidencePolicy`     | Flash and Pro strong, possible, and diagnostic thresholds               | Inference, Insight, Field Chat, and tier badges        |
-| `ScanningPhrasePolicy`          | 0.65 Vision confidence; 0.15 margin; 2.3-second phrase cadence          | Local-analysis classification and scanning copy        |
-| `InferenceLookalikeCachePolicy` | Versioned local lookalike reset marker                                  | Inference cache recovery                               |
+| Owner                           | Values                                                                                                               | Primary consumers                                                    |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `OfflineQueueBatchPolicy`       | 5 uploads; 50 pending rows                                                                                           | Offline queue selection and upload sync                              |
+| `MediaStagingContract`          | 6 total items; 5 images; 2 audio files; 1 video                                                                      | Signing manifests and publication-media restore                      |
+| `OfflineQueueStoragePolicy`     | 100 MiB free-space reserve; 25 MiB single-payload soft limit; capture-file and deduplicated queued-media byte sizing | Queue admission, capture admission, route snapshots, and diagnostics |
+| `ScanMediaPayloadPolicy`        | 5 MiB image; 2.7 MB audio; 12 MiB video; 1,280 px / 3 MiB video targets                                              | Capture, inference, staging, restoration, and playback               |
+| `HistoricalSyncPolicy`          | 200 scan rows; 100 collection rows; 100-record save checkpoints                                                      | `ScanRepository` and `HistoricalDatabaseActor`                       |
+| `NonBiologicalRetentionPolicy`  | 30-day retention; 250-record purge batches                                                                           | Non-biological cleanup and presentation                              |
+| `ImagePreparationPolicy`        | 0.85 compression; 768/1,024 px inference; 2,048 px display                                                           | Bounded image preparation and rendering                              |
+| `InferenceConfidencePolicy`     | Flash and Pro strong, possible, and diagnostic thresholds                                                            | Inference, Insight, Field Chat, and tier badges                      |
+| `ScanningPhrasePolicy`          | 0.65 Vision confidence; 0.15 margin; 2.3-second phrase cadence                                                       | Local-analysis classification and scanning copy                      |
+| `InferenceLookalikeCachePolicy` | Versioned local lookalike reset marker                                                                               | Inference cache recovery                                             |
 
 `CorePolicyOwnershipArchitectureTests` freezes sole declaration ownership,
 focused tests, exact declaration-name boundaries, effect-free policy files,
@@ -1971,7 +1971,9 @@ consults that Keychain entry.
   guesses cannot authorize cloud effects; evidence loss allows a verified retry.
   A canonical source URL stays fenced through every suspension; equivalent
   casing, default-port, query, and fragment variants share that fence. Failures
-  pause the process-local queue for 15 minutes.
+  pause the process-local queue for 15 minutes. The live admission dependency
+  uses `Configuration/TestExecutionCoordinator.swift`, so unit and UI tests do
+  not start live repair; focused actor tests inject admission explicitly.
 - I/O helpers (`loadLocal`, `fetchRemote`) are `static nonisolated` — prevents
   `Task.detached` from re-entering the actor executor mid-operation and keeps
   network orchestration off the actor executor; synchronous decode work is
@@ -2198,49 +2200,54 @@ consults that Keychain entry.
   contract. It freezes the exact 18 endpoint owners, rejects aggregate method
   duplication, enforces the 600-line owner ceiling across Auth, Endpoint,
   Inference, Media, Recovery, Transport, and the client façade, and requires the
-  exact sixty-three Auth foundation paths plus six Transport files. The Auth
-  guard freezes the effect-free observable runtime owner for transition,
-  generation, transition-analytics, exact-session lease/drain, and local
-  sign-out state; the focused SDK listener/current-state adapter, retained
-  historical-sync task owner, lifecycle diagnostics, and live listener's
+  exact sixty-one Auth foundation paths plus six Transport files. The Auth guard
+  freezes the effect-free observable runtime owner for transition, generation,
+  transition-analytics, exact-session lease/drain, and local sign-out state; the
+  focused SDK listener/current-state adapter, retained historical-sync task
+  owner, lifecycle diagnostics, and live listener's
   generation/context/transition-observation order; the bootstrap dependency/
   coordinator pair plus focused SDK service/live adapter and diagnostics owner;
-  the recovery dependency/coordinator plus SDK service/live-adapter/diagnostics
-  owners; the bootstrap keyed task, true-missing-only creation, exact-session
-  refresh, anonymous readiness, terminal local clear, cancellation, and
-  final-session fences; the lifecycle event model, dependency boundaries,
-  coordinator, and conditional deferred-event replay owner; the OAuth model,
-  identity-token policy, workflow, completion dependency package/coordinator,
-  provider-admission dependency package/coordinator, focused live-provider
-  Services, and the Apple credential-registration service/live-adapter pair,
-  plus the OAuth SDK session service/live-adapter and canonical profile-metadata
-  mapping. It scans every Core Network Swift source to keep OIDC and
-  `UserAttributes` construction exclusive to the service core and direct
-  Supabase Auth link, ID-token install, and metadata-update calls exclusive to
-  the live adapter. It also freezes the shared deletion dependency package;
-  separate fresh/recovery coordinators, purchase-sign-out and
-  destination-handoff dependency and route owners, source-handoff dependencies
-  and coordination, the Auth journal adapter, the Core Security preparation
-  owner, relocated declaration and helper-function ownership, former
-  account-deletion, purchase-safe sign-out, purchase-handoff, and ghost-merge
-  helper names, the public-author refresh and Apple credential-revocation
-  dependency/coordinator pairs, the fallback authentication-callback
-  dependency/coordinator/live-diagnostics split, all ten explicit main-actor
-  task owners, actor isolation, the provider-neutral SDK/singleton exclusion,
-  and the narrow provider-service framework boundary. It separately freezes the
-  Core Security ghost-merge and purchase-handoff model/store owners and their
-  device-only, read-back-verified persistence boundaries. It also requires
-  direct anonymous provider linking to read back, admit, adopt, and revalidate
-  the same-UUID permanent session before durable merge-recovery retirement. The
-  six Transport files remain three stateless policies, one request-scoped
-  executor, one pinned session, and one authenticated dispatcher. The suite also
-  requires exactly one endpoint owner for every safe-read or idempotency-aware
-  replay classification, keeps async/global refresh effects out of stateless
-  Transport policies, and verifies the executor applies both
-  `UnauthorizedRefreshTarget` branches without constructing another session or
-  client singleton. The backend `get-filtered-discovery-feed` function is
-  intentionally not in the iOS replay set because the app has no endpoint owner
-  or caller for it. Its backend contract is unchanged. See the
+  the recovery dependency/coordinator and local-sign-out coordinator with its
+  colocated dependency boundaries; one shared task-free Supabase Auth
+  service/live adapter and diagnostics owner for OAuth, recovery, and local
+  sign-out; the bootstrap and local-sign-out keyed tasks, true-missing-only
+  creation, exact-session refresh, anonymous readiness, terminal local clear,
+  cancellation, and final-session fences; the lifecycle event model, dependency
+  boundaries, coordinator, and conditional deferred-event replay owner; the
+  OAuth model, identity-token policy, workflow, completion dependency
+  package/coordinator, provider-admission dependency package/coordinator,
+  focused live-provider Services, and the Apple credential-registration
+  service/live-adapter pair, plus canonical OAuth profile-metadata mapping in
+  the shared Supabase Auth service/live adapter. It scans every Core Network
+  Swift source to keep OIDC and `UserAttributes` construction exclusive to the
+  service core and direct Supabase Auth link, ID-token install, callback-URL
+  install, and metadata-update calls exclusive to the live adapter. The
+  callback-install scan is independent of the URL argument name, and callback
+  assembly cannot read `client.auth.currentSession` directly. It also freezes
+  the shared deletion dependency package; separate fresh/recovery coordinators,
+  purchase-sign-out and destination-handoff dependency and route owners,
+  source-handoff dependencies and coordination, the Auth journal adapter, the
+  Core Security preparation owner, relocated declaration and helper-function
+  ownership, former account-deletion, purchase-safe sign-out, purchase-handoff,
+  and ghost-merge helper names, the public-author refresh and Apple
+  credential-revocation dependency/coordinator pairs, the fallback
+  authentication-callback dependency/coordinator/live-diagnostics split, all ten
+  explicit main-actor task owners, actor isolation, the provider-neutral
+  SDK/singleton exclusion, and the narrow provider-service framework boundary.
+  It separately freezes the Core Security ghost-merge and purchase-handoff
+  model/store owners and their device-only, read-back-verified persistence
+  boundaries. It also requires direct anonymous provider linking to read back,
+  admit, adopt, and revalidate the same-UUID permanent session before durable
+  merge-recovery retirement. The six Transport files remain three stateless
+  policies, one request-scoped executor, one pinned session, and one
+  authenticated dispatcher. The suite also requires exactly one endpoint owner
+  for every safe-read or idempotency-aware replay classification, keeps
+  async/global refresh effects out of stateless Transport policies, and verifies
+  the executor applies both `UnauthorizedRefreshTarget` branches without
+  constructing another session or client singleton. The backend
+  `get-filtered-discovery-feed` function is intentionally not in the iOS replay
+  set because the app has no endpoint owner or caller for it. Its backend
+  contract is unchanged. See the
   [integration audit](../../apps/ios/Merian/Core/Network/README.md#core-network-integration-audit).
 - The browsing owner preserves Feed's category-priority order, Map's lexical
   filter order, independently forwarded Feed coordinates/ranking cursor, paired
@@ -2461,13 +2468,22 @@ consults that Keychain entry.
   64 lowercase hexadecimal characters, before invoking its write boundary.
   `PurchasePrincipalRemoteService+Live.swift` alone owns the four resolver
   operations and their private payloads; the legacy-profile live service alone
-  owns its private DTO and established `users` query. The session coordinator
-  owns active binding, last-linked-user state, and keyed resolution task; the
-  coordinator records the last-linked user only after the caller's final
-  admission check. The readiness coordinator owns foreground repair behind an
-  account-work lease and final SDK/session/provider fence. `AuthRuntimeState`
-  retains Auth generation; `SupabaseManager` supplies the live Supabase,
-  RevenueCat, entitlement, recovery, and logging effects.
+  owns its private DTO and established `users` query.
+  `PurchaseIdentitySessionLiveService.swift` owns task-free legacy attribute
+  precedence plus provider/entitlement/diagnostic boundary assembly without
+  importing Supabase or resolving a singleton; its `+Live` adapter alone
+  acquires RevenueCat, `EntitlementManager`, the resolver, profile service,
+  Supabase client, and logger for ordinary session readiness. The manager is the
+  service's sole lifetime owner; deferred legacy linking and entitlement refresh
+  weakly capture it and fail closed after facade teardown. The session
+  coordinator owns active binding, last-linked-user state, and keyed resolution
+  task; the coordinator records the last-linked user only after the caller's
+  final admission check. The readiness coordinator owns foreground repair behind
+  an account-work lease and final SDK/session/provider fence. `AuthRuntimeState`
+  retains Auth generation; `SupabaseManager` supplies Auth state, exact-session/
+  account-work admission, handoff, and recovery closures to the focused live
+  service rather than acquiring its RevenueCat or entitlement dependencies
+  directly.
 - **Unified Auth-transition ownership**: `Core/Network/Auth/` owns the
   value-only transition models and errors, Guest-presentation policy,
   deterministic transition policy, exact-session work lease coordinator,
@@ -2589,7 +2605,7 @@ consults that Keychain entry.
   scheduled target is still the manager-published user before replacing work,
   and rejects cancellation before lease or remote admission and after remote
   suspension. `SupabaseManager` retains the lifecycle provider, history service,
-  and facade sign-out task, delegates live transition state to
+  and local-sign-out coordinator, delegates live transition state to
   `AuthRuntimeState`, and adapts the bootstrap result to its existing `User?`
   signature, and assembles the SDK, endpoint, Keychain, provider, sign-out,
   handoff, purge, public-author event, diagnostics, and lifecycle effects
@@ -2698,12 +2714,16 @@ consults that Keychain entry.
   later cancellation. The explicit `completeMutatedOAuthSession` entry policy
   permits this cleanup to begin from a cancelled OAuth owner only after a
   session mutation; ordinary cleanup retains active-caller admission. The SDK
-  sign-out itself remains best-effort on its failure path. The focused recovery
-  service projects refreshed and loaded SDK sessions; its `+Live` adapter alone
-  owns the recovery-specific SDK refresh, session read, and local sign-out
-  operations, while its diagnostics owner preserves the privacy-safe log copy.
-  `SupabaseManager` retains only composition of adoption, publication, purchase,
-  entitlement, and cleanup effects around that boundary.
+  sign-out itself remains best-effort on its failure path. The task-free
+  `SupabaseAuthSessionService` projects refreshed and loaded SDK sessions, maps
+  OAuth values, and shares one `+Live` owner for the corresponding recovery,
+  OAuth, and local-sign-out Auth calls. The recovery coordinator owns terminal-
+  clear sequencing. The separate local sign-out coordinator owns ordinary and
+  account-cleanup retained task lifetime and exact cleanup sequence; both paths
+  use that shared adapter, whose live file also preserves the privacy-safe
+  recovery and sign-out log copy. `SupabaseManager` retains only composition of
+  adoption, publication, purchase, entitlement, and cleanup effects around that
+  boundary.
 - **Sign-out identity single-flights**: protocol-3 stable mode creates a random
   rotation UUID and 256-bit secret, persists/read-verifies a `preparing`
   Keychain journal, and prepares a server-owned reservation while the exact
@@ -2743,8 +2763,10 @@ consults that Keychain entry.
   stores' failures to the existing `SupabaseAuthTransitionError` cases. Core
   Security's typed/live compatibility service owns the legacy endpoint DTO and
   request boundary; the Auth coordinator owns handoff task lifetime; and the
-  manager retains Auth, RevenueCat, entitlement, logging, and dependency
-  assembly.
+  manager retains Auth and compatibility-handoff sequencing. Ordinary session
+  RevenueCat, entitlement, resolver, profile-query, and diagnostic acquisition
+  belongs to `PurchaseIdentitySessionLiveService+Live`; the manager injects only
+  Auth state, account-work, and handoff closures into that path.
 - **Unauthorized identity preservation**: a generic route `401` is not proof
   that Auth deleted the user and never rotates the current UUID. A Ghost can be
   replaced only when the response carries the stable missing/invalid-session
@@ -2775,27 +2797,29 @@ consults that Keychain entry.
   task state; `OAuthSignInWorkflow` remains the retry owner. The OAuth
   credentials are the sole identity-token owner; identity-token-free Apple
   registration evidence carries only the idempotency UUID and one-use code. The
-  SDK-facing `OAuthSessionService` maps those credentials, SDK sessions, and
-  canonical profile-metadata aliases through initializer-injected operations;
-  its `+Live` adapter alone reads, links, installs, and updates through Supabase
-  Auth. The Ghost merge client contract pins facade delegation through both the
-  ordinary direct-link path and the conflict-driven replacement path and rejects
-  direct SDK reacquisition in the manager. Replacement forwards a mutation
-  observer to the live SDK-install boundary, which marks a successful install
-  and adopts that exact identity as the transition expectation before the
-  workflow can surface post-install cancellation. Fallback callback conversion
-  uses the same recovery-only expectation update before its source/target policy
-  decides whether publication is allowed. `SupabaseManager` teardown explicitly
-  cancels its retained purchase-handoff and purchase-identity resolution
-  coordinators. `SupabaseManager` retains the stable entry points, transition
-  and replacement fences, diagnostics, observable publication, exact-session
-  fences around registration, RevenueCat, Keychain, other endpoint, telemetry,
-  and lifecycle adapters. The existing-account fallback is entered only for
-  Supabase Auth code `identity_already_exists`; network, timeout, configuration,
-  and other linking errors preserve the active signed-out session. The workflow
-  reports installed, failed, and cancelled replacement dispositions, and the
-  coordinator fences cancellation after every suspended completion phase so a
-  cancelled target is never finalized as authenticated.
+  SDK-facing `SupabaseAuthSessionService` maps those credentials, OAuth and
+  recovery SDK sessions, canonical profile-metadata aliases, and local sign-out
+  through one initializer-injected operation bundle; its `+Live` adapter alone
+  performs those request-scoped Supabase Auth calls. The Ghost merge client
+  contract pins facade delegation through both the ordinary direct-link path and
+  the conflict-driven replacement path and rejects direct SDK reacquisition in
+  the manager. Replacement forwards a mutation observer to the live SDK-install
+  boundary, which marks a successful install and adopts that exact identity as
+  the transition expectation before the workflow can surface post-install
+  cancellation. The callback coordinator uses the same injected service for URL
+  installation and current-session readback, then the facade records the same
+  recovery-only expectation before its source/target policy decides whether
+  publication is allowed. `SupabaseManager` teardown explicitly cancels its
+  retained purchase-handoff and purchase-identity resolution coordinators.
+  `SupabaseManager` retains the stable entry points, transition and replacement
+  fences, diagnostics, observable publication, exact-session fences around
+  registration, RevenueCat, Keychain, other endpoint, telemetry, and lifecycle
+  adapters. The existing-account fallback is entered only for Supabase Auth code
+  `identity_already_exists`; network, timeout, configuration, and other linking
+  errors preserve the active signed-out session. The workflow reports installed,
+  failed, and cancelled replacement dispositions, and the coordinator fences
+  cancellation after every suspended completion phase so a cancelled target is
+  never finalized as authenticated.
 - **Apple revocation credential**: Apple completion also requires the one-use
   authorization code. After Supabase installs the session,
   `register-apple-revocation-token` receives the code, identity token, and one

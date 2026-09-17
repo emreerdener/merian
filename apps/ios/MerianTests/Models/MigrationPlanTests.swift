@@ -8,7 +8,8 @@ import Testing
 /// stages produce the same NSManagedObjectModel, which causes a fatal crash on iOS 26+.
 ///
 /// Two test categories:
-///  1. In-memory init — covers the case where the app has no existing store (fresh install).
+///  1. In-memory full-plan init — validates every historical stage independently
+///     from the app's plan-free fresh-store and safe-mode paths.
 ///  2. Disk migration — covers the case where a user upgrades from a prior schema version.
 ///     On iOS 26+, `NSCustomMigrationStage` validates all custom stages at migration time,
 ///     not just the one being applied. Any stage with equal from/to models crashes at that point.
@@ -393,7 +394,7 @@ struct MigrationPlanTests {
         for schema: Schema,
         configurations: [ModelConfiguration]
     ) throws -> ModelContainer {
-        try MerianApp.makeContainerCatchingObjectiveCExceptions {
+        try ModelContainerFactory.makeContainerCatchingObjectiveCExceptions {
             try ModelContainer(for: schema, configurations: configurations)
         }
     }
@@ -403,7 +404,7 @@ struct MigrationPlanTests {
         migrationPlan: MigrationPlan.Type,
         configurations: [ModelConfiguration]
     ) throws -> ModelContainer {
-        try MerianApp.makeContainerCatchingObjectiveCExceptions {
+        try ModelContainerFactory.makeContainerCatchingObjectiveCExceptions {
             try ModelContainer(
                 for: schema,
                 migrationPlan: migrationPlan,
@@ -573,7 +574,9 @@ struct MigrationPlanTests {
         )
     }
 
-    /// Mirrors MerianApp.init() exactly, using in-memory storage to keep the test fast.
+    /// Validates the full historical plan independently from the plan-free
+    /// fresh-store and safe-mode runtime paths. In-memory storage keeps this
+    /// structural check fast without weakening its stage validation.
     ///
     /// On iOS 26+, `NSCustomMigrationStage` validates at `ModelContainer` init time that
     /// `fromVersion` and `toVersion` resolve to non-equal `NSManagedObjectModelReference` values.

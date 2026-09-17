@@ -1,4 +1,21 @@
+import Foundation
 import SwiftUI
+
+extension QueuedScanContext {
+    var activeScanMedia: ActiveScanMedia {
+        var media = capturedMediaSnapshot.activeScanMedia
+        guard let visualMediaItemsJSON,
+              let data = visualMediaItemsJSON.data(using: .utf8),
+              let descriptors = try? JSONDecoder().decode(
+                  [IdentifyVisualMediaItem].self,
+                  from: data
+              ) else {
+            return media
+        }
+        media.focusRegionsBySourceIndex = descriptors.focusRegionsBySourceIndex
+        return media
+    }
+}
 
 extension InsightSheetViewModel {
     var hasUserMedia: Bool {

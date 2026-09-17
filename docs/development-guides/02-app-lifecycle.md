@@ -8,6 +8,12 @@ maintenance; Capture-specific interruption and queue-claim release remain with
 activity changes directly to `InferenceEngine` for its ephemeral local-analysis
 and phrase-cadence lifecycle.
 
+Process-level test detection is a separate Configuration contract.
+`Configuration/TestExecutionCoordinator.swift` is the sole owner of UI-test and
+XCTest process signals used to suppress lifecycle and other production side
+effects; neither `MerianApp` nor a Core manager may read those raw signals
+directly.
+
 ## Phase Contract
 
 `handleActivePhase()` and `handleInactivePhase()` are first guarded by
@@ -33,8 +39,8 @@ production exit evidence is canonical in the
 ## Cold-Launch Root Presentation
 
 Scene-phase handling and root presentation are separate contracts. `MerianApp`
-evaluates `AppRootPresentationPolicy` before mounting either the onboarding flow
-or Capture workspace:
+evaluates the deterministic `App/Presentation/AppRootPresentation.swift` policy
+before mounting either the onboarding flow or Capture workspace:
 
 1. Incomplete onboarding presents `OnboardingView` immediately.
 2. Completed onboarding plus current required consent presents
@@ -218,11 +224,18 @@ suspended, the stale attempt revalidates after the deferred result instead of
 losing the earlier lifecycle wakeup. After local SDK sign-out begins, the
 coordinator still invokes observable-state, secure-marker, analytics, and
 purchase-identity cleanup if the SDK call fails or cancellation arrives. The
-focused recovery service projects refreshed and loaded SDK sessions; its `+Live`
-adapter alone performs the recovery refresh, session read, and local sign-out
-calls, while its diagnostics owner retains privacy-safe logging.
-`SupabaseManager` composes lifecycle, adoption, purchase, entitlement, and
-cleanup effects around those injected operations.
+task-free `SupabaseAuthSessionService` projects refreshed and loaded sessions;
+its shared `+Live` adapter alone performs recovery, OAuth, and local-sign-out
+SDK calls and owns their privacy-safe diagnostics. The recovery coordinator owns
+terminal-clear sequencing. The separate local sign-out coordinator owns ordinary
+and account-cleanup retained task lifetime and cleanup sequence; both paths use
+the shared SDK adapter without moving task or cleanup policy into it.
+`SupabaseManager` composes lifecycle, adoption, and cleanup effects around those
+injected operations. It supplies Auth state, account-work, and handoff closures
+to `PurchaseIdentitySessionLiveService`; that service's `+Live` adapter acquires
+ordinary RevenueCat, entitlement, resolver, profile-query, and diagnostic
+dependencies. Deferred snapshot linking and entitlement refresh weakly capture
+the service lifetime and fail closed after facade teardown.
 
 A transition closes new admission, snapshots, cancels, and awaits every
 outstanding scheduled and active consent synchronization handle—including
@@ -279,18 +292,19 @@ validated canonical dictionary UUID. Identify and recall intents use the same
 queue rather than a separate event subscriber.
 
 **Photos document import:** `MerianApp.onOpenURL` handles Google Sign-In and
-Merian deep links before classifying file URLs, and leaves remaining URLs for
-Supabase authentication. The existing app-root `Task` is the sole asynchronous
-caller for that fallback Auth URL; `AuthenticationCallbackCoordinator` creates
-no task and owns transition admission, SDK-session reconciliation, cancellation,
-and post-install sign-out fencing through injected effects. An accepted image is
-copied immediately into `ExternalImageImportStore`; only then does the app
-request `AppRoute.processExternalImageImports` with the `durableExternalImport`
-source. The durable inbox, not the process-local route envelope, is
-authoritative. `CaptureWorkspaceView` also checks the inbox on appearance and
-every active transition so cold launch, onboarding, or a request sent before the
-workspace mounts cannot lose the photo. Capacity and quota blocks retain the
-receipt. See `docs/features-and-hardware/26-photos-share-import.md`.
+Merian deep links through `App/Routing/AppURLRouting.swift` before classifying
+file URLs, and leaves remaining URLs for Supabase authentication. The existing
+app-root `Task` is the sole asynchronous caller for that fallback Auth URL;
+`AuthenticationCallbackCoordinator` creates no task and owns transition
+admission, SDK-session reconciliation, cancellation, and post-install sign-out
+fencing through injected effects. An accepted image is copied immediately into
+`ExternalImageImportStore`; only then does the app request
+`AppRoute.processExternalImageImports` with the `durableExternalImport` source.
+The durable inbox, not the process-local route envelope, is authoritative.
+`CaptureWorkspaceView` also checks the inbox on appearance and every active
+transition so cold launch, onboarding, or a request sent before the workspace
+mounts cannot lose the photo. Capacity and quota blocks retain the receipt. See
+`docs/features-and-hardware/26-photos-share-import.md`.
 
 **Fresh-launch Explore preference:** `AppSettings.opensExploreOnLaunch` is
 default-off and sampled once when the app process is created. After onboarding
@@ -585,8 +599,10 @@ work; it is not an inventory of effects inside `AppLifecycleManager` alone.
 ## 2026-05 Startup Safety Update
 
 - If the post-quarantine retry still cannot open the persistent store, startup
-  now falls back to an in-memory `ModelContainer` and surfaces a recovery notice
-  banner instead of crashing in a launch loop.
+  now falls back to a plan-free, in-memory `CurrentSchema` container and
+  surfaces a recovery notice banner instead of crashing in a launch loop. The
+  full historical migration plan remains an independent test obligation and
+  cannot prevent this last-resort workspace from opening.
 - Lifecycle code must tolerate this safe mode. Do not assume persistent storage
   was available just because the app reached `.active`.
 
@@ -597,9 +613,10 @@ The full operating contract lives in
 
 - SwiftData/Core Data can raise Objective-C `NSException`s during
   `ModelContainer` initialization, which Swift `do/catch` cannot catch directly.
-  `MerianApp` wraps container creation with a tiny Objective-C bridge so those
-  launch-time exceptions become Swift errors and can enter the existing recovery
-  path.
+  `Core/Data/StoreRecovery/Services/ModelContainerFactory.swift` wraps container
+  creation with the tiny Objective-C bridge so those launch-time exceptions
+  become Swift errors and can enter the existing recovery path. `MerianApp`
+  requests one result from `ModelContainerBootstrapper` and attaches it.
 - Startup reads SwiftData store metadata before creating the persistent
   container. Fresh/current V51 stores open without a migration plan, known
   recent stores use source-isolated V50/V49/V48/V47/V46/V45/V44/V43/V42 plans,
@@ -615,8 +632,12 @@ The full operating contract lives in
   stamped V47. Every older selected migration path then applies V49→V50→V51.
   Duplicate-checksum failures retry through the same descending V50...V42
   recent-plan ladder before legacy rescue or safe mode. Recent source stamps are
-  represented by a finite enum ending at `CurrentSchema - 1`, and the app
-  dispatches every case without a generic full-history fallback.
+  represented by a finite enum ending at `CurrentSchema - 1`, and the container
+  factory dispatches every case without a generic full-history fallback.
+- The empty safe-mode container uses `CurrentSchema` in memory without a
+  migration plan. `MigrationPlanTests` constructs the complete historical plan
+  separately, so invalid historical stages fail validation without coupling the
+  final recovery path to that plan.
 - Store quarantine remains corruption-only. The Store Recovery façade preserves
   the production SwiftData configuration, `Policies/` owns eligibility, and
   `Services/StoreRecoveryArtifactArchiver.swift` moves `default.store`,

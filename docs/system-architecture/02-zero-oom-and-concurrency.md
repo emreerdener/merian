@@ -318,12 +318,12 @@ the main thread. This is not an OOM, but it shares the same zero-OOM principle:
 hot SwiftUI body evaluation should not cross relationship fault boundaries when
 an equivalent scalar projection exists.
 
-`SerializedMediaItem.swift` now centralizes the rule in
-`resolvedSerializedMediaItems(...)`: decode `capturedMediaJSON` first, and pass
-`capturedMediaEntries` as an autoclosure so Swift does not even evaluate the
-relationship unless JSON is absent or invalid. The relationship mirror remains
-populated for migration/debugging/fallback durability. Do not reverse this order
-in `LocalScanRecord.serializedCapturedMediaItems`,
+`Core/Data/CapturedMedia/CapturedMediaRecordPersistence.swift` centralizes the
+rule in `resolvedSerializedMediaItems(...)`: decode `capturedMediaJSON` first,
+and pass `capturedMediaEntries` as an autoclosure so Swift does not even
+evaluate the relationship unless JSON is absent or invalid. The relationship
+mirror remains populated for migration/debugging/fallback durability. Do not
+reverse this order in `LocalScanRecord.serializedCapturedMediaItems`,
 `OfflineQueuedScan.serializedCapturedMediaItems`, `InsightSheetViewModel`,
 `InferenceEngine.load(from:)`, export flows, or thumbnail code.
 
@@ -2040,30 +2040,33 @@ Two fixes were applied together:
    evaluates this as a `SELECT COUNT(*) WHERE name = 'Favorites' LIMIT 1` —
    constant time regardless of library size.
 
-### Bounded SwiftData Startup (`MerianApp`)
+### Bounded SwiftData Startup (Store Recovery)
 
-`MerianApp` still creates the app-wide `ModelContainer` during startup so the
-root SwiftUI environment, repository wiring, and safe-mode state are known
-before user workflows begin. The launch path must therefore avoid unnecessary
-deep migration validation. Startup reads the store metadata first: fresh/current
-V51 stores open without a migration plan, known recent stores use the narrow
-source-isolated V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and unknown older
-stores use the full historical migration plan. V50 uses the custom V50→V51
-preference-ownership stage; V49 first uses the lightweight V49→V50 hop. The full
-plan remains linear through V42→V49→V50→V51 so older-store migration does not
-validate the duplicate-prone V43...V48 source cluster. V42/V43 use short direct
-plans to avoid validating older full-historical custom stages that can raise
-SwiftData's equal-model-reference exception. The V46 plan keeps V46 as the only
-duplicate-cluster source representative and jumps directly to V49 because V46
-was a shipped no-op schema, while true V47 stores use a source-isolated V47→V49
-plan with a self-contained scalar queued-scan snapshot. Every chosen older lane
-then uses V49→V50→V51. Duplicate-checksum failures retry through the same
-recent-plan ladder, ordered current store then V50 down through V42, before
-legacy rescue or safe mode. Supported recent sources are a finite enum ending at
-the immediate predecessor of `CurrentSchema`, and app dispatch is
-compiler-exhaustive with no full-history default. This keeps the synchronous
-launch boundary bounded for normal upgrades while preserving a deterministic
-recovery surface if SwiftData cannot open the store.
+`ModelContainerBootstrapper` creates the app-wide `ModelContainer` during
+startup so `MerianApp` can attach the root SwiftUI environment, repository
+wiring, and safe-mode state before user workflows begin. The launch path must
+therefore avoid unnecessary deep migration validation. Startup reads the store
+metadata first: fresh/current V51 stores open without a migration plan, known
+recent stores use the narrow source-isolated V50/V49/V48/V47/V46/V45/V44/V43/V42
+plans, and unknown older stores use the full historical migration plan. V50 uses
+the custom V50→V51 preference-ownership stage; V49 first uses the lightweight
+V49→V50 hop. The full plan remains linear through V42→V49→V50→V51 so older-store
+migration does not validate the duplicate-prone V43...V48 source cluster.
+V42/V43 use short direct plans to avoid validating older full-historical custom
+stages that can raise SwiftData's equal-model-reference exception. The V46 plan
+keeps V46 as the only duplicate-cluster source representative and jumps directly
+to V49 because V46 was a shipped no-op schema, while true V47 stores use a
+source-isolated V47→V49 plan with a self-contained scalar queued-scan snapshot.
+Every chosen older lane then uses V49→V50→V51. Duplicate-checksum failures retry
+through the same recent-plan ladder, ordered current store then V50 down through
+V42, before legacy rescue or safe mode. Safe mode then opens an empty in-memory
+`CurrentSchema` container without a migration plan, so historical stage
+validation cannot defeat the last-resort workspace. The full plan remains an
+independently tested contract. Supported recent sources are a finite enum ending
+at the immediate predecessor of `CurrentSchema`, and app dispatch is compiler-
+exhaustive with no full-history default. This keeps the synchronous launch
+boundary bounded for normal upgrades while preserving a deterministic recovery
+surface if SwiftData cannot open the store.
 
 ### App Boot SDK Stutter (`MerianApp`)
 
@@ -3317,8 +3320,8 @@ This ensures:
 
 ## 2026-04 Hardening Updates
 
-- `MerianApp` no longer wipes the SwiftData store on every `ModelContainer` init
-  failure. Recovery is now store-aware and corruption-specific. The
+- Startup recovery no longer wipes the SwiftData store on every `ModelContainer`
+  initialization failure. Recovery is store-aware and corruption-specific. The
   `Core/Data/StoreRecovery/` façade retains the production configuration;
   focused Models, Policies, and Services own metadata-based migration selection,
   error/privacy decisions, exact artifact archiving, and deterministic
@@ -3407,10 +3410,11 @@ This ensures:
   handoffs preserve the source session, while cleanup deliberately finishes once
   local SDK sign-out begins so cancellation or an SDK error cannot leave
   observable account state behind.
-- `AuthSessionRecoveryLiveService` creates no task. Its focused `+Live` adapter
-  owns only the suspended SDK refresh, session read, and local sign-out calls;
-  the coordinator and facade retain cancellation, transition, publication,
-  purchase, entitlement, and cleanup fencing around those operations.
+- `SupabaseAuthSessionService` creates no task. Its `+Live` adapter centralizes
+  request-scoped OAuth, recovery refresh/read, and local SDK sign-out calls. The
+  separate `AuthLocalSignOutCoordinator` owns one retained, compare-before-
+  clear task and exact cleanup sequencing; consolidation does not move task or
+  cancellation ownership into the SDK adapter.
 
 ## 2026-05 Stability Updates
 
@@ -3421,7 +3425,9 @@ This ensures:
   with source-isolated recent plans, quarantines the store only when corruption
   signatures match, archives non-corrupt legacy migration failures under
   `store-rescue/` before rebuilding a fresh persistent store, and falls back to
-  an in-memory safe mode with a user-facing notice only if recovery fails.
+  a plan-free in-memory `CurrentSchema` safe mode with a user-facing notice only
+  if recovery fails. The full historical plan is validated independently rather
+  than reused at that last-resort boundary.
 - **Collection membership is scan-driven**: `ScansSheetView` owns the shared
   completed-library query, and `CollectionsViewModel`,
   `SelectMultipleScansViewModel`, and `CollectionDetailViewModel` derive bounded
@@ -3474,8 +3480,17 @@ This ensures:
 - `AuthRuntimeState` is the effect-free main-actor owner for the active
   transition, Auth generation, transition analytics generations, exact-session
   leases and drain waiters, and local sign-out state. `SupabaseManager` retains
-  the SDK listener and facade sign-out tasks and supplies live effects without
-  duplicating that mutable state.
+  the SDK listener and local-sign-out coordinator and supplies live effects
+  without duplicating that mutable state.
+- `PurchaseIdentitySessionLiveService` is a task-free main-actor adapter. Its
+  live companion acquires RevenueCat, entitlement, resolver, legacy-profile,
+  Supabase-client, and diagnostic effects, while `SupabaseManager` injects only
+  Auth state, account-work admission, and durable-handoff closures. Resolution
+  task lifetime and keyed supersession remain solely in
+  `PurchaseIdentitySessionCoordinator`; this extraction introduces no new task
+  or cancellation domain. The facade is the service's sole reference owner;
+  deferred snapshot linking and entitlement refresh weakly capture that lifetime
+  and cannot begin after teardown.
 - `SupabaseManager` revalidates the exact manager-published user, nonexpired SDK
   session, captured Auth generation, and transition context after listener,
   anonymous-bootstrap, entitlement, and purchase-continuity suspension points.
@@ -3506,10 +3521,16 @@ This ensures:
   completion-owned cleanup only when its SDK session was already mutated;
   ordinary cleanup still requires an active caller.
 - Recovery SDK adaptation now lives in the task-free
-  `AuthSessionRecoveryLiveService`: the service projects refreshed/loaded
-  identities, its `+Live` adapter performs recovery refresh/read/local-sign-out,
-  and its diagnostics owner preserves the privacy-safe copy. It does not widen
-  the coordinator's transition or cleanup authority.
+  `SupabaseAuthSessionService`: the service projects refreshed/loaded identities
+  and shares one request-scoped live adapter with OAuth and local sign-out. Its
+  diagnostics preserve the privacy-safe copy, while the recovery coordinator
+  retains terminal local-clear sequencing.
+- `AuthLocalSignOutCoordinator` owns the ordinary and account-cleanup retained
+  task, exact effect order, and compare-before-clear lifecycle. Cancellation
+  keeps the task registered through deferred observable-state cleanup, while
+  post-SDK cancellation still completes external cleanup. The consolidated
+  request-scoped Auth live adapter is the sole direct local SDK sign-out owner
+  and is shared with recovery.
 - `PublicAuthorIdentityRefreshCoordinator` owns replaceable restored-session
   public-author refresh with both its target account and a unique task ID. Stale
   scheduling targets are rejected before replacement. Cleanup is
@@ -3553,22 +3574,26 @@ This ensures:
   identity token; the credentials remain its sole native owner throughout the
   completion task. The typed credential-registration service creates no task and
   owns strict receipt validation; its `+Live` adapter owns the single suspended
-  Function invocation. The initializer-injected OAuth session service creates no
-  task; it owns credential/session/metadata SDK adaptation while its live
-  adapter performs the one requested Auth operation. `SupabaseManager` retains
-  the exact transition/session checks, replacement reconciliation, diagnostics,
-  and observable publication around those injected suspensions.
+  Function invocation. The initializer-injected `SupabaseAuthSessionService`
+  creates no task; it owns credential/session/metadata and recovery projection
+  while its one live adapter performs the requested OAuth, recovery, or local-
+  sign-out Auth operation, including fallback callback-URL session installation.
+  `SupabaseManager` retains the exact transition/session checks, replacement
+  reconciliation, diagnostics, and observable publication around those injected
+  suspensions.
 - Fallback authentication URLs keep the existing app-root `onOpenURL` task as
   their sole asynchronous caller. The task-free
   `AuthenticationCallbackCoordinator` rejects overlap, pending purchase
   continuity, anonymous sources, and different-account targets; checks
   cancellation after preflight; and reconciles the SDK's actual session after
-  installation. The live boundary first records the mutation and exact installed
-  identity as the transition expectation; the coordinator then rechecks
-  cancellation, source/target policy, transition ownership, and sign-out before
-  publication or completion and retains exact-session fences after purchase and
-  entitlement suspension. If installation already mutated the SDK session,
-  failure or cancellation enters completion-owned cleanup for only that target.
+  installation. `SupabaseAuthSessionService+Live` is the sole callback-URL SDK
+  installation owner, while the facade immediately records the mutation and
+  exact installed identity as the transition expectation; the coordinator then
+  rechecks cancellation, source/target policy, transition ownership, and
+  sign-out before publication or completion and retains exact-session fences
+  after purchase and entitlement suspension. If installation already mutated the
+  SDK session, failure or cancellation enters completion-owned cleanup for only
+  that target.
 - Account-deletion and sign-out workflows reject preflight cancellation before
   persistence or Auth mutation. Deletion repeats the check before and after
   non-destructive v2 preparation and after each durable pre-commit boundary so

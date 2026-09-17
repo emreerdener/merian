@@ -127,23 +127,35 @@ projection before recovery proceeds; it does not alter the server ledger.
 `PurchaseIdentitySessionCoordinator` also republishes every durable handoff read
 to RevenueCat's synchronous mutation fence, closes that fence when secure state
 is unreadable, and prevents a superseded resolver task from publishing late.
-`AuthRuntimeState` stores and advances the Auth coordinator, generation,
-transition-analytics, exact-session lease/drain, and local sign-out state.
-`SupabaseManager` retains the focused lifecycle provider and history service and
-assembles the source-handoff, provider, SDK-session, purchase-identity,
-recovery, and deletion effects. The lifecycle provider owns and maps the SDK
-stream/listener task. Listener replacement cancels both the superseded task and
-its replay obligation, and a post-coordinator cancellation fence rejects its
-trailing credential-revocation resume effect; the history service owns
-listener-admitted synchronization tasks, while its `+Live` adapter is the
-reviewed Auth owner of `AppDIContainer.shared` for offline-queue context and
-scan-repository composition. The focused bootstrap service/live adapter owns
-SDK-session projection, missing-session classification, bootstrap reads, and
-anonymous sign-in without acquiring publication or purchase- readiness
-authority. The focused recovery service/live adapter owns refreshed/loaded
-session projection plus recovery-specific SDK refresh, read, and local sign-out
-without acquiring transition, purchase, entitlement, publication, or cleanup
-authority. The facade's live linked-source and stable-preparation closures
+`PurchaseIdentitySessionLiveService` owns the task-free mapping from Auth and
+legacy public-profile values into legacy provider attributes and assembles the
+provider, resolver, entitlement, and diagnostic boundaries. Its `+Live` adapter
+alone acquires RevenueCat, `EntitlementManager`, the resolver, profile service,
+Supabase client, and privacy-safe logger for ordinary session readiness. The
+facade owns the service lifetime; deferred legacy linking and entitlement
+refresh weakly capture it and fail closed after teardown. `AuthRuntimeState`
+stores and advances the Auth coordinator, generation, transition-analytics,
+exact-session lease/drain, and local sign-out state. `SupabaseManager` retains
+the focused lifecycle provider and history service and assembles source-handoff,
+SDK-session, Auth state/account-work, recovery, and deletion effects. It injects
+Auth-owned state and handoff closures into the Purchase Identity live service
+rather than acquiring that service's provider or entitlement dependencies
+directly. The lifecycle provider owns and maps the SDK stream/listener task.
+Listener replacement cancels both the superseded task and its replay obligation,
+and a post-coordinator cancellation fence rejects its trailing
+credential-revocation resume effect; the history service owns listener-admitted
+synchronization tasks, while its `+Live` adapter is the reviewed Auth owner of
+`AppDIContainer.shared` for offline-queue context and scan-repository
+composition. The focused bootstrap service/live adapter owns SDK-session
+projection, missing-session classification, bootstrap reads, and anonymous
+sign-in without acquiring publication or purchase readiness authority. The
+task-free `SupabaseAuthSessionService` owns refreshed/loaded recovery projection
+and OAuth value mapping, while its one live adapter owns the request-scoped
+recovery, OAuth, and local-sign-out SDK calls. The recovery coordinator owns
+terminal-clear sequencing. The separate local-sign-out coordinator owns ordinary
+and account-cleanup task lifetime and sequencing; neither coordinator moves
+task, purchase, entitlement, publication, or cleanup policy into the shared
+adapter. The facade's live linked-source and stable-preparation closures
 revalidate the exact Auth transition before and after suspension.
 `Core/Security/PurchaseIdentity/` owns the resolver's domain/wire models,
 deterministic policies, verified capability and resolver-state stores, secure

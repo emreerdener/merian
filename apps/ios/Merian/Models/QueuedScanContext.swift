@@ -38,17 +38,6 @@ struct QueuedScanContext: Identifiable, Equatable, Sendable {
         capturedMediaSnapshot.jsonString
     }
 
-    var activeScanMedia: ActiveScanMedia {
-        var media = capturedMediaSnapshot.activeScanMedia
-        guard let visualMediaItemsJSON,
-              let data = visualMediaItemsJSON.data(using: .utf8),
-              let descriptors = try? JSONDecoder().decode([IdentifyVisualMediaItem].self, from: data) else {
-            return media
-        }
-        media.focusRegionsBySourceIndex = descriptors.focusRegionsBySourceIndex
-        return media
-    }
-
     var mediaKinds: [String] {
         var kinds: [String] = []
         let snapshot = capturedMediaSnapshot
@@ -63,33 +52,6 @@ struct QueuedScanContext: Identifiable, Equatable, Sendable {
         queueState.isManualRetryEligible(
             needsAttention: queueNeedsAttention,
             nextRetryAt: queueNextRetryAt
-        )
-    }
-
-    /// Initialises the context by resolving all attribute faults on the live `OfflineQueuedScan`.
-    /// Must be called while the object is still alive (before any `context.delete()`).
-    init(from scan: OfflineQueuedScan) {
-        self.init(
-            id: scan.id,
-            capturedMediaItems: scan.serializedCapturedMediaItems,
-            queueState: scan.queueState,
-            timestamp: scan.timestamp,
-            locationName: scan.locationName,
-            weatherTemperatureF: scan.weatherTemperatureF,
-            weatherCondition: scan.weatherCondition,
-            gpsElevation: scan.gpsElevation,
-            gpsLatitude: scan.gpsLatitude,
-            gpsLongitude: scan.gpsLongitude,
-            queueAttemptCount: scan.queueAttemptCount,
-            queueNextRetryAt: scan.queueNextRetryAt,
-            queueLastErrorCode: scan.queueLastErrorCode,
-            queueLastErrorMessage: scan.queueLastErrorMessage,
-            queueNeedsAttention: scan.queueNeedsAttention,
-            approximateQueuedBytes: Self.approximateQueuedBytes(
-                mediaItems: scan.serializedCapturedMediaItems,
-                inferenceImagePaths: scan.inferenceImagePaths
-            ),
-            visualMediaItemsJSON: scan.visualMediaItemsJSON
         )
     }
 
@@ -129,39 +91,5 @@ struct QueuedScanContext: Identifiable, Equatable, Sendable {
         self.queueNeedsAttention = queueNeedsAttention
         self.approximateQueuedBytes = approximateQueuedBytes
         self.visualMediaItemsJSON = visualMediaItemsJSON
-    }
-
-    static func approximateQueuedBytes(
-        mediaItems: [SerializedMediaItem],
-        inferenceImagePaths: [String]? = nil
-    ) -> Int64 {
-        let snapshot = CapturedMediaSnapshot(items: mediaItems)
-        let paths = snapshot.thumbnailImagePaths +
-            snapshot.audioPaths +
-            snapshot.videoPaths +
-            (inferenceImagePaths ?? [])
-        return approximateLocalBytes(paths: paths)
-    }
-
-    private static func approximateLocalBytes(paths: [String]) -> Int64 {
-        let urls = Set(paths.compactMap(localURL(for:)))
-        return urls.reduce(Int64(0)) { total, url in
-            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
-            return total + size
-        }
-    }
-
-    private static func localURL(for path: String) -> URL? {
-        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !trimmed.hasPrefix("http://"), !trimmed.hasPrefix("https://") else {
-            return nil
-        }
-        if let url = URL(string: trimmed), url.isFileURL {
-            return url
-        }
-        if trimmed.hasPrefix("/") {
-            return URL(fileURLWithPath: trimmed)
-        }
-        return URL.documentsDirectory.appendingPathComponent(trimmed)
     }
 }

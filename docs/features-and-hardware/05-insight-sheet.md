@@ -722,10 +722,10 @@ unfaulted attribute on a deleted `@Model` crashes with
 Two value-type structs encapsulate all data the insight chain needs at snapshot
 time, while the `@Model` object is live:
 
-| Type                 | Purpose                                                                                                                                                                                                                                                                       |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `QueuedScanSnapshot` | Grid value containing identity, cover/media snapshot, queue state, retry presentation fields, timestamp, and an internal approximate-byte estimate. Used by `LazyVGrid` so no tile holds a detached `@Model` reference.                                                       |
-| `QueuedScanContext`  | Richer Insight-route value containing captured media, queue/retry state, telemetry, focus descriptors, and internal diagnostics. It is initialized from a live `OfflineQueuedScan`, then read through `capturedMediaSnapshot` so queued UI never retains the SwiftData model. |
+| Type                 | Purpose                                                                                                                                                                                                                                                                                                          |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `QueuedScanSnapshot` | Grid value containing identity, cover/media snapshot, queue state, retry presentation fields, timestamp, and an internal approximate-byte estimate. Used by `LazyVGrid` so no tile holds a detached `@Model` reference.                                                                                          |
+| `QueuedScanContext`  | Richer Insight-route value containing captured media, queue/retry state, telemetry, focus descriptors, and internal diagnostics. Offline Sync's main-actor persistence projection copies it from a live `OfflineQueuedScan`; queued UI then reads `capturedMediaSnapshot` and never retains the SwiftData model. |
 
 `InsightSheetViewModel.queuedContext: QueuedScanContext?` stores the context.
 All computed properties (`isProcessing`, `contentMode`, toolbar flags, carousel

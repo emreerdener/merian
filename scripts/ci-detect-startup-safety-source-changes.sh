@@ -56,7 +56,13 @@ is_startup_runtime_file() {
     Merian.xcodeproj/* | \
     merian.xcodeproj/* | \
     apps/ios/Merian/App/MerianApp.swift | \
+    apps/ios/Merian/App/AppDelegate.swift | \
+    apps/ios/Merian/App/Lifecycle/* | \
+    apps/ios/Merian/App/Presentation/* | \
+    apps/ios/Merian/App/Routing/* | \
+    apps/ios/Merian/App/UITesting/* | \
     apps/ios/Merian/App/MerianObjCExceptionBridge.* | \
+    apps/ios/Merian/Configuration/TestExecutionCoordinator.swift | \
     apps/ios/Merian/Configuration/Merian-Bridging-Header.h | \
     apps/ios/Merian/Core/Data/Database/ScanRepository.swift | \
     apps/ios/Merian/Core/Data/Images/LocalImageLoader.swift | \
@@ -90,6 +96,8 @@ is_startup_runtime_file() {
     apps/ios/MerianTests/Core/Data/Images/ScanMediaRecoveryRegistrationTests.swift | \
     apps/ios/MerianTests/Core/Data/OfflineSync/QueueActorCacheTests.swift | \
     apps/ios/MerianTests/Core/Data/OfflineSync/ProfileActorCacheTests.swift | \
+    apps/ios/MerianTests/App/* | \
+    apps/ios/MerianTests/Configuration/TestExecutionCoordinatorTests.swift | \
     apps/ios/MerianTests/Models/MigrationPlanTests.swift)
       return 0
       ;;

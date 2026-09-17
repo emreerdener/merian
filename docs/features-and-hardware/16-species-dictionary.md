@@ -1069,6 +1069,10 @@ xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<booted sim
   -only-testing:merianTests/SpeciesReferenceArchitectureTests \
   -only-testing:merianTests/LocalImageLoaderTests \
   -only-testing:merianTests/SpeciesDataTests \
+  -only-testing:merianTests/SimilarSpeciesTests \
+  -only-testing:merianTests/SpeciesObservationModelsTests \
+  -only-testing:merianTests/SpeciesDataEdgeResponseTests \
+  -only-testing:merianTests/SpeciesModelsArchitectureTests \
   -only-testing:merianTests/FieldChatPresentationTests \
   -only-testing:merianTests/SpeciesDictionaryCatalogRouteTests \
   -only-testing:merianTests/SpeciesCatalogPresentationTests \

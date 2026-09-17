@@ -78,12 +78,14 @@ allowing nonmutating use of the sheet.
   selection mode.
 - `LibraryView.openQueuedScan` first checks for a completed local record,
   resolving a queue-completion race between grid render and tap.
-- Otherwise the library reads the queue row through a fresh `ModelContext`,
-  copies it into `QueuedScanContext`, and emits `onQueuedInsight`. If the row
-  disappeared, it builds a safe fallback context from `QueuedScanSnapshot`.
+- Otherwise the library reads the queue row through a fresh `ModelContext`, asks
+  Offline Sync's main-actor persistence projection to copy it into
+  `QueuedScanContext`, and emits `onQueuedInsight`. If the row disappeared, it
+  builds a safe fallback context from `QueuedScanSnapshot`.
 - The library does not present an Insight sheet or retain a live queued
   SwiftData model. `ScansSheetView` owns the pushed navigation destination, and
-  `ScansShellDataStore` owns the queue-to-value projection supplied to Library.
+  `ScansShellDataStore` owns the queue-to-`QueuedScanSnapshot` grid projection
+  supplied to Library. It does not own the richer Insight-route projection.
 - Completion handoff must preserve playable queued media and expose the
   completed observation's Field Chat and Share toolbar controls without
   replacing the pushed destination.

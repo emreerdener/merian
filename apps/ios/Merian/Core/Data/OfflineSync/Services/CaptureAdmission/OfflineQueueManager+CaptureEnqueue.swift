@@ -76,7 +76,9 @@ extension OfflineQueueManager {
         let displayBytes = displayImageDatas.map { $0.reduce(0) { $0 + $1.count } } ?? 0
         let estimatedPayloadBytes = Int64(imageDatas.reduce(0) { $0 + $1.count })
             + Int64(displayBytes)
-            + OfflineCaptureFileStore.estimatedBytes(audioFilePaths + videoFilePaths)
+            + OfflineQueueStoragePolicy.estimatedBytes(
+                for: audioFilePaths + videoFilePaths
+            )
         guard OfflineQueueStoragePolicy.canAdmitNewPayload(estimatedBytes: estimatedPayloadBytes) else {
             rollbackFundingAdmission(funding)
             MerianLog.data.error("enqueueCapture: storage pressure blocked queue insert scanId=\(resolvedScanId, privacy: .public) bytes=\(estimatedPayloadBytes, privacy: .public)")
@@ -295,7 +297,9 @@ extension OfflineQueueManager {
         let admittedForegroundGeneration = funding.allowsForegroundInference
             ? foregroundInferenceGeneration
             : nil
-        let estimatedPayloadBytes = OfflineCaptureFileStore.estimatedBytes(filteredAudioFileNames + filteredVideoFilePaths)
+        let estimatedPayloadBytes = OfflineQueueStoragePolicy.estimatedBytes(
+            for: filteredAudioFileNames + filteredVideoFilePaths
+        )
         guard OfflineQueueStoragePolicy.canAdmitNewPayload(estimatedBytes: estimatedPayloadBytes) else {
             rollbackFundingAdmission(funding)
             MerianLog.data.error("enqueueNonVisualCapture: storage pressure blocked queue insert bytes=\(estimatedPayloadBytes, privacy: .public)")
@@ -383,11 +387,13 @@ extension OfflineQueueManager {
                 kind: .scanIngestion,
                 subjectId: resolvedScanId,
                 priority: hasUploadableMedia ? 100 : 120,
-                approximateBytes: OfflineCaptureFileStore.approximateBytes(for: persistedAudioNamesBySourcePath.values.map {
-                    URL.documentsDirectory.appendingPathComponent($0)
-                } + persistedVideoNamesBySourcePath.values.map {
-                    URL.documentsDirectory.appendingPathComponent($0)
-                }),
+                approximateBytes: OfflineQueueStoragePolicy.approximateBytes(
+                    for: persistedAudioNamesBySourcePath.values.map {
+                        URL.documentsDirectory.appendingPathComponent($0)
+                    } + persistedVideoNamesBySourcePath.values.map {
+                        URL.documentsDirectory.appendingPathComponent($0)
+                    }
+                ),
                 requiresUnconstrainedNetwork: !persistedVideoNamesBySourcePath.isEmpty,
                 allowsCellular: persistedVideoNamesBySourcePath.isEmpty,
                 metadataJSON: OfflineScanJobMetadataContract.json(
@@ -521,7 +527,9 @@ extension OfflineQueueManager {
                 kind: .scanIngestion,
                 subjectId: scanId,
                 priority: 100,
-                approximateBytes: OfflineCaptureFileStore.approximateBytes(for: fileURLs),
+                approximateBytes: OfflineQueueStoragePolicy.approximateBytes(
+                    for: fileURLs
+                ),
                 requiresUnconstrainedNetwork: scan.capturedMediaSnapshot.videoPaths.isEmpty == false,
                 allowsCellular: scan.capturedMediaSnapshot.videoPaths.isEmpty,
                 metadataJSON: OfflineScanJobMetadataContract.json(

@@ -43,8 +43,11 @@ validation/adoption, terminal callback routing, and URLSession delegate routing.
 generation-fenced upload callback accumulation and the durable
 staging-to-inference handoff, while
 `Persistence/OfflineQueueManager+QueuedScanExtraction.swift` owns queued-row
-lookup and snapshot mapping. The lookup throws when persistence is unavailable;
-it returns `nil` only when a successful fetch proves the row is absent.
+lookup, the main-actor live-row-to-`QueuedScanContext` route projection, and
+inference-replay snapshot mapping. The projection decodes captured media once
+and delegates its local-media footprint to `OfflineQueueStoragePolicy`. The
+lookup throws when persistence is unavailable; it returns `nil` only when a
+successful fetch proves the row is absent.
 `Persistence/OfflineQueueDurableAuthorityReader.swift` similarly projects the
 mirrored scan/job error markers, attempt counts, and required-video count from
 one fresh throwing context.
@@ -133,13 +136,14 @@ different media order than the user staged. The final owner timeline and
 captured-media array order carry chronology across the wire, never a description
 timestamp.
 
-Source ownership follows that boundary. `Capture/Staging/Models` owns
-`StagedCapture`, its modality wrappers, `StagedImage`, and canonical
-`StagedCaptureNode` ordering. `Capture/Submission/Models` owns
-`CaptureSubmissionMediaTimeline`, the aligned media projection, and the
-hand-written `Identify*` request/replay descriptors consumed by live inference
-and offline replay. Core queue/network code consumes those values but does not
-redefine their ordering or indexes.
+Source ownership follows that boundary. `Models/Media` owns the Foundation-only
+durable `ObservationContext` and captured-media value graph.
+`Capture/Staging/Models` owns `StagedCapture`, its modality wrappers,
+`StagedImage`, `StagedObservationContext`, and canonical `StagedCaptureNode`
+ordering. `Capture/Submission/Models` owns `CaptureSubmissionMediaTimeline`, the
+aligned media projection, and the hand-written `Identify*` request/replay
+descriptors consumed by live inference and offline replay. Core queue/network
+code consumes those values but does not redefine their ordering or indexes.
 
 Before that durable handoff, `prepareActiveStagedSubmission(descriptionDraft:)`
 synchronously stages the current nonempty description or rejects the entire
@@ -471,6 +475,10 @@ a separate heading, upload explainer, media-kind summary, or approximate file
 size. `QueuedScanSnapshot` and `QueuedScanContext` still copy retry metadata,
 captured media, telemetry, and approximate bytes so routing, recovery, and
 diagnostics remain safe after SwiftData rows are updated or deleted.
+`OfflineQueueStoragePolicy` performs the local file inspection and supplies the
+byte value before either snapshot is created; the shared Models value itself is
+effect-free. Insight's media-presentation owner separately restores persisted
+focus descriptors when mapping the context to `ActiveScanMedia`.
 
 Two presentation refresh loops have different scopes. While eligible queued
 tiles exist, `ScansShellViewModel` asks `ScansShellDataStore` for fresh value
@@ -501,14 +509,14 @@ while the objects are live. `LazyVGrid` renders tiles from this snapshot array â
 after `context.delete(scan)` fires, no grid tile can access a zombie `@Model`
 attribute. When the user taps a queued tile, a fresh `OfflineQueuedScan` is
 fetched and snapshotted into `QueuedScanContext` (a richer value type with all
-telemetry and queue fields) before the queued route is appended. That route
-retains the value snapshot through queue deletion and completed-result handoff.
-`QueuedScanSnapshot.gridId` returns `"q_\(id)"` to prevent duplicate `ForEach`
-keys against `LocalScanRecord` tiles that share the same UUID.
-`ScanQueueState.isManualRetryEligible` is the single basic state/deadline rule
-used by both queued value types; mutation owners still re-fetch the live row,
-and the Insight presentation resolver may further suppress retry for offline or
-reason-specific states.
+telemetry and queue fields) by the Offline Sync persistence projection before
+the queued route is appended. That route retains the value snapshot through
+queue deletion and completed-result handoff. `QueuedScanSnapshot.gridId` returns
+`"q_\(id)"` to prevent duplicate `ForEach` keys against `LocalScanRecord` tiles
+that share the same UUID. `ScanQueueState.isManualRetryEligible` is the single
+basic state/deadline rule used by both queued value types; mutation owners still
+re-fetch the live row, and the Insight presentation resolver may further
+suppress retry for offline or reason-specific states.
 
 **Failed-row retention (`purgeSoftDeletedRecords`)**: Terminal `.failed` (raw
 value 5) rows are not all disposable. Rows marked `queueNeedsAttention == true`

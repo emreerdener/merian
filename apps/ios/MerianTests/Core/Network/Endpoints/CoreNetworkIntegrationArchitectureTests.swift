@@ -62,13 +62,42 @@ struct CoreNetworkIntegrationArchitectureTests {
     @Test func authFoundationHasFocusedOwnersAndRehomedTests() throws {
         let authRoot = try networkRoot().appendingPathComponent("Auth")
         let prefix = authRoot.path + "/"
-        let actualPaths = try Set(swiftFiles(below: authRoot).map {
+        let authFiles = try swiftFiles(below: authRoot)
+        let actualPaths = Set(authFiles.map {
             String($0.path.dropFirst(prefix.count))
         })
         #expect(actualPaths == Self.authFoundationPaths)
         let allNetworkSources = try networkSources()
 
         let aggregate = try networkSource("SupabaseManager.swift")
+        let purchaseIdentityFiles = try swiftFiles(
+            below: repositoryRoot().appendingPathComponent(
+                "apps/ios/Merian/Core/Security/PurchaseIdentity"
+            )
+        )
+        let authProductionLineCount = try totalLineCount(in: authFiles)
+        let purchaseIdentityProductionLineCount = try totalLineCount(
+            in: purchaseIdentityFiles
+        )
+        let facadeLineCount = lineCount(aggregate)
+        #expect(
+            authProductionLineCount <= 7_734,
+            "Auth production grew beyond its post-consolidation budget"
+        )
+        #expect(
+            purchaseIdentityProductionLineCount <= 2_016,
+            "Purchase Identity production grew beyond its reviewed budget"
+        )
+        #expect(
+            facadeLineCount <= 3_461,
+            "SupabaseManager grew beyond its post-consolidation budget"
+        )
+        #expect(
+            authProductionLineCount
+                + purchaseIdentityProductionLineCount
+                + facadeLineCount <= 13_211,
+            "The Auth facade extraction surfaces grew in aggregate"
+        )
         let models = try networkSource(
             "Auth/Models/SupabaseAuthTransitionModels.swift"
         )
@@ -126,14 +155,14 @@ struct CoreNetworkIntegrationArchitectureTests {
         let recoveryCoordinator = try networkSource(
             "Auth/Coordinators/AuthSessionRecoveryCoordinator.swift"
         )
-        let recoveryLiveService = try networkSource(
-            "Auth/Services/AuthSessionRecoveryLiveService.swift"
+        let authSessionService = try networkSource(
+            "Auth/Services/SupabaseAuthSessionService.swift"
         )
-        let recoveryLiveAdapter = try networkSource(
-            "Auth/Services/AuthSessionRecoveryLiveService+Live.swift"
+        let authSessionLiveAdapter = try networkSource(
+            "Auth/Services/SupabaseAuthSessionService+Live.swift"
         )
-        let recoveryLiveDiagnostics = try networkSource(
-            "Auth/Services/AuthSessionRecoveryLiveDiagnostics.swift"
+        let localSignOutCoordinator = try networkSource(
+            "Auth/Coordinators/AuthLocalSignOutCoordinator.swift"
         )
         let authenticationCallbackDependencies = try networkSource(
             "Auth/Coordinators/AuthenticationCallbackCoordinationDependencies.swift"
@@ -176,12 +205,6 @@ struct CoreNetworkIntegrationArchitectureTests {
         )
         let appleCredentialRegistrationLiveService = try networkSource(
             "Auth/Services/AppleOAuthCredentialRegistrationService+Live.swift"
-        )
-        let oauthSessionService = try networkSource(
-            "Auth/Services/OAuthSessionService.swift"
-        )
-        let oauthSessionLiveService = try networkSource(
-            "Auth/Services/OAuthSessionService+Live.swift"
         )
         let oauthPresentationResolver = try networkSource(
             "Auth/Services/OAuthPresentationContextResolver.swift"
@@ -324,7 +347,21 @@ struct CoreNetworkIntegrationArchitectureTests {
             beginningWith:
                 "    private func purchaseIdentitySignOutDependencies()",
             endingBefore:
-                "\n    @discardableResult\n    private func beginLocalSignOutTransition()",
+                "\n    private func authLocalSignOutDependencies(",
+            in: aggregate
+        )
+        let localSignOutFacade = try sourceSection(
+            beginningWith:
+                "    private func performLocalSignOut(\n        ownedBy transition: AuthTransitionToken,",
+            endingBefore:
+                "\n    /// Replaces the active account with a fresh anonymous identity.",
+            in: aggregate
+        )
+        let localSignOutAssembly = try sourceSection(
+            beginningWith:
+                "    private func authLocalSignOutDependencies(",
+            endingBefore:
+                "\n    /// Returns the JWT access token from the active session.",
             in: aggregate
         )
         let purchaseHandoffAssembly = try sourceSection(
@@ -805,10 +842,10 @@ struct CoreNetworkIntegrationArchitectureTests {
             ).count == 6
         )
         for token in [
-            "authSessionRecoveryLiveService",
-            ".refreshSession()",
-            ".loadSession()",
-            ".signOutLocalSession()",
+            "supabaseAuthSessionService",
+            ".refreshRecoverySession()",
+            ".loadRecoverySession()",
+            "supabaseAuthSessionService.signOutLocal()",
             "AuthSessionRecoveryLiveDiagnostics.report("
         ] {
             #expect(recoveryAssembly.contains(token))
@@ -822,30 +859,124 @@ struct CoreNetworkIntegrationArchitectureTests {
             #expect(!recoveryAssembly.contains(forbiddenToken))
         }
         #expect(
-            recoveryLiveService.contains(
+            authSessionService.contains(
                 "struct AuthSessionRecoveryLiveSession"
             )
         )
         #expect(
-            recoveryLiveService.contains(
-                "struct AuthSessionRecoveryLiveService"
+            authSessionService.contains(
+                "struct SupabaseAuthSessionService"
             )
         )
         for token in [
             "client.auth.refreshSession()",
-            "client.auth.session",
-            "client.auth.signOut(scope: .local)"
+            "client.auth.session"
         ] {
-            #expect(recoveryLiveAdapter.contains(token))
+            #expect(authSessionLiveAdapter.contains(token))
         }
         #expect(
-            recoveryLiveDiagnostics.contains(
+            authSessionLiveAdapter.contains(
+                "client.auth.signOut(scope: .local)"
+            )
+        )
+        #expect(
+            authSessionLiveAdapter.contains(
                 "enum AuthSessionRecoveryLiveDiagnostics"
             )
         )
-        #expect(recoveryLiveDiagnostics.contains("MerianLog.auth"))
+        #expect(authSessionLiveAdapter.contains("MerianLog.auth"))
         #expect(!recoveryCoordinator.contains("import Supabase"))
         #expect(!recoveryCoordinator.contains("client.auth"))
+        for declaration in [
+            "struct AuthLocalSignOutPreparation",
+            "struct AuthLocalSignOutStateBoundary",
+            "struct AuthLocalSignOutTransitionBoundary",
+            "struct AuthLocalSignOutOperationBoundary",
+            "enum AuthLocalSignOutDiagnostic",
+            "struct AuthLocalSignOutDependencies"
+        ] {
+            #expect(localSignOutCoordinator.contains(declaration))
+            #expect(!aggregate.contains(declaration))
+        }
+        #expect(
+            localSignOutCoordinator.contains(
+                "@MainActor\nfinal class AuthLocalSignOutCoordinator"
+            )
+        )
+        #expect(
+            localSignOutCoordinator.contains(
+                "private var task: Task<Void, Never>?"
+            )
+        )
+        #expect(
+            localSignOutCoordinator.components(
+                separatedBy: "Task {"
+            ).count == 2,
+            "Local sign-out must retain one task owner"
+        )
+        let localSignOutCancellation = try sourceSection(
+            beginningWith: "    func cancel() {",
+            endingBefore: "\n    private func clearTaskIfCurrent(",
+            in: localSignOutCoordinator
+        )
+        #expect(localSignOutCancellation.contains("task?.cancel()"))
+        #expect(!localSignOutCancellation.contains("task = nil"))
+        #expect(!localSignOutCancellation.contains("taskID = nil"))
+        try expectOrder(
+            [
+                "dependencies.transition.owns(transition)",
+                "await dependencies.transition.awaitAccountWorkQuiescence()",
+                "let preparation = dependencies.state.begin()",
+                "dependencies.transition.updateForSessionInstallation(transition)",
+                "dependencies.transition.adoptSignedOutSession(transition)",
+                "await preparation.awaitCancelledBootstrap()",
+                "dependencies.operations.signOutSDKSession()",
+                "dependencies.operations.finishExternalSignOut()",
+                "dependencies.diagnose(.completed, nil)"
+            ],
+            in: localSignOutCoordinator
+        )
+        #expect(
+            localSignOutFacade.contains(
+                "authLocalSignOutCoordinator.signOut("
+            )
+        )
+        for token in [
+            "prepareLocalSignOutState()",
+            "authRuntimeState.finishSignOut()",
+            "AuthLocalSignOutLiveDiagnostics.report("
+        ] {
+            #expect(localSignOutAssembly.contains(token))
+        }
+        #expect(!localSignOutAssembly.contains("{ [self]"))
+        #expect(
+            localSignOutAssembly.components(
+                separatedBy: "[weak self]"
+            ).count == 7,
+            "Local sign-out task dependencies must not retain the facade"
+        )
+        #expect(!aggregate.contains("private var signOutTask:"))
+        #expect(
+            authSessionService.contains(
+                "struct SupabaseAuthSessionService"
+            )
+        )
+        #expect(
+            authSessionLiveAdapter.contains(
+                "client.auth.signOut(scope: .local)"
+            )
+        )
+        #expect(
+            authSessionLiveAdapter.contains(
+                "enum AuthLocalSignOutLiveDiagnostics"
+            )
+        )
+        #expect(authSessionLiveAdapter.contains("MerianLog.auth"))
+        for forbiddenToken in [
+            "import Supabase", ".shared", "MerianLog"
+        ] {
+            #expect(!localSignOutCoordinator.contains(forbiddenToken))
+        }
         for retiredManagerHelper in [
             "private func refreshActiveSessionForRetry(",
             "let session = try await client.auth.refreshSession()\n            guard ownsAuthTransition",
@@ -1027,7 +1158,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         )
         #expect(
             aggregate.contains(
-                "oauthSessionService = .live(client: client)"
+                "supabaseAuthSessionService = .live(client: client)"
             )
         )
         #expect(
@@ -1085,7 +1216,8 @@ struct CoreNetworkIntegrationArchitectureTests {
             "AuthenticationCallbackTransitionBoundary(",
             "AuthenticationCallbackSessionBoundary(",
             "AuthenticationCallbackCompletionBoundary(",
-            "client.auth.session(from: url)",
+            ".installCallbackSession(from: url)",
+            "supabaseAuthSessionService.currentSession().map(",
             "installAndAdopt:",
             "RevenueCatManager.shared",
             "EntitlementManager.shared.beginSession(",
@@ -1095,9 +1227,14 @@ struct CoreNetworkIntegrationArchitectureTests {
         ] {
             #expect(authenticationCallbackAssembly.contains(requiredToken))
         }
+        #expect(
+            !authenticationCallbackAssembly.contains(
+                "client.auth.currentSession"
+            )
+        )
         try expectOrder(
             [
-                "client.auth.session(from: url)",
+                ".installCallbackSession(from: url)",
                 "didMutateSession()",
                 "adoptAuthTransitionSession(",
                 "return installed"
@@ -1182,8 +1319,8 @@ struct CoreNetworkIntegrationArchitectureTests {
             )
         }
         #expect(
-            oauthSessionService.contains(
-                "@MainActor\nstruct OAuthSessionService"
+            authSessionService.contains(
+                "@MainActor\nstruct SupabaseAuthSessionService"
             )
         )
         for requiredToken in [
@@ -1191,12 +1328,13 @@ struct CoreNetworkIntegrationArchitectureTests {
             "func currentSession() -> Session?",
             "func linkIdentity(",
             "func installSession(",
+            "func installCallbackSession(from url: URL)",
             "func updateProfileMetadata(",
             "func signInSession(from session: Session)",
             "OpenIDConnectCredentials(",
             "UserAttributes(data: values)"
         ] {
-            #expect(oauthSessionService.contains(requiredToken))
+            #expect(authSessionService.contains(requiredToken))
             #expect(!aggregate.contains(requiredToken))
         }
         for requiredToken in [
@@ -1205,19 +1343,23 @@ struct CoreNetworkIntegrationArchitectureTests {
             "client.auth.currentSession",
             "client.auth.linkIdentityWithIdToken(",
             "client.auth.signInWithIdToken(",
+            "client.auth.session(from: url)",
             "client.auth.update(user: attributes)"
         ] {
-            #expect(oauthSessionLiveService.contains(requiredToken))
+            #expect(authSessionLiveAdapter.contains(requiredToken))
         }
         for token in [
             "client.auth.linkIdentityWithIdToken(",
             "client.auth.signInWithIdToken(",
+            "client.auth.session(from: url)",
             "client.auth.update(user: attributes)"
         ] {
             expectOwners(
                 containing: token,
                 in: allNetworkSources,
-                equal: ["Auth/Services/OAuthSessionService+Live.swift"]
+                equal: [
+                    "Auth/Services/SupabaseAuthSessionService+Live.swift"
+                ]
             )
         }
         expectOwners(
@@ -1248,39 +1390,36 @@ struct CoreNetworkIntegrationArchitectureTests {
             containing: "client.auth.refreshSession()",
             in: allNetworkSources,
             equal: [
-                "Auth/Services/AuthSessionRecoveryLiveService+Live.swift"
+                "Auth/Services/SupabaseAuthSessionService+Live.swift"
             ]
         )
         #expect(
-            recoveryLiveAdapter.components(
+            authSessionLiveAdapter.components(
                 separatedBy: "client.auth.refreshSession()"
             ).count == 2
         )
         expectOwners(
-            containing: "client.auth.session(from: url)",
+            containing: "client.auth.session(from:",
             in: allNetworkSources,
-            equal: ["SupabaseManager.swift"]
+            equal: [
+                "Auth/Services/SupabaseAuthSessionService+Live.swift"
+            ]
         )
         #expect(
-            aggregate.components(
-                separatedBy: "client.auth.session(from: url)"
+            authSessionLiveAdapter.components(
+                separatedBy: "client.auth.session(from:"
             ).count == 2
         )
+        #expect(!aggregate.contains("client.auth.session(from:"))
         expectOwners(
             containing: "client.auth.signOut(scope: .local)",
             in: allNetworkSources,
             equal: [
-                "Auth/Services/AuthSessionRecoveryLiveService+Live.swift",
-                "SupabaseManager.swift"
+                "Auth/Services/SupabaseAuthSessionService+Live.swift"
             ]
         )
         #expect(
-            aggregate.components(
-                separatedBy: "client.auth.signOut(scope: .local)"
-            ).count == 3
-        )
-        #expect(
-            recoveryLiveAdapter.components(
+            authSessionLiveAdapter.components(
                 separatedBy: "client.auth.signOut(scope: .local)"
             ).count == 2
         )
@@ -1291,7 +1430,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             expectOwners(
                 containing: token,
                 in: allNetworkSources,
-                equal: ["Auth/Services/OAuthSessionService.swift"]
+                equal: ["Auth/Services/SupabaseAuthSessionService.swift"]
             )
         }
         for retiredFacadeToken in [
@@ -1310,21 +1449,29 @@ struct CoreNetworkIntegrationArchitectureTests {
             "URLSession",
             "MerianLog"
         ] {
-            #expect(!oauthSessionService.contains(forbiddenToken))
-            #expect(!oauthSessionLiveService.contains(forbiddenToken))
+            #expect(!authSessionService.contains(forbiddenToken))
+        }
+        for forbiddenToken in [
+            ".shared",
+            "SupabaseManager",
+            "Task {",
+            "Task.detached",
+            "URLSession"
+        ] {
+            #expect(!authSessionLiveAdapter.contains(forbiddenToken))
         }
         #expect(
-            oauthSessionLiveService.components(
+            authSessionLiveAdapter.components(
                 separatedBy: "client.auth.linkIdentityWithIdToken("
             ).count == 2
         )
         #expect(
-            oauthSessionLiveService.components(
+            authSessionLiveAdapter.components(
                 separatedBy: "client.auth.signInWithIdToken("
             ).count == 2
         )
         #expect(
-            oauthSessionLiveService.components(
+            authSessionLiveAdapter.components(
                 separatedBy: "client.auth.update(user: attributes)"
             ).count == 2
         )
@@ -1347,7 +1494,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(oauthDependencies.contains("let replaceAndAdoptSession:"))
         try expectOrder(
             [
-                "oauthSessionService.installSession(",
+                "supabaseAuthSessionService.installSession(",
                 "didMutateSession()",
                 "adoptOAuthSignInSession(",
                 "return session"
@@ -2025,7 +2172,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             "ghostProfileMergeCoordinator.cancel()",
             "purchaseIdentityHandoffCoordinator.cancel()",
             "purchaseIdentitySessionCoordinator.cancelResolution()",
-            "signOutTask?.cancel()",
+            "authLocalSignOutCoordinator.cancel()",
             "publicAuthorIdentityRefreshCoordinator.cancel()",
             "appleCredentialRevocationCoordinator.cancel()",
             "appleCredentialRevocationLiveProvider.stopObserving()",
@@ -2219,6 +2366,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             bootstrapCoordinator,
             recoveryDependencies,
             recoveryCoordinator,
+            localSignOutCoordinator,
             oauthModels,
             oauthIdentityTokenPolicy,
             oauthWorkflow,
@@ -2271,6 +2419,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(!recoveryDependencies.contains("MerianLog"))
         #expect(!recoveryCoordinator.contains("Task {"))
         #expect(!recoveryCoordinator.contains("MerianLog"))
+        #expect(!localSignOutCoordinator.contains("MerianLog"))
         #expect(!oauthModels.contains("Task {"))
         #expect(!oauthIdentityTokenPolicy.contains("Task {"))
         #expect(!oauthWorkflow.contains("Task {"))
@@ -2383,8 +2532,8 @@ struct CoreNetworkIntegrationArchitectureTests {
         let recoveryCoordinatorTests = try source(
             "apps/ios/MerianTests/Core/Network/Auth/AuthSessionRecoveryCoordinatorTests.swift"
         )
-        let recoveryLiveServiceTests = try source(
-            "apps/ios/MerianTests/Core/Network/Auth/AuthSessionRecoveryLiveServiceTests.swift"
+        let localSignOutCoordinatorTests = try source(
+            "apps/ios/MerianTests/Core/Network/Auth/AuthLocalSignOutCoordinatorTests.swift"
         )
         let oauthIdentityTokenPolicyTests = try source(
             "apps/ios/MerianTests/Core/Network/Auth/OAuthIdentityTokenPolicyTests.swift"
@@ -2413,8 +2562,8 @@ struct CoreNetworkIntegrationArchitectureTests {
         let appleCredentialRegistrationServiceTests = try source(
             "apps/ios/MerianTests/Core/Network/Auth/AppleOAuthCredentialRegistrationServiceTests.swift"
         )
-        let oauthSessionServiceTests = try source(
-            "apps/ios/MerianTests/Core/Network/Auth/OAuthSessionServiceTests.swift"
+        let authSessionServiceTests = try source(
+            "apps/ios/MerianTests/Core/Network/Auth/SupabaseAuthSessionServiceTests.swift"
         )
         let authenticationCallbackSupport = try source(
             "apps/ios/MerianTests/Core/Network/Auth/AuthenticationCallbackCoordinatorTestSupport.swift"
@@ -2581,13 +2730,36 @@ struct CoreNetworkIntegrationArchitectureTests {
         }
         for name in [
             "testRefreshedAndLoadedSessionsProjectIdentityAndUser",
-            "testLocalSignOutDelegatesExactlyOnce",
             "testRefreshFailurePropagates",
-            "testLoadFailurePropagates",
-            "testLocalSignOutFailurePropagates"
+            "testLoadFailurePropagates"
         ] {
-            #expect(recoveryLiveServiceTests.contains("func \(name)("))
+            #expect(authSessionServiceTests.contains("func \(name)("))
         }
+        for name in [
+            "testSignOutPreservesStateTransitionAndEffectOrder",
+            "testConcurrentSignOutCallsShareOneRetainedTask",
+            "testSDKFailureStillCompletesExternalAndLocalCleanup",
+            "testFailedQuiescenceStopsBeforeLocalStateMutation",
+            "testTransitionLossAfterBootstrapStopsBeforeSDKMutation",
+            "testCancellationWhileAwaitingBootstrapStopsBeforeSDKMutation",
+            "testCancellationRetainsTaskUntilDeferredCleanupFinishes",
+            "testCancellationAfterSDKMutationStillCompletesExternalCleanup",
+            "testFacadeClosesRequestGateBeforeSDKInvalidation"
+        ] {
+            #expect(localSignOutCoordinatorTests.contains("func \(name)("))
+            #expect(!aggregateTests.contains("func \(name)("))
+        }
+        for name in [
+            "testSignOutDelegatesExactlyOnce",
+            "testSignOutFailurePropagates"
+        ] {
+            #expect(authSessionServiceTests.contains("func \(name)("))
+        }
+        #expect(
+            !aggregateTests.contains(
+                "testSignOutClosesAuthenticatedRequestGateBeforeRemoteInvalidation"
+            )
+        )
         #expect(
             recoveryCoordinatorTests.components(
                 separatedBy: "    func test"
@@ -2808,17 +2980,19 @@ struct CoreNetworkIntegrationArchitectureTests {
             "testReadAndCurrentSessionExposeInjectedSDKState",
             "testAppleLinkMapsExactOpenIDCredentials",
             "testGoogleInstallMapsCredentialsAndReturnsSDKSession",
+            "testCallbackInstallForwardsExactURLAndReturnsSDKSession",
+            "testCallbackInstallPreservesSDKFailure",
             "testSessionProjectionPreservesIdentityAndAnonymity",
             "testMetadataUpdateBuildsCanonicalAliases",
             "testEmptyMetadataSkipsSDKUpdate",
             "testMetadataUpdatePreservesSDKFailure"
         ] {
-            #expect(oauthSessionServiceTests.contains("func \(name)("))
+            #expect(authSessionServiceTests.contains("func \(name)("))
         }
         #expect(
-            oauthSessionServiceTests.components(
+            authSessionServiceTests.components(
                 separatedBy: "    func test"
-            ).count == 8
+            ).count == 15
         )
         #expect(
             authenticationCallbackSupport.contains(
@@ -3339,12 +3513,24 @@ struct CoreNetworkIntegrationArchitectureTests {
         let purchaseIdentitySessionCoordinator = try source(
             "apps/ios/Merian/Core/Security/PurchaseIdentity/Coordinators/PurchaseIdentitySessionCoordinator.swift"
         )
+        let purchaseIdentitySessionLiveService = try source(
+            "apps/ios/Merian/Core/Security/PurchaseIdentity/Services/PurchaseIdentitySessionLiveService.swift"
+        )
+        let purchaseIdentitySessionLiveAdapter = try source(
+            "apps/ios/Merian/Core/Security/PurchaseIdentity/Services/PurchaseIdentitySessionLiveService+Live.swift"
+        )
         let sourceHandoffCoordinator = try networkSource(
             "Auth/Coordinators/PurchaseIdentitySourceHandoffCoordinator.swift"
         )
         let purchaseIdentityReadiness = try sourceSection(
             beginningWith: "    private func ensurePurchaseIdentityReady(",
             endingBefore: "\n    /// Repairs a fail-closed purchase-identity",
+            in: manager
+        )
+        let purchaseIdentityDependencies = try sourceSection(
+            beginningWith:
+                "    private func purchaseIdentitySessionDependencies()",
+            endingBefore: "\n    // MARK: - Auth Session Bootstrap",
             in: manager
         )
         let ordinaryRefresh = try sourceSection(
@@ -3396,6 +3582,32 @@ struct CoreNetworkIntegrationArchitectureTests {
         )
         #expect(
             purchaseIdentityReadiness.contains("isAdmissionCurrent:")
+        )
+        #expect(
+            purchaseIdentityDependencies.contains(
+                "purchaseIdentitySessionLiveService.dependencies("
+            )
+        )
+        for relocatedLiveToken in [
+            "PurchaseIdentitySessionProviderBoundary(",
+            "PurchaseIdentityEntitlementBoundary(",
+            "RevenueCatManager.shared",
+            "EntitlementManager.shared",
+            "Purchase identity resolution failed"
+        ] {
+            #expect(!purchaseIdentityDependencies.contains(relocatedLiveToken))
+            #expect(
+                purchaseIdentitySessionLiveAdapter.contains(
+                    relocatedLiveToken
+                ) || purchaseIdentitySessionLiveService.contains(
+                    relocatedLiveToken
+                )
+            )
+        }
+        #expect(
+            !manager.contains(
+                "private func linkLegacyPurchaseProviderIdentity("
+            )
         )
         try expectOrder(
             [
@@ -4261,6 +4473,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "Coordinators/AppleCredentialRevocationCoordinator.swift",
         "Coordinators/AuthenticationCallbackCoordinationDependencies.swift",
         "Coordinators/AuthenticationCallbackCoordinator.swift",
+        "Coordinators/AuthLocalSignOutCoordinator.swift",
         "Coordinators/AuthSessionBootstrapCoordinationDependencies.swift",
         "Coordinators/AuthSessionBootstrapCoordinator.swift",
         "Coordinators/AuthSessionLifecycleCoordinationDependencies.swift",
@@ -4306,16 +4519,13 @@ struct CoreNetworkIntegrationArchitectureTests {
         "Services/AuthSessionBootstrapLiveDiagnostics.swift",
         "Services/AuthSessionBootstrapLiveService+Live.swift",
         "Services/AuthSessionBootstrapLiveService.swift",
-        "Services/AuthSessionRecoveryLiveDiagnostics.swift",
-        "Services/AuthSessionRecoveryLiveService+Live.swift",
-        "Services/AuthSessionRecoveryLiveService.swift",
         "Services/AuthenticationCallbackLiveDiagnostics.swift",
         "Services/GoogleOAuthAuthorizationLiveProvider.swift",
         "Services/OAuthPresentationContextResolver.swift",
         "Services/OAuthProviderSignInLiveDiagnostics.swift",
-        "Services/OAuthSessionService+Live.swift",
-        "Services/OAuthSessionService.swift",
-        "Services/PurchaseIdentityHandoffAuthJournal.swift"
+        "Services/PurchaseIdentityHandoffAuthJournal.swift",
+        "Services/SupabaseAuthSessionService+Live.swift",
+        "Services/SupabaseAuthSessionService.swift"
     ]
 
     private static let safelyReplayableReadFunctionNames: Set<String> = [
@@ -4484,6 +4694,13 @@ struct CoreNetworkIntegrationArchitectureTests {
             omittingEmptySubsequences: false
         ).count
         return newlineDelimitedLines - (source.hasSuffix("\n") ? 1 : 0)
+    }
+
+    private func totalLineCount(in files: [URL]) throws -> Int {
+        try files.reduce(into: 0) { total, file in
+            let source = try String(contentsOf: file, encoding: .utf8)
+            total += lineCount(source)
+        }
     }
 
     private func networkSource(_ path: String) throws -> String {

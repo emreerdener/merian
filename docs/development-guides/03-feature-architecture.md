@@ -89,8 +89,9 @@ Features/
   aggregate file.
 - `Components/` are passive — they receive data via `let` properties and
   closures. They must not access `AppDIContainer.shared` directly.
-- `Models/` are local to the feature and never `@Model` (SwiftData models live
-  in `apps/ios/Merian/Models/`).
+- `Models/` are local to the feature and never `@Model`. App-wide SwiftData
+  declarations live in `apps/ios/Merian/Models/ActiveSchema/`; fetch and
+  mutation workflows belong to their focused `Core/Data` persistence owners.
 - `Modifiers/` implement `ViewModifier` or provide `.modifier(...)` call-site
   helpers.
 - `Services/` own feature-scoped I/O and narrow adapters for hardware, OS, SDK,

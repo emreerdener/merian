@@ -173,7 +173,7 @@ struct InsightMediaSuppressionTests {
 
         // 4. Verify queued scans still correctly override to false
         let queuedScan = OfflineQueuedScan(id: "offline", capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("test.webp")]), encoding: .utf8))
-        viewModel.queuedContext = QueuedScanContext(from: queuedScan)
+        viewModel.queuedContext = queuedScan.queuedScanContext()
         #expect(viewModel.activeMedia.liveImageData == nil, "hasLive should evaluate to false when viewing a queued scan")
     }
 

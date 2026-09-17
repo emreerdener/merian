@@ -102,7 +102,9 @@ If you suspect an issue:
   paths. `MerianEnvironment.load()` returns typed diagnostics, optional SDKs
   skip missing-key setup, Supabase endpoint construction throws, and
   `ModelContainer` recovery must log, quarantine or rescue legacy stores, fall
-  back to in-memory safe mode, or show startup-blocked UI.
+  back to a plan-free in-memory `CurrentSchema` safe mode, or show
+  startup-blocked UI. Validate the full historical migration plan independently;
+  it must not gate that last-resort container.
 - Camera shutter ImageIO work must run through
   `DetachedWork.value(category: .imagePreparation)`. `Task {}` inside a
   `@MainActor` view model is orchestration only; it must not synchronously

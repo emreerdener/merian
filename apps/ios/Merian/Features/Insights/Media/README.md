@@ -138,15 +138,18 @@ behind usable visual pages and removes them after a reference renders.
 While a still image is inferencing, queued presentation caches must use
 `QueuedScanContext.activeScanMedia`, not the raw captured-media snapshot, so the
 focus-region map survives foreground-to-queue and queue-refresh handoffs. The
-carousel keys focus interaction by scan ID plus the still image's canonical
-source index rather than its content-derived page ID. Consequently, replacing an
-in-memory live image with its persisted path does not replace the focus overlay
-or discard a user-adjusted rectangle. User-adjusted geometry is normalized to
-the visible carousel and owned by `InsightSheetViewModel`, so it also survives a
-carousel remount and the queued-to-foreground analysis-owner handoff. The
-carousel analysis treatment comes from
-`InsightSheetViewModel.isCarouselAnalysisActive(for:)`, not the broad toolbar
-processing flag:
+adapter is owned by
+`Shell/ViewModels/InsightSheetViewModel+MediaPresentation.swift`; the shared
+`Models/QueuedScanContext.swift` value does not import Core media, decode
+Capture descriptors, or inspect files. The carousel keys focus interaction by
+scan ID plus the still image's canonical source index rather than its
+content-derived page ID. Consequently, replacing an in-memory live image with
+its persisted path does not replace the focus overlay or discard a user-adjusted
+rectangle. User-adjusted geometry is normalized to the visible carousel and
+owned by `InsightSheetViewModel`, so it also survives a carousel remount and the
+queued-to-foreground analysis-owner handoff. The carousel analysis treatment
+comes from `InsightSheetViewModel.isCarouselAnalysisActive(for:)`, not the broad
+toolbar processing flag:
 
 | Presentation state                                     | Analysis overlay |
 | ------------------------------------------------------ | ---------------- |

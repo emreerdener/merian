@@ -6774,8 +6774,12 @@ live adapter is the sole Supabase/private-DTO owner for the established `users`
 projection. `PurchaseIdentitySessionCoordinationDependencies` keeps the
 coordinators independent of Supabase, RevenueCat, entitlement, Keychain,
 logging, and singleton resolution. `SupabaseManager` remains the live
-composition root and public compatibility facade, supplies those effects, and
-retains the Supabase Auth stream/listener and provider SDK calls. The split
+composition root and public compatibility facade and, at this intermediate
+slice, still supplied those effects and retained the Supabase Auth
+stream/listener and provider SDK calls. The later
+[`Purchase Identity Session Live Boundary Extraction`](#supabasemanager-purchase-identity-session-live-boundary-extraction)
+slice moved ordinary provider, entitlement, resolver, profile-query, and
+diagnostic acquisition into the focused Core Security live adapter. The split
 reduces the manager from 4,375 to 4,244 lines; every new production owner is
 below 250 lines.
 
@@ -7381,11 +7385,11 @@ adapter owns the existing privacy-safe log messages.
 
 The public `handleAuthenticationCallbackURL(_:)` signature and its caller
 contract remain unchanged. `SupabaseManager` remains the live composition edge:
-it converts the URL through Supabase Auth, adapts the captured SDK session,
-publishes observable Auth state, resolves RevenueCat purchase identity, starts
-the entitlement session, writes the authenticated-OAuth Keychain marker, and
-performs transition-owned local cleanup. No singleton or provider SDK crosses
-into the coordinator.
+the focused OAuth live adapter converts the URL through Supabase Auth, after
+which the manager adapts the captured SDK session, publishes observable Auth
+state, resolves RevenueCat purchase identity, starts the entitlement session,
+writes the authenticated-OAuth Keychain marker, and performs transition-owned
+local cleanup. No singleton or provider SDK crosses into the coordinator.
 
 The extracted policy preserves the existing product boundary. A fallback URL may
 establish a session when there is no local source session or refresh the exact
@@ -7668,8 +7672,8 @@ Google provider-neutral credentials to OIDC credentials, projects SDK sessions
 back to the provider-neutral identity, and constructs the established
 `full_name` / `name`, `given_name`, `family_name`, `avatar_url` / `picture`
 metadata aliases. The live adapter alone performs the OAuth session
-read/current-session snapshot, identity link, ID-token installation, and
-user-metadata update calls.
+read/current-session snapshot, identity link, ID-token or callback-URL
+installation, and user-metadata update calls.
 
 Transition ownership does not move. `SupabaseManager` still performs exact-
 session admission before and after suspended work, replacement reconciliation,
@@ -7681,16 +7685,17 @@ task, resolves no singleton, owns no logger, and introduces no broad protocol.
 
 The guarded Auth inventory is now 52 production files and 7,020 lines, with no
 production owner above 520 lines; `SupabaseManager.swift` falls from 3,666 to
-3,654 lines after the integration-audit safety fix. Seven deterministic
+3,654 lines after the integration-audit safety fix. Nine deterministic
 `OAuthSessionServiceTests` cases freeze SDK session read/snapshot forwarding,
-Apple and Google credential mapping, identity projection, canonical metadata
-aliases, empty-update suppression, and error propagation. The Core Network
-architecture guard freezes both service owners, retired facade helpers, exact
-52-file inventory, and focused-test inventory. Its whole-Network scan requires
-OIDC and `UserAttributes` construction to remain exclusive to the service core
-and direct Supabase Auth link, ID-token install, and metadata-update calls to
-remain exclusive to the `+Live` adapter. The Ghost merge cross-surface contract
-now requires manager delegation for both direct identity linking and
+Apple and Google credential mapping, callback-URL forwarding and error
+propagation, identity projection, canonical metadata aliases, empty-update
+suppression, and error propagation. The Core Network architecture guard freezes
+both service owners, retired facade helpers, exact 52-file inventory, and
+focused-test inventory. Its whole-Network scan requires OIDC and
+`UserAttributes` construction to remain exclusive to the service core and direct
+Supabase Auth link, ID-token install, callback-URL install, and metadata-update
+calls to remain exclusive to the `+Live` adapter. The Ghost merge cross-surface
+contract now requires manager delegation for both direct identity linking and
 replacement-session installation, requires the live adapter to own both SDK
 operations, and rejects either direct call or the retired credential helper
 returning to the facade. A second review found no production defect; it closed
@@ -7932,6 +7937,552 @@ or recovery rule, observable public signature, persistence, Keychain, RevenueCat
 or entitlement order, SwiftData schema, feature flag, navigation, visible copy,
 backend behavior, deployment, or release control. No hosted operation was
 performed.
+
+### SupabaseManager Local Sign-out Coordination and Live Boundary Extraction
+
+This slice moves retained local-sign-out task lifetime and direct Supabase SDK
+invalidation out of `SupabaseManager.swift`. The provider-neutral
+`AuthLocalSignOutCoordinator` now owns single-flight joining, account-work
+quiescence, exact transition checks, observable-state begin/finish, bootstrap-
+task cancellation handoff, cancellation before SDK mutation, best-effort SDK
+failure handling, external purchase cleanup, diagnostics order, and task-UUID
+comparison before clearing retained state. Its dependency package contains only
+narrow main-actor closures and values; the facade supplies those closures with
+weak captures so a suspended sign-out task cannot form a retain cycle back to
+the manager. Explicit cancellation leaves the canceled task registered until its
+deferred observable-state cleanup finishes, so an overlapping request cannot
+start against half-closed sign-out state.
+
+`AuthLocalSignOutLiveService+Live` is the sole direct owner of
+`signOut(scope: .local)`. Ordinary sign-out, account cleanup, and Auth recovery
+share that adapter. `AuthSessionRecoveryLiveService+Live` is correspondingly
+narrowed to recovery refresh and session reads, while
+`AuthLocalSignOutLiveDiagnostics` preserves the established privacy-safe SDK-
+failure and completion copy. Public sign-out, account-deletion, recovery,
+RevenueCat, transition, request-gate, and observable-state behavior remains
+unchanged.
+
+The guarded Auth inventory is now 68 production files and 7,787 lines, with no
+production owner above 520 lines; `SupabaseManager.swift` is 3,546 lines. Eight
+coordinator tests freeze phase order, overlap sharing, best-effort SDK failure,
+failed quiescence, transition loss, cancellation during bootstrap teardown,
+canceled-task ownership through deferred cleanup, and post-SDK external cleanup.
+The colocated facade suite retains the request-gate timing regression rehomed
+from `SupabaseManagerTests`, while two live-service tests freeze exactly-once
+delegation and error forwarding. The recovery live-service suite is narrowed to
+its three remaining refresh/read projection and failure cases. The integration
+architecture guard freezes all five new production owners, the sole direct SDK
+call, weak facade capture, retired manager task storage, exact 68-file
+inventory, and focused-test rehome.
+
+Verification passed byte-stable XcodeGen regeneration; generated-project and
+source-membership validation; event-routing validation and adversarial tests;
+Swift parsing; strict repository SwiftLint with zero violations; Swift 6
+warnings-as-errors complete-concurrency typechecking of the extracted owners and
+all eleven focused host tests; all thirteen host-executable Core Network
+architecture tests; changed Markdown formatting; all 26 documentation-contract
+tests; and the complete portable iOS CI-tooling suite. The canonical generic
+Simulator `build-for-testing` was attempted through `make ios-local-build`, but
+the wrapper refused before invoking Xcode because this sandbox cannot inspect
+whether `xcodebuild` is active. No fresh app-target build, Simulator XCTest, or
+complete `merianTests` runtime result is claimed for this slice.
+
+This extraction changes no endpoint, JSON field, request action, Auth transition
+or recovery rule, observable public signature, persistence, Keychain, RevenueCat
+or entitlement order, SwiftData schema, feature flag, navigation, visible copy,
+backend behavior, deployment, or release control. No hosted operation was
+performed.
+
+### SupabaseManager Fallback Callback SDK Boundary Extraction
+
+This follow-up closes the last fallback-callback-specific Supabase Auth seam in
+`SupabaseManager`. The existing initializer-injected `OAuthSessionService` now
+accepts a callback URL installation operation, and its `+Live` adapter is the
+sole owner of `client.auth.session(from:)`. The callback assembly also reads the
+SDK snapshot through that service. A second protocol or microservice is not
+introduced.
+
+The public `handleAuthenticationCallbackURL(_:)` signature, app-root task
+ownership, callback acceptance policy, and exact effect order remain unchanged.
+After the awaited live install returns, the facade still invokes the mutation
+observer, adapts the SDK session, adopts that exact user as the transition
+expectation, and only then returns the coordinator-facing session capabilities.
+The callback coordinator continues to own admission, source/target validation,
+cancellation, purchase/entitlement sequencing, and mutation-aware cleanup; the
+facade continues to own observable publication and live effects.
+
+The guarded Auth inventory remains 68 production files and is now 7,800 lines,
+with no production owner above 520 lines; `SupabaseManager.swift` is 3,547
+lines. Two new `OAuthSessionServiceTests` cases freeze exact URL forwarding,
+single invocation, returned SDK-session identity, and unchanged error
+propagation, bringing that suite to nine cases. The integration architecture
+guard requires the callback SDK call to have exactly one owner in the OAuth live
+adapter, rejects its return to the facade, freezes service delegation and
+current-session readback, and preserves install-mutation-adoption order. A
+follow-up review broadened the ownership token so a different URL variable name
+cannot evade the scan and explicitly rejects direct `client.auth.currentSession`
+access in callback assembly.
+
+Verification passed Swift parsing; strict affected-source SwiftLint with zero
+violations; warnings-as-errors Swift 6 complete-concurrency typechecking of the
+production service/live adapter and all nine focused XCTest cases against a
+temporary minimal Supabase/XCTest boundary; all thirteen host-executable Core
+Network architecture tests; byte-stable XcodeGen regeneration; validation of the
+generated project, source membership, and event routing; the complete portable
+iOS CI-tooling suite; changed-Markdown formatting; all 26 documentation contract
+tests; and whitespace validation. The canonical generic Simulator
+`build-for-testing` was attempted through `make ios-local-build`, but the
+wrapper refused before invoking Xcode because this sandbox cannot verify whether
+`xcodebuild` is active. No fresh app-target build, Simulator XCTest, or complete
+`merianTests` runtime result is claimed for this slice.
+
+This extraction changes no endpoint, JSON field, request action, Auth transition
+or recovery rule, observable public signature, persistence, Keychain, RevenueCat
+or entitlement order, SwiftData schema, feature flag, navigation, visible copy,
+backend behavior, deployment, or release control. No hosted operation was
+performed.
+
+### SupabaseManager Purchase Identity Session Live Boundary Extraction
+
+This slice moves ordinary Purchase Identity live-effect acquisition and legacy
+profile-to-provider mapping out of `SupabaseManager.swift`. The task-free,
+initializer-injected `PurchaseIdentitySessionLiveService` owns Auth-over-public
+profile precedence, anonymous/authenticated account-kind mapping, legacy
+provider-link request construction, session snapshot construction, and assembly
+of the existing provider, entitlement, and diagnostic dependency boundaries. It
+imports no Supabase or provider SDK, resolves no singleton, logs no account
+value, and creates no asynchronous task. The service is a reference lifetime
+anchor weakly captured by deferred snapshot linking and entitlement refresh, so
+both preserve the facade's previous fail-closed teardown behavior.
+
+`PurchaseIdentitySessionLiveService+Live` is the explicit composition edge for
+`RevenueCatManager`, `EntitlementManager`, `PurchasePrincipalResolver`,
+`LegacyPurchaseIdentityProfileService`, the Supabase client needed by
+entitlement refresh, and privacy-safe diagnostics. `SupabaseManager` retains
+Auth observable state, exact-session/account-work admission, durable-handoff
+closures, lifecycle sequencing, and the source-compatible public entry points.
+Resolution task lifetime, keyed supersession, active binding, and foreground
+repair remain in the existing Purchase Identity coordinators. The retired facade
+helper and direct provider/entitlement dependency assembly cannot return under
+the Purchase Principal and Core Network architecture guards.
+
+The Core Security Purchase Identity inventory is now 22 production Swift files
+and 2,016 lines; its largest owner is 204 lines. `SupabaseManager.swift` falls
+from 3,547 to 3,463 lines. Six focused live-service tests freeze legacy profile
+precedence, blank-Auth public fallback, query-failure fallback, exact account-
+kind mapping, provider/entitlement/diagnostic forwarding, and exact-account
+legacy readiness, plus owner-release rejection for deferred legacy linking and
+entitlement refresh. The cross-language purchase-principal contract now reads
+the focused live adapter and rejects direct legacy provider linking in the
+facade.
+
+Verification passed Swift parsing; strict affected-source SwiftLint with zero
+violations; Swift 5 production typechecking; all six host-executable focused
+service tests; the host-executable Purchase Principal architecture case; all
+thirteen host-executable Core Network integration architecture cases;
+byte-stable XcodeGen regeneration; generated-project, source-membership, and
+event-routing validation; the 16-case purchase-principal migration contract;
+recursive Supabase Function/script formatting; and user-skill link validation.
+The canonical generic Simulator `build-for-testing` was attempted through
+`make ios-local-build`, but the wrapper refused before invoking Xcode because
+this sandbox cannot verify whether `xcodebuild` is active. No fresh app-target
+build, Simulator XCTest, or complete `merianTests` runtime result is claimed for
+this slice.
+
+This extraction changes no endpoint, JSON field, request action, Auth transition
+or recovery rule, observable public signature, persistence, Keychain, RevenueCat
+or entitlement order, SwiftData schema, feature flag, navigation, visible copy,
+backend behavior, deployment, or release control. No hosted operation was
+performed.
+
+### Supabase Auth SDK Adapter Consolidation and Extraction ROI Check
+
+The post-extraction review found that the Auth work had improved isolation and
+testability but had crossed the useful boundary into wrapper proliferation. The
+three stateless request adapters for OAuth, recovery, and local sign-out all
+wrapped the same `SupabaseClient.auth` capability, owned no lifecycle, task,
+retry, or product policy, and forced one cohesive SDK boundary across multiple
+micro-files. Continuing to optimize only the `SupabaseManager.swift` line count
+would have hidden that total production code had grown.
+
+This corrective slice consolidates those pass-through adapters into the
+task-free, initializer-injected `SupabaseAuthSessionService` and its single
+`+Live` composition edge. The core service owns provider-neutral OIDC and
+profile-metadata mapping plus SDK-session projection; the live adapter owns the
+request-scoped session read/current snapshot, refresh, identity link, ID-token
+and callback-URL install, profile update, and local sign-out calls. Recovery and
+local-sign-out diagnostics are colocated with that live boundary. The retained
+`AuthLocalSignOutCoordinator` now colocates its narrow dependency values because
+they exist only to configure that coordinator. Transition admission, task
+lifetime, cancellation, recovery policy, publication, purchase and entitlement
+sequencing, and cleanup remain in their existing coordinators and facade.
+
+The consolidation reduces the Auth production inventory from 68 files and 7,800
+lines to 61 files and 7,734 lines. `SupabaseManager.swift` moves from 3,463 to
+3,461 lines, while the unchanged 22-file Purchase Identity inventory remains
+2,016 lines. Across those three measured production surfaces, the total
+therefore falls from 13,279 to 13,211 lines: seven fewer files and 68 fewer
+lines. The focused adapter coverage is consolidated into one fourteen-case test
+suite without removing the recovery, local-sign-out, callback, OIDC, metadata,
+projection, or failure-forwarding assertions. Historical extraction sections
+above remain point-in-time records rather than being rewritten to describe the
+current tree.
+
+This correction does not erase the macro cost of the full extraction round.
+Before the round, `SupabaseManager.swift` plus Auth and Purchase Identity
+totaled 7,099 production lines across 21 files: 5,389 facade lines, 747 Auth
+lines in nine files, and 963 Purchase Identity lines in eleven files. The
+current combined total is 13,211 lines across 84 files. The facade is 1,928
+lines smaller, but its supporting Auth and Purchase Identity code is 8,040 lines
+larger, for a net increase of 6,112 lines, or approximately 86%. That growth
+bought explicit concurrency, security, persistence, transport, and executable
+ownership contracts, but it is not a size reduction and must not be reported as
+one. Further `SupabaseManager` extraction is therefore paused for this round
+unless a correctness defect requires it; follow-up work should consolidate or
+delete owners, or demonstrate a net-negative affected production delta. The Core
+Network architecture suite enforces the four current production budgets so
+another split cannot silently grow one surface or their combined total.
+
+The resulting rule is explicit: facade line count is not a sufficient cleanup
+metric. A new production owner must acquire a durable responsibility such as
+state, task lifetime, policy, protocol translation, persistence, or a distinct
+transport boundary. A one-method or pass-through wrapper around the same SDK
+capability should be folded into the existing domain adapter unless independent
+lifecycle or security semantics require separation. Each future slice must
+report both the aggregate-file delta and the total affected production file/line
+delta; a slice that only redistributes code needs a concrete complexity or
+correctness benefit and an integration guard that proves it.
+
+Verification passed Swift parsing; strict affected-source SwiftLint with zero
+violations; strict complete-concurrency production and fourteen-case focused
+test typechecking against a minimal Supabase boundary and the real XCTest
+interface; the thirteen-case host-executable Core Network integration
+architecture suite; byte-stable XcodeGen regeneration; generated-project and
+source-membership validation; event-routing validation and adversarial tests;
+the complete portable iOS CI-tooling suite; the eight-case cross-language Ghost
+merge client contract; the sixteen-case purchase-principal migration contract;
+recursive Supabase Function/script formatting; changed-Markdown formatting; and
+whitespace validation. The canonical generic Simulator `build-for-testing` was
+attempted through `make ios-local-build`, but the wrapper refused before
+invoking Xcode because this sandbox cannot inspect whether `xcodebuild` is
+active. No fresh app-target build, Simulator XCTest, or complete `merianTests`
+runtime result is claimed for this consolidation.
+
+A follow-up code and documentation audit found no production defect. It
+corrected the test-ownership wording across the canonical strategy, codebase
+map, and Auth READMEs: `AuthLocalSignOutCoordinatorTests` owns the eight
+provider-neutral coordinator cases, while the separate colocated
+`AuthLocalSignOutFacadeTests` suite owns the rehomed authenticated-request-gate
+regression.
+
+This consolidation changes no endpoint, JSON field, request action, Auth
+transition or recovery rule, observable public signature, persistence, Keychain,
+RevenueCat or entitlement order, SwiftData schema, feature flag, navigation,
+visible copy, backend behavior, deployment, or release control. No hosted
+operation was performed.
+
+### App-root Integration Audit and Debug-fixture Ownership
+
+The App-root audit reviewed the complete `MerianApp.swift` composition path,
+including application-delegate callbacks, root presentation, URL precedence,
+scene-phase forwarding, account-deletion recovery, SwiftData bootstrap, and the
+Debug UI-test fixture surface. It found no behavioral or concurrency defect. The
+overlapping deletion-recovery triggers remain protected by the existing
+single-transition downstream owner, and the app root still evaluates the Google
+callback before app-route, file-import, and fallback Supabase handling.
+
+The first App slice moves the 876-line compile-condition block into the focused
+`App/UITesting/UITestSeedCoordinator.swift` owner, keeping its Debug fixture
+implementation and signature-compatible Release no-ops together. The UIKit
+delegate bridge moves to `AppDelegate.swift`; deterministic launch and startup
+notice presentation moves to `Presentation/AppRootPresentation.swift`; and
+value-only URL classification moves to `Routing/AppURLRouting.swift`.
+`MerianApp` remains the sole `WindowGroup`, scene-phase, dependency-composition,
+and fallback Auth-task owner. Existing presentation and URL-classification tests
+move beside their App owners, while a new architecture suite freezes the
+inventory, root-only effects, exact Debug/Release seed boundary, and one
+remaining oversized production owner.
+
+`MerianApp.swift` falls from 2,221 to 1,177 lines. The four focused
+App-extracted sources total 1,053 lines, including the 880-line Debug-fixture
+owner; total App source therefore grows by 9 lines for imports, formatted
+delegate signatures, and ownership documentation rather than claiming a size
+reduction. Excluding the compile-time-gated fixture owner, every focused App
+production file is at or below 600 lines except `MerianApp.swift`. Its remaining
+bulk is the migration-sensitive ModelContainer construction, checksum fallback,
+quarantine, rescue, and safe-mode ladder. That work is deliberately deferred to
+a separate SwiftData-startup slice instead of being mechanically moved during
+this audit.
+
+A second code review found one cross-layer ownership issue without finding a
+runtime defect: Analytics, Security, Network, Data, Offline Sync, App startup,
+and Debug fixtures all consumed `TestExecutionCoordinator`, but its declaration
+still lived in `MerianApp.swift`. The unchanged process signals now have one
+`Configuration/TestExecutionCoordinator.swift` owner with pure parameterized
+policy entry points. The cloud-image repair live adapter's remaining direct
+XCTest-environment read now delegates to the same policy. Focused tests freeze
+the UI-test marker, XCTest configuration marker, loaded-runtime fallback, false
+case, and sole raw-signal owner; the portable workflow and startup-safety scope
+guard the new boundary.
+
+The portable iOS workflow now reads seed markers from the focused fixture source
+while continuing to verify the call order in `MerianApp`. Startup-safety scope
+includes App lifecycle, presentation, routing, delegate, fixture, and App test
+changes. Canonical ownership documentation also corrects the stale claim that
+Core retained two oversized production files; its executable guard tracks only
+`SupabaseManager.swift`.
+
+This slice changes no SwiftData schema or migration plan, endpoint, JSON field,
+Auth rule, route value, URL precedence, root presentation decision, fixture
+value, visible copy, persistence, feature flag, backend behavior, deployment, or
+release control. No hosted operation was performed.
+
+### SwiftData Startup Bootstrap Ownership
+
+The remaining App-root slice moves migration-sensitive SwiftData construction
+out of `MerianApp.swift` without changing V51, any historical schema, migration
+stage, recovery classification, store location, archive rule, telemetry field,
+or user-visible recovery copy. `ModelContainerFactory` owns the Objective-C-
+exception-safe construction boundary, exhaustive recent-source plan switch,
+attempt recording, and ordered duplicate-checksum fallback.
+`ModelContainerBootstrapper` owns launch diagnostics and the normal,
+corruption-quarantine, legacy-rescue, in-memory safe-mode, and terminal blocked
+outcomes. One colocated model file owns the bootstrap result—including its
+optional `ModelContainer` reference—plus value-only state, notice, and telemetry
+values. `MerianApp` now requests one bootstrap result, attaches its container
+and presentation values, and emits the returned telemetry after analytics
+admission; it no longer constructs a `ModelContainer`, names a migration plan,
+or invokes quarantine/rescue effects.
+
+`MerianApp.swift` falls from 1,177 to 447 lines. The affected production
+boundary—`MerianApp`, App-root presentation, and Store Recovery—moves from 2,608
+to 2,751 lines across the extraction, a transparent increase of 143 formatted
+lines rather than a claimed size reduction. The increase buys two durable
+responsibility owners, explicit value ownership, testable safe-mode outcomes,
+and executable prevention of bootstrap logic returning to the composition root;
+it does not introduce a pass-through service or another singleton. Every Release
+App and Store Recovery production owner is now at or below 600 lines.
+
+Focused tests add a successful in-memory safe-mode case and the terminal blocked
+case, preserve the existing disk-backed migration fixtures, and move Objective-C
+exception wrapping calls to the new factory. App and Store Recovery architecture
+suites freeze the sole declaration owners, root delegation, Auth/session
+exclusions, mirrored tests, and line ceilings. Migration source guardrails now
+read the factory and bootstrapper directly, keep recent-source dispatch
+compiler-exhaustive, pin checksum retry order, and reject direct
+`ModelContainer` construction in `MerianApp`. Startup Safety selects the new
+bootstrapper and App-root suites alongside the existing recovery and migration
+matrix.
+
+This slice changes no SwiftData schema or migration plan, endpoint, JSON field,
+Auth/session behavior, root presentation decision, visible copy, persistence
+location, feature flag, backend behavior, deployment, or release control. No
+hosted operation was performed.
+
+A follow-up implementation and documentation audit found no production defect.
+It reconfirmed exact V42...V50 source routing and checksum retry order,
+quarantine/rescue eligibility and mutation semantics, recovery copy,
+diagnostics, telemetry, actor isolation, generated-project membership, and
+Startup Safety selection. The audit corrected six documentation-only drifts: the
+bootstrap outcome is not described as value-only because it carries the
+container; the schema guide points to the checked-in SwiftData migration skill
+instead of the compatibility-only legacy workflow pointer; the architecture
+overview names Store Recovery as the container creator; and the migration-plan
+initialization test is scoped to independent full-plan validation. The startup
+contract also names the focused safe-mode and terminal- blocked bootstrap
+coverage, while the codebase map distinguishes environment attachment from
+post-admission telemetry emission. Swift parsing, strict affected-source
+SwiftLint, byte-stable XcodeGen, project/source membership, migration and
+event-routing guards, portable CI-tooling tests, agent-asset validation,
+Markdown formatting, and whitespace validation passed. The generic Simulator
+`build-for-testing` remained unrun because the required local-build wrapper
+could not inspect active `xcodebuild` processes and refused before invoking
+Xcode; the safety check was not bypassed.
+
+A subsequent App and Store Recovery integration audit found one recovery-
+hardening defect: the empty in-memory safe-mode container still supplied the
+full historical `MerianMigrationPlan`. A malformed historical stage could
+therefore defeat both persistent startup and the last-resort workspace. The
+factory now creates safe mode from `CurrentSchema` without a migration plan,
+while `MigrationPlanTests` continues to validate the full plan independently.
+The live bootstrap regression constructs that production fallback; architecture
+and shell guardrails reject migration-plan coupling inside the safe-mode
+factory; and the shell guardrail's adversarial fixture proves that
+reintroduction fails. A second adversarial fixture rejects weakening the
+independent full-plan initialization test to a recent-source plan. This changes
+no schema, migration stage, store location, archive policy, visible copy, or
+persistent-store selection. Swift parsing, strict affected-source SwiftLint,
+byte-stable XcodeGen, project/source membership, migration and event-routing
+guardrails, portable CI-tooling tests, agent-asset validation, Markdown
+formatting, and whitespace validation passed. The required local-build wrapper
+again refused before invoking Xcode because this environment cannot verify
+whether `xcodebuild` is active; the safety check was not bypassed, so simulator
+build and test execution remain unrun for this follow-up.
+
+### Models Species Value-Graph Ownership
+
+The first Models hygiene slice removes the mixed 823-line
+`Models/SpeciesData.swift` aggregate. Cross-feature, Foundation-only domain
+values now live in four cohesive files under `Models/Species`: the core
+`SpeciesData` value, deterministic presentation and identity policy, supporting
+observation values, and rich lookalikes. Inference-owned `CaptureTelemetry` and
+the handwritten `EdgeResponse` mapping now live in two files under
+`Core/AI/Models`. Type names, initializer labels and defaults, Codable shapes,
+sanitization, display policy, edge mapping, and all call sites remain stable. No
+SwiftData model, migration stage, wire payload, endpoint, task, service,
+singleton, or navigation contract changes.
+
+This is an ownership improvement rather than a claimed volume reduction. The
+production surface moves from one 823-line file to six files totaling 879 lines:
+five additional files and 56 additional formatted lines for explicit imports,
+extensions, readable boundaries, and preservation of the aggregate's domain-
+contract comments. Every new owner is under 600 lines, and no file exists only
+as a forwarding wrapper. The former 942-line behavior suite is split by the same
+responsibilities, `CaptureTelemetryTests` moves beside Core AI Models, and the
+Edge adapter's twelve behavior tests move into a colocated
+`SpeciesDataEdgeResponseTests` suite rather than leaving wire coupling under
+shared Models. All 41 pre-split behavior test names remain present.
+`SpeciesModelsArchitectureTests` locks exact inventories, declaration
+uniqueness, Foundation-only shared models, absence of live effects, Core AI
+adapter and test ownership, aggregate retirement, and the local line ceiling. An
+additional parameterized regression freezes every legacy unresolved-name
+sentinel. The Capture-owned zoom-policy regression moves out of the Core AI
+telemetry suite into the existing Capture Submission policy suite. The Models
+README records the boundary and the unchanged SwiftData migration rules.
+
+The second-pass audit found no behavior or initializer drift. It corrected the
+zoom-policy test ownership, completed the focused-test selector inventory,
+restored domain-contract comments that were lost during extraction, and added a
+parameterized unresolved-sentinel regression. All 41 original Species behavior
+test names remain present and each extracted production declaration has one
+owner. Repeated XcodeGen output was byte-stable; project/resource and source-
+membership validation, migration and event-routing guardrails, the full iOS CI-
+tooling suite, Swift parsing, strict SwiftLint, Markdown formatting, and
+whitespace validation passed. The required local-build wrapper refused before
+invoking Xcode because the host denied process inspection, so simulator
+compilation and runtime test execution remain unrun for this slice.
+
+### Models Captured Media Value-Graph Ownership
+
+The second Models hygiene slice retires the mixed 1,115-line
+`Models/ActiveSchema/SerializedMediaItem.swift` aggregate. Foundation-only
+observation, storage-reference, ordered timeline, snapshot, summary, and JSON
+values now live under `Models/Media`. The unchanged V51 `CapturedMediaEntry`
+declaration remains in `Models/ActiveSchema`; local and approved-HTTPS
+resolution lives in `Core/Media`; cloud hydration/replacement, timeline
+serialization with injected file adoption, and scalar/relationship mirror
+persistence live in `Core/Data/CapturedMedia`; and Capture Submission owns its
+transport projection. No view or value owner gained networking, authentication,
+persistence, or live singleton resolution.
+
+This split is an ownership improvement, not a size-reduction claim. The directly
+affected production surface moves from four files and 1,394 lines to eight files
+and 1,420 lines: four additional cohesive owners and 26 additional formatted
+lines. The former aggregate mixed deterministic values, SwiftData declaration,
+cloud compatibility, filesystem resolution, and persistence conversion; every
+replacement owner is below 600 lines and none is a pass-through wrapper.
+`ObservationContext` moves from Capture Shared to the cross-feature value graph
+without changing its initializer, Codable shape, normalization, or submitted
+text. The active persisted declaration is byte-equivalent in stored shape, so
+V51, model names, checksums, relationships, and migration plans remain
+unchanged; no V52 is created.
+
+Focused behavior coverage now mirrors the production layers.
+`CapturedMediaValuesTests` owns observation normalization and Codable behavior
+plus deterministic timeline values; Core Media owns resolution tests; Core Data
+owns hydration, serialization, and scalar-first relationship-fallback tests; and
+`CapturedMediaArchitectureTests` freezes unique declaration ownership,
+effect-free value files, the exact V51 stored-property inventory, retired paths,
+focused suite placement, and the 600-line ceiling. The empty historical
+`ObservationContextTests` suite and aggregate captured-media tests are removed
+after their executable cases are rehomed.
+
+The second-pass review found no behavioral or schema drift. It corrected the
+database documentation's former synthetic inverse-relationship claim, made the
+cross-feature observation owner explicit, and strengthened the active-schema
+guard from a required-field subset to the exact ordered stored-property list.
+Swift parsing, strict SwiftLint, byte-stable XcodeGen, project/source
+membership, migration and event-routing guards, focused source typechecking,
+Markdown and Supabase formatting, and whitespace validation passed. The required
+local-build wrapper refused before invoking Xcode because it could not inspect
+active build processes, so no fresh Simulator compilation or runtime result is
+claimed for this slice.
+
+### Models-wide Integration Audit
+
+The Models-wide closure audit reviewed the root cross-feature values,
+`Models/Species`, `Models/Media`, every V51 `ActiveSchema` source, the
+historical snapshots, the ordered migration registry, and mirrored tests. It
+found two material ownership violations. `QueuedScanContext` performed local
+filesystem inspection and decoded Capture's `IdentifyVisualMediaItem` directly,
+while `ActiveSchema/PendingCloudDeletionTask.swift` also owned a `ModelContext`
+fetch/insert workflow.
+
+The correction keeps `QueuedScanContext` as the cross-feature route snapshot but
+makes it deterministic. The existing queued-scan extraction persistence owner
+now projects a live SwiftData row into that detached value and asks
+`OfflineQueueStoragePolicy` for its byte estimate. The policy consolidates
+capture-file sizing and deduplicated queued-media footprint inspection formerly
+split between the model and `OfflineCaptureFileStore`, and the projection
+decodes captured media only once. The existing Insight media-presentation
+extension owns queued-to-`ActiveScanMedia` mapping and focus-descriptor
+restoration. The cloud-deletion task declaration becomes a 13-line schema owner;
+its idempotent task/job/event insertion moves beside the existing offline-job
+helpers in `Core/Data/OfflineSync/Persistence`. No new production file or
+wrapper is added.
+
+Across the thirteen touched production files, the correction adds 180 lines and
+removes 162, a net increase of 18 formatted lines for explicit projection,
+storage, presentation, and persistence boundaries. `QueuedScanContext` falls
+from 167 to 95 lines, `PendingCloudDeletionTask.swift` from 56 to 13, and
+`OfflineCaptureFileStore` from 144 to 117. The existing storage policy grows
+from 32 to 96 lines, queued-scan extraction from 70 to 101, offline-job
+persistence from 54 to 98, and Insight media presentation from 274 to 291; each
+remains below 600 lines.
+
+`ModelsIntegrationArchitectureTests` freezes the exact root and active-schema
+inventories, Foundation-only root values, absence of live effects and
+`ModelContext` workflows, sole queued-row/byte/presentation/persistence adapter
+ownership, V51/no-V52 state, and the nonhistorical 600-line ceiling. The audit
+deliberately keeps `ScanQueueState` and `UserReviewState` at the root because
+persistence, Core, and features share their stable vocabulary. It also keeps the
+4,293-line `SchemaVersions.swift` as one compiler-reviewed migration and
+plan-order registry; mechanically splitting that file would make migration
+sequencing harder to audit without removing a runtime responsibility. This is
+the stop point for Models extraction in this round.
+
+The change preserves queue-byte calculations, focus restoration, cloud-deletion
+idempotency, routes, initializer data, SwiftData fields, migration plans,
+endpoints, payloads, copy, feature flags, and release controls. No V52 schema or
+hosted operation is introduced.
+
+The closure review also corrected two guardrail defects before handoff. The
+effect-free source check now ignores documentation-only line comments, so its
+own `OfflineQueuedScan` explanation cannot fail the suite, and the live-row
+projection is explicitly `@MainActor` with matching Models and Offline Sync
+source guards. Focused storage-policy tests register cleanup before writing
+their temporary fixtures. The documentation closure now names the main-actor
+projection consistently across Models, Offline Sync, Scans, the codebase map,
+the offline pipeline, and the test strategy; distinguishes Scans Shell's grid
+snapshot from the richer Insight route snapshot; records the consolidated
+storage-policy consumers; and attributes queued active-media adaptation to
+Insight. Privacy documentation names `OfflineQueueStoragePolicy`, not the
+detached value, as the file-metadata owner. The canonical Models focused matrix
+lists the value, persistence, adapter, migration, and architecture selectors and
+still requires the complete `merianTests` target.
+
+Verification passed Swift parsing; strict affected-source SwiftLint with zero
+violations; native typechecking of the Foundation-only media, queue-state,
+queued-context, and storage-policy boundary; byte-stable XcodeGen regeneration;
+project/resource and source-membership validation; migration, event-routing, and
+versioning guardrails; the complete portable iOS CI-tooling suite; changed-
+Markdown and recursive Supabase Function/script formatting; all 26 executable
+documentation contracts; and whitespace validation. The canonical generic
+Simulator `build-for-testing` was attempted through `make ios-local-build`, but
+the wrapper refused before invoking Xcode because this environment cannot
+inspect whether `xcodebuild` is active. The new focused projection, sizing, and
+architecture tests are checked into the target, but no fresh Simulator XCTest or
+complete `merianTests` runtime result is claimed for this audit.
 
 ## Validation Gates
 

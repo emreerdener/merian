@@ -17,11 +17,13 @@ with cross-feature delivery in
   responses. `Models/ExploreMediaIncidentSummary.swift` owns the UI-only,
   deduplicated incident presentation model. Wire DTOs remain in `Core/Network`.
 - `Services/ScansShellDataStore.swift` owns fresh-context SwiftData reads,
-  queue-to-value projection, completed-row suppression, selected-record lookup,
-  and repository-backed deletion. `ScansThumbnailPipeline.swift` owns recovery
-  mapping, leading image/audio prefetch, cloud-image repair, reference-thumbnail
-  backfill, and the resulting library invalidation. UI-only account preferences
-  live in `ExploreMediaOverviewPreferences.swift`.
+  queue-to-`QueuedScanSnapshot` grid projection, completed-row suppression,
+  selected-record lookup, and repository-backed deletion. Offline Sync owns the
+  main-actor live-row-to-`QueuedScanContext` Insight-route projection.
+  `ScansThumbnailPipeline.swift` owns recovery mapping, leading image/audio
+  prefetch, cloud-image repair, reference-thumbnail backfill, and the resulting
+  library invalidation. UI-only account preferences live in
+  `ExploreMediaOverviewPreferences.swift`.
 - `ViewModels/ScansShellViewModel.swift` owns queue snapshot state and polling
   policy, incident loading/coalescing/cancellation/account fencing, overview
   preference state, initial recovery filtering, store synchronization, and
