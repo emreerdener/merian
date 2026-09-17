@@ -395,6 +395,10 @@ Focused tests mirror their production owners:
   restoration, cross-session submission fencing, hashtag generation fencing,
   post-detail generation fencing, editor preparation, and typed mutations
   through injected closures.
+- `IOSHygieneClosureArchitectureTests` keeps every ordinary Feed production file
+  within the app-wide 600-line review ceiling. The post-detail host calls its
+  injected state owner directly rather than retaining a one-line forwarding
+  method solely to reshape the file.
 - `ExploreReplyLoadingStateTests` and `ExploreCommentMentionTextTests` cover
   reply lifecycle/pagination and mention parsing/rendering without mutating the
   shared network client. Shared comment-avatar fallback coverage lives in

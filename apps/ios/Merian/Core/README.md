@@ -43,6 +43,11 @@ correctness boundary or demonstrate a net-negative affected production delta.
 Prefer consolidation and deletion, update the inventory in the same change, and
 keep wire DTOs separate from UI policy.
 
+`IOSHygieneClosureArchitectureTests` also records `SupabaseManager.swift` as the
+only oversized Core owner. The Core Network architecture suite retains the
+stricter facade and aggregate non-growth budgets below; the global inventory
+does not replace them.
+
 The current Auth/Purchase Identity extraction leaves `SupabaseManager.swift` at
 3,461 lines. The Core Network architecture guard caps Auth at 7,734 production
 lines, Purchase Identity at 2,016, this facade at 3,461, and their combined

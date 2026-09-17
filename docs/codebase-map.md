@@ -143,6 +143,18 @@ model/value accessors, never a `ModelContext` fetch workflow. The Models-wide
 architecture suite freezes those boundaries and exempts only the ordered
 historical migration registry from the 600-line review ceiling.
 
+The app-wide hygiene closure suite scans every Swift source under
+`apps/ios/Merian` and freezes the only files above 600 lines:
+`App/UITesting/UITestSeedCoordinator.swift`, the measured residual
+`Core/Network/SupabaseManager.swift` facade, and the ordered
+`Models/SchemaVersions.swift` migration registry. Ordinary production files,
+including Explore Feed's post-detail host, remain within the ceiling. This guard
+complements rather than replaces domain-specific ownership, dependency, and
+tighter line-budget suites. The closure audit also folds Field Notes' request
+and feedback values into `FieldNotesEditPolicy.swift` and its caller
+configuration into `FieldNotesEditorDependencies.swift`, avoiding three
+single-purpose micro-files without changing their declarations or call sites.
+
 ## Active SwiftData Schema
 
 The active schema is:

@@ -178,7 +178,7 @@ import Supabase
         AuthTransitionSingleFlight()
     @ObservationIgnored private weak var appRouteSessionController: (any AppRouteSessionControlling)?
     @ObservationIgnored private weak var milestoneToastSessionController: (any MilestoneToastSessionControlling)?
-    private var isSigningOut: Bool {
+    var isSigningOut: Bool {
         authRuntimeState.isSigningOut
     }
 

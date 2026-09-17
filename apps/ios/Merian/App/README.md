@@ -45,7 +45,10 @@ ladder. `MerianApp` invokes one bootstrap entry point and retains only
 composition after the result. Every Release production owner in `App` and Store
 Recovery stays within the 600-line review guard. The UI-test coordinator is
 excluded from the production ceiling because its fixture implementation is
-compiled only in Debug and the same source owns the Release no-op contract.
+compiled only in Debug and the same source owns the Release no-op contract. The
+app-wide `IOSHygieneClosureArchitectureTests` inventory records that coordinator
+as the only oversized App owner and rejects any additional App source above the
+shared ceiling.
 
 ## Tests and safeguards
 

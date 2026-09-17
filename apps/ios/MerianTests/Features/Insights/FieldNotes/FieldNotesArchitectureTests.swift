@@ -105,6 +105,9 @@ struct FieldNotesArchitectureTests {
         let root = try repositoryRoot()
         for relativePath in [
             "apps/ios/Merian/Features/Insights/FieldNotes/Components/FieldNotesCard.swift",
+            "apps/ios/Merian/Features/Insights/FieldNotes/Models/FieldNotesVisibilityUpdateFeedback.swift",
+            "apps/ios/Merian/Features/Insights/FieldNotes/Models/FieldNotesVisibilityUpdateRequest.swift",
+            "apps/ios/Merian/Features/Insights/FieldNotes/Services/FieldNotesVisibilityConfiguration.swift",
             "apps/ios/MerianTests/Features/Insights/FieldNotesEditPolicyTests.swift"
         ] {
             #expect(
@@ -114,6 +117,22 @@ struct FieldNotesArchitectureTests {
                 "Legacy Field Notes owner remains at \(relativePath)"
             )
         }
+    }
+
+    @Test func relatedVisibilityDeclarationsRemainColocated() throws {
+        let root = try fieldNotesSourceRoot()
+        let editPolicy = try contents(
+            of: root.appendingPathComponent("Models/FieldNotesEditPolicy.swift")
+        )
+        let editorDependencies = try contents(
+            of: root.appendingPathComponent(
+                "Services/FieldNotesEditorDependencies.swift"
+            )
+        )
+
+        #expect(editPolicy.contains("struct FieldNotesVisibilityUpdateRequest"))
+        #expect(editPolicy.contains("enum FieldNotesVisibilityUpdateFeedback"))
+        #expect(editorDependencies.contains("struct FieldNotesVisibilityConfiguration"))
     }
 
     @Test func featureDeclaresNoUncheckedSendableConformance() throws {

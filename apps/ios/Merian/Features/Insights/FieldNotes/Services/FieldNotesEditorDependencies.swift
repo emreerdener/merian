@@ -2,6 +2,11 @@ struct FieldNotesDictationResultSink {
     let yield: @MainActor (_ transcription: String) -> Void
 }
 
+struct FieldNotesVisibilityConfiguration {
+    let initialIsPublic: Bool
+    let onSave: (String, Bool) async -> FieldNotesVisibilityUpdateFeedback
+}
+
 struct FieldNotesEditorDependencies {
     let dictationFeedback: @MainActor () -> Void
     let startDictation:

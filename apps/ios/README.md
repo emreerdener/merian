@@ -1513,6 +1513,30 @@ helper. See the [Core Data README](Merian/Core/Data/README.md),
 [Insight content README](Merian/Features/Insights/Content/README.md), and
 [offline sync contract](../../docs/backend-and-data/01-offline-sync-pipeline.md).
 
+## Hygiene closure guard
+
+`MerianTests/IOSHygieneClosureArchitectureTests.swift` scans the complete main-
+app Swift source tree and requires every file above the 600-line review ceiling
+to be part of one explicit inventory:
+
+- `App/UITesting/UITestSeedCoordinator.swift` is a Debug fixture owner whose
+  Release branch is a signature-compatible no-op.
+- `Core/Network/SupabaseManager.swift` is the measured residual facade. Further
+  extraction is paused unless it fixes a correctness boundary or produces a
+  net-negative affected production delta.
+- `Models/SchemaVersions.swift` is the ordered migration registry kept cohesive
+  so version and stage sequencing remain compiler-reviewed in one place.
+
+This inventory is not permission for new large files or growth in the tracked
+facade. Domain suites retain their tighter budgets. Related declarations should
+remain together when separation would create only pass-through or single-value
+files; a small live adapter remains justified when it isolates an SDK, process,
+filesystem, persistence, or singleton boundary for deterministic testing. The
+suite uses the shared architecture-test physical-line counter: empty source is
+zero lines, and a terminal newline ends the final line rather than creating an
+additional empty line. Focused cases freeze those semantics so local and
+app-wide ceilings use the same measurement.
+
 ## Tests
 
 Use `make ios-local-build` for local command-line validation so simulator and

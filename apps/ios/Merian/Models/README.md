@@ -84,7 +84,10 @@ and active-schema inventories, rejects live effects and persistence workflows in
 those owners, verifies the queued-row projection plus the queued-byte,
 Insight-media, and cloud-deletion adapters have one owner each, applies the
 600-line guard to every nonhistorical model file, and leaves
-`SchemaVersions.swift` as the explicit ordered-registry exception.
+`SchemaVersions.swift` as the explicit ordered-registry exception. The app-wide
+`IOSHygieneClosureArchitectureTests` inventory independently records that file
+as the only oversized Models owner, so another Models exception cannot appear
+without review.
 
 Run project generation, source membership, the focused model suites, and the
 complete unit target after moving or adding Swift sources. The canonical

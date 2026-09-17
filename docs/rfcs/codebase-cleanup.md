@@ -8484,6 +8484,57 @@ inspect whether `xcodebuild` is active. The new focused projection, sizing, and
 architecture tests are checked into the target, but no fresh Simulator XCTest or
 complete `merianTests` runtime result is claimed for this audit.
 
+### iOS-wide Hygiene Closure Audit
+
+The final cross-app audit reviewed the App, Configuration, Core, Features,
+Models, and Resources ownership boundaries after the folder-by-folder passes. It
+found one ordinary production source above its documented guard:
+`ExplorePostDetailView.swift` had reached 602 physical lines. The excess came
+from a private method that only forwarded to `ExplorePostDetailViewModel`.
+Callers now invoke that injected state owner directly, removing the pass-through
+without moving lifecycle, selection, sheet, focus, persistence, or route state.
+The host is 598 physical lines and remains behaviorally unchanged.
+
+The audit also reviewed the smallest extracted owners for wrapper proliferation.
+Three Field Notes files contained only a tightly coupled visibility request,
+feedback enum, or caller configuration. The request and feedback are now
+colocated with `FieldNotesEditPolicy`; the configuration is colocated with
+`FieldNotesEditorDependencies`. This removes three production files while
+preserving type names, access, call sites, visible feedback, async save
+behavior, and dependency direction. Across the affected production Swift
+sources, the closure adds 31 lines and removes 32, for a net reduction of one
+line and three files. Tiny owners that isolate a live SDK, process, filesystem,
+persistence, schema-alias, or feature-flag boundary remain separate because
+their boundary is independently testable rather than a line-count artifact.
+
+`IOSHygieneClosureArchitectureTests` now scans all main-app Swift sources and
+freezes the exact oversized inventory: the Debug-only UI-test seed coordinator,
+the measured residual `SupabaseManager` facade, and the cohesive ordered
+`SchemaVersions` migration registry. The latter two retain their existing Core
+budget and Models migration guards; the global inventory is not a growth
+allowance. Configuration totals only three focused Swift owners, Resources owns
+only bundled static data, and neither area warrants another extraction slice.
+This closes the planned organization round rather than beginning a new sequence
+of mechanical file splits.
+
+No endpoint, payload, Auth transition, SwiftData schema or migration stage,
+persistence behavior, feature flag, navigation contract, visible copy,
+accessibility value, backend behavior, deployment, or release control changes.
+
+Verification passed Swift parsing, standalone typechecking of the consolidated
+Field Notes value owner, strict affected-source SwiftLint with zero violations,
+byte-stable XcodeGen regeneration, project/resource and source-membership
+validation, event-routing, migration, and versioning guardrails, the complete
+portable iOS CI-tooling suite, changed-Markdown formatting, the exact oversized-
+owner inventory, declaration-uniqueness checks, and whitespace validation. The
+second-pass review also corrected the shared architecture-test line counter: a
+terminal newline is now treated as a terminator instead of an extra physical
+line, with focused empty, terminated, and unterminated cases in the closure
+suite. The canonical generic Simulator `build-for-testing` was attempted through
+`make ios-local-build`, but the wrapper refused before invoking Xcode because
+this environment cannot inspect whether `xcodebuild` is active. Focused and
+complete Simulator XCTest execution therefore remain unrun for this closure.
+
 ## Validation Gates
 
 Every cleanup PR should run the narrowest relevant checks, plus the full app

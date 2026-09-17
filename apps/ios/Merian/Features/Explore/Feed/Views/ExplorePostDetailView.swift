@@ -103,7 +103,7 @@ struct ExplorePostDetailView: View {
                     isRefreshingAfterInsightDismiss: isRefreshingAfterInsightDismiss,
                     isFieldChatAvailable: !exploreChatViewModel.isUnavailable(for: post.id),
                     onLoadDetail: {
-                        await loadPostDetail()
+                        await detailViewModel.loadDetail()
                     },
                     onSyncLocalFieldNotes: {
                         syncLocalFieldNotes(for: post)
@@ -204,7 +204,7 @@ struct ExplorePostDetailView: View {
         case .explorePostNeedsRefresh(let changedPostId) where changedPostId == postId:
             Task {
                 await viewModel.refreshPost(postId: changedPostId)
-                await loadPostDetail(force: true)
+                await detailViewModel.loadDetail(force: true)
             }
         case .publicAuthorIdentityChanged(let previousUserId, let currentUserId):
             guard let post = currentPost,
@@ -215,7 +215,7 @@ struct ExplorePostDetailView: View {
                   ) else { return }
             Task {
                 await viewModel.refreshPost(postId: post.id)
-                await loadPostDetail(force: true)
+                await detailViewModel.loadDetail(force: true)
             }
         default:
             break
@@ -264,7 +264,7 @@ struct ExplorePostDetailView: View {
             if let post = currentPost {
                 await reconcileFieldNotesAfterInsightDismiss(for: post)
             } else {
-                await loadPostDetail()
+                await detailViewModel.loadDetail()
             }
             isRefreshingAfterInsightDismiss = false
         }
@@ -304,10 +304,6 @@ struct ExplorePostDetailView: View {
         } else if beginPresentation(.author(route)) {
             HapticManager.shared.triggerSelectionPulse()
         }
-    }
-
-    private func loadPostDetail(force: Bool = false) async {
-        await detailViewModel.loadDetail(force: force)
     }
 
     private func saveFieldNotesDraft(
@@ -463,7 +459,7 @@ struct ExplorePostDetailView: View {
             )
             await viewModel.refreshPost(postId: post.id)
             viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
-            await loadPostDetail(force: true)
+            await detailViewModel.loadDetail(force: true)
             HapticManager.shared.triggerSuccessPulse()
             viewModel.toastMessage = .success("Explore post updated")
         } catch {
@@ -509,7 +505,7 @@ struct ExplorePostDetailView: View {
 
     private func reconcileFieldNotesAfterInsightDismiss(for post: ExplorePost) async {
         syncLocalFieldNotes(for: post)
-        await loadPostDetail()
+        await detailViewModel.loadDetail()
 
         guard detailViewModel.detail?.trimmedFieldNotes != nil else {
             syncLocalFieldNotes(for: post)

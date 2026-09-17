@@ -2169,6 +2169,44 @@ make ios-local-build ARGS="simulator -- test-without-building \
   -only-testing:merianTests/MigrationPlanTests"
 ```
 
+### iOS hygiene closure architecture
+
+`IOSHygieneClosureArchitectureTests` scans the complete main-app Swift tree and
+requires the oversized inventory to remain exactly the Debug-only UI-test seed
+coordinator, the measured residual `SupabaseManager` facade, and the cohesive
+ordered migration registry. It therefore catches a new ordinary production file
+crossing the 600-line review ceiling even when a local domain suite has not yet
+been added. Domain architecture tests still own imports, live-effect placement,
+inventories, retired paths, and tighter budgets.
+
+The shared source counter treats a trailing newline as a line terminator rather
+than an additional empty physical line. The closure suite locks empty,
+newline-terminated, and unterminated inputs so every suite using the helper
+enforces its documented ceiling consistently.
+
+The closure matrix also runs the Feed post-detail state suite and the Field
+Notes behavior/architecture suites. This preserves post-detail loading while
+rejecting a line-count-only forwarding helper, and locks the colocation of the
+Field Notes visibility request/feedback with its edit policy plus the caller
+configuration with editor dependencies. After a successful current-source
+`build-for-testing`, run:
+
+```bash
+ios_hygiene_destination="$(bash scripts/select-ios-simulator-destination.sh)"
+make ios-local-build ARGS="simulator -- test-without-building \
+  -configuration Debug \
+  -destination \"$ios_hygiene_destination\" \
+  -parallel-testing-enabled NO \
+  -only-testing:merianTests/IOSHygieneClosureArchitectureTests \
+  -only-testing:merianTests/ExplorePostDetailViewModelTests \
+  -only-testing:merianTests/FieldNotesEditPolicyTests \
+  -only-testing:merianTests/FieldNotesEditorViewModelTests \
+  -only-testing:merianTests/FieldNotesArchitectureTests"
+```
+
+The focused matrix supplements the complete `merianTests` target. It does not
+prove visual parity, live Auth/provider behavior, or migration execution.
+
 - **`ScansManagerTests.swift`**: Validates local string-index mapping (group
   name taxonomies, semantic tags, explicitly added `customTags`, and
   one-character unigram candidates). Asserts typed, main-actor `AppEvent`

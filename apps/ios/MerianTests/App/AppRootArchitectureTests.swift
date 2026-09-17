@@ -57,7 +57,7 @@ struct AppRootArchitectureTests {
     }
 
     @Test func productionOwnersStayWithinReviewGuard() throws {
-        let oversized = Set(try appSources().compactMap { source in
+        let oversized = Set(try appSources().compactMap { source -> String? in
             guard !source.relativePath.hasPrefix("UITesting/") else {
                 return nil
             }
@@ -70,7 +70,7 @@ struct AppRootArchitectureTests {
     }
 
     @Test func uiTestSeedsRemainDebugOnlyWithReleaseNoOps() throws {
-        let source = try source(
+        let source = try readSource(
             at: "UITesting/UITestSeedCoordinator.swift"
         )
         let debugStart = try #require(source.range(of: "#if DEBUG"))
@@ -94,12 +94,12 @@ struct AppRootArchitectureTests {
         ))
         #expect(!releaseSource.contains("-seed"))
         #expect(!releaseSource.contains("ui_test_"))
-        let merianAppSource = try source(at: "MerianApp.swift")
+        let merianAppSource = try readSource(at: "MerianApp.swift")
         #expect(!merianAppSource.contains("-seed"))
     }
 
     @Test func merianAppRetainsRootCompositionAndURLTaskOwnership() throws {
-        let source = try source(at: "MerianApp.swift")
+        let source = try readSource(at: "MerianApp.swift")
         for marker in [
             "@main",
             "@UIApplicationDelegateAdaptor(AppDelegate.self)",
@@ -139,7 +139,7 @@ struct AppRootArchitectureTests {
             "Routing/AppURLRouting.swift",
             "UITesting/UITestSeedCoordinator.swift"
         ] {
-            let focusedSource = try source(at: focusedPath)
+            let focusedSource = try readSource(at: focusedPath)
             #expect(!focusedSource.contains("WindowGroup {"))
             #expect(!focusedSource.contains("handleAuthenticationCallbackURL"))
         }
@@ -155,7 +155,7 @@ struct AppRootArchitectureTests {
         try DatabaseActorTestSupport.swiftSources(below: Self.appDirectory)
     }
 
-    private func source(at relativePath: String) throws -> String {
+    private func readSource(at relativePath: String) throws -> String {
         try String(
             contentsOf: appSourceRoot().appendingPathComponent(relativePath),
             encoding: .utf8

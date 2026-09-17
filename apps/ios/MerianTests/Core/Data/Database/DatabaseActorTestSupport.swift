@@ -48,7 +48,12 @@ enum DatabaseActorTestSupport {
     }
 
     static func lineCount(of source: String) -> Int {
-        source.split(separator: "\n", omittingEmptySubsequences: false).count
+        guard !source.isEmpty else { return 0 }
+        let newlineDelimitedLines = source.split(
+            separator: "\n",
+            omittingEmptySubsequences: false
+        ).count
+        return newlineDelimitedLines - (source.hasSuffix("\n") ? 1 : 0)
     }
 
     static func swiftSources(

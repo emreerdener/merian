@@ -11,12 +11,15 @@ boundaries.
 ## Ownership
 
 - `Models/` owns platform-neutral prompt, edit-diff, visibility-request, and
-  feedback values. Models must not import SwiftUI, SwiftData, or live services.
+  feedback values. `FieldNotesEditPolicy.swift` keeps the related edit changes,
+  visibility request, feedback, and policy together. Models must not import
+  SwiftUI, SwiftData, or live services.
 - `Services/` is the only Field Notes owner that resolves live persistence,
   speech, or haptic effects. `InsightFieldNotesDependencies` adapts the
-  Core-owned `FieldNotesRepository`; `FieldNotesEditorDependencies` adapts the
-  environment-provided `SpeechManager`; and `FieldNotesVisibilityConfiguration`
-  carries the caller's existing Explore visibility save action.
+  Core-owned `FieldNotesRepository`; `FieldNotesEditorDependencies.swift`
+  colocates the editor's dictation dependencies and
+  `FieldNotesVisibilityConfiguration`, which carries the caller's existing
+  Explore visibility save action.
 - `ViewModels/` owns the observable editor draft, save state, validation,
   dictation session, and the Field Notes extension on the Shell-owned
   `InsightSheetViewModel`. The extension preserves scan-ID and presentation-
@@ -82,8 +85,8 @@ Tests mirror the final owners:
 - `InsightFieldNotesStateTests.swift` locks queued/completed identity and
   injected persistence/feedback forwarding;
 - `FieldNotesArchitectureTests.swift` enforces folder ownership, Services-only
-  live effects, the view networking ban, aggregate removal, and the 600-line
-  ceiling;
+  live effects, related visibility-declaration colocation, the view networking
+  ban, retired micro-file removal, and the 600-line ceiling;
 - `MerianTests/Core/Data/FieldNotes/FieldNotesRepositoryTests.swift` owns
   storage reconciliation; and
 - `MerianTests/Features/Insights/Sharing/InsightSharingCacheRefreshTests.swift`
