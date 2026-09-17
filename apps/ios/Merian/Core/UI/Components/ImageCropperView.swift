@@ -2,10 +2,15 @@ import SwiftUI
 
 struct ImageCropperView: View {
     let image: UIImage
-    let onCrop: (Data, CGFloat, CGSize, CGFloat) -> Void
+    let onCrop: (Data, CGFloat, CGSize, CGFloat, Int) -> Void
     let onCancel: () -> Void
     let onDelete: (() -> Void)?
     let onConfirmFeedback: () -> Void
+
+    @State private var quarterTurns: Int
+    @State private var isProcessing = false
+    @State private var cropTask: Task<Void, Never>?
+    @State private var showsCropError = false
 
     @State private var scale: CGFloat
     @State private var currentScale: CGFloat = 1.0
@@ -16,7 +21,8 @@ struct ImageCropperView: View {
         image: UIImage,
         initialScale: CGFloat = 1.0,
         initialOffset: CGSize = .zero,
-        onCrop: @escaping (Data, CGFloat, CGSize, CGFloat) -> Void,
+        initialQuarterTurns: Int = 0,
+        onCrop: @escaping (Data, CGFloat, CGSize, CGFloat, Int) -> Void,
         onCancel: @escaping () -> Void,
         onDelete: (() -> Void)? = nil,
         onConfirmFeedback: @escaping () -> Void = {}
@@ -26,6 +32,7 @@ struct ImageCropperView: View {
         self.onCancel = onCancel
         self.onDelete = onDelete
         self.onConfirmFeedback = onConfirmFeedback
+        self._quarterTurns = State(initialValue: ImageCropProcessor.normalizedQuarterTurns(initialQuarterTurns))
         self._scale = State(initialValue: initialScale)
         self._offset = State(initialValue: initialOffset)
     }
@@ -35,7 +42,7 @@ struct ImageCropperView: View {
             GeometryReader { geometry in
                 let displaySize = max(
                     0,
-                    min(geometry.size.width, geometry.size.height) - 32
+                    min(geometry.size.width - 32, geometry.size.height - 210)
                 )
 
                 ZStack {
@@ -46,7 +53,7 @@ struct ImageCropperView: View {
                         Spacer()
 
                         ZStack {
-                            Image(uiImage: image)
+                            Image(uiImage: rotatedImage)
                                 .resizable()
                                 .scaledToFill()
                                 .frame(width: displaySize, height: displaySize)
@@ -113,7 +120,12 @@ struct ImageCropperView: View {
                         Text("Pinch to zoom, drag to move")
                             .font(.caption)
                             .foregroundColor(.gray)
-                            .padding(.bottom, 24)
+
+                        HStack(spacing: 32) {
+                            rotationButton(clockwise: false, displaySize: displaySize)
+                            rotationButton(clockwise: true, displaySize: displaySize)
+                        }
+                        .padding(.bottom, 8)
 
                         Spacer()
 
@@ -141,6 +153,14 @@ struct ImageCropperView: View {
         }
         .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)
+        .disabled(isProcessing)
+        .allowsHitTesting(!isProcessing)
+        .onDisappear { cropTask?.cancel() }
+        .alert("Unable to crop image", isPresented: $showsCropError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Please try again.")
+        }
     }
 
     @ToolbarContentBuilder
@@ -193,19 +213,70 @@ struct ImageCropperView: View {
             .foregroundStyle(foregroundColor)
     }
 
+    private var rotatedImage: UIImage {
+        ImageCropProcessor.rotatedImage(image, quarterTurns: quarterTurns)
+    }
+
+    private func rotationButton(clockwise: Bool, displaySize: CGFloat) -> some View {
+        Button {
+            let turn = clockwise ? 1 : -1
+            scale = max(1, scale * currentScale)
+            currentScale = 1
+            let activeOffset = CGSize(
+                width: offset.width + currentOffset.width,
+                height: offset.height + currentOffset.height
+            )
+            quarterTurns = ImageCropProcessor.normalizedQuarterTurns(quarterTurns + turn)
+            offset = getClampedOffset(
+                proposedOffset: ImageCropProcessor.rotatedOffset(activeOffset, quarterTurns: turn),
+                displaySize: displaySize,
+                activeScale: scale
+            )
+            currentOffset = .zero
+        } label: {
+            Image(systemName: clockwise ? "rotate.right" : "rotate.left")
+                .font(.title3)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .accessibilityLabel(clockwise ? "Rotate right" : "Rotate left")
+        .accessibilityIdentifier(clockwise ? "ImageCropperRotateRightButton" : "ImageCropperRotateLeftButton")
+    }
+
     @MainActor
     private func generateCrop(displaySize: CGFloat) {
+        guard !isProcessing, displaySize > 0 else { return }
+        let finalScale = max(1, scale * currentScale)
+        let finalOffset = getClampedOffset(
+            proposedOffset: CGSize(
+                width: offset.width + currentOffset.width,
+                height: offset.height + currentOffset.height
+            ),
+            displaySize: displaySize,
+            activeScale: finalScale
+        )
+        let finalQuarterTurns = quarterTurns
+        isProcessing = true
         onConfirmFeedback()
-        Task {
+        cropTask = Task {
+            defer { isProcessing = false }
             let processedData = await ImageCropProcessor.generateCrop(
                 image: image,
                 displaySize: displaySize,
-                scale: scale,
-                currentScale: currentScale,
-                offset: offset,
-                currentOffset: currentOffset
+                scale: finalScale,
+                currentScale: 1,
+                offset: finalOffset,
+                currentOffset: .zero,
+                quarterTurns: finalQuarterTurns
             )
-            onCrop(processedData, scale, offset, displaySize)
+            guard !Task.isCancelled else { return }
+            guard !processedData.isEmpty else {
+                showsCropError = true
+                return
+            }
+            onCrop(processedData, finalScale, finalOffset, displaySize, finalQuarterTurns)
         }
     }
 
@@ -214,7 +285,7 @@ struct ImageCropperView: View {
         displaySize: CGFloat,
         activeScale: CGFloat
     ) -> CGSize {
-        let imageRatio = image.size.width / image.size.height
+        let imageRatio = rotatedImage.size.width / rotatedImage.size.height
 
         let renderedWidth = imageRatio > 1
             ? displaySize * imageRatio

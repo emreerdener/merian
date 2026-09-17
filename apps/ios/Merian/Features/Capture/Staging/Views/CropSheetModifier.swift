@@ -13,7 +13,8 @@ struct CropSheetModifier: ViewModifier {
                     image: identItem.image,
                     initialScale: identItem.lastCropScale,
                     initialOffset: identItem.lastCropOffset,
-                    onCrop: { croppedData, finalScale, finalOffset, displaySize in
+                    initialQuarterTurns: identItem.lastCropQuarterTurns,
+                    onCrop: { croppedData, finalScale, finalOffset, displaySize, finalQuarterTurns in
                         let targetId = identItem.id
                         let isRequiredGalleryCrop = viewModel.isRequiredGalleryCrop(targetId)
                         if let editIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
@@ -33,6 +34,7 @@ struct CropSheetModifier: ViewModifier {
                             // Persist the crop geometry back into the original so a second
                             // crop session opens at the last confirmed position.
                             var updatedOriginal = existing.original
+                            updatedOriginal.lastCropQuarterTurns = finalQuarterTurns
                             updatedOriginal.lastCropScale = finalScale
                             updatedOriginal.lastCropOffset = finalOffset
 
@@ -42,28 +44,23 @@ struct CropSheetModifier: ViewModifier {
                                 original: updatedOriginal
                             ).replacingFocusRegion(nil)
 
-                            // Re-run the same crop geometry on the policy-bounded display
-                            // image so the scan library stores what Gemini actually analyzed.
+                            // Re-run against the same immutable source, never the previous
+                            // display crop, so reopening cannot compound crop or rotation.
                             // Runs off the main thread; display data updates asynchronously
                             // before the user can tap Submit.
-                            let capturedDisplayData = existing.displayData
+                            let cropSource = existing.original.image
                             viewModel.replaceActiveCropTask(with: Task {
                                 async let detectedFocusRegion = ImageFocusRegionDetector.detect(in: croppedData)
                                 async let displayCropped = Task.detached {
-                                    let src = ImageDownsampler.downsampledUIImage(
-                                        data: capturedDisplayData,
-                                        maxSize: ImagePreparationPolicy.displayMaxDimension
-                                    )
-                                    guard let image = src else { return Data() }
-
                                     return await ImageCropProcessor.generateCrop(
-                                        image: image,
+                                        image: cropSource,
                                         displaySize: displaySize,
                                         scale: finalScale,
                                         currentScale: 1.0,
                                         offset: finalOffset,
                                         currentOffset: .zero,
-                                        maxPixelSize: nil
+                                        quarterTurns: finalQuarterTurns,
+                                        maxPixelSize: Int(ImagePreparationPolicy.displayMaxDimension)
                                     )
                                 }.value
                                 let (resolvedDisplayCrop, focusRegion) = await (displayCropped, detectedFocusRegion)

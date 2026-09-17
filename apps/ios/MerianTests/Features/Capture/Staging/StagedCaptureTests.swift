@@ -259,6 +259,7 @@ struct StagedCaptureTests {
 
         var croppedOriginal = originalImage
         croppedOriginal.lastCropScale = 2.0
+        croppedOriginal.lastCropQuarterTurns = 3
         let replacement = stagedImage.replacing(
             compressedData: Data([0x03]),
             displayData: Data([0x04]),
@@ -270,6 +271,8 @@ struct StagedCaptureTests {
         #expect(replacement.compressedData == Data([0x03]))
         #expect(replacement.displayData == Data([0x04]))
         #expect(replacement.original.lastCropScale == 2.0)
+        #expect(replacement.original.lastCropQuarterTurns == 3)
+        #expect(stagedImage.original.lastCropQuarterTurns == 0)
         #expect(replacement.original.isFromGallery)
         #expect(replacement.original.environmentContext?.captureDate == historicalCaptureDate)
         #expect(replacement.original.environmentContext?.location?.coordinate.latitude == 41.8781)

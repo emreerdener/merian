@@ -104,7 +104,11 @@ replaced and detached player callbacks cannot mutate current observation state.
   concurrency boundaries without introducing UIKit image ownership.
 - `ImageCropProcessor` owns domain-neutral square-crop geometry and bounded
   WebP/JPEG encoding for Capture media preparation, Capture's interactive crop,
-  and Profile avatar preparation. Feature views do not own its ImageIO work.
+  and Profile avatar preparation. It composes quarter-turn rotation with source
+  orientation without copying pixels and maps mirrored crop coordinates back to
+  the original raster. Feature views do not own its ImageIO work. Pixel
+  comparisons against UIKit-rendered previews live in
+  `MerianTests/Core/Media/ImageCropProcessorTests.swift`.
 
 `MerianTests/Core/Media/ScanMediaPayloadPolicyTests.swift` freezes every shared
 image, audio, and video budget above. The cross-domain

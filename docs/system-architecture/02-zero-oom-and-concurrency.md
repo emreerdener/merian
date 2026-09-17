@@ -2226,6 +2226,17 @@ option dictionaries, bypassing RAM bloat. The domain-neutral processor lives in
 `Core/Media`; Capture and Profile share it without either feature owning the
 other's image pipeline.
 
+The shared Capture/Profile cropper supports 90-degree left and right rotation.
+Rotation composes the source orientation (including mirrored inputs) in a
+`UIImage` wrapper sharing the original `CGImage`; button taps do not rasterize
+or re-encode the source. Zoom is preserved and the pan offset rotates with the
+selected area. Confirmation snapshots framing and rotation before off-main
+ImageIO work, blocks duplicate edits, and ignores completion after dismissal.
+Capture retains confirmed quarter-turns with its ephemeral crop scale and
+offset. Both inference and display crops use that same original source, rather
+than cropping previously cropped display bytes, so reopening does not compound
+edits. These values introduce no durable schema or wire fields.
+
 `ImageCropProcessor` consolidates the repeated
 `CGImageDestination → NSMutableData → Data` pattern into a single
 `static nonisolated func encode(_ cgImage:, quality:, orientation:, maxPixelSize:) -> Data?`

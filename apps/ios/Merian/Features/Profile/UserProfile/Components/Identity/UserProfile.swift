@@ -187,7 +187,7 @@ struct UserProfile: View {
         case .avatarCrop(let item):
             ImageCropperView(
                 image: item.image,
-                onCrop: { croppedData, _, _, _ in
+                onCrop: { croppedData, _, _, _, _ in
                     dismissPresentation(ifMatching: presentation.id)
                     uploadConfirmedAvatarCrop(croppedData)
                 },

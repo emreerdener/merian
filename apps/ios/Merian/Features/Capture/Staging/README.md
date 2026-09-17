@@ -85,6 +85,14 @@ manual tray behavior. Required crop has a separate chrome fence from commit
 through completion/cancellation so staged controls cannot flash beneath the
 full-screen cover.
 
+The shared image cropper has left/right 90-degree rotation controls that
+preserve zoom and rotate the selected area. Confirmed quarter-turns, scale, and
+offset remain on the original image for reopening; cancellation leaves the
+previous confirmed values intact. Inference and display crops both use the
+original image and the same confirmed geometry, never the preceding display
+crop. See
+[bounded crop processing](../../../../../../docs/system-architecture/02-zero-oom-and-concurrency.md#bridging-ram-leaks-imagecropprocessor--localimageloader).
+
 Every media replacement must retain its original `addedAt` value. Submission and
 persistence derive chronology from that value; changing it during a crop would
 reorder the user's evidence. Cancel, remove, replacement, timeout, and

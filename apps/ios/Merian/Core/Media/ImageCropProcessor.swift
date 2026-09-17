@@ -5,6 +5,40 @@ import UIKit
 import UniformTypeIdentifiers
 
 struct ImageCropProcessor {
+    nonisolated static func normalizedQuarterTurns(_ turns: Int) -> Int {
+        (turns % 4 + 4) % 4
+    }
+
+    /// UIKit's orientation wrapper shares the original pixels; rotation does not
+    /// allocate or repeatedly encode a full-size bitmap.
+    nonisolated static func rotatedImage(_ image: UIImage, quarterTurns: Int) -> UIImage {
+        guard let cgImage = image.cgImage else { return image }
+        var orientation = image.imageOrientation
+        for _ in 0..<normalizedQuarterTurns(quarterTurns) {
+            switch orientation {
+            case .up: orientation = .right
+            case .right: orientation = .down
+            case .down: orientation = .left
+            case .left: orientation = .up
+            case .upMirrored: orientation = .rightMirrored
+            case .rightMirrored: orientation = .downMirrored
+            case .downMirrored: orientation = .leftMirrored
+            case .leftMirrored: orientation = .upMirrored
+            @unknown default: orientation = .right
+            }
+        }
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: orientation)
+    }
+
+    nonisolated static func rotatedOffset(_ offset: CGSize, quarterTurns: Int) -> CGSize {
+        switch normalizedQuarterTurns(quarterTurns) {
+        case 1: return CGSize(width: -offset.height, height: offset.width)
+        case 2: return CGSize(width: -offset.width, height: -offset.height)
+        case 3: return CGSize(width: offset.height, height: -offset.width)
+        default: return offset
+        }
+    }
+
     private static func cgOrientation(
         from orientation: UIImage.Orientation
     ) -> CGImagePropertyOrientation {
@@ -90,6 +124,7 @@ struct ImageCropProcessor {
         currentScale: CGFloat,
         offset: CGSize,
         currentOffset: CGSize,
+        quarterTurns: Int = 0,
         maxPixelSize: Int? = Int(
             ImagePreparationPolicy.maximumInferenceDimension
         )
@@ -100,9 +135,13 @@ struct ImageCropProcessor {
             height: offset.height + currentOffset.height
         )
 
-        let imageSize = image.size
+        guard displaySize > 0, displaySize.isFinite,
+              finalScale >= 1, finalScale.isFinite,
+              finalOffset.width.isFinite, finalOffset.height.isFinite else { return Data() }
+        let rotated = rotatedImage(image, quarterTurns: quarterTurns)
+        let imageSize = rotated.size
         let sourceCGImage = image.cgImage
-        let targetOrientation = image.imageOrientation
+        let targetOrientation = rotated.imageOrientation
 
         let processedBytes: Data? = autoreleasepool {
             guard let sourceCGImage else { return nil }
@@ -189,15 +228,15 @@ struct ImageCropProcessor {
                 )
             case .leftMirrored:
                 cropRect = CGRect(
-                    x: (1 - normalizedY - normalizedHeight) * pixelWidth,
-                    y: (1 - normalizedX - normalizedWidth) * pixelHeight,
+                    x: normalizedY * pixelWidth,
+                    y: normalizedX * pixelHeight,
                     width: normalizedHeight * pixelWidth,
                     height: normalizedWidth * pixelHeight
                 )
             case .rightMirrored:
                 cropRect = CGRect(
-                    x: normalizedY * pixelWidth,
-                    y: normalizedX * pixelHeight,
+                    x: (1 - normalizedY - normalizedHeight) * pixelWidth,
+                    y: (1 - normalizedX - normalizedWidth) * pixelHeight,
                     width: normalizedHeight * pixelWidth,
                     height: normalizedWidth * pixelHeight
                 )

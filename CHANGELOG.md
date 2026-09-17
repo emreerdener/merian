@@ -6,6 +6,12 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Image Cropping
+
+- Rotate capture images and profile photos left or right in 90-degree steps
+  while cropping, keeping the current zoom and selected area. Reopening a
+  capture crop restores its confirmed rotation.
+
 ### Account & Pro Access
 
 - Restored a real **Sign out** action and the anonymous Profile's **Continue

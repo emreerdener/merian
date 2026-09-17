@@ -9,6 +9,7 @@ struct IdentifiableImage: Identifiable {
     var environmentContext: EnvironmentContext?
     var isFromGallery: Bool = false
     var subjectDistanceInMeters: Float?
+    var lastCropQuarterTurns: Int = 0
     var lastCropScale: CGFloat = 1.0
     var lastCropOffset: CGSize = .zero
 }
