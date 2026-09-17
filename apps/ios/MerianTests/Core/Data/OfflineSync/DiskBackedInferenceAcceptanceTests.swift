@@ -37,8 +37,10 @@ struct DiskBackedInferenceAcceptanceTests {
         async let first = deliver(scanId: scanId, generation: generation, media: media, actor: actor)
         async let duplicate = deliver(scanId: scanId, generation: generation, media: media, actor: secondActor)
         let results = await [first, duplicate]
-        #expect(results.allSatisfy(\.wasCleaned))
-        #expect(results.filter(\.isNewDiscovery).count == 1)
+        let allDeliveriesCleaned = results.allSatisfy(\.wasCleaned)
+        let newDiscoveryCount = results.filter(\.isNewDiscovery).count
+        #expect(allDeliveriesCleaned)
+        #expect(newDiscoveryCount == 1)
 
         let fresh = ModelContext(container)
         let records = try fresh.fetch(FetchDescriptor<LocalScanRecord>())
