@@ -154,9 +154,11 @@ deploy lane.
 
 Documentation link checks need explicit Deno read access to their repository
 targets, including the iOS critical-result validator and its adversarial fixture
-script. A missing target is reported as an unresolved link; a filesystem
-permission failure remains a permission error so it cannot be mistaken for a
-broken documentation path.
+script, plus `scripts/config/ios-runtime-audit.json`, linked by the runtime
+acceptance guide. The tooling gate grants that manifest access by exact file
+path; `tooling_gate_test.ts` protects the allowlist. A missing target is
+reported as an unresolved link; a filesystem permission failure remains a
+permission error so it cannot be mistaken for a broken documentation path.
 
 `_tests/workflowSecurity.test.ts` scans every checked-in GitHub Actions
 workflow. It rejects mutable third-party action tags, missing explicit
