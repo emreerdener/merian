@@ -555,6 +555,11 @@ notifications are idempotent and retain that single pending cadence resume while
 the exact presentation remains current. Networking and result publication never
 await the coordinator, Vision, or a visual-cue stream.
 
+The Debug-only manual analyzing fixture also retains its exact current context
+across inactive/background transitions. Reactivation leaves it timer-free; only
+an explicit advance while active changes its phrase. This prevents launch
+lifecycle events from discarding the fixture before its first UI-test tap.
+
 Vision and deterministic trait extraction have separate task owners. The trait
 provider must cooperate with cancellation, but even a test provider that hangs
 or ignores cancellation cannot keep Vision completion, result publication, or an
@@ -578,13 +583,13 @@ inherit a visual phrase or image.
 
 ### Foundation Models milestone
 
-AppDI injects `AppleImageVisualTraitExtractor` and the staged
+AppDI injects `AppleImageVisualTraitExtractor` and
 `AppleFoundationVisualCueProvider`. Five deterministic dominant-color,
 saturation, lighting, light-contrast, and surface-detail cues remain active. The
 generative provider is guarded by `FeatureFlag.foundationVisualCues`, whose
-production default is false; Release ignores local overrides. Debug Settings →
-Feature Flags → **On-device visual observations** enables local acceptance on an
-eligible iOS 27 device built with stable Xcode 27.
+production default is true; Release ignores local overrides. Eligible iOS 27
+devices use it automatically. Debug Settings → Feature Flags → **On-device
+visual observations** can disable it or clear an existing override for testing.
 
 The Swift 6.4 branch uses only `SystemLanguageModel.default`, a fresh image-only
 session, a bounded structured schema and 256 response tokens. Older compilers
@@ -615,12 +620,12 @@ ready, Low Power Mode is on, thermal state is serious/critical, or the app is
 inactive. The provider reports unavailable rather than use Private Cloud
 Compute.
 
-Stable Xcode 27 is installed locally, but the published GitHub Xcode 27 image
-still lists a beta compiler as of September 17, 2026. Follow the canonical
-[stable-toolchain activation checklist](../../../../../docs/system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist)
-before enabling the production flag: all hosted toolchains, generated project,
-CI cache keys and exact-build assertions, documentation, fallback validation,
-and physical-device evidence must move together. Release/CI pins remain 26.6.
+The project and CI now target stable Xcode 27.0 build `27A266a`, with exact
+compiler-build checks on every hosted macOS lane. The runtime audit includes
+Foundation parsing, lifecycle, and feature-flag tests. The production flag is
+enabled. Hosted evidence and physical-device acceptance in the canonical
+[validation checklist](../../../../../docs/system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist)
+remain outstanding; enabling the flag does not establish real-model behavior.
 
 ## Inference Invariants
 

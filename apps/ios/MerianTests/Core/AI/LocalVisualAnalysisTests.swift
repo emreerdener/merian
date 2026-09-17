@@ -1063,6 +1063,31 @@ struct LocalVisualAnalysisTests {
         engine.cancelActiveRequest()
     }
 
+    @Test func manualProgressionSurvivesInactivityWithoutStartingCadence() {
+        let engine = InferenceEngine()
+        defer { engine.cancelActiveRequest() }
+        engine.simulateProgressiveAnalyzing(automaticallyAdvances: false)
+
+        // Launch can deliver inactive and background before returning active.
+        engine.handleApplicationActiveStateChange(isActive: false)
+        engine.handleApplicationActiveStateChange(isActive: false)
+        engine.debugAdvanceProgressiveAnalyzing()
+        #expect(engine.scanningPhaseText == "Analyzing subject")
+        #expect(!engine.debugLocalVisualAnalysisIsRunning)
+
+        engine.handleApplicationActiveStateChange(isActive: true)
+        #expect(engine.scanningPhaseText == "Analyzing subject")
+        #expect(!engine.debugLocalVisualAnalysisIsRunning)
+        engine.debugAdvanceProgressiveAnalyzing()
+        #expect(engine.scanningPhaseText == "Arthropod form visible")
+
+        engine.handleApplicationActiveStateChange(isActive: false)
+        engine.handleApplicationActiveStateChange(isActive: true)
+        #expect(!engine.debugLocalVisualAnalysisIsRunning)
+        engine.debugAdvanceProgressiveAnalyzing()
+        #expect(engine.scanningPhaseText == "Analyzing amber banded wings")
+    }
+
     @Test func dismissalFencesLateLocalCueWithoutCancellingNetwork() async throws {
         let classifier = ControlledVisionSubjectClassifier(
             result: VisionSubjectClassification(

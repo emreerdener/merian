@@ -12,25 +12,28 @@ concurrency:
 
 jobs:
   audit:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 90
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Verify toolchain
+        run: |
+          test -x "$DEVELOPER_DIR/usr/bin/xcodebuild"
+          xcodebuild -version
+          test "$(xcodebuild -version | sed -n '1p')" = "Xcode 27.0"
+          test "$(xcodebuild -version | sed -n '2p')" = "Build version 27A266a"
+          make test-ios-ci-tooling
+          make validate-ios-project
+          bash scripts/check-ios-project-source-membership.sh
       - name: Select available simulator
         id: simulator
         run: |
           destination="$(bash scripts/select-ios-simulator-destination.sh)"
           echo "destination=$destination" >> "$GITHUB_OUTPUT"
-      - name: Verify toolchain
-        run: |
-          test "$(xcodebuild -version | head -n 1)" = "Xcode 26.6"
-          make test-ios-ci-tooling
-          make validate-ios-project
-          bash scripts/check-ios-project-source-membership.sh
       - name: Build once and run runtime audit
         env:
           IOS_AUDIT_DESTINATION: ${{ steps.simulator.outputs.destination }}
@@ -39,7 +42,7 @@ jobs:
           if [ -f scripts/config/ios-performance-baseline.json ]; then
             baseline_args="--baseline scripts/config/ios-performance-baseline.json"
           fi
-          make ios-local-build ARGS="audit --destination '$IOS_AUDIT_DESTINATION' --environment-label 'github-macos-26-xcode-26.6' $baseline_args"
+          make ios-local-build ARGS="audit --destination '$IOS_AUDIT_DESTINATION' --environment-label 'github-xcode-27-arm64-27A266a' $baseline_args"
       - name: Publish summary
         if: always()
         run: |

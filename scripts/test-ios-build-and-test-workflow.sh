@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 workflow="$repo_root/.github/workflows/ios-build-and-test.yml"
 project_guardrails_workflow="$repo_root/.github/workflows/ios-project-guardrails.yml"
 startup_workflow="$repo_root/.github/workflows/ios-startup-safety.yml"
+runtime_workflow="$repo_root/.github/workflows/ios-runtime-audit.yml"
 startup_scope_detector="$repo_root/scripts/ci-detect-startup-safety-source-changes.sh"
 source_membership_check="$repo_root/scripts/check-ios-project-source-membership.sh"
 source_membership_test="$repo_root/scripts/test-ios-project-source-membership.sh"
@@ -377,8 +378,30 @@ awk '
 ' "$workflow" \
   || fail "Full iOS tests require a 40-minute step and a 100-minute job budget."
 assert_contains 'group: ios-build-and-test-${{ github.event.pull_request.number || github.run_id }}'
-assert_contains "macos-26"
-assert_contains "/Applications/Xcode_26.6.app/Contents/Developer"
+assert_count 2 "runs-on: xcode-27"
+assert_count 2 "/Applications/Xcode_27.0.app/Contents/Developer"
+# A runner label/path alias may still resolve to a beta during rollout.
+# Require the reviewed release's version and build in every macOS job.
+assert_file_count "$workflow" 2 '"Xcode 27.0"'
+assert_file_count "$workflow" 2 '"Build version 27A266a"'
+assert_file_count "$workflow" 3 'xcode-27.0-27A266a-spm-'
+for checked_workflow in "$startup_workflow" "$runtime_workflow"; do
+  assert_file_contains "$checked_workflow" 'runs-on: xcode-27'
+  assert_file_contains "$checked_workflow" '/Applications/Xcode_27.0.app/Contents/Developer'
+  assert_file_count "$checked_workflow" 1 '"Xcode 27.0"'
+  assert_file_count "$checked_workflow" 1 '"Build version 27A266a"'
+done
+assert_file_count "$startup_workflow" 2 'xcode-27.0-27A266a-spm-'
+assert_file_contains "$runtime_workflow" 'github-xcode-27-arm64-27A266a'
+assert_file_contains "$runtime_workflow" 'test -x "$DEVELOPER_DIR/usr/bin/xcodebuild"'
+assert_file_before "$runtime_workflow" 'name: Verify toolchain' 'name: Select available simulator'
+for runtime_contract_path in \
+  '.github/workflows/ios-runtime-audit.yml' \
+  'scripts/config/ios-runtime-audit.json' \
+  'scripts/ios-runtime-audit.py' \
+  'scripts/test-ios-runtime-audit.py'; do
+  assert_file_count "$project_guardrails_workflow" 2 "\"$runtime_contract_path\""
+done
 assert_contains "bash scripts/ci-detect-ios-build-source-changes.sh"
 assert_count 1 "make validate-ios-event-routing"
 assert_file_count \
@@ -1207,8 +1230,8 @@ for startup_requirement in \
   "fetch-depth: 0" \
   "merge_group:" \
   "bash scripts/test-ci-detect-startup-safety-source-changes.sh" \
-  "runs-on: macos-26" \
-  "/Applications/Xcode_26.6.app/Contents/Developer" \
+  "runs-on: xcode-27" \
+  "/Applications/Xcode_27.0.app/Contents/Developer" \
   "-onlyUsePackageVersionsFromResolvedFile" \
   "-disableAutomaticPackageResolution"; do
   grep -Fq -- "$startup_requirement" "$startup_workflow" \

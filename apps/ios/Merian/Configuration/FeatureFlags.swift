@@ -24,9 +24,9 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
         case .unlimitedFreeScans:
             false
         case .foundationVisualCues:
-            // Enable only after stable Xcode 27 hosted validation and physical
-            // Apple Intelligence acceptance. Debug Settings can opt in locally.
-            false
+            // Runtime availability, model readiness, power, and thermal gates
+            // preserve the existing fallback on unsupported devices.
+            true
         }
     }
 

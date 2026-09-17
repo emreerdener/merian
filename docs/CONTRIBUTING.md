@@ -95,17 +95,17 @@ passed.
 
 ## Setting Up the Development Environment
 
-1. **Xcode**: Use Xcode 26.6 on macOS Tahoe 26.2 or later to match the
-   [compiled CI and supported host baseline](https://developer.apple.com/xcode/system-requirements/).
-   The app deploys to iOS 17.2+, but the codebase relies on Swift 6-era
-   concurrency diagnostics and modern SDK APIs such as
-   `AVCaptureEventInteraction`. The staged on-device visual-cue adapter requires
-   stable Xcode 27 / Swift 6.4 and an iOS 27 device for local acceptance; it is
-   default-off and compiles an inert branch with Xcode 26.6. Enable **On-device
-   visual observations** in Debug Settings → Feature Flags to evaluate it. Keep
-   production toolchain pins at 26.6 until the
-   [hosted activation checklist](./system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist)
-   is satisfied.
+1. **Xcode**: Use stable Xcode 27.0 build `27A266a` on macOS Tahoe 26.6 or later
+   to match the
+   [supported host baseline](https://developer.apple.com/xcode/system-requirements/)
+   and checked-in CI toolchain. The app still deploys to iOS 17.2+; the
+   Foundation image adapter requires iOS 27 and available Apple Intelligence at
+   runtime. CI uses the arm64 `xcode-27` runner and verifies both compiler
+   version and exact build; a preview runner label or path alias alone is not
+   acceptance. Visual observations are enabled by default on eligible devices.
+   Debug Settings → Feature Flags supports disabling them or clearing a saved
+   override for comparison testing. Hosted and device validation remain in the
+   [activation checklist](./system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist).
 2. **Supabase CLI**: For testing edge functions locally, you will need the
    Supabase CLI installed.
 3. **Project Generation**: `project.yml` is the source of truth.

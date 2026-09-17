@@ -20,10 +20,10 @@ permissions:
 
 jobs:
   startup-store-recovery:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 45
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
 
     steps:
       - name: Checkout repository
@@ -55,8 +55,12 @@ jobs:
             exit 1
           fi
           xcodebuild -version
-          if [ "$(xcodebuild -version | sed -n '1p')" != "Xcode 26.6" ]; then
-            echo "Startup Safety requires Xcode 26.6." >&2
+          if [ "$(xcodebuild -version | sed -n '1p')" != "Xcode 27.0" ]; then
+            echo "Startup Safety requires Xcode 27.0." >&2
+            exit 1
+          fi
+          if [ "$(xcodebuild -version | sed -n '2p')" != "Build version 27A266a" ]; then
+            echo "This gate requires the reviewed Xcode 27.0 build 27A266a." >&2
             exit 1
           fi
           command -v jq >/dev/null
@@ -80,7 +84,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build/xcode-source-packages
-          key: ${{ runner.os }}-${{ runner.arch }}-xcode-26.6-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-xcode-27.0-27A266a-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Resolve only Package.resolved versions
         if: steps.startup-scope.outputs.should_run == 'true'
@@ -196,7 +200,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build/xcode-source-packages
-          key: ${{ runner.os }}-${{ runner.arch }}-xcode-26.6-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-xcode-27.0-27A266a-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Print startup safety failure summary
         if: failure() && steps.startup-scope.outputs.should_run == 'true'

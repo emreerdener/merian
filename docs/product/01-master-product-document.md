@@ -414,13 +414,12 @@ loses connectivity. Contextual phrases and live media belong only to the exact
 visual scan attempt. Replacement, dismissal, authentication changes, and
 completed or failed analysis remove that exposure; audio and Describe scans
 retain their nonvisual copy. Local images, classifications, and cue text are not
-persisted, sent to Gemini, logged, or included in analytics. The Xcode 26.6
-release path uses Vision plus deterministic pixel traits. Generative Apple
-Foundation Models image cues are implemented for iOS 27 and staged behind a
-default-off release flag. Debug builds made with stable Xcode 27 can opt in for
-local device acceptance. Production activation still requires stable hosted
-Xcode 27 validation and physical-device acceptance; older devices retain the
-existing observations.
+persisted, sent to Gemini, logged, or included in analytics. The project now
+uses Xcode 27.0 build `27A266a`. Generative Apple Foundation Models image cues
+are enabled by default on eligible iOS 27 devices, alongside Vision and
+deterministic pixel traits. Unsupported devices or unavailable models retain the
+existing observations. Debug builds can disable the feature for comparison
+testing. Hosted and physical-device validation remain outstanding.
 
 ## 5.5 Expected result shape
 

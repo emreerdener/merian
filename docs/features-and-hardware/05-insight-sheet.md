@@ -184,12 +184,12 @@ narrow callback, from generic visible analysis to a qualifying broad Apple
 Vision category, then to five bounded image-specific dominant-color, saturation,
 lighting, light-contrast, and surface-detail cues from the current deterministic
 local extractor. The category handoff is immediate; later automatic label
-changes use the shared 2.3-second clock. The staged, default-off
+changes use the shared 2.3-second clock. The default-enabled
 `AppleFoundationVisualCueProvider` can replace the deterministic trait deck with
-richer complete cues during eligible iOS 27 Debug device evaluation. Source
-priority is monotonic, so generic or category text never returns after
-more-specific trait context arrives. The pill shows every phrase in its active
-deck before wrapping to the first phrase for a new round.
+richer complete cues on eligible iOS 27 devices. Source priority is monotonic,
+so generic or category text never returns after more-specific trait context
+arrives. The pill shows every phrase in its active deck before wrapping to the
+first phrase for a new round.
 
 Visible trait strings are natural verb-led observations such as **Analyzing gray
 and green colors**, **Reviewing softly colored areas**, and **Observing light
@@ -199,14 +199,14 @@ never says **moderate color levels** or **balanced light and dark**.
 
 The pill must not claim a species, confidence, candidate match, records lookup,
 range check, or completed cloud result. Deterministic local analysis is limited
-to five complete, unique labels of at most 36 rendered characters; the staged
+to five complete, unique labels of at most 36 rendered characters; the
 Foundation stream remains limited to three. Partial cue objects and text
 rejected by the validator never reach SwiftUI. The identity filter covers fixed
 forbidden vocabulary and Vision candidate tokens, not every possible subject
 name; follow the
 [Foundation acceptance contract](../system-architecture/04-ai-engineering.md#stable-xcode-27-foundation-models-milestone)
-before production activation. Gemini remains the only source for the completed
-identification and Insight content.
+for outstanding device validation. Gemini remains the only source for the
+completed identification and Insight content.
 
 When iOS emits the normal inactive-then-background callback pair, the
 coordinator cancels current local model and cadence tasks once while retaining
@@ -219,17 +219,18 @@ work, audio analysis, or Describe analysis.
 capsule composition. The deterministic `-seedProgressiveAnalyzingFlow` UI
 fixture advances generic → category → trait on explicit badge taps and verifies
 that the native Button's accessibility frame remains inside the application
-window at every label width.
+window at every label width. Its Debug-only manual context survives launch-time
+inactive/background transitions without starting an automatic phrase timer;
+advances are accepted only while its exact presentation is active.
 
 Unsupported devices silently retain Vision plus deterministic image-trait
-wording. `AppleFoundationVisualCueProvider` is staged behind the default-off
-`foundationVisualCues` release flag. Debug builds with stable Xcode 27 can opt
-in on iOS 27 for device acceptance; Xcode 26.6 compiles an inert branch. Stable
-hosted Xcode 27 validation and physical-device acceptance remain prerequisites
-for enabling it in production. Low Power Mode, serious/critical thermal
-pressure, inactive app state, unavailable or not-ready Apple Intelligence,
-result arrival, and every scan-ownership handoff all suppress or cancel the
-richer stage without changing the visible fallback.
+wording. `AppleFoundationVisualCueProvider` uses the default-on
+`foundationVisualCues` release flag. Debug builds can disable it for comparison;
+Xcode 26.6 compiles an inert branch. Hosted Xcode 27 validation and
+physical-device acceptance remain outstanding checks. Low Power Mode,
+serious/critical thermal pressure, inactive app state, unavailable or not-ready
+Apple Intelligence, result arrival, and every scan-ownership handoff all
+suppress or cancel the richer stage without changing the visible fallback.
 
 Daily-quota presentation is normally decided before Insight exists. Online
 Capture runs the caller-scoped scan-admission preview before the camera shutter,

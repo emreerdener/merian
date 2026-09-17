@@ -305,12 +305,13 @@ the durable plan limits. Purchase QA should open Plan directly instead of
 relying on a quota-triggered presentation.
 
 The same Debug Feature Flags screen exposes **On-device visual observations**
-for the staged `foundationVisualCues` gate. It defaults off, and Release ignores
-local overrides. Local evaluation requires stable Xcode 27 and an eligible iOS
-27 Apple Intelligence device; older toolchains and devices retain existing scan
+for the `foundationVisualCues` gate. It defaults on, and Release ignores local
+overrides. Debug can disable it or reset a saved override for comparison
+testing. Local evaluation requires stable Xcode 27 and an eligible iOS 27 Apple
+Intelligence device; older toolchains and devices retain existing scan
 observations. See the
-[activation checklist](../../../../../../docs/system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist)
-before changing its production default.
+[validation checklist](../../../../../../docs/system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist)
+for the outstanding hosted and physical-device checks.
 
 The paywall is ready only when RevenueCat's current offering resolves packages
 for both `pro_week` and `pro_annual`. A successful RevenueCat login proves the

@@ -4,6 +4,7 @@
 import copy
 import importlib.util
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -126,6 +127,23 @@ class RuntimeAuditTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             audit.validate_execution(self.summary(), [self.tree(), self.tree()], self.selections())
 
+    def test_foundation_acceptance_requires_all_three_suites(self):
+        config = json.loads((ROOT / 'scripts/config/ios-runtime-audit.json').read_text())
+        selections = {item['selector']: item for item in config['acceptance']}
+        for suite, display in [
+                ('AppleFoundationVisualCueProviderTests', 'Apple Foundation Visual Cue Mapping'),
+                ('LocalVisualAnalysisTests', 'Local Visual Analysis Tests'),
+                ('FeatureFlagsTests', 'Feature Flag Tests')]:
+            with self.subTest(suite=suite):
+                selection = selections['merianTests/' + suite]
+                self.assertIn(display, selection['suite_names'])
+                tree = self.tree()
+                tree['name'] = display
+                audit.validate_execution(self.summary(), tree, [selection])
+                tree['children'][0]['result'] = 'Skipped'
+                with self.assertRaises(ValueError):
+                    audit.validate_execution(self.summary(), tree, [selection])
+
     def test_manifest_selectors_have_source_owners_and_no_duplicates(self):
         config = json.loads((ROOT / 'scripts/config/ios-runtime-audit.json').read_text())
         for phase, selections in config.items():
@@ -137,8 +155,10 @@ class RuntimeAuditTests(unittest.TestCase):
                              'merianPerformanceTests': 'MerianPerformanceTests'}[target]
                 files = [ROOT / item['owner']] if 'owner' in item else list((ROOT / 'apps/ios' / directory).rglob(suite + '.swift'))
                 self.assertEqual(len(files), 1, item['selector'])
+                source = files[0].read_text()
+                self.assertRegex(source, rf'\b(?:class|struct|extension)\s+{re.escape(suite)}\b', item['selector'])
                 if case:
-                    self.assertIn('func ' + case[0] + '(', files[0].read_text())
+                    self.assertIn('func ' + case[0] + '(', source)
 
 
 if __name__ == '__main__':

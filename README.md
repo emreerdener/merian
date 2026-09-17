@@ -784,9 +784,9 @@ and authorization boundary.
 
 ### Prerequisites
 
-- macOS Tahoe 26.2 or later, as required by
-  [Xcode 26.6](https://developer.apple.com/xcode/system-requirements/)
-- Xcode 26.6 to match compiled CI and Release archive validation
+- macOS Tahoe 26.6 or later, as required by
+  [Xcode 27](https://developer.apple.com/xcode/system-requirements/)
+- Xcode 27.0 build `27A266a` to match compiled CI and Release archive validation
 - `xcodegen` (`brew install xcodegen`)
 - Supabase CLI
 

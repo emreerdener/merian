@@ -26,19 +26,19 @@ struct FeatureFlagsTests {
         #expect(FeatureFlag.fieldTrips.defaultValue)
         #expect(!FeatureFlag.dwcaExports.defaultValue)
         #expect(!FeatureFlag.unlimitedFreeScans.defaultValue)
-        #expect(!FeatureFlag.foundationVisualCues.defaultValue)
+        #expect(FeatureFlag.foundationVisualCues.defaultValue)
     }
 
-    @Test func foundationCuesRequireExplicitDebugOptInBeforeReleaseAcceptance() throws {
+    @Test func foundationCuesAreEnabledByDefaultAndOnlyDebugCanOverride() throws {
         let suiteName = "FoundationCueGateTests.\(UUID().uuidString)"
         let userDefaults = try #require(UserDefaults(suiteName: suiteName))
         defer { userDefaults.removePersistentDomain(forName: suiteName) }
-        #expect(!FeatureFlags.isEnabled(.foundationVisualCues, userDefaults: userDefaults))
-        userDefaults.set(true, forKey: "Merian.DebugFeatureFlag.foundationVisualCues")
-        #if DEBUG
         #expect(FeatureFlags.isEnabled(.foundationVisualCues, userDefaults: userDefaults))
-        #else
+        userDefaults.set(false, forKey: "Merian.DebugFeatureFlag.foundationVisualCues")
+        #if DEBUG
         #expect(!FeatureFlags.isEnabled(.foundationVisualCues, userDefaults: userDefaults))
+        #else
+        #expect(FeatureFlags.isEnabled(.foundationVisualCues, userDefaults: userDefaults))
         #endif
     }
 

@@ -1,9 +1,9 @@
 {
   "acceptance": [
     {
-      "selector": "merianTests/CaptureWorkspaceSubmissionTests",
+      "selector": "merianTests/CaptureWorkspaceViewModelRefinementTests",
       "suite_names": [
-        "CaptureWorkspaceSubmissionTests"
+        "CaptureWorkspaceViewModelRefinementTests"
       ],
       "owner": "apps/ios/MerianTests/Features/Capture/Submission/CaptureWorkspaceSubmissionTests.swift"
     },
@@ -202,6 +202,30 @@
         "Onboarding Consent Recovery Tests"
       ],
       "owner": "apps/ios/MerianTests/Features/Onboarding/OnboardingViewModelTests.swift"
+    },
+    {
+      "selector": "merianTests/AppleFoundationVisualCueProviderTests",
+      "suite_names": [
+        "AppleFoundationVisualCueProviderTests",
+        "Apple Foundation Visual Cue Mapping"
+      ],
+      "owner": "apps/ios/MerianTests/Core/AI/AppleFoundationVisualCueProviderTests.swift"
+    },
+    {
+      "selector": "merianTests/LocalVisualAnalysisTests",
+      "suite_names": [
+        "LocalVisualAnalysisTests",
+        "Local Visual Analysis Tests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/AI/LocalVisualAnalysisTests.swift"
+    },
+    {
+      "selector": "merianTests/FeatureFlagsTests",
+      "suite_names": [
+        "FeatureFlagsTests",
+        "Feature Flag Tests"
+      ],
+      "owner": "apps/ios/MerianTests/Configuration/FeatureFlagsTests.swift"
     }
   ],
   "ui": [

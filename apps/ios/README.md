@@ -1500,11 +1500,12 @@ stays mounted and fades in its queued delete action only after the durable ID is
 bound. The same visual cursor survives save and connectivity changes, while
 dismissal or Auth removes contextual phrase/media exposure without blocking
 durable result recovery. `AppleFoundationVisualCueProvider` is implemented for
-Swift 6.4 / iOS 27 behind the default-off `foundationVisualCues` release flag.
-Debug Settings can opt in to on-device visual observations for acceptance; older
-toolchains and OS versions silently retain deterministic cues. Production
-activation still requires stable Xcode 27 on all hosted lanes and
-physical-device acceptance under the canonical AI engineering checklist.
+Swift 6.4 / iOS 27 behind the default-on `foundationVisualCues` release flag.
+Eligible devices use on-device visual observations automatically. Debug Settings
+can disable them or clear a saved override for comparison testing; older
+toolchains and OS versions silently retain deterministic cues. Hosted and
+physical-device validation remain outstanding under the canonical AI engineering
+checklist.
 
 Gemini remains the sole authority for identification and completed Insight
 content. Local classifications and cue text are never persisted, logged,

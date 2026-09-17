@@ -16,7 +16,7 @@ The runtime audit is one system with five checked-in owners:
 | [`scripts/local-ios-build.py`](../../scripts/local-ios-build.py)                           | Cache lock, package resolution, build-once execution, phase ordering, cancellation, and evidence directories |
 | [`scripts/ios-runtime-audit.py`](../../scripts/ios-runtime-audit.py)                       | XCResult completeness validation, metric extraction, baseline validation, comparison, and reports            |
 | [`project.yml`](../../project.yml)                                                         | App, unit, UI, performance, and shared test-support target membership                                        |
-| [`.github/workflows/ios-runtime-audit.yml`](../../.github/workflows/ios-runtime-audit.yml) | Manually dispatched Xcode 26.6 audit and 14-day artifact retention                                           |
+| [`.github/workflows/ios-runtime-audit.yml`](../../.github/workflows/ios-runtime-audit.yml) | Manually dispatched Xcode 27.0 (`27A266a`) audit and 14-day artifact retention                               |
 
 Prose may explain the matrix, but it must not become a second selector list.
 Add, rename, or remove a test in the JSON manifest and its owning test target
@@ -91,6 +91,13 @@ failed while subsequent phases may still gather diagnostic evidence.
 Run `make test-ios-ci-tooling` when changing the wrapper, reporter, selector
 manifest, workflow, result validation, or target contract.
 
+Manifest selectors name executable test types, not source filenames. Portable
+checks require each selected suite to be declared or extended in its owner
+source. For example, `CaptureWorkspaceSubmissionTests.swift` extends the
+`CaptureWorkspaceViewModelRefinementTests` XCTest class; the runtime selector
+must use that class name. XCResult validation still requires the selected suite
+and cases to execute successfully without skips.
+
 ## Evidence contract
 
 Each audit records the source SHA, source fingerprint, dirty-tree flag,
@@ -160,14 +167,18 @@ sustained full-flow retained-memory behavior. Record those gaps explicitly and
 use a physical-device matrix, Instruments trace, or authorized staging smoke as
 appropriate. Never summarize an unrun device or hosted check as passed.
 
-The current Xcode 26.6 hosted audit cannot compile or exercise the staged Swift
-6.4 / iOS 27 Foundation visual-cue adapter, and its selector manifest does not
-include the focused Foundation regression matrix. A passing runtime audit
-therefore supplies no acceptance claim for this provider. Before production
-activation, run the
-[three focused suites and physical-device matrix](./08-testing-strategy.md#staged-foundation-visual-cue-validation)
-on stable Xcode 27 and complete the
+The audit now targets the arm64 `xcode-27` runner and requires Xcode 27.0 build
+`27A266a` before simulator selection. Its executable acceptance manifest
+includes the Foundation parser, local-analysis, and feature-flag suites with
+their XCResult aliases. Use an iOS 27 destination: skipped parser tests fail
+acceptance. The new `github-xcode-27-arm64-27A266a` environment label requires a
+separately reviewed baseline; preserve earlier Xcode 26.6 measurements as
+historical evidence.
+
+The parser and injected-provider tests do not invoke Apple's model. Before
+production activation, complete the
+[physical-device matrix](./08-testing-strategy.md#staged-foundation-visual-cue-validation)
+and
 [canonical activation checklist](../system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist).
-During the toolchain migration, review whether those suites belong in the audit;
-any additions must update the JSON selectors and suite aliases together. Do not
-add the iOS 27 parser suite while the audit remains on Xcode 26.6.
+Project Guardrails includes runtime workflow, manifest, and tooling paths so
+these contracts cannot change without the portable CI-tooling checks.

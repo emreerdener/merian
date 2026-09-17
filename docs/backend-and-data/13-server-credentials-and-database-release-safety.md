@@ -500,8 +500,9 @@ evidence statement. Then:
    handler-owned `401` into success; inspect the structured authorization event.
 7. Run the public web/admin frozen install, audit, test, type-check, and
    production-build gates.
-8. Run the Xcode 26.6 iOS simulator/build suites and the corrected stale server
-   retry test.
+8. Run the iOS simulator/build suites with the
+   [pinned contributor toolchain](../CONTRIBUTING.md#setting-up-the-development-environment)
+   and the corrected stale server retry test.
 9. Manually dispatch and inspect account-deletion, scan-media, DwC-A, and
    RevenueCat monitors. Investigate any orphan alert before changing state.
 10. For a RevenueCat identity/beta release, require the explicit cohort,

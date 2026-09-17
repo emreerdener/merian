@@ -31,14 +31,14 @@ as their permanent engineering identity.
   committed for convenience and should be regenerated after project-structure
   changes.
 - **Compiled iOS release assurance**: Build-relevant pull requests and pushes to
-  `main`, plus every merge-queue commit and manual dispatch, use Xcode 26.6 to
-  execute the complete unit-test target and four deterministic UI smokes for
-  progressive analysis, live-to-queue, queued retry, and queued completion, then
-  independently inspect an unsigned Release archive from the exact workflow SHA.
-  The main app's source and archived bundle must also carry the exact reviewed
-  `PrivacyInfo.xcprivacy`; archive evidence records
-  `privacy_manifest_valid: true`. The final main-app plist must retain ATS
-  defaults and credential-free HTTPS origins; archive evidence records
+  `main`, plus every merge-queue commit and manual dispatch, use Xcode 27.0
+  build `27A266a` to execute the complete unit-test target and four
+  deterministic UI smokes for progressive analysis, live-to-queue, queued retry,
+  and queued completion, then independently inspect an unsigned Release archive
+  from the exact workflow SHA. The main app's source and archived bundle must
+  also carry the exact reviewed `PrivacyInfo.xcprivacy`; archive evidence
+  records `privacy_manifest_valid: true`. The final main-app plist must retain
+  ATS defaults and credential-free HTTPS origins; archive evidence records
   `transport_security: "ats-default"`. Repository rules must require the stable
   `iOS Build and Test / Production readiness` result; the focused Startup Safety
   lane is supplementary. See the
@@ -290,14 +290,13 @@ as their permanent engineering identity.
   reactivation resumes at most the exact visual session's phrase cadence rather
   than restarting model work. Gemini remains the only identification authority;
   local image, category, and cue text are ephemeral and absent from payloads,
-  persistence, analytics, and logs. The staged
-  `AppleFoundationVisualCueProvider` now implements multimodal
-  `SystemLanguageModel.default` cues for Swift 6.4 / iOS 27 behind the
-  default-off `foundationVisualCues` release flag. Debug builds can opt in for
-  local acceptance; Xcode 26.6 and older OS versions keep the inert path.
-  Production activation still requires stable Xcode 27 in every hosted lane and
-  physical-device acceptance. Readiness, power, thermal, active-app, and
-  request-body-sent gates remain enforced. See the
+  persistence, analytics, and logs. The `AppleFoundationVisualCueProvider`
+  implements multimodal `SystemLanguageModel.default` cues for Swift 6.4 / iOS
+  27 behind the default-on `foundationVisualCues` release flag. Debug builds can
+  override it for comparison testing; Xcode 26.6 and older OS versions keep the
+  inert path. Hosted stable-Xcode-27 and physical-device validation remain
+  outstanding. Readiness, power, thermal, active-app, and request-body-sent
+  gates remain enforced. See the
   [AI engineering contract](./system-architecture/04-ai-engineering.md#on-device-pre-classification--scanning-phase-ux)
   and
   [Insight UX contract](./features-and-hardware/05-insight-sheet.md#progressive-analyzing-pill).

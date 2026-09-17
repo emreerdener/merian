@@ -359,11 +359,11 @@ its capture integration:
   candidates, and mutable phrase state do not escape the coordinator or
   participate in durable Auth draining. Sibling files under
   `Inference/LocalAnalysis/` own the classifier/category policy, image builder,
-  deterministic extractor, staged Apple Foundation Models adapter, Foundation
+  deterministic extractor, Apple Foundation Models adapter, Foundation
   contract/validation/eligibility, and phrase policy; each remains below 600
   lines. The [activation checklist](#stable-toolchain-activation-checklist)
-  governs the default-off adapter independently of the existing deterministic
-  observations.
+  records toolchain validation for the default-enabled adapter and its
+  deterministic fallback.
 - **`Inference/Request/InferenceLiveRequestService.swift`**: The immutable,
   initializer-injected live request boundary shared by visual and nonvisual
   flows. It owns image base64 filtering and MIME detection, observation-context
@@ -1778,40 +1778,49 @@ from generic copy to deterministic image-trait wording.
 
 ### Stable Xcode 27 Foundation Models Milestone
 
-The release toolchain remains Xcode 26.6 with an iOS 17.2 deployment target.
-`AppDIContainer` now injects `AppleFoundationVisualCueProvider`, staged behind
-`FeatureFlag.foundationVisualCues` (production default `false`). Xcode 26.6
+The project and CI target Xcode 27.0 build `27A266a` with an iOS 17.2 deployment
+target. `AppDIContainer` injects `AppleFoundationVisualCueProvider` behind
+`FeatureFlag.foundationVisualCues` (production default `true`). Xcode 26.6
 compiles its inert branch; Swift 6.4 / Xcode 27 compiles the Foundation Models
-adapter, which additionally checks iOS 27 availability and model readiness.
-Release builds ignore Debug overrides. No generative cues are
-production-enabled.
+adapter, which additionally checks iOS 27 availability and model readiness. The
+default is enabled for Debug and Release builds as of September 17, 2026.
+Release builds ignore Debug overrides. This source change does not represent an
+App Store or TestFlight distribution.
 
-As of September 17, 2026, stable Xcode 27.0 (27A266a) and its iOS 27 SDK are
-installed locally. GitHub's published arm64 `xcode-27` runner manifest (image
-`20260907.0173.1`) still lists beta build `27A5252f`; its preview label alone
-does not prove a stable toolchain. Keep all release/CI pins at 26.6 until every
-hosted macOS lane can verify the selected stable compiler. See the
-[runner announcement](https://github.com/actions/runner-images/issues/14404) and
-[image manifest](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md).
+Stable Xcode 27.0 (`27A266a`) and the iOS 27 SDK are installed locally. On
+September 17, 2026, GitHub published
+[runner image `20260912.0186.1`](https://github.com/actions/runner-images/releases/tag/xcode-27-arm64/20260912.0186)
+with the same compiler build. Its app bundle retains a Release Candidate name,
+but the compiler build matches the local stable release. The earlier main-branch
+manifest still showed beta build `27A5252f`; use the version and build checks,
+not a preview label or path alias, as the admission condition.
 
-For local acceptance with stable Xcode 27 on an eligible iOS 27 device, enable
-**On-device visual observations** in Debug Settings → Feature Flags before a new
-scan. Unsupported toolchains, devices, and OS versions return no stream. The
-adapter creates one fresh `SystemLanguageModel.default` session with the
-existing 512-pixel image derivative, no tools, and no cloud model. Its
-structured schema permits zero to three cues, constrains the trait kind, and
-budgets 256 response tokens. Instructions request short visible noun phrases and
-explicitly treat text in the image as content rather than instructions. Vision
-labels are used only by the downstream identity denylist, never as model
-instructions. Only complete cue objects are emitted; each original array index
-is emitted once. The detached utility worker has a three-element stream buffer.
-`FoundationVisualCueStream` returns the snapshots with an idempotent,
-non-blocking cancellation callback. The coordinator invokes it on every scope
-exit, including an early return after eligibility loss or the third accepted
-cue; relying on `AsyncThrowingStream.onTermination` alone would leave that
-producer alive. Stream termination also cancels the worker. The existing
-coordinator still validates every phrase and fences publication to the exact
-attempt.
+The unit, Release archive, Startup Safety, and Runtime Audit jobs use the arm64
+`xcode-27` runner and `/Applications/Xcode_27.0.app/Contents/Developer`. Every
+job requires both `Xcode 27.0` and `Build version 27A266a`; an older runner
+rollout fails before validation. Package caches include the architecture,
+version, and build. The runtime audit uses a new environment label and includes
+all three Foundation regression suites. Hosted execution and physical-device
+acceptance remain separate from this checked-in migration.
+
+On an eligible iOS 27 device, new scans use the provider by default. Debug
+Settings → Feature Flags → **On-device visual observations** can disable it or
+clear a previously saved override for comparison testing. Unsupported
+toolchains, devices, and OS versions return no stream. The adapter creates one
+fresh `SystemLanguageModel.default` session with the existing 512-pixel image
+derivative, no tools, and no cloud model. Its structured schema permits zero to
+three cues, constrains the trait kind, and budgets 256 response tokens.
+Instructions request short visible noun phrases and explicitly treat text in the
+image as content rather than instructions. Vision labels are used only by the
+downstream identity denylist, never as model instructions. Only complete cue
+objects are emitted; each original array index is emitted once. The detached
+utility worker has a three-element stream buffer. `FoundationVisualCueStream`
+returns the snapshots with an idempotent, non-blocking cancellation callback.
+The coordinator invokes it on every scope exit, including an early return after
+eligibility loss or the third accepted cue; relying on
+`AsyncThrowingStream.onTermination` alone would leave that producer alive.
+Stream termination also cancels the worker. The existing coordinator still
+validates every phrase and fences publication to the exact attempt.
 
 While the Foundation stage is running, the coordinator observes system power and
 thermal notifications through a session-scoped subscription. Losing runtime
@@ -1840,8 +1849,8 @@ The provider contract is deliberately stricter than its UI consumer:
    from Vision candidates, `-like` wording, and unsupported characters. The
    prompt separately prohibits naming the subject. This token filter cannot
    recognize every common or scientific name absent from Vision's candidates;
-   adversarial image/prompt evaluation remains required before production
-   activation.
+   adversarial image/prompt evaluation remains outstanding real-device
+   validation.
 6. Skip or stop the stage when the app is inactive, Low Power Mode is enabled,
    or thermal state is serious/critical.
 
@@ -1866,9 +1875,10 @@ contracts before any future provider changes the on-device-only boundary.
 
 #### Stable-toolchain activation checklist
 
-Do not activate the production provider until stable Xcode 27 is installed both
-locally and on every hosted macOS lane. The migration is one reviewed toolchain
-change, not an isolated source edit:
+The source/tooling migration is implemented and the feature default is enabled.
+Hosted runs and physical-device acceptance remain outstanding validation; a
+local build or enabled flag is not evidence that those checks passed. Preserve
+these coupled contracts on later toolchain changes:
 
 1. Change the exact Xcode generation pin in `project.yml`, keep the iOS 17.2
    deployment target, run `make xcodegen`, and review the generated project
@@ -1886,12 +1896,11 @@ change, not an isolated source edit:
 4. Update the supported-toolchain statements in `docs/CONTRIBUTING.md`,
    `docs/README.md`, the testing strategy, and the codebase map in the same
    change.
-5. Validate the staged `AppleFoundationVisualCueProvider` using only
+5. Validate `AppleFoundationVisualCueProvider` using only
    `SystemLanguageModel.default`. Preserve the request-body-sent start gate,
    readiness and runtime checks, structured buffering, cue validation,
-   cancellation fences, and no-Private-Cloud-Compute rule above. Change
-   `FeatureFlag.foundationVisualCues` to production-enabled only after hosted
-   stable-toolchain and physical-device acceptance are complete.
+   cancellation fences, and no-Private-Cloud-Compute rule above. The production
+   default is enabled; Debug overrides support explicit disabled-state testing.
 6. Format every changed Markdown file with `deno fmt`, then run `make xcodegen`,
    `make validate-ios-project`, the focused AI and Insight suites, the complete
    iOS unit and critical UI suites, and `make test-ios-ci-tooling`. Build the
@@ -1910,7 +1919,7 @@ bounded output, and the downstream identity filter. Run that suite on iOS 27;
 the existing `LocalVisualAnalysisTests` owns request-body gating, fallback,
 cancellation (including early consumer exits), stale/hung streams, and lifecycle
 behavior, including power/thermal notifications during a silent stream.
-`FeatureFlagsTests` freezes the default-off gate and Debug-only override
+`FeatureFlagsTests` freezes the default-on gate and Debug-only override
 behavior. These tests do not establish image quality, latency, memory/thermal
 cost, or model cancellation on physical hardware. On September 17, the local
 Debug app/test build passed with stable Xcode 27.0 (27A266a), followed by all 50
@@ -1919,7 +1928,8 @@ resolved the earlier sandbox preflight and Simulator blockers. Compilation also
 caught and fixed the Debug settings flag's missing icon/color switch cases and
 moved parser-test availability annotations from the suite to each test. See the
 [testing evidence](../development-guides/08-testing-strategy.md#staged-foundation-visual-cue-validation)
-for remaining full-suite, Release, hosted, and physical-device acceptance gaps.
+for the subsequent migration validation, the manual-fixture lifecycle fix, and
+the remaining acceptance gaps.
 
 ---
 

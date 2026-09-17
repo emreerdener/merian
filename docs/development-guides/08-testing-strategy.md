@@ -376,7 +376,7 @@ here cover only selector ownership and build/tooling contracts.
 
 | Behavior                                                             | Existing or new owner                                                                                                                                                                             |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Capture admission, cancellation, durable enqueue and failure cleanup | `CaptureWorkspaceSubmissionTests`, `CaptureAdmissionTests`, `CaptureScanOperationStateTests`                                                                                                      |
+| Capture admission, cancellation, durable enqueue and failure cleanup | `CaptureWorkspaceViewModelRefinementTests`, `CaptureAdmissionTests`, `CaptureScanOperationStateTests`                                                                                             |
 | Context grace and bounded retry                                      | `CaptureSubmissionEnvironmentContextGraceTests`, `CaptureSubmissionDeferredContextServiceTests`                                                                                                   |
 | Live dispatch, completion, cancellation and generation fences        | `InferenceLivePipelineCoordinatorTests`, `InferenceLivePipelineDurableVisualTests`, `InferenceLiveResultServiceTests`, `InferenceLiveRecoveryIntegrationTests`                                    |
 | Durable claims, recovery, duplicate records and restart              | `InferenceLifecyclePersistenceTests`, `LiveCaptureLifecycleTests`, `BackgroundInferenceCompletionTests`, `InferenceReplayTests`, `DiskBackedInferenceAcceptanceTests`                             |
@@ -541,21 +541,29 @@ path filtering. The in-workflow scope job also avoids GitHub's path-filter
 changed-file ceiling and treats an unresolved event range as in-scope rather
 than silently skipping verification.
 
-Two independent `macos-26` jobs use the reviewed Xcode 26.6 toolchain and the
-checked-in `Package.resolved` file. The staged Foundation Models visual-cue
-adapter is excluded by its Swift 6.4 compiler guard on these lanes. Its
-`AppleFoundationVisualCueProviderTests` must also run on stable Xcode 27 with an
-iOS 27 destination before production activation, alongside
-`LocalVisualAnalysisTests`, `FeatureFlagsTests`, the complete unit target, and
-critical Insight UI suites. Debug Settings → Feature Flags → **On-device visual
-observations** opts in for physical-device acceptance; Release stays
-default-off. Follow the
-[activation checklist](../system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist),
-including every hosted lane and the runtime-audit environment label, when the
-stable compiler is available in CI. Checkout, Swift package caching, and
-artifact retention use reviewed, immutable action commits whose current major
-versions run on Node.js 24. The portable workflow contract pins those exact
-commits so a downgrade cannot silently restore a deprecated action runtime.
+Two independent arm64 `xcode-27` jobs require Xcode 27.0 build `27A266a` and use
+the checked-in `Package.resolved` file. Startup Safety and Runtime Audit require
+the same exact compiler. Version and build checks reject beta or unexpected
+compilers even when a runner path alias looks correct. Package cache keys
+include `runner.arch`, version, and build; the runtime-audit environment label
+is `github-xcode-27-arm64-27A266a`, so older performance baselines cannot
+silently apply.
+
+The Foundation Models adapter now compiles in all these lanes. Its
+`AppleFoundationVisualCueProviderTests` requires an iOS 27 destination; the
+complete-unit and runtime-audit evidence checks reject skipped tests. The
+runtime manifest includes that parser suite, `LocalVisualAnalysisTests`, and
+`FeatureFlagsTests`. Project Guardrails runs its portable tooling checks for
+runtime workflow, manifest, and parser/tooling changes on both pull requests and
+main pushes. Visual observations are enabled by default; Debug Settings →
+Feature Flags → **On-device visual observations** supports disabled-state
+comparison testing. The
+[validation checklist](../system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist)
+tracks outstanding hosted and device evidence. Checkout, Swift package caching,
+and artifact retention use reviewed, immutable action commits whose current
+major versions run on Node.js 24. The portable workflow contract pins those
+exact commits so a downgrade cannot silently restore a deprecated action
+runtime.
 
 A Dependabot pull request that crosses an action major is expected to stop at
 this guardrail even when its commit SHA is valid. Review the upstream release,
@@ -583,7 +591,7 @@ make ios-local-build ARGS='simulator -- test -configuration Debug -destination "
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `AppleFoundationVisualCueProviderTests` | Real `GeneratedContent` parsing and schema construction: incomplete cue objects, completed objects inside unfinished arrays, malformed fields, stable indices, three-cue bounds, and downstream identity filtering. Requires Swift 6.4 and iOS 27; does not invoke the model.                        |
 | `LocalVisualAnalysisTests`              | Request-body admission, fallback and exact-attempt publication fences, explicit producer cancellation on early consumer exit or the third accepted cue, and power/thermal notifications cancelling a silent stream without restarting that attempt. Uses injected providers and runtime eligibility. |
-| `FeatureFlagsTests`                     | Production default remains off and overrides apply only in Debug.                                                                                                                                                                                                                                    |
+| `FeatureFlagsTests`                     | Production default is on and overrides apply only in Debug.                                                                                                                                                                                                                                          |
 
 Confirm every selected suite appears and executes in the XCResult; a successful
 command with a missing or skipped parser suite is not acceptance. Retain
@@ -623,11 +631,60 @@ The local working-tree build evidence is
 execution evidence is
 `.artifacts/local-ios/e7b32c92bc9544c29f6fddc38a3a29a5.xcresult`. Project
 generation, source membership, and portable iOS CI-tooling checks also passed.
-This is local candidate evidence, not hosted exact-SHA release evidence. The
-complete unit execution, critical UI suite, Release archive, older-OS fallback
-execution, physical-device acceptance, and hosted stable-Xcode-27 matrix remain
-unrun for this staged change. Keep the production flag off until the canonical
-activation checklist is complete.
+The subsequent Xcode 27 migration passed all 4,034 unit tests before the manual
+fixture correction described below. The unsigned generic-device Release build
+also passed, including the watch app and extensions; its result is
+`.artifacts/local-ios/692ba88ffa6a46b2bfe724a149639f47.xcresult`. That build is
+not a signed archive or a distribution artifact.
+
+The critical analyzing-pill smoke exposed a Debug fixture lifecycle defect:
+inactive/background callbacks discarded a manual presentation because it had no
+cadence timer. The coordinator now preserves its exact current manual context,
+ignores advances while inactive, and resumes without starting a timer. The
+unchanged analyzing-pill UI assertion and all 51 focused tests, including
+`manualProgressionSurvivesInactivityWithoutStartingCadence`, passed after the
+fix. That combined run is
+`.artifacts/local-ios/23f6c927ac094698a7d9177d30f26690.xcresult`; it is not an
+overall passing UI gate because the queued-audio case intermittently lacked its
+completed-result bottom toolbar. The audio case subsequently reported a pass in
+isolation, but Xcode stalled while finalizing its test log and was stopped; the
+incomplete result bundle is not acceptance evidence.
+
+After restarting the simulator, the final combined iOS 27 run passed all 4,035
+unit tests and all four critical scan UI cases, with zero failures or skips. The
+completed result is
+`.artifacts/local-ios/58dc33b792894c9f84874b7b9dda8b17.xcresult`. The earlier
+audio-toolbar failure remains recorded above as intermittent evidence; the
+passing rerun does not establish its cause or a toolbar-specific fix.
+
+The same Xcode 27-built binary also passed 44 local-analysis/feature-flag tests
+and the analyzing-pill UI smoke on the iOS 26 simulator, with zero failures or
+skips. Its compatibility evidence is
+`.artifacts/local-ios/8764e9aa383f4b518b3649d07357c53a.xcresult`; this does not
+establish execution on the minimum iOS 17.2 runtime. The result audit also
+corrected the stale `CaptureWorkspaceSubmissionTests` selector to the actual
+`CaptureWorkspaceViewModelRefinementTests` XCTest class. Portable manifest
+checks now require each selected suite to be declared or extended in its owner
+source. The final iOS 27 result satisfies every acceptance selection in the
+manifest and all four critical UI selections.
+
+This is not a complete runtime audit: its additional background-interruption UI
+case and performance phases were not run. The four UI cases above are the
+required main Build and Test workflow gate; the runtime-audit manifest retains
+its fifth UI case.
+
+These are local candidate checks, not hosted exact-SHA release evidence. A
+Release archive, minimum-OS execution, physical-device acceptance, and the
+hosted stable-Xcode-27 matrix remain unrun for this staged change. The
+production flag is enabled as explicitly requested on September 17, 2026; these
+unrun checks remain validation gaps, not a default-off gate. The migration
+results above predate this default change. After enabling the default, a fresh
+Debug build and all 51 tests in the three focused Foundation/local-analysis/flag
+suites passed with zero failures or skips. The enabled-default evidence is
+`.artifacts/local-ios/841500e91fbd434cbd5c49f037d77566.xcresult`. The flag suite
+now verifies default-on behavior and that only Debug can persist a disabled
+override; the complete unit/UI and Release build results above were not rerun
+for this flag-only change.
 
 ### Privacy Manifest Validation
 

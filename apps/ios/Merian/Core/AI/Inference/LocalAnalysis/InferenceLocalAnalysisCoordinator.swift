@@ -27,6 +27,9 @@ final class InferenceLocalAnalysisCoordinator {
         let session: Session
         let isCurrent: @MainActor (Session) -> Bool
         let publishPhrase: @MainActor (String) -> Void
+        #if DEBUG
+        var advancesManually = false
+        #endif
     }
 
     private let dependencies: Dependencies
@@ -160,7 +163,7 @@ final class InferenceLocalAnalysisCoordinator {
             return
         }
 
-        let shouldResume = phraseRotationTask != nil
+        let shouldResume = hasResumablePhrasePresentation
             && canResume
             && activeContext.map { $0.isCurrent($0.session) } == true
         cancelTasksAndAnalysisState()
@@ -179,7 +182,18 @@ final class InferenceLocalAnalysisCoordinator {
             activeContext = nil
             return
         }
+        #if DEBUG
+        // Manual UI fixtures retain their owner without gaining a timer.
+        guard !context.advancesManually else { return }
+        #endif
         startPhraseRotation()
+    }
+
+    private var hasResumablePhrasePresentation: Bool {
+        #if DEBUG
+        if activeContext?.advancesManually == true { return true }
+        #endif
+        return phraseRotationTask != nil
     }
 
     private func startTraits(
@@ -377,6 +391,7 @@ final class InferenceLocalAnalysisCoordinator {
             isCurrent: isCurrent,
             publishPhrase: publishPhrase
         )
+        activeContext?.advancesManually = !automaticallyAdvances
         publishPhrase(phraseCoordinator.reset())
         progressiveAnalyzingStep = 0
         guard automaticallyAdvances else { return }
@@ -398,7 +413,9 @@ final class InferenceLocalAnalysisCoordinator {
     }
 
     func advanceDebugProgression() {
-        guard let context = activeContext else { return }
+        guard !isPausedForInactivity,
+              let context = activeContext,
+              context.isCurrent(context.session) else { return }
         switch progressiveAnalyzingStep {
         case 0:
             context.publishPhrase(

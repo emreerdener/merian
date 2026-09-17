@@ -44,8 +44,8 @@ if grep -qE '^[[:space:]]+CODE_SIGN_IDENTITY:' "$project_spec" \
 fi
 
 if ! grep -q 'minimumXcodeGenVersion: 2.45.4' "$project_spec" \
-  || ! grep -q 'xcodeVersion: "26.6"' "$project_spec"; then
-  echo "project.yml must pin XcodeGen 2.45.4 and Xcode 26.6 generation metadata." >&2
+  || ! grep -q 'xcodeVersion: "27.0"' "$project_spec"; then
+  echo "project.yml must pin XcodeGen 2.45.4 and Xcode 27.0 generation metadata." >&2
   exit 1
 fi
 
