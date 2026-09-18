@@ -93,7 +93,8 @@ state/callbacks and perform no networking. Feed/Map card hosts and the existing
 detail sheet host retain presentation ownership.
 
 The picker starts at the medium detent, supports large, and expands on search
-focus. It uses native glyphs plus catalog names and the existing video-overlay
+focus. Its compact cells show only native emoji glyphs, with catalog names
+retained for search, VoiceOver, and help. It uses the existing video-overlay
 suspension lifecycle. Picker selection adds; chip taps toggle. The strip reveals
 new selections, leaves later page updates in place, and offers More for explicit
 pagination/retry. Its height scales with Dynamic Type, with post chips moving

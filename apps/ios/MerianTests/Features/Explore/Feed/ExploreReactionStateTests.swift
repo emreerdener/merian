@@ -111,6 +111,71 @@ final class ExploreReactionStateTests: XCTestCase {
         XCTAssertEqual(vm.comments[0].reactions, comment.reactions)
     }
 
+    func testQueuedDifferentEmojisRemainSelectedAndRemoveIndependently() async {
+        let started = expectation(description: "first reaction starts")
+        var pending: CheckedContinuation<ExploreReactionResponse, Error>?
+        var calls: [String] = []
+        let vm = model(.init(
+            set: { _, id, emoji, selected in
+                calls.append(emoji)
+                if calls.count == 1 {
+                    return try await withCheckedThrowingContinuation { pending = $0; started.fulfill() }
+                }
+                return self.response(id, emoji, selected ? 1 : 0, selected)
+            }, load: { _, _, _ in throw ExploreFeedTestFixtures.StubError.unexpected }))
+        var post = ExploreFeedTestFixtures.post(id: "post")
+        post.reactions = []
+        vm.upsertPost(post)
+        let first = Task { await vm.setPostReaction(for: post, emoji: "😂", selected: true) }
+        await fulfillment(of: [started], timeout: 1)
+        let second = Task { await vm.setPostReaction(for: post, emoji: "👍🏽", selected: true) }
+        await Task.yield()
+        XCTAssertEqual(calls, ["😂"])
+        pending?.resume(returning: response(post.id, "😂", 1, true))
+        await first.value
+        await second.value
+        XCTAssertEqual(calls, ["😂", "👍🏽"])
+        XCTAssertEqual(Set(vm.post(id: post.id)?.reactions?.map(\.emoji) ?? []), ["😂", "👍🏽"])
+        XCTAssertTrue(vm.post(id: post.id)?.reactions?.allSatisfy(\.viewerHasReacted) == true)
+
+        await vm.setPostReaction(for: post, emoji: "😂", selected: false)
+        XCTAssertEqual(vm.post(id: post.id)?.reactions, [
+            .init(emoji: "👍🏽", count: 1, viewerHasReacted: true)
+        ])
+    }
+
+    func testUnavailableRouteRollsBackQueuedEmojisWithoutRemovingExistingReactionOrLike() async {
+        let started = expectation(description: "unavailable reaction route starts")
+        var pending: CheckedContinuation<ExploreReactionResponse, Error>?
+        var calls = 0
+        let vm = model(.init(
+            set: { _, _, _, _ in
+                calls += 1
+                if calls == 1 {
+                    return try await withCheckedThrowingContinuation { pending = $0; started.fulfill() }
+                }
+                throw MerianError.edgeFunctionUnavailable
+            }, load: { _, _, _ in throw ExploreFeedTestFixtures.StubError.unexpected }))
+        var post = ExploreFeedTestFixtures.post(id: "post")
+        post.reactions = [.init(emoji: "🎉", count: 2, viewerHasReacted: true)]
+        post.viewerHasLiked = true
+        post.likeCount = 3
+        vm.upsertPost(post)
+        let first = Task { await vm.setPostReaction(for: post, emoji: "😂", selected: true) }
+        await fulfillment(of: [started], timeout: 1)
+        XCTAssertEqual(vm.post(id: post.id)?.reactions?.first { $0.emoji == "😂" }?.viewerHasReacted, true)
+        let second = Task { await vm.setPostReaction(for: post, emoji: "👍🏽", selected: true) }
+        await Task.yield()
+        pending?.resume(throwing: MerianError.edgeFunctionUnavailable)
+        await first.value
+        await second.value
+        XCTAssertEqual(calls, 2)
+        XCTAssertEqual(vm.post(id: post.id)?.reactions, post.reactions)
+        XCTAssertEqual(vm.post(id: post.id)?.viewerHasLiked, true)
+        XCTAssertEqual(vm.post(id: post.id)?.likeCount, 3)
+        XCTAssertEqual(vm.toastMessage?.severity, .error)
+    }
+
     func testRefreshInvalidatesPendingPostResponse() async {
         let started = expectation(description: "mutation started")
         var pending: CheckedContinuation<ExploreReactionResponse, Error>?

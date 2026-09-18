@@ -440,6 +440,11 @@ Dictionary community sightings.
 
 ## Emoji reactions
 
+Comment and reply Add reaction buttons retain the compact 28-point capsule,
+secondary smiley/plus icons, and subtle fill/border, with a minimum 44-point tap
+target. They open the shared full emoji picker and retain its selection
+feedback.
+
 Shared reaction UI and Unicode catalog presentation live in
 `../Shared/Reactions`. Feed Services own the idempotent set/page dependencies;
 `ExplorePostStore` owns post summaries, and comment state reconciles mutations
@@ -467,8 +472,10 @@ paged Reactions sheet. `ExplorePostReactionSummary` sits below detail actions;
 `ExplorePostReactorsSheet` renders public identity and each person's complete
 emoji list, with likes represented as ❤️. Both share one detail-owned model. The
 typed `ExplorePostDetailPresentation.reactors` route retains sheet and media
-overlay ownership. Loading, empty, failed-read retry, and explicit pagination
-are local UI state; views do not resolve a network client.
+overlay ownership. The detail summary occupies no space while loading, after a
+failed read, or when no people reacted; only a successfully loaded summary is
+visible. Loading, empty, failed-read retry, and explicit pagination remain local
+UI state inside the opened sheet; views do not resolve a network client.
 
 `ExploreReactionDependencies.loadPeople` is the injected read seam. The Feed
 state increments `postReactorsRevision` after post reactions/likes complete so

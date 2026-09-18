@@ -2,8 +2,7 @@ import Foundation
 
 extension MerianNetworkClient {
     func setExploreReaction(target: ExploreReactionTarget, id: String, emoji: String, selected: Bool) async throws
-        -> ExploreReactionResponse
-    {
+        -> ExploreReactionResponse {
         try await performAuthenticatedJSONPost(
             function: "set-explore-\(target.rawValue)-reaction",
             payload: ["\(target.rawValue)_id": id, "emoji": emoji, "selected": selected],
@@ -12,8 +11,7 @@ extension MerianNetworkClient {
     }
 
     func getExploreReactions(target: ExploreReactionTarget, id: String, afterOrder: Int) async throws
-        -> ExploreReactionPage
-    {
+        -> ExploreReactionPage {
         try await performAuthenticatedJSONPost(
             function: "get-explore-reactions",
             payload: ["target_kind": target.rawValue, "target_id": id, "after_order": afterOrder],

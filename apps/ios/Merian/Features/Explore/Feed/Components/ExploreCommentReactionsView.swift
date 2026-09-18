@@ -13,10 +13,19 @@ struct ExploreCommentReactionsView: View {
                 HapticManager.shared.triggerSheetSpring(source: "explore.reaction.comment.open")
                 reactingCommentId = comment.id
             } label: {
-                Image(systemName: "face.smiling").overlay(alignment: .bottomTrailing) {
-                    Image(systemName: "plus.circle.fill").font(.system(size: 10)).offset(x: 4, y: 3)
+                HStack(spacing: 2) {
+                    Image(systemName: "face.smiling")
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .bold))
                 }
+                .font(.system(size: 14))
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+                .overlay(Capsule().stroke(Color.primary.opacity(0.06), lineWidth: 1))
+                .foregroundStyle(.secondary)
                 .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain).accessibilityLabel("Add reaction to comment")
             ExploreReactionStrip(
@@ -29,8 +38,7 @@ struct ExploreCommentReactionsView: View {
                 set: { if !$0 { reactingCommentId = nil } }
             )
         ) {
-            ExploreEmojiPicker(selectedEmojis: Set((comment.reactions ?? []).filter(\.viewerHasReacted).map(\.emoji))) {
-                emoji in
+            ExploreEmojiPicker(selectedEmojis: Set((comment.reactions ?? []).filter(\.viewerHasReacted).map(\.emoji))) { emoji in
                 revealEmoji = emoji
                 onToggleReaction(comment, emoji, true)
                 reactingCommentId = nil

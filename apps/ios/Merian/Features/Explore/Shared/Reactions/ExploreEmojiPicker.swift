@@ -51,15 +51,11 @@ struct ExploreEmojiPicker: View {
                                 onSelect(entry.emoji)
                                 dismiss()
                             } label: {
-                                VStack(spacing: 4) {
-                                    Text(verbatim: entry.emoji).font(.system(size: 32))
-                                    Text(entry.name).font(.caption2).lineLimit(2)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 76)
-                                .background(
-                                    selectedEmojis.contains(entry.emoji) ? Color.accentColor.opacity(0.15) : .clear,
-                                    in: RoundedRectangle(cornerRadius: 12))
+                                Text(verbatim: entry.emoji).font(.system(size: 32))
+                                    .frame(maxWidth: .infinity, minHeight: 56)
+                                    .background(
+                                        selectedEmojis.contains(entry.emoji) ? Color.accentColor.opacity(0.15) : .clear,
+                                        in: RoundedRectangle(cornerRadius: 12))
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(entry.name)

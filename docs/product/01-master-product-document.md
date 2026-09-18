@@ -88,9 +88,9 @@ receiver. Full UI localization, minor-specific compliance controls, targeted
 observation bounties, and several older growth concepts are not present as
 end-to-end features. The self-attested 18+ gate exists but remains
 release-blocked and is not a claim of broader jurisdiction-specific minor
-compliance. The former Rive experience, TelemetryDeck stack, two-call
-identification design, free-media expiration policy, and old subscription price
-points must not be represented as current.
+compliance. The former TelemetryDeck stack, two-call identification design,
+free-media expiration policy, and old subscription price points must not be
+represented as current.
 
 The product should be managed around four truths:
 
@@ -559,8 +559,7 @@ Toxicologist, and Perfect Lens.
 
 Persona progression uses five thresholds: Observer at 0, Casual Explorer at 10,
 Dedicated Naturalist at 50, Verified Scholar at 250, and Apex Observer at 1,000.
-The experience is asset-based SwiftUI. The former Rive-driven interactive sphere
-concept is not the current implementation.
+The experience is asset-based SwiftUI.
 
 Achievements are primarily computed from local projections. First Field trip
 uses server-authoritative state. The system is personal progression, not a
@@ -1312,8 +1311,7 @@ Resend's HTTP API; JSZip remains only an independent ZIP-reader test dependency.
 Versions are a snapshot, not a promise; upgrades require tests and security
 review.
 
-Rive and TelemetryDeck are not direct dependencies in the current
-implementation.
+TelemetryDeck is not a direct dependency in the current implementation.
 
 The DwC-A version-2, revocable download/cleanup, atomic scan-finalization, and
 public-web Explore repairs are implemented. DwC-A runtime behavior is
@@ -1454,7 +1452,6 @@ migrations, vendor credentials, and release flags.
 - Ninety-day free biological-media expiration.
 - Subscription-driven media-prefix migration.
 - Archive Manager as an expiring-media rescue system.
-- Rive as a core persona or terrarium runtime.
 - TelemetryDeck as an analytics provider.
 - Explore as future, TikTok-only, or reaction-only.
 - A "Species of the Day" widget as the implemented widget product.
@@ -1569,7 +1566,6 @@ numbers.
 | GPS remains only on the device.                           | Exact owner location can synchronize; public views consume privacy-projected location.                                                                                                              |
 | The product has complete localization.                    | Locale informs identification, but a complete localized UI resource system was not found.                                                                                                           |
 | PostHog plus TelemetryDeck provide analytics.             | Analytics is consolidated under PostHog; TelemetryDeck is not a current direct dependency.                                                                                                          |
-| Rive powers the core persona experience.                  | Current persona and achievement visuals are asset-based SwiftUI; Rive is not a current direct dependency.                                                                                           |
 | The widget is Species of the Day.                         | The implemented WidgetKit surface shows Explore snapshots.                                                                                                                                          |
 | Opening Insight automatically idles the camera at 1 FPS.  | Idle hooks exist, but no current sheet-lifecycle wiring was found.                                                                                                                                  |
 | Fixed coverage percentages prove release readiness.       | Current CI has meaningful guardrails, but the old percentage claims are not repository-backed.                                                                                                      |

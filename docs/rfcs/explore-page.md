@@ -1683,8 +1683,8 @@ Unicode emoji picker. It opens at medium height, expands when searching, and
 supports a large detent. Choosing an emoji adds it and closes the sheet;
 choosing an already-selected emoji is idempotent. Chip taps add/remove the
 viewer's contribution. Multiple distinct reactions are allowed. Post ❤️ uses the
-existing like, while comment ❤️ is an ordinary reaction. Unsupported native
-glyphs show their catalog name in the picker.
+existing like, while comment ❤️ is an ordinary reaction. Picker cells show only
+emoji glyphs; catalog names remain available for search, VoiceOver, and help.
 
 Post reaction state belongs to `ExplorePostStore`; mutations use injected
 Services, optimistic updates, authoritative reconciliation, rollback, and
@@ -1778,15 +1778,18 @@ Post detail adds a tappable line directly below the action row, such as “Alex,
 Bea, and 4 others reacted.” Counts represent unique visible people across heart
 likes and all emoji, including the viewer and post owner. One/two-person copy
 uses their public names; zero people hides the line. Feed, Map, and hashtag
-cards keep their existing action row without this extra line.
+cards keep their existing action row without this extra line. The detail line
+also stays hidden without reserving space while its read is loading or fails. It
+appears only after a successful read with people to show; background refreshes
+retain the existing lifecycle triggers.
 
 Tapping gives sheet feedback and opens a medium/large Reactions sheet. Each row
 shows the person's public avatar/name and every emoji they used; likes appear as
 ❤️ once. Emoji overflow scrolls within that row. Explicit Load more pages
 through people, and pull-to-refresh updates membership. Loading, empty, and
-retry states are visible. VoiceOver uses emoji catalog names, and text supports
-Dynamic Type. The existing video-overlay lifecycle suspends playback while the
-sheet is presented.
+retry states are visible inside the opened sheet. VoiceOver uses emoji catalog
+names, and text supports Dynamic Type. The existing video-overlay lifecycle
+suspends playback while the sheet is presented.
 
 A detail-owned model shares the summary and sheet state, refreshes after local
 post reaction/like completion, and rejects obsolete requests after refresh,

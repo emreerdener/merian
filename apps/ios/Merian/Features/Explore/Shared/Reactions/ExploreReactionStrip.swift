@@ -10,7 +10,7 @@ struct ExploreReactionStrip: View {
     let hasMore: Bool
     let onToggle: (String, Bool) -> Void
     let onLoadMore: () -> Void
-    var revealEmoji: String? = nil
+    var revealEmoji: String?
     @ScaledMetric(relativeTo: .title3) private var rowHeight: CGFloat = 48
     @State private var contentFrame = CGRect.zero
     @State private var viewportWidth: CGFloat = 0
@@ -106,7 +106,7 @@ struct ExplorePostReactionActions: View {
     let onReaction: (String, Bool) -> Void
     let onLoadMore: () -> Void
     let onShare: () -> Void
-    var revealEmoji: String? = nil
+    var revealEmoji: String?
     @Environment(\.dynamicTypeSize) private var dynamicType
     private var usesSecondRow: Bool { dynamicType.isAccessibilitySize || dynamicType == .xxxLarge }
 

@@ -363,11 +363,16 @@ struct ExploreCommentThreadList: View {
                 onToggleReaction: { comment, emoji, selected in
                     viewModel.setCommentReaction(for: comment, emoji: emoji, selected: selected)
                 },
-                onLoadMore: { Task {
-                    do { _ = try await viewModel.loadMoreCommentReactions(for: comment) }
-                    catch is CancellationError { }
-                    catch { viewModel.toastMessage = .error("Could not load reactions. Try again.") }
-                } }
+                onLoadMore: {
+                    Task {
+                        do {
+                            _ = try await viewModel.loadMoreCommentReactions(for: comment)
+                        } catch is CancellationError {
+                        } catch {
+                            viewModel.toastMessage = .error("Could not load reactions. Try again.")
+                        }
+                    }
+                }
             )
 
             if allowsReply {

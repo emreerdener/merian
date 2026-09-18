@@ -10811,6 +10811,9 @@ Both return `success`, `target_id`, and `reaction` containing `emoji`, `count`,
 `viewer_has_reacted`, and catalog `order`. Setting the same state twice is
 idempotent. The authenticated viewer is derived server-side; hidden, moderated,
 blocked, or unavailable targets are denied. Mutations serialize on the post.
+Each request sets one emoji independently. A viewer may select multiple distinct
+emojis on the same target; selecting or removing one does not replace the
+others.
 
 Post ❤️ maps to the existing like and additionally returns `like_count` and
 `viewer_has_liked`. Other emoji do not affect the Liked feed or trending score.
@@ -10909,6 +10912,18 @@ database parity test. See the
 [reaction verification matrix](../development-guides/08-testing-strategy.md#explore-emoji-reaction-verification).
 These are release prerequisites, not deployment authorization or evidence of a
 hosted rollout.
+
+If a native reaction appears briefly and then disappears, inspect the mutation
+result before changing selection limits. A gateway `404 NOT_FOUND` classified as
+an unavailable Function route means the reaction handler was not reached. The
+client retries with its bounded route-recovery policy, then rolls back the
+optimistic selection and displays an error. The existing ❤️ path can still
+succeed through `set-explore-post-like`, making the mismatch look like a
+one-reaction limit. Confirm the app's configured backend target and the deployed
+reaction routes, then verify migration and projection readiness through the
+authorized release workflow. Local source or passing tests do not establish
+hosted availability; retaining failed optimistic chips would misrepresent saved
+state.
 
 ### Reaction Realtime compatibility
 

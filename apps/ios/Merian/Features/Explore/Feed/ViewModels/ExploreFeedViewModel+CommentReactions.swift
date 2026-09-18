@@ -7,9 +7,12 @@ extension ExploreFeedViewModel {
 
     func setCommentReaction(for comment: ExploreComment, emoji: String, selected: Bool) {
         Task {
-            do { _ = try await performCommentReaction(for: comment, emoji: emoji, selected: selected) }
-            catch is CancellationError { }
-            catch { toastMessage = .error(dependencies.errorMessage(error)) }
+            do {
+                _ = try await performCommentReaction(for: comment, emoji: emoji, selected: selected)
+            } catch is CancellationError {
+            } catch {
+                toastMessage = .error(dependencies.errorMessage(error))
+            }
         }
     }
 

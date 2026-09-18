@@ -35,7 +35,7 @@ struct ExplorePostDetailContentView: View {
     let onOpenFieldChat: @MainActor () -> Void
     let onDisappear: @MainActor () -> Void
     var onAddReaction: () -> Void = {}
-    var revealReactionEmoji: String? = nil
+    var revealReactionEmoji: String?
 
     @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @FocusState private var isComposerFocused: Bool

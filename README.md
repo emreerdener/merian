@@ -16,237 +16,43 @@ Production domain, AASA, email, backend, App Store, verification, and rollback
 steps are tracked in the
 [Naturebook rebrand rollout runbook](docs/development-guides/15-naturebook-rebrand-rollout.md).
 
-> **Consent production release hold (2026-08-03):** The final **One last step**
-> Ready consent screen and versioned adult, Terms, Gemini, and optional PostHog
-> evidence are implemented. All tracked consent findings are closed in source,
-> including crash-safe ghost-ledger handoff, withdrawal-time PostHog transport
-> blocking, verified atomic local-ledger persistence, restart-safe multi-account
-> withdrawal journaling, target-account restoration, final in-merge
-> account/session fencing, Realtime repair, OAuth account replacement, and
-> atomic rejection of delayed offline AI/analytics grants plus deny-wins
-> rebasing of revocations onto the locked server head. Gemini authorization,
-> Edge PostHog delivery, and iOS permission gates now resolve the provider-wide
-> greatest revision across all disclosure versions first: any head revocation
-> denies, and only a head grant may enter disclosure/rollout checks. Completed
-> users also remain on a launch-matched neutral root while required account
-> evidence is unknown, so approval controls are never a transient startup state.
-> An expired cached Supabase session retains its account identity for this gate
-> until refresh succeeds or Auth emits a signed-out result; token expiry alone
-> is never treated as no session. Fetch, decoding, pending-row push, and
-> ledger-write failures keep that root active, expose **Try Again**, and receive
-> bounded 5-, 10-, and 20-second account-fenced retries. Once an authenticated
-> account enters that missing-local-evidence restoration state, only a
-> successfully persisted authoritative merge may select the scanner or Ready
-> consent screen. Internal test builds may continue, but do not nominate the
-> candidate for public production or enable strict server enforcement until
-> **iOS Build and Test** and the validation-only **Supabase Candidate
-> Validation** workflow are green on the same immutable SHA, followed by
-> replacement-build rollout, App Store 18+ configuration, and paid Gemini
-> billing/DPA evidence. See the
-> [canonical consent readiness record](docs/legal/production-consent-readiness-2026-08-03.md).
+Start with [local setup](#getting-started), the
+[codebase map](docs/codebase-map.md), or the
+[documentation index](docs/README.md). For contribution and validation rules,
+read [CONTRIBUTING](docs/CONTRIBUTING.md).
 
-> **iOS privacy manifest status (2026-08-05):** The main app now owns a
-> validated `PrivacyInfo.xcprivacy` declaring no tracking, the reviewed linked
-> data categories, and approved reasons for app-only user defaults,
-> app-container file timestamps, and write-admission disk-space checks. This
-> closes the missing-manifest finding in source, not the production gate. The
-> final exact-SHA archive must report `privacy_manifest_valid: true`, and the
-> signed Organizer archive still needs an aggregate privacy report reconciled
-> with SDK manifests, the public policy, App Store Connect answers, and counsel
-> review. See the
-> [iOS privacy manifest contract](docs/development-guides/16-ios-privacy-manifest.md).
+## Release Status
 
-> **iOS transport security status (2026-08-05):** The main app no longer
-> disables App Transport Security. App-configured origins and backend-supplied
-> remote media are accepted only as credential-free HTTPS, with ATS retained as
-> an independent platform backstop. Source, archive, and exported-IPA validators
-> reject broad or domain-scoped exceptions and insecure Supabase origins. Public
-> promotion still requires exact-SHA archive evidence reporting
-> `transport_security: "ats-default"`. See the
-> [iOS transport security contract](docs/development-guides/17-ios-transport-security.md).
+**Public production remains held.** Source fixes and green local checks do not
+establish deployment or release acceptance. **iOS Build and Test** and
+**Supabase Candidate Validation** must pass on the same immutable candidate SHA;
+external controls and retained evidence remain separate requirements.
 
-> **Sign in with Apple deletion status (2026-08-06):** Apple authorization-code
-> capture, Vault-backed refresh-token storage, claim-fenced provider revocation,
-> subject-bound credential-state revalidation, and a durable manual fallback for
-> pre-rollout Apple accounts are implemented in source. Supabase Auth deletion
-> is now unreachable while a stored Apple credential remains. Production
-> promotion still requires hosted Apple key provisioning, exact-SHA
-> fresh-catalog replay, a real Apple exchange/revoke smoke, and either an
-> enforceable minimum-supported-build gate or an independent server-delivered
-> manual fallback for older iOS binaries. See the
-> [canonical Apple deletion contract](docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
+- [Consent readiness](docs/legal/production-consent-readiness-2026-08-03.md)
+  owns the current verdict, same-SHA evidence, App Store 18+, paid Gemini
+  billing/DPA, and counsel requirements. Internal test builds may continue.
+- [Release evidence operations](docs/release-evidence/README.md) explains the
+  machine-enforced holds, evidence freshness, independent approvals, and
+  protected clearance. The active manifest is
+  [`services/supabase/release-holds.json`](services/supabase/release-holds.json).
+- [DwC-A and public-web release assurance](docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md)
+  keeps exports default-off for initial launch and distinguishes base-release
+  evidence from the later feature-enable gate.
+- [Privacy manifest](docs/development-guides/16-ios-privacy-manifest.md) and
+  [transport security](docs/development-guides/17-ios-transport-security.md) own
+  archive requirements, including `privacy_manifest_valid: true` and
+  `transport_security: "ats-default"`.
+- [Apple account deletion](docs/backend-and-data/20-sign-in-with-apple-account-deletion.md)
+  owns hosted credentials, real-session verification, and legacy-client fallback
+  requirements.
 
-> **Production release evidence gate (2026-07-28):** DwC-A exports are
-> authoritatively disabled for the initial launch by migration
-> `20260728133835_disable_dwca_exports_for_launch.sql`; Release iOS builds hide
-> the staged controls, new jobs fail closed in PostgreSQL, processing cron is
-> stopped, and archive cleanup remains active. Exact-SHA fresh-catalog pgTAP,
-> complete CI—including the hosted full iOS unit-test target, unsigned Release
-> archive, and frozen public-web gate—and production credential/catalog smoke
-> tests still gate the base release. Maximum-shape export and delivery evidence
-> moves to the separate DwC-A feature-enable gate. See the
-> [canonical release-hold record](docs/backend-and-data/14-dwca-and-public-web-release-hold-2026-07-27.md).
-
-> **Critical scan release gate (2026-07-28):** the latest attached
-> disposable-catalog run passed 24 of 26 files, including the complete
-> inline/video and formerly ambiguous identity-merge fixtures. The only two
-> failures reached the new atomic Explore/Community RPCs and proved their
-> `SECURITY INVOKER` caller lacked explicit relational privileges on
-> `explore_community_requests`; the run stopped before production mutation.
-> Forward migration `20260729044500_grant_atomic_explore_service_privileges.sql`
-> now grants only the required service-role table operations while
-> browser-facing roles retain no writes, and both fixtures assert that boundary.
-> The remediation also preserves offline retry history and requires the durable
-> completed-upload transition to commit before inference starts. No successful
-> exact-SHA deployment evidence for these corrections has been retained yet. The
-> release remains held until one reviewed exact SHA passes all 27 current
-> catalog files, completes the ordered backend deployment, passes the matching
-> hosted iOS gate, and clears joined video, Field Chat, offline, and Explore/Ask
-> the Community staging smokes. See the
-> [video finalization incident](docs/incidents/2026-07-video-scan-canonical-finalization-regression.md).
-
-> **TestFlight addendum (2026-07-29):** build 1.0.2 (235) exposed a client
-> state-machine deadlock after `failed_retryable / background_ingestion_failed`.
-> Media uploaded successfully, but every status preflight skipped the Identify
-> request required to reclaim the failed generation; upload success also erased
-> its retry count. A follow-up archive showed the initial single-row latch fix
-> was insufficient on a migrated store: retry state survived in the durable job
-> while a drifted queued-scan snapshot restarted at attempt one. Retry authority
-> now reconciles both copies and advances from their monotonic maximum. A
-> separate same-session smoke proved new Identify and Explore publication
-> healthy while an eligible older `media_reconciliation_abandoned` record was
-> rejected by the terminal repair signer. The tree now preserves one exact retry
-> latch through re-stage, permits its generation-fenced Identify dispatch,
-> bounds automatic churn, and allows only authenticated tombstone-free
-> `replay_exhausted` repair, or `media_reconciliation_abandoned` repair backed
-> by composite service proof: a post-result dead letter no earlier than the
-> latest charged normal/replay attempt, evidence shaped for its producer
-> generation, no active reservation or corrupt timestamp lineage, and no
-> moderation-rejected or moderation-infrastructure-failed capture lifecycle row.
-> Pre-rollout evidence narrowly supports the vulnerable producer’s first
-> committed normal attempt; it must also belong to the immutable exact
-> dead-letter-ID snapshot captured by the migration, predate the private cutoff,
-> and match the audited multimodal post-safety error path. The exact snapshot
-> prevents a producer blocked behind migration DDL from gaining legacy authority
-> through its earlier transaction-start timestamp. Post-rollout evidence must
-> bind the exact quota IDs, validated provider result, and completed Identify
-> safety evaluation. Because the rollout uses two separate migration-file
-> transactions, production now predeploys fail-closed signing, status, and share
-> consumers before either file, then deploys the schema-dependent Identify
-> producer only after proof hardening and service-only readiness checks succeed.
-> Library, scheduler, reconnect, and URLSession replay wakes now share one
-> process-local driver plus at most one trailing pass, preventing overlapping
-> status probes, orphan transitions, retry inflation, and start-log storms. See
-> the
-> [retry deadlock incident](docs/incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md)
-> and
-> [legacy share incident](docs/incidents/2026-07-media-abandoned-explore-share-recovery.md).
-> A later physical-device smoke also staged and submitted a scan with Wi-Fi and
-> cellular disabled; it remained queued and completed after connectivity was
-> restored. This positively exercises ordinary offline replay, but build `235`
-> predates the remediation and its retained console lacks the transaction-level
-> sequence, so a fresh globally higher exact-source TestFlight build remains a
-> release requirement. Hosted iOS Runs 97 and 153 are stale failure evidence for
-> parent SHA `0aa170fa`: both stopped on two ambiguous offline-sync
-> `Set(compactMap:)` expressions before test or archive execution. Pushed
-> descendant `f292dc48` explicitly types every equivalent snapshot as
-> `Set<String>` and locally passes the complete app/unit/UI `build-for-testing`
-> product graph under the documented CoreSimulator resource bypass. Run 99 on
-> exact descendant `631e123e8` subsequently exposed three stale test-contract
-> expectations; their test-only correction is committed in `8642a8c6d`. Run 100
-> on that exact descendant passed all 1,241 unit tests and every protected
-> critical scan-flow regression, while exposing a fixed four-second
-> Debug-fixture race before the hosted accessibility hierarchy could observe
-> `ScanningStatusBadge`. The timer-free handshake is committed as
-> `399482b649363c820b59fee1967bf94e35a5c0e7`. Run 101 on that exact SHA again
-> passed all 1,241 unit tests and protected regressions, and its current-SHA
-> Release archive passed at 239,079,424 bytes for `1.0.2 (235)`, fingerprint
-> `989544a7bbb531c91673c1949ed676497c6cd08a2028375fc5fc3a73ca7b100c`, with
-> verified main dSYM UUIDs and no Debug UI-seed markers. The UI smoke now proved
-> queued navigation, shared scanning content, decoded audio playback, and the
-> explicit badge tap; it failed only when the seeded completed record did not
-> take over the already-open sheet. That late Debug transaction used the
-> container main context while the sheet was bound to its environment
-> `ModelContext`, then relied on an asynchronous library event to merge the
-> insert. The context-bound follow-up performs the transaction in that exact
-> context and immediately calls the existing production queue-promotion path.
-> Release retains a no-op coordinator, and production queue timing is unchanged.
-> That portion is committed as `838533e98589f4fca89643e966864a7d59adca05`. Run
-> 102 on that exact SHA did not reach the queued UI smoke because its complete
-> unit target reported 1,240 passed and one failed:
-> `testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay` observed
-> zero requests while expecting the first request. Its fixed loop of 100
-> executor yields did not provide a time-bounded rendezvous with URLSession on
-> the loaded hosted simulator. Commit `4f68e68913fca6276458cd093ad167c9bc7d5d9e`
-> replaces that loop with a wait of up to five monotonic seconds for the
-> observable first dispatch, then preserves both exact assertions: one request
-> before cancellation and still one after cancellation. Run 102's current-SHA
-> Release archive independently passed at 239,083,520 bytes for `1.0.2 (235)`,
-> fingerprint
-> `2f79712ff4b08ac6fea2e972e9819c5b9d54a0a46bf4d051a3facaddc1963a30`, with
-> verified main dSYM UUIDs and no Debug UI-seed markers. Run 103 on exact SHA
-> `4f68e68913` passed all 1,241 unit tests, every protected critical case, and
-> its 239,083,520-byte current-SHA archive with fingerprint
-> `99c82c4e68eceb39c0d29db26bfe57236105de25c499dcd1a9acbe3c82e25c0e`. The queued
-> UI smoke still failed after its explicit badge tap because the seeded
-> completed record did not take over the queued sheet. A local result-bundle run
-> after correcting child-before-parent event ordering reached **Northern
-> Cardinal** and retained decoded audio, then proved the bottom toolbar was
-> absent: queued and completed states share one UUID, so a toolbar task keyed to
-> that ID did not restart after promotion advanced the presentation generation.
-> Commit `2ca985f6079c41c45c6a6e78d382c8283eb0db3b` makes a persisted completion
-> authoritative over stale same-ID queued routes and keys result-toolbar plus
-> Field Notes tasks to that generation. Rebinding that stale route after the
-> exact completion is already visible is an idempotent no-op that preserves the
-> result generation and controls. A later verbose exact-case rerun exposed an
-> independent test-interaction defect: the animated scanning badge advertised a
-> 703-point accessibility frame beginning at x=-384.7 in a 402-point window, so
-> XCTest rejected the rectangle and tapped its x=5 fallback sliver. Commit
-> `2ca985f6079c41c45c6a6e78d382c8283eb0db3b` proved that visually clipping those
-> translated descendants was insufficient: Run 104 compiled both test bundles,
-> passed all 1,243 unit tests and the 239,112,192-byte Release archive
-> (fingerprint
-> `145b2bb7571b18c556bc6e8ff6944b60fdb14e9c85c73896936f978c0886faeb`), then
-> failed the explicit containment assertion before tapping because the badge
-> still exposed an off-window accessibility frame. Commit
-> `6ed0f557b3222890aca55e4c383b2c110ffc8269` removes translated SwiftUI geometry
-> from the control: completed-state glare is drawn inside a fixed Canvas and
-> label changes use a bounded opacity transition. Run 105 on that exact SHA
-> passed all 1,243 unit tests, every protected critical case, and its
-> 239,095,808-byte Release archive (fingerprint
-> `6141847844d37a450109e7d2ef2e7bd42512c1fc68991f5b7ef497a9625b2e7c`), but
-> failed earlier in the UI smoke because `ScanningStatusBadge` was no longer
-> discoverable through `app.buttons`. The queued Insight and native Back control
-> were present. Re-composing the native Button with
-> `.accessibilityElement(children: .ignore)` had changed where the caller's
-> identifier was exposed. Commit `c7eac9c8f3124437712ee72eeff49d09e6ea55b1`
-> removes that recomposition, retains the explicit label on the native Button,
-> and adds a source guard rejecting its return. On that exact SHA, a local Xcode
-> 26.6 generic-Simulator `build-for-testing` compiled and linked the app,
-> complete unit bundle, and UI bundle for both simulator architectures; local
-> resource compilation and XCUI execution remain unavailable in the desktop
-> sandbox. The smoke still reports both app and badge rectangles if containment
-> ever fails again. A hosted run on `c7eac9c8f3` or a committed descendant must
-> pass the queued completion case together with the companion live-Insight
-> connectivity-to-queue case and its current-SHA archive. See the
-> [queued Insight same-ID handoff incident](docs/incidents/2026-07-queued-insight-same-id-handoff-regression.md).
-
-> **App Store export integrity addendum (2026-07-30):** a clean local archive
-> from exact revision `6ce1a56a47aea1deb05353a7714c3f0518aabfac` correctly
-> carried `1.0.2 (236)` and source fingerprint
-> `5c02aec4af0b40f131f127d1d55469f23bf503cb236a4029e87dd1b1946c3b76`. Xcode's
-> distribution pipeline nevertheless emitted an App Store-signed IPA labeled
-> build `272`, matching its cached latest App Store Connect build `271` plus
-> one, while retaining the archive's source provenance. The prior export helper
-> omitted `manageAppVersionAndBuildNumber`, whose Xcode default is enabled, and
-> verified only the archive—not the artifact it called TestFlight-ready.
-> Retained Content Delivery logs prove Xcode uploaded `1.0.2 (272)` successfully
-> with no errors or warnings and App Store Connect accepted it for processing,
-> so `272` is definitively consumed. The command-line exporter that created
-> competing archive and upload identities is now retired. Xcode Organizer is the
-> sole distribution path, and its Xcode-managed number as reported by App Store
-> Connect is authoritative. See the
-> [Xcode export renumbering incident](docs/incidents/2026-07-xcode-export-build-number-rewrite.md).
+Historical run-by-run evidence remains in the
+[video finalization](docs/incidents/2026-07-video-scan-canonical-finalization-regression.md),
+[retry deadlock](docs/incidents/2026-07-failed-retryable-scan-status-upload-deadlock.md),
+[legacy share recovery](docs/incidents/2026-07-media-abandoned-explore-share-recovery.md),
+[queued Insight handoff](docs/incidents/2026-07-queued-insight-same-id-handoff-regression.md),
+and [Xcode export](docs/incidents/2026-07-xcode-export-build-number-rewrite.md)
+incident records. Use the canonical runbooks for current procedures.
 
 ---
 
@@ -597,6 +403,19 @@ breaches its SLA. See the
 
 ### Offline-First Data Pipeline
 
+Legacy share recovery is bound to the immutable dead-letter-ID snapshot captured
+by the migration, preventing a producer blocked behind DDL from gaining legacy
+authority through its earlier transaction-start timestamp. The rollout uses
+separate migration-file transactions: predeploy fail-closed signing, status, and
+share consumers before either file, then deploy the schema-dependent Identify
+producer after proof hardening and service-only readiness checks succeed.
+
+The tree now preserves one exact retry latch through re-stage, permits its
+generation-fenced Identify dispatch, and coalesces concurrent replay wakes into
+one active driver plus at most one trailing pass. The mirrored retry authority,
+cloud-complete precedence, and same scan UUID are described in the
+[scan reliability contract](docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
+
 - `OfflineQueuedScan` (SwiftData) persists captures with full telemetry when
   inference fails or connectivity is absent.
 - `NWPathMonitor` enters through `OfflineJobScheduler` on reconnection. The
@@ -792,9 +611,9 @@ and authorization boundary.
 
 ### Setup
 
+From your repository checkout:
+
 ```bash
-git clone https://github.com/your-org/merian.git
-cd merian
 cp Signing.local.example.xcconfig Signing.local.xcconfig
 cp Config.local.example.xcconfig Config.local.xcconfig
 xcodegen generate
@@ -846,8 +665,7 @@ make validate-ios-privacy-manifest
 make validate-ios-transport-security
 make validate-ios-versioning
 make test-ios-ci-tooling
-make db-push
-make functions-deploy
+make validate-markdown-format
 ```
 
 Normal local builds never increment the app version or build. For routine beta
@@ -880,7 +698,7 @@ The public web surface lives in `apps/web/`.
 ```bash
 cd apps/web
 cp .env.example .env.local
-npm install
+npm ci
 npm run dev
 ```
 

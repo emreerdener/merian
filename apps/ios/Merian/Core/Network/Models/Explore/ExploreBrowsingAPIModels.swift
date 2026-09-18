@@ -163,8 +163,8 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     var likeCount: Int
     var commentCount: Int
     var viewerHasLiked: Bool
-    var reactions: [ExploreCommentReaction]? = nil
-    var reactionsNextCursor: Int? = nil
+    var reactions: [ExploreCommentReaction]?
+    var reactionsNextCursor: Int?
     let isOwnedByViewer: Bool
     let rankingValue: Int?
     // swiftlint:disable:next implicit_optional_initialization

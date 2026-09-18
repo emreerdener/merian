@@ -124,8 +124,8 @@ unexercised.
 - The Debug-only transaction saves through the exact environment `ModelContext`
   bound to the open destination.
 - The child directly invokes the production
-  `promoteQueuedScanIfLocalRecordExists` path before it emits
-  typed `.scanLibraryChanged` invalidation for parent refresh.
+  `promoteQueuedScanIfLocalRecordExists` path before it emits typed
+  `.scanLibraryChanged` invalidation for parent refresh.
 - `bindQueuedPresentationPreferringCompletedRecord` treats a persisted same-ID
   completion as authoritative whenever SwiftUI rebinds a retained queued route.
   If that completion is already the exact bound presentation, the bind is an
@@ -172,8 +172,8 @@ the centralized reveal fence, Canvas/opacity-only badge animation, absence of
 recomposition, an explicit accessibility label, exactly one
 `ScanningStatusBadge` identifier occurrence bound to
 `let scanningStatusBadge = app.buttons["ScanningStatusBadge"]`, intrinsic
-scanning-badge bounds, and the diagnostic window-frame assertion. The exact
-XCUI smoke still requires native Back, queued badge and fact card, decoded audio
+scanning-badge bounds, and the diagnostic window-frame assertion. The exact XCUI
+smoke still requires native Back, queued badge and fact card, decoded audio
 before and after completion, Northern Cardinal takeover, Field Chat, and Share
 under exactly one passed, unskipped result.
 
@@ -212,3 +212,136 @@ descendant supplies all of the following:
 Do not waive the XCUI assertions because unit and archive lanes are green. Run
 103 demonstrates that those lanes can pass while the user-visible joined handoff
 remains broken.
+
+## Historical README Evidence — Retained 2026-09-18
+
+The following July 2026 chronology was moved from the root README without
+changing its observations, candidate identities, fingerprints, or verification
+limits. It is historical evidence, not a new validation result or a statement of
+today's toolchain requirements. Current release procedures live in the
+[iOS publishing runbook](../development-guides/14-ios-release-versioning.md) and
+[testing strategy](../development-guides/08-testing-strategy.md).
+
+**TestFlight addendum (2026-07-29):** build 1.0.2 (235) exposed a client
+state-machine deadlock after `failed_retryable / background_ingestion_failed`.
+Media uploaded successfully, but every status preflight skipped the Identify
+request required to reclaim the failed generation; upload success also erased
+its retry count. A follow-up archive showed the initial single-row latch fix was
+insufficient on a migrated store: retry state survived in the durable job while
+a drifted queued-scan snapshot restarted at attempt one. Retry authority now
+reconciles both copies and advances from their monotonic maximum. A separate
+same-session smoke proved new Identify and Explore publication healthy while an
+eligible older `media_reconciliation_abandoned` record was rejected by the
+terminal repair signer. The tree now preserves one exact retry latch through
+re-stage, permits its generation-fenced Identify dispatch, bounds automatic
+churn, and allows only authenticated tombstone-free `replay_exhausted` repair,
+or `media_reconciliation_abandoned` repair backed by composite service proof: a
+post-result dead letter no earlier than the latest charged normal/replay
+attempt, evidence shaped for its producer generation, no active reservation or
+corrupt timestamp lineage, and no moderation-rejected or
+moderation-infrastructure-failed capture lifecycle row. Pre-rollout evidence
+narrowly supports the vulnerable producer’s first committed normal attempt; it
+must also belong to the immutable exact dead-letter-ID snapshot captured by the
+migration, predate the private cutoff, and match the audited multimodal
+post-safety error path. The exact snapshot prevents a producer blocked behind
+migration DDL from gaining legacy authority through its earlier
+transaction-start timestamp. Post-rollout evidence must bind the exact quota
+IDs, validated provider result, and completed Identify safety evaluation.
+Because the rollout uses two separate migration-file transactions, production
+now predeploys fail-closed signing, status, and share consumers before either
+file, then deploys the schema-dependent Identify producer only after proof
+hardening and service-only readiness checks succeed. Library, scheduler,
+reconnect, and URLSession replay wakes now share one process-local driver plus
+at most one trailing pass, preventing overlapping status probes, orphan
+transitions, retry inflation, and start-log storms. See the
+[retry deadlock incident](./2026-07-failed-retryable-scan-status-upload-deadlock.md)
+and
+[legacy share incident](./2026-07-media-abandoned-explore-share-recovery.md). A
+later physical-device smoke also staged and submitted a scan with Wi-Fi and
+cellular disabled; it remained queued and completed after connectivity was
+restored. This positively exercises ordinary offline replay, but build `235`
+predates the remediation and its retained console lacks the transaction-level
+sequence, so a fresh globally higher exact-source TestFlight build remains a
+release requirement. Hosted iOS Runs 97 and 153 are stale failure evidence for
+parent SHA `0aa170fa`: both stopped on two ambiguous offline-sync
+`Set(compactMap:)` expressions before test or archive execution. Pushed
+descendant `f292dc48` explicitly types every equivalent snapshot as
+`Set<String>` and locally passes the complete app/unit/UI `build-for-testing`
+product graph under the documented CoreSimulator resource bypass. Run 99 on
+exact descendant `631e123e8` subsequently exposed three stale test-contract
+expectations; their test-only correction is committed in `8642a8c6d`. Run 100 on
+that exact descendant passed all 1,241 unit tests and every protected critical
+scan-flow regression, while exposing a fixed four-second Debug-fixture race
+before the hosted accessibility hierarchy could observe `ScanningStatusBadge`.
+The timer-free handshake is committed as
+`399482b649363c820b59fee1967bf94e35a5c0e7`. Run 101 on that exact SHA again
+passed all 1,241 unit tests and protected regressions, and its current-SHA
+Release archive passed at 239,079,424 bytes for `1.0.2 (235)`, fingerprint
+`989544a7bbb531c91673c1949ed676497c6cd08a2028375fc5fc3a73ca7b100c`, with
+verified main dSYM UUIDs and no Debug UI-seed markers. The UI smoke now proved
+queued navigation, shared scanning content, decoded audio playback, and the
+explicit badge tap; it failed only when the seeded completed record did not take
+over the already-open sheet. That late Debug transaction used the container main
+context while the sheet was bound to its environment `ModelContext`, then relied
+on an asynchronous library event to merge the insert. The context-bound
+follow-up performs the transaction in that exact context and immediately calls
+the existing production queue-promotion path. Release retains a no-op
+coordinator, and production queue timing is unchanged. That portion is committed
+as `838533e98589f4fca89643e966864a7d59adca05`. Run 102 on that exact SHA did not
+reach the queued UI smoke because its complete unit target reported 1,240 passed
+and one failed:
+`testCancelledExploreShareUsesCanonicalCancellationAndDoesNotReplay` observed
+zero requests while expecting the first request. Its fixed loop of 100 executor
+yields did not provide a time-bounded rendezvous with URLSession on the loaded
+hosted simulator. Commit `4f68e68913fca6276458cd093ad167c9bc7d5d9e` replaces
+that loop with a wait of up to five monotonic seconds for the observable first
+dispatch, then preserves both exact assertions: one request before cancellation
+and still one after cancellation. Run 102's current-SHA Release archive
+independently passed at 239,083,520 bytes for `1.0.2 (235)`, fingerprint
+`2f79712ff4b08ac6fea2e972e9819c5b9d54a0a46bf4d051a3facaddc1963a30`, with
+verified main dSYM UUIDs and no Debug UI-seed markers. Run 103 on exact SHA
+`4f68e68913` passed all 1,241 unit tests, every protected critical case, and its
+239,083,520-byte current-SHA archive with fingerprint
+`99c82c4e68eceb39c0d29db26bfe57236105de25c499dcd1a9acbe3c82e25c0e`. The queued
+UI smoke still failed after its explicit badge tap because the seeded completed
+record did not take over the queued sheet. A local result-bundle run after
+correcting child-before-parent event ordering reached **Northern Cardinal** and
+retained decoded audio, then proved the bottom toolbar was absent: queued and
+completed states share one UUID, so a toolbar task keyed to that ID did not
+restart after promotion advanced the presentation generation. Commit
+`2ca985f6079c41c45c6a6e78d382c8283eb0db3b` makes a persisted completion
+authoritative over stale same-ID queued routes and keys result-toolbar plus
+Field Notes tasks to that generation. Rebinding that stale route after the exact
+completion is already visible is an idempotent no-op that preserves the result
+generation and controls. A later verbose exact-case rerun exposed an independent
+test-interaction defect: the animated scanning badge advertised a 703-point
+accessibility frame beginning at x=-384.7 in a 402-point window, so XCTest
+rejected the rectangle and tapped its x=5 fallback sliver. Commit
+`2ca985f6079c41c45c6a6e78d382c8283eb0db3b` proved that visually clipping those
+translated descendants was insufficient: Run 104 compiled both test bundles,
+passed all 1,243 unit tests and the 239,112,192-byte Release archive
+(fingerprint
+`145b2bb7571b18c556bc6e8ff6944b60fdb14e9c85c73896936f978c0886faeb`), then failed
+the explicit containment assertion before tapping because the badge still
+exposed an off-window accessibility frame. Commit
+`6ed0f557b3222890aca55e4c383b2c110ffc8269` removes translated SwiftUI geometry
+from the control: completed-state glare is drawn inside a fixed Canvas and label
+changes use a bounded opacity transition. Run 105 on that exact SHA passed all
+1,243 unit tests, every protected critical case, and its 239,095,808-byte
+Release archive (fingerprint
+`6141847844d37a450109e7d2ef2e7bd42512c1fc68991f5b7ef497a9625b2e7c`), but failed
+earlier in the UI smoke because `ScanningStatusBadge` was no longer discoverable
+through `app.buttons`. The queued Insight and native Back control were present.
+Re-composing the native Button with `.accessibilityElement(children: .ignore)`
+had changed where the caller's identifier was exposed. Commit
+`c7eac9c8f3124437712ee72eeff49d09e6ea55b1` removes that recomposition, retains
+the explicit label on the native Button, and adds a source guard rejecting its
+return. On that exact SHA, a local Xcode 26.6 generic-Simulator
+`build-for-testing` compiled and linked the app, complete unit bundle, and UI
+bundle for both simulator architectures; local resource compilation and XCUI
+execution remain unavailable in the desktop sandbox. The smoke still reports
+both app and badge rectangles if containment ever fails again. A hosted run on
+`c7eac9c8f3` or a committed descendant must pass the queued completion case
+together with the companion live-Insight connectivity-to-queue case and its
+current-SHA archive. See the
+[queued Insight same-ID handoff incident](./2026-07-queued-insight-same-id-handoff-regression.md).

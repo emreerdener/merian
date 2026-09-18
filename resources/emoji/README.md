@@ -10,7 +10,8 @@ Unicode attribution and licensing; the app bundles a copy as
 Only fully-qualified emoji are canonical. Recognized minimally-qualified and
 unqualified forms map to that identity. Skin tones, flags, and joined sequences
 remain distinct; standalone components and arbitrary text are not reactions.
-Native rendering uses the catalog name for accessibility and glyph fallback.
+Picker cells render native emoji without visible name captions. Catalog names
+remain available for search, accessibility, and help.
 
 ## Maintenance
 

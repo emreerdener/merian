@@ -27,8 +27,8 @@ struct ExplorePostDetailMapPoint: Decodable, Equatable {
 
 struct ExplorePostDetail: Decodable {
     let postId: String
-    var reactions: [ExploreCommentReaction]? = nil
-    var reactionsNextCursor: Int? = nil
+    var reactions: [ExploreCommentReaction]?
+    var reactionsNextCursor: Int?
     var fieldNotes: String?
     var locationSharing: ExplorePostLocationSharing?
     let mapPoint: ExplorePostDetailMapPoint?

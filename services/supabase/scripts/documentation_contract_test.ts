@@ -1657,6 +1657,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       "2026-07-queued-insight-same-id-handoff-regression.md",
     );
   }
+  // The incident owns dated evidence; the entry points above must link to it.
+  // Keep every historical assertion when moving the chronology out of README.
+  const handoffIncidentSource = await read(
+    "docs/incidents/2026-07-queued-insight-same-id-handoff-regression.md",
+  );
   for (
     const fragment of [
       "Hosted iOS Runs 97 and 153 are stale failure evidence for",
@@ -1704,7 +1709,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       "queued Insight same-ID handoff incident",
     ]
   ) {
-    assertStringIncludes(compact(rootSource), compact(fragment));
+    assertStringIncludes(compact(handoffIncidentSource), compact(fragment));
   }
 
   for (

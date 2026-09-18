@@ -26,11 +26,6 @@ struct ExplorePostReactionSummary: View {
                 .accessibilityLabel(summary)
                 .accessibilityHint("Show who reacted and which reactions they used")
                 .accessibilityIdentifier("explore.reactions.summary")
-            } else if model.isLoading {
-                ProgressView("Loading reactions…").font(.caption).frame(minHeight: 44)
-            } else if model.errorMessage != nil {
-                Button("Couldn’t load reactions. Retry") { Task { await model.refresh() } }
-                    .font(.caption).frame(minHeight: 44)
             }
         }
         .padding(.horizontal, 16)

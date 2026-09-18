@@ -83,6 +83,10 @@ appDsyms/
 *.env
 
 # Supabase Local State
+# Also ignore state from accidental CLI runs without --workdir services.
+/supabase/.temp/
+/supabase/.branches/
+/supabase/.supabase/
 services/supabase/.temp/
 services/supabase/.branches/
 services/supabase/.supabase/

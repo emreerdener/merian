@@ -8744,10 +8744,18 @@ while typing/scrolling, and post ❤️ picker versus direct Heart behavior.
 `HapticFeedbackPolicyTests` guards shared preference admission. Simulator tests
 cannot establish the physical feel of these interactions.
 
+The reaction state suite also exercises queued selections of different emojis,
+independent removal, and unavailable-route rollback across queued requests while
+preserving existing reactions and likes. A passing mocked transport/state test
+does not prove that the app's configured backend has the new reaction routes;
+see the
+[reaction rollout diagnostics](../backend-and-data/05-api-contracts.md#reaction-rollout-order)
+when gateway failures undo optimistic selections.
+
 | Surface or state                                         | Manual verification                                                                                                                                                                                                                                                                                                                                                                             |
 | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Feed, hashtag cards, Map preview, post detail            | Comment → Heart → Add reaction → emoji chips → Share. Feed comments open their sheet; detail comments focus the inline thread. Sharing retains content and destinations. Author/grid navigation opens the same shared post state.                                                                                                                                                               |
-| Picker on posts, comments, replies, notification replies | Starts at medium, expands to large and on search; search names/keywords, categories, flags, skin tones, joined sequences, and unsupported-device name fallback. Selecting adds once and dismisses; reselecting does not remove. Post ❤️ uses Like; comment ❤️ remains a reaction.                                                                                                               |
+| Picker on posts, comments, replies, notification replies | Starts at medium, expands to large and on search; search names/keywords, categories, flags, skin tones, joined sequences, and emoji-only cells with names retained for search and VoiceOver. Selecting adds once and dismisses; reselecting does not remove. Post ❤️ uses Like; comment ❤️ remains a reaction.                                                                                  |
 | Counts and overflow                                      | Multiple different reactions per viewer; chip taps toggle, highlight viewer selection, remove zero-count chips. Load more groups, retry failures, and reveal a newly selected out-of-page group. Existing count changes and pagination do not jump the strip.                                                                                                                                   |
 | Layout and accessibility                                 | Narrow screens, light/dark mode, VoiceOver names/selected state/counts, and Dynamic Type through accessibility sizes. At `xxxLarge` and accessibility sizes, chips occupy a second scrolling row. Fixed controls remain usable; scrolling clips before Share's hit area and fades only toward hidden content.                                                                                   |
 | Lifecycle and failures                                   | Video suspends while the picker is presented and resumes according to existing playback intent. Exercise dismissals, navigation, refresh, account changes, blocked/unavailable targets, network failure, visible errors, and rollback across feed/detail and notification reply copies.                                                                                                         |
@@ -8783,9 +8791,11 @@ contract and `explore_post_reactors_security.sql` pin grants and caller guards.
 Full candidate Deno and pgTAP discovery includes these tests.
 
 Manual device checks: summary appears only below detail actions; zero actors
-hides it; one/two/many copy matches distinct people; tapping opens medium/large
-sheet with feedback and pauses video; all emojis remain readable via horizontal
-overflow; More and retry work; dismiss restores the existing media intent. Check
-long names, large Dynamic Type, VoiceOver names, dark mode, and removal or
-account switching while requests are pending. Automated passes do not establish
-these manual or deployed checks.
+hides it; loading and failed summary reads show no spinner, retry message, or
+reserved space; a successful nonempty read reveals the line. One/two/many copy
+matches distinct people; tapping opens medium/large sheet with feedback and
+pauses video; all emojis remain readable via horizontal overflow; More and retry
+work; dismiss restores the existing media intent. Check long names, large
+Dynamic Type, VoiceOver names, dark mode, and removal or account switching while
+requests are pending. Automated passes do not establish these manual or deployed
+checks.

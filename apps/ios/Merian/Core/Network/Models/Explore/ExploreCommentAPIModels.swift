@@ -24,7 +24,7 @@ struct ExploreComment: Decodable, Identifiable, Equatable {
     var replyCount: Int?
     var reactions: [ExploreCommentReaction]?
     var mentions: [ExploreCommentMention]?
-    var reactionsNextCursor: Int? = nil
+    var reactionsNextCursor: Int?
 
     var id: String { commentId }
 
@@ -54,7 +54,7 @@ struct ExploreCommentReaction: Decodable, Identifiable, Equatable {
     let emoji: String
     var count: Int
     var viewerHasReacted: Bool
-    var order: Int? = nil
+    var order: Int?
     
     var id: String { emoji }
 }
