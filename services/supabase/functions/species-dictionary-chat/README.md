@@ -148,10 +148,9 @@ Dictionary-specific refusal copy. The source now also includes:
 - one shared executable prompt-label fixture for Swift and Deno, including
   U+2013 EN DASH, U+0085 normalization, U+FEFF rejection, combining marks, and
   exact 64-scalar boundaries; and
-- a source hold gate plus protected-Production clearance that downloads each
-  reviewed GitHub artifact, recomputes archive and embedded evidence digests,
-  validates exact-SHA successful runs, and checks live branch/environment
-  protections before mutation.
+- a source hold gate and automatic live branch/environment verification before
+  mutation, with retained-artifact validation available as optional audit
+  tooling.
 
 Production nevertheless remains blocked by the checked-in
 `species_dictionary_chat_production_hold` in
@@ -173,21 +172,16 @@ malformed, duplicate, and required-ID-absent manifests still fail. The gate
 requires this hold ID and a clean exact checkout. A green held workflow does not
 mean the backend deployed. If a reviewed manifest later marks the hold inactive,
 the sole Production job independently pins and clean-checks the same SHA, then
-requires the protected `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` environment
-secret before reading ordinary production credentials or mutating Supabase. That
-clearance must match the candidate SHA, exact manifest SHA-256, every stable
-criterion ID and evidence type, positive artifact IDs, nonzero evidence digests,
-and a current approval window. A read-only GitHub audit token verifies
-merged-main PR provenance, protected branches without bypass, sole-maintainer
-`@emreerdener` approval in `Release Evidence`/`Production` (self-review allowed,
-admin bypass disabled), artifact bytes, supporting runs, and structured evidence
-payloads. Statements, embedded observations, and supporting-run `updated_at`
-values must be no more than 30 days old, and artifact IDs cannot be reused
-across criteria. Evidence dispatch must start from current `main`; manual values
-enter Bash only through step environment variables. Keep the hold active until
-the non-skipped database suite, wrapper-auth and iOS retry evidence, genuine
-released-binary V49→V50 physical install-over, both hosted gates on one SHA,
-live external controls, and external approvals are complete and retained.
+runs automated current-main, merged-PR, branch protection, and environment
+checks with a read-only GitHub audit token before Supabase mutation. Both
+Production and Release Evidence permit protected branches only and require no
+reviewers, timers, or custom approval gates. No per-commit clearance record is
+required. Evidence publication and artifact validation remain available for
+hold-exit records and optional audits that recompute artifact digests and verify
+exact-SHA supporting runs. Keep the hold active until the non-skipped database
+suite, wrapper-auth and iOS retry evidence, genuine released-binary V49→V50
+physical install-over, both hosted gates on one SHA, live external controls, and
+external approvals are complete and retained.
 
 The canonical release checklist and manual Great Egret matrix live in
 [`docs/backend-and-data/06-supabase-deployment-runbook.md`](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md)

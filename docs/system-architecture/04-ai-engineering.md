@@ -1327,11 +1327,11 @@ provider dispatch:
   execute without a database skip, hosted real-token wrapper evidence, same-SHA
   hosted gates, the real released-binary V49→V50 install-over, and external
   approvals pass. Its verifier requires the named hold ID before Production. If
-  reviewed inactive, the independently exact-SHA-checked mutation job requires a
-  protected clearance bound to the manifest, complete criterion set, GitHub
-  artifacts, and current approval. It downloads and recomputes the evidence,
-  verifies exact-SHA runs, and checks live branch/environment protections before
-  mutation.
+  reviewed inactive, the independently exact-SHA-checked mutation job verifies
+  live branch and environment protections automatically before mutation. Normal
+  deployments require neither a manual environment review nor a per-commit
+  clearance record. Artifact verification remains available for retained
+  hold-exit evidence audits.
 - **Dynamic Diagnostic Thresholds**: The dynamic presentation of diagnostic data
   (e.g., lookalikes, confidence hooks, and identification candidates) is gated
   by the tier-specific `diagnosticTrigger`. **Canonical source of truth**:

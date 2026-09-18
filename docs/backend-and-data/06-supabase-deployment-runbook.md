@@ -66,17 +66,24 @@ non-Production checked-in source-hold job. A valid active hold produces a green
 skipped before GitHub requests Production approval or exposes credentials. A
 missing or malformed hold remains a workflow failure. Only a clear source status
 allows the subsequent `deploy` job to enter the Production environment. That job
-pins and clean-checks the same SHA and validates a protected clearance before it
-reads ordinary production credentials or mutates Supabase. The verifier binds
-the clearance to the candidate, manifest, criterion set, artifact IDs/digests,
-and approval window; uses a read-only GitHub audit token to verify live branch,
-pull-request, and environment protections; then downloads every release-evidence
-artifact, recomputes its archive and embedded-evidence digests, and verifies
-exact-SHA successful workflow provenance. Protected `Release Evidence` and
-`Production` approvals remain required, and off-platform evidence still requires
-reviewer judgment; a digest proves retained bytes, not the issuing authority. A
-green candidate run proves the reviewed source and disposable catalog, not that
-production changed.
+pins and clean-checks the same SHA and runs `--mode automatic-release` before
+ordinary production credentials or mutations. With the read-only
+`MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`, the gate verifies the current protected
+`main` head, merged-main PR provenance, required checks, branch rules without
+bypass, and automatic environment policy. Both `Production` and
+`Release Evidence` retain protected-branches-only restrictions with no required
+reviewers, wait timers, or custom approval gates. Scheduled monitors sharing
+`Production` also run without approval clicks. Backend-relevant pushes to `main`
+trigger this path automatically; existing path filters and manual dispatch
+remain unchanged.
+
+The active Field Chat hold remains a one-time release blocker. Its evidence must
+be retained before a reviewed source change clears it. Once resolved, ordinary
+subsequent commits require automated validation rather than fresh
+`MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` records. Optional audit tooling still
+downloads each uniquely assigned artifact, recomputes the archive digest, and
+verifies exact-SHA provenance; a digest proves retained bytes, not the issuing
+authority. Green held/skipped runs are not production deployment evidence.
 
 ### Scan admission preview release order
 
@@ -6215,7 +6222,7 @@ secret set into either Vercel project.
 | `R2_READ_SECRET_ACCESS_KEY`                | Synchronized by the workflow to Supabase Edge only            |
 | `R2_EVENT_WEBHOOK_SECRET`                  | Optional; synchronized to Supabase Edge for R2 event hints    |
 | `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`        | Protected read-only GitHub control/evidence audit token       |
-| `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` | Protected runner-only release evidence; never synchronized    |
+| `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` | Legacy optional audit input; not used by automatic deploy     |
 | `SUPABASE_ACCESS_TOKEN`                    | Used by the GitHub runner to operate the Supabase CLI         |
 | `SUPABASE_DB_URL`                          | Used by the GitHub runner for database migration/audit access |
 | `SUPABASE_DB_PASSWORD`                     | Used only by the runner's alternative pooler connection path  |
@@ -6230,22 +6237,17 @@ Release**.
 
 Set these in the repository's GitHub Actions secrets:
 
-- `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` — a short-lived, runner-only
-  release-control record stored specifically in the protected GitHub
-  `Production` environment. Populate it from the checked-in template only after
-  every inactive-hold criterion has a reviewed artifact produced by the
-  protected `Release Evidence` workflow. The verifier downloads each immutable
-  artifact, recomputes its archive and embedded-evidence digests, validates its
-  exact candidate and successful supporting workflow runs, and logs only stable
-  IDs and digests. Never synchronize it to Supabase, paste it into logs, or
-  commit the populated record.
+- `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` — legacy optional audit input, no
+  longer read by automatic deployment. Do not synchronize it to Supabase or
+  commit populated evidence records. The retained parser/template supports
+  historical clearance audits; it does not introduce a recurring review gate.
 - `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` — a fine-grained read-only token available
   only to the protected `Production` environment. Grant the minimum repository
   read permissions needed for Actions artifacts/runs, pull requests, branch
   protection, and environments. It must not have contents, Actions,
-  administration, deployment, or secrets write access. The clearance verifier
-  uses it before any Supabase credential or mutation and fails closed if the
-  token cannot inspect the live controls.
+  administration, deployment, or secrets write access. The automatic release
+  verifier uses it before any Supabase credential or mutation and fails closed
+  if the token cannot inspect the live controls.
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
 - `APPLE_SIGN_IN_TEAM_ID`, `APPLE_SIGN_IN_KEY_ID`, and
   `APPLE_SIGN_IN_PRIVATE_KEY` — required Apple Developer issuer/key metadata and
@@ -7592,30 +7594,23 @@ After deployment:
   `active: false` change clears only this source gate. Inside the sole GitHub
   `Production` job, the repository is checked out explicitly at `github.sha`,
   clean-checked and current-main-checked again, and then
-  `verify_production_release_holds.ts --mode production-clearance` requires the
-  protected `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` secret before ordinary
-  production credentials or mutations are reachable. Schema-v2 clearance is
-  valid only when its candidate SHA and manifest digest match, every inactive
-  hold and criterion ID/evidence type appears exactly once, every positive
-  GitHub artifact ID has a nonzero SHA-256, and the approval window is current
-  and no longer than seven days. Using the read-only
-  `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`, the verifier also proves the candidate is
-  the current protected `main` head and is bound unambiguously to one merged
-  `main` pull request. Live protection must require PRs with zero peer
-  approvals, Code Owner review and last-push approval disabled, stale-review
-  dismissal, admin enforcement, and no bypass. Both `Release Evidence` and
-  `Production` must require only `@emreerdener`, allow self-review, disable
-  administrator bypass, and accept protected branches only. These are explicit
-  sole-maintainer environment approvals, not independent peer reviews. It
-  downloads each uniquely assigned artifact, recomputes the archive digest,
-  verifies exact candidate/successful workflow provenance, unpacks exactly one
-  `release-evidence.json`, checks required workflow runs, and recomputes every
-  embedded structured-evidence digest. Statement and embedded observation times
-  must be no more than 30 days old. Missing access, changed settings, non-main
-  provenance, expired/tampered bytes, stale runs, or malformed payloads fail
-  closed. The verifier logs only stable controls, criterion IDs, artifact IDs,
-  and digests; never secret or evidence contents. Do not test either gate by
-  dispatching a deployment.
+  `verify_production_release_holds.ts --mode automatic-release` independently
+  rejects active/malformed holds and verifies the current protected `main` head,
+  one merged-main PR, strict Candidate readiness, admin enforcement, no bypass,
+  no force pushes/deletions, and protected environment branches with no reviewer
+  or waiting gates. Code Owner review and last-push approval disabled and zero
+  peer approvals preserve the sole-maintainer PR path. The read-only
+  `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` is required for these live checks before
+  Supabase credentials are used. Missing access fails closed. There is no
+  per-deployment approval or clearance-secret requirement.
+
+  `--mode production-clearance` remains optional audit tooling for retained
+  evidence. It binds the candidate SHA, manifest digest, criterion set, and
+  artifact references. It downloads each uniquely assigned artifact, recomputes
+  the archive digest and embedded payload digests, and checks exact-SHA
+  successful workflow provenance. Evidence must be no more than 30 days old.
+  These optional audits do not run on every push and are not a substitute for
+  completing the hold's technical requirements.
 
 ### Species Dictionary Field Chat hold-exit criteria
 
@@ -7647,12 +7642,12 @@ test does not satisfy an evidence requirement:
    immutable candidate SHA.
 5. **`release_control_exact_sha_and_clearance`** (`release_control_audit`): The
    required hold ID and exact clean mutation SHA are enforced; live GitHub
-   checks require merged-main pull-request provenance, protected branches
-   without bypass, and sole-maintainer approval by emreerdener in both Release
-   Evidence and Production with self-review allowed and administrator bypass
-   disabled; every clearance artifact is downloaded, digest-recomputed,
-   exact-SHA and successful-workflow checked, and its structured evidence
-   payload is validated before mutation.
+   checks require current protected main, merged-main pull-request provenance,
+   required Candidate readiness checks, branch rules without bypass, and an
+   automatic environment policy with protected branches only and no required
+   reviewers or waiting gates. Hold-exit evidence is retained before the source
+   hold is resolved; ordinary subsequent deployments do not require new manual
+   clearance records.
 6. **`swiftdata_v49_v50_install_over`** (`device_install_over`): The V49-to-V50
    real released-binary install-over gate passes without safe mode, store
    replacement, or data loss.
@@ -7685,42 +7680,37 @@ also be within that 30-day window. Dispatch
 `.github/workflows/release-evidence.yml` from the current `main` head at that
 exact candidate. Manual workflow values must enter Bash through step `env`
 variables; never interpolate `${{ inputs.* }}` directly into a `run` script. Its
-separate `Release Evidence` environment must approve the run; the workflow
-validates the statement and supporting runs before uploading the uniquely named
-90-day audit artifact. Record its artifact ID and GitHub-reported SHA-256. Each
-positive artifact ID may satisfy exactly one criterion; never reuse an artifact
-across criteria. Retention does not extend the 30-day admission window. Follow
-the complete redaction, renewal, and failure procedure in the
-[release-evidence operations guide](../release-evidence/README.md).
+separate `Release Evidence` environment runs without required reviewers; the
+workflow validates the statement and supporting runs before uploading the
+uniquely named 90-day audit artifact. Record its artifact ID and GitHub-reported
+SHA-256. Each positive artifact ID may satisfy exactly one criterion; never
+reuse an artifact across criteria. Retention does not extend the 30-day
+admission window. Follow the complete redaction, renewal, and failure procedure
+in the [release-evidence operations guide](../release-evidence/README.md).
 
-Then copy
-`docs/release-evidence/species-dictionary-field-chat-clearance-template.json`,
-replace every placeholder, set `active: false` in the reviewed candidate, and
-calculate the SHA-256 of that candidate's exact
-`services/supabase/release-holds.json`. Store the completed schema-v2 JSON only
-as the protected GitHub `Production` environment secret
-`MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON`; do not commit it. Candidate and
-manifest values, criterion IDs/types, positive artifact IDs, nonzero digests,
-and the at-most-seven-day window must be exact. The checked-in templates are
-intentionally invalid until populated.
+After the hold's requirements have real retained evidence, resolve the hold in
+source through the protected PR path. Run candidate validation for the resulting
+exact commit. The deployment workflow rechecks source status and live GitHub
+controls automatically. Hold clearance is a deliberate source change, not a
+recurring environment approval. This policy change keeps the hold active.
 
-`.github/CODEOWNERS` remains review routing, not separation of duties. The
-sole-maintainer policy uses zero peer approvals on PRs and explicit
-`@emreerdener` approval of each `Release Evidence` and `Production` job. Both
-environments must have only that User reviewer, allow self-review, deny admin
-bypass, and accept protected branches only. Preserve required status checks,
-admin enforcement, stale-review dismissal, no review bypass, and denial of force
-pushes/deletions on `main`. See the exact settings and trust boundary in the
-[release-evidence operations guide](../release-evidence/README.md).
+For an optional historical clearance audit, use
+`docs/release-evidence/species-dictionary-field-chat-clearance-template.json`.
+`MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` is no longer consumed by
+`deploy.yml`. Never copy its contents to Supabase or treat template placeholders
+as evidence.
 
-The maintainer reviews the substantive evidence before approving each job;
-merging or dispatching does not approve deployment. Secret administration must
-remain restricted to the maintainer; the read-only audit token cannot verify who
-can edit GitHub secrets. If any checked setting, token scope, or
-secret-administration boundary is unavailable, keep the hold active. Retain the
-merged PR, both environment approvals, exact workflow URLs,
-manifest/clearance/artifact digests, three live bundle identities, and final
-post-activation summary together.
+`.github/CODEOWNERS` routes source changes. Protected main retains PRs with zero
+peer approvals, strict required checks, stale-review dismissal, admin
+enforcement, no bypass, and denial of force pushes/deletions. Both release
+environments have no required reviewers, wait timers, or custom approval gates;
+protected-branches-only and environment secrets remain. No review click is
+needed for ordinary deployments or scheduled health monitors.
+
+Retain the source PR, exact workflow URLs, migration/function plan, live bundle
+identities, and post-deploy verification with the release record. Missing
+technical evidence still blocks resolving the active hold. Off-platform evidence
+requires judgment; automation cannot attest to an external issuer.
 
 - For an admin release, complete the authentication/role, security-header,
   grouped-review, hidden-content projection, feedback/user audit, and AI-ledger

@@ -46,8 +46,8 @@ entitlement wiring do not authorize product promotion until the Ghost merge and
 three-family admission contracts, explicit post-deploy cutover activation,
 no-write quota denial, automatic idempotent replay, authenticated-wrapper
 evidence, exact Swift/Deno label parity, candidate-matched live bundle digests,
-ready-state rerun selection, artifact-backed protected clearance, and the
-remaining release gates pass the
+ready-state rerun selection, retained hold-exit evidence, automated live
+repository-control checks, and the remaining release gates pass the
 [canonical Dictionary checklist](16-species-dictionary.md#candidate-release-status).
 
 The beta grant operation remains release-held until the identity, cohort, and

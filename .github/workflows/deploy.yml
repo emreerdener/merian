@@ -93,8 +93,8 @@ jobs:
     if: needs.production-hold.outputs.deploy_allowed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # Sole maintainer explicitly approves this exact-SHA job in GitHub.
-    # Required reviewer: emreerdener; self-review allowed; admin bypass denied.
+    # Automatic after candidate validation and the checked-in source hold.
+    # Production scopes secrets and protected branches; no required reviewers.
     environment: Production
     defaults:
       run:
@@ -154,18 +154,17 @@ jobs:
         with:
           deno-version: v2.9.4
 
-      - name: Verify protected Production release clearance
+      - name: Verify automatic Production release controls
         env:
           MERIAN_GITHUB_RELEASE_AUDIT_TOKEN: ${{ secrets.MERIAN_GITHUB_RELEASE_AUDIT_TOKEN }}
-          MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON: ${{ secrets.MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON }}
         run: |
           deno run --frozen --config supabase/functions/deno.json \
-            --allow-env=GITHUB_REPOSITORY,MERIAN_GITHUB_RELEASE_AUDIT_TOKEN,MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON \
+            --allow-env=GITHUB_REPOSITORY,MERIAN_GITHUB_RELEASE_AUDIT_TOKEN \
             --allow-net \
             --allow-read=supabase/release-holds.json \
             --allow-write="$GITHUB_STEP_SUMMARY" \
             supabase/scripts/verify_production_release_holds.ts \
-            --mode production-clearance \
+            --mode automatic-release \
             --manifest supabase/release-holds.json \
             --candidate-sha "$GITHUB_SHA" \
             --summary "$GITHUB_STEP_SUMMARY"

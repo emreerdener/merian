@@ -62,9 +62,6 @@ interface GitHubWorkflowRun {
 
 type Fetcher = typeof fetch;
 
-// Explicit repository policy; never infer release authority from the PR author.
-export const RELEASE_MAINTAINER = "emreerdener";
-
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const DIGEST_PATTERN = /^(?!0{64}$)[0-9a-f]{64}$/;
 const WORKFLOW_PATTERN = /^\.github\/workflows\/[a-zA-Z0-9._-]+\.ya?ml$/;
@@ -267,26 +264,14 @@ export async function parseAndValidateReleaseEvidenceStatement(
   };
 }
 
-function hasSoleMaintainerApproval(
+function hasAutomaticEnvironmentPolicy(
   environment: Record<string, unknown>,
 ): boolean {
   const rules = environment.protection_rules;
-  if (!Array.isArray(rules)) return false;
-  const reviewerRules = rules.filter((rule) =>
-    isRecord(rule) && rule.type === "required_reviewers"
-  );
-  if (reviewerRules.length !== 1) return false;
-  const rule = reviewerRules[0];
-  if (
-    !isRecord(rule) || rule.prevent_self_review !== false ||
-    !Array.isArray(rule.reviewers) || rule.reviewers.length !== 1
-  ) return false;
-  const entry = rule.reviewers[0];
-  return isRecord(entry) && entry.type === "User" &&
-    isRecord(entry.reviewer) &&
-    typeof entry.reviewer.login === "string" &&
-    entry.reviewer.login.toLowerCase() === RELEASE_MAINTAINER &&
-    environment.can_admins_bypass === false;
+  // No human, timer, or custom deployment gate may stall automated jobs.
+  // GitHub can report the branch restriction here as well as in branch policy.
+  return Array.isArray(rules) &&
+    rules.every((rule) => isRecord(rule) && rule.type === "branch_policy");
 }
 
 export class GitHubReleaseEvidenceVerifier implements ReleaseEvidenceVerifier {
@@ -460,9 +445,7 @@ export class GitHubReleaseEvidenceVerifier implements ReleaseEvidenceVerifier {
     ) {
       throw new Error("candidate is not bound to a merged pull request");
     }
-    // GitHub cannot approve one's own PR. The merged PR remains the reviewable
-    // source record; explicit release approval is recorded at each environment
-    // gate by the fixed sole maintainer, even when they authored the PR.
+    // Merged-main provenance is retained; deployment does not require a review click.
 
     for (const environmentName of ["Release Evidence", "Production"]) {
       const value = await this.#api(
@@ -475,12 +458,12 @@ export class GitHubReleaseEvidenceVerifier implements ReleaseEvidenceVerifier {
       }
       const branchPolicy = value.deployment_branch_policy;
       if (
-        !hasSoleMaintainerApproval(value) ||
+        !hasAutomaticEnvironmentPolicy(value) ||
         !isRecord(branchPolicy) || branchPolicy.protected_branches !== true ||
         branchPolicy.custom_branch_policies !== false
       ) {
         throw new Error(
-          `${environmentName} must require only ${RELEASE_MAINTAINER}, allow self-review, deny admin bypass, and allow only protected branches`,
+          `${environmentName} must allow automatic jobs with only protected-branch restrictions`,
         );
       }
     }
@@ -488,7 +471,7 @@ export class GitHubReleaseEvidenceVerifier implements ReleaseEvidenceVerifier {
       "main_branch_protection",
       "candidate_is_current_main_head",
       `pull_request_${pullRequest.number}_merged_main_provenance`,
-      "sole_maintainer_environment_approval",
+      "automatic_environment_policy",
       "release_evidence_environment_protection",
       "production_environment_protection",
     ];

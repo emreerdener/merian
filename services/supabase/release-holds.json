@@ -6,7 +6,7 @@
       "active": true,
       "scope": "supabase_production",
       "owner": "Merian release owner",
-      "reason": "The source controls are implemented, but production remains blocked until every criterion below has retained evidence for the exact candidate, live immutable Function provenance and the ready-state rerun path are enforced, and the sole maintainer explicitly approves the evidence in the protected Production environment before issuing a protected clearance bound to this manifest.",
+      "reason": "Production remains blocked until every criterion below has retained evidence and the checked-in hold is resolved. Pushes to protected main deploy automatically after candidate validation, an inactive source hold, and live repository-control verification; recurring environment review and per-commit clearance approval are not required.",
       "exit_criteria": [
         {
           "id": "field_chat_database_and_ghost_merge",
@@ -43,7 +43,7 @@
         },
         {
           "id": "release_control_exact_sha_and_clearance",
-          "description": "The required hold ID and exact clean mutation SHA are enforced; live GitHub checks require merged-main pull-request provenance, protected branches without bypass, and sole-maintainer approval by emreerdener in both Release Evidence and Production with self-review allowed and administrator bypass disabled; every clearance artifact is downloaded, digest-recomputed, exact-SHA and successful-workflow checked, and its structured evidence payload is validated before mutation.",
+          "description": "The required hold ID and exact clean mutation SHA are enforced; live GitHub checks require current protected main, merged-main pull-request provenance, required Candidate readiness checks, branch rules without bypass, and an automatic environment policy with protected branches only and no required reviewers or waiting gates. Hold-exit evidence is retained before the source hold is resolved; ordinary subsequent deployments do not require new manual clearance records.",
           "evidence_type": "release_control_audit",
           "required_workflows": []
         },

@@ -1,5 +1,16 @@
 # Production Consent Readiness — 2026-08-03
 
+## Deployment policy update — 2026-09-18
+
+The owner has restored automatic deployment on backend-relevant pushes to main.
+Production and Release Evidence no longer require reviewer clicks. The deploy
+workflow verifies candidate validation, source holds, the exact current-main
+SHA, and live repository protections automatically. Per-commit clearance secrets
+are no longer a runtime requirement. The active hold and the technical/external
+evidence below remain unresolved. Historical descriptions of the August
+clearance design below describe the prior mechanism; the current operational
+contract is [release evidence operations](../release-evidence/README.md).
+
 ## Status
 
 **Blocked.** The repository contains the intended final onboarding surface,
@@ -31,14 +42,14 @@ historical message-less threads, permanently reserves conversation insertion for
 the atomic RPC, and creates conversations only inside successful admission. The
 second-review data and client gaps are closed: UTC eligibility leaves the
 database in closed `ready`, Swift and Deno execute one Unicode-scalar fixture,
-and the exact-SHA mutation job requires a protected clearance after the source
-hold is reviewed inactive. The release-control source gaps are now closed: each
-route exposes a candidate-derived bundle digest, database `ready` force-selects
-all three routes, activation stores the three observed identities, and the
-clearance verifier downloads/recomputes artifact evidence while checking live
-GitHub protections. Non-skipped disposable database, hosted real-token wrapper,
-same-SHA hosted gates, genuine V49→V50 install-over, live external control
-configuration, and external approvals remain pending. Green source or
+and the August exact-SHA mutation design required protected clearance after the
+source hold was reviewed inactive. The release-control source gaps are now
+closed: each route exposes a candidate-derived bundle digest, database `ready`
+force-selects all three routes, activation stores the three observed identities,
+and the clearance verifier downloads/recomputes artifact evidence while checking
+live GitHub protections. Non-skipped disposable database, hosted real-token
+wrapper, same-SHA hosted gates, genuine V49→V50 install-over, live external
+control configuration, and external approvals remain pending. Green source or
 consent-focused tests do not override those blockers.
 
 For internal test builds, the App Store, billing/DPA, and counsel approvals are
@@ -289,11 +300,11 @@ No green hosted evidence for the post-fence candidate is recorded yet. Do not
 copy counts from older or local runs into this table; populate it only from the
 two workflow summaries for the same immutable candidate SHA.
 
-| Gate                              | Required result                                                                                                                                                                                                                                                                                                    | Current result                                                   |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| **iOS Build and Test**            | Complete unit target, all four progressive-analyzing, live-to-queue, queued-retry, and queued-audio-completion UI smokes, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true` and `transport_security: "ats-default"`.                         | Pending a new hosted run.                                        |
-| **Supabase Candidate Validation** | Fail-closed PR scope and stable Candidate readiness check, clean-SHA check, pinned tools, formatting/lint, migration replay, every discovered pgTAP catalog, complete Edge/database-concurrency suite, database lint, and advisors all green.                                                                      | Pending a new hosted validation-only run on the reviewed SHA.    |
-| Production Supabase deployment    | Separate operator action after release authorization; it must require the reusable candidate gate, source hold gate, exact clean mutation SHA, candidate-matched live Function provenance, a tested ready-state rerun, maintainer-reviewed artifacts, and structurally bound protected Production clearance first. | Blocked by the active `species_dictionary_chat_production_hold`. |
+| Gate                              | Required result                                                                                                                                                                                                                                                                            | Current result                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| **iOS Build and Test**            | Complete unit target, all four progressive-analyzing, live-to-queue, queued-retry, and queued-audio-completion UI smokes, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true` and `transport_security: "ats-default"`. | Pending a new hosted run.                                        |
+| **Supabase Candidate Validation** | Fail-closed PR scope and stable Candidate readiness check, clean-SHA check, pinned tools, formatting/lint, migration replay, every discovered pgTAP catalog, complete Edge/database-concurrency suite, database lint, and advisors all green.                                              | Pending a new hosted validation-only run on the reviewed SHA.    |
+| Production Supabase deployment    | Automatic on backend-relevant main pushes after candidate validation, a clear source hold, exact clean mutation SHA, live repository checks, candidate-matched Function provenance, and a tested ready-state rerun. No environment review or per-commit clearance secret.                  | Blocked by the active `species_dictionary_chat_production_hold`. |
 
 The candidate workflow has no Production environment, production secrets,
 migration push, Function deployment, or production smoke. Its disposable
@@ -318,10 +329,10 @@ produce the same-SHA hosted gate evidence; the hosted real-token wrapper,
 physical install-over from the genuine released V49 binary, and external
 approvals are separate retained artifacts. Keep the hold active until all eight
 criterion artifacts exist. Publish each redacted statement through the protected
-`Release Evidence` workflow, review the inactive manifest change, and populate
-the protected clearance with the artifact IDs/digests. Before mutation, the
-verifier retrieves the bytes, recomputes all digests, validates exact-SHA runs,
-and checks live branch/Release Evidence/Production protections.
+`Release Evidence` workflow and resolve the hold through a source PR. Before
+mutation, the automated verifier checks live branch/Release Evidence/Production
+protections. Optional audits recompute retained artifact digests and validate
+exact-SHA runs; per-commit manual clearance is no longer required.
 
 1. Run the complete hosted **iOS Build and Test** workflow on the exact repaired
    candidate SHA. Require a compiled and executed complete `merianTests` target,
@@ -339,15 +350,15 @@ and checks live branch/Release Evidence/Production protections.
    Suspend consent-changing app access and expire every older TestFlight build
    that writes Gemini or analytics events directly.
 5. Use **Deploy Merian to Supabase**. Its production job must first require the
-   reusable candidate gate, exact clean mutation SHA, and protected structurally
-   bound clearance backed by digest-validated and maintainer-reviewed artifacts,
-   then apply the causal consent and provider-head authorization migrations and
-   deploy consent-gated Edge code. Verify authenticated callers cannot insert
-   directly, both compare-and-append RPCs return a monotonic revision and
-   accepted parent, stale grants are rejected, stale revocations are rebased,
-   and the inverse AI/analytics fixtures pass, including prior-disclosure
-   revocations after current-version grants. Keep
-   `internal.ai_consent_rollout_config.enforcement_mode` at `legacy_compatible`.
+   reusable candidate gate, a clear source hold, exact clean mutation SHA, and
+   automated live repository controls, then apply the causal consent and
+   provider-head authorization migrations and deploy consent-gated Edge code.
+   Verify authenticated callers cannot insert directly, both compare-and-append
+   RPCs return a monotonic revision and accepted parent, stale grants are
+   rejected, stale revocations are rebased, and the inverse AI/analytics
+   fixtures pass, including prior-disclosure revocations after current-version
+   grants. Keep `internal.ai_consent_rollout_config.enforcement_mode` at
+   `legacy_compatible`.
 6. Distribute the processed replacement TestFlight build. Verify all switch
    combinations, inline Terms navigation, VoiceOver, Dynamic Type, smallest
    supported screens, offline withdrawal, account switching, foreground

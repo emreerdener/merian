@@ -309,7 +309,7 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
       holdBlock.includes(
         '--allow-write="$GITHUB_STEP_SUMMARY,$GITHUB_OUTPUT"',
       ),
-    "The hold status must remain isolated from Production approval and secret access while publishing only bounded workflow outputs.",
+    "The hold status must remain isolated from Production secret access while publishing only bounded workflow outputs.",
   );
   for (
     const exactEvidence of [
@@ -378,8 +378,12 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   const exactHead = deployBlock.indexOf(
     "Verify exact clean production candidate",
   );
+  assertEquals(
+    deployBlock.includes("MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON"),
+    false,
+  );
   const clearance = deployBlock.indexOf(
-    "Verify protected Production release clearance",
+    "Verify automatic Production release controls",
   );
   const clearanceEnd = deployBlock.indexOf(
     "- name: Setup Supabase CLI",
@@ -392,7 +396,7 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
     exactCheckout >= 0 && exactHead > exactCheckout &&
       clearance > exactHead && productionSecret > clearance &&
       databasePush > clearance && functionDeploy > clearance,
-    "The mutation job must pin and clean-check GITHUB_SHA, then verify protected clearance before production credentials or mutations.",
+    "The mutation job must pin and clean-check GITHUB_SHA, then verify automatic repository controls before production credentials or mutations.",
   );
   assertStringIncludes(deployBlock, "refs/remotes/origin/main");
   assertStringIncludes(
@@ -401,9 +405,8 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   );
   for (
     const clearanceEvidence of [
-      "MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON",
       "MERIAN_GITHUB_RELEASE_AUDIT_TOKEN",
-      "--mode production-clearance",
+      "--mode automatic-release",
       "supabase/release-holds.json",
       'candidate-sha "$GITHUB_SHA"',
       "--allow-net",

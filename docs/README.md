@@ -45,7 +45,8 @@ production submission or public release.
   Candidate validation uses a disposable database without production secrets or
   mutation.
 - [Release evidence operations](./release-evidence/README.md) owns hold-exit
-  evidence and protected clearance. A green held run is not deployment evidence.
+  evidence and automatic deployment controls. A green held run is not deployment
+  evidence.
 - [iOS publishing](./development-guides/14-ios-release-versioning.md) and
   [Supabase deployment](./backend-and-data/06-supabase-deployment-runbook.md)
   own separately authorized operations, rollout order, and recovery.
@@ -184,8 +185,8 @@ production submission or public release.
 ### Legal & Release Readiness
 
 - **[`/release-evidence/README.md`](./release-evidence/README.md)** — Canonical
-  evidence-authoring, redaction, freshness, artifact, protected-clearance, and
-  sole-maintainer approval procedure for machine-held releases.
+  evidence-authoring, redaction, freshness, artifact audits, and automatic
+  deployment controls for machine-held releases.
 - **[`/legal/production-consent-readiness-2026-08-03.md`](./legal/production-consent-readiness-2026-08-03.md)**
   — Canonical release hold, source status, same-SHA hosted evidence table,
   rollout order, and external App Store/Gemini/counsel exit evidence.

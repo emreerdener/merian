@@ -59,7 +59,8 @@ export type ProductionSourceStatus = "clear" | "held" | "invalid";
 export type ProductionHoldMode =
   | "source-gate"
   | "source-status"
-  | "production-clearance";
+  | "production-clearance"
+  | "automatic-release";
 
 export interface ProductionClearanceDecision extends ProductionHoldDecision {
   clearanceSha256: string;
@@ -217,7 +218,7 @@ function sourceDecision(
       inactiveHoldIds: inactiveHolds.map((hold) => hold.id),
       manifestSha256: loaded.digest,
       summary:
-        "The source gate is clear. Production mutations still require a protected-environment clearance bound to this candidate SHA, manifest digest, and every criterion ID.",
+        "The source gate is clear. Automatic production deployment still requires candidate validation and live repository protection checks for the exact SHA.",
     };
   }
 
@@ -507,6 +508,49 @@ export async function evaluateProductionReleaseClearance(
   }
 }
 
+export interface AutomaticReleaseDecision extends ProductionHoldDecision {
+  verifiedRepositoryControls: string[];
+}
+
+export async function evaluateAutomaticProductionRelease(
+  manifestPath: string | URL,
+  candidateSha: string,
+  readText: TextReader = Deno.readTextFile,
+  verifier?: Pick<ReleaseEvidenceVerifier, "verifyRepositoryControls">,
+): Promise<AutomaticReleaseDecision> {
+  const source = await evaluateProductionReleaseHolds(manifestPath, readText);
+  const blocked = (summary: string): AutomaticReleaseDecision => ({
+    ...source,
+    allowed: false,
+    verifiedRepositoryControls: [],
+    summary,
+  });
+  if (!source.allowed) return blocked(source.summary);
+  if (!SHA_PATTERN.test(candidateSha)) {
+    return blocked("Automatic release candidate SHA is malformed.");
+  }
+  try {
+    if (!verifier) {
+      throw new Error("GitHub release-audit verifier is unavailable");
+    }
+    const controls = await verifier.verifyRepositoryControls(candidateSha);
+    if (controls.length === 0) {
+      throw new Error("No repository controls were verified");
+    }
+    return {
+      ...source,
+      verifiedRepositoryControls: controls,
+      summary:
+        "Automatic release checks passed for the exact protected-main candidate; no per-deployment review or clearance secret is required.",
+    };
+  } catch {
+    // Do not echo external API/token details into workflow logs.
+    return blocked(
+      "Automatic release blocked: live repository protections could not be verified.",
+    );
+  }
+}
+
 function argumentValue(name: string): string | undefined {
   const index = Deno.args.indexOf(name);
   return index >= 0 ? Deno.args[index + 1] : undefined;
@@ -531,10 +575,10 @@ if (import.meta.main) {
   }
   if (
     mode !== "source-gate" && mode !== "source-status" &&
-    mode !== "production-clearance"
+    mode !== "production-clearance" && mode !== "automatic-release"
   ) {
     console.error(
-      "--mode must be source-gate, source-status, or production-clearance.",
+      "--mode must be source-gate, source-status, production-clearance, or automatic-release.",
     );
     Deno.exit(2);
   }
@@ -543,13 +587,26 @@ if (import.meta.main) {
     Deno.exit(2);
   }
 
-  const decision: ProductionHoldDecision | ProductionClearanceDecision =
-    mode === "production-clearance"
+  const decision:
+    | ProductionHoldDecision
+    | ProductionClearanceDecision
+    | AutomaticReleaseDecision = mode === "production-clearance"
       ? await evaluateProductionReleaseClearance(
         manifestPath,
         Deno.env.get("MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON"),
         candidateSha,
         new Date(),
+        Deno.readTextFile,
+        new GitHubReleaseEvidenceVerifier({
+          token: Deno.env.get("MERIAN_GITHUB_RELEASE_AUDIT_TOKEN") ?? "",
+          repository: Deno.env.get("GITHUB_REPOSITORY") ?? "",
+          branch: "main",
+        }),
+      )
+      : mode === "automatic-release"
+      ? await evaluateAutomaticProductionRelease(
+        manifestPath,
+        candidateSha,
         Deno.readTextFile,
         new GitHubReleaseEvidenceVerifier({
           token: Deno.env.get("MERIAN_GITHUB_RELEASE_AUDIT_TOKEN") ?? "",
@@ -572,10 +629,10 @@ if (import.meta.main) {
       )
     }`
     : "";
-  const verifiedControls = clearanceDecision
+  const verifiedControls = "verifiedRepositoryControls" in decision
     ? markdownList(
       "Verified release controls",
-      clearanceDecision.verifiedRepositoryControls,
+      (decision as AutomaticReleaseDecision).verifiedRepositoryControls,
     )
     : "";
   const verifiedEvidence = clearanceDecision
@@ -585,7 +642,9 @@ if (import.meta.main) {
     )
     : "";
   const sourceStatus = productionSourceStatus(decision);
-  const heading = mode === "production-clearance"
+  const heading = mode === "automatic-release"
+    ? `## Supabase automatic release: ${decision.allowed ? "clear" : "blocked"}`
+    : mode === "production-clearance"
     ? decision.allowed
       ? "## Supabase production clearance: clear"
       : "## Supabase production clearance: blocked"

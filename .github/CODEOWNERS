@@ -1,9 +1,9 @@
 # Sole-maintainer release ownership. CODEOWNERS routes changes to @emreerdener;
 # it does not require self-approval of a pull request. Protected main requires
 # PRs with zero peer approvals, required checks, admin enforcement and no bypass.
-# Explicit release approval is recorded by @emreerdener as the sole required
-# reviewer of both Release Evidence and Production, with self-review allowed
-# and administrator bypass disabled. See docs/release-evidence/README.md.
+# Production and Release Evidence run automatically, with no required reviewers.
+# Environments retain secret scoping and protected branches only.
+# See docs/release-evidence/README.md.
 /.github/CODEOWNERS @emreerdener
 /.github/workflows/deploy.yml @emreerdener
 /.github/workflows/release-evidence.yml @emreerdener

@@ -5537,19 +5537,19 @@ migration becomes the successful baseline and match each immutable live bundle
 digest to the candidate; the compatibility marker alone is insufficient. The
 hosted real-token HTTP-wrapper evidence must also pass. The fail-closed source
 verifier requires the named ID. If it is later reviewed inactive, the
-exact-SHA-checked mutation job requires a protected Production clearance
-structurally bound to the manifest digest, complete criterion IDs/evidence
-types, GitHub artifact IDs/digests, and a current approval window. The verifier
-fetches and recomputes each artifact, validates embedded evidence and exact-SHA
-runs, requires the current protected `main` head, rejects statement, embedded,
-or supporting-run timestamps older than 30 days, prevents artifact reuse across
-criteria, and checks live branch/environment protections. The manual evidence
-workflow passes `${{ inputs.* }}` through step environment variables before Bash
-consumes them; direct expression interpolation in a `run` script is a
-workflow-security regression. The historical genuine released-binary V49→V50
-baseline, the current V50→V51 physical install-over, and the canonical external
-consent/App Store/billing/DPA evidence must also pass. Artifact integrity does
-not authenticate an off-platform issuer or establish independent secret
+exact-SHA-checked mutation job runs the automatic repository-control gate:
+current protected main, merged-main PR provenance, strict Candidate readiness,
+branch rules without bypass, and protected environment branches without
+reviewer/timer/custom gates. It requires no per-commit clearance secret.
+Optional evidence audits fetch and recompute each artifact, validate embedded
+evidence and exact-SHA runs, reject observations/supporting runs older than 30
+days, and prevent artifact reuse across criteria. The manual evidence workflow
+passes `${{ inputs.* }}` through step environment variables before Bash consumes
+them; direct expression interpolation in a `run` script is a workflow-security
+regression. The historical genuine released-binary V49→V50 baseline, the current
+V50→V51 physical install-over, and the canonical external consent/App
+Store/billing/DPA evidence must also pass. Artifact integrity does not
+authenticate an off-platform issuer or establish independent secret
 administration; follow the
 [release-evidence operations guide](../release-evidence/README.md) and keep the
 hold active if those external controls cannot be verified.
