@@ -63,11 +63,11 @@ secrets, database push, Function deployment, or production smoke. The production
 workflow declares this reusable gate as a required predecessor, followed by a
 non-Production checked-in source-hold job. A valid active hold produces a green
 `held` status and `deploy_allowed=false`; the conditional `deploy` job is then
-skipped before GitHub requests Production approval or exposes credentials. A
-missing or malformed hold remains a workflow failure. Only a clear source status
-allows the subsequent `deploy` job to enter the Production environment. That job
-pins and clean-checks the same SHA and runs `--mode automatic-release` before
-ordinary production credentials or mutations. With the read-only
+skipped before the job enters Production or exposes credentials. A missing or
+malformed hold remains a workflow failure. Only a clear source status allows the
+subsequent `deploy` job to enter the Production environment. That job pins and
+clean-checks the same SHA and runs `--mode automatic-release` before ordinary
+production credentials or mutations. With the read-only
 `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`, the gate verifies the current protected
 `main` head, merged-main PR provenance, required checks, branch rules without
 bypass, and automatic environment policy. Both `Production` and
