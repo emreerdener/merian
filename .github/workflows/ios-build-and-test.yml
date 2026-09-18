@@ -814,7 +814,18 @@ jobs:
               tail -n 180 "$XCODE_BUILD_LOG" > "$diagnostics"
             fi
           else
-            echo "No xcodebuild archive log was produced." > "$diagnostics"
+            {
+              echo "No xcodebuild archive log was produced; inspect the preceding setup steps."
+              echo "Required toolchain: Xcode 27.0, build 27A266a."
+              if [ -s "${RUNNER_TEMP}/ios-archive-xcode-version.txt" ]; then
+                echo "Observed toolchain:"
+                cat "${RUNNER_TEMP}/ios-archive-xcode-version.txt"
+              else
+                echo "No toolchain version was recorded."
+              fi
+              echo "The xcode-27 runner pool can contain different images during rollout."
+              echo "A compiler mismatch requires a runner with the reviewed build; keep the exact-build gate."
+            } > "$diagnostics"
           fi
           {
             echo ""

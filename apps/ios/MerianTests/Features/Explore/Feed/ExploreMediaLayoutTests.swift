@@ -90,21 +90,41 @@ final class ExploreMediaLayoutTests: XCTestCase {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
 
-        guard let context = CGContext(
-            data: &pixel,
-            width: 1,
-            height: 1,
-            bitsPerComponent: 8,
-            bytesPerRow: 4,
-            space: colorSpace,
-            bitmapInfo: bitmapInfo
-        ) else {
-            XCTFail("Failed to create pixel sampling context")
-            return RGBAPixel(r: 0, g: 0, b: 0, a: 0)
+        // Core Graphics retains the pointer until drawing completes. An implicit
+        // array-to-pointer conversion is only valid during the initializer call.
+        pixel.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(
+                data: buffer.baseAddress,
+                width: 1,
+                height: 1,
+                bitsPerComponent: 8,
+                bytesPerRow: 4,
+                space: colorSpace,
+                bitmapInfo: bitmapInfo
+            ) else {
+                XCTFail("Failed to create pixel sampling context")
+                return
+            }
+
+            context.draw(cropped, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        return RGBAPixel(r: pixel[0], g: pixel[1], b: pixel[2], a: pixel[3])
+    }
+
+    func testPixelSamplerPreservesOpaqueColorAndTransparentPadding() {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(
+            size: CGSize(width: 2, height: 1),
+            format: format
+        ).image { context in
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
         }
 
-        context.draw(cropped, in: CGRect(x: 0, y: 0, width: 1, height: 1))
-        return RGBAPixel(r: pixel[0], g: pixel[1], b: pixel[2], a: pixel[3])
+        assertPixel(rgbaPixel(in: image, x: 0, y: 0), approximately: .blue, tolerance: 0)
+        XCTAssertEqual(rgbaPixel(in: image, x: 1, y: 0).a, 0)
     }
 
     private func assertPixel(

@@ -1795,6 +1795,14 @@ but the compiler build matches the local stable release. The earlier main-branch
 manifest still showed beta build `27A5252f`; use the version and build checks,
 not a preview label or path alias, as the admission condition.
 
+The published image did not establish availability on every hosted runner:
+[iOS Build and Test run 417](https://github.com/emreerdener/merian/actions/runs/35248244350)
+on September 17 passed the unit job's compiler check, but its independent
+archive runner still reported `27A5252f` and was correctly rejected. The unit
+job then failed one Explore media layout test. Neither the published image nor
+the local validation closes hosted acceptance for that SHA; see the
+[CI testing guidance](../development-guides/08-testing-strategy.md#compiled-ios-ci-gate).
+
 The unit, Release archive, Startup Safety, and Runtime Audit jobs use the arm64
 `xcode-27` runner and `/Applications/Xcode_27.0.app/Contents/Developer`. Every
 job requires both `Xcode 27.0` and `Build version 27A266a`; an older runner

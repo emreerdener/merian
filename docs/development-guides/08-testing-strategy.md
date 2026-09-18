@@ -549,6 +549,16 @@ include `runner.arch`, version, and build; the runtime-audit environment label
 is `github-xcode-27-arm64-27A266a`, so older performance baselines cannot
 silently apply.
 
+The hosted `xcode-27` pool can serve different images during rollout. A compiler
+mismatch stops verification before archiving, even if another job received the
+reviewed build. A missing archive log in this situation is a setup failure, not
+an archive compiler failure. The archive failure summary includes the required
+and observed compiler versions when available. For a toolchain-only failure,
+rerun the affected job after a runner with `27A266a` is available. A code or
+test fix requires a fresh full workflow on the new candidate SHA. Do not relax
+the exact-build check or reuse an archive from another SHA. A successful unit
+job alone does not establish production readiness.
+
 The Foundation Models adapter now compiles in all these lanes. Its
 `AppleFoundationVisualCueProviderTests` requires an iOS 27 destination; the
 complete-unit and runtime-audit evidence checks reject skipped tests. The
