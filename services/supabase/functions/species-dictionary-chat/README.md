@@ -177,17 +177,17 @@ requires the protected `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` environment
 secret before reading ordinary production credentials or mutating Supabase. That
 clearance must match the candidate SHA, exact manifest SHA-256, every stable
 criterion ID and evidence type, positive artifact IDs, nonzero evidence digests,
-and a current approval window. A read-only GitHub audit token verifies two
-author-independent current reviews, protected branches without bypass,
-self-review-resistant `Release Evidence`/`Production` environments, artifact
-bytes, supporting runs, and structured evidence payloads. Statements, embedded
-observations, and supporting-run `updated_at` values must be no more than 30
-days old, and artifact IDs cannot be reused across criteria. Evidence dispatch
-must start from current `main`; manual values enter Bash only through step
-environment variables. Keep the hold active until the non-skipped database
-suite, wrapper-auth and iOS retry evidence, genuine released-binary V49→V50
-physical install-over, both hosted gates on one SHA, live external controls, and
-external approvals are complete and retained.
+and a current approval window. A read-only GitHub audit token verifies
+merged-main PR provenance, protected branches without bypass, sole-maintainer
+`@emreerdener` approval in `Release Evidence`/`Production` (self-review allowed,
+admin bypass disabled), artifact bytes, supporting runs, and structured evidence
+payloads. Statements, embedded observations, and supporting-run `updated_at`
+values must be no more than 30 days old, and artifact IDs cannot be reused
+across criteria. Evidence dispatch must start from current `main`; manual values
+enter Bash only through step environment variables. Keep the hold active until
+the non-skipped database suite, wrapper-auth and iOS retry evidence, genuine
+released-binary V49→V50 physical install-over, both hosted gates on one SHA,
+live external controls, and external approvals are complete and retained.
 
 The canonical release checklist and manual Great Egret matrix live in
 [`docs/backend-and-data/06-supabase-deployment-runbook.md`](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md)

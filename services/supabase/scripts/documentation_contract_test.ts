@@ -4531,9 +4531,9 @@ Deno.test("Species Dictionary production hold is machine enforced and documented
       "downloads each uniquely assigned artifact",
       "recomputes the archive digest",
       "current protected `main` head",
-      "Code Owner review",
+      "Code Owner review and last-push approval disabled",
       "no more than 30 days old",
-      "two current author-independent approvals",
+      "sole-maintainer environment approvals",
       "digest proves retained bytes, not the issuing authority",
     ]
   ) {

@@ -29,6 +29,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Sole maintainer reviews the bound evidence before approving publication.
+    # Required reviewer: emreerdener; self-review allowed; admin bypass denied.
     environment: Release Evidence
     steps:
       - name: Checkout exact evidence candidate

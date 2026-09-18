@@ -79,21 +79,21 @@ verification. It must be able to read Actions runs/artifacts, pull-request
 reviews, branch protection, and the `Release Evidence` and `Production`
 environment policies, but it must not have repository, environment, secret, or
 deployment write authority. The verifier proves the candidate is the current
-protected `main` head, requires Code Owner review plus two current
-author-independent approvals, and checks fail-closed branch and reviewer
-environment settings. For every clearance criterion it downloads one uniquely
-assigned exact-SHA `release-evidence.json` artifact, recomputes the archive and
-embedded JSON digests, verifies the successful origin and supporting workflow
-runs, validates the hold/criterion/evidence-type bindings, and rejects evidence
-observed more than 30 days earlier. The same 30-day limit applies to each
-supporting run's GitHub `updated_at`, and one positive artifact ID may not be
-reused across criteria. The protected publisher must be dispatched from current
-`main`; manual values enter Bash only through step environment variables and
-must never be interpolated directly from `${{ inputs.* }}` into a `run` script.
-External issuer authenticity and who may administer GitHub secrets remain
-reviewed operational boundaries; a protected artifact and digest prove the
-retained bytes, not an off-platform authority by themselves. The complete
-operator procedure is in the
+protected `main` head, requires merged-main PR provenance and explicit
+sole-maintainer `@emreerdener` environment approval, and checks fail-closed
+branch and reviewer environment settings. For every clearance criterion it
+downloads one uniquely assigned exact-SHA `release-evidence.json` artifact,
+recomputes the archive and embedded JSON digests, verifies the successful origin
+and supporting workflow runs, validates the hold/criterion/evidence-type
+bindings, and rejects evidence observed more than 30 days earlier. The same
+30-day limit applies to each supporting run's GitHub `updated_at`, and one
+positive artifact ID may not be reused across criteria. The protected publisher
+must be dispatched from current `main`; manual values enter Bash only through
+step environment variables and must never be interpolated directly from
+`${{ inputs.* }}` into a `run` script. External issuer authenticity and who may
+administer GitHub secrets remain reviewed operational boundaries; a protected
+artifact and digest prove the retained bytes, not an off-platform authority by
+themselves. The complete operator procedure is in the
 [release-evidence guide](../release-evidence/README.md).
 
 ### Edge Functions and Deno tooling
@@ -475,14 +475,14 @@ ad-hoc repair SQL merely to turn a monitor green.
 
 Repository tests are necessary but do not prove hosted state. Before calling
 this correction released, require the reusable exact-SHA candidate gate, the
-checked-in source hold gate, two current author-independent pull-request
-approvals, protected `Release Evidence` and `Production` approvals, and the
-artifact-backed clearance described in the deployment runbook. The production
-verifier must retrieve every criterion artifact, recompute its archive and
-embedded payload digests, verify exact-SHA successful workflow provenance, and
-accept the live branch/environment controls. Independently review the substance
-and authority of off-platform approvals before publishing their redacted
-evidence statement. Then:
+checked-in source hold gate, merged-main PR provenance, sole-maintainer
+`@emreerdener` approval in protected `Release Evidence` and `Production` jobs,
+and the artifact-backed clearance described in the deployment runbook. The
+production verifier must retrieve every criterion artifact, recompute its
+archive and embedded payload digests, verify exact-SHA successful workflow
+provenance, and accept the live branch/environment controls. The maintainer must
+review the substance and authority of off-platform approvals before publishing
+their redacted evidence statement. Then:
 
 1. Replay all migrations and all discovered pgTAP fixtures against disposable
    PostgreSQL 17.

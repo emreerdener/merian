@@ -93,6 +93,8 @@ jobs:
     if: needs.production-hold.outputs.deploy_allowed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Sole maintainer explicitly approves this exact-SHA job in GitHub.
+    # Required reviewer: emreerdener; self-review allowed; admin bypass denied.
     environment: Production
     defaults:
       run:

@@ -357,12 +357,13 @@ boundary passes; a ready-state rerun always selects all three chat bundles;
 every live route's content digest matches the candidate; a genuine released V49
 binary accepts the exact V50 candidate without safe mode/store replacement or
 data loss; and both hosted gates pass on that same SHA. The live verifier must
-accept two author-independent reviews, protected branch rules without bypass,
-and self-review-resistant `Release Evidence` and `Production` environments. The
-canonical production-consent, App Store privacy/age-rating, paid Gemini billing,
-DPA, and legal evidence must also be approved. Artifact digests establish the
-retained bytes, not the authenticity of an off-platform issuer or independent
-secret administration; those remain external operational approvals.
+accept merged-main PR provenance, protected branch rules without bypass, and
+sole-maintainer `@emreerdener` approval in `Release Evidence` and `Production`
+with self-review allowed and administrator bypass disabled. The canonical
+production-consent, App Store privacy/age-rating, paid Gemini billing, DPA, and
+legal evidence must also be approved. Artifact digests establish the retained
+bytes, not the authenticity of an off-platform issuer or independent secret
+administration; those remain external operational approvals.
 
 The exact machine-readable exit criteria and rollout order are canonical in the
 [Supabase deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md#species-dictionary-field-chat-hold-exit-criteria).

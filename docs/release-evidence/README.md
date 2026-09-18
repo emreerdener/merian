@@ -113,15 +113,34 @@ and environment policies visible to the read-only audit token. It cannot prove
 the authenticity of an off-platform issuer, who may administer GitHub secrets,
 or that an environment administrator is independent.
 
-`.github/CODEOWNERS` currently routes all critical controls to one account. That
-is not separation of duties. Before clearing the hold, add an independently
-owned account or team, require Code Owner review and two current
-author-independent approvals, dismiss stale reviews, require approval of the
-last push, apply protections to administrators, disable bypass, and configure
-both `Release Evidence` and `Production` with independent reviewers, self-review
-prevention, and protected-branch-only deployment. Restrict clearance secret
-administration to trusted operators. If any of these external settings or
-identities cannot be verified, keep the hold active.
+`.github/CODEOWNERS` currently routes all critical controls to one account.
+Under the sole-maintainer policy authorized on 2026-09-18, that account is
+`@emreerdener`; this is explicit owner approval, not separation of duties.
+Configure classic protection for `main` to require a pull request with zero peer
+approvals, Code Owner review disabled, last-push approval disabled, stale-review
+dismissal enabled, required status checks retained, administrator enforcement
+enabled, no review bypass, and force pushes/deletion disabled. The candidate
+must still be the current protected `main` head and belong to exactly one merged
+`main` PR. GitHub does not permit approving one's own PR; the merged PR is the
+reviewable source record, not the release-approval mechanism.
+
+Configure both `Release Evidence` and `Production` with **exactly `@emreerdener`
+as the sole required User reviewer**, **Prevent self-review off**, **Allow
+administrators to bypass configured protection rules off**, and **Protected
+branches only**. The verifier rejects missing/extra/team reviewers, self-review
+prevention, admin bypass, and missing or unrestricted branch policy. The
+maintainer must explicitly approve each environment job in GitHub after
+reviewing its exact commit and evidence. A push, workflow dispatch, PR merge, or
+clearance secret alone is not that approval. These approvals remain separate
+from the user's authorization to perform a named production operation.
+
+Retain both environment-approval records with the workflow evidence. Restrict
+clearance-secret administration to the maintainer; the read-only verifier cannot
+prove who can edit secrets or the authenticity of external attestations. If the
+required GitHub controls are unavailable, stop rather than dropping the approval
+gate. All eight hold criteria, technical tests, exact-SHA checks, evidence
+freshness/digests, clearance expiry, and rollback controls remain required. This
+policy change does not clear the Field Chat hold or attest to a deployment.
 
 ## Renewal And Failure Handling
 
