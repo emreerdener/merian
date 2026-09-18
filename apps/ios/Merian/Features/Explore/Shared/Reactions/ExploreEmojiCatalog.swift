@@ -20,8 +20,9 @@ enum ExploreEmojiCatalog {
         return catalog.entries
     }()
     static let byEmoji = Dictionary(uniqueKeysWithValues: entries.map { ($0.emoji, $0) })
-    static let categories = entries.reduce(into: [String]()) { result, entry in
-        if result.last != entry.category { result.append(entry.category) }
+    // Keep the full catalog for existing reactions; only picker choices omit tone variants.
+    static let pickerEntries = entries.filter { entry in
+        !entry.emoji.unicodeScalars.contains { (0x1F3FB...0x1F3FF).contains($0.value) }
     }
     static func name(for emoji: String) -> String { byEmoji[emoji]?.name ?? emoji }
     static func order(for emoji: String) -> Int { byEmoji[emoji]?.order ?? Int.max }

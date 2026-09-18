@@ -68,14 +68,6 @@ struct CollectionsCatalogContent: View {
 
     @ViewBuilder
     private var topCards: some View {
-        if presentation.showPrivateMap {
-            NavigationLink(value: ScansNavigationRoute.privateScanMap) {
-                PrivateScanMapCollectionCard(snapshot: privateMapSnapshot)
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 16)
-        }
-
         if let featuredCollection = presentation.featuredCollection {
             NavigationLink {
                 SmartCollectionDetailView(
@@ -86,6 +78,14 @@ struct CollectionsCatalogContent: View {
                 )
             } label: {
                 FeaturedCollectionCard(snapshot: featuredCollection)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+        }
+
+        if presentation.showPrivateMap {
+            NavigationLink(value: ScansNavigationRoute.privateScanMap) {
+                PrivateScanMapCollectionCard(snapshot: privateMapSnapshot)
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 16)

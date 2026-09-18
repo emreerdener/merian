@@ -344,7 +344,7 @@ production Shell and Library file remains below the 600-line review guard.
   both custom collections and system folders (Favorites, Non-biological).
 - **Scan Map Entry**: When the completed biological library contains at least
   one valid saved coordinate, a virtual full-width **Scan map** card appears
-  above Featured scans. It shows the total mapped count plus **Private**, fits
+  below Featured scans. It shows the total mapped count plus **Private**, fits
   the complete scan extent without requesting current location, and joins
   search/result-count/empty-state behavior through map, private, locations, and
   "your scans" aliases. Collections observes an actor-backed coordinate

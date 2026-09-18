@@ -94,12 +94,22 @@ detail sheet host retain presentation ownership.
 
 The picker starts at the medium detent, supports large, and expands on search
 focus. Its compact cells show only native emoji glyphs, with catalog names
-retained for search, VoiceOver, and help. It uses the existing video-overlay
-suspension lifecycle. Picker selection adds; chip taps toggle. The strip reveals
-new selections, leaves later page updates in place, and offers More for explicit
-pagination/retry. Its height scales with Dynamic Type, with post chips moving
-below fixed controls at `xxxLarge` and accessibility sizes. Post red-heart
-mapping belongs to Feed state, not this generic comment-capable strip.
+retained for search, VoiceOver, and help. Category filters and the search-field
+Done button are omitted. The grid uses 6-point gaps and at least 44-point-tall
+tap targets. `ExploreEmojiCatalog.pickerEntries` excludes skin-tone modifiers
+from browsing and search, while the full catalog preserves existing toned
+reaction identities. Selection or a downward swipe dismisses the picker. It uses
+the existing video-overlay suspension lifecycle. Picker selection adds; chip
+taps toggle. The strip reveals new selections, leaves later page updates in
+place, and offers More for explicit pagination/retry. Its height scales with
+Dynamic Type, with post chips moving below fixed controls at `xxxLarge` and
+accessibility sizes. Post red-heart mapping belongs to Feed state, not this
+generic comment-capable strip.
+
+`ExploreErrorFormatter.reactionMutationMessage(selected:)` supplies the
+action-specific add/remove failure copy for post, comment, and notification
+reply mutations. A failed reaction never claims that the entire Explore feed is
+unavailable; rollback and error feedback remain owned by the state models.
 
 See the
 [canonical behavior](../../../../../../docs/rfcs/explore-page.md#emoji-reactions-update-2026-09-18)
@@ -109,12 +119,11 @@ and
 ### Reaction haptics
 
 Opening a post or comment/reply emoji picker uses the shared sheet spring.
-Choosing an emoji (including an already-selected one), toggling a chip, changing
-categories, or tapping More gives one immediate selection pulse. Tapping the
-active category again is silent unless it clears a search. Successful network
-responses do not repeat the tap feedback, including post ❤️ picker selections;
-direct Heart buttons retain their existing feedback. Failed mutations retain
-error feedback alongside rollback and the visible error.
+Choosing an emoji (including an already-selected one), toggling a chip, or
+tapping More gives one immediate selection pulse. Successful network responses
+do not repeat the tap feedback, including post ❤️ picker selections; direct
+Heart buttons retain their existing feedback. Failed mutations retain error
+feedback alongside rollback and the visible error.
 
 All reaction feedback routes through `HapticManager`, respecting the global
 haptics preference and expedition-mode suppression. Search typing, scrolling,

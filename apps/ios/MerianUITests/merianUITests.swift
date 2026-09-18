@@ -123,9 +123,9 @@ final class merianUITests: XCTestCase {
         let featuredTitle = app.staticTexts["Featured scans"]
         XCTAssertTrue(featuredTitle.waitForExistence(timeout: 4.0))
         XCTAssertLessThan(
+            featuredTitle.frame.maxY,
             mapCard.frame.minY,
-            featuredTitle.frame.minY,
-            "Scan map must be the first full-width collection card"
+            "Scan map must appear below Featured scans"
         )
 
         mapCard.tap()

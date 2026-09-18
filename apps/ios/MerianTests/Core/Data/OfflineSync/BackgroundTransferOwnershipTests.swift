@@ -175,6 +175,15 @@ struct BackgroundTransferOwnershipTests {
         let accountWorkSource = try OfflineSyncTestSupport.loadRepositorySource(
             at: "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundAccountWork.swift"
         )
+        #expect(accountWorkSource.contains(
+            "begin: { try SupabaseManager.shared.beginUnownedAccountBoundWork(expectedUserID: $0) }"
+        ))
+        #expect(accountWorkSource.contains(
+            "isCurrent: { SupabaseManager.shared.isAccountBoundWorkLeaseCurrent($0) }"
+        ))
+        #expect(accountWorkSource.contains(
+            "finish: { SupabaseManager.shared.finishAccountBoundWork($0) }"
+        ))
         let ownerCheckStart = try #require(terminalValidationSource.range(
             of: "private func backgroundTaskOwnerLeaseIsCurrentOrAdopted("
         ))
@@ -187,7 +196,7 @@ struct BackgroundTransferOwnershipTests {
                 ownerCheckStart.lowerBound..<validationStart.lowerBound
             ]
         let leaseAdmission = try #require(ownerCheckBody.range(
-            of: ".beginUnownedAccountBoundWork(expectedUserID: ownerUserID)"
+            of: "accountWork.begin(ownerUserID)"
         ))
         let leaseRetention = try #require(ownerCheckBody.range(
             of: "retainBackgroundAccountWork(",

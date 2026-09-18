@@ -286,7 +286,7 @@ final class ExploreReplyThreadViewModelTests: XCTestCase {
         pending?.resume(throwing: ExploreNotificationsTestFixtures.StubError.failed)
         for _ in 0..<100 where vm.reactionError == nil { await Task.yield() }
         XCTAssertEqual(vm.replies[0].reactions, target.reactions)
-        XCTAssertNotNil(vm.reactionError)
+        XCTAssertEqual(vm.reactionError, "Couldn’t add reaction. Please try again.")
     }
 
     func testRefreshIgnoresPendingNotificationReactionResult() async {

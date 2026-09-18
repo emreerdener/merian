@@ -78,6 +78,18 @@ final class ExploreReactionStateTests: XCTestCase {
         XCTAssertNotEqual(ExploreEmojiCatalog.order(for: "👍"), ExploreEmojiCatalog.order(for: "👍🏽"))
     }
 
+    func testPickerOffersDefaultTonesWhileExistingVariantsKeepTheirIdentity() {
+        let choices = Set(ExploreEmojiCatalog.pickerEntries.map(\.emoji))
+        for emoji in ["😀", "👍", "👩‍🔬", "🇹🇷", "🏳️‍🌈"] {
+            XCTAssertTrue(choices.contains(emoji), "Missing default picker choice: \(emoji)")
+        }
+        for emoji in ["👍🏻", "👍🏽", "👍🏿", "👩🏽‍🔬", "🫱🏻‍🫲🏿"] {
+            XCTAssertFalse(choices.contains(emoji))
+            XCTAssertNotNil(ExploreEmojiCatalog.byEmoji[emoji], "Existing reactions must still render: \(emoji)")
+            XCTAssertNotEqual(ExploreEmojiCatalog.name(for: emoji), emoji)
+        }
+    }
+
     func testPostReconcilesAuthoritativeCountAndMultipleSelections() async {
         let post = ExploreFeedTestFixtures.post(id: "post")
         let vm = model(
@@ -174,6 +186,11 @@ final class ExploreReactionStateTests: XCTestCase {
         XCTAssertEqual(vm.post(id: post.id)?.viewerHasLiked, true)
         XCTAssertEqual(vm.post(id: post.id)?.likeCount, 3)
         XCTAssertEqual(vm.toastMessage?.severity, .error)
+        XCTAssertEqual(vm.toastMessage?.title, "Couldn’t add reaction. Please try again.")
+
+        await vm.setPostReaction(for: post, emoji: "🎉", selected: false)
+        XCTAssertEqual(vm.post(id: post.id)?.reactions, post.reactions)
+        XCTAssertEqual(vm.toastMessage?.title, "Couldn’t remove reaction. Please try again.")
     }
 
     func testRefreshInvalidatesPendingPostResponse() async {

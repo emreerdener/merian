@@ -11,7 +11,10 @@ Only fully-qualified emoji are canonical. Recognized minimally-qualified and
 unqualified forms map to that identity. Skin tones, flags, and joined sequences
 remain distinct; standalone components and arbitrary text are not reactions.
 Picker cells render native emoji without visible name captions. Catalog names
-remain available for search, accessibility, and help.
+remain available for search, accessibility, and help. The native picker filters
+out skin-tone modifier sequences from its choices, including search results. The
+full client/server catalog stays intact so existing toned reactions still
+validate, display, and toggle independently.
 
 ## Maintenance
 

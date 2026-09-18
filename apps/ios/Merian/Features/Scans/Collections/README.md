@@ -116,11 +116,12 @@ quarantined posts can remain members while their owner-preserved active intent
 exists, so this local collection is not an exact copy of the currently visible
 Profile grid.
 
-The Scan map card is also not a synchronized collection. Collections consumes
-the Scans-owned coordinate snapshot and appends
-`ScansNavigationRoute.privateScanMap`; `ScansSheetView` constructs the
-destination in the existing navigation stack. Collections does not request
-location, render a live map, or decode and cluster the library. See the
+The Scan map card appears directly below Featured scans and is not a
+synchronized collection. Collections consumes the Scans-owned coordinate
+snapshot and appends `ScansNavigationRoute.privateScanMap`; `ScansSheetView`
+constructs the destination in the existing navigation stack. Collections does
+not request location, render a live map, or decode and cluster the library. See
+the
 [Private Scan Map contract](../../../../../../docs/features-and-hardware/28-private-scan-map.md)
 for eligibility, privacy, rendering, reset, and release verification.
 

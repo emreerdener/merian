@@ -56,7 +56,7 @@ its public representation.
 
 ## Collections Entry
 
-Collections renders one full-width **Scan map** card above **Featured scans**
+Collections renders one full-width **Scan map** card below **Featured scans**
 when the eligible projection contains at least one point. The card:
 
 - is hidden when there are no eligible points;

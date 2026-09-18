@@ -145,7 +145,9 @@ final class ExploreNotificationReplyThreadViewModel {
             } catch {
                 guard generation == loadGeneration, viewer == dependencies.currentViewer().userID else { return }
                 replaceReactionComment(current)
-                if !(error is CancellationError) { reactionError = "Could not update reaction. Try again." }
+                if !(error is CancellationError) {
+                    reactionError = ExploreErrorFormatter.reactionMutationMessage(selected: selected)
+                }
             }
         }
     }

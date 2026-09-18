@@ -54,6 +54,12 @@ enum ExploreErrorFormatter {
         "\(title)\n\(message(for: error))"
     }
 
+    static func reactionMutationMessage(selected: Bool) -> String {
+        selected
+            ? "Couldn’t add reaction. Please try again."
+            : "Couldn’t remove reaction. Please try again."
+    }
+
     static func speciesStatsMessage(for error: Error) -> String {
         if case MerianError.edgeFunctionUnavailable = error {
             return speciesStatsUnavailableMessage

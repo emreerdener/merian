@@ -11,7 +11,7 @@ extension ExploreFeedViewModel {
                 _ = try await performCommentReaction(for: comment, emoji: emoji, selected: selected)
             } catch is CancellationError {
             } catch {
-                toastMessage = .error(dependencies.errorMessage(error))
+                toastMessage = .error(ExploreErrorFormatter.reactionMutationMessage(selected: selected))
             }
         }
     }

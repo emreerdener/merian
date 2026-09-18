@@ -1678,13 +1678,14 @@ conditional edge fades. Accessibility text sizes place chips on a second row,
 and the row height scales with Dynamic Type. Share destinations and comment
 navigation stay unchanged.
 
-Posts, comments, and notification reply threads share a categorized, searchable
-Unicode emoji picker. It opens at medium height, expands when searching, and
-supports a large detent. Choosing an emoji adds it and closes the sheet;
-choosing an already-selected emoji is idempotent. Chip taps add/remove the
-viewer's contribution. Multiple distinct reactions are allowed. Post ❤️ uses the
-existing like, while comment ❤️ is an ordinary reaction. Picker cells show only
-emoji glyphs; catalog names remain available for search, VoiceOver, and help.
+Posts, comments, and notification reply threads share a searchable Unicode emoji
+picker without category filters or a Done button in the search field. It opens
+at medium height, expands when searching, and supports a large detent. Choosing
+an emoji adds it and closes the sheet; choosing an already-selected emoji is
+idempotent. Chip taps add/remove the viewer's contribution. Multiple distinct
+reactions are allowed. Post ❤️ uses the existing like, while comment ❤️ is an
+ordinary reaction. Picker cells show only emoji glyphs; catalog names remain
+available for search, VoiceOver, and help.
 
 Post reaction state belongs to `ExplorePostStore`; mutations use injected
 Services, optimistic updates, authoritative reconciliation, rollback, and
@@ -1715,13 +1716,21 @@ tapping its chip removes that viewer's contribution. Other heart emoji remain
 separate from the post's existing ❤️ like. Neither ordinary emoji reactions nor
 comment reactions alter Liked-feed membership or trending scores.
 
-Search uses the bundled Unicode names and CLDR keywords, including skin tones,
-flags, and joined sequences. Picker presentation suspends Explore video through
-the existing overlay lifecycle. Feed comments still open their sheet; detail
-comments focus the inline thread. Share copy and destinations are unchanged.
+Search uses the bundled Unicode names, category metadata, and CLDR keywords. The
+compact grid offers default skin tones only, including flags and joined
+sequences without tone modifiers. Existing skin-tone reactions retain their
+identity and remain visible and tappable in reaction rows. Selecting dismisses
+the picker; swipe down to dismiss without selecting. Picker presentation
+suspends Explore video through the existing overlay lifecycle. Feed comments
+still open their sheet; detail comments focus the inline thread. Share copy and
+destinations are unchanged.
 
 Mutations serialize per target. The state owner reconciles authoritative counts,
-restores the previous selection on failure, and displays an error. Account,
+restores the previous selection on failure, and displays an error. Reaction
+write errors name the failed action (“Couldn’t add reaction” or “Couldn’t remove
+reaction”) and invite a retry; they do not imply all Explore content is
+unavailable. Reaction pagination errors likewise name loading more reactions.
+Notification reply sheets use the same action-specific write copy. Account,
 request, removal, and mutation revisions reject obsolete results. Map summary
 hydration and post refreshes share the mutation queue. Notification reply sheets
 also restore their local comment copies after failed writes.
@@ -1759,12 +1768,11 @@ interactions and public-web reaction UI remain outside this change.
 ### Reaction haptics
 
 Opening a post or comment/reply emoji picker uses the shared sheet spring.
-Choosing an emoji (including an already-selected one), toggling a chip, changing
-categories, or tapping More gives one immediate selection pulse. Tapping the
-active category again is silent unless it clears a search. Successful network
-responses do not repeat the tap feedback, including post ❤️ picker selections;
-direct Heart buttons retain their existing feedback. Failed mutations retain
-error feedback alongside rollback and the visible error.
+Choosing an emoji (including an already-selected one), toggling a chip, or
+tapping More gives one immediate selection pulse. Successful network responses
+do not repeat the tap feedback, including post ❤️ picker selections; direct
+Heart buttons retain their existing feedback. Failed mutations retain error
+feedback alongside rollback and the visible error.
 
 All reaction feedback routes through `HapticManager`, respecting the global
 haptics preference and expedition-mode suppression. Search typing, scrolling,

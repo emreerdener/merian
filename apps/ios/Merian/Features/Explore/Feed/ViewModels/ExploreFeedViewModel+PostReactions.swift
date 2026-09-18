@@ -129,7 +129,7 @@ extension ExploreFeedViewModel {
                 post(id: source.id) != nil
             else { return }
             store.applyReactions(postId: source.id, reactions: previous, cursor: current.reactionsNextCursor)
-            toastMessage = .error(dependencies.errorMessage(error))
+            toastMessage = .error(ExploreErrorFormatter.reactionMutationMessage(selected: selected))
             dependencies.feedback.error()
         }
     }
@@ -154,7 +154,7 @@ extension ExploreFeedViewModel {
         } catch {
             guard generation == activeFeedRequestId, viewer == dependencies.comments.currentViewer().userID,
                   revision == reactionRevisions["post:\(source.id)", default: 0] else { return }
-            toastMessage = .error(dependencies.errorMessage(error))
+            toastMessage = .error("Couldn’t load more reactions. Please try again.")
         }
     }
 }
