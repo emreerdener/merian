@@ -1,0 +1,16 @@
+{
+  "apps/ios/Merian/Core/Data/OfflineSync/README.md": "36fc030a417a79e7c66a640dd339f59b118574a502f11f525f5c273108bf9d23",
+  "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift": "da2db3d138b4b87daa663b27236ff90e9adb5c03b1cc13c04a1ac0455ef2ce39",
+  "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundAccountWork.swift": "94c2ac75065e837ee7c9abc341ffed115adb27d4f32f6fb9bffd0904b3da6257",
+  "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift": "e650aca0f585ee4d0ac2b252684cd882339a76df7291831202946351549e57ad",
+  "apps/ios/Merian/Features/Explore/Feed/Components/Detail/ExplorePostDetailSheetContent.swift": "eff02aa4efb63cb8a01a3544358353df191e9a7d91025bb117ca23c8b3f03ffd",
+  "apps/ios/Merian/Features/Explore/Feed/README.md": "d34cda41ea1720b7eec8e21cbdf577c54dcd4cdadc74a7854a7bdc963780ab16",
+  "apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift": "460ba8d70986bf85f7d8cb4a5912027a79f18af0619c7d7ac073f87a9a12ebd1",
+  "apps/ios/MerianTests/Core/Data/OfflineSync/BackgroundTransferArchitectureTests.swift": "245eb7e6e0d9dac10233306e5adee7e5f54c71449fd194a79411f6a7d7004012",
+  "apps/ios/MerianTests/Core/Data/OfflineSync/CaptureTerminalAcceptanceTests.swift": "92ccdebc6ffacae7849c844ea9347db699cf85f0eac87c506ff882ab683df876",
+  "apps/ios/MerianTests/Core/Network/Decoding/ExploreNetworkModelArchitectureTests.swift": "a62dfb6396284366e6926f2b7a52fc48c9a2c597482e9543aee4294314e34de2",
+  "apps/ios/MerianTests/Core/Network/Endpoints/CoreNetworkIntegrationArchitectureTests.swift": "ad7333e96004b1446f56c5e496d9f6f058e10519ff3f6ddd0062d2e6c6fe45a4",
+  "docs/backend-and-data/01-offline-sync-pipeline.md": "bf3f984c6b1da8a4038f99b341eaa7f237d7bfba68ccee92635a386db4e7cf3b",
+  "docs/development-guides/18-ios-runtime-quality-and-benchmarking.md": "42e102ed6fe1cb30253d00a98e43409d31cb1412fcb7435c46872d1890ac0967",
+  "scripts/config/ios-runtime-audit.json": "c4a63baa85c1047173a7c45678774d18d85fb2597ea1af075b401da6b3cd91bf"
+}

@@ -1,0 +1,302 @@
+{
+  "devices" : [
+    {
+      "architecture" : "arm64",
+      "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+      "deviceName" : "iPhone 18 Pro",
+      "modelName" : "iPhone 18 Pro",
+      "osBuildNumber" : "24A434",
+      "osVersion" : "27.0",
+      "platform" : "iOS Simulator"
+    }
+  ],
+  "testNodes" : [
+    {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "duration" : "0.0047s",
+                  "durationInSeconds" : 0.004651069641113281,
+                  "name" : "testCancellationAfterSDKMutationStillCompletesExternalCleanup()",
+                  "nodeIdentifier" : "AuthLocalSignOutCoordinatorTests/testCancellationAfterSDKMutationStillCompletesExternalCleanup()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/AuthLocalSignOutCoordinatorTests/testCancellationAfterSDKMutationStillCompletesExternalCleanup",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.0014s",
+                  "durationInSeconds" : 0.0014449357986450195,
+                  "name" : "testCancellationRetainsTaskUntilDeferredCleanupFinishes()",
+                  "nodeIdentifier" : "AuthLocalSignOutCoordinatorTests/testCancellationRetainsTaskUntilDeferredCleanupFinishes()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/AuthLocalSignOutCoordinatorTests/testCancellationRetainsTaskUntilDeferredCleanupFinishes",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.00095s",
+                  "durationInSeconds" : 0.0009520053863525391,
+                  "name" : "testCancellationWhileAwaitingBootstrapStopsBeforeSDKMutation()",
+                  "nodeIdentifier" : "AuthLocalSignOutCoordinatorTests/testCancellationWhileAwaitingBootstrapStopsBeforeSDKMutation()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/AuthLocalSignOutCoordinatorTests/testCancellationWhileAwaitingBootstrapStopsBeforeSDKMutation",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.0013s",
+                  "durationInSeconds" : 0.001291036605834961,
+                  "name" : "testConcurrentSignOutCallsShareOneRetainedTask()",
+                  "nodeIdentifier" : "AuthLocalSignOutCoordinatorTests/testConcurrentSignOutCallsShareOneRetainedTask()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/AuthLocalSignOutCoordinatorTests/testConcurrentSignOutCallsShareOneRetainedTask",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.00082s",
+                  "durationInSeconds" : 0.0008159875869750977,
+                  "name" : "testFailedQuiescenceStopsBeforeLocalStateMutation()",
+                  "nodeIdentifier" : "AuthLocalSignOutCoordinatorTests/testFailedQuiescenceStopsBeforeLocalStateMutation()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/AuthLocalSignOutCoordinatorTests/testFailedQuiescenceStopsBeforeLocalStateMutation",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.011s",
+                  "durationInSeconds" : 0.011301994323730469,
+                  "name" : "testSDKFailureStillCompletesExternalAndLocalCleanup()",
+                  "nodeIdentifier" : "AuthLocalSignOutCoordinatorTests/testSDKFailureStillCompletesExternalAndLocalCleanup()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/AuthLocalSignOutCoordinatorTests/testSDKFailureStillCompletesExternalAndLocalCleanup",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.0084s",
+                  "durationInSeconds" : 0.008406996726989746,
+                  "name" : "testSignOutDrainsEveryAccountLeaseBeforeSDKMutation()",
+                  "nodeIdentifier" : "AuthLocalSignOutCoordinatorTests/testSignOutDrainsEveryAccountLeaseBeforeSDKMutation()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/AuthLocalSignOutCoordinatorTests/testSignOutDrainsEveryAccountLeaseBeforeSDKMutation",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.002s",
+                  "durationInSeconds" : 0.0019910335540771484,
+                  "name" : "testSignOutPreservesStateTransitionAndEffectOrder()",
+                  "nodeIdentifier" : "AuthLocalSignOutCoordinatorTests/testSignOutPreservesStateTransitionAndEffectOrder()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/AuthLocalSignOutCoordinatorTests/testSignOutPreservesStateTransitionAndEffectOrder",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.0047s",
+                  "durationInSeconds" : 0.004696965217590332,
+                  "name" : "testSignOutWaitsForActiveInferenceWriteAndRejectsNewWork()",
+                  "nodeIdentifier" : "AuthLocalSignOutCoordinatorTests/testSignOutWaitsForActiveInferenceWriteAndRejectsNewWork()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/AuthLocalSignOutCoordinatorTests/testSignOutWaitsForActiveInferenceWriteAndRejectsNewWork",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.0011s",
+                  "durationInSeconds" : 0.0011199712753295898,
+                  "name" : "testTransitionLossAfterBootstrapStopsBeforeSDKMutation()",
+                  "nodeIdentifier" : "AuthLocalSignOutCoordinatorTests/testTransitionLossAfterBootstrapStopsBeforeSDKMutation()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/AuthLocalSignOutCoordinatorTests/testTransitionLossAfterBootstrapStopsBeforeSDKMutation",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "AuthLocalSignOutCoordinatorTests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/AuthLocalSignOutCoordinatorTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            },
+            {
+              "children" : [
+                {
+                  "duration" : "0.17s",
+                  "durationInSeconds" : 0.17312383651733398,
+                  "name" : "visualAdmissionDispatchPersistenceAndInsightRejectDuplicateExecution()",
+                  "nodeIdentifier" : "DiskBackedInferenceAcceptanceTests/visualAdmissionDispatchPersistenceAndInsightRejectDuplicateExecution()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/DiskBackedInferenceAcceptanceTests/visualAdmissionDispatchPersistenceAndInsightRejectDuplicateExecution()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.023s",
+                  "durationInSeconds" : 0.02345108985900879,
+                  "name" : "interruptedFileAdoptionRemovesPartialDestinationFiles()",
+                  "nodeIdentifier" : "DiskBackedInferenceAcceptanceTests/interruptedFileAdoptionRemovesPartialDestinationFiles()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/DiskBackedInferenceAcceptanceTests/interruptedFileAdoptionRemovesPartialDestinationFiles()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.041s",
+                  "durationInSeconds" : 0.0405580997467041,
+                  "name" : "describeAdmissionPersistsBeforeCompletionAndRestoresInsight()",
+                  "nodeIdentifier" : "DiskBackedInferenceAcceptanceTests/describeAdmissionPersistsBeforeCompletionAndRestoresInsight()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/DiskBackedInferenceAcceptanceTests/describeAdmissionPersistsBeforeCompletionAndRestoresInsight()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.044s",
+                  "durationInSeconds" : 0.04400372505187988,
+                  "name" : "reopenedQueueRejectsStaleAndDuplicateResultsAndRestoresInsight()",
+                  "nodeIdentifier" : "DiskBackedInferenceAcceptanceTests/reopenedQueueRejectsStaleAndDuplicateResultsAndRestoresInsight()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/DiskBackedInferenceAcceptanceTests/reopenedQueueRejectsStaleAndDuplicateResultsAndRestoresInsight()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.024s",
+                  "durationInSeconds" : 0.023895740509033203,
+                  "name" : "invalidResponseAfterRestartPreservesDurableWork()",
+                  "nodeIdentifier" : "DiskBackedInferenceAcceptanceTests/invalidResponseAfterRestartPreservesDurableWork()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/DiskBackedInferenceAcceptanceTests/invalidResponseAfterRestartPreservesDurableWork()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.061s",
+                  "durationInSeconds" : 0.06056714057922363,
+                  "name" : "rejectedStoreSavePreservesQueueForWritableRetry()",
+                  "nodeIdentifier" : "DiskBackedInferenceAcceptanceTests/rejectedStoreSavePreservesQueueForWritableRetry()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/DiskBackedInferenceAcceptanceTests/rejectedStoreSavePreservesQueueForWritableRetry()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "Disk Backed Inference Acceptance",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/DiskBackedInferenceAcceptanceTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            },
+            {
+              "children" : [
+                {
+                  "duration" : "0.00018s",
+                  "durationInSeconds" : 0.0001780986785888672,
+                  "name" : "admissionRejectsIncompleteUnavailableAndDuplicateOwners()",
+                  "nodeIdentifier" : "InferenceLivePipelineCoordinatorTests/admissionRejectsIncompleteUnavailableAndDuplicateOwners()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/InferenceLivePipelineCoordinatorTests/admissionRejectsIncompleteUnavailableAndDuplicateOwners()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.00014s",
+                  "durationInSeconds" : 0.0001399517059326172,
+                  "name" : "emptyVisualEncodingRefundsAndRetiresExactOwnerInOrder()",
+                  "nodeIdentifier" : "InferenceLivePipelineCoordinatorTests/emptyVisualEncodingRefundsAndRetiresExactOwnerInOrder()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/InferenceLivePipelineCoordinatorTests/emptyVisualEncodingRefundsAndRetiresExactOwnerInOrder()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.00015s",
+                  "durationInSeconds" : 0.00015115737915039062,
+                  "name" : "queueLessNonvisualSuccessPreservesReviewedFollowUpOrder()",
+                  "nodeIdentifier" : "InferenceLivePipelineCoordinatorTests/queueLessNonvisualSuccessPreservesReviewedFollowUpOrder()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/InferenceLivePipelineCoordinatorTests/queueLessNonvisualSuccessPreservesReviewedFollowUpOrder()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.000085s",
+                  "durationInSeconds" : 8.487701416015625e-05,
+                  "name" : "queueLessVisualSuccessPreservesReviewedFollowUpOrder()",
+                  "nodeIdentifier" : "InferenceLivePipelineCoordinatorTests/queueLessVisualSuccessPreservesReviewedFollowUpOrder()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/InferenceLivePipelineCoordinatorTests/queueLessVisualSuccessPreservesReviewedFollowUpOrder()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.000085s",
+                  "durationInSeconds" : 8.511543273925781e-05,
+                  "name" : "durableNonvisualSuccessFinalizesBeforeFollowUps()",
+                  "nodeIdentifier" : "InferenceLivePipelineCoordinatorTests/durableNonvisualSuccessFinalizesBeforeFollowUps()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/InferenceLivePipelineCoordinatorTests/durableNonvisualSuccessFinalizesBeforeFollowUps()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.0037s",
+                  "durationInSeconds" : 0.003654956817626953,
+                  "name" : "circuitGateRoutesThroughFailureCoordinator()",
+                  "nodeIdentifier" : "InferenceLivePipelineCoordinatorTests/circuitGateRoutesThroughFailureCoordinator()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/InferenceLivePipelineCoordinatorTests/circuitGateRoutesThroughFailureCoordinator()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.00097s",
+                  "durationInSeconds" : 0.000965118408203125,
+                  "name" : "staleCompletionCannotClearOrPublishOverReplacement()",
+                  "nodeIdentifier" : "InferenceLivePipelineCoordinatorTests/staleCompletionCannotClearOrPublishOverReplacement()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/InferenceLivePipelineCoordinatorTests/staleCompletionCannotClearOrPublishOverReplacement()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "Inference Live Pipeline Coordinator",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/InferenceLivePipelineCoordinatorTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            },
+            {
+              "children" : [
+                {
+                  "duration" : "0.00015s",
+                  "durationInSeconds" : 0.00014519691467285156,
+                  "name" : "finalizesExactQueueOwnerBeforeVisualFollowUps()",
+                  "nodeIdentifier" : "InferenceLivePipelineDurableVisualTests/finalizesExactQueueOwnerBeforeVisualFollowUps()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/InferenceLivePipelineDurableVisualTests/finalizesExactQueueOwnerBeforeVisualFollowUps()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.0001s",
+                  "durationInSeconds" : 0.0001010894775390625,
+                  "name" : "completedAttemptCannotDispatchOrPublishTwice()",
+                  "nodeIdentifier" : "InferenceLivePipelineDurableVisualTests/completedAttemptCannotDispatchOrPublishTwice()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/InferenceLivePipelineDurableVisualTests/completedAttemptCannotDispatchOrPublishTwice()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.00021s",
+                  "durationInSeconds" : 0.00021409988403320312,
+                  "name" : "cancellationDuringPersistenceSuppressesLatePublication()",
+                  "nodeIdentifier" : "InferenceLivePipelineDurableVisualTests/cancellationDuringPersistenceSuppressesLatePublication()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/InferenceLivePipelineDurableVisualTests/cancellationDuringPersistenceSuppressesLatePublication()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "Inference Live Pipeline Durable Visual Success",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/InferenceLivePipelineDurableVisualTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            }
+          ],
+          "name" : "merianTests",
+          "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests",
+          "nodeType" : "Unit test bundle",
+          "result" : "Passed"
+        }
+      ],
+      "name" : "Merian",
+      "nodeType" : "Test Plan",
+      "result" : "Passed"
+    }
+  ],
+  "testPlanConfigurations" : [
+    {
+      "configurationId" : "1",
+      "configurationName" : "Test Scheme Action"
+    }
+  ]
+}

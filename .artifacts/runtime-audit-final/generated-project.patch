@@ -1,0 +1,206 @@
+diff --git a/merian.xcodeproj/project.pbxproj b/merian.xcodeproj/project.pbxproj
+index 380b6220f..cbc7f89db 100644
+--- a/merian.xcodeproj/project.pbxproj
++++ b/merian.xcodeproj/project.pbxproj
+@@ -2389,6 +2389,7 @@
+ 		190FD181B8FDAB15BAD813C2 /* SimilarSpeciesImageDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimilarSpeciesImageDependencies.swift; sourceTree = "<group>"; };
+ 		192AEDBA384767C578A51794 /* PurchaseIdentitySignOutWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseIdentitySignOutWorkflowTests.swift; sourceTree = "<group>"; };
+ 		19324F1E085CDC4F842BA916 /* ScansShellViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansShellViewModelTests.swift; sourceTree = "<group>"; };
++		19635633BA87B78C97AEB297 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+ 		196EB2393E8AD8A632D0752E /* IconButtonModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconButtonModifiers.swift; sourceTree = "<group>"; };
+ 		19773281C988796D74C5DD25 /* InsightSheetViewModel+CommunityIdentification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InsightSheetViewModel+CommunityIdentification.swift"; sourceTree = "<group>"; };
+ 		1993850BCE2F181FD623280C /* SpeciesDictionaryCatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryCatalogView.swift; sourceTree = "<group>"; };
+@@ -2436,7 +2437,6 @@
+ 		1EF56490158243342ACB205C /* ExploreFeedViewModel+Comments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExploreFeedViewModel+Comments.swift"; sourceTree = "<group>"; };
+ 		1EF56E15F72C5FC579713FD9 /* ManagePlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagePlanView.swift; sourceTree = "<group>"; };
+ 		1F68AEDFA28FC1A56B520840 /* FeedbackSurveyChoiceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackSurveyChoiceViews.swift; sourceTree = "<group>"; };
+-		1F8286D3012156A7941E601D /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+ 		1FF0401F3B8ED654B5318134 /* StagedVideoUploadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagedVideoUploadTests.swift; sourceTree = "<group>"; };
+ 		203457E3F2CE7F12CA1CEE00 /* InferenceFailurePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceFailurePresentationTests.swift; sourceTree = "<group>"; };
+ 		209F8F02699B516806EA2C61 /* StoreRecoveryManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreRecoveryManifest.swift; sourceTree = "<group>"; };
+@@ -3589,7 +3589,6 @@
+ 		AF73FFD11B49BBED7DA7C116 /* UserTagsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserTagsViewModelTests.swift; sourceTree = "<group>"; };
+ 		AF85AE067E6E7064359C3437 /* ScanThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanThumbnail.swift; sourceTree = "<group>"; };
+ 		AFED936C9F535026935401CC /* ExplorePostDetailViewModelDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplorePostDetailViewModelDependencies.swift; sourceTree = "<group>"; };
+-		B03EAD808B1F5D84E75D030C /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+ 		B0412334EE55452F6FBE5268 /* ShareNaturebookCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareNaturebookCard.swift; sourceTree = "<group>"; };
+ 		B093640CEE08B8F470EB149A /* ToastPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastPayload.swift; sourceTree = "<group>"; };
+ 		B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+@@ -3899,6 +3898,7 @@
+ 		D78437D8F354394F392E3644 /* SafeArrayAccessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeArrayAccessTests.swift; sourceTree = "<group>"; };
+ 		D7AF1809B6E046CD0E1E9499 /* DescribeVerticalScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescribeVerticalScrollView.swift; sourceTree = "<group>"; };
+ 		D7C7F0E1C7CACCB686A87C59 /* AppLifecycleManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleManager.swift; sourceTree = "<group>"; };
++		D7D3DAB7013C8ED390DE1A86 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+ 		D809271BC92A42FACF2445E8 /* FieldTripAPIModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldTripAPIModelsTests.swift; sourceTree = "<group>"; };
+ 		D810D0E3C5E726D2F0973E3F /* ExplorePublicMediaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplorePublicMediaView.swift; sourceTree = "<group>"; };
+ 		D847381057EA6CF1E1710826 /* InsightQueuedHandoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightQueuedHandoffTests.swift; sourceTree = "<group>"; };
+@@ -6478,16 +6478,6 @@
+ 			path = Caching;
+ 			sourceTree = "<group>";
+ 		};
+-		4614202F6465E0F5BE4F99BA /* merian */ = {
+-			isa = PBXGroup;
+-			children = (
+-				B03EAD808B1F5D84E75D030C /* Config.xcconfig */,
+-				1F8286D3012156A7941E601D /* Signing.xcconfig */,
+-			);
+-			name = merian;
+-			path = .;
+-			sourceTree = "<group>";
+-		};
+ 		464924AD6C30FAF9AA3F0C5E /* Sharing */ = {
+ 			isa = PBXGroup;
+ 			children = (
+@@ -7501,6 +7491,16 @@
+ 			path = Services;
+ 			sourceTree = "<group>";
+ 		};
++		6C0B5A9A14486DC6E5E1F9C3 /* candidate */ = {
++			isa = PBXGroup;
++			children = (
++				D7D3DAB7013C8ED390DE1A86 /* Config.xcconfig */,
++				19635633BA87B78C97AEB297 /* Signing.xcconfig */,
++			);
++			name = candidate;
++			path = .;
++			sourceTree = "<group>";
++		};
+ 		6C2413D0BF830C4BD2C05F6A /* Components */ = {
+ 			isa = PBXGroup;
+ 			children = (
+@@ -10067,8 +10067,8 @@
+ 			children = (
+ 				DA9A508E1F9A36FBC48C1E84 /* AppSupport */,
+ 				F40C7FEB2146645A5097C545 /* Branding */,
++				6C0B5A9A14486DC6E5E1F9C3 /* candidate */,
+ 				A073ED9A262582477010CCFF /* Explore */,
+-				4614202F6465E0F5BE4F99BA /* merian */,
+ 				E7702D88B7F7A1860DCB8689 /* Merian */,
+ 				5E1A15B98501144EA7097C18 /* MerianMessagesExtension */,
+ 				427564774B918248BA9D51EE /* MerianPerformanceTests */,
+@@ -14093,7 +14093,7 @@
+ /* Begin XCBuildConfiguration section */
+ 		072C28AF747B7398E622F4B8 /* Release */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
++			baseConfigurationReference = D7D3DAB7013C8ED390DE1A86 /* Config.xcconfig */;
+ 			buildSettings = {
+ 				APPLICATION_EXTENSION_API_ONLY = YES;
+ 				CODE_SIGN_ENTITLEMENTS = apps/ios/widgets/Explore/Configuration/MerianExploreWidget.entitlements;
+@@ -14115,7 +14115,7 @@
+ 		};
+ 		086D6E7DE66261D7AAB76C4E /* Release */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
++			baseConfigurationReference = D7D3DAB7013C8ED390DE1A86 /* Config.xcconfig */;
+ 			buildSettings = {
+ 				APPLICATION_EXTENSION_API_ONLY = YES;
+ 				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
+@@ -14138,7 +14138,7 @@
+ 		};
+ 		16E59262791D4BC7B239672B /* Release */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
++			baseConfigurationReference = 19635633BA87B78C97AEB297 /* Signing.xcconfig */;
+ 			buildSettings = {
+ 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+ 				CODE_SIGN_STYLE = Automatic;
+@@ -14163,7 +14163,7 @@
+ 		};
+ 		2A070EB1D51EB18C60B10AFC /* Release */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
++			baseConfigurationReference = D7D3DAB7013C8ED390DE1A86 /* Config.xcconfig */;
+ 			buildSettings = {
+ 				APS_ENVIRONMENT = production;
+ 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+@@ -14189,7 +14189,7 @@
+ 		};
+ 		301E8FE096A2173E876D72C9 /* Debug */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
++			baseConfigurationReference = 19635633BA87B78C97AEB297 /* Signing.xcconfig */;
+ 			buildSettings = {
+ 				BUNDLE_LOADER = "$(TEST_HOST)";
+ 				CODE_SIGN_STYLE = Automatic;
+@@ -14209,7 +14209,7 @@
+ 		};
+ 		63E2FCD72D2C4BB7FEB7197E /* Release */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
++			baseConfigurationReference = 19635633BA87B78C97AEB297 /* Signing.xcconfig */;
+ 			buildSettings = {
+ 				BUNDLE_LOADER = "$(TEST_HOST)";
+ 				CODE_SIGN_STYLE = Automatic;
+@@ -14229,7 +14229,7 @@
+ 		};
+ 		70027F99ABC1AAC485FEA98D /* Debug */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
++			baseConfigurationReference = 19635633BA87B78C97AEB297 /* Signing.xcconfig */;
+ 			buildSettings = {
+ 				BUNDLE_LOADER = "$(TEST_HOST)";
+ 				CODE_SIGN_STYLE = Automatic;
+@@ -14318,7 +14318,7 @@
+ 		};
+ 		83A319257E8467F3C1A0C22D /* Debug */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
++			baseConfigurationReference = D7D3DAB7013C8ED390DE1A86 /* Config.xcconfig */;
+ 			buildSettings = {
+ 				APPLICATION_EXTENSION_API_ONLY = YES;
+ 				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
+@@ -14341,7 +14341,7 @@
+ 		};
+ 		AABC477C3F875B4C694102E4 /* Debug */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
++			baseConfigurationReference = 19635633BA87B78C97AEB297 /* Signing.xcconfig */;
+ 			buildSettings = {
+ 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+ 				CODE_SIGN_STYLE = Automatic;
+@@ -14366,7 +14366,7 @@
+ 		};
+ 		DE403FFF0AE676687AEC1597 /* Debug */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
++			baseConfigurationReference = 19635633BA87B78C97AEB297 /* Signing.xcconfig */;
+ 			buildSettings = {
+ 				BUNDLE_LOADER = "$(TEST_HOST)";
+ 				CODE_SIGN_STYLE = Automatic;
+@@ -14386,7 +14386,7 @@
+ 		};
+ 		DE423473E1443CC508B4E35B /* Release */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
++			baseConfigurationReference = 19635633BA87B78C97AEB297 /* Signing.xcconfig */;
+ 			buildSettings = {
+ 				BUNDLE_LOADER = "$(TEST_HOST)";
+ 				CODE_SIGN_STYLE = Automatic;
+@@ -14406,7 +14406,7 @@
+ 		};
+ 		DEF7F5BC7F05F5C0A189FC2C /* Debug */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
++			baseConfigurationReference = D7D3DAB7013C8ED390DE1A86 /* Config.xcconfig */;
+ 			buildSettings = {
+ 				APPLICATION_EXTENSION_API_ONLY = YES;
+ 				CODE_SIGN_ENTITLEMENTS = apps/ios/widgets/Explore/Configuration/MerianExploreWidget.entitlements;
+@@ -14490,7 +14490,7 @@
+ 		};
+ 		FA85932515F575EB75458FFA /* Debug */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
++			baseConfigurationReference = D7D3DAB7013C8ED390DE1A86 /* Config.xcconfig */;
+ 			buildSettings = {
+ 				APS_ENVIRONMENT = development;
+ 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+@@ -14516,7 +14516,7 @@
+ 		};
+ 		FCBD5E0F2FB1E5FB0991C1B3 /* Release */ = {
+ 			isa = XCBuildConfiguration;
+-			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
++			baseConfigurationReference = 19635633BA87B78C97AEB297 /* Signing.xcconfig */;
+ 			buildSettings = {
+ 				BUNDLE_LOADER = "$(TEST_HOST)";
+ 				CODE_SIGN_STYLE = Automatic;

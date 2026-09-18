@@ -1,0 +1,15 @@
+{
+  "hashes": {
+    "scripts/ios-runtime-audit.py": "8194b52897611a5deb04c598740181dd7b5c283a884975937c8ca045fc9b1981",
+    "scripts/test-ios-runtime-audit.py": "c30ba33bfa03ad3627c78e833ca1a4b54e13663d5ea82d47716b9be2fb40919b",
+    "scripts/local-ios-build.py": "ccec20986eae5c276cdd85bd26b7f2474f030202b41033c2ef54784681d66be8",
+    "scripts/test-local-ios-build.py": "5631936ee8ae0adb1d79f1a4c6080a15e1dc4a7c4b1e21e5d451a434a19283ca",
+    "scripts/config/ios-runtime-audit.json": "f5b810d5f34df6f478fb69bac18e8e58689d7e019efc11f531df227311af49d5",
+    "apps/ios/MerianTests/Core/Data/OfflineSync/DiskBackedInferenceAcceptanceTests.swift": "3f3f67d29729ea91e5efddc7b254be7d7fe583748b238d70e5427e582c35ac61",
+    "apps/ios/MerianTests/Core/AI/Inference/InferenceLivePipelineCoordinatorTests.swift": "eea2e655229db594290b9532f682043811c6da6d983c7881780b194576e2971b",
+    "apps/ios/MerianTests/Core/Network/Auth/AuthLocalSignOutCoordinatorTests.swift": "a6f6d74abb44db969fc513e0607797b3a1f8ad5b58e1b474113cd47de20373ae",
+    "docs/development-guides/18-ios-runtime-quality-and-benchmarking.md": "fcb9afed40bea83a55ee7e8b1076fc942cd1c6e97c80d82d8ae935e37d5589a2",
+    "apps/ios/README.md": "39d08a0c3b79fb0b3c507ebee7330c6e20783da17b3c6decd60960a7b1a06db2"
+  },
+  "matches_retained_candidate": true
+}

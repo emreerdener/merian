@@ -1,0 +1,71 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+        "deviceName" : "iPhone 18 Pro",
+        "modelName" : "iPhone 18 Pro",
+        "osBuildNumber" : "24A434",
+        "osVersion" : "27.0",
+        "platform" : "iOS Simulator"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 5,
+      "passedTests" : 15,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "Merian · Built with macOS 26.6.2",
+  "expectedFailures" : 0,
+  "failedTests" : 2,
+  "finishTime" : 1789738099.346,
+  "passedTests" : 5,
+  "result" : "Failed",
+  "runtimeWarnings" : [
+
+  ],
+  "skippedTests" : 0,
+  "startTime" : 1789737737.08,
+  "statistics" : [
+    {
+      "subtitle" : "20 test runs",
+      "title" : "1 configuration ran with test repetitions"
+    },
+    {
+      "subtitle" : "15 test runs",
+      "title" : "5 tests collected performance metrics"
+    }
+  ],
+  "testFailures" : [
+    {
+      "failureText" : "-stopMeasuring shouldn't be called in autoStop mode (NSInternalInconsistencyException)",
+      "targetName" : "merianPerformanceTests",
+      "testIdentifier" : 4,
+      "testIdentifierString" : "PersistencePerformanceTests/testDurableQueueCommit()",
+      "testIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testDurableQueueCommit",
+      "testName" : "testDurableQueueCommit()"
+    },
+    {
+      "failureText" : "-stopMeasuring shouldn't be called in autoStop mode (NSInternalInconsistencyException)",
+      "targetName" : "merianUITests",
+      "testIdentifier" : 7,
+      "testIdentifierString" : "RuntimePerformanceTests/testProcessColdLaunch()",
+      "testIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testProcessColdLaunch",
+      "testName" : "testProcessColdLaunch()"
+    }
+  ],
+  "title" : "Test - Merian",
+  "topInsights" : [
+    {
+      "category" : "Common Failures",
+      "impact" : "100% of failures",
+      "text" : "4 runs of 2 tests failed with -stopMeasuring shouldn't be called in autoStop mode (NSInternalInconsistencyException)"
+    }
+  ],
+  "totalTestCount" : 7
+}

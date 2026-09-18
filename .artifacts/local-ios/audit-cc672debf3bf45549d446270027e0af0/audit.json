@@ -1,0 +1,53 @@
+{
+  "source_sha": "c1a426cd425add1acc5bfb39e2cbc9069049846a",
+  "environment": {
+    "label": "local-apple-silicon-iphone18pro-ios27-xcode27",
+    "simulator_model": "iPhone 18 Pro",
+    "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0",
+    "xcode": "Xcode 27.0\nBuild version 27A266a",
+    "host": "macOS-26.6.2-arm64-arm-64bit",
+    "hardware": "MacBookPro18,1",
+    "configuration": "Debug",
+    "iterations": 3,
+    "workload_fingerprint": "017b909d0b61d13f25f9f5279e48f959cea4fbcd7cd95751155b4ff1151be0d0"
+  },
+  "phases": [
+    {
+      "name": "build",
+      "status": "failed",
+      "command": [
+        "build-for-testing",
+        "-configuration",
+        "Debug",
+        "-destination",
+        "generic/platform=iOS Simulator"
+      ],
+      "bundle": "/Users/emreerdener/Developer/merian/.artifacts/local-ios/c5be259f6db54bf5ad3aba61f6072dc3.xcresult",
+      "detail": "Source changed during audit; evidence is diagnostic only."
+    },
+    {
+      "name": "acceptance",
+      "status": "blocked",
+      "detail": "Source changed during audit."
+    },
+    {
+      "name": "ui",
+      "status": "blocked",
+      "detail": "Source changed during audit."
+    },
+    {
+      "name": "performance",
+      "status": "blocked",
+      "detail": "Source changed during audit."
+    }
+  ],
+  "metrics": {},
+  "source_fingerprint": "3781b297ff96b7ca938b721e637d4e52015f9fc530291a82b4f984bb5e51c04a",
+  "source_untracked_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source_status_fingerprint": "5e8c988d4d863063a4a9233784c10b66bfc9135e49ffde67aad363bee90d49e5",
+  "source_dirty": true,
+  "destination": "platform=iOS Simulator,id=33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+  "observations": [
+    "No baseline supplied; baseline pending."
+  ]
+}

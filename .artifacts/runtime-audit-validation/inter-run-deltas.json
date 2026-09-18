@@ -1,0 +1,482 @@
+{
+  "MediaPerformanceTests/testAudioVideoFileAdmission() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.cycles | kC": {
+    "first_mean": 199227.5798,
+    "final_mean": 237083.5507,
+    "absolute_delta": 37855.970899999986,
+    "percent_delta": 19.001370662637534,
+    "first_cv_percent": 7.48400913080837,
+    "final_cv_percent": 22.873651732444383,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testAudioVideoFileAdmission() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.instructions_retired | kI": {
+    "first_mean": 680855.9518,
+    "final_mean": 703813.9297,
+    "absolute_delta": 22957.97789999994,
+    "percent_delta": 3.3719287962902023,
+    "first_cv_percent": 0.8745627780521952,
+    "final_cv_percent": 10.868798396461004,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testAudioVideoFileAdmission() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.time | s": {
+    "first_mean": 0.06403957826666667,
+    "final_mean": 0.07697186113333333,
+    "absolute_delta": 0.012932282866666658,
+    "percent_delta": 20.19420367325882,
+    "first_cv_percent": 8.184999355230518,
+    "final_cv_percent": 22.830358428147242,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testAudioVideoFileAdmission() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Clock.time.monotonic | s": {
+    "first_mean": 0.06361736026666667,
+    "final_mean": 0.07109762713333334,
+    "absolute_delta": 0.007480266866666668,
+    "percent_delta": 11.75821636627396,
+    "first_cv_percent": 8.290888570897678,
+    "final_cv_percent": 5.747234586596643,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testAudioVideoFileAdmission() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory.physical | kB": {
+    "first_mean": 0.5461333333333334,
+    "final_mean": 0.5461333333333334,
+    "absolute_delta": 0.0,
+    "percent_delta": 0.0,
+    "first_cv_percent": 1470.397553560683,
+    "final_cv_percent": 1241.522980192001,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testAudioVideoFileAdmission() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory.physical_peak | kB": {
+    "first_mean": 33905.883200000004,
+    "final_mean": 33610.44906666667,
+    "absolute_delta": -295.4341333333359,
+    "percent_delta": -0.8713359023584907,
+    "first_cv_percent": 3.222358799611294,
+    "final_cv_percent": 3.150759576498605,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testInferenceResponseMapping() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.cycles | kC": {
+    "first_mean": 7054.6447,
+    "final_mean": 7616.5003,
+    "absolute_delta": 561.8555999999999,
+    "percent_delta": 7.964335893485888,
+    "first_cv_percent": 4.495913002892012,
+    "final_cv_percent": 4.576191029667141,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testInferenceResponseMapping() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.instructions_retired | kI": {
+    "first_mean": 23441.3671,
+    "final_mean": 23459.825533333333,
+    "absolute_delta": 18.458433333333232,
+    "percent_delta": 0.07874298992285834,
+    "first_cv_percent": 0.48122120479203145,
+    "final_cv_percent": 0.760268320662255,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testInferenceResponseMapping() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.time | s": {
+    "first_mean": 0.0022682471,
+    "final_mean": 0.002480275866666667,
+    "absolute_delta": 0.00021202876666666674,
+    "percent_delta": 9.347692615441535,
+    "first_cv_percent": 4.89876883761226,
+    "final_cv_percent": 4.5712299245584775,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testInferenceResponseMapping() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Clock.time.monotonic | s": {
+    "first_mean": 0.0018155292,
+    "final_mean": 0.0018684820666666668,
+    "absolute_delta": 5.295286666666681e-05,
+    "percent_delta": 2.916662902842147,
+    "first_cv_percent": 3.692028219424872,
+    "final_cv_percent": 3.1280557929325377,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testInferenceResponseMapping() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory.physical | kB": {
+    "first_mean": 0.5461333333333334,
+    "final_mean": 1.6384,
+    "absolute_delta": 1.0922666666666667,
+    "percent_delta": 200.0,
+    "first_cv_percent": 547.722557505166,
+    "final_cv_percent": 305.1285766293647,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testInferenceResponseMapping() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory.physical_peak | kB": {
+    "first_mean": 34623.502400000005,
+    "final_mean": 34417.63413333333,
+    "absolute_delta": -205.86826666667184,
+    "percent_delta": -0.5945911083411128,
+    "first_cv_percent": 0.07594693360290226,
+    "final_cv_percent": 0.0797865892623905,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testRepeatedBoundedImageDecode() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.cycles | kC": {
+    "first_mean": 716981.3616666667,
+    "final_mean": 745742.8387333334,
+    "absolute_delta": 28761.477066666703,
+    "percent_delta": 4.0114678852751355,
+    "first_cv_percent": 1.1765469193397908,
+    "final_cv_percent": 1.8067857086481518,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testRepeatedBoundedImageDecode() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.instructions_retired | kI": {
+    "first_mean": 3625876.4220000003,
+    "final_mean": 3627307.406733333,
+    "absolute_delta": 1430.9847333328798,
+    "percent_delta": 0.03946589918648032,
+    "first_cv_percent": 0.02698800883660063,
+    "final_cv_percent": 0.03720272089339971,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testRepeatedBoundedImageDecode() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.time | s": {
+    "first_mean": 0.22953958923333334,
+    "final_mean": 0.24032209313333336,
+    "absolute_delta": 0.010782503900000018,
+    "percent_delta": 4.697448460204093,
+    "first_cv_percent": 1.6160992255154205,
+    "final_cv_percent": 2.741174534875293,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testRepeatedBoundedImageDecode() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Clock.time.monotonic | s": {
+    "first_mean": 0.22240907696666667,
+    "final_mean": 0.23511201676666668,
+    "absolute_delta": 0.012702939800000007,
+    "percent_delta": 5.711520398919621,
+    "first_cv_percent": 1.865606264331689,
+    "final_cv_percent": 3.2460183044990054,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testRepeatedBoundedImageDecode() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory.physical | kB": {
+    "first_mean": 6.007466666666667,
+    "final_mean": 174.76266666666666,
+    "absolute_delta": 168.7552,
+    "percent_delta": 2809.090909090909,
+    "first_cv_percent": 151.65093184569153,
+    "final_cv_percent": 327.5317913629886,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "MediaPerformanceTests/testRepeatedBoundedImageDecode() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory.physical_peak | kB": {
+    "first_mean": 88442.26773333333,
+    "final_mean": 91385.9664,
+    "absolute_delta": 2943.698666666678,
+    "percent_delta": 3.328384427615956,
+    "first_cv_percent": 0.07534687399131677,
+    "final_cv_percent": 2.553683878237079,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testDurableQueueCommit() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.cycles | kC": {
+    "first_mean": 4464.789066666666,
+    "final_mean": 5609.8351,
+    "absolute_delta": 1145.046033333334,
+    "percent_delta": 25.64613952049935,
+    "first_cv_percent": 8.19067556306554,
+    "final_cv_percent": 14.292798842680977,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testDurableQueueCommit() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.instructions_retired | kI": {
+    "first_mean": 9635.983466666667,
+    "final_mean": 9691.556133333333,
+    "absolute_delta": 55.57266666666692,
+    "percent_delta": 0.5767202367968667,
+    "first_cv_percent": 0.6062986843121938,
+    "final_cv_percent": 0.8661604532124888,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testDurableQueueCommit() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.time | s": {
+    "first_mean": 0.0014395346000000001,
+    "final_mean": 0.0018086931333333334,
+    "absolute_delta": 0.0003691585333333333,
+    "percent_delta": 25.644297353695652,
+    "first_cv_percent": 8.416042632485748,
+    "final_cv_percent": 14.58946045297935,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testDurableQueueCommit() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Clock.time.monotonic | s": {
+    "first_mean": 0.0009098802,
+    "final_mean": 0.0011184608666666668,
+    "absolute_delta": 0.00020858066666666673,
+    "percent_delta": 22.923970283853496,
+    "first_cv_percent": 9.240543951815066,
+    "final_cv_percent": 16.442087735672132,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testDurableQueueCommit() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory.physical | kB": {
+    "first_mean": 0.5461333333333334,
+    "final_mean": 2.1845333333333334,
+    "absolute_delta": 1.6384,
+    "percent_delta": 300.0,
+    "first_cv_percent": 547.722557505166,
+    "final_cv_percent": 259.3094277313203,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testDurableQueueCommit() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory.physical_peak | kB": {
+    "first_mean": 36048.9104,
+    "final_mean": 40929.181866666666,
+    "absolute_delta": 4880.271466666665,
+    "percent_delta": 13.537916715137845,
+    "first_cv_percent": 0.0138678993179699,
+    "final_cv_percent": 0.046401765498772125,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testLargeLibraryScalarHydration() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.cycles | kC": {
+    "first_mean": 243545.50003333334,
+    "final_mean": 246357.4385,
+    "absolute_delta": 2811.9384666666447,
+    "percent_delta": 1.154584447785643,
+    "first_cv_percent": 1.7309766336870618,
+    "final_cv_percent": 1.0810729167994406,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testLargeLibraryScalarHydration() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.instructions_retired | kI": {
+    "first_mean": 853526.2389,
+    "final_mean": 854432.0297333334,
+    "absolute_delta": 905.7908333333908,
+    "percent_delta": 0.10612337290306949,
+    "first_cv_percent": 0.09625911594698074,
+    "final_cv_percent": 0.08271963487839516,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testLargeLibraryScalarHydration() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.time | s": {
+    "first_mean": 0.07716145606666668,
+    "final_mean": 0.07854377243333334,
+    "absolute_delta": 0.0013823163666666638,
+    "percent_delta": 1.7914596705800332,
+    "first_cv_percent": 2.3297926784550698,
+    "final_cv_percent": 1.6100673712276983,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testLargeLibraryScalarHydration() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Clock.time.monotonic | s": {
+    "first_mean": 0.0752158858,
+    "final_mean": 0.0765095957,
+    "absolute_delta": 0.0012937098999999952,
+    "percent_delta": 1.7199955650857934,
+    "first_cv_percent": 2.426689594606927,
+    "final_cv_percent": 1.6153082344920906,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testLargeLibraryScalarHydration() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory.physical | kB": {
+    "first_mean": 0.5461333333333334,
+    "final_mean": 0.0,
+    "absolute_delta": -0.5461333333333334,
+    "percent_delta": -100.0,
+    "first_cv_percent": 1668.1602503026068,
+    "final_cv_percent": 0,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testLargeLibraryScalarHydration() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory.physical_peak | kB": {
+    "first_mean": 37220.93653333333,
+    "final_mean": 42092.469866666666,
+    "absolute_delta": 4871.533333333333,
+    "percent_delta": 13.088153569082323,
+    "first_cv_percent": 0.286552166124376,
+    "final_cv_percent": 0.2768386058650977,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testLargeOfflineQueueProjection() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.cycles | kC": {
+    "first_mean": 115928.7291,
+    "final_mean": 116591.27606666667,
+    "absolute_delta": 662.5469666666759,
+    "percent_delta": 0.5715123177923943,
+    "first_cv_percent": 1.345578107445393,
+    "final_cv_percent": 0.9882314201934354,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testLargeOfflineQueueProjection() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.instructions_retired | kI": {
+    "first_mean": 415794.35606666666,
+    "final_mean": 416107.5988,
+    "absolute_delta": 313.24273333331803,
+    "percent_delta": 0.07533597528752749,
+    "first_cv_percent": 0.07894118602141795,
+    "final_cv_percent": 0.044704969488417644,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testLargeOfflineQueueProjection() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU.time | s": {
+    "first_mean": 0.0367684556,
+    "final_mean": 0.03689639883333334,
+    "absolute_delta": 0.00012794323333333718,
+    "percent_delta": 0.3479701043884399,
+    "first_cv_percent": 1.6288351372601293,
+    "final_cv_percent": 1.439924671232601,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testLargeOfflineQueueProjection() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Clock.time.monotonic | s": {
+    "first_mean": 0.036265421133333337,
+    "final_mean": 0.0363404853,
+    "absolute_delta": 7.506416666666627e-05,
+    "percent_delta": 0.20698550939388125,
+    "first_cv_percent": 1.654855610444331,
+    "final_cv_percent": 1.5172860553009975,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testLargeOfflineQueueProjection() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory.physical | kB": {
+    "first_mean": -1.0922666666666667,
+    "final_mean": 0.0,
+    "absolute_delta": 1.0922666666666667,
+    "percent_delta": 100.0,
+    "first_cv_percent": 674.6646676632054,
+    "final_cv_percent": 0,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "PersistencePerformanceTests/testLargeOfflineQueueProjection() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory.physical_peak | kB": {
+    "first_mean": 36695.55626666667,
+    "final_mean": 41400.51893333333,
+    "absolute_delta": 4704.962666666666,
+    "percent_delta": 12.821614237090984,
+    "first_cv_percent": 0.2164202560683097,
+    "final_cv_percent": 0.39079105995651753,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "RuntimePerformanceTests/testProcessColdLaunch() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_ApplicationLaunch-ApplicationFirstFramePresentationResponsive.duration | s": {
+    "first_mean": 5.551591738833333,
+    "final_mean": 7.360251869533334,
+    "absolute_delta": 1.8086601307000008,
+    "percent_delta": 32.579127136609124,
+    "first_cv_percent": 3.754168994943112,
+    "final_cv_percent": 27.788046148713278,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "RuntimePerformanceTests/testRepeatedAudioInsightPresentation() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU-app.merian.Merian.cycles | kC": {
+    "first_mean": 1673264.6288666667,
+    "final_mean": 1864798.7088666668,
+    "absolute_delta": 191534.08000000007,
+    "percent_delta": 11.44672974589379,
+    "first_cv_percent": 7.549311480695989,
+    "final_cv_percent": 4.955402175109421,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "RuntimePerformanceTests/testRepeatedAudioInsightPresentation() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU-app.merian.Merian.instructions_retired | kI": {
+    "first_mean": 2701093.3350333334,
+    "final_mean": 2694314.429366667,
+    "absolute_delta": -6778.905666666571,
+    "percent_delta": -0.2509689531547756,
+    "first_cv_percent": 2.6260499781763267,
+    "final_cv_percent": 2.2270501775684792,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "RuntimePerformanceTests/testRepeatedAudioInsightPresentation() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU-app.merian.Merian.time | s": {
+    "first_mean": 0.5982477594333334,
+    "final_mean": 0.6339418483,
+    "absolute_delta": 0.035694088866666585,
+    "percent_delta": 5.966439205802693,
+    "first_cv_percent": 7.408017651135105,
+    "final_cv_percent": 4.7549018295697305,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "RuntimePerformanceTests/testRepeatedAudioInsightPresentation() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Clock.time.monotonic | s": {
+    "first_mean": 2.9930956926333336,
+    "final_mean": 2.959676357566667,
+    "absolute_delta": -0.03341933506666672,
+    "percent_delta": -1.1165474979272816,
+    "first_cv_percent": 7.584807414545875,
+    "final_cv_percent": 1.2427557680773529,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "RuntimePerformanceTests/testRepeatedAudioInsightPresentation() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory-app.merian.Merian.physical | kB": {
+    "first_mean": 2046.9109333333333,
+    "final_mean": 1736.1602666666668,
+    "absolute_delta": -310.7506666666666,
+    "percent_delta": -15.18144544572921,
+    "first_cv_percent": 129.17711189790415,
+    "final_cv_percent": 131.52918038008025,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "RuntimePerformanceTests/testRepeatedAudioInsightPresentation() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory-app.merian.Merian.physical_absolute | kB": {
+    "first_mean": 95547.62,
+    "final_mean": 98592.85386666667,
+    "absolute_delta": 3045.2338666666765,
+    "percent_delta": 3.1871373318002862,
+    "first_cv_percent": 5.435415426653938,
+    "final_cv_percent": 2.041680108797242,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "RuntimePerformanceTests/testRepeatedAudioInsightPresentation() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Memory-app.merian.Merian.physical_peak | kB": {
+    "first_mean": 96292.54266666666,
+    "final_mean": 99384.19946666667,
+    "absolute_delta": 3091.6568000000116,
+    "percent_delta": 3.2106918296906106,
+    "first_cv_percent": 5.3843797568035665,
+    "final_cv_percent": 2.020829680346993,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "RuntimePerformanceTests/testWarmForeground() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU-app.merian.Merian.cycles | kC": {
+    "first_mean": 384351.5453,
+    "final_mean": 475160.50953333336,
+    "absolute_delta": 90808.96423333336,
+    "percent_delta": 23.626538085713626,
+    "first_cv_percent": 14.788454876453264,
+    "final_cv_percent": 17.920202076225767,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "RuntimePerformanceTests/testWarmForeground() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU-app.merian.Merian.instructions_retired | kI": {
+    "first_mean": 711298.2936333333,
+    "final_mean": 729270.3641,
+    "absolute_delta": 17972.070466666715,
+    "percent_delta": 2.526657328933665,
+    "first_cv_percent": 12.895993459302828,
+    "final_cv_percent": 18.906926583311694,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "RuntimePerformanceTests/testWarmForeground() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_CPU-app.merian.Merian.time | s": {
+    "first_mean": 0.13653361483333334,
+    "final_mean": 0.15617652623333333,
+    "absolute_delta": 0.01964291139999999,
+    "percent_delta": 14.386868335668181,
+    "first_cv_percent": 16.50311682792889,
+    "final_cv_percent": 18.842946205730136,
+    "first_count": 30,
+    "final_count": 30
+  },
+  "RuntimePerformanceTests/testWarmForeground() | iPhone 18 Pro | Test Scheme Action | com.apple.dt.XCTMetric_Clock.time.monotonic | s": {
+    "first_mean": 1.2481996868,
+    "final_mean": 1.2962781085666668,
+    "absolute_delta": 0.04807842176666677,
+    "percent_delta": 3.8518213291596837,
+    "first_cv_percent": 1.2964918517556734,
+    "final_cv_percent": 3.6791794980307513,
+    "first_count": 30,
+    "final_count": 30
+  }
+}

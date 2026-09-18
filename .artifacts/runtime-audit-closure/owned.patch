@@ -1,0 +1,848 @@
+--- a/apps/ios/Merian/Core/Data/OfflineSync/README.md
++++ b/apps/ios/Merian/Core/Data/OfflineSync/README.md
+@@ -85,7 +85,11 @@
+   conformances; the delegate extension owns the nonisolated callbacks. Delegate
+   callbacks route immutable snapshots into focused main-actor terminal routing;
+   accepted work then enters the existing upload/inference processors. The
+-  delegate adapter does not own SwiftData decisions.
++  delegate adapter does not own SwiftData decisions. Inference terminal routes
++  accept a scoped Auth lease boundary and finalization/publication dependencies;
++  defaults use the existing SDK validation and live completion services. Tests
++  can suspend decoding and count publication without replacing queue persistence
++  or installing a process-wide authentication override.
+ - `Core/Data/Database/BackgroundDatabaseActor+QueueSelection.swift` remains the
+   actor-isolated persistence owner for pending upload selection and empty-media
+   quarantine. Media Upload's `UploadSync` is its only production consumer and
+--- a/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift
++++ b/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift
+@@ -16,7 +16,10 @@
+         generation proposedGeneration: UUID?,
+         resultFileURL: URL,
+         statusCode: Int?,
+-        functionRouteEvidence: EdgeFunctionRouteResponseEvidence? = nil
++        functionRouteEvidence: EdgeFunctionRouteResponseEvidence? = nil,
++        finalizationService: BackgroundInferenceFinalizationService = .live,
++        publishCompletion: @MainActor (String, OfflineScanProcessingResult, ExtractedScanData) async -> Void
++            = OfflineQueueManager.publishBackgroundInferenceCompletion
+     ) async {
+         defer { try? FileManager.default.removeItem(at: resultFileURL) }
+         guard let generation = claimInferenceGeneration(
+@@ -180,7 +183,7 @@
+         let cleanupActor = BackgroundDatabaseActor(
+             modelContainer: extracted.container
+         )
+-        let processingResult = await BackgroundInferenceFinalizationService.live
++        let processingResult = await finalizationService
+             .processAndCleanupOfflineScan(
+                 resultData: resultData,
+                 originalImagePaths: extracted.localImagePaths,
+@@ -253,6 +256,92 @@
+             _ = commitInferenceResponseSettlement(fundingSettlement)
+         }
+ 
++        await publishCompletion(scanId, processingResult, extracted)
++
++        guard isInferenceGenerationCurrent(
++            scanId: scanId,
++            expectedGeneration: generation
++        ) else {
++            MerianLog.data.debug(
++                "processInferenceDownloadResult: skipped stale post-finalization state scanId=\(scanId, privacy: .public)"
++            )
++            return
++        }
++        MerianLog.data.debug("⏱️ Background pipeline total: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
++        await MainActor.run {
++            CircuitBreakerManager.shared.recordSuccess()
++        }
++    }
++
++    // MARK: - Inference Task Failure
++
++    /// Handles a background inference download task network-level failure.
++    ///
++    /// Called from `urlSession(_:task:didCompleteWithError:)` when the download task fails
++    /// with a transport error (the server never responded). Resets the scan to `.staged` after
++    /// a persisted backoff window so app relaunches do not lose retry state.
++    ///
++    /// Code=-999 (NSURLErrorCancelled) is special-cased: it means an owner path explicitly
++    /// cancelled the task. Either the parallel live inference path already succeeded, the user
++    /// deleted the queued scan, or the inference watchdog reset the scan to `.staged`.
++    func handleInferenceTaskNetworkFailure(
++        scanId: String,
++        generation proposedGeneration: UUID?,
++        error: Error
++    ) async {
++        guard let generation = claimInferenceGeneration(
++            scanId: scanId,
++            proposedGeneration: proposedGeneration
++        ) else {
++            MerianLog.data.debug(
++                "handleInferenceTaskNetworkFailure: ignored stale failure scanId=\(scanId, privacy: .public)"
++            )
++            return
++        }
++        guard inferenceCompletionGenerations[scanId] == nil else { return }
++        inferenceCompletionGenerations[scanId] = generation
++        defer {
++            if inferenceCompletionGenerations[scanId] == generation {
++                inferenceCompletionGenerations[scanId] = nil
++            }
++            finishInferenceGeneration(scanId: scanId, generation: generation)
++        }
++
++        cancelInferenceStatusProbe(
++            scanId: scanId,
++            generation: generation
++        )
++        let nsError = error as NSError
++        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
++            MerianLog.data.debug("Background inference cancelled for \(scanId, privacy: .private) — owner path handled retry or cleanup")
++            return
++        }
++        MerianLog.data.debug("Background inference download failed for \(scanId, privacy: .private): \(error, privacy: .private)")
++        await handleInferenceRetry(
++            scanId: scanId,
++            generation: generation,
++            reason: "network failure"
++        )
++    }
++
++    private func cancelInferenceStatusProbe(
++        scanId: String,
++        generation: UUID
++    ) {
++        inferenceStatusProbeTasks.cancel(
++            scanId,
++            ifOwnedBy: generation
++        )
++        if activeInferenceGenerations[scanId] == generation {
++            inferenceDispatchDates[scanId] = nil
++        }
++        MerianLog.data.debug("cancelInferenceStatusProbe: cancelled scanId=\(scanId, privacy: .public)")
++    }
++    static func publishBackgroundInferenceCompletion(
++        scanId: String,
++        processingResult: OfflineScanProcessingResult,
++        extracted: ExtractedScanData
++    ) async {
+         if let speciesName = processingResult.resolvedSpeciesName,
+            let dbScanId = processingResult.finalScanId {
+             MerianLog.data.debug(
+@@ -320,83 +409,5 @@
+             }
+         }
+ 
+-        guard isInferenceGenerationCurrent(
+-            scanId: scanId,
+-            expectedGeneration: generation
+-        ) else {
+-            MerianLog.data.debug(
+-                "processInferenceDownloadResult: skipped stale post-finalization state scanId=\(scanId, privacy: .public)"
+-            )
+-            return
+-        }
+-        MerianLog.data.debug("⏱️ Background pipeline total: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
+-        await MainActor.run {
+-            CircuitBreakerManager.shared.recordSuccess()
+-        }
+-    }
+-
+-    // MARK: - Inference Task Failure
+-
+-    /// Handles a background inference download task network-level failure.
+-    ///
+-    /// Called from `urlSession(_:task:didCompleteWithError:)` when the download task fails
+-    /// with a transport error (the server never responded). Resets the scan to `.staged` after
+-    /// a persisted backoff window so app relaunches do not lose retry state.
+-    ///
+-    /// Code=-999 (NSURLErrorCancelled) is special-cased: it means an owner path explicitly
+-    /// cancelled the task. Either the parallel live inference path already succeeded, the user
+-    /// deleted the queued scan, or the inference watchdog reset the scan to `.staged`.
+-    func handleInferenceTaskNetworkFailure(
+-        scanId: String,
+-        generation proposedGeneration: UUID?,
+-        error: Error
+-    ) async {
+-        guard let generation = claimInferenceGeneration(
+-            scanId: scanId,
+-            proposedGeneration: proposedGeneration
+-        ) else {
+-            MerianLog.data.debug(
+-                "handleInferenceTaskNetworkFailure: ignored stale failure scanId=\(scanId, privacy: .public)"
+-            )
+-            return
+-        }
+-        guard inferenceCompletionGenerations[scanId] == nil else { return }
+-        inferenceCompletionGenerations[scanId] = generation
+-        defer {
+-            if inferenceCompletionGenerations[scanId] == generation {
+-                inferenceCompletionGenerations[scanId] = nil
+-            }
+-            finishInferenceGeneration(scanId: scanId, generation: generation)
+-        }
+-
+-        cancelInferenceStatusProbe(
+-            scanId: scanId,
+-            generation: generation
+-        )
+-        let nsError = error as NSError
+-        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+-            MerianLog.data.debug("Background inference cancelled for \(scanId, privacy: .private) — owner path handled retry or cleanup")
+-            return
+-        }
+-        MerianLog.data.debug("Background inference download failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+-        await handleInferenceRetry(
+-            scanId: scanId,
+-            generation: generation,
+-            reason: "network failure"
+-        )
+-    }
+-
+-    private func cancelInferenceStatusProbe(
+-        scanId: String,
+-        generation: UUID
+-    ) {
+-        inferenceStatusProbeTasks.cancel(
+-            scanId,
+-            ifOwnedBy: generation
+-        )
+-        if activeInferenceGenerations[scanId] == generation {
+-            inferenceDispatchDates[scanId] = nil
+-        }
+-        MerianLog.data.debug("cancelInferenceStatusProbe: cancelled scanId=\(scanId, privacy: .public)")
+     }
+ }
+--- a/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundAccountWork.swift
++++ b/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundAccountWork.swift
+@@ -2,6 +2,20 @@
+ import SwiftData
+ 
+ private let backgroundAccountWorkQuiescenceTimeout: Duration = .seconds(30)
++
++/// Process-local Auth lease operations used by background terminal routing.
++/// Production adapters retain the same published/SDK session validation.
++struct BackgroundAccountWorkLeaseBoundary {
++    let begin: @MainActor (UUID) throws -> AccountBoundWorkLease
++    let isCurrent: @MainActor (AccountBoundWorkLease) -> Bool
++    let finish: @MainActor (AccountBoundWorkLease) -> Void
++
++    static let live = Self(
++        begin: { try SupabaseManager.shared.beginUnownedAccountBoundWork(expectedUserID: $0) },
++        isCurrent: { SupabaseManager.shared.isAccountBoundWorkLeaseCurrent($0) },
++        finish: { SupabaseManager.shared.finishAccountBoundWork($0) }
++    )
++}
+ 
+ extension OfflineQueueManager {
+     /// A transport that lost its Auth lease must remain suspended until its
+@@ -64,10 +78,11 @@
+     @discardableResult
+     func retainBackgroundAccountWork(
+         _ lease: AccountBoundWorkLease,
+-        for taskIdentifier: Int
++        for taskIdentifier: Int,
++        accountWork: BackgroundAccountWorkLeaseBoundary = .live
+     ) -> Bool {
+         guard backgroundAccountWorkLeases[taskIdentifier] == nil,
+-              SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(lease)
++              accountWork.isCurrent(lease)
+         else {
+             return false
+         }
+@@ -75,13 +90,16 @@
+         return true
+     }
+ 
+-    func finishBackgroundAccountWork(for taskIdentifier: Int) {
++    func finishBackgroundAccountWork(
++        for taskIdentifier: Int,
++        accountWork: BackgroundAccountWorkLeaseBoundary = .live
++    ) {
+         guard let lease = backgroundAccountWorkLeases.removeValue(
+             forKey: taskIdentifier
+         ) else {
+             return
+         }
+-        SupabaseManager.shared.finishAccountBoundWork(lease)
++        accountWork.finish(lease)
+     }
+ 
+     /// Closes every URLSession account-work lane before Auth can mutate.
+--- a/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift
++++ b/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift
+@@ -3,26 +3,25 @@
+ extension OfflineQueueManager {
+     private func backgroundTaskOwnerLeaseIsCurrentOrAdopted(
+         taskIdentifier: Int,
+-        ownerUserID: UUID
++        ownerUserID: UUID,
++        accountWork: BackgroundAccountWorkLeaseBoundary
+     ) -> Bool {
+         if let lease = backgroundAccountWorkLeases[taskIdentifier] {
+             return lease.session.userID == ownerUserID
+-                && SupabaseManager.shared
+-                    .isAccountBoundWorkLeaseCurrent(lease)
++                && accountWork.isCurrent(lease)
+         }
+         // Relaunched URLSession tasks do not carry their process-local lease.
+         // Reacquire one synchronously on MainActor before the first actor
+         // suspension so an Auth transition cannot begin after owner validation
+         // and overtake terminal persistence.
+-        guard let lease = try? SupabaseManager.shared
+-            .beginUnownedAccountBoundWork(expectedUserID: ownerUserID) else {
++        guard let lease = try? accountWork.begin(ownerUserID) else {
+             return false
+         }
+         guard retainBackgroundAccountWork(
+             lease,
+-            for: taskIdentifier
++            for: taskIdentifier, accountWork: accountWork
+         ) else {
+-            SupabaseManager.shared.finishAccountBoundWork(lease)
++            accountWork.finish(lease)
+             return false
+         }
+         return true
+@@ -33,12 +32,14 @@
+         generation: UUID?,
+         ownerUserID: UUID?,
+         phase: BackgroundAccountWorkPhase,
+-        taskIdentifier: Int
++        taskIdentifier: Int,
++        accountWork: BackgroundAccountWorkLeaseBoundary = .live
+     ) async -> BackgroundAccountWorkOwnership? {
+         guard let ownerUserID, let generation,
+               backgroundTaskOwnerLeaseIsCurrentOrAdopted(
+                   taskIdentifier: taskIdentifier,
+-                  ownerUserID: ownerUserID
++                  ownerUserID: ownerUserID,
++                  accountWork: accountWork
+               ),
+               let container = modelContext?.container else {
+             return nil
+@@ -148,7 +149,11 @@
+         taskIdentifier: Int,
+         resultFileURL: URL,
+         statusCode: Int?,
+-        functionRouteEvidence: EdgeFunctionRouteResponseEvidence?
++        functionRouteEvidence: EdgeFunctionRouteResponseEvidence?,
++        accountWork: BackgroundAccountWorkLeaseBoundary = .live,
++        finalizationService: BackgroundInferenceFinalizationService = .live,
++        publishCompletion: @MainActor (String, OfflineScanProcessingResult, ExtractedScanData) async -> Void
++            = OfflineQueueManager.publishBackgroundInferenceCompletion
+     ) async {
+         guard inferenceTerminalTaskIdentifiers.insert(taskIdentifier).inserted else {
+             try? FileManager.default.removeItem(at: resultFileURL)
+@@ -156,14 +161,15 @@
+         }
+         defer {
+             inferenceTerminalTaskIdentifiers.remove(taskIdentifier)
+-            finishBackgroundAccountWork(for: taskIdentifier)
++            finishBackgroundAccountWork(for: taskIdentifier, accountWork: accountWork)
+         }
+         guard await validateOrAdoptBackgroundAccountWork(
+             scanId: scanId,
+             generation: generation,
+             ownerUserID: ownerUserID,
+             phase: .inference,
+-            taskIdentifier: taskIdentifier
++            taskIdentifier: taskIdentifier,
++            accountWork: accountWork
+         ) != nil else {
+             try? FileManager.default.removeItem(at: resultFileURL)
+             let didRetire = await Self.awaitDurableBackgroundWorkRetirement(
+@@ -193,7 +199,9 @@
+             generation: generation,
+             resultFileURL: resultFileURL,
+             statusCode: statusCode,
+-            functionRouteEvidence: functionRouteEvidence
++            functionRouteEvidence: functionRouteEvidence,
++            finalizationService: finalizationService,
++            publishCompletion: publishCompletion
+         )
+     }
+ 
+@@ -202,19 +210,21 @@
+         generation: UUID?,
+         ownerUserID: UUID?,
+         taskIdentifier: Int,
+-        error: Error
++        error: Error,
++        accountWork: BackgroundAccountWorkLeaseBoundary = .live
+     ) async {
+         guard inferenceTerminalTaskIdentifiers.insert(taskIdentifier).inserted else { return }
+         defer {
+             inferenceTerminalTaskIdentifiers.remove(taskIdentifier)
+-            finishBackgroundAccountWork(for: taskIdentifier)
++            finishBackgroundAccountWork(for: taskIdentifier, accountWork: accountWork)
+         }
+         guard await validateOrAdoptBackgroundAccountWork(
+             scanId: scanId,
+             generation: generation,
+             ownerUserID: ownerUserID,
+             phase: .inference,
+-            taskIdentifier: taskIdentifier
++            taskIdentifier: taskIdentifier,
++            accountWork: accountWork
+         ) != nil else {
+             let didRetire = await Self.awaitDurableBackgroundWorkRetirement(
+                 retire: {
+--- a/apps/ios/Merian/Features/Explore/Feed/Components/Detail/ExplorePostDetailSheetContent.swift
++++ b/apps/ios/Merian/Features/Explore/Feed/Components/Detail/ExplorePostDetailSheetContent.swift
+@@ -206,3 +206,26 @@
+         )
+     }
+ }
++
++/// Renders the destructive confirmation while its route host retains selection ownership.
++struct ExplorePostUnpublishConfirmation: ViewModifier {
++    @Binding var post: ExplorePost?
++    let onUnpublish: (ExplorePost) -> Void
++
++    func body(content: Content) -> some View {
++        content.alert(
++            "Unpublish Post?",
++            isPresented: Binding(
++                get: { post != nil },
++                set: { if !$0 { post = nil } }
++            )
++        ) {
++            Button("Cancel", role: .cancel) { }
++            Button("Unpublish", role: .destructive) {
++                if let post { onUnpublish(post) }
++            }
++        } message: {
++            Text("This will remove the post from Explore. Your original scan will remain safely in your library.")
++        }
++    }
++}
+--- a/apps/ios/Merian/Features/Explore/Feed/README.md
++++ b/apps/ios/Merian/Features/Explore/Feed/README.md
+@@ -54,7 +54,9 @@
+ - `Components/Composer/` and `ExplorePostComposerView` own the shared publish
+   form, prepared image rendering, and media selection tiles.
+ - `Components/Detail/` owns post-detail structure, loading, and the single typed
+-  sheet renderer; `Components/DetailCards/` owns public detail cards.
++  sheet renderer and unpublish confirmation renderer. The route host retains the
++  selected post and performs the unshare action; `Components/DetailCards/` owns
++  public detail cards.
+ - `Components/Cards/` owns `ExplorePostCard`, its loading skeleton, and preview
+   fixtures. Cards consume `ExplorePostCardAuthorPresentation`, send mutations
+   through parent callbacks, and do not resolve identity or entitlement services.
+--- a/apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift
++++ b/apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift
+@@ -186,22 +186,9 @@
+                 }
+             )
+         }
+-        .alert(
+-            "Unpublish Post?",
+-            isPresented: Binding(
+-                get: { postToUnpublish != nil },
+-                set: { if !$0 { postToUnpublish = nil } }
+-            )
+-        ) {
+-            Button("Cancel", role: .cancel) { }
+-            Button("Unpublish", role: .destructive) {
+-                if let post = postToUnpublish {
+-                    Task { await viewModel.unshare(post) }
+-                }
+-            }
+-        } message: {
+-            Text("This will remove the post from Explore. Your original scan will remain safely in your library.")
+-        }
++        .modifier(ExplorePostUnpublishConfirmation(post: $postToUnpublish) { post in
++            Task { await viewModel.unshare(post) }
++        })
+     }
+ 
+     private func loadDetail(force: Bool = false) async {
+--- a/apps/ios/MerianTests/Core/Data/OfflineSync/BackgroundTransferArchitectureTests.swift
++++ b/apps/ios/MerianTests/Core/Data/OfflineSync/BackgroundTransferArchitectureTests.swift
+@@ -295,7 +295,7 @@
+             ownerCheck.lowerBound..<validation.lowerBound
+         ]
+         let relaunchedLease = try #require(ownerCheckBody.range(
+-            of: ".beginUnownedAccountBoundWork(expectedUserID: ownerUserID)"
++            of: "accountWork.begin(ownerUserID)"
+         ))
+         let retainedLease = try #require(ownerCheckBody.range(
+             of: "retainBackgroundAccountWork(",
+@@ -325,7 +325,7 @@
+         #expect(durableCheck.lowerBound < durableAdoption.lowerBound)
+ 
+         #expect(normalizedTerminalRouting.components(
+-            separatedBy: "finishBackgroundAccountWork(for: taskIdentifier)"
++            separatedBy: "finishBackgroundAccountWork(for: taskIdentifier"
+         ).count == 4)
+         for terminal in ["Result", "Failure"] {
+             let entry = try #require(normalizedTerminalRouting.range(
+@@ -337,7 +337,7 @@
+             ))
+             let cleanup = try #require(body.range(
+                 of: "defer { inferenceTerminalTaskIdentifiers.remove(taskIdentifier) "
+-                    + "finishBackgroundAccountWork(for: taskIdentifier) }"
++                    + "finishBackgroundAccountWork(for: taskIdentifier, accountWork: accountWork) }"
+             ))
+             let suspension = try #require(body.range(of: "await "))
+             #expect(owner.lowerBound < cleanup.lowerBound)
+--- /dev/null
++++ b/apps/ios/MerianTests/Core/Data/OfflineSync/CaptureTerminalAcceptanceTests.swift
+@@ -0,0 +1,247 @@
++import Foundation
++@testable import Merian
++import SwiftData
++import Testing
++import UIKit
++
++@MainActor
++@Suite("Capture Terminal Acceptance", .serialized, .sharedProcessState(.offlineQueueManager))
++struct CaptureTerminalAcceptanceTests {
++    @Test func stagedVisualTerminalCompletionDrainsSignOutAndRejectsDuplicateCallbacks() async throws {
++        let manager = OfflineQueueManager.shared
++        let oldContext = manager.modelContext
++        let oldOnline = manager.isOnline
++        let oldCount = manager.unsyncedItemsCount
++        let oldSubscription = RevenueCatManager.shared.isSubscribed
++        let oldQuota = UsageManager.debugFreeScanLimitOverride
++        UsageManager.debugFreeScanLimitOverride = true
++        EntitlementManager.shared.resetForTesting(userID: UUID())
++        RevenueCatManager.shared.isSubscribed = true
++        let root = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
++        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
++        let schema = Schema(versionedSchema: CurrentSchema.self)
++        let container = try ModelContainer(for: schema, configurations: [
++            ModelConfiguration(schema: schema, url: root.appendingPathComponent("capture.sqlite"))
++        ])
++        let context = ModelContext(container)
++        manager.modelContext = context
++        manager.isOnline = false
++        var files: [String] = []
++        var admittedScanId: String?
++        let generation = UUID()
++        let taskIdentifier = -91_001
++        defer {
++            if let scanId = admittedScanId {
++                manager.inferenceStatusProbeTasks.cancel(scanId)
++                manager.inferenceRetryTasks.cancel(scanId)
++                manager.serverIngestionPollTasks.cancel(scanId)
++                manager.foregroundInferenceRetirementTasks.cancel(scanId)
++                manager.activeInferenceGenerations[scanId] = nil
++                manager.inferenceCompletionGenerations[scanId] = nil
++                manager.inferenceDispatchDates[scanId] = nil
++                manager.deferredLiveUploadScanIds.remove(scanId)
++            }
++            manager.retiredInferenceGenerations.remove(generation)
++            manager.backgroundAccountWorkLeases[taskIdentifier] = nil
++            manager.inferenceTerminalTaskIdentifiers.remove(taskIdentifier)
++            manager.modelContext = oldContext
++            manager.isOnline = oldOnline
++            manager.unsyncedItemsCount = oldCount
++            RevenueCatManager.shared.isSubscribed = oldSubscription
++            UsageManager.debugFreeScanLimitOverride = oldQuota
++            EntitlementManager.shared.resetForTesting()
++            SyncStateManager.shared.forceIdle()
++            for path in files {
++                try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(path))
++            }
++            try? FileManager.default.removeItem(at: root)
++        }
++        let di = AppDIContainer.preview
++        let workspace = makeWorkspace(di: di)
++        defer { workspace.preFetchTask?.cancel(); di.inferenceEngine.cancelActiveRequest() }
++        let image = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { renderer in
++            UIColor.green.setFill()
++            renderer.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
++        }
++        let bytes = try #require(image.jpegData(compressionQuality: 0.8))
++        workspace.stagedCapture.images = [StagedImage(
++            compressedData: bytes, displayData: bytes, uiImage: image,
++            original: IdentifiableImage(image: image)
++        )]
++        await workspace.submitStagedCapture(modelContext: context)
++        for _ in 0..<500 where workspace.offlineToastMessage == nil {
++            try await Task.sleep(for: .milliseconds(10))
++        }
++        #expect(workspace.offlineToastMessage != nil)
++        #expect(workspace.stagedCapture.images.isEmpty)
++        #expect(!di.inferenceEngine.isProcessing)
++        let queued = try #require(context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
++        let scanId = queued.id
++        admittedScanId = scanId
++        let route = queued.queuedScanContext()
++        let extracted = try manager.extractedQueuedScanData(scanId: scanId)
++        files = try #require(extracted).localImagePaths
++        files += MediaJSONParser.imagePaths(jsonString: queued.capturedMediaJSON ?? "[]")
++        queued.scanStateRaw = ScanQueueState.inferencing.rawValue
++        let job = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
++        job.status = .running
++        job.metadataJSON = InferenceGenerationMetadataContract.json(for: generation)
++        try context.save()
++        manager.activeInferenceGenerations[scanId] = generation
++
++        let runtime = AuthRuntimeState()
++        let source = AuthTransitionSession(userID: UUID(), isAnonymous: false)
++        var acquired = 0
++        var released = 0
++        let accountWork = BackgroundAccountWorkLeaseBoundary(
++            begin: { owner in
++                guard owner == source.userID, runtime.transitionAllows(nil) else { throw CancellationError() }
++                acquired += 1
++                return runtime.beginAccountWork(session: source)
++            },
++            isCurrent: { runtime.accountWorkLeaseIsCurrent($0, publishedSession: source, sdkSession: source) },
++            finish: { released += 1; runtime.finishAccountWork($0) }
++        )
++        let gate = CaptureTerminalDecodeGate()
++        let finalization = BackgroundInferenceFinalizationService(dependencies: .init { request in
++            await gate.wait()
++            return try await InferenceResponsePreparationService.live.prepare(
++                resultData: request.resultData, telemetry: request.telemetry,
++                audioFilePaths: request.audioFilePaths, videoFilePaths: request.videoFilePaths,
++                expectedScanId: request.expectedScanId
++            )
++        })
++        let resultURL = root.appendingPathComponent("response.json")
++        let duplicateURL = root.appendingPathComponent("duplicate.json")
++        let response = Data("""
++        {"success":true,"data":{"scan_id":"\(scanId)","is_biological_subject":true,
++        "is_live_capture":true,"ecology_type":"wild","is_invasive":false,
++        "scientific_name":"Danaus plexippus","common_name":"Monarch Butterfly",
++        "confidence_score":0.98,"insight_data":{"hazard_type":"none","ai_reasoning":"Synthetic fixture."}}}
++        """.utf8)
++        try response.write(to: resultURL)
++        try response.write(to: duplicateURL)
++        var publications = 0
++        let completion = Task { @MainActor in
++            await manager.processInferenceTerminalResult(
++                scanId: scanId, generation: generation, ownerUserID: source.userID,
++                taskIdentifier: taskIdentifier, resultFileURL: resultURL, statusCode: 200,
++                functionRouteEvidence: nil, accountWork: accountWork, finalizationService: finalization,
++                publishCompletion: { _, result, _ in
++                    publications += 1
++                    #expect(result.finalScanId == scanId)
++                    #expect((try? ModelContext(container).fetchCount(FetchDescriptor<OfflineQueuedScan>())) == 0)
++                }
++            )
++        }
++        for _ in 0..<500 {
++            if await gate.started { break }
++            try await Task.sleep(for: .milliseconds(10))
++        }
++        let started = await gate.started
++        #expect(started)
++        guard started else { await gate.release(); await completion.value; return }
++        #expect(acquired == 1)
++        #expect(released == 0)
++        await manager.processInferenceTerminalResult(
++            scanId: scanId, generation: generation, ownerUserID: source.userID,
++            taskIdentifier: taskIdentifier, resultFileURL: duplicateURL, statusCode: 200,
++            functionRouteEvidence: nil, accountWork: accountWork
++        )
++        await manager.processInferenceTerminalFailure(
++            scanId: scanId, generation: generation, ownerUserID: source.userID,
++            taskIdentifier: taskIdentifier, error: URLError(.cancelled), accountWork: accountWork
++        )
++        #expect(released == 0)
++        #expect(!FileManager.default.fileExists(atPath: duplicateURL.path))
++        #expect(manager.inferenceCompletionGenerations[scanId] == generation)
++        #expect(try ModelContext(container).fetchCount(FetchDescriptor<LocalScanRecord>()) == 0)
++
++        let transition = try #require(runtime.beginTransition(kind: .signOut, sourceSession: source))
++        var drainStarted = false
++        var signedOut = false
++        let signOut = Task { @MainActor in
++            await AuthLocalSignOutCoordinator().signOut(ownedBy: transition, dependencies: .init(
++                state: .init(begin: { .init(awaitCancelledBootstrap: {}) }, finish: {}),
++                transition: .init(
++                    owns: { runtime.ownsTransition($0) },
++                    awaitAccountWorkQuiescence: {
++                        drainStarted = true
++                        await runtime.awaitAccountWorkDrain()
++                        return runtime.ownsTransition(transition)
++                    },
++                    updateForSessionInstallation: { _ in }, adoptSignedOutSession: { _ in }
++                ),
++                operations: .init(signOutSDKSession: { signedOut = true }, finishExternalSignOut: {}),
++                diagnose: { _, _ in }
++            ))
++        }
++        while !drainStarted { await Task.yield() }
++        #expect(!signedOut)
++        #expect(publications == 0)
++        await gate.release()
++        await completion.value
++        await signOut.value
++        #expect(signedOut)
++        #expect(acquired == 1)
++        #expect(released == 1)
++        #expect(publications == 1)
++        #expect(manager.backgroundAccountWorkLeases[taskIdentifier] == nil)
++        #expect(!FileManager.default.fileExists(atPath: resultURL.path))
++        let fresh = ModelContext(container)
++        let records = try fresh.fetch(FetchDescriptor<LocalScanRecord>())
++        #expect(records.count == 1)
++        let record = try #require(records.first)
++        #expect(record.id == scanId)
++        #expect(try fresh.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
++        #expect(try fresh.fetch(FetchDescriptor<OfflineJobRecord>()).first?.status == .complete)
++        let savedPaths = MediaJSONParser.imagePaths(jsonString: record.capturedMediaJSON ?? "[]")
++        files += savedPaths
++        #expect(savedPaths.count == 1)
++        let savedPath = try #require(savedPaths.first)
++        #expect(try Data(contentsOf: URL.documentsDirectory.appendingPathComponent(savedPath)) == bytes)
++        let insight = InsightSheetViewModel(inferenceEngine: di.inferenceEngine)
++        insight.beginPresentationSession()
++        #expect(insight.bindQueuedPresentationPreferringCompletedRecord(
++            route, modelContext: fresh, inferenceEngine: di.inferenceEngine
++        ))
++        #expect(insight.presentedLocalRecordScanId == scanId)
++        insight.endPresentationSession()
++    }
++
++    private func makeWorkspace(di: AppDIContainer) -> CaptureWorkspaceViewModel {
++        let base = CaptureWorkspaceDependencies.live(diContainer: di)
++        let submission = CaptureSubmissionDependencies(
++            context: .init(lastKnownLocation: { nil }, fetchDeferredContext: { _ in EnvironmentContext(location: nil) }),
++            admission: .init(isOnline: { false }, canStartLocally: { _ in true }, preview: { _ in .unavailable }),
++            deferredContext: .init(persistLocally: { _, _ in }, endpoint: .init(update: { _, _ in }), waitBeforeRetry: {})
++        )
++        return CaptureWorkspaceViewModel(diContainer: di, dependencies: .init(
++            scan: base.scan, submission: submission, controls: base.controls,
++            navigation: base.navigation, stagingToolbar: base.stagingToolbar,
++            prepareImage: { _ in nil }, prepareHistoricalAudio: { _ in nil },
++            externalImageImports: base.externalImageImports, downloadRefinementImage: { _ in nil },
++            prewarmConnections: {}, sharedExplorePostId: { _ in nil }, captureGoalAccountId: { _ in nil },
++            requestNotificationAuthorization: { _ in },
++            feedback: .init(selection: { _ in }, sheet: { _ in }, medium: {}, error: {})
++        ), prewarmHeadersOnInit: false)
++    }
++}
++
++private actor CaptureTerminalDecodeGate {
++    private(set) var started = false
++    private var released = false
++    private var continuation: CheckedContinuation<Void, Never>?
++
++    func wait() async {
++        started = true
++        guard !released else { return }
++        await withCheckedContinuation { continuation = $0 }
++    }
++
++    func release() {
++        released = true
++        continuation?.resume()
++        continuation = nil
++    }
++}
+--- a/apps/ios/MerianTests/Core/Network/Decoding/ExploreNetworkModelArchitectureTests.swift
++++ b/apps/ios/MerianTests/Core/Network/Decoding/ExploreNetworkModelArchitectureTests.swift
+@@ -107,6 +107,7 @@
+         "ExploreMediaIncidentAPIModels.swift",
+         "ExploreNotificationAPIModels.swift",
+         "ExplorePostDetailAPIModels.swift",
++        "ExploreReactionAPIModels.swift",
+         "ExploreSharingAPIModels.swift",
+         "PublicProfileAPIModels.swift"
+     ]
+@@ -130,6 +131,11 @@
+         "struct ExploreMapPost: Decodable": "ExploreMapAPIModels.swift",
+         "struct ExploreMediaIncident: Decodable": "ExploreMediaIncidentAPIModels.swift",
+         "struct ExploreNotificationsResponse: Decodable": "ExploreNotificationAPIModels.swift",
++        "enum ExploreReactionTarget: String": "ExploreReactionAPIModels.swift",
++        "struct ExploreReactionPage: Decodable": "ExploreReactionAPIModels.swift",
++        "struct ExploreReactionResponse: Decodable": "ExploreReactionAPIModels.swift",
++        "struct ExplorePostReactor: Decodable": "ExploreReactionAPIModels.swift",
++        "struct ExplorePostReactorsPage: Decodable": "ExploreReactionAPIModels.swift",
+         "struct ExplorePostDetail: Decodable": "ExplorePostDetailAPIModels.swift",
+         "struct ExploreReferenceGalleryImage: Identifiable": "ExplorePostDetailAPIModels.swift",
+         "struct ExploreShareResponse: Decodable": "ExploreSharingAPIModels.swift",
+--- a/apps/ios/MerianTests/Core/Network/Endpoints/CoreNetworkIntegrationArchitectureTests.swift
++++ b/apps/ios/MerianTests/Core/Network/Endpoints/CoreNetworkIntegrationArchitectureTests.swift
+@@ -4441,6 +4441,7 @@
+         "MerianNetworkClient+ExploreBrowsing.swift",
+         "MerianNetworkClient+ExploreInteractions.swift",
+         "MerianNetworkClient+ExplorePostManagement.swift",
++        "MerianNetworkClient+ExploreReactions.swift",
+         "MerianNetworkClient+Exports.swift",
+         "MerianNetworkClient+FieldChat.swift",
+         "MerianNetworkClient+FieldTrips.swift",
+@@ -4547,6 +4548,8 @@
+         "get-explore-notifications",
+         "get-explore-post",
+         "get-explore-post-detail",
++        "get-explore-post-reactors",
++        "get-explore-reactions",
+         "get-explore-species-posts",
+         "get-explore-unread-notification-count",
+         "get-scan-explore-share-state",
+--- a/docs/backend-and-data/01-offline-sync-pipeline.md
++++ b/docs/backend-and-data/01-offline-sync-pipeline.md
+@@ -2227,3 +2227,14 @@
+ - Queue mutations now use rollback containment: failed queue saves roll back
+   pending SwiftData changes, refund any just-consumed free quota, and keep
+   external side effects behind committed local state.
++
++## Composed terminal acceptance
++
++The runtime audit includes staged visual Capture submission through a private
++SQLite queue and production inference terminal routing. A paused decoder proves
++that duplicate callbacks cannot drain the owner's Auth lease or let sign-out
++advance before durable finalization. The same test verifies queue retirement,
++retained media and Insight binding. Scoped terminal dependencies isolate SDK
++session state and publication effects while live defaults retain their existing
++behavior. This is local runtime evidence; it does not emulate an OS-delivered
++URLSession callback, camera hardware, or process termination/relaunch.
+--- a/docs/development-guides/18-ios-runtime-quality-and-benchmarking.md
++++ b/docs/development-guides/18-ios-runtime-quality-and-benchmarking.md
+@@ -63,6 +63,20 @@
+ twice cannot release the other or allow SDK sign-out early. It does not simulate
+ URLSession cancellation callbacks.
+ 
++The `CaptureTerminalAcceptanceTests` composition starts at a staged image in
++`CaptureWorkspaceViewModel`, submits it through real durable admission, and
++passes a response file through the production background terminal router. It
++uses the real Auth lease state and sign-out coordinator, pauses response
++decoding, and delivers duplicate success/error callbacks while finalization owns
++the work. The test verifies that duplicate callbacks cannot release the lease or
++advance sign-out, then checks SQLite completion, queue deletion, retained image
++bytes, and Insight binding. SDK session identity, provider bytes, environment
++context, and notification/milestone publication are injected. Live defaults
++still use the same SDK session validation and completion effects. This closes
++the local staged-capture/terminal/sign-out composition gap; physical camera
++capture, real URLSession cancellation and OS process relaunch still require
++separate evidence.
++
+ ### UI acceptance
+ 
+ The `ui` phase contains only process and presentation behavior that unit tests
+--- a/scripts/config/ios-runtime-audit.json
++++ b/scripts/config/ios-runtime-audit.json
+@@ -226,6 +226,14 @@
+         "Feature Flag Tests"
+       ],
+       "owner": "apps/ios/MerianTests/Configuration/FeatureFlagsTests.swift"
++    },
++    {
++      "selector": "merianTests/CaptureTerminalAcceptanceTests",
++      "suite_names": [
++        "CaptureTerminalAcceptanceTests",
++        "Capture Terminal Acceptance"
++      ],
++      "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/CaptureTerminalAcceptanceTests.swift"
+     }
+   ],
+   "ui": [
+@@ -311,7 +319,9 @@
+     },
+     {
+       "selector": "merianUITests/RuntimePerformanceTests/testRepeatedAudioInsightPresentation",
+-      "report_metric_families": ["Hitch"],
++      "report_metric_families": [
++        "Hitch"
++      ],
+       "suite_names": [
+         "RuntimePerformanceTests"
+       ]

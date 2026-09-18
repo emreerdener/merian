@@ -1,0 +1,4 @@
+{
+  "patch_sha256": "d150c5458f7542de64573e93b58d9e2e72fddadcb6ab3e7585600dfdd6dacab2",
+  "reason": "XcodeGen 2.45.4 regenerates the checkout-name configuration group as candidate rather than merian; only generated project references differ from the committed source."
+}

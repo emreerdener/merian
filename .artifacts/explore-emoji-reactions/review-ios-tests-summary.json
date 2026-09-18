@@ -1,0 +1,52 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+        "deviceName" : "iPhone 18 Pro",
+        "modelName" : "iPhone 18 Pro",
+        "osBuildNumber" : "24A434",
+        "osVersion" : "27.0",
+        "platform" : "iOS Simulator"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 0,
+      "passedTests" : 284,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "Merian · Built with macOS 26.6.2",
+  "expectedFailures" : 0,
+  "failedTests" : 0,
+  "finishTime" : 1789747804.167,
+  "passedTests" : 101,
+  "result" : "Passed",
+  "runtimeWarnings" : [
+
+  ],
+  "skippedTests" : 0,
+  "startTime" : 1789747710.046,
+  "statistics" : [
+    {
+      "subtitle" : "197 test runs",
+      "title" : "14 tests ran with dynamic parameters"
+    }
+  ],
+  "testFailures" : [
+
+  ],
+  "title" : "Test - Merian",
+  "topInsights" : [
+    {
+      "category" : "Longest Test Runs",
+      "impact" : "95% of duration",
+      "text" : "12 longest test runs with outlier durations exceeding 1.30s (three standard deviations)"
+    }
+  ],
+  "totalTestCount" : 101
+}

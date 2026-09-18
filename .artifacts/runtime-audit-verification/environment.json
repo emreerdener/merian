@@ -1,0 +1,11 @@
+{
+  "label": "MacBookPro18-1-iOS27-continuation",
+  "simulator_model": "iPhone 18 Pro",
+  "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0",
+  "xcode": "Xcode 27.0\nBuild version 27A266a",
+  "host": "macOS-26.6.2-arm64-arm-64bit",
+  "hardware": "MacBookPro18,1",
+  "configuration": "Debug",
+  "iterations": 3,
+  "workload_fingerprint": "9735298cb9761d00a1edc5f132ac18fabd0f0dbb137b2d5d8b1b9a010af28f58"
+}

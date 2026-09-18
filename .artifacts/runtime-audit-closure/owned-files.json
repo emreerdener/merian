@@ -1,0 +1,16 @@
+[
+  "apps/ios/Merian/Core/Data/OfflineSync/README.md",
+  "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift",
+  "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundAccountWork.swift",
+  "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift",
+  "apps/ios/Merian/Features/Explore/Feed/Components/Detail/ExplorePostDetailSheetContent.swift",
+  "apps/ios/Merian/Features/Explore/Feed/README.md",
+  "apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift",
+  "apps/ios/MerianTests/Core/Data/OfflineSync/BackgroundTransferArchitectureTests.swift",
+  "apps/ios/MerianTests/Core/Data/OfflineSync/CaptureTerminalAcceptanceTests.swift",
+  "apps/ios/MerianTests/Core/Network/Decoding/ExploreNetworkModelArchitectureTests.swift",
+  "apps/ios/MerianTests/Core/Network/Endpoints/CoreNetworkIntegrationArchitectureTests.swift",
+  "docs/backend-and-data/01-offline-sync-pipeline.md",
+  "docs/development-guides/18-ios-runtime-quality-and-benchmarking.md",
+  "scripts/config/ios-runtime-audit.json"
+]

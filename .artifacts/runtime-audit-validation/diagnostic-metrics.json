@@ -1,0 +1,2372 @@
+[
+  {
+    "testIdentifier" : "MediaPerformanceTests/testAudioVideoFileAdmission()",
+    "testIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testAudioVideoFileAdmission",
+    "testRuns" : [
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0,
+              0,
+              0,
+              0,
+              0,
+              16.384,
+              0,
+              16.384,
+              16.384,
+              -16.384
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              179922.338,
+              177660.588,
+              183743.658,
+              184735.744,
+              186880.055,
+              177489.179,
+              181483.155,
+              182831.57,
+              179142.308,
+              181744.308
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.056010305,
+              0.055411992,
+              0.058099747,
+              0.060534163,
+              0.058957016,
+              0.056038267,
+              0.056726411000000004,
+              0.057168104000000004,
+              0.055769389,
+              0.056710831
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.056613292,
+              0.055875866,
+              0.058349355000000006,
+              0.058468788,
+              0.058699331,
+              0.05572334600000001,
+              0.057166423,
+              0.05761635700000001,
+              0.056195748000000004,
+              0.057059085
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              681971.391,
+              678715.249,
+              679193.431,
+              678702.578,
+              678781.03,
+              678087.183,
+              677974.851,
+              678043.917,
+              678014.936,
+              679929.388
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              31705.536,
+              31672.768,
+              31689.152,
+              31689.152,
+              31705.536,
+              31705.536,
+              31721.92,
+              31721.92,
+              31771.072,
+              31754.688
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      },
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              -16.384,
+              16.384,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              183964.897,
+              185112.019,
+              179831.867,
+              182520.946,
+              181964.25,
+              179677.63,
+              183762.88,
+              184295.95,
+              181727.791,
+              182149.195
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.057520458000000003,
+              0.057973713,
+              0.056030559,
+              0.056974297,
+              0.056981718,
+              0.056180045000000005,
+              0.057609879,
+              0.057443091,
+              0.056849288000000005,
+              0.056786968
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.058036197000000005,
+              0.058155466,
+              0.056465528,
+              0.057382165000000006,
+              0.057492824000000005,
+              0.056617515,
+              0.057852025,
+              0.057843251000000005,
+              0.05720783300000001,
+              0.057145964
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              678057.784,
+              677376.668,
+              677209.925,
+              677416.797,
+              678056.3,
+              676902.469,
+              677186.179,
+              677120.689,
+              677267.447,
+              677840.077
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              34261.44,
+              34261.44,
+              34261.44,
+              34261.44,
+              34261.44,
+              34277.824,
+              34277.824,
+              34277.824,
+              34277.824,
+              34277.824
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      },
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              16.384,
+              0,
+              0,
+              0
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              187717.784,
+              180169.207,
+              182965.156,
+              187249.385,
+              184219.386,
+              180954.038,
+              190255.431,
+              187975.401,
+              179152.909,
+              178879.483
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.058939386,
+              0.05608943500000001,
+              0.057265397,
+              0.059002034,
+              0.057534316,
+              0.056518541000000005,
+              0.060156553,
+              0.058906709,
+              0.05569153,
+              0.055563774
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.059147789000000006,
+              0.056476475000000005,
+              0.057600982,
+              0.059105272,
+              0.058042388,
+              0.056951542,
+              0.060526127000000006,
+              0.059339218000000006,
+              0.05612654,
+              0.05598480300000001
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              676613.632,
+              676730.534,
+              676340.695,
+              676731.833,
+              676845.663,
+              676425.762,
+              676532.072,
+              676835.442,
+              676496.296,
+              676404.216
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              34294.208,
+              34294.208,
+              34294.208,
+              34294.208,
+              34294.208,
+              34294.208,
+              34310.592,
+              34310.592,
+              34310.592,
+              34310.592
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      }
+    ]
+  },
+  {
+    "testIdentifier" : "MediaPerformanceTests/testInferenceResponseMapping()",
+    "testIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testInferenceResponseMapping",
+    "testRuns" : [
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0,
+              0,
+              0,
+              16.384,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              6891.967,
+              6529.718,
+              7132.983,
+              6663.287,
+              6992.477,
+              6613.83,
+              6365.61,
+              6800.33,
+              6550.074,
+              6475.398
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.0018622200000000002,
+              0.0017493060000000002,
+              0.0017784160000000001,
+              0.001788707,
+              0.001840859,
+              0.0016650920000000002,
+              0.0016483230000000001,
+              0.0017739880000000002,
+              0.001759474,
+              0.0017024020000000002
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.0022569680000000003,
+              0.002106334,
+              0.002300838,
+              0.002142824,
+              0.002263118,
+              0.002083661,
+              0.002010025,
+              0.0021632830000000002,
+              0.002089483,
+              0.0020699670000000002
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              23490.664,
+              23412.952,
+              23462.028,
+              23556.289,
+              23461.48,
+              23537.134,
+              23530.251,
+              23468.195,
+              23389.911,
+              23502.055
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              34326.976,
+              34326.976,
+              34326.976,
+              34343.36,
+              34343.36,
+              34343.36,
+              34343.36,
+              34343.36,
+              34343.36,
+              34343.36
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      },
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              16.384,
+              0
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              6659.268,
+              6324.352,
+              6190.974,
+              6239.602,
+              6232.698,
+              6102.205,
+              6530.104,
+              6260.865,
+              6540.669,
+              6520.158
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.0017217130000000001,
+              0.0017221640000000002,
+              0.0016800570000000002,
+              0.001687478,
+              0.0016652560000000002,
+              0.00163016,
+              0.001763,
+              0.0016635340000000001,
+              0.0016926850000000002,
+              0.0017420900000000002
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.00213897,
+              0.002045531,
+              0.0019885000000000002,
+              0.001992559,
+              0.001980177,
+              0.0019120760000000002,
+              0.002065744,
+              0.001974683,
+              0.0020882120000000003,
+              0.002094854
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              23422.489,
+              23425.53,
+              23433.347,
+              23424.25,
+              23275.32,
+              23274.139,
+              23353.712,
+              23282.121,
+              23500.458,
+              23492.261
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              34376.128,
+              34376.128,
+              34376.128,
+              34376.128,
+              34376.128,
+              34376.128,
+              34376.128,
+              34376.128,
+              34392.512,
+              34392.512
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      },
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0,
+              0,
+              0,
+              0,
+              0,
+              16.384,
+              0,
+              0,
+              0,
+              0
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              7232.595,
+              6280.641,
+              6186.409,
+              6483.153,
+              6757.666,
+              6273.675,
+              6334.303,
+              6263.61,
+              6427.352,
+              6186.718
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.0018629990000000002,
+              0.001682845,
+              0.001653694,
+              0.0017293800000000002,
+              0.0016643950000000002,
+              0.001686166,
+              0.001683952,
+              0.0016551290000000002,
+              0.0016701350000000001,
+              0.001645986
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.002295221,
+              0.0019912470000000002,
+              0.001961604,
+              0.002111541,
+              0.002118142,
+              0.001990427,
+              0.001997725,
+              0.00196882,
+              0.00201597,
+              0.0019420470000000001
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              23568.402,
+              23338.331,
+              23413.137,
+              23505.276,
+              23422.259,
+              23286.242,
+              23373.652,
+              23431.77,
+              23499.724,
+              23389.523
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              34376.128,
+              34376.128,
+              34376.128,
+              34376.128,
+              34376.128,
+              34392.512,
+              34392.512,
+              34392.512,
+              34392.512,
+              34392.512
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      }
+    ]
+  },
+  {
+    "testIdentifier" : "MediaPerformanceTests/testRepeatedBoundedImageDecode()",
+    "testIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testRepeatedBoundedImageDecode",
+    "testRuns" : [
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              16.384,
+              0,
+              16.384,
+              16.384,
+              16.384,
+              16.384,
+              16.384,
+              0,
+              16.384,
+              16.384
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              701763.385,
+              704782.23,
+              700072.141,
+              695663.711,
+              718326.094,
+              706429.113,
+              706174.219,
+              705138.623,
+              696255.752,
+              712405.097
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.215952412,
+              0.217238008,
+              0.215061359,
+              0.214010693,
+              0.22555424300000002,
+              0.219347581,
+              0.218241032,
+              0.21693305000000002,
+              0.21392242,
+              0.222382606
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.224573769,
+              0.22365664000000002,
+              0.222341893,
+              0.222611263,
+              0.232182467,
+              0.226245995,
+              0.224316289,
+              0.22408673,
+              0.219877588,
+              0.22951353100000002
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              3625285.521,
+              3624860.485,
+              3624934.822,
+              3625247.936,
+              3627642.687,
+              3625096.996,
+              3625194.625,
+              3625049.839,
+              3624596.845,
+              3625774.285
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              88492.552,
+              88525.32,
+              88541.704,
+              88558.088,
+              88574.472,
+              88590.856,
+              88590.856,
+              88607.24,
+              88623.624,
+              88640.008
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      },
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              16.384,
+              16.384,
+              0,
+              0,
+              16.384,
+              16.384,
+              0,
+              0,
+              16.384,
+              16.384
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              725217.685,
+              736657.572,
+              735059.921,
+              747387.531,
+              735919.448,
+              736575.045,
+              726923.302,
+              719005.196,
+              719602.725,
+              730392.622
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.227193956,
+              0.231947906,
+              0.231287601,
+              0.23594536500000002,
+              0.233354042,
+              0.231426181,
+              0.227867217,
+              0.224453106,
+              0.22330100600000002,
+              0.23049269300000003
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.23432361000000002,
+              0.239074362,
+              0.23930867700000003,
+              0.24329359,
+              0.238920243,
+              0.23869863800000002,
+              0.23457781000000003,
+              0.23056485300000001,
+              0.23009958500000002,
+              0.23608193600000002
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              3625565.66,
+              3629069.856,
+              3628353.389,
+              3629925.745,
+              3629700.723,
+              3629121.03,
+              3626050.479,
+              3625914.477,
+              3625509.308,
+              3627174.697
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              88672.776,
+              88689.16,
+              88689.16,
+              88705.544,
+              88721.928,
+              88738.312,
+              88738.312,
+              88754.696,
+              88771.08,
+              88787.464
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      },
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              16.384,
+              16.384,
+              0,
+              16.384,
+              0,
+              16.384,
+              0,
+              16.384,
+              0,
+              0
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              729314.247,
+              720975.325,
+              723698.403,
+              729375.969,
+              721594.286,
+              724957.149,
+              726627.804,
+              735195.524,
+              725683.27,
+              724768.178
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.228933504,
+              0.223138687,
+              0.226721103,
+              0.228034866,
+              0.22551980300000002,
+              0.22786545400000002,
+              0.22681630500000002,
+              0.233306646,
+              0.22649064200000002,
+              0.227294447
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.23409749500000002,
+              0.22955461300000002,
+              0.230999576,
+              0.233384792,
+              0.2316049,
+              0.23413033600000002,
+              0.23266815300000002,
+              0.237707463,
+              0.232976596,
+              0.23379717000000003
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              3626359.696,
+              3626128.198,
+              3626202.716,
+              3626408.174,
+              3626600.748,
+              3627208.236,
+              3626290.136,
+              3626993.302,
+              3627200.424,
+              3626721.63
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              88803.848,
+              88820.232,
+              88836.616,
+              88853,
+              88853,
+              88869.384,
+              88869.384,
+              88885.768,
+              88885.768,
+              88885.768
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      }
+    ]
+  },
+  {
+    "testIdentifier" : "PersistencePerformanceTests/testLargeLibraryScalarHydration()",
+    "testIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testLargeLibraryScalarHydration",
+    "testRuns" : [
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              -32.768,
+              0,
+              16.384,
+              16.384,
+              0,
+              0,
+              0,
+              0,
+              16.384,
+              16.384
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              245085.74,
+              239738.695,
+              242233.459,
+              239566.446,
+              237888.486,
+              237047.648,
+              242222.896,
+              235617.03,
+              239915.243,
+              236778.671
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.077088364,
+              0.075533931,
+              0.074933814,
+              0.07377359600000001,
+              0.07274351200000001,
+              0.07263437,
+              0.074721434,
+              0.07234552500000001,
+              0.073712998,
+              0.072498004
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.07895115800000001,
+              0.076451142,
+              0.077123173,
+              0.075695676,
+              0.07477288900000001,
+              0.07428503,
+              0.076524163,
+              0.074214059,
+              0.075563697,
+              0.074276748
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              860961.504,
+              857806.692,
+              856784.624,
+              856672.543,
+              856120.968,
+              855737.713,
+              855758.184,
+              855287.146,
+              855707.825,
+              855074.367
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              38799.928,
+              38718.008,
+              38750.776,
+              38734.392,
+              38750.776,
+              38750.776,
+              38750.776,
+              38750.776,
+              38750.776,
+              38767.16
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      },
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              239229.028,
+              232185.607,
+              234793.412,
+              233684.161,
+              233047.722,
+              234510.008,
+              236467.891,
+              236004.288,
+              231953.914,
+              240260.55
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.073174668,
+              0.07077936600000001,
+              0.07260251300000001,
+              0.07177542,
+              0.071528518,
+              0.072647818,
+              0.07293047200000001,
+              0.07195254000000001,
+              0.070808271,
+              0.07321870200000001
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.074863335,
+              0.072468033,
+              0.07452713500000001,
+              0.073886018,
+              0.07324568000000001,
+              0.074431974,
+              0.074957307,
+              0.07385514500000001,
+              0.072524367,
+              0.075235123
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              853931.997,
+              854116.423,
+              853992.301,
+              853731.231,
+              853597.796,
+              853635.986,
+              853912.762,
+              853485.065,
+              853614.517,
+              853558.125
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              37702.2,
+              37702.2,
+              37702.2,
+              37702.2,
+              37702.2,
+              37702.2,
+              37702.2,
+              37702.2,
+              37702.2,
+              37702.2
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      },
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0,
+              -32.768,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              232294.808,
+              243412.282,
+              232150.924,
+              232290.604,
+              239825.221,
+              234299.315,
+              234934.505,
+              238267.627,
+              238571.822,
+              242094.688
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.070796381,
+              0.07415137000000001,
+              0.070904047,
+              0.070811633,
+              0.073359168,
+              0.071337827,
+              0.072298744,
+              0.074059366,
+              0.074806263,
+              0.075865416
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.07264113500000001,
+              0.076051269,
+              0.072563317,
+              0.07265450100000001,
+              0.075044104,
+              0.073230838,
+              0.07422611300000001,
+              0.07581802,
+              0.07658057900000001,
+              0.077644324
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              853940.422,
+              854236.94,
+              854005.249,
+              854258.042,
+              853923.68,
+              854131.655,
+              853993.053,
+              854481.345,
+              854459.986,
+              854363.473
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              37653.048,
+              37653.048,
+              37620.28,
+              37620.28,
+              37620.28,
+              37620.28,
+              37620.28,
+              37620.28,
+              37620.28,
+              37620.28
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      }
+    ]
+  },
+  {
+    "testIdentifier" : "PersistencePerformanceTests/testLargeOfflineQueueProjection()",
+    "testIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testLargeOfflineQueueProjection",
+    "testRuns" : [
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              -16.384,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              113578.473,
+              113955.535,
+              112977.496,
+              112326.419,
+              114960.684,
+              115636.608,
+              113741.487,
+              118219.685,
+              111571.136,
+              111179.182
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.035711984,
+              0.035499932000000005,
+              0.035153318,
+              0.034970171,
+              0.03595003,
+              0.035873278,
+              0.035386034000000004,
+              0.03656011,
+              0.03459252,
+              0.034230859
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.036078934,
+              0.03591805,
+              0.035704071000000004,
+              0.035418547,
+              0.036457569,
+              0.036360891,
+              0.035839207000000005,
+              0.037122097,
+              0.035088169,
+              0.034750657000000004
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              415686.767,
+              415643.482,
+              415589.983,
+              416093.748,
+              415764.99,
+              415614.83,
+              415738.165,
+              415578.173,
+              415939.758,
+              415530.72
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              37276.216,
+              37259.832,
+              37259.832,
+              37259.832,
+              37259.832,
+              37259.832,
+              37259.832,
+              37259.832,
+              37259.832,
+              37259.832
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      },
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              113103.272,
+              112326.067,
+              116761.405,
+              111739.76,
+              109145.175,
+              116350.236,
+              115493.945,
+              115463.787,
+              111185.103,
+              110150.163
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.035002602,
+              0.034625402,
+              0.036294225,
+              0.034575218000000005,
+              0.033472605,
+              0.036143796,
+              0.035866431000000004,
+              0.035995704,
+              0.034315893,
+              0.033948328
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.035488411000000004,
+              0.035265412,
+              0.03680611,
+              0.035068817,
+              0.033963908,
+              0.036585448,
+              0.03632395,
+              0.036444244,
+              0.034842907,
+              0.034465584
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              415468.854,
+              415414.842,
+              415247.799,
+              415964.428,
+              415385.168,
+              415355.584,
+              415380.944,
+              415459.931,
+              415860.923,
+              415523.822
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              37014.072,
+              36964.92,
+              36964.92,
+              36964.92,
+              36964.92,
+              36964.92,
+              36964.92,
+              36964.92,
+              36964.92,
+              36964.92
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      },
+      {
+        "device" : {
+          "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+          "deviceName" : "iPhone 18 Pro"
+        },
+        "metrics" : [
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Cycles",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.cycles",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              110516.388,
+              114863.776,
+              115154.705,
+              111149.169,
+              111102.327,
+              111238.087,
+              111296.997,
+              109874.594,
+              109234.436,
+              110961.879
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kC"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Clock Monotonic Time",
+            "identifier" : "com.apple.dt.XCTMetric_Clock.time.monotonic",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.034037708,
+              0.035388822,
+              0.035608254,
+              0.034156034,
+              0.034287562,
+              0.034385019,
+              0.03448346,
+              0.034034141000000004,
+              0.033504831,
+              0.034746885000000005
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Time",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.time",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              0.034540122,
+              0.035902101000000006,
+              0.036087462,
+              0.03480777,
+              0.034766278000000005,
+              0.034898626,
+              0.034940446,
+              0.034477802,
+              0.034009869000000005,
+              0.035237081
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "s"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "CPU Instructions Retired",
+            "identifier" : "com.apple.dt.XCTMetric_CPU.instructions_retired",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              416261.024,
+              415643.59,
+              415895.641,
+              415686.317,
+              415972.23,
+              416306.281,
+              415929.676,
+              415657.463,
+              415674.381,
+              415619.085
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kI"
+          },
+          {
+            "baselineAverage" : 0,
+            "baselineName" : "",
+            "displayName" : "Memory Peak Physical",
+            "identifier" : "com.apple.dt.XCTMetric_Memory.physical_peak",
+            "maxPercentRegression" : 10,
+            "maxPercentRelativeStandardDeviation" : 10,
+            "maxRegression" : 0,
+            "maxStandardDeviation" : 10,
+            "measurements" : [
+              36899.384,
+              36899.384,
+              36899.384,
+              36899.384,
+              36899.384,
+              36899.384,
+              36899.384,
+              36899.384,
+              36915.768,
+              36899.384
+            ],
+            "polarity" : "prefers smaller",
+            "unitOfMeasurement" : "kB"
+          }
+        ],
+        "testPlanConfiguration" : {
+          "configurationId" : "1",
+          "configurationName" : "Test Scheme Action"
+        }
+      }
+    ]
+  }
+]

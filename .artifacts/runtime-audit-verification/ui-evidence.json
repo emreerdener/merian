@@ -1,0 +1,91 @@
+{
+  "phase": "ui",
+  "exit_code": 0,
+  "source_unchanged": true,
+  "bundles": [
+    "/Users/emreerdener/Developer/merian/.artifacts/runtime-audit-next/candidate/.artifacts/local-ios/f17baa70962a45b68f88dcdf9d9cae70.xcresult"
+  ],
+  "command": [
+    "make",
+    "ios-local-build",
+    "ARGS=simulator -- test-without-building -configuration Debug -destination \"platform=iOS Simulator,id=33E6776C-4639-4EE9-BDB6-994A3941FEE6\" -parallel-testing-enabled NO -only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow -only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue -only-testing:merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy -only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff -only-testing:merianUITests/merianUITests/testBackgroundInterruptionPreservesQueuedAudioInsight"
+  ],
+  "source": {
+    "source_sha": "c1a426cd425add1acc5bfb39e2cbc9069049846a",
+    "source_fingerprint": "d13da704f96053ddee8163e112008ba12863da51ee7c8af894c756e9a07cfc48",
+    "source_untracked_fingerprint": "35cb0968796fb09f2ece3dac22bbf828167fcdea6f97e173258ec2903a3695ce",
+    "source_status_fingerprint": "3a461d82f1c57935d8928c89f8192733b3faeb20312bb9495c89a92d123f82ec",
+    "source_dirty": true
+  },
+  "environment": {
+    "label": "MacBookPro18-1-iOS27-continuation",
+    "simulator_model": "iPhone 18 Pro",
+    "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0",
+    "xcode": "Xcode 27.0\nBuild version 27A266a",
+    "host": "macOS-26.6.2-arm64-arm-64bit",
+    "hardware": "MacBookPro18,1",
+    "configuration": "Debug",
+    "iterations": 3,
+    "workload_fingerprint": "9735298cb9761d00a1edc5f132ac18fabd0f0dbb137b2d5d8b1b9a010af28f58"
+  },
+  "metric_expectations": [
+    {
+      "selector": "merianPerformanceTests/MediaPerformanceTests/testRepeatedBoundedImageDecode",
+      "suite_names": [
+        "MediaPerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianPerformanceTests/MediaPerformanceTests/testAudioVideoFileAdmission",
+      "suite_names": [
+        "MediaPerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianPerformanceTests/MediaPerformanceTests/testInferenceResponseMapping",
+      "suite_names": [
+        "MediaPerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianPerformanceTests/PersistencePerformanceTests/testDurableQueueCommit",
+      "suite_names": [
+        "PersistencePerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianPerformanceTests/PersistencePerformanceTests/testLargeLibraryScalarHydration",
+      "suite_names": [
+        "PersistencePerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianPerformanceTests/PersistencePerformanceTests/testLargeOfflineQueueProjection",
+      "suite_names": [
+        "PersistencePerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianUITests/RuntimePerformanceTests/testProcessColdLaunch",
+      "suite_names": [
+        "RuntimePerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianUITests/RuntimePerformanceTests/testWarmForeground",
+      "suite_names": [
+        "RuntimePerformanceTests"
+      ]
+    },
+    {
+      "selector": "merianUITests/RuntimePerformanceTests/testRepeatedAudioInsightPresentation",
+      "report_metric_families": [
+        "Hitch"
+      ],
+      "suite_names": [
+        "RuntimePerformanceTests"
+      ]
+    }
+  ],
+  "execution": {}
+}

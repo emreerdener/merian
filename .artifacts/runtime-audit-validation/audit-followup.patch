@@ -1,0 +1,710 @@
+diff --git a/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift b/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift
+index 307cf6547..163924384 100644
+--- a/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift
++++ b/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift
+@@ -60,6 +60,9 @@ import SwiftData
+     @ObservationIgnored var backgroundAccountWorkLeases:
+         [Int: AccountBoundWorkLease] = [:]
+ 
++    /// One terminal processor owns a task's Auth lease across actor suspension.
++    @ObservationIgnored var inferenceTerminalTaskIdentifiers: Set<Int> = []
++
+     /// Terminal delegate processors must finish durable persistence and release
+     /// their Auth-work leases before the app tells iOS it may suspend again.
+     nonisolated static let backgroundTerminalWorkTracker =
+diff --git a/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift b/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift
+index 45f5c2784..a3b835940 100644
+--- a/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift
++++ b/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift
+@@ -28,11 +28,14 @@ extension OfflineQueueManager {
+             )
+             return
+         }
++        // URLSession can deliver another terminal callback while this owner
++        // is suspended in persistence. Only one callback may retire the work.
++        guard inferenceCompletionGenerations[scanId] == nil else { return }
++        inferenceCompletionGenerations[scanId] = generation
+         defer {
+             finishInferenceGeneration(scanId: scanId, generation: generation)
+         }
+ 
+-        inferenceCompletionGenerations[scanId] = generation
+         defer {
+             if inferenceCompletionGenerations[scanId] == generation {
+                 inferenceCompletionGenerations[scanId] = nil
+@@ -357,7 +360,12 @@ extension OfflineQueueManager {
+             )
+             return
+         }
++        guard inferenceCompletionGenerations[scanId] == nil else { return }
++        inferenceCompletionGenerations[scanId] = generation
+         defer {
++            if inferenceCompletionGenerations[scanId] == generation {
++                inferenceCompletionGenerations[scanId] = nil
++            }
+             finishInferenceGeneration(scanId: scanId, generation: generation)
+         }
+ 
+diff --git a/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift b/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift
+index b04958a8f..b9a7ba20f 100644
+--- a/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift
++++ b/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift
+@@ -150,7 +150,14 @@ extension OfflineQueueManager {
+         statusCode: Int?,
+         functionRouteEvidence: EdgeFunctionRouteResponseEvidence?
+     ) async {
+-        defer { finishBackgroundAccountWork(for: taskIdentifier) }
++        guard inferenceTerminalTaskIdentifiers.insert(taskIdentifier).inserted else {
++            try? FileManager.default.removeItem(at: resultFileURL)
++            return
++        }
++        defer {
++            inferenceTerminalTaskIdentifiers.remove(taskIdentifier)
++            finishBackgroundAccountWork(for: taskIdentifier)
++        }
+         guard await validateOrAdoptBackgroundAccountWork(
+             scanId: scanId,
+             generation: generation,
+@@ -197,7 +204,11 @@ extension OfflineQueueManager {
+         taskIdentifier: Int,
+         error: Error
+     ) async {
+-        defer { finishBackgroundAccountWork(for: taskIdentifier) }
++        guard inferenceTerminalTaskIdentifiers.insert(taskIdentifier).inserted else { return }
++        defer {
++            inferenceTerminalTaskIdentifiers.remove(taskIdentifier)
++            finishBackgroundAccountWork(for: taskIdentifier)
++        }
+         guard await validateOrAdoptBackgroundAccountWork(
+             scanId: scanId,
+             generation: generation,
+diff --git a/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+URLSessionDelegate.swift b/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+URLSessionDelegate.swift
+index d75b32f40..c50edffe1 100644
+--- a/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+URLSessionDelegate.swift
++++ b/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+URLSessionDelegate.swift
+@@ -26,9 +26,8 @@ extension OfflineQueueManager {
+ 
+         // Copy the temp file before the system deletes it at callback return.
+         let tempDestination = URL.temporaryDirectory.appendingPathComponent(
+-            "\(scanId)_\(taskIdentifier)_inference.json"
++            "\(scanId)_\(taskIdentifier)_\(UUID())_inference.json"
+         )
+-        try? FileManager.default.removeItem(at: tempDestination)
+         do {
+             try FileManager.default.copyItem(at: location, to: tempDestination)
+         } catch {
+diff --git a/apps/ios/MerianPerformanceTests/PersistencePerformanceTests.swift b/apps/ios/MerianPerformanceTests/PersistencePerformanceTests.swift
+index 93c5c2b28..9a8ffe3de 100644
+--- a/apps/ios/MerianPerformanceTests/PersistencePerformanceTests.swift
++++ b/apps/ios/MerianPerformanceTests/PersistencePerformanceTests.swift
+@@ -23,7 +23,7 @@ final class PersistencePerformanceTests: XCTestCase {
+         let container = try store()
+         let media = MediaJSONParser.jsonString(from: [.description(ObservationContext(freeText: "Synthetic observation"))])
+         let measurementOptions = options
+-        measurementOptions.invocationOptions = [.manuallyStart]
++        measurementOptions.invocationOptions = [.manuallyStart, .manuallyStop]
+         measure(metrics: [XCTClockMetric(), XCTCPUMetric(), XCTMemoryMetric()], options: measurementOptions) {
+             let context = ModelContext(container)
+             let scan = OfflineQueuedScan(capturedMediaJSON: media, scanState: .pending)
+diff --git a/apps/ios/MerianTests/Core/Data/OfflineSync/BackgroundInferenceCompletionTests.swift b/apps/ios/MerianTests/Core/Data/OfflineSync/BackgroundInferenceCompletionTests.swift
+index 7833d0b00..4666e479a 100644
+--- a/apps/ios/MerianTests/Core/Data/OfflineSync/BackgroundInferenceCompletionTests.swift
++++ b/apps/ios/MerianTests/Core/Data/OfflineSync/BackgroundInferenceCompletionTests.swift
+@@ -9,6 +9,71 @@ import Testing
+ )
+ @MainActor
+ struct BackgroundInferenceCompletionTests {
++    @Test func duplicateTerminalRoutingPreservesSuspendedOwnersAccountLease() async throws {
++        let manager = OfflineQueueManager.shared
++        let taskIdentifier = -17
++        let originalLease = manager.backgroundAccountWorkLeases[taskIdentifier]
++        let lease = AccountBoundWorkLease(
++            id: UUID(), session: AuthTransitionSession(userID: UUID(), isAnonymous: true)
++        )
++        let resultURL = URL.temporaryDirectory.appendingPathComponent("\(UUID()).json")
++        try Data("{}".utf8).write(to: resultURL)
++        manager.backgroundAccountWorkLeases[taskIdentifier] = lease
++        manager.inferenceTerminalTaskIdentifiers.insert(taskIdentifier)
++        defer {
++            manager.inferenceTerminalTaskIdentifiers.remove(taskIdentifier)
++            manager.backgroundAccountWorkLeases[taskIdentifier] = originalLease
++            try? FileManager.default.removeItem(at: resultURL)
++        }
++        await manager.processInferenceTerminalResult(
++            scanId: UUID().uuidString, generation: UUID(), ownerUserID: lease.session.userID,
++            taskIdentifier: taskIdentifier, resultFileURL: resultURL,
++            statusCode: 200, functionRouteEvidence: nil
++        )
++        #expect(!FileManager.default.fileExists(atPath: resultURL.path))
++        #expect(manager.backgroundAccountWorkLeases[taskIdentifier] == lease)
++        await manager.processInferenceTerminalFailure(
++            scanId: UUID().uuidString, generation: UUID(), ownerUserID: lease.session.userID,
++            taskIdentifier: taskIdentifier, error: URLError(.cancelled)
++        )
++        #expect(manager.backgroundAccountWorkLeases[taskIdentifier] == lease)
++        #expect(manager.inferenceTerminalTaskIdentifiers.contains(taskIdentifier))
++    }
++
++    @Test func duplicateTerminalCallbacksCannotRetireSuspendedResultOwner() async throws {
++        let manager = OfflineQueueManager.shared
++        let scanId = UUID().uuidString.lowercased()
++        let generation = UUID()
++        let resultURL = URL.temporaryDirectory.appendingPathComponent("\(UUID()).json")
++        try Data("{}".utf8).write(to: resultURL)
++        reset(manager, scanId: scanId, generations: [generation])
++        defer {
++            try? FileManager.default.removeItem(at: resultURL)
++            reset(manager, scanId: scanId, generations: [generation])
++        }
++
++        // Exact state while the first terminal result is suspended in persistence.
++        // Neither a duplicate download nor didCompleteWithError may take its lease.
++        manager.activeInferenceGenerations[scanId] = generation
++        manager.inferenceCompletionGenerations[scanId] = generation
++        await manager.processInferenceDownloadResult(
++            scanId: scanId, generation: generation,
++            resultFileURL: resultURL, statusCode: 200
++        )
++        #expect(!FileManager.default.fileExists(atPath: resultURL.path))
++        #expect(manager.activeInferenceGenerations[scanId] == generation)
++        #expect(manager.inferenceCompletionGenerations[scanId] == generation)
++        #expect(!manager.retiredInferenceGenerations.contains(generation))
++
++        await manager.handleInferenceTaskNetworkFailure(
++            scanId: scanId, generation: generation,
++            error: URLError(.cancelled)
++        )
++        #expect(manager.activeInferenceGenerations[scanId] == generation)
++        #expect(manager.inferenceCompletionGenerations[scanId] == generation)
++        #expect(!manager.retiredInferenceGenerations.contains(generation))
++    }
++
+     @Test func cancelledTaskRetiresExactGenerationAndProbe() async {
+         let manager = OfflineQueueManager.shared
+         let scanId = "cancelled-inference-task-\(UUID().uuidString)"
+diff --git a/apps/ios/MerianTests/Core/Data/OfflineSync/CaptureAdmissionTests.swift b/apps/ios/MerianTests/Core/Data/OfflineSync/CaptureAdmissionTests.swift
+index 2e52e223c..9937e74b6 100644
+--- a/apps/ios/MerianTests/Core/Data/OfflineSync/CaptureAdmissionTests.swift
++++ b/apps/ios/MerianTests/Core/Data/OfflineSync/CaptureAdmissionTests.swift
+@@ -10,6 +10,23 @@ import Testing
+ )
+ @MainActor
+ struct CaptureAdmissionTests {
++    @Test func interruptedFileAdoptionRemovesPartialDestinationFiles() throws {
++        let root = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
++        let destination = root.appendingPathComponent("documents")
++        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
++        defer { try? FileManager.default.removeItem(at: root) }
++        let first = root.appendingPathComponent("first.wav")
++        let missing = root.appendingPathComponent("missing.wav")
++        try Data("synthetic admission bytes".utf8).write(to: first)
++
++        #expect(throws: CocoaError.self) {
++            try OfflineCaptureFileStore.persistFiles(
++                [first.path, missing.path], documentsDirectory: destination
++            )
++        }
++        #expect(try FileManager.default.contentsOfDirectory(atPath: destination.path).isEmpty)
++    }
++
+     @MainActor
+     private struct ManagerSnapshot {
+         let modelContext: ModelContext?
+@@ -35,6 +52,78 @@ struct CaptureAdmissionTests {
+         case description(String)
+     }
+ 
++    @Test func describeAdmissionPersistsBeforeCompletionAndRestoresInsight() async throws {
++        enableUnlimitedFreeScansForTest()
++        defer { restoreFreeScanLimitForTest() }
++        let manager = OfflineQueueManager.shared
++        let snapshot = ManagerSnapshot(manager)
++        let schema = Schema(versionedSchema: CurrentSchema.self)
++        let url = URL.temporaryDirectory.appendingPathComponent("capture-flow-\(UUID()).sqlite")
++        let container = try ModelContainer(
++            for: schema, configurations: [ModelConfiguration(schema: schema, url: url)]
++        )
++        let context = ModelContext(container)
++        let scanId = UUID().uuidString.lowercased()
++        let generation = UUID()
++        manager.modelContext = context
++        manager.isOnline = false
++        defer {
++            manager.inferenceRetryTasks.cancel(scanId)
++            manager.activeInferenceGenerations[scanId] = nil
++            manager.retiredInferenceGenerations.remove(generation)
++            SyncStateManager.shared.forceIdle()
++            snapshot.restore(manager)
++        }
++        manager.enqueueDescribe(
++            observationContext: ObservationContext(freeText: "Synthetic butterfly observation"),
++            telemetry: dummyTelemetry, scanId: scanId
++        )
++        // Read from an independent context before admitting any synthetic response.
++        let queued = try #require(ModelContext(container).fetch(FetchDescriptor<OfflineQueuedScan>()).first)
++        #expect(queued.id == scanId)
++        #expect(queued.queueState == .staged)
++        let route = queued.queuedScanContext()
++        let media = queued.capturedMediaJSON
++        let actor = BackgroundDatabaseActor(modelContainer: container)
++        #expect(await actor.tryClaimForInference(scanId: scanId, generation: generation))
++        #expect(manager.claimInferenceGeneration(scanId: scanId, proposedGeneration: generation) == generation)
++        let response = Data("""
++        {"success":true,"data":{"scan_id":"\(scanId)","is_biological_subject":true,
++        "is_live_capture":true,"ecology_type":"wild","is_invasive":false,
++        "scientific_name":"Danaus plexippus","common_name":"Monarch Butterfly",
++        "confidence_score":0.98,"insight_data":{"hazard_type":"none","ai_reasoning":"Synthetic fixture."}}}
++        """.utf8)
++        let result = await BackgroundInferenceFinalizationService.live.processAndCleanupOfflineScan(
++            resultData: response, originalImagePaths: [], scanId: scanId,
++            originalTimestamp: queued.timestamp, capturedMediaJSON: media,
++            expectedGeneration: generation, persistenceActor: actor
++        )
++        #expect(result.wasCleaned)
++        #expect(await manager.deleteQueuedScan(
++            scanId: scanId,
++            inferenceExpectation: InferenceGenerationExpectation(generation: generation)
++        ))
++        let fresh = ModelContext(container)
++        #expect(try fresh.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
++        #expect(try fresh.fetchCount(FetchDescriptor<LocalScanRecord>()) == 1)
++        let engine = InferenceEngine()
++        defer { engine.cancelActiveRequest() }
++        let insight = InsightSheetViewModel(inferenceEngine: engine)
++        insight.beginPresentationSession()
++        #expect(insight.bindQueuedPresentationPreferringCompletedRecord(
++            route, modelContext: fresh, inferenceEngine: engine
++        ))
++        #expect(insight.presentedLocalRecordScanId == scanId)
++        #expect(engine.speciesData?.scanId == scanId)
++        insight.endPresentationSession()
++        insight.beginPresentationSession()
++        #expect(insight.bindQueuedPresentationPreferringCompletedRecord(
++            route, modelContext: fresh, inferenceEngine: engine
++        ))
++        #expect(insight.presentedLocalRecordScanId == scanId)
++        insight.endPresentationSession()
++    }
++
+     @Test func testEnqueueCapture_WithValidData_PersistsQueuedScan() async throws {
+         enableUnlimitedFreeScansForTest()
+         defer { restoreFreeScanLimitForTest() }
+diff --git a/apps/ios/MerianTests/Core/Data/OfflineSync/DiskBackedInferenceAcceptanceTests.swift b/apps/ios/MerianTests/Core/Data/OfflineSync/DiskBackedInferenceAcceptanceTests.swift
+index 506ca48ea..431f8ab67 100644
+--- a/apps/ios/MerianTests/Core/Data/OfflineSync/DiskBackedInferenceAcceptanceTests.swift
++++ b/apps/ios/MerianTests/Core/Data/OfflineSync/DiskBackedInferenceAcceptanceTests.swift
+@@ -85,6 +85,33 @@ struct DiskBackedInferenceAcceptanceTests {
+         #expect(try fresh.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+     }
+ 
++    @Test func rejectedStoreSavePreservesQueueForWritableRetry() async throws {
++        let url = URL.temporaryDirectory.appendingPathComponent("acceptance-save-\(UUID()).sqlite")
++        let scanId = UUID().uuidString.lowercased()
++        let generation = UUID()
++        try seedInterruptedStore(url: url, scanId: scanId, generation: generation, media: nil)
++        let schema = Schema(versionedSchema: CurrentSchema.self)
++        let readOnly = try ModelContainer(for: schema, configurations: [
++            ModelConfiguration(schema: schema, url: url, allowsSave: false)
++        ])
++        let rejected = await deliver(
++            scanId: scanId, generation: generation, media: nil,
++            actor: BackgroundDatabaseActor(modelContainer: readOnly)
++        )
++        #expect(!rejected.wasCleaned)
++        let writable = try open(url)
++        let fresh = ModelContext(writable)
++        #expect(try fresh.fetchCount(FetchDescriptor<LocalScanRecord>()) == 0)
++        #expect(try fresh.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 1)
++        #expect(try fresh.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
++        let retry = await deliver(
++            scanId: scanId, generation: generation, media: nil,
++            actor: BackgroundDatabaseActor(modelContainer: writable)
++        )
++        #expect(retry.wasCleaned)
++        #expect(try ModelContext(writable).fetchCount(FetchDescriptor<LocalScanRecord>()) == 1)
++    }
++
+     private func open(_ url: URL) throws -> ModelContainer {
+         let schema = Schema(versionedSchema: CurrentSchema.self)
+         return try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+diff --git a/apps/ios/MerianTests/Core/Network/Auth/AuthLocalSignOutCoordinatorTests.swift b/apps/ios/MerianTests/Core/Network/Auth/AuthLocalSignOutCoordinatorTests.swift
+index 6cececd6f..caf7e1584 100644
+--- a/apps/ios/MerianTests/Core/Network/Auth/AuthLocalSignOutCoordinatorTests.swift
++++ b/apps/ios/MerianTests/Core/Network/Auth/AuthLocalSignOutCoordinatorTests.swift
+@@ -2,6 +2,11 @@ import Foundation
+ @testable import Merian
+ import XCTest
+ 
++private actor AuthLocalSignOutWorkProbe {
++    private(set) var completed = false
++    func complete() { completed = true }
++}
++
+ private actor AuthLocalSignOutTestGate {
+     private var continuation: CheckedContinuation<Void, Never>?
+ 
+@@ -29,6 +34,7 @@ private final class AuthLocalSignOutTestHarness {
+     var events: [String] = []
+     var transitionIsOwned = true
+     var quiescenceSucceeds = true
++    var quiescenceOperation: (@MainActor () async -> Bool)?
+     var ownsCallCount = 0
+     var loseTransitionOnThirdCheck = false
+     var sdkError: Error?
+@@ -80,6 +86,9 @@ private final class AuthLocalSignOutTestHarness {
+                 },
+                 awaitAccountWorkQuiescence: { [self] in
+                     events.append("quiesce")
++                    if let quiescenceOperation {
++                        return await quiescenceOperation()
++                    }
+                     return quiescenceSucceeds
+                 },
+                 updateForSessionInstallation: { [self] _ in
+@@ -117,6 +126,51 @@ private final class AuthLocalSignOutTestHarness {
+ 
+ @MainActor
+ final class AuthLocalSignOutCoordinatorTests: XCTestCase {
++    func testSignOutWaitsForActiveInferenceWriteAndRejectsNewWork() async {
++        let engine = InferenceEngine()
++        let writeGate = AuthLocalSignOutTestGate()
++        let drainStarted = AuthLocalSignOutTestGate()
++        let harness = AuthLocalSignOutTestHarness()
++        let coordinator = AuthLocalSignOutCoordinator()
++        let write = AuthLocalSignOutWorkProbe()
++        let lateWrite = AuthLocalSignOutWorkProbe()
++        engine.debugEnqueueTrackedBackgroundTask {
++            await writeGate.wait()
++            await write.complete()
++        }
++        await writeGate.waitUntilSuspended()
++        harness.quiescenceOperation = {
++            engine.beginAuthTransitionWriteFence()
++            await drainStarted.wait()
++            await engine.awaitAuthTransitionWriteQuiescence()
++            return true
++        }
++        let signOut = Task { @MainActor in
++            await coordinator.signOut(ownedBy: Self.transition, dependencies: harness.dependencies())
++        }
++        await drainStarted.waitUntilSuspended()
++        engine.debugEnqueueTrackedBackgroundTask { await lateWrite.complete() }
++        XCTAssertEqual(harness.beginCount, 0)
++        XCTAssertEqual(harness.sdkCount, 0)
++        let completedBeforeRelease = await write.completed
++        let lateCompletedBeforeRelease = await lateWrite.completed
++        XCTAssertFalse(completedBeforeRelease)
++        XCTAssertFalse(lateCompletedBeforeRelease)
++        await drainStarted.release()
++        await writeGate.release()
++        await signOut.value
++        let completedAfterDrain = await write.completed
++        let lateCompletedAfterDrain = await lateWrite.completed
++        XCTAssertTrue(completedAfterDrain)
++        XCTAssertFalse(lateCompletedAfterDrain)
++        XCTAssertEqual(harness.sdkCount, 1)
++        XCTAssertEqual(harness.finishCount, 1)
++        XCTAssertEqual(engine.debugBackgroundWriteState().active, 0)
++        XCTAssertEqual(engine.debugBackgroundWriteState().pending, 0)
++        engine.finishAuthTransitionWriteFence()
++        engine.cancelActiveRequest()
++    }
++
+     func testSignOutPreservesStateTransitionAndEffectOrder() async {
+         let harness = AuthLocalSignOutTestHarness()
+         let coordinator = AuthLocalSignOutCoordinator()
+diff --git a/apps/ios/MerianUITests/RuntimePerformanceTests.swift b/apps/ios/MerianUITests/RuntimePerformanceTests.swift
+index b8b7ebeab..7d0e80863 100644
+--- a/apps/ios/MerianUITests/RuntimePerformanceTests.swift
++++ b/apps/ios/MerianUITests/RuntimePerformanceTests.swift
+@@ -9,7 +9,7 @@ final class RuntimePerformanceTests: XCTestCase {
+     private var options: XCTMeasureOptions {
+         let options = XCTMeasureOptions()
+         options.iterationCount = 10
+-        options.invocationOptions = [.manuallyStart]
++        options.invocationOptions = [.manuallyStart, .manuallyStop]
+         return options
+     }
+ 
+diff --git a/docs/backend-and-data/01-offline-sync-pipeline.md b/docs/backend-and-data/01-offline-sync-pipeline.md
+index 315d9f671..ec66b072b 100644
+--- a/docs/backend-and-data/01-offline-sync-pipeline.md
++++ b/docs/backend-and-data/01-offline-sync-pipeline.md
+@@ -37,6 +37,13 @@ delayed status probing, and exact-generation background-task retirement.
+ `BackgroundInferenceFinalizationService` shares the stateless Core AI response
+ preparation boundary with foreground completion and invokes a fresh database
+ actor without hopping through `InferenceProcessingActor` under the scan lock.
++Result and transport-error callbacks acquire one process-local terminal lease
++per URLSession task before suspending; only that owner releases the task's Auth
++work lease. Each callback preserves its response in a unique temporary file. A
++separate scan-generation completion guard prevents a concurrent callback from
++retiring the accepted owner's generation, scheduling a retry, or repeating
++completion effects during persistence. Durable generation checks continue to
++fence replacement work and replay after process restart.
+ `Services/BackgroundTransfer` owns terminal tracking, Auth quiescence, owner
+ validation/adoption, terminal callback routing, and URLSession delegate routing.
+ `Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift` owns
+diff --git a/docs/development-guides/18-ios-runtime-quality-and-benchmarking.md b/docs/development-guides/18-ios-runtime-quality-and-benchmarking.md
+index 6c204b925..09693a630 100644
+--- a/docs/development-guides/18-ios-runtime-quality-and-benchmarking.md
++++ b/docs/development-guides/18-ios-runtime-quality-and-benchmarking.md
+@@ -36,6 +36,21 @@ selected suites fail the phase.
+ This focused set supplements the complete `merianTests` target. It is not a
+ smaller substitute for the required compiled iOS gate.
+ 
++The selected capture-admission suite also composes description admission into a
++private SQLite store, synthetic result finalization, real queue retirement, and
++Insight dismissal/reopening. This bypasses media encoding and network dispatch.
++Its interrupted-file test checks removal of partial destinations under the
++existing rejected-admission discard policy. The disk-backed suite rejects a save
++through a read-only store and retries through a writable store, verifying that
++durable queue work survives. Neither case simulates OS process death or a save
++failure after copying every media modality.
++
++The background-completion regression exercises duplicate result/error delivery
++while another callback owns completion. The sign-out coordinator suite composes
++the real inference write drain with injected account effects and verifies that
++new writes are fenced. Full active-transfer/sign-out/Insight composition remains
++a separate coverage gap.
++
+ ### UI acceptance
+ 
+ The `ui` phase contains only process and presentation behavior that unit tests
+@@ -86,7 +101,11 @@ The wrapper holds one exclusive cache lock across package resolution,
+ `build-for-testing`, and every `test-without-building` phase. It uses only the
+ checked-in package versions and fails if resolution changes `Package.resolved`.
+ A build failure blocks all runtime phases; a later behavioral failure remains
+-failed while subsequent phases may still gather diagnostic evidence.
++failed while subsequent phases may still gather diagnostic evidence. The wrapper
++checks the commit, tracked-source fingerprint, Git status, and nonignored
++untracked-file contents before and after every phase. A change during the audit
++fails that phase and blocks the remaining phases; its artifacts are diagnostic
++evidence and cannot establish a candidate baseline.
+ 
+ Run `make test-ios-ci-tooling` when changing the wrapper, reporter, selector
+ manifest, workflow, result validation, or target contract.
+@@ -143,6 +162,11 @@ A toolchain, runtime, hardware, configuration, fixture, or measured-workload
+ change requires a separately reviewed baseline. Preserve the prior evidence so
+ the reason for rebaselining remains auditable.
+ 
++The environment includes a workload fingerprint covering the selector manifest,
++project manifest, benchmark sources, UI-test sources, and shared test fixtures.
++Changing these inputs rejects comparison with the previous baseline; ordinary
++product-source changes remain comparable.
++
+ ## Adding coverage
+ 
+ Before adding a selector:
+diff --git a/scripts/local-ios-build.py b/scripts/local-ios-build.py
+index 95d85dd13..d559591ba 100644
+--- a/scripts/local-ios-build.py
++++ b/scripts/local-ios-build.py
+@@ -2,6 +2,7 @@
+ """Bound local validation caches without touching archives or legacy artifacts."""
+ 
+ import argparse
++import hashlib
+ import importlib.util
+ import json
+ import platform as host_platform
+@@ -168,6 +169,37 @@ class Workspace:
+         if status or lockfile.read_bytes() != locked:
+             raise RuntimeError('Locked package resolution failed or changed Package.resolved.')
+ 
++    def hash_files(self, paths):
++        digest = hashlib.sha256()
++        for path in sorted(paths):
++            digest.update(str(path.relative_to(self.root)).encode() + b'\0')
++            # Hash a link's identity without following it outside the checkout.
++            digest.update(os.readlink(path).encode() if path.is_symlink() else path.read_bytes())
++            digest.update(b'\0')
++        return digest.hexdigest()
++
++    def audit_workload_fingerprint(self):
++        paths = [self.root / 'scripts/config/ios-runtime-audit.json', self.root / 'project.yml']
++        for directory in ('MerianPerformanceTests', 'MerianUITests', 'TestSupport'):
++            paths.extend(path for path in (self.root / 'apps/ios' / directory).rglob('*')
++                         if path.is_file() or path.is_symlink())
++        return self.hash_files(paths)
++
++    def audit_source_identity(self):
++        def read(command):
++            return subprocess.check_output(command, cwd=self.root, text=True).strip()
++        status = read(['git', 'status', '--porcelain', '--untracked-files=all'])
++        untracked = subprocess.check_output(
++            ['git', 'ls-files', '--others', '--exclude-standard', '-z'], cwd=self.root, text=True)
++        return dict(
++            source_sha=read(['git', 'rev-parse', 'HEAD']),
++            source_fingerprint=read(['bash', 'scripts/ios-release-source-fingerprint.sh']),
++            source_untracked_fingerprint=self.hash_files(
++                [self.root / path for path in untracked.split('\0') if path]),
++            source_status_fingerprint=hashlib.sha256(status.encode()).hexdigest(),
++            source_dirty=bool(status),
++        )
++
+     def audit_environment(self, destination, label):
+         devices = json.loads(subprocess.check_output(
+             ['xcrun', 'simctl', 'list', 'devices', 'available', '-j'], text=True))['devices']
+@@ -179,7 +211,8 @@ class Workspace:
+                                 xcode=subprocess.check_output(['xcodebuild', '-version'], text=True).strip(),
+                                 host=host_platform.platform(),
+                                 hardware=subprocess.check_output(['sysctl', '-n', 'hw.model'], text=True).strip(),
+-                                configuration='Debug', iterations=3)
++                                configuration='Debug', iterations=3,
++                                workload_fingerprint=self.audit_workload_fingerprint())
+         raise RuntimeError('Audit requires an available concrete Simulator id destination.')
+ 
+     def audit(self, destination, environment_label, baseline_path=None):
+@@ -206,11 +239,8 @@ class Workspace:
+                             or not item['selector'] or not isinstance(item.get('suite_names'), list)
+                             or not item['suite_names'] for item in selections):
+                         raise ValueError(f'Invalid runtime audit selector group: {name}')
+-                def read(command):
+-                    return subprocess.check_output(command, cwd=self.root, text=True).strip()
+-                evidence['source_sha'] = read(['git', 'rev-parse', 'HEAD'])
+-                evidence['source_fingerprint'] = read(['bash', 'scripts/ios-release-source-fingerprint.sh'])
+-                evidence['source_dirty'] = bool(read(['git', 'status', '--porcelain']))
++                source_identity = self.audit_source_identity()
++                evidence.update(source_identity)
+                 evidence['destination'] = destination
+                 evidence['environment'] = self.audit_environment(destination, environment_label)
+                 if baseline_path:
+@@ -228,9 +258,17 @@ class Workspace:
+                 for name, args in phases:
+                     phase = dict(name=name, status='failed', command=args)
+                     evidence['phases'].append(phase)
++                    source_changed = True
+                     try:
++                        source_changed = self.audit_source_identity() != source_identity
++                        if source_changed:
++                            raise RuntimeError('Source changed during audit; rebuild a stable candidate.')
+                         status = self.run_locked('simulator', False, args)
+                         phase['bundle'] = str(self.last_report)
++                        source_changed = True
++                        source_changed = self.audit_source_identity() != source_identity
++                        if source_changed:
++                            raise RuntimeError('Source changed during audit; evidence is diagnostic only.')
+                         if status:
+                             if name != 'build' and self.last_report.exists():
+                                 reporter.extract(self.last_report, output / name, config[name])
+@@ -243,10 +281,12 @@ class Workspace:
+                     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
+                         failed = True
+                         phase['detail'] = str(error)
+-                        if name == 'build':
+-                            for blocked in ('acceptance', 'ui', 'performance'):
++                        if name == 'build' or source_changed:
++                            remaining = [item[0] for item in phases]
++                            for blocked in remaining[remaining.index(name) + 1:]:
+                                 evidence['phases'].append(dict(name=blocked, status='blocked',
+-                                                              detail='Current-source build failed.'))
++                                                              detail='Source identity changed or could not be verified.' if source_changed
++                                                              else 'Current-source build failed.'))
+                             break
+             except (OSError, RuntimeError, ValueError, ImportError, SyntaxError, subprocess.SubprocessError) as error:
+                 failed = True
+diff --git a/scripts/test-local-ios-build.py b/scripts/test-local-ios-build.py
+index ecef750bb..94a73269c 100644
+--- a/scripts/test-local-ios-build.py
++++ b/scripts/test-local-ios-build.py
+@@ -192,6 +192,7 @@ class AuditBuildTests(unittest.TestCase):
+                 return json.dumps(devices)
+             return 'fixture'
+         with patch.object(build.subprocess, 'check_output', side_effect=read), \
++             patch.object(workspace, 'audit_workload_fingerprint', return_value='workload'), \
+              patch.object(build.host_platform, 'platform', return_value='fixture'):
+             first = workspace.audit_environment('platform=iOS Simulator,id=one', 'pool')
+             second = workspace.audit_environment('platform=iOS Simulator,id=two', 'pool')
+@@ -199,7 +200,49 @@ class AuditBuildTests(unittest.TestCase):
+         self.assertEqual(first['runtime'], 'iOS-fixture')
+         self.assertNotIn('destination', first)
+ 
+-    def exercise(self, fail_at=None, config_text=None):
++    def test_workload_fingerprint_tracks_selectors_and_shared_fixtures(self):
++        with tempfile.TemporaryDirectory() as temp:
++            root = Path(temp)
++            workspace = build.Workspace(root)
++            inputs = ['project.yml', 'scripts/config/ios-runtime-audit.json',
++                      'apps/ios/TestSupport/Fixture.swift',
++                      'apps/ios/TestSupport/fixture.wav',
++                      'apps/ios/MerianUITests/Launcher.swift',
++                      'apps/ios/MerianPerformanceTests/Measurement.swift']
++            for name in inputs:
++                path = root / name
++                path.parent.mkdir(parents=True, exist_ok=True)
++                path.write_text('initial')
++            original = workspace.audit_workload_fingerprint()
++            self.assertEqual(original, workspace.audit_workload_fingerprint())
++            for name in inputs:
++                (root / name).write_text('changed')
++                self.assertNotEqual(original, workspace.audit_workload_fingerprint())
++                (root / name).write_text('initial')
++
++    def test_source_identity_detects_untracked_edits_and_head_changes(self):
++        with tempfile.TemporaryDirectory() as temp:
++            root = Path(temp)
++            workspace = build.Workspace(root)
++            path = root / 'NewTest.swift'
++            path.write_text('initial')
++            head = 'first'
++            def read(command, **kwargs):
++                if command[1] == 'ls-files':
++                    return 'NewTest.swift\0'
++                if command[1] == 'rev-parse':
++                    return head
++                return 'fixture'
++            with patch.object(build.subprocess, 'check_output', side_effect=read):
++                original = workspace.audit_source_identity()
++                path.write_text('changed')
++                self.assertNotEqual(original, workspace.audit_source_identity())
++                path.write_text('initial')
++                self.assertEqual(original, workspace.audit_source_identity())
++                head = 'second'
++                self.assertNotEqual(original, workspace.audit_source_identity())
++
++    def exercise(self, fail_at=None, config_text=None, source_change_after=None, identity_failure_after=None):
+         with tempfile.TemporaryDirectory() as temp:
+             root = Path(temp)
+             workspace = build.Workspace(root)
+@@ -226,9 +269,14 @@ class AuditBuildTests(unittest.TestCase):
+             reporter = SimpleNamespace(extract=Mock(return_value={}),
+                                        write_report=lambda output, evidence, baseline=None: reports.append(evidence))
+             module_spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda module: None))
++            def source_identity():
++                if identity_failure_after is not None and len(calls) >= identity_failure_after:
++                    raise OSError('Cannot inspect source')
++                changed = source_change_after is not None and len(calls) >= source_change_after
++                return dict(source_sha='fixture', source_fingerprint='changed' if changed else 'fixture', source_dirty=False)
+             with patch.object(build.importlib.util, 'spec_from_file_location', return_value=module_spec), \
+                  patch.object(build.importlib.util, 'module_from_spec', return_value=reporter), \
+-                 patch.object(build.subprocess, 'check_output', return_value='fixture'), \
++                 patch.object(workspace, 'audit_source_identity', side_effect=source_identity), \
+                  patch.object(workspace, 'audit_environment', return_value={'runner': 'fixture'}), \
+                  patch.object(workspace, 'resolve_audit_packages'), \
+                  patch.object(workspace, 'run_locked', side_effect=run):
+@@ -263,6 +311,25 @@ class AuditBuildTests(unittest.TestCase):
+                          ['failed', 'blocked', 'blocked', 'blocked'])
+         reporter.extract.assert_not_called()
+ 
++    def test_source_changes_block_candidate_evidence_and_remaining_phases(self):
++        for phase in range(1, 5):
++            with self.subTest(phase=phase):
++                status, calls, evidence, reporter = self.exercise(source_change_after=phase)
++                self.assertEqual(status, 1)
++                self.assertEqual(len(calls), phase)
++                self.assertEqual(evidence['phases'][phase - 1]['status'], 'failed')
++                self.assertIn('Source changed', evidence['phases'][phase - 1]['detail'])
++                self.assertTrue(all(item['status'] == 'blocked' for item in evidence['phases'][phase:]))
++
++    def test_unreadable_source_identity_blocks_remaining_phases(self):
++        for phase in range(1, 5):
++            with self.subTest(phase=phase):
++                status, calls, evidence, reporter = self.exercise(identity_failure_after=phase)
++                self.assertEqual(status, 1)
++                self.assertEqual(len(calls), phase)
++                self.assertEqual(evidence['phases'][phase - 1]['status'], 'failed')
++                self.assertTrue(all(item['status'] == 'blocked' for item in evidence['phases'][phase:]))
++
+     def test_acceptance_failure_is_preserved_while_other_phases_collect_evidence(self):
+         status, calls, evidence, reporter = self.exercise(fail_at=2)
+         self.assertEqual(status, 1)

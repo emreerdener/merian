@@ -85,6 +85,9 @@ vendor/
 deno.lock
 node_modules/
 
+# Next.js generated build output
+.next/
+
 # IDE & Editor Configs
 .vscode/
 .idea/

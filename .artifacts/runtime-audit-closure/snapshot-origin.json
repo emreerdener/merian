@@ -1,0 +1,25 @@
+{
+  "before": {
+    "source_sha": "59fdbf7296619bb7affccea9be688698ae0a77d0",
+    "source_fingerprint": "57449d5bdb1cf3ead6e09333704feebf972aeba30945d50a9605cb83133501b8",
+    "source_untracked_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_status_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_dirty": false
+  },
+  "after": {
+    "source_sha": "59fdbf7296619bb7affccea9be688698ae0a77d0",
+    "source_fingerprint": "57449d5bdb1cf3ead6e09333704feebf972aeba30945d50a9605cb83133501b8",
+    "source_untracked_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_status_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_dirty": false
+  },
+  "frozen": {
+    "source_sha": "59fdbf7296619bb7affccea9be688698ae0a77d0",
+    "source_fingerprint": "57449d5bdb1cf3ead6e09333704feebf972aeba30945d50a9605cb83133501b8",
+    "source_untracked_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_status_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_dirty": false
+  },
+  "stable": true,
+  "matches_frozen": true
+}

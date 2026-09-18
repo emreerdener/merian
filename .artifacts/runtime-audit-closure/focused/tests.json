@@ -1,0 +1,178 @@
+{
+  "devices" : [
+    {
+      "architecture" : "arm64",
+      "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+      "deviceName" : "iPhone 18 Pro",
+      "modelName" : "iPhone 18 Pro",
+      "osBuildNumber" : "24A434",
+      "osVersion" : "27.0",
+      "platform" : "iOS Simulator"
+    }
+  ],
+  "testNodes" : [
+    {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "duration" : "0.16s",
+                  "durationInSeconds" : 0.16077709197998047,
+                  "name" : "stagedVisualTerminalCompletionDrainsSignOutAndRejectsDuplicateCallbacks()",
+                  "nodeIdentifier" : "CaptureTerminalAcceptanceTests/stagedVisualTerminalCompletionDrainsSignOutAndRejectsDuplicateCallbacks()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CaptureTerminalAcceptanceTests/stagedVisualTerminalCompletionDrainsSignOutAndRejectsDuplicateCallbacks()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "Capture Terminal Acceptance",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CaptureTerminalAcceptanceTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            },
+            {
+              "children" : [
+                {
+                  "duration" : "0.076s",
+                  "durationInSeconds" : 0.07574295997619629,
+                  "name" : "endpointOwnerInventoryIsCompleteAndNonOverlapping()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/endpointOwnerInventoryIsCompleteAndNonOverlapping()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/endpointOwnerInventoryIsCompleteAndNonOverlapping()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.037s",
+                  "durationInSeconds" : 0.03690195083618164,
+                  "name" : "extractedOwnersStayBelowTheReviewCeiling()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/extractedOwnersStayBelowTheReviewCeiling()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/extractedOwnersStayBelowTheReviewCeiling()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "1s",
+                  "durationInSeconds" : 1.2770612239837646,
+                  "name" : "authFoundationHasFocusedOwnersAndRehomedTests()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/authFoundationHasFocusedOwnersAndRehomedTests()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/authFoundationHasFocusedOwnersAndRehomedTests()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.036s",
+                  "durationInSeconds" : 0.03609824180603027,
+                  "name" : "ghostProfileMergeQueueHasOneSecureStorageOwner()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/ghostProfileMergeQueueHasOneSecureStorageOwner()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/ghostProfileMergeQueueHasOneSecureStorageOwner()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.031s",
+                  "durationInSeconds" : 0.03062295913696289,
+                  "name" : "purchaseIdentityJournalsRetainOneSecureStorageOwner()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/purchaseIdentityJournalsRetainOneSecureStorageOwner()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/purchaseIdentityJournalsRetainOneSecureStorageOwner()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.012s",
+                  "durationInSeconds" : 0.011620283126831055,
+                  "name" : "liveAuthRecoveryReusesTheExactSessionCoordinator()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/liveAuthRecoveryReusesTheExactSessionCoordinator()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/liveAuthRecoveryReusesTheExactSessionCoordinator()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.016s",
+                  "durationInSeconds" : 0.016144990921020508,
+                  "name" : "liveAuthTaskCompletionsCannotPublishAcrossGenerations()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/liveAuthTaskCompletionsCannotPublishAcrossGenerations()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/liveAuthTaskCompletionsCannotPublishAcrossGenerations()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.0027s",
+                  "durationInSeconds" : 0.0026519298553466797,
+                  "name" : "authReplacementClosesPaidStateBeforePublishingNewSession()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/authReplacementClosesPaidStateBeforePublishingNewSession()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/authReplacementClosesPaidStateBeforePublishingNewSession()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.0025s",
+                  "durationInSeconds" : 0.002454996109008789,
+                  "name" : "scanAdmissionUsesTheFixedPinnedNoRetryBridge()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/scanAdmissionUsesTheFixedPinnedNoRetryBridge()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/scanAdmissionUsesTheFixedPinnedNoRetryBridge()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.00067s",
+                  "durationInSeconds" : 0.0006699562072753906,
+                  "name" : "directIdentityLinkRetiresRecoveryOnlyAfterExactUpgradeAdoption()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/directIdentityLinkRetiresRecoveryOnlyAfterExactUpgradeAdoption()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/directIdentityLinkRetiresRecoveryOnlyAfterExactUpgradeAdoption()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.26s",
+                  "durationInSeconds" : 0.25867605209350586,
+                  "name" : "transportAndLiveDependenciesKeepTheirReviewedOwners()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/transportAndLiveDependenciesKeepTheirReviewedOwners()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/transportAndLiveDependenciesKeepTheirReviewedOwners()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.083s",
+                  "durationInSeconds" : 0.08315491676330566,
+                  "name" : "ambiguousReplayPolicyIsExplicitAndDisjoint()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/ambiguousReplayPolicyIsExplicitAndDisjoint()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/ambiguousReplayPolicyIsExplicitAndDisjoint()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0.06s",
+                  "durationInSeconds" : 0.06010603904724121,
+                  "name" : "transportOwnersHaveFocusedBoundariesAndRehomedTests()",
+                  "nodeIdentifier" : "CoreNetworkIntegrationArchitectureTests/transportOwnersHaveFocusedBoundariesAndRehomedTests()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests/transportOwnersHaveFocusedBoundariesAndRehomedTests()",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "Core Network Integration Architecture",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests/CoreNetworkIntegrationArchitectureTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            }
+          ],
+          "name" : "merianTests",
+          "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianTests",
+          "nodeType" : "Unit test bundle",
+          "result" : "Passed"
+        }
+      ],
+      "name" : "Merian",
+      "nodeType" : "Test Plan",
+      "result" : "Passed"
+    }
+  ],
+  "testPlanConfigurations" : [
+    {
+      "configurationId" : "1",
+      "configurationName" : "Test Scheme Action"
+    }
+  ]
+}

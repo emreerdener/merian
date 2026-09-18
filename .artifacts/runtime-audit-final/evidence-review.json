@@ -1,0 +1,137 @@
+{
+  "source_identity": {
+    "source_sha": "59fdbf7296619bb7affccea9be688698ae0a77d0",
+    "source_fingerprint": "57449d5bdb1cf3ead6e09333704feebf972aeba30945d50a9605cb83133501b8",
+    "source_untracked_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_status_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_dirty": false
+  },
+  "frozen_source_unchanged": true,
+  "audit": "/Users/emreerdener/Developer/merian/.artifacts/runtime-audit-closure/candidate/.artifacts/local-ios/audit-d7f262ba5aee425091d86665952b175e/audit.json",
+  "phases": [
+    {
+      "name": "build",
+      "status": "passed",
+      "command": [
+        "build-for-testing",
+        "-configuration",
+        "Debug",
+        "-destination",
+        "generic/platform=iOS Simulator"
+      ],
+      "bundle": "/Users/emreerdener/Developer/merian/.artifacts/runtime-audit-closure/candidate/.artifacts/local-ios/0b24fa402e074862bc83a0151da446b6.xcresult"
+    },
+    {
+      "name": "acceptance",
+      "status": "passed",
+      "command": [
+        "test-without-building",
+        "-configuration",
+        "Debug",
+        "-destination",
+        "platform=iOS Simulator,id=33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+        "-parallel-testing-enabled",
+        "NO",
+        "-only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests",
+        "-only-testing:merianTests/CaptureAdmissionTests",
+        "-only-testing:merianTests/CaptureScanOperationStateTests",
+        "-only-testing:merianTests/CaptureSubmissionEnvironmentContextGraceTests",
+        "-only-testing:merianTests/CaptureSubmissionDeferredContextServiceTests",
+        "-only-testing:merianTests/InferenceLivePipelineCoordinatorTests",
+        "-only-testing:merianTests/InferenceLivePipelineDurableVisualTests",
+        "-only-testing:merianTests/InferenceLiveResultServiceTests",
+        "-only-testing:merianTests/InferenceLiveRecoveryIntegrationTests",
+        "-only-testing:merianTests/InferenceLifecyclePersistenceTests",
+        "-only-testing:merianTests/LiveCaptureLifecycleTests",
+        "-only-testing:merianTests/BackgroundInferenceCompletionTests",
+        "-only-testing:merianTests/InferenceReplayTests",
+        "-only-testing:merianTests/DiskBackedInferenceAcceptanceTests",
+        "-only-testing:merianTests/InsightQueuedHandoffTests",
+        "-only-testing:merianTests/InsightShellLifecycleTests",
+        "-only-testing:merianTests/MediaStagingBudgetTests",
+        "-only-testing:merianTests/ModelContainerBootstrapperTests",
+        "-only-testing:merianTests/ModelStoreRecoveryCoordinatorTests",
+        "-only-testing:merianTests/MigrationPlanTests",
+        "-only-testing:merianTests/OnboardingViewModelTests",
+        "-only-testing:merianTests/ExploreFeedViewModelTests",
+        "-only-testing:merianTests/AuthLocalSignOutCoordinatorTests",
+        "-only-testing:merianTests/AuthSessionLifecycleCoordinatorTests",
+        "-only-testing:merianTests/OfflineJobSchedulerTests",
+        "-only-testing:merianTests/InferenceEngineTests",
+        "-only-testing:merianTests/OnboardingConsentRecoveryTests",
+        "-only-testing:merianTests/AppleFoundationVisualCueProviderTests",
+        "-only-testing:merianTests/LocalVisualAnalysisTests",
+        "-only-testing:merianTests/FeatureFlagsTests",
+        "-only-testing:merianTests/CaptureTerminalAcceptanceTests"
+      ],
+      "bundle": "/Users/emreerdener/Developer/merian/.artifacts/runtime-audit-closure/candidate/.artifacts/local-ios/47e43e5d776b4369b88bdcff8a0e8d53.xcresult"
+    },
+    {
+      "name": "ui",
+      "status": "failed",
+      "command": [
+        "test-without-building",
+        "-configuration",
+        "Debug",
+        "-destination",
+        "platform=iOS Simulator,id=33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+        "-parallel-testing-enabled",
+        "NO",
+        "-only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow",
+        "-only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue",
+        "-only-testing:merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy",
+        "-only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
+        "-only-testing:merianUITests/merianUITests/testBackgroundInterruptionPreservesQueuedAudioInsight"
+      ]
+    }
+  ],
+  "acceptance": {
+    "totalTestCount": 438,
+    "passedTests": 438,
+    "failedTests": 0,
+    "skippedTests": 0
+  },
+  "new_composition_case": {
+    "name": "stagedVisualTerminalCompletionDrainsSignOutAndRejectsDuplicateCallbacks()",
+    "result": "Passed"
+  },
+  "retry": "/Users/emreerdener/Developer/merian/.artifacts/runtime-audit-closure/candidate/.artifacts/local-ios/audit-941da670cc594714a435b0c2b1b4fe65/audit.json",
+  "retry_phases": [
+    {
+      "name": "preflight",
+      "status": "failed",
+      "detail": "An xcodebuild process is active; stop builds and quit Xcode first."
+    },
+    {
+      "name": "build",
+      "status": "blocked",
+      "detail": "Preflight failed."
+    },
+    {
+      "name": "acceptance",
+      "status": "blocked",
+      "detail": "Preflight failed."
+    },
+    {
+      "name": "ui",
+      "status": "blocked",
+      "detail": "Preflight failed."
+    },
+    {
+      "name": "performance",
+      "status": "blocked",
+      "detail": "Preflight failed."
+    }
+  ],
+  "complete_target_attempt": {
+    "exit_code": 2,
+    "bundles": [],
+    "source_unchanged": true
+  },
+  "hashes": {
+    "/Users/emreerdener/Developer/merian/.artifacts/runtime-audit-closure/candidate/.artifacts/local-ios/audit-d7f262ba5aee425091d86665952b175e/audit.json": "ce6f1d09f5d7ad358d48e5f077fd0df855a61deffc37c793a1acc658728f4102",
+    "/Users/emreerdener/Developer/merian/.artifacts/runtime-audit-closure/candidate/.artifacts/local-ios/audit-d7f262ba5aee425091d86665952b175e/acceptance/summary.json": "fb9df06a4c85ca300dc5004586da1fe2e5c0f8d8d3fe792948048535abd544d9",
+    "/Users/emreerdener/Developer/merian/.artifacts/runtime-audit-closure/candidate/.artifacts/local-ios/audit-d7f262ba5aee425091d86665952b175e/acceptance/tests.json": "d53f8992d1ff86aceac6a005539f5cd2af6df99d7889cc2990489be08d6cf219",
+    "/Users/emreerdener/Developer/merian/.artifacts/runtime-audit-closure/candidate/.artifacts/local-ios/audit-941da670cc594714a435b0c2b1b4fe65/audit.json": "5491187d8c202ead68fae26acb2f00ee50243d195dbc0dbf91b038977b0a3f37"
+  }
+}

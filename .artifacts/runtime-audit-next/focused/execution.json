@@ -1,0 +1,36 @@
+{
+  "bundle": "/Users/emreerdener/Developer/merian/.artifacts/runtime-audit-next/candidate/.artifacts/local-ios/52d84f64d70a4743b1670bf88b3be45c.xcresult",
+  "validated_selectors": [
+    {
+      "selector": "merianTests/InferenceLivePipelineCoordinatorTests",
+      "suite_names": [
+        "InferenceLivePipelineCoordinatorTests",
+        "Inference Live Pipeline Coordinator"
+      ],
+      "owner": "apps/ios/MerianTests/Core/AI/Inference/InferenceLivePipelineCoordinatorTests.swift"
+    },
+    {
+      "selector": "merianTests/InferenceLivePipelineDurableVisualTests",
+      "suite_names": [
+        "InferenceLivePipelineDurableVisualTests",
+        "Inference Live Pipeline Durable Visual Success"
+      ],
+      "owner": "apps/ios/MerianTests/Core/AI/Inference/InferenceLivePipelineDurableVisualTests.swift"
+    },
+    {
+      "selector": "merianTests/DiskBackedInferenceAcceptanceTests",
+      "suite_names": [
+        "DiskBackedInferenceAcceptanceTests",
+        "Disk Backed Inference Acceptance"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/DiskBackedInferenceAcceptanceTests.swift"
+    },
+    {
+      "selector": "merianTests/AuthLocalSignOutCoordinatorTests",
+      "suite_names": [
+        "AuthLocalSignOutCoordinatorTests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Network/Auth/AuthLocalSignOutCoordinatorTests.swift"
+    }
+  ]
+}

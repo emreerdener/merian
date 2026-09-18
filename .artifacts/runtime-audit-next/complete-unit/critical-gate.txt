@@ -1,0 +1,2 @@
+exit=1
+The complete iOS unit-test target did not report a passing, non-empty, unskipped run.

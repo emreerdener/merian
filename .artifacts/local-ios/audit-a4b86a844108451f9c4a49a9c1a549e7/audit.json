@@ -1,0 +1,18 @@
+{
+  "source_sha": "66f409e668f838861099e5bed200b7cdccd89b51",
+  "environment": {},
+  "phases": [
+    {
+      "name": "preflight",
+      "status": "failed",
+      "detail": "Command '['xcrun', 'simctl', 'list', 'devices', 'available', '-j']' returned non-zero exit status 1."
+    }
+  ],
+  "metrics": {},
+  "source_fingerprint": "b62789e8a91bf95798a30318a61261930a5b635e8888a7c3e18c052344bdde0d",
+  "source_dirty": true,
+  "destination": "platform=iOS Simulator,id=unavailable",
+  "observations": [
+    "No baseline supplied; baseline pending."
+  ]
+}

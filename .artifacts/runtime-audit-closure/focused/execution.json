@@ -1,0 +1,20 @@
+{
+  "bundle": "/Users/emreerdener/Developer/merian/.artifacts/local-ios/8392c006a9184b3a905b131c456354ba.xcresult",
+  "selections": [
+    {
+      "selector": "merianTests/CoreNetworkIntegrationArchitectureTests",
+      "suite_names": [
+        "CoreNetworkIntegrationArchitectureTests",
+        "Core Network Integration Architecture"
+      ]
+    },
+    {
+      "selector": "merianTests/CaptureTerminalAcceptanceTests",
+      "suite_names": [
+        "CaptureTerminalAcceptanceTests",
+        "Capture Terminal Acceptance"
+      ]
+    }
+  ],
+  "exit_code": 0
+}

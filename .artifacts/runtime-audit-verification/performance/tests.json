@@ -1,0 +1,428 @@
+{
+  "devices" : [
+    {
+      "architecture" : "arm64",
+      "deviceId" : "33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+      "deviceName" : "iPhone 18 Pro",
+      "modelName" : "iPhone 18 Pro",
+      "osBuildNumber" : "24A434",
+      "osVersion" : "27.0",
+      "platform" : "iOS Simulator"
+    }
+  ],
+  "testNodes" : [
+    {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "duration" : "0.93s",
+                      "durationInSeconds" : 0.9297800064086914,
+                      "name" : "Repetition 1",
+                      "nodeIdentifier" : "1",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testAudioVideoFileAdmission",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "0.64s",
+                      "durationInSeconds" : 0.6431809663772583,
+                      "name" : "Repetition 2",
+                      "nodeIdentifier" : "2",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testAudioVideoFileAdmission",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "0.65s",
+                      "durationInSeconds" : 0.6538029909133911,
+                      "name" : "Repetition 3",
+                      "nodeIdentifier" : "3",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testAudioVideoFileAdmission",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    }
+                  ],
+                  "duration" : "0.74s",
+                  "durationInSeconds" : 0.7422546545664469,
+                  "name" : "testAudioVideoFileAdmission()",
+                  "nodeIdentifier" : "MediaPerformanceTests/testAudioVideoFileAdmission()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testAudioVideoFileAdmission",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "children" : [
+                    {
+                      "duration" : "0.039s",
+                      "durationInSeconds" : 0.03936803340911865,
+                      "name" : "Repetition 1",
+                      "nodeIdentifier" : "1",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testInferenceResponseMapping",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "0.033s",
+                      "durationInSeconds" : 0.0325700044631958,
+                      "name" : "Repetition 2",
+                      "nodeIdentifier" : "2",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testInferenceResponseMapping",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "0.033s",
+                      "durationInSeconds" : 0.033445000648498535,
+                      "name" : "Repetition 3",
+                      "nodeIdentifier" : "3",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testInferenceResponseMapping",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    }
+                  ],
+                  "duration" : "0.035s",
+                  "durationInSeconds" : 0.03512767950693766,
+                  "name" : "testInferenceResponseMapping()",
+                  "nodeIdentifier" : "MediaPerformanceTests/testInferenceResponseMapping()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testInferenceResponseMapping",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "children" : [
+                    {
+                      "duration" : "2s",
+                      "durationInSeconds" : 2.5668580532073975,
+                      "name" : "Repetition 1",
+                      "nodeIdentifier" : "1",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testRepeatedBoundedImageDecode",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "2s",
+                      "durationInSeconds" : 2.5103759765625,
+                      "name" : "Repetition 2",
+                      "nodeIdentifier" : "2",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testRepeatedBoundedImageDecode",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "2s",
+                      "durationInSeconds" : 2.417802095413208,
+                      "name" : "Repetition 3",
+                      "nodeIdentifier" : "3",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testRepeatedBoundedImageDecode",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    }
+                  ],
+                  "duration" : "2s",
+                  "durationInSeconds" : 2.498345375061035,
+                  "name" : "testRepeatedBoundedImageDecode()",
+                  "nodeIdentifier" : "MediaPerformanceTests/testRepeatedBoundedImageDecode()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests/testRepeatedBoundedImageDecode",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "MediaPerformanceTests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/MediaPerformanceTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            },
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "duration" : "0.12s",
+                      "durationInSeconds" : 0.11901295185089111,
+                      "name" : "Repetition 1",
+                      "nodeIdentifier" : "1",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testDurableQueueCommit",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "0.046s",
+                      "durationInSeconds" : 0.046203017234802246,
+                      "name" : "Repetition 2",
+                      "nodeIdentifier" : "2",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testDurableQueueCommit",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "0.049s",
+                      "durationInSeconds" : 0.04917895793914795,
+                      "name" : "Repetition 3",
+                      "nodeIdentifier" : "3",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testDurableQueueCommit",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    }
+                  ],
+                  "duration" : "0.071s",
+                  "durationInSeconds" : 0.0714649756749471,
+                  "name" : "testDurableQueueCommit()",
+                  "nodeIdentifier" : "PersistencePerformanceTests/testDurableQueueCommit()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testDurableQueueCommit",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "children" : [
+                    {
+                      "duration" : "1s",
+                      "durationInSeconds" : 1.1692579984664917,
+                      "name" : "Repetition 1",
+                      "nodeIdentifier" : "1",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testLargeLibraryScalarHydration",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "1s",
+                      "durationInSeconds" : 1.1562579870224,
+                      "name" : "Repetition 2",
+                      "nodeIdentifier" : "2",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testLargeLibraryScalarHydration",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "1s",
+                      "durationInSeconds" : 1.1517959833145142,
+                      "name" : "Repetition 3",
+                      "nodeIdentifier" : "3",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testLargeLibraryScalarHydration",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    }
+                  ],
+                  "duration" : "1s",
+                  "durationInSeconds" : 1.1591039896011353,
+                  "name" : "testLargeLibraryScalarHydration()",
+                  "nodeIdentifier" : "PersistencePerformanceTests/testLargeLibraryScalarHydration()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testLargeLibraryScalarHydration",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "children" : [
+                    {
+                      "duration" : "0.56s",
+                      "durationInSeconds" : 0.5648000240325928,
+                      "name" : "Repetition 1",
+                      "nodeIdentifier" : "1",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testLargeOfflineQueueProjection",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "0.55s",
+                      "durationInSeconds" : 0.5542799234390259,
+                      "name" : "Repetition 2",
+                      "nodeIdentifier" : "2",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testLargeOfflineQueueProjection",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "0.56s",
+                      "durationInSeconds" : 0.5640789270401001,
+                      "name" : "Repetition 3",
+                      "nodeIdentifier" : "3",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testLargeOfflineQueueProjection",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    }
+                  ],
+                  "duration" : "0.56s",
+                  "durationInSeconds" : 0.5610529581705729,
+                  "name" : "testLargeOfflineQueueProjection()",
+                  "nodeIdentifier" : "PersistencePerformanceTests/testLargeOfflineQueueProjection()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests/testLargeOfflineQueueProjection",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "PersistencePerformanceTests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests/PersistencePerformanceTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            }
+          ],
+          "name" : "merianPerformanceTests",
+          "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianPerformanceTests",
+          "nodeType" : "Unit test bundle",
+          "result" : "Passed"
+        },
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "duration" : "1m 43s",
+                      "durationInSeconds" : 103.43402397632599,
+                      "name" : "Repetition 1",
+                      "nodeIdentifier" : "1",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testProcessColdLaunch",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "1m 40s",
+                      "durationInSeconds" : 100.10132098197937,
+                      "name" : "Repetition 2",
+                      "nodeIdentifier" : "2",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testProcessColdLaunch",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "1m 43s",
+                      "durationInSeconds" : 103.43798208236694,
+                      "name" : "Repetition 3",
+                      "nodeIdentifier" : "3",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testProcessColdLaunch",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    }
+                  ],
+                  "duration" : "1m 42s",
+                  "durationInSeconds" : 102.32444234689076,
+                  "name" : "testProcessColdLaunch()",
+                  "nodeIdentifier" : "RuntimePerformanceTests/testProcessColdLaunch()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testProcessColdLaunch",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "name" : "    AVAudioSession_iOS.mm:978   This method can lead to UI unresponsiveness if called on the main thread. Consider using the asynchronous activate/deactivate API instead for calls from the main thread.",
+                          "nodeType" : "Runtime Warning"
+                        }
+                      ],
+                      "duration" : "1m 24s",
+                      "durationInSeconds" : 84.05118596553802,
+                      "name" : "Repetition 1",
+                      "nodeIdentifier" : "1",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testRepeatedAudioInsightPresentation",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "children" : [
+                        {
+                          "name" : "    AVAudioSession_iOS.mm:978   This method can lead to UI unresponsiveness if called on the main thread. Consider using the asynchronous activate/deactivate API instead for calls from the main thread.",
+                          "nodeType" : "Runtime Warning"
+                        }
+                      ],
+                      "duration" : "1m 23s",
+                      "durationInSeconds" : 83.34075593948364,
+                      "name" : "Repetition 2",
+                      "nodeIdentifier" : "2",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testRepeatedAudioInsightPresentation",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "children" : [
+                        {
+                          "name" : "    AVAudioSession_iOS.mm:978   This method can lead to UI unresponsiveness if called on the main thread. Consider using the asynchronous activate/deactivate API instead for calls from the main thread.",
+                          "nodeType" : "Runtime Warning"
+                        }
+                      ],
+                      "duration" : "1m 22s",
+                      "durationInSeconds" : 82.86264491081238,
+                      "name" : "Repetition 3",
+                      "nodeIdentifier" : "3",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testRepeatedAudioInsightPresentation",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    }
+                  ],
+                  "duration" : "1m 23s",
+                  "durationInSeconds" : 83.41819560527802,
+                  "name" : "testRepeatedAudioInsightPresentation()",
+                  "nodeIdentifier" : "RuntimePerformanceTests/testRepeatedAudioInsightPresentation()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testRepeatedAudioInsightPresentation",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "children" : [
+                    {
+                      "duration" : "32s",
+                      "durationInSeconds" : 32.9259330034256,
+                      "name" : "Repetition 1",
+                      "nodeIdentifier" : "1",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testWarmForeground",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "32s",
+                      "durationInSeconds" : 32.69430100917816,
+                      "name" : "Repetition 2",
+                      "nodeIdentifier" : "2",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testWarmForeground",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    },
+                    {
+                      "duration" : "32s",
+                      "durationInSeconds" : 32.78422403335571,
+                      "name" : "Repetition 3",
+                      "nodeIdentifier" : "3",
+                      "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testWarmForeground",
+                      "nodeType" : "Repetition",
+                      "result" : "Passed"
+                    }
+                  ],
+                  "duration" : "32s",
+                  "durationInSeconds" : 32.801486015319824,
+                  "name" : "testWarmForeground()",
+                  "nodeIdentifier" : "RuntimePerformanceTests/testWarmForeground()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests/testWarmForeground",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "RuntimePerformanceTests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests/RuntimePerformanceTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            }
+          ],
+          "name" : "merianUITests",
+          "nodeIdentifierURL" : "test://com.apple.xcode/Merian/merianUITests",
+          "nodeType" : "UI test bundle",
+          "result" : "Passed"
+        }
+      ],
+      "name" : "Merian",
+      "nodeType" : "Test Plan",
+      "result" : "Passed"
+    }
+  ],
+  "testPlanConfigurations" : [
+    {
+      "configurationId" : "1",
+      "configurationName" : "Test Scheme Action"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "path": "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift",
+    "before_lines": 402,
+    "after_lines": 413,
+    "delta": 11
+  },
+  {
+    "path": "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundAccountWork.swift",
+    "before_lines": 271,
+    "after_lines": 289,
+    "delta": 18
+  },
+  {
+    "path": "apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundTransfer/OfflineQueueManager+BackgroundTerminalRouting.swift",
+    "before_lines": 247,
+    "after_lines": 257,
+    "delta": 10
+  },
+  {
+    "path": "apps/ios/Merian/Features/Explore/Feed/Components/Detail/ExplorePostDetailSheetContent.swift",
+    "before_lines": 208,
+    "after_lines": 231,
+    "delta": 23
+  },
+  {
+    "path": "apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift",
+    "before_lines": 610,
+    "after_lines": 597,
+    "delta": -13
+  }
+]

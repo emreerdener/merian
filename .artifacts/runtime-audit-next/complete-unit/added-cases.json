@@ -1,0 +1,20 @@
+[
+  {
+    "duration": "0.0061s",
+    "durationInSeconds": 0.006062984466552734,
+    "name": "testSignOutDrainsEveryAccountLeaseBeforeSDKMutation()",
+    "nodeIdentifier": "AuthLocalSignOutCoordinatorTests/testSignOutDrainsEveryAccountLeaseBeforeSDKMutation()",
+    "nodeIdentifierURL": "test://com.apple.xcode/Merian/merianTests/AuthLocalSignOutCoordinatorTests/testSignOutDrainsEveryAccountLeaseBeforeSDKMutation",
+    "nodeType": "Test Case",
+    "result": "Passed"
+  },
+  {
+    "duration": "0.17s",
+    "durationInSeconds": 0.16506195068359375,
+    "name": "visualAdmissionDispatchPersistenceAndInsightRejectDuplicateExecution()",
+    "nodeIdentifier": "DiskBackedInferenceAcceptanceTests/visualAdmissionDispatchPersistenceAndInsightRejectDuplicateExecution()",
+    "nodeIdentifierURL": "test://com.apple.xcode/Merian/merianTests/DiskBackedInferenceAcceptanceTests/visualAdmissionDispatchPersistenceAndInsightRejectDuplicateExecution()",
+    "nodeType": "Test Case",
+    "result": "Passed"
+  }
+]

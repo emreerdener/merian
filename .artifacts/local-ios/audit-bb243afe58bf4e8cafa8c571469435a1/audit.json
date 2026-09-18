@@ -1,0 +1,124 @@
+{
+  "source_sha": "c1a426cd425add1acc5bfb39e2cbc9069049846a",
+  "environment": {
+    "label": "local-apple-silicon-iphone18pro-ios27-xcode27",
+    "simulator_model": "iPhone 18 Pro",
+    "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0",
+    "xcode": "Xcode 27.0\nBuild version 27A266a",
+    "host": "macOS-26.6.2-arm64-arm-64bit",
+    "hardware": "MacBookPro18,1",
+    "configuration": "Debug",
+    "iterations": 3
+  },
+  "phases": [
+    {
+      "name": "build",
+      "status": "passed",
+      "command": [
+        "build-for-testing",
+        "-configuration",
+        "Debug",
+        "-destination",
+        "generic/platform=iOS Simulator"
+      ],
+      "bundle": "/Users/emreerdener/Developer/merian/.artifacts/local-ios/d56368f67878490fa194567d4fadbd45.xcresult"
+    },
+    {
+      "name": "acceptance",
+      "status": "failed",
+      "command": [
+        "test-without-building",
+        "-configuration",
+        "Debug",
+        "-destination",
+        "platform=iOS Simulator,id=33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+        "-parallel-testing-enabled",
+        "NO",
+        "-only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests",
+        "-only-testing:merianTests/CaptureAdmissionTests",
+        "-only-testing:merianTests/CaptureScanOperationStateTests",
+        "-only-testing:merianTests/CaptureSubmissionEnvironmentContextGraceTests",
+        "-only-testing:merianTests/CaptureSubmissionDeferredContextServiceTests",
+        "-only-testing:merianTests/InferenceLivePipelineCoordinatorTests",
+        "-only-testing:merianTests/InferenceLivePipelineDurableVisualTests",
+        "-only-testing:merianTests/InferenceLiveResultServiceTests",
+        "-only-testing:merianTests/InferenceLiveRecoveryIntegrationTests",
+        "-only-testing:merianTests/InferenceLifecyclePersistenceTests",
+        "-only-testing:merianTests/LiveCaptureLifecycleTests",
+        "-only-testing:merianTests/BackgroundInferenceCompletionTests",
+        "-only-testing:merianTests/InferenceReplayTests",
+        "-only-testing:merianTests/DiskBackedInferenceAcceptanceTests",
+        "-only-testing:merianTests/InsightQueuedHandoffTests",
+        "-only-testing:merianTests/InsightShellLifecycleTests",
+        "-only-testing:merianTests/MediaStagingBudgetTests",
+        "-only-testing:merianTests/ModelContainerBootstrapperTests",
+        "-only-testing:merianTests/ModelStoreRecoveryCoordinatorTests",
+        "-only-testing:merianTests/MigrationPlanTests",
+        "-only-testing:merianTests/OnboardingViewModelTests",
+        "-only-testing:merianTests/ExploreFeedViewModelTests",
+        "-only-testing:merianTests/AuthLocalSignOutCoordinatorTests",
+        "-only-testing:merianTests/AuthSessionLifecycleCoordinatorTests",
+        "-only-testing:merianTests/OfflineJobSchedulerTests",
+        "-only-testing:merianTests/InferenceEngineTests",
+        "-only-testing:merianTests/OnboardingConsentRecoveryTests",
+        "-only-testing:merianTests/AppleFoundationVisualCueProviderTests",
+        "-only-testing:merianTests/LocalVisualAnalysisTests",
+        "-only-testing:merianTests/FeatureFlagsTests"
+      ],
+      "bundle": "/Users/emreerdener/Developer/merian/.artifacts/local-ios/93a4b3a8c30e431d8fb811e3f46f397d.xcresult",
+      "detail": "Expected a nonempty, completely passed, unskipped test run. Failed: duplicateTerminalCallbacksCannotRetireSuspendedResultOwner()"
+    },
+    {
+      "name": "ui",
+      "status": "passed",
+      "command": [
+        "test-without-building",
+        "-configuration",
+        "Debug",
+        "-destination",
+        "platform=iOS Simulator,id=33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+        "-parallel-testing-enabled",
+        "NO",
+        "-only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow",
+        "-only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue",
+        "-only-testing:merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy",
+        "-only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
+        "-only-testing:merianUITests/merianUITests/testBackgroundInterruptionPreservesQueuedAudioInsight"
+      ],
+      "bundle": "/Users/emreerdener/Developer/merian/.artifacts/local-ios/d10085b673af495982d6e5f3dc0cf9f3.xcresult"
+    },
+    {
+      "name": "performance",
+      "status": "failed",
+      "command": [
+        "test-without-building",
+        "-configuration",
+        "Debug",
+        "-destination",
+        "platform=iOS Simulator,id=33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+        "-parallel-testing-enabled",
+        "NO",
+        "-test-iterations",
+        "3",
+        "-only-testing:merianPerformanceTests/MediaPerformanceTests/testRepeatedBoundedImageDecode",
+        "-only-testing:merianPerformanceTests/MediaPerformanceTests/testAudioVideoFileAdmission",
+        "-only-testing:merianPerformanceTests/MediaPerformanceTests/testInferenceResponseMapping",
+        "-only-testing:merianPerformanceTests/PersistencePerformanceTests/testDurableQueueCommit",
+        "-only-testing:merianPerformanceTests/PersistencePerformanceTests/testLargeLibraryScalarHydration",
+        "-only-testing:merianPerformanceTests/PersistencePerformanceTests/testLargeOfflineQueueProjection",
+        "-only-testing:merianUITests/RuntimePerformanceTests/testProcessColdLaunch",
+        "-only-testing:merianUITests/RuntimePerformanceTests/testWarmForeground",
+        "-only-testing:merianUITests/RuntimePerformanceTests/testRepeatedAudioInsightPresentation"
+      ],
+      "bundle": "/Users/emreerdener/Developer/merian/.artifacts/local-ios/b2be5eb394c240968dcccf2883a80ec6.xcresult",
+      "detail": "Expected a nonempty, completely passed, unskipped test run. Failed: testDurableQueueCommit(), testProcessColdLaunch()"
+    }
+  ],
+  "metrics": {},
+  "source_fingerprint": "5ddaa0ebb1049a7fd4e985ee36ce38a3f37daf2cbf63d212da524aa9e0993d5b",
+  "source_dirty": false,
+  "destination": "platform=iOS Simulator,id=33E6776C-4639-4EE9-BDB6-994A3941FEE6",
+  "observations": [
+    "No baseline supplied; baseline pending."
+  ]
+}

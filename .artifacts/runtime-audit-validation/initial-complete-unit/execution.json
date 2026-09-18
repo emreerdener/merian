@@ -1,0 +1,45 @@
+{
+  "source_sha": "c1a426cd425add1acc5bfb39e2cbc9069049846a",
+  "source_fingerprint": "450c6e70686e798b84d3eb142a6722096eb1b66470956475b487f1d3a12873a5",
+  "source_untracked_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source_status_fingerprint": "ae37c484a4e6564352dae3607dbd4704c96e1c487fbefd793f54850b50ac9d27",
+  "source_dirty": true,
+  "environment": {
+    "label": "local-apple-silicon-iphone18pro-ios27-xcode27",
+    "simulator_model": "iPhone 18 Pro",
+    "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0",
+    "xcode": "Xcode 27.0\nBuild version 27A266a",
+    "host": "macOS-26.6.2-arm64-arm-64bit",
+    "hardware": "MacBookPro18,1",
+    "configuration": "Debug",
+    "iterations": 3,
+    "workload_fingerprint": "017b909d0b61d13f25f9f5279e48f959cea4fbcd7cd95751155b4ff1151be0d0"
+  },
+  "command": [
+    "make",
+    "ios-local-build",
+    "ARGS=simulator -- test-without-building -configuration Debug -destination 'platform=iOS Simulator,id=33E6776C-4639-4EE9-BDB6-994A3941FEE6' -parallel-testing-enabled NO -only-testing:merianTests"
+  ],
+  "exit_code": 2,
+  "source_identity_after": {
+    "source_sha": "c1a426cd425add1acc5bfb39e2cbc9069049846a",
+    "source_fingerprint": "450c6e70686e798b84d3eb142a6722096eb1b66470956475b487f1d3a12873a5",
+    "source_untracked_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_status_fingerprint": "ae37c484a4e6564352dae3607dbd4704c96e1c487fbefd793f54850b50ac9d27",
+    "source_dirty": true
+  },
+  "environment_after": {
+    "label": "local-apple-silicon-iphone18pro-ios27-xcode27",
+    "simulator_model": "iPhone 18 Pro",
+    "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0",
+    "xcode": "Xcode 27.0\nBuild version 27A266a",
+    "host": "macOS-26.6.2-arm64-arm-64bit",
+    "hardware": "MacBookPro18,1",
+    "configuration": "Debug",
+    "iterations": 3,
+    "workload_fingerprint": "017b909d0b61d13f25f9f5279e48f959cea4fbcd7cd95751155b4ff1151be0d0"
+  },
+  "source_unchanged": true,
+  "environment_unchanged": true,
+  "bundle": "/Users/emreerdener/Developer/merian/.artifacts/runtime-audit-validation/candidate/.artifacts/local-ios/4d92bf87e6234666b9f1103a7ac1d68c.xcresult"
+}
