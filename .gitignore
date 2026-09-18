@@ -88,6 +88,9 @@ node_modules/
 # Next.js generated build output
 .next/
 
+# Local runtime audit repositories and worktrees
+/.artifacts/runtime-audit-*/candidate/
+
 # IDE & Editor Configs
 .vscode/
 .idea/
