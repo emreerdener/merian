@@ -50,14 +50,22 @@ Species pages are server-rendered from the existing privacy-safe
 with complete attribution and intentionally omit observations, Community
 sightings, user media, locations, and scan-specific data.
 
+Image captions link recognized Creative Commons terms and, for Wikimedia Commons
+images, the exact source file page; GBIF credits link the supplied original
+image. Missing rights are filled by the backend's durable species refresh, not
+by browser or page-rendering fetches; see
+`services/supabase/functions/refresh-species-content/README.md` for
+existing-data refresh requirements. Uncredited images remain excluded from media
+and metadata.
+
 ## Public design direction
 
 The homepage uses a forest-green hero, confident display typography, warm
 surfaces, and decorative 3D artwork from the iOS asset catalog. The hero retains
 the existing app screenshot. Community cards render the current server-fetched
 public Explore projection, with poster-only media, species labels, and public
-author names. An empty feed shows an explicit empty state rather than sample
-observations. The fetch limit remains 24.
+author username handles. An empty feed shows an explicit empty state rather than
+sample observations. The fetch limit remains 24.
 
 The shared header, working mobile navigation, footer, and Mantine theme extend
 this identity to reference, share, and policy pages. Light/dark preferences
@@ -448,10 +456,11 @@ The page may consume the resulting public image, species labels, public author
 identity, shared timestamp, privacy-filtered location/telemetry, public field
 notes, normalized hashtags, reference images, overview text, conservation
 status, taxonomy labels, and alternate names. If the projection supplies
-`author_username`, render it only as a public handle. Do not expose exact
-coordinates, private field notes, raw scan telemetry, auth data, private email,
-or server credentials. Never reconstruct an Explore response with direct
-service-role table queries.
+`author_username`, render it as `@username` on homepage cards, post details, and
+avatar alt text. Missing or blank usernames use "a Naturebook observer"; never
+fall back to `author_name`. Do not expose exact coordinates, private field
+notes, raw scan telemetry, auth data, private email, or server credentials.
+Never reconstruct an Explore response with direct service-role table queries.
 
 Species pages consume only the versioned public payload returned by the
 `species-dictionary` Edge Function with `species_id`. Server code must not query

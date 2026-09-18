@@ -90,7 +90,7 @@ the same final-bundle check. See the
 ## Required Product Contract
 
 The onboarding order remains Welcome → Camera → Location → Ready. The final
-screen is titled **One last step** and must show this disclosure before its
+screen is titled **Before you scan** and must show this disclosure before its
 controls:
 
 > Naturebook sends observation data to Google Gemini for AI-powered

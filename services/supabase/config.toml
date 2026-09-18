@@ -711,3 +711,17 @@ verify_jwt = false
 
 [functions.backfill-explore-audio-spectrograms]
 verify_jwt = false
+
+# Auth is enforced by the shared Edge handler.
+
+[functions.set-explore-post-reaction]
+verify_jwt = false
+
+[functions.set-explore-comment-reaction]
+verify_jwt = false
+
+[functions.get-explore-reactions]
+verify_jwt = false
+
+[functions.get-explore-post-reactors]
+verify_jwt = false

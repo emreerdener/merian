@@ -12,9 +12,10 @@ struct ExploreNotificationReplyThreadSheet: View {
     ) {
         self.route = route
         _replyViewModel = State(initialValue: ExploreNotificationReplyThreadViewModel(
-            onToggleReaction: { comment, emoji in
-                viewModel.toggleReaction(for: comment, emoji: emoji)
-            }
+            onToggleReaction: { comment, emoji, selected in
+                try await viewModel.performCommentReaction(for: comment, emoji: emoji, selected: selected)
+            },
+            loadReactions: { try await viewModel.loadMoreCommentReactions(for: $0) }
         ))
     }
 
@@ -47,6 +48,9 @@ struct ExploreNotificationReplyThreadSheet: View {
                 }
             }
         }
+        .alert("Reactions", isPresented: Binding(get: { replyViewModel.reactionError != nil }, set: { if !$0 { replyViewModel.reactionError = nil } })) {
+            Button("OK") { replyViewModel.reactionError = nil }
+        } message: { Text(replyViewModel.reactionError ?? "") }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color(uiColor: .systemGroupedBackground))

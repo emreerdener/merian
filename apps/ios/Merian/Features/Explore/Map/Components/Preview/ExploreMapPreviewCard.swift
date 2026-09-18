@@ -11,6 +11,8 @@ struct ExploreMapPreviewCard: View {
     let onUnshare: () -> Void
     let onBlock: () -> Void
     let onReport: () -> Void
+    var onReaction: (String, Bool) -> Void = { _, _ in }
+    var onLoadMoreReactions: () -> Void = {}
 
     @State private var showUnpublishConfirmation = false
 
@@ -108,31 +110,8 @@ struct ExploreMapPreviewCard: View {
     }
 
     private var actions: some View {
-        HStack(spacing: 10) {
-            actionPill(
-                title: post.likeCount.formatted(.number.notation(.compactName)),
-                systemImage: post.viewerHasLiked ? "heart.fill" : "heart",
-                isHighlighted: post.viewerHasLiked,
-                action: onLike
-            )
-
-            actionPill(
-                title: post.commentCount.formatted(.number.notation(.compactName)),
-                systemImage: "bubble.right",
-                isHighlighted: false,
-                action: onComments
-            )
-
-            Spacer(minLength: 0)
-
-            actionPill(
-                title: "Share",
-                systemImage: "square.and.arrow.up",
-                isHighlighted: false,
-                action: onShare
-            )
-        }
-        .fixedSize(horizontal: false, vertical: true)
+        ExplorePostReactionBar(post: post, onComments: onComments, onLike: onLike,
+            onReaction: onReaction, onLoadMore: onLoadMoreReactions, onShare: onShare)
     }
 
     private var openButton: some View {

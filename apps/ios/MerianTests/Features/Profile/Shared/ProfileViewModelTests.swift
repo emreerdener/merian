@@ -44,6 +44,20 @@ struct ProfileViewModelTests {
         )
     }
 
+    @Test("Sign-out recovery appears only after an incomplete transition")
+    func testSignOutRecoveryPresentation() {
+        for pending in [false, true] {
+            #expect(!SignOutPresentationPolicy.showsRecovery(
+                isPurchaseContinuityPending: pending,
+                isAuthTransitionInProgress: true
+            ))
+            #expect(SignOutPresentationPolicy.showsRecovery(
+                isPurchaseContinuityPending: pending,
+                isAuthTransitionInProgress: false
+            ) == pending)
+        }
+    }
+
     @Test("User-facing authentication copy does not expose internal session terminology")
     func testUserFacingAuthenticationCopy() {
         let messages = [

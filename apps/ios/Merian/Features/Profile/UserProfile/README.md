@@ -61,6 +61,11 @@ banner. Expanding the disclosure retains the existing Debug/TestFlight
 diagnostic sharing action. See the
 [startup recovery contract](../../../../../../docs/backend-and-data/08-startup-store-recovery.md).
 
+The **Finish sign out** recovery button appears only when purchase continuity
+remains pending after the active Auth transition ends. It has no introductory
+helper text. Successful recovery invokes the app-root sign-out confirmation
+callback, so feedback survives replacement by the consent screen.
+
 ## State Boundaries
 
 `ProfileTabViewModel` generation-fences local-stat and server Field trip

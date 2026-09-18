@@ -286,7 +286,7 @@ struct LocalVisualAnalysisTests {
         ])
     }
 
-    @Test func phraseCoordinatorHandsOffImmediatelyAndNeverRegresses() {
+    @Test func phraseCoordinatorHandsOffImmediatelyAndPreservesSourcePriority() {
         var coordinator = ScanningPhraseCoordinator()
         #expect(coordinator.reset() == "Analyzing subject")
         #expect(coordinator.specificity == .generic)
@@ -327,8 +327,90 @@ struct LocalVisualAnalysisTests {
         #expect(coordinator.specificity == .foundation)
 
         #expect(coordinator.promote(to: .avian) == "Analyzing amber banded wings")
-        #expect(coordinator.nextPhrase() == nil)
+        #expect(coordinator.nextPhrase() == ScanningPhraseCoordinator.genericPhrases[0])
+        #expect(coordinator.specificity == .foundation)
+        #expect(coordinator.acceptLocalTraitCue(localCue) == false)
     }
+
+    @Test(arguments: [1, 3, 6])
+    func foundationCycleIncludesGeneralPhrasesBeforeRepeating(_ cueCount: Int) {
+        var coordinator = ScanningPhraseCoordinator()
+        let cues = Self.foundationVarietyCues.prefix(cueCount)
+        for cue in cues {
+            #expect(coordinator.acceptFoundationCue(cue) == true)
+        }
+        let expected = cues.map(\.pillText) + ScanningPhraseCoordinator.genericPhrases
+        #expect(coordinator.phrases == expected)
+        for _ in 0..<2 {
+            for phrase in expected {
+                #expect(coordinator.nextPhrase() == phrase)
+            }
+        }
+        #expect(coordinator.nextPhrase() == cues.first?.pillText)
+        #expect(coordinator.reset() == "Analyzing subject")
+        #expect(coordinator.phrases == ScanningPhraseCoordinator.genericPhrases)
+        #expect(coordinator.acceptedFoundationPhrases.isEmpty)
+    }
+
+    @Test func lateFoundationCuesInterruptThenResumeTheGeneralTail() {
+        var coordinator = ScanningPhraseCoordinator()
+        let cues = Self.foundationVarietyCues
+        #expect(coordinator.acceptFoundationCue(cues[0]) == true)
+        #expect(coordinator.nextPhrase() == cues[0].pillText)
+        for phrase in ScanningPhraseCoordinator.genericPhrases.prefix(2) {
+            #expect(coordinator.nextPhrase() == phrase)
+        }
+        #expect(coordinator.acceptFoundationCue(cues[1]) == true)
+        #expect(coordinator.acceptFoundationCue(cues[2]) == true)
+        let remainingGeneral = Array(ScanningPhraseCoordinator.genericPhrases.dropFirst(2))
+        #expect(coordinator.handoffPhraseDeck == [
+            ScanningPhraseCoordinator.genericPhrases[1], cues[1].pillText, cues[2].pillText
+        ] + remainingGeneral + [cues[0].pillText, ScanningPhraseCoordinator.genericPhrases[0]])
+        #expect(coordinator.nextPhrase() == cues[1].pillText)
+        #expect(coordinator.nextPhrase() == cues[2].pillText)
+        for phrase in remainingGeneral {
+            #expect(coordinator.nextPhrase() == phrase)
+        }
+        #expect(coordinator.nextPhrase() == cues[0].pillText)
+    }
+
+    @Test func lateFoundationCueDuringARepeatedRoundIsNotShownTwice() {
+        var coordinator = ScanningPhraseCoordinator()
+        let cues = Self.foundationVarietyCues
+        for cue in cues.prefix(3) {
+            #expect(coordinator.acceptFoundationCue(cue) == true)
+        }
+        for phrase in cues.prefix(3).map(\.pillText) + ScanningPhraseCoordinator.genericPhrases {
+            #expect(coordinator.nextPhrase() == phrase)
+        }
+        #expect(coordinator.nextPhrase() == cues[0].pillText)
+        #expect(coordinator.acceptFoundationCue(cues[3]) == true)
+        #expect(coordinator.nextPhrase() == cues[3].pillText)
+        for phrase in ScanningPhraseCoordinator.genericPhrases {
+            #expect(coordinator.nextPhrase() == phrase)
+        }
+        #expect(coordinator.nextPhrase() == cues[0].pillText)
+    }
+
+    @Test func foundationDeckRejectsOverflowAndGeneralCopyAsObservations() {
+        var coordinator = ScanningPhraseCoordinator()
+        #expect(coordinator.acceptFoundationCue(.init(kind: .shape, detail: "visible form")) == false)
+        for cue in Self.foundationVarietyCues {
+            #expect(coordinator.acceptFoundationCue(cue) == true)
+        }
+        #expect(coordinator.acceptFoundationCue(.init(kind: .tone, detail: "pale areas")) == false)
+        #expect(coordinator.acceptedFoundationPhrases.count == 6)
+        #expect(coordinator.phrases.count == 11)
+    }
+
+    private static let foundationVarietyCues = [
+        FoundationVisualCue(kind: .shape, detail: "rounded edges"),
+        FoundationVisualCue(kind: .marking, detail: "dark bands"),
+        FoundationVisualCue(kind: .arrangement, detail: "radial lines"),
+        FoundationVisualCue(kind: .structure, detail: "thin branches"),
+        FoundationVisualCue(kind: .surfaceTexture, detail: "rough surface"),
+        FoundationVisualCue(kind: .colorPattern, detail: "green patches")
+    ]
 
     @Test func phraseCoordinatorWrapsOnlyAfterExhaustingEachActiveDeck() throws {
         var coordinator = ScanningPhraseCoordinator()
@@ -1205,7 +1287,7 @@ struct LocalVisualAnalysisTests {
         #expect(engine.debugAcceptedFoundationPhraseCount == 0)
     }
 
-    @Test func threeAcceptedCuesCancelProducerWithoutWaitingForItsEnd() async throws {
+    @Test func sixAcceptedCuesCancelProducerWithoutWaitingForItsEnd() async throws {
         let provider = ControlledFoundationVisualCueProvider()
         let engine = InferenceEngine(
             foundationVisualCueProvider: provider,
@@ -1217,18 +1299,14 @@ struct LocalVisualAnalysisTests {
             classification: VisionSubjectClassification(category: nil, candidates: [])
         )
         await provider.waitUntilStarted()
-        for (index, cue) in [
-            FoundationVisualCue(kind: .shape, detail: "rounded edges"),
-            FoundationVisualCue(kind: .marking, detail: "dark bands"),
-            FoundationVisualCue(kind: .arrangement, detail: "radial lines")
-        ].enumerated() {
+        for (index, cue) in Self.foundationVarietyCues.enumerated() {
             await provider.yield(FoundationVisualCueSnapshot(
                 index: index, kind: cue.kind, detail: cue.detail, isComplete: true
             ))
         }
         await engine.debugWaitForFoundationVisualCueStream()
         try await expectFoundationTermination(provider)
-        #expect(engine.debugAcceptedFoundationPhraseCount == 3)
+        #expect(engine.debugAcceptedFoundationPhraseCount == 6)
     }
 
     @Test(arguments: [

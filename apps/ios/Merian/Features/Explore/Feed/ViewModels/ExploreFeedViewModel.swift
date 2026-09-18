@@ -168,6 +168,13 @@ final class ExplorePostStore {
         return (previousLikedState, previousLikeCount)
     }
 
+    func applyReactions(postId: String, reactions: [ExploreCommentReaction], cursor: Int?) {
+        mutate(postId: postId) { post in
+            post.reactions = reactions
+            post.reactionsNextCursor = cursor
+        }
+    }
+
     private func mutate(postId: String, _ transform: (inout ExplorePost) -> Void) {
         if let index = feedPosts.firstIndex(where: { $0.id == postId }) {
             var post = feedPosts[index]
@@ -187,14 +194,14 @@ final class ExplorePostStore {
 
 private extension ExplorePost {
     func mergingExistingMedia(from existingPost: ExplorePost?) -> ExplorePost {
-        guard mediaItems?.isEmpty != false,
-              let existingMediaItems = existingPost?.mediaItems,
-              !existingMediaItems.isEmpty else {
-            return self
-        }
-
         var mergedPost = self
-        mergedPost.mediaItems = existingMediaItems
+        if reactions == nil, let existingPost {
+            mergedPost.reactions = existingPost.reactions
+            mergedPost.reactionsNextCursor = existingPost.reactionsNextCursor
+        }
+        if mediaItems?.isEmpty != false, let existingMediaItems = existingPost?.mediaItems, !existingMediaItems.isEmpty {
+            mergedPost.mediaItems = existingMediaItems
+        }
         return mergedPost
     }
 }
@@ -282,6 +289,12 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var pendingExpandedReplyParentCommentId: String?
     @ObservationIgnored var activeReplyTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored var activeCommentsRequestId = UUID()
+    var postReactorsRevision: UInt64 = 0
+    @ObservationIgnored var reactionRevisions: [String: UInt64] = [:]
+    @ObservationIgnored var postRemovalRevisions: [String: UInt64] = [:]
+    @ObservationIgnored let reactionMutationQueue = ExploreReactionMutationQueue()
+    @ObservationIgnored var reactionRequestsInFlight = Set<String>()
+    @ObservationIgnored var reactionPageRequestsInFlight = Set<String>()
     @ObservationIgnored var likeRequestsInFlight = Set<String>()
     @ObservationIgnored var activeFeedRequestId = UUID()
     @ObservationIgnored var currentInitialFeedRequestId: UUID?

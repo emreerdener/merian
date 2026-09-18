@@ -521,12 +521,16 @@ Every phrase in the current deck is displayed once before that deck can wrap to
 its first phrase. When all five deterministic cues qualify, that deck spans 11.5
 seconds before any image-trait wording repeats. Newly accepted phrases join the
 current round before a wrap. Source priority is generic → Vision category →
-deterministic image trait → Foundation Models cue, so context never regresses
-and an eligible staged Foundation cue can replace the deterministic deck.
-Pixel-derived traits use the same validator as Foundation cues and are limited
-to complete, unique, 2–5-word details whose rendered pill text fits within 36
-characters. All local phrases describe only visible form, color, tone, contrast,
-texture, arrangement, markings, and proportions; they do not imply an identity,
+deterministic image trait → Foundation Models cue. An eligible Foundation cue
+replaces the deterministic deck with up to six observations followed by five
+general visual phrases before repeating. This general tail adds variety without
+lowering source priority or admitting late category/trait callbacks. Newly
+streamed observations take the next tick, then resume the general tail at its
+previous position. A full eleven-phrase cycle lasts 25.3 seconds. Pixel-derived
+traits use the same validator as Foundation cues and are limited to complete,
+unique, 2–5-word details whose rendered pill text fits within 36 characters. All
+local phrases describe only visible form, color, tone, contrast, texture,
+arrangement, markings, and proportions; they do not imply an identity,
 confidence, record lookup, geographic range, or Gemini completion.
 
 Image-trait pills use natural verb-led sentences rather than labeled fields: for
@@ -592,7 +596,7 @@ devices use it automatically. Debug Settings → Feature Flags → **On-device
 visual observations** can disable it or clear an existing override for testing.
 
 The Swift 6.4 branch uses only `SystemLanguageModel.default`, a fresh image-only
-session, a bounded structured schema and 256 response tokens. Older compilers
+session, a bounded structured schema and 512 response tokens. Older compilers
 and OS versions return no stream. It emits each completed cue object once,
 preserving its array index while later objects are incomplete. The returned
 `FoundationVisualCueStream` owns an explicit cancellation callback; the
@@ -600,8 +604,8 @@ coordinator cancels it on every scope exit, including early return after
 eligibility loss. Stream termination also cancels the detached utility worker.
 `FoundationVisualCueProviding` remains the integration seam. Its coordinator
 starts work only after both Identify's request-body completion callback and
-local Vision completion, and accepts at most three indexed cues with a
-constrained trait kind and 2–5-word detail.
+local Vision completion, and accepts at most six indexed cues with a constrained
+trait kind and 2–5-word detail.
 
 The coordinator observes power and thermal notifications for the active
 Foundation session. Losing eligibility cancels even a silent model stream;

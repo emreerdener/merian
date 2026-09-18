@@ -8,10 +8,10 @@ release contract remains
 
 ## Ownership
 
-- `Models/` owns platform-neutral request, state, share, presentation,
-  telemetry, and hero-edge policies. Cross-surface routes, taxonomy adaptation,
-  and reference-image labels/attribution live in sibling `Shared/Models`;
-  Codable response and cursor DTOs remain in `Core/Network`.
+- `Models/` owns platform-neutral request, state, share, presentation, and
+  telemetry policies. Cross-surface routes, taxonomy adaptation, and
+  reference-image labels/attribution live in sibling `Shared/Models`; Codable
+  response and cursor DTOs remain in `Core/Network`.
 - `Services/` is the only Detail owner that resolves `MerianNetworkClient`,
   `AppDIContainer`, haptics, entitlement state, telemetry, the fallback Explore
   state owner, or the Field Chat state owner. Its small closure-based dependency
@@ -20,8 +20,8 @@ release contract remains
 - `ViewModels/` owns `@MainActor @Observable` page and Community loading state.
   Views and components do not call endpoints.
 - `Views/` owns the standalone navigation shell and the shared page-content
-  host. It retains navigation, sheet/full-screen bindings, scroll-edge state,
-  lifecycle tasks, and Field Chat presentation timing.
+  host. It retains navigation, sheet/full-screen bindings, contextual-title
+  scroll state, lifecycle tasks, and Field Chat presentation timing.
 - `Components/Community`, `Content`, `Gallery`, `Loading`, and `Shared` own
   their corresponding rendering only. Cross-feature observation charts,
   taxonomy, habitat, lookalikes, media gallery, Explore post detail, and Field
@@ -157,8 +157,8 @@ Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Detail/`:
 - `SpeciesCommunitySightingsViewModelTests` owns initial load, pagination,
   de-duplication, failures, species replacement, and refresh/pagination overlap.
 - `SpeciesDictionaryDetailPresentationTests` owns share, gallery, attribution,
-  alternate-name, Field Chat, hero-edge, and grid policies. Cross-surface route
-  and reference-image behavior/ownership is guarded by
+  alternate-name, Field Chat, and grid policies. Cross-surface route and
+  reference-image behavior/ownership is guarded by
   `SpeciesDictionarySharedPresentationTests` and the sibling Shared architecture
   suite.
 - `SimilarSpeciesTests` owns lookalike identity filtering, including canonical

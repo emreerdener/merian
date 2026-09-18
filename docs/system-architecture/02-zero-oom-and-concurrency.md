@@ -1627,7 +1627,13 @@ page under a replacement selection that has not loaded or has failed.
 Refresh deliberately starts a new generation and supersedes active pagination.
 Failures for the currently loaded selection preserve its usable rows and cursor;
 stale success or failure completions publish nothing. Overview and region-map
-owners use their own latest-request-wins generations. The map owner clears
+owners use their own latest-request-wins generations. Explore Shell retains the
+overview model across mode/tab navigation. Its navigation loader reuses a
+successful same-country overview for five minutes after completion; expiry
+refreshes visible content, while explicit refresh always advances the request
+generation. A country change clears incompatible content. Cancelled or failed
+loads never advance the freshness timestamp, and a re-entering view can replace
+a cancelled request before its completion arrives. The map owner clears
 `isLoading` in a generation-checked `defer`, including cancellation, so leaving
 the surface cannot strand the next presentation in a loading state.
 

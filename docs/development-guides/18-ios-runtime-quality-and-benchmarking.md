@@ -36,6 +36,47 @@ selected suites fail the phase.
 This focused set supplements the complete `merianTests` target. It is not a
 smaller substitute for the required compiled iOS gate.
 
+The selected disk-backed acceptance suite composes description admission into a
+private SQLite store, synthetic result finalization, real queue retirement, and
+Insight dismissal/reopening. This bypasses media encoding and network dispatch.
+Its visual case additionally composes real image-file admission, base64
+encoding, live request coordination with an injected provider response, real
+response parsing/SQLite persistence, exact-generation queue deletion, and
+Insight binding after dismissal. An independent context verifies durable
+queue/job admission at dispatch. A second admission while the provider response
+is suspended is rejected. Sequential replay after completion cannot repeat
+provider dispatch, completion publication, hydration scheduling, notification,
+or milestone scheduling; saved image bytes and the single completed record
+survive reopening. These effect boundaries are counters, not remote uploads or
+root navigation presentations. Its interrupted-file test checks removal of
+partial destinations under the existing rejected-admission discard policy. It
+also rejects a save through a read-only store and retries through a writable
+store, verifying that durable queue work survives. Neither case simulates OS
+process death or a save failure after copying every media modality.
+
+The background-completion regression exercises duplicate result/error delivery
+while another callback owns completion. The sign-out coordinator suite composes
+the real inference write drain with injected account effects and verifies that
+new writes are fenced. Full active-transfer/sign-out/Insight composition remains
+a separate coverage gap. The account-lease case also composes
+`AuthRuntimeState`'s real drain with sign-out coordination: releasing one lease
+twice cannot release the other or allow SDK sign-out early. It does not simulate
+URLSession cancellation callbacks.
+
+The `CaptureTerminalAcceptanceTests` composition starts at a staged image in
+`CaptureWorkspaceViewModel`, submits it through real durable admission, and
+passes a response file through the production background terminal router. It
+uses the real Auth lease state and sign-out coordinator, pauses response
+decoding, and delivers duplicate success/error callbacks while finalization owns
+the work. The test verifies that duplicate callbacks cannot release the lease or
+advance sign-out, then checks SQLite completion, queue deletion, retained image
+bytes, and Insight binding. SDK session identity, provider bytes, environment
+context, and notification/milestone publication are injected. Live defaults
+still use the same SDK session validation and completion effects. This closes
+the local staged-capture/terminal/sign-out composition gap; physical camera
+capture, real URLSession cancellation and OS process relaunch still require
+separate evidence.
+
 ### UI acceptance
 
 The `ui` phase contains only process and presentation behavior that unit tests
@@ -54,6 +95,13 @@ large-state measurements. `RuntimePerformanceTests` owns process launch,
 foreground activation, and repeated Insight presentation measurements. The
 performance phase is separate from acceptance so a timing sample can never stand
 in for a correctness assertion.
+
+The manifest's optional `report_metric_families` records requested metric
+families whose absence must remain visible. The audit retains those expectations
+and reports `UNMEASURED` when no matching metric identifier was exported for
+that workload. The repeated Insight benchmark requests hitch reporting; a
+missing hitch series is unverified, never zero hitches. These observations
+remain report-only and do not change behavioral pass/fail results.
 
 The measured boundaries are intentionally narrower than full Capture → queue →
 inference → Insight latency. Provider time, real network throughput, physical
@@ -86,7 +134,11 @@ The wrapper holds one exclusive cache lock across package resolution,
 `build-for-testing`, and every `test-without-building` phase. It uses only the
 checked-in package versions and fails if resolution changes `Package.resolved`.
 A build failure blocks all runtime phases; a later behavioral failure remains
-failed while subsequent phases may still gather diagnostic evidence.
+failed while subsequent phases may still gather diagnostic evidence. The wrapper
+checks the commit, tracked-source fingerprint, Git status, and nonignored
+untracked-file contents before and after every phase. A change during the audit
+fails that phase and blocks the remaining phases; its artifacts are diagnostic
+evidence and cannot establish a candidate baseline.
 
 Run `make test-ios-ci-tooling` when changing the wrapper, reporter, selector
 manifest, workflow, result validation, or target contract.
@@ -139,9 +191,26 @@ report-only screening signals, not release failures. Never invent a baseline,
 pool unlike runners, discard inconvenient samples, or lower a threshold to hide
 a regression.
 
+CV uses the absolute mean for signed measurements. A zero mean has undefined CV,
+including an all-zero series: JSON stores `null`, the table says `undefined`,
+and observations flag it even without a baseline. Inspect raw samples and sample
+deviation; neither undefined nor near-zero signed-memory CV establishes
+stability or a leak. Historical baselines with a numeric-zero CV placeholder
+remain readable because comparisons recompute CV from the validated mean and
+deviation. Preserve those original evidence files.
+
 A toolchain, runtime, hardware, configuration, fixture, or measured-workload
 change requires a separately reviewed baseline. Preserve the prior evidence so
 the reason for rebaselining remains auditable.
+
+The environment includes a workload fingerprint covering the selector manifest,
+project manifest, benchmark sources, UI-test sources, shared test fixtures,
+app-side `App/UITesting` seed producers (including embedded media), and
+`Configuration/TestExecutionCoordinator.swift`. The queued-audio benchmark's WAV
+is generated by its seed producer; it has no separate checked-in binary asset.
+Changing these inputs rejects comparison with the previous baseline; ordinary
+product-source changes, including presentation and startup wiring, remain
+comparable.
 
 ## Adding coverage
 

@@ -10,7 +10,8 @@ First page:
 
 ```json
 {
-  "limit": 50
+  "limit": 50,
+  "supports_post_reactions": true
 }
 ```
 
@@ -19,6 +20,7 @@ Follow-up page:
 ```json
 {
   "limit": 50,
+  "supports_post_reactions": true,
   "before_updated_at": "2026-05-11T16:10:00.000Z",
   "before_notification_id": "uuid"
 }
@@ -32,6 +34,8 @@ Follow-up page:
 ## Notification Types
 
 - `like_aggregated`: post-backed aggregate like row.
+- `post_reaction`: aggregate activity grouped by post and emoji; taps open post
+  detail. Returned only when `supports_post_reactions` is true.
 - `comment`: post-backed plain comment row.
 - `comment_reply`: post-backed reply row.
 - `comment_mention`: post-backed mention row.
@@ -114,3 +118,22 @@ deno test --config services/supabase/functions/deno.json --allow-env --allow-net
 
 The DB integration tests skip live assertions when the local Supabase Postgres
 instance is not running at `127.0.0.1:54322`.
+
+## Post reaction compatibility
+
+List, unread-count, and mark-read requests accept the optional boolean
+`supports_post_reactions` (default false). Push-device registration stores the
+same capability. Capable clients receive grouped post reactions; legacy clients
+exclude those rows from lists, counts, read operations, and pushes. Both reader
+variants execute only through a guarded service-role boundary.
+
+Capability filtering applies to notification list/count/read RPCs and push
+fanout. The existing authenticated Realtime subscription still observes own-row
+changes in `explore_post_notifications`; it is not capability-filtered. Native
+clients consume these as opaque `AnyAction` refresh signals and obtain display
+rows/counts through the filtered endpoints. Do not treat a raw Realtime change
+as a notification DTO or display it directly.
+
+See the
+[reaction verification matrix](../../../../docs/development-guides/08-testing-strategy.md#explore-emoji-reaction-verification)
+for capability, read/unread, push, and removal coverage.

@@ -10,6 +10,7 @@ struct ExploreHashtagPostsView: View {
     var authorProfileDepth = 0
     var onOpenAuthorProfile: ((ExploreAuthorProfileRoute) -> Void)?
 
+    @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @Environment(\.modelContext) private var modelContext
 
     @State private var postsViewModel: ExploreHashtagPostsViewModel
@@ -82,18 +83,17 @@ struct ExploreHashtagPostsView: View {
 
     private var postsGrid: some View {
         ScrollView(showsIndicators: false) {
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 3),
-                spacing: 2
-            ) {
-                ForEach(postsViewModel.posts) { post in
+            LazyVStack(spacing: 16) {
+                ForEach(postsViewModel.posts) { source in
+                    let post = viewModel.post(id: source.id) ?? source
+                    VStack(spacing: 0) {
                     Button {
                         openPost(post)
                     } label: {
                         ExploreHeroImageView(
-                            imageUrl: post.gridThumbnailUrl,
+                            imageUrl: post.heroImageUrl,
                             reloadGeneration: viewModel.mediaReloadGeneration,
-                            maxDimension: 360
+                            maxDimension: 960
                         )
                         .aspectRatio(1, contentMode: .fill)
                         .clipped()
@@ -106,6 +106,15 @@ struct ExploreHashtagPostsView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(viewModel.resolvedSpeciesCommonName(for: post)), tagged #\(route.hashtag)")
+                    ExplorePostReactionBar(post: post,
+                        onComments: { Task { await viewModel.openCommentsSheet(for: post) } },
+                        onLike: { Task { await viewModel.toggleLike(for: post) } },
+                        onReaction: { emoji, selected in Task { await viewModel.setPostReaction(for: post, emoji: emoji, selected: selected) } },
+                        onLoadMore: { Task { await viewModel.loadMorePostReactions(for: post) } },
+                        onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) })
+                        .padding(12)
+                    }
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
                     .onAppear {
                         guard post.id == postsViewModel.posts.last?.id else { return }
                         Task { await loadMorePostsIfNeeded() }
@@ -157,16 +166,20 @@ struct ExploreHashtagPostsView: View {
 
     @MainActor
     private func reloadPosts() async {
+        let reactionSnapshot = viewModel.reactionRevisions
         await postsViewModel.reload()
-        registerPosts(postsViewModel.posts)
+        registerPosts(viewModel.preservingNewerReactions(in: postsViewModel.posts, since: reactionSnapshot))
     }
 
     @MainActor
     private func loadMorePostsIfNeeded() async {
+        let existingIDs = Set(postsViewModel.posts.map(\.id))
+        let reactionSnapshot = viewModel.reactionRevisions
         if let errorMessage = await postsViewModel.loadMoreIfNeeded() {
             viewModel.toastMessage = .error(errorMessage)
         }
-        registerPosts(postsViewModel.posts)
+        let newPosts = postsViewModel.posts.filter { !existingIDs.contains($0.id) }
+        registerPosts(viewModel.preservingNewerReactions(in: newPosts, since: reactionSnapshot))
     }
 
     @MainActor
@@ -182,7 +195,7 @@ struct ExploreHashtagPostsView: View {
 
     @MainActor
     private func openPost(_ post: ExplorePost) {
-        viewModel.upsertPost(post)
+        if viewModel.post(id: post.id) == nil { viewModel.upsertPost(post) }
         selectedPostRoute = ExplorePostRoute(
             postId: post.id,
             shouldFocusCommentComposer: false,

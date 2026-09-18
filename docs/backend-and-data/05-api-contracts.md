@@ -3561,6 +3561,13 @@ is additive and optional for rollout tolerance; older clients may ignore it.
 
 ### `/get-explore-species-posts`
 
+Each returned row includes the additive `reactions` preview and nullable
+`reactions_next_cursor` described in the
+[reaction contract](#explore-emoji-reactions-2026-09-18): at most 12 groups in
+canonical catalog order, then pages of 32 through `/get-explore-reactions`.
+Missing fields from older projections render empty in native clients; a reaction
+cursor is independent of the post/comment collection cursor.
+
 Returns visibility-safe Explore cards whose effective canonical species is the
 requested dictionary UUID. Confirmed identifications use the confirmed species;
 community-resolved observations use the projected resolved taxon. Genus-level
@@ -3594,6 +3601,13 @@ and merely similar-species posts do not match.
   authenticated Edge Function, never PostgREST directly.
 
 ### `/get-explore-feed`
+
+Each returned row includes the additive `reactions` preview and nullable
+`reactions_next_cursor` described in the
+[reaction contract](#explore-emoji-reactions-2026-09-18): at most 12 groups in
+canonical catalog order, then pages of 32 through `/get-explore-reactions`.
+Missing fields from older projections render empty in native clients; a reaction
+cursor is independent of the post/comment collection cursor.
 
 Returns public Explore feed cards for the shipped `recent`, `following`,
 `trending`, `nearby`, and `liked` modes. The backend routes to a dedicated SQL
@@ -3741,7 +3755,9 @@ Current response shape:
       "comment_count": 1,
       "ranking_value": 12,
       "viewer_has_liked": false,
-      "is_owned_by_viewer": false
+      "is_owned_by_viewer": false,
+      "reactions": [],
+      "reactions_next_cursor": null
     }
   ]
 }
@@ -3765,6 +3781,13 @@ dog/cat card title. That label does not replace `species_common_name`,
 
 ### `/get-explore-post`
 
+Each returned row includes the additive `reactions` preview and nullable
+`reactions_next_cursor` described in the
+[reaction contract](#explore-emoji-reactions-2026-09-18): at most 12 groups in
+canonical catalog order, then pages of 32 through `/get-explore-reactions`.
+Missing fields from older projections render empty in native clients; a reaction
+cursor is independent of the post/comment collection cursor.
+
 Returns the same Explore card projection as `/get-explore-feed`, but for a
 single post:
 
@@ -3784,7 +3807,6 @@ Current response shape:
 
 ```json
 {
-  "schema_version": 1,
   "data": {
     "post_id": "uuid",
     "scan_id": "uuid",
@@ -3817,7 +3839,9 @@ Current response shape:
     "like_count": 3,
     "comment_count": 1,
     "viewer_has_liked": false,
-    "is_owned_by_viewer": false
+    "is_owned_by_viewer": false,
+    "reactions": [],
+    "reactions_next_cursor": null
   }
 }
 ```
@@ -3889,6 +3913,13 @@ bytes and does not change the public recording or moderation state.
 
 ### `/get-explore-post-detail`
 
+Each returned row includes the additive `reactions` preview and nullable
+`reactions_next_cursor` described in the
+[reaction contract](#explore-emoji-reactions-2026-09-18): at most 12 groups in
+canonical catalog order, then pages of 32 through `/get-explore-reactions`.
+Missing fields from older projections render empty in native clients; a reaction
+cursor is independent of the post/comment collection cursor.
+
 Returns the public species-detail payload for a single Explore post. The backend
 reads from `public.get_explore_post_detail(...)`, which enforces the same
 filters as the main feed:
@@ -3914,8 +3945,11 @@ Current response shape:
 
 ```json
 {
+  "schema_version": 1,
   "data": {
     "post_id": "uuid",
+    "reactions": [],
+    "reactions_next_cursor": null,
     "location_sharing": "open",
     "map_point": {
       "latitude": 41.873,
@@ -4188,6 +4222,13 @@ coordinates, or private evidence.
 
 ### `/get-explore-author-posts`
 
+Each returned row includes the additive `reactions` preview and nullable
+`reactions_next_cursor` described in the
+[reaction contract](#explore-emoji-reactions-2026-09-18): at most 12 groups in
+canonical catalog order, then pages of 32 through `/get-explore-reactions`.
+Missing fields from older projections render empty in native clients; a reaction
+cursor is independent of the post/comment collection cursor.
+
 Returns a paginated grid library of an author's currently visible published
 Explore scans. The response shape is the same card projection used by
 `/get-explore-feed`, with `ranking_value = null`.
@@ -4236,7 +4277,9 @@ Response envelope:
     {
       "post_id": "uuid",
       "scan_id": "uuid",
-      "shared_at": "2026-05-03T12:00:00.000Z"
+      "shared_at": "2026-05-03T12:00:00.000Z",
+      "reactions": [],
+      "reactions_next_cursor": null
     }
   ],
   "next_cursor": {
@@ -4251,11 +4294,19 @@ completion from a short page or a separately fetched profile count.
 
 ### `/get-explore-hashtag-posts`
 
-Returns a paginated grid collection of currently visible Explore posts tagged
-with one normalized public hashtag. iOS opens this collection when the viewer
-taps a hashtag chip on a feed card or post detail page. The response shape is
-the same card projection used by `/get-explore-feed`, with
-`ranking_value = null` and a `hashtags` array hydrated for each row.
+Each returned row includes the additive `reactions` preview and nullable
+`reactions_next_cursor` described in the
+[reaction contract](#explore-emoji-reactions-2026-09-18): at most 12 groups in
+canonical catalog order, then pages of 32 through `/get-explore-reactions`.
+Missing fields from older projections render empty in native clients; a reaction
+cursor is independent of the post/comment collection cursor.
+
+Returns a paginated collection of currently visible Explore posts tagged with
+one normalized public hashtag. iOS opens this collection when the viewer taps a
+hashtag chip on a feed card or post detail page; the native collection uses
+observation cards with the shared reaction action row. The response shape is the
+same card projection used by `/get-explore-feed`, with `ranking_value = null`
+and a `hashtags` array hydrated for each row.
 
 First page request:
 
@@ -4440,6 +4491,13 @@ Privacy and filtering rules:
 
 ### `/get-explore-comments`
 
+Each returned row includes the additive `reactions` preview and nullable
+`reactions_next_cursor` described in the
+[reaction contract](#explore-emoji-reactions-2026-09-18): at most 12 groups in
+canonical catalog order, then pages of 32 through `/get-explore-reactions`.
+Missing fields from older projections render empty in native clients; a reaction
+cursor is independent of the post/comment collection cursor.
+
 Returns comment rows for a single Explore post. The read path enforces the same
 visible-post and mutual-block filters as the feed. Comment rows include the
 public author label, the stable author username handle, the optional public
@@ -4482,9 +4540,11 @@ Current response shape:
         {
           "emoji": "👍",
           "count": 1,
-          "viewer_has_reacted": false
+          "viewer_has_reacted": false,
+          "order": 333
         }
-      ]
+      ],
+      "reactions_next_cursor": null
     }
   ]
 }
@@ -4525,6 +4585,13 @@ Follow-up page requests send:
 ```
 
 ### `/get-explore-comment-replies`
+
+Each returned row includes the additive `reactions` preview and nullable
+`reactions_next_cursor` described in the
+[reaction contract](#explore-emoji-reactions-2026-09-18): at most 12 groups in
+canonical catalog order, then pages of 32 through `/get-explore-reactions`.
+Missing fields from older projections render empty in native clients; a reaction
+cursor is independent of the post/comment collection cursor.
 
 Returns one page of visible replies under a top-level Explore comment. Replies
 use the same row shape as `/get-explore-comments`, including `author_username`,
@@ -5130,6 +5197,11 @@ Response:
 
 ### `/toggle-explore-comment-reaction`
 
+**Older-client compatibility only.** Current native reaction UI uses
+`/set-explore-post-reaction` or `/set-explore-comment-reaction` with an explicit
+`selected` state. This legacy endpoint validates against the same Unicode
+catalog and canonicalizes recognized presentation aliases.
+
 Toggles an emoji reaction for the current viewer on a specific comment and
 returns:
 
@@ -5148,8 +5220,8 @@ Request body:
 
 - If the viewer has not yet reacted with this emoji, the reaction is inserted.
 - If the viewer has already reacted with this emoji, the reaction is removed.
-- This is a toggle, not an idempotent absolute-state setter. The iOS client does
-  not replay it after an ambiguous transport or server failure.
+- This is a toggle, not an idempotent absolute-state setter. Legacy iOS callers
+  must not replay it after an ambiguous transport or server failure.
 - Reactions are aggregated into a `reactions` JSON array by the
   `/get-explore-comments` read endpoint.
 - The server also maintains aggregated Explore notification rows per
@@ -5202,11 +5274,18 @@ changing the underlying identification review state.
 
 ### `/get-explore-notifications`
 
+Optional request field `supports_post_reactions` is a boolean, default false.
+Current native clients send true. False/omitted selects the legacy row set; post
+reactions are excluded consistently from lists and unread counts and are left
+untouched by mark-read. True includes eligible `post_reaction` groups. These RPC
+paths are service-only behind the authenticated Edge handler.
+
 Returns the viewer's in-app Explore activity feed. The request body is optional:
 
 ```json
 {
-  "limit": 50
+  "limit": 50,
+  "supports_post_reactions": true
 }
 ```
 
@@ -5378,6 +5457,13 @@ follow rows remain informational and do not attempt post navigation.
 
 ### `/get-explore-unread-notification-count`
 
+Optional request field `supports_post_reactions` is a boolean, default false.
+Current native clients send true, for example
+`{"supports_post_reactions": true}`. False/omitted selects the legacy row set;
+post reactions are excluded consistently from lists and unread counts and are
+left untouched by mark-read. True includes eligible `post_reaction` groups.
+These RPC paths are service-only behind the authenticated Edge handler.
+
 Returns the unread bell badge count for visible Explore and Field trip in-app
 activity notifications:
 
@@ -5406,6 +5492,14 @@ even when its loader does not honor cancellation.
 
 ### `/mark-explore-notifications-read`
 
+Optional request field `supports_post_reactions` is a boolean, default false.
+Current native clients send true. False/omitted selects the legacy row set; post
+reactions are excluded consistently from lists and unread counts and are left
+untouched by mark-read. True includes eligible `post_reaction` groups. These RPC
+paths are service-only behind the authenticated Edge handler.
+
+Example request: `{"supports_post_reactions": true}`.
+
 Marks the viewer's Explore notifications as read and returns the number of rows
 updated:
 
@@ -5432,7 +5526,8 @@ activity pushes:
   "environment": "sandbox",
   "explore_enabled": true,
   "comment_mentions_enabled": true,
-  "community_identifications_enabled": true
+  "community_identifications_enabled": true,
+  "supports_post_reactions": true
 }
 ```
 
@@ -5442,7 +5537,7 @@ activity pushes:
   registration snapshot so an in-flight call for one account cannot satisfy an
   otherwise-identical request for a replacement account. That account scope is
   coordination metadata only: `PushRegistrationService` deliberately omits it
-  from this JSON payload, which remains unchanged.
+  from this JSON payload.
 - `device_token` is normalized to lowercase and upserted by
   `(device_token, platform, environment)`. It must contain only hexadecimal
   characters and be 32...512 characters long. The Edge Function may express that
@@ -5465,6 +5560,12 @@ activity pushes:
   the Community preference like the submitted `explore_enabled` value for older
   clients. Community Identification payloads require
   `community_identifications_enabled` to be true.
+- `supports_post_reactions` is an optional boolean capability, default false.
+  Post-reaction pushes require it and `explore_enabled`; registration does not
+  enable notification permission or opt-in. Omitting it during registration
+  records false, keeping older apps from receiving the new type. Counts in push
+  badges use that device's capability. Other notification types retain their
+  existing preferences.
 - The server stores these rows in `public.user_push_devices`. Delivery failures
   from APNs feed back into that table via `last_error_*` fields and `is_active`.
 - Migration `20260720174209_fix_push_device_token_constraint.sql` is a
@@ -5666,6 +5767,7 @@ rendering:
 - `like_count`
 - `comment_count`
 - `viewer_has_liked`
+- `reactions` and `reactions_next_cursor` for the shared reaction strip
 
 The Explore detail page additionally uses:
 
@@ -5678,6 +5780,9 @@ The Explore detail page additionally uses:
   such as `Morning • April`
 - `weather_condition` + `weather_temperature_f` for optional public weather
   telemetry
+- `/set-explore-post-reaction`, `/set-explore-comment-reaction`, and
+  `/get-explore-reactions` through the injected reaction dependencies for
+  selection and group pagination across cards, detail, and comment/reply sheets
 - `/get-explore-comments` for the inline thread and composer state
 - `/get-explore-comment-replies` for reply pagination under top-level comments
 - `/get-explore-mention-suggestions` for trailing-token `@username` autocomplete
@@ -5706,10 +5811,10 @@ The Explore detail page additionally uses:
   coordinated by `PushRegistrationCoordinator` and entered through
   `PushNotificationManager`, to sync the APNs token, environment,
   Explore-specific push preference, independent comment-mention push preference,
-  and independent Community Identification push preference. A changed
-  token/settings/account snapshot admitted during an active request drains
-  afterward instead of being dropped; the account scope remains local and is not
-  a seventh wire field.
+  independent Community Identification push preference, and the
+  `supports_post_reactions` capability. A changed token/settings/account
+  snapshot admitted during an active request drains afterward instead of being
+  dropped; the account scope remains local and is not an additional wire field.
 
 The Explore map additionally uses:
 
@@ -5736,14 +5841,16 @@ the iOS client directly; it is triggered server-side from
 `public.explore_post_notifications`. Follow notifications are excluded from push
 dispatch and remain in-app only. Comment mention pushes are dispatched only to
 devices with `comment_mentions_enabled` enabled; regular Explore activity pushes
-use `explore_enabled`. Community Identification pushes include
-`communityRequestId` and use `community_identifications_enabled`. The in-app
-notification row is still retained even when the related push toggle is off.
-`media_missing` uses the ordinary Explore preference and dispatches only when
-the incident row is first inserted. `media_restored` remains in app only. Each
-APNs delivery has a 10-second deadline, a 4 KiB diagnostic-body ceiling, and an
-`apns-collapse-id` equal to the durable notification UUID. Replaying the same
-notification therefore does not intentionally create a second presented push.
+use `explore_enabled`; post-reaction additions also require the registered
+`supports_post_reactions` capability, and removals do not send a push. Community
+Identification pushes include `communityRequestId` and use
+`community_identifications_enabled`. The in-app notification row is still
+retained even when the related push toggle is off. `media_missing` uses the
+ordinary Explore preference and dispatches only when the incident row is first
+inserted. `media_restored` remains in app only. Each APNs delivery has a
+10-second deadline, a 4 KiB diagnostic-body ceiling, and an `apns-collapse-id`
+equal to the durable notification UUID. Replaying the same notification
+therefore does not intentionally create a second presented push.
 
 Preferred species display names are not part of the Explore endpoint payload.
 The iOS client syncs `user_species_preferences` directly through PostgREST under
@@ -10695,3 +10802,166 @@ run and continues to older workflow history. A missing or duplicate deploy job,
 an incomplete job, or any other conclusion remains fail-closed. API or
 Git-history ambiguity fails the workflow, and the deadline selects `required`
 without retained Actions evidence.
+
+## Explore emoji reactions (2026-09-18)
+
+`set-explore-post-reaction` accepts `post_id`, `emoji`, and boolean `selected`;
+`set-explore-comment-reaction` accepts `comment_id`, `emoji`, and `selected`.
+Both return `success`, `target_id`, and `reaction` containing `emoji`, `count`,
+`viewer_has_reacted`, and catalog `order`. Setting the same state twice is
+idempotent. The authenticated viewer is derived server-side; hidden, moderated,
+blocked, or unavailable targets are denied. Mutations serialize on the post.
+
+Post ❤️ maps to the existing like and additionally returns `like_count` and
+`viewer_has_liked`. Other emoji do not affect the Liked feed or trending score.
+The legacy comment-toggle route remains available through the same guarded
+transactional boundary, but is not retry-idempotent and should not be used by
+new clients.
+
+`get-explore-reactions` accepts `target_kind` (`post` or `comment`),
+`target_id`, and optional `after_order` (default -1). It returns up to 32
+catalog-ordered `reactions` plus nullable `reactions_next_cursor`. Native
+post/detail and comment catalog endpoints include 12 initial groups and the same
+continuation cursor, using a batch enrichment RPC without changing existing SQL
+projection signatures. Map markers stay lightweight; an interactive preview
+hydrates through the single-post endpoint. Clients merge pages by canonical
+emoji identity.
+
+The pinned Unicode 17.0 catalog and CLDR 48 English search annotations are
+reviewed source data under `resources/emoji`. Run
+`python3 scripts/generate-explore-emoji-catalog.py` to update both bundled
+copies; `--check` verifies them. Qualification aliases normalize to their fully
+qualified form; skin tones, flags, and joined sequences retain separate
+identities. Arbitrary text, multiple emoji, bare modifiers, and oversized inputs
+are denied. Existing recognized comment aliases are coalesced per viewer when
+read and removed together. Historical noncatalog TEXT values remain stored, but
+are not rendered as selectable Unicode reactions; this migration does not delete
+them.
+
+Notification list/count/mark-read requests and push registration accept optional
+boolean `supports_post_reactions`, default false. Capable clients receive the
+new `post_reaction` type, aggregated per post/emoji and routed to post detail.
+Legacy clients neither list/count nor mark those rows read. Both legacy and
+capable list/count/mark-read RPCs are service-only; callers use the
+authenticated Edge endpoints. Pushes require both Explore opt-in and capability
+registration; badges are calculated for that device's capability. Self-reactions
+and removals are silent. Blocked and shadowbanned actors are excluded from
+current counts and display names.
+
+### Reaction request and response details
+
+All three reaction routes use the existing authenticated JSON POST boundary and
+its small request-body limit. IDs must be UUIDs. Setters require a boolean
+`selected` (including false), and an exact supported emoji string. Edge
+validation accepts at most 128 UTF-16 code units, normalizes NFC, then looks up
+a recognized catalog alias; it does not accept surrounding text or multiple
+emoji. The SQL boundary also caps emoji input at 256 UTF-8 bytes and revalidates
+the catalog. Missing/invalid fields return 400; unavailable/unauthorized
+reaction targets return 403, with authentication handled by the shared Edge
+boundary.
+
+| Route                          | Request                                                                  | Response                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `set-explore-post-reaction`    | `post_id`, `emoji`, `selected`                                           | `success`, `target_id`, `reaction`; post ❤️ additionally includes `like_count`, `viewer_has_liked` |
+| `set-explore-comment-reaction` | `comment_id`, `emoji`, `selected`                                        | `success`, `target_id`, `reaction`                                                                 |
+| `get-explore-reactions`        | `target_kind` (`post` or `comment`), `target_id`, optional `after_order` | `reactions`, `reactions_next_cursor`                                                               |
+
+A reaction group is `{emoji, count, viewer_has_reacted, order}`. Counts are
+nonnegative; a setter can return zero after removal, at which point the client
+removes the chip. Order is the canonical catalog ordinal, not a popularity rank.
+The continuation request accepts an integer `after_order` from -1 through 10000,
+defaulting to -1; null also uses that default. Pass the returned non-null cursor
+unchanged. `reactions_next_cursor: null` ends pagination. Preview enrichment
+accepts at most 100 targets per call and returns 12 groups per target;
+continuation responses contain up to 32 groups. Pages are merged by canonical
+emoji identity, including locally revealed out-of-page selections.
+
+Post setters return absolute desired state and serialize under the post-row
+lock, including notification recomputation. Current native post ❤️ selections
+reuse the existing set-like client path; the reaction endpoint also supports
+atomic ❤️ mapping for compatible callers. Other heart emoji remain distinct.
+Comments, including replies, treat ❤️ as a normal emoji reaction. New native
+setters do not automatically replay ambiguous transport failures; that is a
+conservative client retry policy, not a server toggle semantic.
+
+### Reaction rollout order
+
+1. Prepare/apply `20260918142009_add_explore_post_reaction_type.sql` before
+   `20260918142010_add_explore_emoji_reactions.sql`. The separate enum migration
+   ensures the value is committed before dependent schema/functions use it.
+2. Release the three new reaction routes plus updated post/comment projection,
+   legacy-toggle, notification list/count/read, push-registration, and
+   push-worker bundles against that schema. Shared-helper dependency discovery
+   determines all affected bundles; do not hand-maintain a smaller deployment
+   list.
+3. Verify both capability paths before distributing the native app. Older apps
+   continue using legacy notification types and comment toggles. Current native
+   callers declare support explicitly, including on device registration.
+
+Existing likes, legacy comment values, and old notification signatures remain
+compatible. Do not remove the additive enum/table/capability when reverting an
+app update; backend changes require the normal reviewed forward-repair/rollback
+procedure. Generation updates only the iOS and Edge catalog files; a future
+Unicode upgrade also requires a new forward database-catalog migration and the
+database parity test. See the
+[catalog maintenance guide](../../resources/emoji/README.md),
+[deployment runbook](./06-supabase-deployment-runbook.md), and
+[reaction verification matrix](../development-guides/08-testing-strategy.md#explore-emoji-reaction-verification).
+These are release prerequisites, not deployment authorization or evidence of a
+hosted rollout.
+
+### Reaction Realtime compatibility
+
+Capability filtering applies to notification list/count/read RPCs and push
+fanout. The existing authenticated Realtime subscription still observes own-row
+changes in `explore_post_notifications`; it is not capability-filtered. Native
+clients consume these as opaque `AnyAction` refresh signals and obtain display
+rows/counts through the filtered endpoints. Do not treat a raw Realtime change
+as a notification DTO or display it directly.
+
+### Post reaction people
+
+`POST /get-explore-post-reactors` accepts authenticated JSON
+`{"post_id":"uuid","after_user_id":"uuid"}`. The cursor is optional/null for the
+first page. Both non-null fields must be UUIDs; the shared small-body limit
+applies. The server derives the viewer from authentication, never from JSON.
+
+```json
+{
+  "total_count": 6,
+  "preview_names": ["Observer A", "Observer B"],
+  "reactors": [
+    {
+      "user_id": "00000000-0000-4000-8000-000000000001",
+      "display_name": "Observer A",
+      "avatar_url": null,
+      "emojis": ["😂", "❤️"]
+    }
+  ],
+  "next_cursor": null
+}
+```
+
+The example abbreviates the reactor array. Real pages contain up to 32 unique
+people in UUID ascending order; `next_cursor` is the final returned UUID only
+when more people exist. Pass it as `after_user_id`; null ends pagination. A
+person's added emoji never changes their sort position. Membership can change
+between requests: merge by `user_id` and refresh for newly inserted earlier
+actors or removed people. This is not snapshot pagination.
+
+`total_count` and up to two `preview_names` describe the whole visible set,
+independent of cursor. A person contributes once across likes (mapped to ❤️) and
+ordinary post reactions. Rows include the viewer and post owner; reaction
+notification self-suppression is unchanged. Each row carries all its canonical
+emoji in catalog order, bounded by the catalog. Public names/avatars come only
+from `users.public_author_name` and `public_avatar_url`; blank names fall back
+to “Nature lover.” No private Auth metadata is returned.
+
+The service-only RPC applies the existing post visibility guard, then filters
+both directions of viewer/actor blocks and shadowbanned actors before totals,
+previews, and pages. Invalid input returns 400; unavailable/unauthorized targets
+return 403. Current native use is the detail-only summary and Reactions sheet,
+through injected dependencies and a refresh/account-fenced state owner. Apply
+`20260918163435_add_explore_post_reactors.sql` and deploy the new route before
+that app update. Existing post/comment DTOs and reaction endpoints are
+unchanged.

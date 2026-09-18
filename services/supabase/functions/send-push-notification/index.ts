@@ -1,3 +1,4 @@
+import { fetchUnreadExploreNotificationCount } from "../get-explore-unread-notification-count/db.ts";
 import { importPKCS8, SignJWT } from "jose";
 import { mapWithConcurrencyLimit } from "../_shared/concurrency.ts";
 import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
@@ -167,12 +168,15 @@ function buildNotificationCopy(
       value.length > 0
     ) ?? [];
 
-  if (payload.type === "comment_reaction") {
+  if (payload.type === "comment_reaction" || payload.type === "post_reaction") {
     return {
       title: buildCommentReactionTitle(
         actorNames,
         payload.action_count,
         payload.reaction_emoji,
+      ).replace(
+        "your comment",
+        payload.type === "post_reaction" ? "your post" : "your comment",
       ),
       body: buildCommentBody(payload.comment_body),
     };
@@ -289,6 +293,15 @@ serveEdge(async (req: Request) => {
     }, 200);
   }
 
+  const capableUnreadCount = devices.some((device) =>
+      device.supports_post_reactions
+    )
+    ? await fetchUnreadExploreNotificationCount(
+      payload.recipient_user_id,
+      supabaseAdmin,
+      true,
+    )
+    : payload.unread_count;
   const copy = buildNotificationCopy(payload);
   let delivered = 0;
   const failures: Array<{ deviceId: string; reason: string; status: number }> =
@@ -310,7 +323,9 @@ serveEdge(async (req: Request) => {
           payload.comment_id,
           payload.parent_comment_id,
           payload.type,
-          payload.unread_count,
+          device.supports_post_reactions
+            ? capableUnreadCount
+            : payload.unread_count,
         );
 
         if (!failure) {

@@ -26,8 +26,8 @@ avatars are documented here because feed/profile identity payloads carry
   account is staff, verified, or otherwise trusted.
 - `@` is presentation-only. The backend accepts pasted `@name` input by
   stripping the marker during normalization, but never stores it.
-- Logged-in users can keep showing their provider-derived public display name on
-  Explore posts, such as `Emre E.`.
+- In the native app, logged-in users can keep showing their provider-derived
+  public display name on Explore posts, such as `Emre E.`.
 - Ghost/default-alias users show the handle on Explore, such as
   `@stone_glen_72`.
 - Explore comment tagging uses `public_username`, not `public_author_name`.
@@ -64,10 +64,15 @@ neither a username nor a display label is an authorization boundary.
 
 ## Display Rules
 
-Explore card, detail, comment, map, notification, and widget surfaces continue
-to treat `author_name` as the public display label. When `author_name` is empty
-or equals `author_username`, clients render `@author_username` instead of a
-friendly full-name-style label.
+Native Explore card, detail, comment, map, notification, and widget surfaces
+continue to treat `author_name` as the public display label. When `author_name`
+is empty or equals `author_username`, clients render `@author_username` instead
+of a friendly full-name-style label.
+
+The public web homepage and post-detail pages always use `@author_username`,
+including avatar alt text. If the projection omits the username or supplies a
+blank value, they show "a Naturebook observer" without falling back to the
+display name. See [Public Web Share Pages](17-public-web-share-pages.md).
 
 Profile and public author profile surfaces may show both identities and the
 resolved public avatar:

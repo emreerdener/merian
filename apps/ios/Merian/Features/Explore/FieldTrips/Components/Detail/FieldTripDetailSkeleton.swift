@@ -26,25 +26,11 @@ enum FieldTripDetailSkeletonKind {
 struct FieldTripTemplateDetailSkeleton: View {
     let kind: FieldTripDetailSkeletonKind
     var showsFeaturedMediaHero = false
-    var onFeaturedHeroMaxYChange: ((CGFloat) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if showsFeaturedMediaHero {
                 FieldTripFeaturedMediaSkeleton()
-                    .background {
-                        GeometryReader { proxy in
-                            Color.clear
-                                .onChange(
-                                    of: proxy.frame(
-                                        in: .named(FieldTripFeaturedMediaLayout.scrollCoordinateSpace)
-                                    ).maxY,
-                                    initial: true
-                                ) { _, newMaxY in
-                                    onFeaturedHeroMaxYChange?(newMaxY)
-                                }
-                        }
-                    }
             }
 
             VStack(alignment: .leading, spacing: 24) {

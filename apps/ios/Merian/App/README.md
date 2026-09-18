@@ -21,7 +21,10 @@ reusable infrastructure remains in `Core`.
 - `Presentation/` owns deterministic launch/root selection, startup-store
   environment keys and rendering, and configuration-warning composition. Store
   Recovery supplies the value-only startup state and notice. Presentation
-  performs no networking or persistence.
+  performs no networking or persistence. `AppTopScrollEdgeEffectModifier` is
+  applied outside the root presentation tree so all descendant scroll views,
+  including sheets and navigation destinations, hide the iOS 26+ top scroll-edge
+  effect. Individual control glass and bottom scroll-edge effects are unchanged.
 - `Routing/` owns value-only URL classification. `MerianApp` intentionally
   evaluates Google Sign-In first, then handles Naturebook/Merian routes, file
   imports, and finally fallback Supabase authentication. That ordering is a
@@ -66,3 +69,9 @@ See the canonical
 [startup recovery contract](../../../../docs/backend-and-data/08-startup-store-recovery.md),
 and
 [event routing contract](../../../../docs/system-architecture/10-event-and-presentation-routing.md).
+
+Sign-out confirmation feedback is owned by `MerianApp`, outside the root
+presentation switch. Profile, Settings, and explicit purchase-continuity
+recovery invoke the `showSignOutConfirmation` environment callback only after
+success; the shared top toast remains mounted when consent onboarding replaces
+the workspace. The callback does not alter Auth or consent state.

@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { publicHttpError } from "../_shared/http.ts";
 
 export async function toggleExploreCommentReaction(
   commentId: string,
@@ -6,43 +7,16 @@ export async function toggleExploreCommentReaction(
   emoji: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
-  const { data, error: selectError } = await supabaseAdmin
-    .from("explore_comment_reactions")
-    .select("id")
-    .eq("comment_id", commentId)
-    .eq("user_id", userId)
-    .eq("emoji", emoji)
-    .maybeSingle();
-
-  if (selectError) {
-    throw new Error(
-      `Failed to check existing reaction: ${selectError.message}`,
-    );
+  const { error } = await supabaseAdmin.rpc("toggle_explore_comment_reaction", {
+    self_id: userId,
+    target_id: commentId,
+    requested_emoji: emoji,
+  });
+  if (error?.code === "42501") {
+    throw publicHttpError(403, "This reaction is no longer available.");
   }
-
-  if (data) {
-    const { error: deleteError } = await supabaseAdmin
-      .from("explore_comment_reactions")
-      .delete()
-      .eq("id", data.id);
-
-    if (deleteError) {
-      throw new Error(`Failed to remove reaction: ${deleteError.message}`);
-    }
-  } else {
-    const { error: insertError } = await supabaseAdmin
-      .from("explore_comment_reactions")
-      .insert({
-        comment_id: commentId,
-        user_id: userId,
-        emoji: emoji,
-      });
-
-    if (insertError) {
-      // Ignore unique violation if another request beat us to it
-      if (insertError.code !== "23505") {
-        throw new Error(`Failed to add reaction: ${insertError.message}`);
-      }
-    }
+  if (error?.code === "22023") {
+    throw publicHttpError(400, "Choose one supported emoji.");
   }
+  if (error) throw new Error("Failed to update comment reaction.");
 }

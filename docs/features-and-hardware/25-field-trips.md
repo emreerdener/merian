@@ -1164,8 +1164,10 @@ boundary rather than depending on Insight's mixed-media `CarouselPageItem`. The
 hero takes the full scroll-container width without horizontal content insets. It
 also extends to the sheet's top edge beneath transparent navigation chrome; the
 toolbar floats over the image just as it does in Insight. No-media states retain
-the normal navigation-bar inset and background. All selected posters begin
-resolving immediately, horizontal paging cooperates with sheet dismissal,
+the normal navigation-bar inset and background. The template-detail background
+fills the available sheet width in loading, unavailable, and loaded states;
+horizontal padding applies to content inside that surface. All selected posters
+begin resolving immediately, horizontal paging cooperates with sheet dismissal,
 controller identity survives progress-driven updates within the same source
 family, and a reference-to-user handoff remounts only that page as before. Photo
 pages inherit the same pinch-and-snap-back behavior. The inline carousel remains

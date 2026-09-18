@@ -38,8 +38,9 @@ final class ExplorePostDetailViewModel {
         self.dependencies = dependencies
     }
 
-    func loadDetail(force: Bool = false) async {
-        guard force || !isLoadingDetail else { return }
+    @discardableResult
+    func loadDetail(force: Bool = false) async -> ExplorePostDetail? {
+        guard force || !isLoadingDetail else { return nil }
 
         detailRequestGeneration &+= 1
         let requestGeneration = detailRequestGeneration
@@ -55,15 +56,17 @@ final class ExplorePostDetailViewModel {
 
         do {
             let response = try await dependencies.loadDetail(postId)
-            guard requestGeneration == detailRequestGeneration else { return }
+            guard requestGeneration == detailRequestGeneration else { return nil }
             detail = response
+            return response
         } catch is CancellationError {
-            return
+            return nil
         } catch let error as URLError where error.code == .cancelled {
-            return
+            return nil
         } catch {
-            guard requestGeneration == detailRequestGeneration else { return }
+            guard requestGeneration == detailRequestGeneration else { return nil }
             detailErrorMessage = dependencies.errorMessage(error)
+            return nil
         }
     }
 

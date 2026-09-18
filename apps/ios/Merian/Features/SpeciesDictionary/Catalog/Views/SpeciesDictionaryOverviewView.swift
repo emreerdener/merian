@@ -3,7 +3,7 @@ import SwiftUI
 struct SpeciesDictionaryOverviewView: View {
     let userRegion: String?
 
-    @State private var viewModel = SpeciesDictionaryOverviewViewModel()
+    let viewModel: SpeciesDictionaryOverviewViewModel
 
     var body: some View {
         ZStack {
@@ -26,7 +26,7 @@ struct SpeciesDictionaryOverviewView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
         .task(id: userRegion ?? "") {
-            await viewModel.load(userRegion: userRegion)
+            await viewModel.loadIfNeeded(userRegion: userRegion)
         }
     }
 

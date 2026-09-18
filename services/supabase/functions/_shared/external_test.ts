@@ -1,4 +1,4 @@
-import { assertEquals, assertNotEquals } from "@std/assert";
+import { assertEquals, assertNotEquals, assertRejects } from "@std/assert";
 import {
   fetchExternalEnrichment,
   fetchGBIFCountryOccurrences,
@@ -311,4 +311,307 @@ Deno.test("fetchExternalEnrichment resolves standard non-disambiguation species 
     result.wikiExtract?.includes("large cat of the genus Panthera"),
     true,
   );
+});
+
+const rightsWikiURL =
+  "https://upload.wikimedia.org/wikipedia/commons/a/ab/Example_flower.jpg";
+const rightsGBIFURL = "https://images.example.org/flower.jpg";
+
+function rightsFixture(options: {
+  metadata?: Record<string, { value: unknown }>;
+  media?: Record<string, unknown>;
+  commonsResponse?: () => Response;
+  requests?: URL[];
+} = {}): typeof fetch {
+  return (input, init) => {
+    const url = new URL(String(input));
+    options.requests?.push(url);
+    if (url.hostname === "commons.wikimedia.org") {
+      assertEquals(url.pathname, "/w/api.php");
+      assertEquals(url.searchParams.get("titles"), "File:Example_flower.jpg");
+      assertEquals(init?.redirect, "error");
+      return Promise.resolve(
+        options.commonsResponse?.() ?? jsonResponse({
+          query: {
+            pages: [{
+              imageinfo: [{
+                url: rightsWikiURL,
+                extmetadata: options.metadata ?? {
+                  LicenseUrl: {
+                    value: "https://creativecommons.org/licenses/by-sa/4.0/",
+                  },
+                  Artist: {
+                    value: '<a href="https://example.org">Example &amp; Co</a>',
+                  },
+                  Credit: { value: "Own work" },
+                },
+              }],
+            }],
+          },
+        }),
+      );
+    }
+    if (url.pathname.endsWith("/species/match")) {
+      return Promise.resolve(jsonResponse({ usageKey: 123 }));
+    }
+    if (url.pathname.endsWith("/occurrence/search")) {
+      return Promise.resolve(jsonResponse({
+        results: [{
+          license: "https://creativecommons.org/licenses/by/4.0/",
+          recordedBy: "Not the photographer",
+          media: [{
+            type: "StillImage",
+            identifier: rightsGBIFURL,
+            ...options.media,
+          }],
+        }],
+      }));
+    }
+    if (url.pathname.endsWith("/vernacularNames")) {
+      return Promise.resolve(jsonResponse({ results: [] }));
+    }
+    return Promise.resolve(
+      jsonResponse({
+        originalimage: { source: rightsWikiURL },
+        type: "standard",
+      }),
+    );
+  };
+}
+
+Deno.test("durable enrichment obtains per-image Commons and GBIF credits without changing URL order", async () => {
+  const result = await fetchExternalEnrichment(
+    "Example species",
+    rightsFixture({
+      media: {
+        license: "http://creativecommons.org/licenses/by/4.0/legalcode",
+        creator: "Example Photographer",
+        rightsHolder: "Example Collection",
+      },
+    }),
+    { includeImageRights: true },
+  );
+  assertEquals(result.referenceImageUrl, `${rightsWikiURL},${rightsGBIFURL}`);
+  assertEquals(result.referenceImages, [
+    {
+      url: rightsWikiURL,
+      source: "wikipedia",
+      license: "https://creativecommons.org/licenses/by-sa/4.0/",
+      attribution: "Example & Co · Own work",
+    },
+    {
+      url: rightsGBIFURL,
+      source: "gbif",
+      license: "https://creativecommons.org/licenses/by/4.0/",
+      attribution: "Example Photographer · Example Collection",
+    },
+  ]);
+});
+
+Deno.test("interactive enrichment adds no rights lookup or response fields", async () => {
+  const requests: URL[] = [];
+  const result = await fetchExternalEnrichment(
+    "Example species",
+    rightsFixture({ requests }),
+  );
+  assertEquals(result.referenceImages, undefined);
+  assertEquals(
+    requests.some((url) => url.hostname === "commons.wikimedia.org"),
+    false,
+  );
+});
+
+Deno.test("rights enrichment never inherits occurrence license or invents missing creators", async () => {
+  const result = await fetchExternalEnrichment(
+    "Example species",
+    rightsFixture({
+      metadata: {
+        LicenseShortName: { value: "CC BY-SA 4.0" },
+        Credit: { value: "Own work" },
+      },
+    }),
+    { includeImageRights: true },
+  );
+  assertEquals(result.referenceImages, []);
+  assertEquals(result.referenceImageUrl, `${rightsWikiURL},${rightsGBIFURL}`);
+});
+
+Deno.test("rights enrichment rejects restricted and mismatched files and honors custom attribution", async () => {
+  const rejectedMetadata: Array<Record<string, { value: unknown }>> = [
+    {
+      LicenseUrl: {
+        value: "https://creativecommons.org/licenses/by-nc/4.0/",
+      },
+      LicenseShortName: { value: "CC BY 4.0" },
+    },
+    { LicenseShortName: { value: "CC BY 4.0" }, NonFree: { value: "true" } },
+    {
+      LicenseShortName: { value: "CC BY 4.0" },
+      DeletionReason: { value: "Review pending" },
+    },
+  ];
+  for (const metadata of rejectedMetadata) {
+    const result = await fetchExternalEnrichment(
+      "Example species",
+      rightsFixture({
+        metadata: { ...metadata, Artist: { value: "Example" } },
+        media: { license: "CC BY-NC 4.0", creator: "Example" },
+      }),
+      { includeImageRights: true },
+    );
+    assertEquals(result.referenceImages, []);
+  }
+  const mismatch = await fetchExternalEnrichment(
+    "Example species",
+    rightsFixture({
+      commonsResponse: () =>
+        jsonResponse({
+          query: {
+            pages: [{
+              imageinfo: [{
+                url:
+                  "https://upload.wikimedia.org/wikipedia/commons/b/bc/Other.jpg",
+                extmetadata: {
+                  LicenseShortName: { value: "CC BY 4.0" },
+                  Artist: { value: "Wrong artist" },
+                },
+              }],
+            }],
+          },
+        }),
+    }),
+    { includeImageRights: true },
+  );
+  assertEquals(mismatch.referenceImages, []);
+  const custom = await fetchExternalEnrichment(
+    "Example species",
+    rightsFixture({
+      metadata: {
+        LicenseShortName: { value: "CC BY 4.0" },
+        Artist: { value: "Unused" },
+        Attribution: { value: "Required custom credit" },
+      },
+    }),
+    { includeImageRights: true },
+  );
+  assertEquals(
+    custom.referenceImages?.[0].attribution,
+    "Required custom credit",
+  );
+});
+
+Deno.test("rights provider failures remain retryable instead of completing metadata-free refresh", async () => {
+  for (
+    const commonsResponse of [
+      () => new Response(null, { status: 503 }),
+      () => jsonResponse({ error: { code: "ratelimited" } }),
+      () => new Response("{broken"),
+      () => new Response(" ".repeat(256 * 1024 + 1)),
+    ]
+  ) {
+    await assertRejects(
+      () =>
+        fetchExternalEnrichment(
+          "Example species",
+          rightsFixture({ commonsResponse }),
+          { includeImageRights: true },
+        ),
+      Error,
+      "Reference image rights provider unavailable",
+    );
+  }
+});
+
+Deno.test("GBIF rights use the same trimmed media identity as the legacy cache", async () => {
+  const result = await fetchExternalEnrichment(
+    "Example species",
+    rightsFixture({
+      media: {
+        identifier: `  ${rightsGBIFURL}  `,
+        license: "CC BY 4.0",
+        creator: "Example Photographer",
+      },
+    }),
+    { includeImageRights: true },
+  );
+  assertEquals(result.referenceImageUrl, `${rightsWikiURL},${rightsGBIFURL}`);
+  assertEquals(
+    result.referenceImages?.find((image) => image.source === "gbif"),
+    {
+      url: rightsGBIFURL,
+      source: "gbif",
+      license: "https://creativecommons.org/licenses/by/4.0/",
+      attribution: "Example Photographer",
+    },
+  );
+});
+
+Deno.test("rights enrichment batches every selected Commons file in one bounded lookup", async () => {
+  const second =
+    "https://upload.wikimedia.org/wikipedia/commons/b/bc/Second_flower.jpg";
+  const base = rightsFixture({ media: { identifier: second } });
+  let commonsRequests = 0;
+  const fetcher: typeof fetch = (input, init) => {
+    const url = new URL(String(input));
+    if (url.hostname !== "commons.wikimedia.org") return base(input, init);
+    commonsRequests++;
+    assertEquals(
+      url.searchParams.get("titles"),
+      "File:Example_flower.jpg|File:Second_flower.jpg",
+    );
+    return Promise.resolve(
+      jsonResponse({
+        query: {
+          pages: [second, rightsWikiURL].map((url) => ({
+            imageinfo: [{
+              url,
+              extmetadata: {
+                LicenseShortName: { value: "CC BY 4.0" },
+                Artist: { value: "Example Photographer" },
+              },
+            }],
+          })),
+        },
+      }),
+    );
+  };
+  const result = await fetchExternalEnrichment("Example species", fetcher, {
+    includeImageRights: true,
+  });
+  assertEquals(commonsRequests, 1);
+  assertEquals(result.referenceImages?.map((image) => image.url), [
+    rightsWikiURL,
+    second,
+  ]);
+});
+
+Deno.test("durable GBIF media failures retry while interactive enrichment remains best effort", async () => {
+  const base = rightsFixture();
+  for (
+    const response of [
+      () => new Response(null, { status: 503 }),
+      () => jsonResponse({ unexpected: true }),
+      () => new Response("{broken"),
+    ]
+  ) {
+    const fetcher: typeof fetch = (input, init) => {
+      const url = new URL(String(input));
+      return url.pathname.endsWith("/occurrence/search")
+        ? Promise.resolve(response())
+        : base(input, init);
+    };
+    await assertRejects(
+      () =>
+        fetchExternalEnrichment("Example species", fetcher, {
+          includeImageRights: true,
+        }),
+      Error,
+      "Reference image media provider unavailable",
+    );
+    assertEquals(
+      (await fetchExternalEnrichment("Example species", fetcher))
+        .referenceImageUrl,
+      rightsWikiURL,
+    );
+  }
 });

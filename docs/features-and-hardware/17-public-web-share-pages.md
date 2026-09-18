@@ -54,9 +54,9 @@ authenticated in-product report write.
 The homepage introduces nearby discovery with the existing app screenshot and
 decorative iOS artwork. Its photo cards continue to consume
 `fetchExploreFeedPosts(24)` and `exploreGridPosterUrl(...)`, with public species
-labels and author names. Empty results show an empty state; the page does not
-substitute mock observations or autoplay media. It adds no species search,
-engagement controls, or broader data queries.
+labels and author username handles. Empty results show an empty state; the page
+does not substitute mock observations or autoplay media. It adds no species
+search, engagement controls, or broader data queries.
 
 The shared Mantine theme, header navigation, mobile drawer, and footer carry the
 same forest palette and rounded surfaces across the public routes. Reference and
@@ -264,8 +264,9 @@ projection:
 - privacy-filtered location label
 - coarse public telemetry such as time of day, month, weather condition, and
   temperature
-- public author display name/avatar, plus canonical username handle only if the
-  public projection supplies it
+- public author avatar and canonical `@username` handle from `author_username`;
+  homepage cards, post details, and avatar alt text use "a Naturebook observer"
+  when the username is missing or blank, never `author_name`
 - public like/comment counts, retained in the projection for compatibility but
   intentionally not rendered on the public detail page
 - public field notes already copied onto the Explore post
@@ -490,6 +491,16 @@ is not the app-level Explore not-found state. The app-level 404 renders
 `apps/web/app/not-found.tsx` with Naturebook styling. The plain Vercel response
 indicates the domain is not attached to a valid production deployment or the
 project is building the wrong directory.
+
+Species reference captions render creator credit, a readable license linked to
+recognized Creative Commons terms, and an exact Wikimedia Commons source-file
+link when available; GBIF credits link the supplied original image. The
+scheduled backend refresh supplies per-image rights; web requests do not call
+external metadata providers. Existing URL-only records require the separately
+authorized bounded queue refresh documented in
+`services/supabase/functions/refresh-species-content/README.md`. The shared
+attribution audit continues to exclude incomplete records from both rendered
+media and Open Graph/Twitter metadata.
 
 ### Species deployment verification
 

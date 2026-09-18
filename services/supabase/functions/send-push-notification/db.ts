@@ -11,6 +11,7 @@ export interface ExplorePushNotificationPayload {
     | "like_aggregated"
     | "comment"
     | "comment_reaction"
+    | "post_reaction"
     | "comment_reply"
     | "comment_mention"
     | "community_identification_added"
@@ -39,6 +40,7 @@ export interface PushDeviceRow {
   comment_mentions_enabled: boolean;
   community_identifications_enabled: boolean;
   is_active: boolean;
+  supports_post_reactions?: boolean;
 }
 
 function isCommunityNotificationType(
@@ -74,7 +76,7 @@ export async function fetchEligiblePushDevices(
   let query = supabaseAdmin
     .from("user_push_devices")
     .select(
-      "id, device_token, platform, environment, explore_enabled, comment_mentions_enabled, community_identifications_enabled, is_active",
+      "id, device_token, platform, environment, explore_enabled, comment_mentions_enabled, community_identifications_enabled, supports_post_reactions, is_active",
     )
     .eq("user_id", userId)
     .eq("platform", "ios")
@@ -88,6 +90,9 @@ export async function fetchEligiblePushDevices(
     query = query.eq("explore_enabled", true);
   }
 
+  if (notificationType === "post_reaction") {
+    query = query.eq("supports_post_reactions", true);
+  }
   const { data, error } = await query;
 
   if (error) {

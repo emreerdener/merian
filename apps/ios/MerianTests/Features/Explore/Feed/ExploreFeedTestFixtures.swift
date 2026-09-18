@@ -156,6 +156,7 @@ enum ExploreFeedTestFixtures {
                 likeCount: liked ? 1 : 0
             )
         },
+        loadPost: @escaping @MainActor (String) async throws -> ExplorePost = { _ in throw StubError.unexpected },
         loadComments: @escaping LoadComments = { _, _, _, _ in [] },
         loadReplies: @escaping LoadReplies = { _, _, _, _ in [] },
         createComment: @escaping CreateComment = { _, _, _ in
@@ -166,7 +167,8 @@ enum ExploreFeedTestFixtures {
         },
         selectionFeedback: @escaping @MainActor () -> Void = {},
         successFeedback: @escaping @MainActor () -> Void = {},
-        errorFeedback: @escaping @MainActor () -> Void = {}
+        errorFeedback: @escaping @MainActor () -> Void = {},
+        reactions: ExploreReactionDependencies = .unavailable
     ) -> ExploreFeedViewModel.Dependencies {
         ExploreFeedViewModel.Dependencies(
             feed: .init(
@@ -179,7 +181,7 @@ enum ExploreFeedTestFixtures {
                 unsharePost: { _ in throw StubError.unexpected },
                 reportPost: { _ in throw StubError.unexpected },
                 blockAuthor: { _ in false },
-                loadPost: { _ in throw StubError.unexpected },
+                loadPost: loadPost,
                 sendShareStateChanged: { _, _ in }
             ),
             comments: .init(
@@ -204,7 +206,8 @@ enum ExploreFeedTestFixtures {
                 startUpdates: { _ in },
                 stopUpdates: {}
             ),
-            errorMessage: { _ in "Stub error" }
+            errorMessage: { _ in "Stub error" },
+            reactions: reactions
         )
     }
 }

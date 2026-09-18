@@ -3,6 +3,20 @@ import SwiftData
 
 private let backgroundAccountWorkQuiescenceTimeout: Duration = .seconds(30)
 
+/// Process-local Auth lease operations used by background terminal routing.
+/// Production adapters retain the same published/SDK session validation.
+struct BackgroundAccountWorkLeaseBoundary {
+    let begin: @MainActor (UUID) throws -> AccountBoundWorkLease
+    let isCurrent: @MainActor (AccountBoundWorkLease) -> Bool
+    let finish: @MainActor (AccountBoundWorkLease) -> Void
+
+    static let live = Self(
+        begin: { try SupabaseManager.shared.beginUnownedAccountBoundWork(expectedUserID: $0) },
+        isCurrent: { SupabaseManager.shared.isAccountBoundWorkLeaseCurrent($0) },
+        finish: { SupabaseManager.shared.finishAccountBoundWork($0) }
+    )
+}
+
 extension OfflineQueueManager {
     /// A transport that lost its Auth lease must remain suspended until its
     /// durable queue owner has been requeued. Retrying here keeps the original
@@ -64,10 +78,11 @@ extension OfflineQueueManager {
     @discardableResult
     func retainBackgroundAccountWork(
         _ lease: AccountBoundWorkLease,
-        for taskIdentifier: Int
+        for taskIdentifier: Int,
+        accountWork: BackgroundAccountWorkLeaseBoundary = .live
     ) -> Bool {
         guard backgroundAccountWorkLeases[taskIdentifier] == nil,
-              SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(lease)
+              accountWork.isCurrent(lease)
         else {
             return false
         }
@@ -75,13 +90,16 @@ extension OfflineQueueManager {
         return true
     }
 
-    func finishBackgroundAccountWork(for taskIdentifier: Int) {
+    func finishBackgroundAccountWork(
+        for taskIdentifier: Int,
+        accountWork: BackgroundAccountWorkLeaseBoundary = .live
+    ) {
         guard let lease = backgroundAccountWorkLeases.removeValue(
             forKey: taskIdentifier
         ) else {
             return
         }
-        SupabaseManager.shared.finishAccountBoundWork(lease)
+        accountWork.finish(lease)
     }
 
     /// Closes every URLSession account-work lane before Auth can mutate.

@@ -56,8 +56,14 @@ navigation mode.
   separate detail/stats memos; Catalog Services adapt their calls for observable
   state.
 - Explore Shell owns the shared `NavigationPath`, Identify/Species selection,
-  and route destination registration. Catalog owns the category route value and
-  emits species-detail routes without creating another navigation stack.
+  route destination registration, and the overview view-model lifetime for one
+  Explore presentation. Species receives that retained model, so switching to
+  Requests or another page does not discard loaded content. Navigation reuses a
+  successful overview for five minutes; stale content stays visible during a
+  same-region refresh. Pull-to-refresh and retry always fetch. A changed
+  normalized country clears incompatible content, and closing Explore releases
+  the in-memory overview. Catalog owns the category route value and emits
+  species-detail routes without creating another navigation stack.
 - Catalog Views and Components do not resolve endpoints, `LocalImageLoader`,
   geocoding, or map snapshots directly. The remote-image component preserves the
   existing leaf placeholders while the Service adapter uses the shared cached
@@ -86,7 +92,8 @@ Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Catalog/`:
   de-duplication, pagination, refresh/search/reverted-selection overlap fencing,
   retained-content errors, and stale-page suppression.
 - `SpeciesDictionaryOverviewViewModelTests` owns normalized region loading,
-  retained-content errors, and stale overview completion.
+  five-minute navigation reuse, forced refresh, retained-content errors, region
+  replacement, cancellation/re-entry, and stale overview completion.
 - `SpeciesDictionaryRegionMapViewModelTests` owns stale snapshot completion and
   cancellation cleanup.
 - `SpeciesCatalogArchitectureTests` enforces directory ownership, Services-only

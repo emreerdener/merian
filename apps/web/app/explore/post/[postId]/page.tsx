@@ -24,7 +24,7 @@ import {
   type ExplorePost,
 } from "@/lib/explore";
 import { explorePosterUrl } from "@/lib/exploreMedia";
-import { compactSpeciesTitle, postTitle } from "@/lib/formatting";
+import { compactSpeciesTitle, postTitle, publicAuthorHandle } from "@/lib/formatting";
 import { supportMailto } from "@/lib/site";
 import {
   IconAlertTriangle,
@@ -122,6 +122,7 @@ export default async function ExplorePostPage({
   }
 
   const { post, detail } = data;
+  const authorHandle = publicAuthorHandle(post.authorUsername);
   const title = postTitle(post.speciesCommonName, post.publicLocationLabel);
   const speciesLabel = compactSpeciesTitle(
     post.speciesCommonName,
@@ -187,7 +188,7 @@ export default async function ExplorePostPage({
               <Group gap="sm">
                 <Avatar
                   src={post.authorAvatarUrl || undefined}
-                  alt={post.authorName}
+                  alt={authorHandle}
                   radius="xl"
                   size="md"
                 >
@@ -196,9 +197,7 @@ export default async function ExplorePostPage({
                 <Stack gap={2}>
                   <Group gap="xs">
                     <Text fw={700}>
-                      {post.authorUsername
-                        ? `@${post.authorUsername}`
-                        : post.authorName}
+                      {authorHandle}
                     </Text>
                     {post.authorIsPro ? (
                       <Badge

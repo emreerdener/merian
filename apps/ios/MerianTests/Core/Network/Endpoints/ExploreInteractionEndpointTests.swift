@@ -6,6 +6,26 @@ import Testing
 @Suite("Explore Interaction Endpoints")
 @MainActor
 struct ExploreInteractionEndpointTests {
+    @Test func testPostReactorsContractAndCursor() async throws {
+        try await withResponse(
+            function: "get-explore-post-reactors", requestJSON: #"{"post_id":"post","after_user_id":"cursor"}"#,
+            responseJSON: #"{"total_count":6,"preview_names":["Alex","Bea"],"reactors":[{"user_id":"actor","display_name":"Alex","avatar_url":null,"emojis":["❤️","👩🏽‍🔬"]}],"next_cursor":"next"}"#
+        ) { client in
+            let page = try await client.getExplorePostReactors(postId: "post", afterUserId: "cursor")
+            #expect(page.totalCount == 6 && page.previewNames == ["Alex", "Bea"])
+            #expect(page.reactors.first?.emojis == ["❤️", "👩🏽‍🔬"])
+            #expect(page.reactors.first?.displayName == "Alex" && page.reactors.first?.avatarUrl == nil)
+            #expect(page.nextCursor == "next")
+        }
+        try await withResponse(
+            function: "get-explore-post-reactors", requestJSON: #"{"post_id":"post"}"#,
+            responseJSON: #"{"total_count":0,"preview_names":[],"reactors":[],"next_cursor":null}"#
+        ) { client in
+            let page = try await client.getExplorePostReactors(postId: "post", afterUserId: nil)
+            #expect(page.reactors.isEmpty && page.nextCursor == nil)
+        }
+    }
+
     @Test func requestInventoryCoversEveryOperation() {
         let cases = ExploreInteractionEndpointRequestCase.operations
         #expect(cases.count == 12 && Set(cases.map(\.function)).count == 12)
@@ -214,6 +234,28 @@ struct ExploreInteractionEndpointTests {
         ) { client in
             let response = try await client.deleteExploreComment(commentId: "comment")
             #expect(!response.success && response.commentId == "comment" && response.commentCount == 0 && response.action == "unchanged")
+        }
+    }
+
+    @Test func reactionSetAndPageUseTypedPayloadsAndAuthoritativeState() async throws {
+        for target in [ExploreReactionTarget.post, .comment] {
+            try await withResponse(
+                function: "set-explore-\(target.rawValue)-reaction",
+                requestJSON: "{\"\(target.rawValue)_id\":\"target\",\"emoji\":\"👩🏽‍🔬\",\"selected\":true}",
+                responseJSON: #"{"target_id":"target","reaction":{"emoji":"👩🏽‍🔬","count":4,"viewer_has_reacted":true,"order":200}}"#
+            ) { client in
+                let response = try await client.setExploreReaction(target: target, id: "target", emoji: "👩🏽‍🔬", selected: true)
+                #expect(response.targetId == "target" && response.reaction.count == 4)
+                #expect(response.reaction.viewerHasReacted && response.reaction.order == 200)
+            }
+        }
+        try await withResponse(
+            function: "get-explore-reactions",
+            requestJSON: #"{"target_kind":"post","target_id":"target","after_order":12}"#,
+            responseJSON: #"{"reactions":[],"reactions_next_cursor":null}"#
+        ) { client in
+            let page = try await client.getExploreReactions(target: .post, id: "target", afterOrder: 12)
+            #expect(page.reactions.isEmpty && page.reactionsNextCursor == nil)
         }
     }
 

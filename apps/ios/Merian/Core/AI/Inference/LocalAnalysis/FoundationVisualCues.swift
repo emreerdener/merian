@@ -48,7 +48,7 @@ struct FoundationVisualCueSnapshot: Sendable, Equatable {
 }
 
 struct FoundationVisualCueRequest: Sendable {
-    static let maximumCueCount = 3
+    static let maximumCueCount = 6
 
     let image: ImageDownsampler.SendableImage
     let broadCategory: LocalSubjectCategory?

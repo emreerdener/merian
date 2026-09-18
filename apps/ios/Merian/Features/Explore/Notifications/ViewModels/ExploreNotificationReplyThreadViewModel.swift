@@ -4,7 +4,7 @@ import Observation
 @MainActor
 @Observable
 final class ExploreNotificationReplyThreadViewModel {
-    typealias ReactionHandler = @MainActor (_ comment: ExploreComment, _ emoji: String) -> Void
+    typealias ReactionHandler = @MainActor (_ comment: ExploreComment, _ emoji: String, _ selected: Bool) async throws -> ExploreComment
 
     var parentComment: ExploreComment?
     var replies: [ExploreComment] = []
@@ -16,6 +16,9 @@ final class ExploreNotificationReplyThreadViewModel {
 
     @ObservationIgnored private let dependencies: Dependencies
     @ObservationIgnored private let onToggleReaction: ReactionHandler
+    @ObservationIgnored private let loadReactions: @MainActor (ExploreComment) async throws -> ExploreComment
+    @ObservationIgnored private let reactionQueue = ExploreReactionMutationQueue()
+    @ObservationIgnored private var pendingReactions = Set<String>()
     @ObservationIgnored private var activeRoute: ExploreNotificationReplyThreadRoute?
     @ObservationIgnored private var nextReplyCursor: ExploreCommentCursor?
     @ObservationIgnored private var loadGeneration = UUID()
@@ -23,10 +26,12 @@ final class ExploreNotificationReplyThreadViewModel {
 
     init(
         dependencies: Dependencies = .live,
-        onToggleReaction: @escaping ReactionHandler = { _, _ in }
+        onToggleReaction: @escaping ReactionHandler = { comment, _, _ in comment },
+        loadReactions: @escaping @MainActor (ExploreComment) async throws -> ExploreComment = { $0 }
     ) {
         self.dependencies = dependencies
         self.onToggleReaction = onToggleReaction
+        self.loadReactions = loadReactions
     }
 
     func load(route: ExploreNotificationReplyThreadRoute) async {
@@ -37,6 +42,7 @@ final class ExploreNotificationReplyThreadViewModel {
         isLoading = true
         isLoadingMoreReplies = false
         errorMessage = nil
+        reactionError = nil
         parentComment = nil
         replies = []
         hasReachedEndOfReplies = true
@@ -115,17 +121,63 @@ final class ExploreNotificationReplyThreadViewModel {
     }
 
     func toggleReaction(for comment: ExploreComment, emoji: String) {
-        let updatedComment = comment.applyingReactionToggle(emoji: emoji)
+        setReaction(for: comment, emoji: emoji, selected: !(comment.reactions?.first { $0.emoji == emoji }?.viewerHasReacted ?? false))
+    }
 
-        if parentComment?.id == updatedComment.id {
-            parentComment = updatedComment
+    func setReaction(for comment: ExploreComment, emoji: String, selected: Bool) {
+        let generation = loadGeneration
+        let viewer = dependencies.currentViewer().userID
+        Task {
+            await reactionQueue.acquire(comment.id)
+            defer { pendingReactions.remove(comment.id); reactionQueue.release(comment.id) }
+            guard generation == loadGeneration, viewer == dependencies.currentViewer().userID,
+                  !Task.isCancelled else { return }
+            pendingReactions.insert(comment.id)
+            let current = parentComment?.id == comment.id ? parentComment! : replies.first { $0.id == comment.id } ?? comment
+            var optimistic = current
+            optimistic.reactions = (current.reactions ?? []).settingReaction(emoji, selected: selected)
+            replaceReactionComment(optimistic)
+            do {
+                let updated = try await onToggleReaction(current, emoji, selected)
+                guard generation == loadGeneration, viewer == dependencies.currentViewer().userID,
+                      !Task.isCancelled else { return }
+                replaceReactionComment(updated)
+            } catch {
+                guard generation == loadGeneration, viewer == dependencies.currentViewer().userID else { return }
+                replaceReactionComment(current)
+                if !(error is CancellationError) { reactionError = "Could not update reaction. Try again." }
+            }
         }
+    }
 
-        if let replyIndex = replies.firstIndex(where: { $0.id == updatedComment.id }) {
-            replies[replyIndex] = updatedComment
+    var reactionError: String?
+    func loadMoreReactions(for comment: ExploreComment) {
+        guard pendingReactions.insert(comment.id).inserted else { return }
+        let generation = loadGeneration
+        let viewer = dependencies.currentViewer().userID
+        Task {
+            await reactionQueue.acquire(comment.id)
+            defer { pendingReactions.remove(comment.id); reactionQueue.release(comment.id) }
+            guard generation == loadGeneration, viewer == dependencies.currentViewer().userID,
+                  !Task.isCancelled else { return }
+            let current = parentComment?.id == comment.id
+                ? parentComment! : replies.first { $0.id == comment.id } ?? comment
+            do {
+                let updated = try await loadReactions(current)
+                guard generation == loadGeneration, viewer == dependencies.currentViewer().userID, !Task.isCancelled else { return }
+                replaceReactionComment(updated)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard generation == loadGeneration, viewer == dependencies.currentViewer().userID else { return }
+                reactionError = "Could not load reactions. Try again."
+            }
         }
+    }
 
-        onToggleReaction(comment, emoji)
+    private func replaceReactionComment(_ comment: ExploreComment) {
+        if parentComment?.id == comment.id { parentComment?.reactions = comment.reactions; parentComment?.reactionsNextCursor = comment.reactionsNextCursor }
+        if let index = replies.firstIndex(where: { $0.id == comment.id }) { replies[index].reactions = comment.reactions; replies[index].reactionsNextCursor = comment.reactionsNextCursor }
     }
 
     func authorAvatarURL(for comment: ExploreComment) -> URL? {

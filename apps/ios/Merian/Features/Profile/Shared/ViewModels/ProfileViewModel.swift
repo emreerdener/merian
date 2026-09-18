@@ -2,6 +2,13 @@ import Observation
 import SwiftUI
 
 enum SignOutPresentationPolicy {
+    static func showsRecovery(
+        isPurchaseContinuityPending: Bool,
+        isAuthTransitionInProgress: Bool
+    ) -> Bool {
+        isPurchaseContinuityPending && !isAuthTransitionInProgress
+    }
+
     static func incompleteMessage(isAnonymousSession: Bool) -> String {
         if isAnonymousSession {
             return "You're signed out. Purchase access is still syncing. Use Finish sign out on your profile to retry."

@@ -38,7 +38,7 @@ struct ExploreNotificationRowPresentation: Equatable {
             "arrowshape.turn.up.left.fill"
         case .commentMention:
             "at"
-        case .commentReaction:
+        case .commentReaction, .postReaction:
             "face.smiling.fill"
         case .follow:
             "person.crop.circle.badge.plus"
@@ -71,7 +71,7 @@ struct ExploreNotificationRowPresentation: Equatable {
             .purple
         case .commentMention:
             .mint
-        case .commentReaction, .mediaMissing:
+        case .commentReaction, .postReaction, .mediaMissing:
             .orange
         case .follow, .communityRequestResolved, .mediaRestored,
              .fieldTripFollowedPublication:
@@ -97,7 +97,7 @@ struct ExploreNotificationRowPresentation: Equatable {
             return "\(actorName(in: notification)) mentioned you in a comment."
         case .likeAggregated:
             return likeSummaryText(notification)
-        case .commentReaction:
+        case .commentReaction, .postReaction:
             return commentReactionSummaryText(notification)
         case .follow:
             return "\(actorName(in: notification)) followed you."
@@ -129,7 +129,7 @@ struct ExploreNotificationRowPresentation: Equatable {
         case .comment, .commentReply, .commentMention, .commentReaction,
              .fieldTripComment, .fieldTripReply:
             return trimmed(notification.commentBody)
-        case .likeAggregated, .follow:
+        case .likeAggregated, .postReaction, .follow:
             return nil
         case .communityIdentificationAdded, .communityRequestResolved,
              .communityIdentificationHelped:
@@ -178,9 +178,10 @@ struct ExploreNotificationRowPresentation: Equatable {
     ) -> String {
         let actorNames = notification.recentActorNames.compactMap(trimmed)
         let othersCount = max(notification.actionCount - actorNames.count, 0)
+        let target = notification.type == .postReaction ? "post" : "comment"
         let reactionText = trimmed(notification.reactionEmoji)
-            .map { "reacted \($0) to your comment." }
-            ?? "reacted to your comment."
+            .map { "reacted \($0) to your \(target)." }
+            ?? "reacted to your \(target)."
 
         switch actorNames.count {
         case 0:

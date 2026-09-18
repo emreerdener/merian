@@ -83,11 +83,13 @@ pagination, so old routes, pages, and errors cannot mutate the mounted thread.
 If a later page returns the authoritative target reply, it replaces the bounded
 notification fallback in place.
 
-Reaction taps retain the existing behavior: the reply sheet updates its local
-copy immediately and forwards the original comment and emoji to the shared Feed
-interaction owner. `ExploreCommentAuthorPresentation` remains the shared
-presentation mapping used to resolve a comment avatar from the row, current
-viewer, or post-author fallback.
+Reaction taps update the local copy immediately and await the shared Feed
+interaction owner with the requested selected state. Success reconciles the
+authoritative count; failure restores the prior reactions and presents an error.
+Route generations prevent late responses from changing a replacement thread.
+`ExploreCommentAuthorPresentation` remains the shared presentation mapping used
+to resolve a comment avatar from the row, current viewer, or post-author
+fallback.
 
 ## Dismiss-then-navigate contract
 
@@ -171,3 +173,30 @@ trip destinations; unavailable reply fallback; reply pagination and reactions;
 rapid selection/dismissal; VoiceOver; large Dynamic Type; Reduce Motion;
 light/dark appearance; and video remaining paused until the final overlay
 disappears.
+
+## Emoji reactions
+
+Post reactions are grouped by emoji and route to post detail. Native
+list/count/read and push-registration requests declare reaction support. Reply
+reactions await the Feed interaction owner and reconcile or roll back their
+local copy; they use the shared Unicode picker and paginated chips.
+
+`supports_post_reactions: true` is sent by current native list, count,
+mark-read, and push-registration adapters. Omission remains false for older
+clients. Post reaction activity groups by recipient/post/emoji; additions update
+unread state, removals recompute without pushing, and self/blocked/unavailable
+activity is suppressed. Post ❤️ stays in the existing like path. Eligible pushes
+require both device capability and Explore opt-in, with matching badge counts.
+
+Notification reply pagination and mutation callbacks share a per-comment queue.
+The sheet applies optimistic state, awaits Feed's authoritative result, and
+restores its local copy with visible error feedback on failure. Generation and
+viewer checks reject results from a replaced route/account. See the
+[reaction verification matrix](../../../../../../docs/development-guides/08-testing-strategy.md#explore-emoji-reaction-verification).
+
+Capability filtering applies to notification list/count/read RPCs and push
+fanout. The existing authenticated Realtime subscription still observes own-row
+changes in `explore_post_notifications`; it is not capability-filtered. Native
+clients consume these as opaque `AnyAction` refresh signals and obtain display
+rows/counts through the filtered endpoints. Do not treat a raw Realtime change
+as a notification DTO or display it directly.

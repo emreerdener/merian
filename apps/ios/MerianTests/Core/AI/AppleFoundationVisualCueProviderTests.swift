@@ -51,10 +51,10 @@ struct AppleFoundationVisualCueProviderTests {
     @available(iOS 27.0, *)
     @Test func mappingBoundsEvenAnOversizedResponse() throws {
         let content = try GeneratedContent(json:
-            #"{"cues":[{"kind":"shape","detail":"rounded edges"},{"kind":"marking","detail":"dark bands"},{"kind":"arrangement","detail":"radial lines"},{"kind":"tone","detail":"pale areas"}]}"#
+            #"{"cues":[{"kind":"shape","detail":"rounded edges"},{"kind":"marking","detail":"dark bands"},{"kind":"arrangement","detail":"radial lines"},{"kind":"tone","detail":"pale areas"},{"kind":"structure","detail":"thin branches"},{"kind":"surfaceTexture","detail":"rough surface"},{"kind":"colorPattern","detail":"green patches"}]}"#
         )
         let snapshots = AppleFoundationVisualCueGeneration.completedSnapshots(from: content)
-        #expect(snapshots.map(\.index) == [0, 1, 2])
+        #expect(snapshots.map(\.index) == [0, 1, 2, 3, 4, 5])
     }
 
     @available(iOS 27.0, *)

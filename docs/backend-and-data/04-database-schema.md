@@ -3190,7 +3190,7 @@ in migration `20260427010000_add_explore_notifications.sql`.
 
 - `id` (UUID): Primary key.
 - `user_id` (UUID FK → `users.id`, CASCADE DELETE): Notification recipient.
-  Post-like and post-comment rows target the Explore post owner;
+  Post-like, post-reaction, and post-comment rows target the Explore post owner;
   comment-reaction rows target the comment author; follow rows target the
   followed user.
 - `post_id` (UUID FK → `explore_posts.id`, CASCADE DELETE, nullable): The post
@@ -3199,21 +3199,23 @@ in migration `20260427010000_add_explore_notifications.sql`.
 - `community_request_id` (UUID FK → `explore_community_requests.id`, nullable):
   Present for Community Identification notifications.
 - `type` (`public.explore_notification_type`): `'like_aggregated'` | `'comment'`
-  | `'comment_reaction'` | `'comment_reply'` | `'comment_mention'` | `'follow'`
-  | `'community_identification_added'` | `'community_request_resolved'` |
-  `'community_identification_helped'`.
+  | `'post_reaction'` | `'comment_reaction'` | `'comment_reply'` |
+  `'comment_mention'` | `'follow'` | `'community_identification_added'` |
+  `'community_request_resolved'` | `'community_identification_helped'`.
 - `comment_id` (UUID FK → `explore_post_comments.id`, nullable): Present for
-  comment and comment-reaction notifications.
-- `reaction_emoji` (TEXT, nullable): Present only for `'comment_reaction'` rows
-  so the client and push layer can render the reacted emoji.
+  comment and comment-reaction notifications; always `NULL` for post reactions.
+- `reaction_emoji` (TEXT, nullable): Present for `'post_reaction'` and
+  `'comment_reaction'` rows so the client and push layer can render the reacted
+  emoji.
 - `triggering_user_id` (UUID FK → `users.id`, nullable): The latest actor for
-  aggregated likes and comment reactions, the comment author for plain comment
-  rows, or the follower for follow rows.
+  aggregated likes and post/comment reactions, the comment author for plain
+  comment rows, or the follower for follow rows.
 - `recent_actor_ids` (UUID array): Latest actor IDs for aggregated-like and
-  aggregated comment-reaction rows, capped at 3 entries.
+  aggregated post/comment-reaction rows, capped at 3 entries. Post-reaction
+  reads recompute visible actors for the requesting viewer.
 - `action_count` (INT): Aggregate like count for `'like_aggregated'`, aggregate
-  reactor count for `'comment_reaction'`, and always `1` for plain comment and
-  follow notifications.
+  reactor count for `'post_reaction'` and `'comment_reaction'`, and always `1`
+  for plain comment and follow notifications.
 - `is_read` (BOOLEAN): Client-controlled read state for the in-app bell badge
   and notifications sheet.
 - `created_at` / `updated_at` (TIMESTAMPTZ): Ordering keys for the notifications
@@ -3224,6 +3226,8 @@ in migration `20260427010000_add_explore_notifications.sql`.
 - Partial unique index on `(user_id, post_id, type)` where
   `type = 'like_aggregated'` guarantees a single aggregated like row per
   owner/post.
+- Partial unique index on `(user_id, post_id, reaction_emoji)` where
+  `type = 'post_reaction'` guarantees one group per recipient/post/emoji.
 - Partial unique index on `comment_id` where `type = 'comment'` guarantees one
   notification row per comment.
 - Partial unique index on `(user_id, comment_id, reaction_emoji)` where
@@ -3241,6 +3245,13 @@ in migration `20260427010000_add_explore_notifications.sql`.
   notification rows.
 
 **Lifecycle triggers**:
+
+- `internal.sync_explore_post_reaction_notification()` recomputes post emoji
+  activity after insert/delete under the mutation's post-row lock. Non-self
+  additions reset unread state and advance activity; removals preserve read/time
+  state while recomputing or deleting empty groups. Reads apply current
+  blocking, shadowban, and target-visibility filters. Post ❤️ uses the existing
+  like path.
 
 - `sync_like_notification_for_post(target_post_id)` recomputes aggregated like
   notifications from the authoritative `explore_post_likes` table after every
@@ -3267,11 +3278,12 @@ in migration `20260427010000_add_explore_notifications.sql`.
 - A block trigger removes follow notification rows when either user blocks the
   other.
 - A push-delivery trigger invokes the `send-push-notification` Edge Function for
-  newly inserted visible post-backed rows and for like/comment-reaction
-  aggregate updates where `action_count` increased. It also dispatches Community
-  request notifications and Community aggregate updates where `action_count`
-  increased. It dispatches `media_missing` on incident insertion and
-  intentionally skips `type IN ('follow', 'media_restored')`.
+  newly inserted visible post-backed rows and for
+  like/post-reaction/comment-reaction aggregate updates where `action_count`
+  increased. It also dispatches Community request notifications and Community
+  aggregate updates where `action_count` increased. It dispatches
+  `media_missing` on incident insertion and intentionally skips
+  `type IN ('follow', 'media_restored')`.
 
 ### `user_push_devices`
 
@@ -3300,6 +3312,10 @@ Remote push device registry for Explore activity delivery. Added in migration
 - `community_identifications_enabled` (BOOLEAN): Whether this device should
   receive remote pushes for Community Identification updates. Defaults to `TRUE`
   and is independent from regular Explore activity pushes.
+- `supports_post_reactions` (BOOLEAN NOT NULL, default `FALSE`): Registration
+  capability for decoding `post_reaction`. These pushes require this capability
+  and `explore_enabled`; it does not opt a device into pushes. Badge counts use
+  the same capability-specific notification view.
 - `is_active` (BOOLEAN): Disabled when APNs reports a terminal token failure.
 - `last_registered_at` (TIMESTAMPTZ): Last successful registration heartbeat
   from the app.
@@ -5847,3 +5863,48 @@ unchanged.
 - description text and serialized observation contexts
 - `CapturedMediaSummary`
 - `ActiveScanMedia`
+
+## Explore Unicode reactions (2026-09-18)
+
+`public.explore_post_reactions` stores `(post_id, user_id, emoji)` as its
+primary key, plus `created_at`; post/user deletion cascades. RLS is enabled,
+client roles have no table access, and service writes use guarded
+`set_explore_reaction`. The internal Unicode catalog supplies canonical aliases
+and stable ordering; post red hearts are excluded from this table and use
+existing likes.
+
+The guarded reaction read RPCs supply bounded previews/pages with current
+visibility and block checks. Recognized comment aliases count at most once per
+user; no historical arbitrary TEXT cleanup is performed. The post-row lock
+serializes mutation and notification recomputation. The ghost-profile merge
+registry includes the new user FK and resolves duplicate and self-reactions
+before reparenting.
+
+`post_reaction` notification rows have a post, no comment, and an emoji. Their
+partial unique index groups by recipient/post/emoji. Current actor visibility is
+recomputed on reads. Capability-specific readers preserve old notification RPC
+signatures and old-client row sets. Both readers and mark-read paths use
+service-only grants and in-routine authorization. Push registrations add
+`supports_post_reactions BOOLEAN NOT NULL DEFAULT FALSE`.
+
+The ordered forward migrations are
+`20260918142009_add_explore_post_reaction_type.sql` (enum value) and
+`20260918142010_add_explore_emoji_reactions.sql` (catalog, storage, RPCs,
+notification/device support, and ghost-profile merge policy). The second uses
+catalog-order pagination and indexes `(post_id, emoji, created_at DESC)` plus
+`user_id`; no existing likes or legacy comment values are deleted. The internal
+catalog seed is immutable after application: future Unicode versions need a new
+forward migration and client/Edge/database parity verification. See the
+[rollout contract](./05-api-contracts.md#reaction-rollout-order).
+
+### Post reactor identity reads
+
+`20260918163435_add_explore_post_reactors.sql` adds
+`public.get_explore_post_reactors(uuid,uuid,uuid)`, a stable, service-only,
+allowlisted `SECURITY DEFINER` RPC with an empty search path and in-routine
+service/target guards. It reads existing indexed post likes/reactions; no new
+identity table, client grants, or notification behavior is introduced. The union
+maps likes to ❤️, deduplicates by actor/emoji, and applies actor visibility
+before unique-person counts and public-name previews. Pages are bounded to 32
+actors plus one lookahead, ordered by immutable UUID; emoji arrays use catalog
+order. See the [wire contract](./05-api-contracts.md#post-reaction-people).

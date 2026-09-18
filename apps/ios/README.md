@@ -44,7 +44,7 @@ active-schema, historical-snapshot, and migration-registry ownership.
 critical UI fixtures and separate benchmarks. Run the shared-cache audit through
 `make ios-local-build ARGS='audit --destination "platform=iOS Simulator,id=UDID" --environment-label "hardware-runtime"'`.
 See the
-[canonical audit methodology](../../docs/development-guides/08-testing-strategy.md#automated-runtime-acceptance-and-performance-audit)
+[canonical audit methodology](../../docs/development-guides/18-ios-runtime-quality-and-benchmarking.md)
 for selectors, baselines, CI policy, evidence and unmeasured device gaps.
 
 ## Feature Folders
@@ -883,10 +883,14 @@ presentation timing while recording a changed selection before the search
 debounce; grouped Components render without direct networking or concrete
 singleton lookup. Codable wire DTOs remain in
 `Core/Network/SpeciesDictionaryAPIModels.swift`. Core Network also owns strict
-schema/identity validation and the bounded in-memory cache, while Explore Shell
-remains the navigation-stack and Identify/Species selection owner. Mirrored
-feature tests enforce those boundaries, cross-selection race handling, and a
-600-line production-file ceiling.
+schema/identity validation and the bounded detail/stats memos, while Explore
+Shell owns the navigation stack, Identify/Species selection, and the overview
+model's lifetime for one Explore presentation. Catalog's overview model reuses
+successful same-country content for five minutes on navigation and keeps stale
+content visible during refresh; closing Explore releases it. See the
+[overview lifecycle contract](../../docs/features-and-hardware/16-species-dictionary.md#ios-catalog-ownership-and-request-lifecycle).
+Mirrored feature tests enforce those boundaries, cross-selection race handling,
+and a 600-line production-file ceiling.
 
 Within Detail, platform-neutral Models own request, state, share, presentation,
 telemetry, and hero-edge policy; Services alone resolve the live dictionary and

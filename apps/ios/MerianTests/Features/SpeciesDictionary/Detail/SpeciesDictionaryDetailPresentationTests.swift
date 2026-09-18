@@ -320,33 +320,6 @@ final class SpeciesDictionaryDetailPresentationTests: XCTestCase {
         )
     }
 
-    func testHeroScrollPolicyUsesClearanceHysteresis() {
-        XCTAssertEqual(DictionaryHeroEdgePolicy.shouldHideEffect(
-            heroMaxY: 45,
-            isCurrentlyHidden: true
-        ), true)
-        XCTAssertEqual(DictionaryHeroEdgePolicy.shouldHideEffect(
-            heroMaxY: 44,
-            isCurrentlyHidden: true
-        ), false)
-        XCTAssertEqual(DictionaryHeroEdgePolicy.shouldHideEffect(
-            heroMaxY: 47,
-            isCurrentlyHidden: false
-        ), false)
-        XCTAssertEqual(DictionaryHeroEdgePolicy.shouldHideEffect(
-            heroMaxY: 48,
-            isCurrentlyHidden: false
-        ), true)
-        XCTAssertNil(DictionaryHeroEdgePolicy.shouldHideEffect(
-            heroMaxY: .infinity,
-            isCurrentlyHidden: true
-        ))
-        XCTAssertNil(DictionaryHeroEdgePolicy.shouldHideEffect(
-            heroMaxY: .nan,
-            isCurrentlyHidden: true
-        ))
-    }
-
     func testCommunitySightingsGridRoundsOuterCorners() {
         let topRight = PublishedScanGridStyle.cornerRadii(
             index: 1,

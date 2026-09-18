@@ -14,8 +14,11 @@ and follow community consensus to resolution. The existing Species Dictionary
 overview is rendered as Identify's `Species` mode (internally `.index`),
 although its implementation continues to live under
 [`Features/SpeciesDictionary/Catalog`](../../SpeciesDictionary/Catalog/README.md).
-Identify owns the mode switch; Catalog owns Species loading, presentation, and
-typed category routes.
+The Explore Shell hosts the mode switch and retains the Species overview model
+across mode/tab navigation for one Explore presentation. Catalog owns Species
+loading, its five-minute freshness policy, presentation, and typed category
+routes; see the
+[overview lifecycle contract](../../../../../../docs/features-and-hardware/16-species-dictionary.md#ios-catalog-ownership-and-request-lifecycle).
 
 ## Root surfaces
 

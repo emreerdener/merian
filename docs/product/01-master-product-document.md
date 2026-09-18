@@ -417,9 +417,12 @@ retain their nonvisual copy. Local images, classifications, and cue text are not
 persisted, sent to Gemini, logged, or included in analytics. The project now
 uses Xcode 27.0 build `27A266a`. Generative Apple Foundation Models image cues
 are enabled by default on eligible iOS 27 devices, alongside Vision and
-deterministic pixel traits. Unsupported devices or unavailable models retain the
-existing observations. Debug builds can disable the feature for comparison
-testing. Hosted and physical-device validation remain outstanding.
+deterministic pixel traits. Up to six distinct photo observations are followed
+by five general visual phrases before the cycle repeats; fewer generated
+observations still receive the general tail. Unsupported devices or unavailable
+models retain the existing observations. Debug builds can disable the feature
+for comparison testing. Hosted and physical-device validation remain
+outstanding.
 
 ## 5.5 Expected result shape
 
@@ -580,6 +583,13 @@ Activity rows; complete feeds push as **Identify requests** and **Identify
 activity** pages. Species links select Identify/Species and request links select
 Identify/Requests before opening detail.
 
+Returning to Species within the same Explore session preserves the loaded
+overview. Recent content is reused for five minutes, with older content kept
+visible during a refresh on return; pull-to-refresh updates immediately. Closing
+Explore clears this in-memory state. See the
+[Species overview lifecycle](../features-and-hardware/16-species-dictionary.md#ios-catalog-ownership-and-request-lifecycle)
+for country changes and refresh behavior.
+
 The retired taxonomy visualization is not a product surface. Taxonomy remains
 reference data within Species and species detail; no separate taxonomy route,
 feature flag, or API mode is supported.
@@ -589,7 +599,7 @@ feature flag, or API mode is supported.
 The current community model includes:
 
 - Likes.
-- Comments, replies, and comment reactions.
+- Comments, replies, and emoji reactions on posts and comments.
 - Following.
 - Hashtags and discovery views.
 - Notifications.
@@ -605,6 +615,12 @@ duplicable display name grants authority or verified status. Comment mentions
 store the original normalized `@username` token alongside the durable mentioned
 user ID, so old comment links survive later handle changes or reservation-policy
 expansion without rewriting user-authored text.
+
+The native emoji-reaction implementation shares one searchable Unicode picker
+across posts, comments, replies, and notification reply sheets. Post ❤️ remains
+the existing like; Share stays available on cards and details. See the
+[canonical reaction contract](../rfcs/explore-page.md#emoji-reactions-update-2026-09-18)
+for interaction, accessibility, compatibility, and backend-first delivery rules.
 
 The stale "react-only" description is retired. Conversation and relationship
 features are part of the current codebase.
@@ -797,7 +813,7 @@ Current onboarding contains four steps:
 1. Welcome.
 2. Camera.
 3. Location.
-4. Ready / **One last step**.
+4. Ready / **Before you scan**.
 
 The internal-testing screen discloses: “Naturebook sends observation data to
 Google Gemini for AI-powered identification.” It presents three initially-off

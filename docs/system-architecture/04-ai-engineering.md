@@ -1679,10 +1679,11 @@ to plain observations—for example, **Reviewing softly colored areas** or
 **moderate color levels** or **balanced light and dark**.
 
 A single `ScanningPhraseCoordinator` owns the monotonic source order: generic →
-Vision category → deterministic image trait → Foundation Models cue. A less
-specific tick therefore cannot replace image-derived context. The injected
-phrase sleeper keeps automatic transitions at the 2.3-second cadence without
-exposing partial tokens.
+Vision category → deterministic image trait → Foundation Models cue. A
+lower-priority source cannot replace the active deck. The Foundation deck
+intentionally includes general visual copy after its observations to avoid short
+repetitive cycles. The injected phrase sleeper keeps automatic transitions at
+the 2.3-second cadence without exposing partial tokens.
 
 ### Broad-Category Qualification
 
@@ -1730,9 +1731,15 @@ enter at the next clock tick. Foundation cues, when available, replace that deck
 at a later tick and permanently raise source priority.
 `ScanningPhraseCoordinator` records every normalized phrase already displayed
 during the scan and advances through every currently available deck entry before
-wrapping to index zero for a new round. A newly appended cue is consumed before
-the deck can wrap. When all five deterministic image cues qualify, they span
-11.5 seconds at the shared cadence before their first repeat.
+wrapping to index zero for a new round. The Foundation deck contains up to six
+accepted photo observations followed by all five general visual phrases. Even
+one accepted observation gets this general tail; zero accepted observations
+retain the existing fallback deck. The full eleven-phrase cycle spans 25.3
+seconds. Newly streamed observations take priority on the next tick without
+restarting the general tail, and exact-scan handoffs preserve unseen-observation
+priority. General copy matching a model phrase is not accepted as a distinct
+observation. No extra model request is made to refill the deck. When all five
+deterministic image cues qualify, their separate deck spans 11.5 seconds.
 
 An active visual live-to-queue handoff snapshots this ephemeral order only after
 the typed presentation owner matches both scan ID and attempt generation. The
@@ -1817,15 +1824,15 @@ clear a previously saved override for comparison testing. Unsupported
 toolchains, devices, and OS versions return no stream. The adapter creates one
 fresh `SystemLanguageModel.default` session with the existing 512-pixel image
 derivative, no tools, and no cloud model. Its structured schema permits zero to
-three cues, constrains the trait kind, and budgets 256 response tokens.
+six cues, constrains the trait kind, and budgets 512 response tokens.
 Instructions request short visible noun phrases and explicitly treat text in the
 image as content rather than instructions. Vision labels are used only by the
 downstream identity denylist, never as model instructions. Only complete cue
 objects are emitted; each original array index is emitted once. The detached
-utility worker has a three-element stream buffer. `FoundationVisualCueStream`
+utility worker has a six-element stream buffer. `FoundationVisualCueStream`
 returns the snapshots with an idempotent, non-blocking cancellation callback.
 The coordinator invokes it on every scope exit, including an early return after
-eligibility loss or the third accepted cue; relying on
+eligibility loss or the sixth accepted cue; relying on
 `AsyncThrowingStream.onTermination` alone would leave that producer alive.
 Stream termination also cancels the worker. The existing coordinator still
 validates every phrase and fences publication to the exact attempt.
@@ -1849,7 +1856,7 @@ The provider contract is deliberately stricter than its UI consumer:
    denylist.
 2. Use only `SystemLanguageModel.default`; unavailable or not-ready Apple
    Intelligence returns no stream and never falls back to Private Cloud Compute.
-3. Request at most three broad-to-specific indexed cues, each with a constrained
+3. Request at most six broad-to-specific indexed cues, each with a constrained
    trait kind and a generated 2–5-word visible detail.
 4. Buffer cumulative snapshots until each indexed cue object is complete.
 5. Accept only unique rendered phrases of at most 36 characters. Reject the

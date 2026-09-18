@@ -1,3 +1,4 @@
+import { withReactionPreviews } from "../_shared/exploreReactionDb.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { requireUuid } from "../_shared/explore.ts";
@@ -21,7 +22,8 @@ Deno.serve((req: Request) =>
 
     return jsonResponse({
       schema_version: PUBLIC_SPECIES_SCHEMA_VERSION,
-      data,
+      data: (await withReactionPreviews([data], user.id, "post", (row) =>
+        row.post_id, supabaseAdmin))[0],
     }, 200);
   })
 );

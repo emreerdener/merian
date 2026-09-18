@@ -22,7 +22,9 @@ struct ExplorePostDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var detailViewModel: ExplorePostDetailViewModel
+    @State private var reactorsModel: ExplorePostReactorsViewModel
     @State private var localFieldNotes: String?
+    @State private var revealReactionEmoji: String?
     @State private var fieldNotesEditorInitialText = ""
     @State private var presentedSheet: ExplorePostDetailPresentation?
     @State private var insightDismissalRoute: ScanInsightRoute?
@@ -56,6 +58,9 @@ struct ExplorePostDetailView: View {
         onOpenExploreMap: ((ExploreMapFocusTarget) -> Void)? = nil
     ) {
         _detailViewModel = State(initialValue: ExplorePostDetailViewModel(postId: postId))
+        _reactorsModel = State(initialValue: ExplorePostReactorsViewModel(
+            postId: postId, load: viewModel.dependencies.reactions.loadPeople,
+            currentViewer: { viewModel.dependencies.comments.currentViewer().userID }))
         self.viewModel = viewModel
         self.postId = postId
         self.shouldFocusCommentComposer = shouldFocusCommentComposer
@@ -84,6 +89,8 @@ struct ExplorePostDetailView: View {
                 ExplorePostDetailContentView(
                     viewModel: viewModel,
                     detailViewModel: detailViewModel,
+                    reactorsModel: reactorsModel,
+                    onOpenReactors: { _ = beginPresentation(.reactors(postId: post.id)) },
                     post: post,
                     shouldFocusCommentComposer: shouldFocusCommentComposer,
                     shouldOpenInsight: shouldOpenInsight,
@@ -103,7 +110,7 @@ struct ExplorePostDetailView: View {
                     isRefreshingAfterInsightDismiss: isRefreshingAfterInsightDismiss,
                     isFieldChatAvailable: !exploreChatViewModel.isUnavailable(for: post.id),
                     onLoadDetail: {
-                        await detailViewModel.loadDetail()
+                        await loadDetail()
                     },
                     onSyncLocalFieldNotes: {
                         syncLocalFieldNotes(for: post)
@@ -111,22 +118,14 @@ struct ExplorePostDetailView: View {
                     onPresentNotificationReply: { route in
                         beginPresentation(.notificationReply(route))
                     },
-                    onOpenInsight: {
-                        openInsight(for: post)
-                    },
-                    onEditFieldNotes: {
-                        openFieldNotesEditor(for: post)
-                    },
-                    onEditPost: {
-                        openPostComposer(for: post)
-                    },
-                    onUnpublish: {
-                        openUnpublishConfirmation(for: post)
-                    },
-                    onOpenFieldChat: {
-                        openExploreFieldChat(for: post)
-                    },
-                    onDisappear: cancelPendingAsyncPresentations
+                    onOpenInsight: { openInsight(for: post) },
+                    onEditFieldNotes: { openFieldNotesEditor(for: post) },
+                    onEditPost: { openPostComposer(for: post) },
+                    onUnpublish: { openUnpublishConfirmation(for: post) },
+                    onOpenFieldChat: { openExploreFieldChat(for: post) },
+                    onDisappear: cancelPendingAsyncPresentations,
+                    onAddReaction: { _ = beginPresentation(.emojiPicker(postId: post.id)) },
+                    revealReactionEmoji: revealReactionEmoji
                 )
                 .onChange(of: currentPost?.id) { _, newValue in
                     if newValue == nil {
@@ -142,6 +141,10 @@ struct ExplorePostDetailView: View {
                     }
             }
         }
+        .task(id: "\(postId)-\(supabase.currentUser?.id.uuidString ?? "none")-\(viewModel.postReactorsRevision)") {
+            await reactorsModel.refresh()
+        }
+        .onDisappear { reactorsModel.invalidate() }
         .onChange(of: offlineQueueManager.isOnline, initial: true) { _, isOnline in
             exploreChatViewModel.updateConnectivity(isOnline: isOnline)
         }
@@ -165,8 +168,10 @@ struct ExplorePostDetailView: View {
                 detailViewModel: detailViewModel,
                 chatViewModel: exploreChatViewModel,
                 presentedSheet: $presentedSheet,
+                reactorsModel: reactorsModel,
                 presentation: presentation,
                 currentPost: currentPost,
+                onSelectReaction: { revealReactionEmoji = $0 },
                 localFieldNotes: localFieldNotes,
                 onUpdateLocalFieldNotes: updateLocalFieldNotes,
                 onSaveFieldNotes: { text, isPublic, post in
@@ -181,22 +186,16 @@ struct ExplorePostDetailView: View {
                 }
             )
         }
-        .alert(
-            "Unpublish Post?",
-            isPresented: Binding(
-                get: { postToUnpublish != nil },
-                set: { if !$0 { postToUnpublish = nil } }
-            )
-        ) {
-            Button("Cancel", role: .cancel) { }
-            Button("Unpublish", role: .destructive) {
-                if let post = postToUnpublish {
-                    Task { await viewModel.unshare(post) }
-                }
-            }
-        } message: {
-            Text("This will remove the post from Explore. Your original scan will remain safely in your library.")
+        .modifier(ExplorePostUnpublishConfirmation(post: $postToUnpublish) { post in
+            Task { await viewModel.unshare(post) }
+        })
+    }
+
+    private func loadDetail(force: Bool = false) async {
+        await viewModel.loadPostDetailReactions(postId: postId) {
+            await detailViewModel.loadDetail(force: force)
         }
+        if force { await reactorsModel.refresh() }
     }
 
     private func handleAppEvent(_ event: AppEvent) {
@@ -204,7 +203,7 @@ struct ExplorePostDetailView: View {
         case .explorePostNeedsRefresh(let changedPostId) where changedPostId == postId:
             Task {
                 await viewModel.refreshPost(postId: changedPostId)
-                await detailViewModel.loadDetail(force: true)
+                await loadDetail(force: true)
             }
         case .publicAuthorIdentityChanged(let previousUserId, let currentUserId):
             guard let post = currentPost,
@@ -215,7 +214,7 @@ struct ExplorePostDetailView: View {
                   ) else { return }
             Task {
                 await viewModel.refreshPost(postId: post.id)
-                await detailViewModel.loadDetail(force: true)
+                await loadDetail(force: true)
             }
         default:
             break
@@ -264,7 +263,7 @@ struct ExplorePostDetailView: View {
             if let post = currentPost {
                 await reconcileFieldNotesAfterInsightDismiss(for: post)
             } else {
-                await detailViewModel.loadDetail()
+                await loadDetail()
             }
             isRefreshingAfterInsightDismiss = false
         }
@@ -459,7 +458,7 @@ struct ExplorePostDetailView: View {
             )
             await viewModel.refreshPost(postId: post.id)
             viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
-            await detailViewModel.loadDetail(force: true)
+            await loadDetail(force: true)
             HapticManager.shared.triggerSuccessPulse()
             viewModel.toastMessage = .success("Explore post updated")
         } catch {
@@ -505,7 +504,7 @@ struct ExplorePostDetailView: View {
 
     private func reconcileFieldNotesAfterInsightDismiss(for post: ExplorePost) async {
         syncLocalFieldNotes(for: post)
-        await detailViewModel.loadDetail()
+        await loadDetail()
 
         guard detailViewModel.detail?.trimmedFieldNotes != nil else {
             syncLocalFieldNotes(for: post)

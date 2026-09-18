@@ -86,9 +86,10 @@ struct ExploreNotificationReplyThreadContent: View {
             ExploreCommentReactionsView(
                 comment: comment,
                 reactingCommentId: $viewModel.reactingCommentId,
-                onToggleReaction: { comment, emoji in
-                    viewModel.toggleReaction(for: comment, emoji: emoji)
-                }
+                onToggleReaction: { comment, emoji, selected in
+                    viewModel.setReaction(for: comment, emoji: emoji, selected: selected)
+                },
+                onLoadMore: { viewModel.loadMoreReactions(for: comment) }
             )
         }
     }

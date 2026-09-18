@@ -8,6 +8,7 @@ enum ProfileTab {
 struct ProfileView: View {
     // MARK: - Environment & State
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.showSignOutConfirmation) private var showSignOutConfirmation
     @Environment(ProfileViewModel.self) private var viewModel
     @Environment(HardwareOrchestrator.self) private var hardwareOrchestrator
 
@@ -121,7 +122,9 @@ struct ProfileView: View {
             if !viewModel.isGuestUser {
                 Button {
                     Task {
-                        if !(await viewModel.signOut()) {
+                        if await viewModel.signOut() {
+                            showSignOutConfirmation()
+                        } else {
                             signOutErrorMessage = SignOutPresentationPolicy
                                 .incompleteMessage(
                                     isAnonymousSession: viewModel.isGuestUser

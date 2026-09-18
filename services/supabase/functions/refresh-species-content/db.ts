@@ -1,10 +1,11 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
   type ExternalEnrichmentData,
-  fetchExternalEnrichment,
+  fetchExternalEnrichmentWithImageRights,
   fetchGBIFCountryOccurrences,
   type GBIFCountryOccurrence,
 } from "../_shared/external.ts";
+import type { ExternalReferenceImage } from "../_shared/referenceImageRights.ts";
 import {
   legacyReferenceImageUrls,
   type PublicReferenceImageSource,
@@ -129,6 +130,8 @@ export interface SpeciesReferenceImageRefreshRow {
   source: PublicReferenceImageSource;
   sort_order: number;
   last_verified_at: string;
+  license?: string;
+  attribution?: string;
 }
 
 export type SpeciesContentRefreshStatus =
@@ -464,6 +467,7 @@ export function referenceImageRowsFromRefreshCache(
   referenceImageUrl: string | null | undefined,
   wikipediaUrl: string | null | undefined,
   refreshedAt = new Date(),
+  referenceImages: ExternalReferenceImage[] = [],
 ): SpeciesReferenceImageRefreshRow[] {
   const rows: SpeciesReferenceImageRefreshRow[] = [];
   const seen = new Set<string>();
@@ -472,11 +476,16 @@ export function referenceImageRowsFromRefreshCache(
   for (const url of legacyReferenceImageUrls(referenceImageUrl)) {
     if (seen.has(url)) continue;
     seen.add(url);
+    const rights = referenceImages.find((image) => image.url === url);
     rows.push({
       url,
-      source: referenceImageSource(url, wikipediaUrl, rows.length),
+      source: rights?.source ??
+        referenceImageSource(url, wikipediaUrl, rows.length),
       sort_order: rows.length,
       last_verified_at: verifiedAt,
+      ...(rights?.license && rights.attribution
+        ? { license: rights.license, attribution: rights.attribution }
+        : {}),
     });
   }
 
@@ -486,7 +495,8 @@ export function referenceImageRowsFromRefreshCache(
 export async function refreshSpeciesContent(
   plan: SpeciesContentRefreshPlan,
   supabaseAdmin: SupabaseClient,
-  enrichmentFetcher: ExternalEnrichmentFetcher = fetchExternalEnrichment,
+  enrichmentFetcher: ExternalEnrichmentFetcher =
+    fetchExternalEnrichmentWithImageRights,
   countryOccurrenceFetcher: GBIFCountryOccurrenceFetcher =
     fetchGBIFCountryOccurrences,
 ): Promise<SpeciesContentRefreshResult> {
@@ -548,6 +558,7 @@ export async function refreshSpeciesContent(
       stringValue(refreshUpdate.update.wikipedia_url) ??
         externalData.wikipediaUrl,
       supabaseAdmin,
+      externalData.referenceImages,
     );
   }
 
@@ -639,7 +650,8 @@ export async function fetchCurrentSpeciesGBIFTaxonKey(
 export async function runSpeciesContentRefresh(
   request: SpeciesContentRefreshRequest,
   supabaseAdmin: SupabaseClient,
-  enrichmentFetcher: ExternalEnrichmentFetcher = fetchExternalEnrichment,
+  enrichmentFetcher: ExternalEnrichmentFetcher =
+    fetchExternalEnrichmentWithImageRights,
   countryOccurrenceFetcher: GBIFCountryOccurrenceFetcher =
     fetchGBIFCountryOccurrences,
 ): Promise<SpeciesContentRefreshRunResult> {
@@ -804,10 +816,13 @@ async function replaceSpeciesReferenceImages(
   referenceImageUrl: string | null,
   wikipediaUrl: string | null,
   supabaseAdmin: SupabaseClient,
+  referenceImages: ExternalReferenceImage[] = [],
 ): Promise<void> {
   const images = referenceImageRowsFromRefreshCache(
     referenceImageUrl,
     wikipediaUrl,
+    new Date(),
+    referenceImages,
   );
   if (images.length === 0) return;
 

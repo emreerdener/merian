@@ -37,10 +37,13 @@ this README documents the iOS ownership boundary.
   one-time staged-to-pending dismiss handoff.
 - `Views/ExploreView.swift` owns the shared `NavigationPath`, root selection,
   sheet items, Insight handoff state, playback coordinator, and injected
-  dependencies. `Views/ExploreShellNavigationView.swift` registers typed
-  destinations and owns route-local composition. The lifecycle, presentation,
-  and event/feedback modifiers keep their original ordering and exact mount
-  lifetimes.
+  dependencies. It also retains the Species overview view model for the Explore
+  presentation and passes it through the navigation host, preserving loaded
+  content across Species/Requests and root-tab navigation. Catalog owns its
+  five-minute freshness and refresh policy; dismissing Explore releases it.
+  `Views/ExploreShellNavigationView.swift` registers typed destinations and owns
+  route-local composition. The lifecycle, presentation, and event/feedback
+  modifiers keep their original ordering and exact mount lifetimes.
 - `Components/` owns the root segmented picker and notification button.
 
 Shell views and components perform no networking and resolve no service

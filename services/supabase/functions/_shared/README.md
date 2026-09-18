@@ -342,7 +342,14 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   enrichment, species refresh, and dictionary paths. All returned reference
   image URLs pass through `externalImagePolicy.ts` before the enrichment object
   is returned. Provider requests use the shared 2.5-second deadline and parse
-  JSON only within a 256 KiB streaming response ceiling.
+  JSON only within a 256 KiB streaming response ceiling. The durable species
+  worker opts into `fetchExternalEnrichmentWithImageRights` to collect
+  exact-file Commons metadata and media-level GBIF rights. Interactive
+  enrichment retains the existing network path and legacy URL shape.
+- **`referenceImageRights.ts`**: Pure shared normalization for reusable license
+  URLs, bounded plain-text image credits, and exact Commons file identity. The
+  public web uses the same license/source mapping for linked captions. Unknown
+  or restricted terms do not become automatically publishable image metadata.
 - **`externalImagePolicy.ts`**: Exact third-party reference-media denylist. The
   current rule suppresses every resized/query variant below
   `inaturalist-open-data.s3.amazonaws.com/photos/605615444/` while leaving other
@@ -493,3 +500,18 @@ identical:
   `InferenceConfidencePolicy` owner.
 - **`types.ts`**: Shared request/database types plus model and client payload
   aliases inferred from `contract.ts`.
+
+## Explore reaction helpers
+
+`exploreReactions.ts` owns catalog-based Unicode validation, canonical aliases,
+the reaction wire values, and strict optional `supports_post_reactions`
+validation (omission is false). `emojiCatalog.json` is generated from the pinned
+Unicode/CLDR sources in `resources/emoji`, together with the iOS bundle.
+`exploreReactionDb.ts` adapts service-only set/page/preview RPCs, maps
+validation and visibility failures to public errors, and bounds preview batches
+to 100 targets. It keeps database access out of route orchestrators.
+
+See the
+[API contract](../../../../docs/backend-and-data/05-api-contracts.md#explore-emoji-reactions-2026-09-18),
+[catalog generation guide](../../../../resources/emoji/README.md), and
+[reaction tests](../../../../docs/development-guides/08-testing-strategy.md#explore-emoji-reaction-verification).

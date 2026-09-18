@@ -286,12 +286,13 @@ struct ExploreAuthorProfileContent: View {
     }
 
     private func loadProfile(force: Bool = false) async {
+        let reactionSnapshot = viewModel.reactionRevisions
         let posts = await profileViewModel.loadProfile(
             authorUserId: route.authorUserId,
             force: force,
             localReferenceUrlsByScanId: localReferenceUrlsByScanId
         )
-        registerPosts(posts)
+        registerPosts(viewModel.preservingNewerReactions(in: posts, since: reactionSnapshot))
     }
 
     private func toggleFollow() async {
@@ -300,17 +301,19 @@ struct ExploreAuthorProfileContent: View {
     }
 
     private func reloadLibrary(from profile: ExploreAuthorProfile) async {
+        let reactionSnapshot = viewModel.reactionRevisions
         let posts = await profileViewModel.reloadLibrary(
             authorUserId: route.authorUserId,
             fallbackProfile: profile
         )
-        registerPosts(posts)
+        registerPosts(viewModel.preservingNewerReactions(in: posts, since: reactionSnapshot))
         presentInteractionErrorIfNeeded()
     }
 
     private func loadMoreLibraryPosts() async {
+        let reactionSnapshot = viewModel.reactionRevisions
         let posts = await profileViewModel.loadMoreLibraryPosts(authorUserId: route.authorUserId)
-        registerPosts(posts)
+        registerPosts(viewModel.preservingNewerReactions(in: posts, since: reactionSnapshot))
         presentInteractionErrorIfNeeded()
     }
 
@@ -331,7 +334,7 @@ struct ExploreAuthorProfileContent: View {
     }
 
     private func openPost(_ post: ExplorePost) {
-        viewModel.upsertPost(post)
+        if viewModel.post(id: post.id) == nil { viewModel.upsertPost(post) }
         viewModel.refreshPreferredSpeciesNames(
             for: [post.speciesScientificName],
             modelContext: modelContext

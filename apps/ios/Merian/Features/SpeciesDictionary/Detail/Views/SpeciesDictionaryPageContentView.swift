@@ -15,7 +15,6 @@ struct SpeciesDictionaryPageContentView: View {
     @State private var fallbackExploreViewModel: ExploreFeedViewModel
     @State private var dictionaryChatViewModel: InsightChatViewModel
     @State private var isCommonNameScrolledPast = false
-    @State private var isTopScrollEdgeEffectHidden = true
     @State private var activePresentation: SpeciesDictionaryPresentation?
     @State private var pendingDictionaryChatSpeciesID: String?
     @State private var dictionaryChatToast: ToastPayload?
@@ -58,16 +57,12 @@ struct SpeciesDictionaryPageContentView: View {
 
     var body: some View {
         content
-            .modifier(DictionaryTopEdgeModifier(
-                isHidden: isTopScrollEdgeEffectHidden
-            ))
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar { toolbarContent }
             .task(id: speciesId ?? scientificName) {
                 isCommonNameScrolledPast = false
-                isTopScrollEdgeEffectHidden = true
                 await viewModel.load()
             }
             .toolbar(
@@ -308,7 +303,6 @@ struct SpeciesDictionaryPageContentView: View {
                             source: image.source.rawValue
                         ))
                     },
-                    onHeroBottomChange: evaluateHeroScrollOffset,
                     onImageTap: { presentation in
                         beginPresentation(.gallery(presentation))
                     },
@@ -382,7 +376,6 @@ struct SpeciesDictionaryPageContentView: View {
         .contentMargins(.top, 0, for: .scrollContent)
         .onChange(of: species.id, initial: true) { _, _ in
             isCommonNameScrolledPast = false
-            isTopScrollEdgeEffectHidden = true
         }
     }
 
@@ -453,21 +446,6 @@ struct SpeciesDictionaryPageContentView: View {
 
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             isCommonNameScrolledPast = isPast
-        }
-    }
-
-    private func evaluateHeroScrollOffset(maxY: CGFloat) {
-        guard let shouldHideEffect = DictionaryHeroEdgePolicy
-            .shouldHideEffect(
-                heroMaxY: maxY,
-                isCurrentlyHidden: isTopScrollEdgeEffectHidden
-            ), shouldHideEffect != isTopScrollEdgeEffectHidden
-        else {
-            return
-        }
-
-        withAnimation(.easeInOut(duration: 0.18)) {
-            isTopScrollEdgeEffectHidden = shouldHideEffect
         }
     }
 

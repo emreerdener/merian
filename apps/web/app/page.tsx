@@ -21,6 +21,7 @@ import {
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { fetchExploreFeedPosts } from "@/lib/explore";
 import { exploreGridPosterUrl } from "@/lib/exploreMedia";
+import { publicAuthorHandle } from "@/lib/formatting";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -207,7 +208,7 @@ export default async function HomePage() {
                           </Text>
                         )}
                         <Text size="xs" c="dimmed" mt="xs" truncate>
-                          Shared by {post.authorName || "a Naturebook observer"}
+                          Shared by {publicAuthorHandle(post.authorUsername)}
                         </Text>
                       </Stack>
                     </Card>

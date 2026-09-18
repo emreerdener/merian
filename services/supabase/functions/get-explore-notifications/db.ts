@@ -9,6 +9,7 @@ export interface ExploreNotificationRow {
     | "like_aggregated"
     | "comment"
     | "comment_reaction"
+    | "post_reaction"
     | "comment_reply"
     | "comment_mention"
     | "follow"
@@ -45,13 +46,19 @@ export async function fetchExploreNotifications(
   limit: number,
   cursor: ExploreNotificationsCursor,
   supabaseAdmin: SupabaseClient,
+  supportsPostReactions = false,
 ): Promise<ExploreNotificationRow[]> {
-  const { data, error } = await supabaseAdmin.rpc("get_explore_notifications", {
-    self_id: userId,
-    max_limit: limit,
-    before_updated_at: cursor.beforeUpdatedAt,
-    before_notification_id: cursor.beforeNotificationId,
-  });
+  const { data, error } = await supabaseAdmin.rpc(
+    supportsPostReactions
+      ? "get_explore_notifications_with_reactions"
+      : "get_explore_notifications",
+    {
+      self_id: userId,
+      max_limit: limit,
+      before_updated_at: cursor.beforeUpdatedAt,
+      before_notification_id: cursor.beforeNotificationId,
+    },
+  );
 
   if (error) {
     throw new Error(`Failed to fetch Explore notifications: ${error.message}`);

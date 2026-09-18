@@ -176,7 +176,6 @@ final class InsightMediaCarouselArchitectureTests: XCTestCase {
         let carouselRoot = try carouselSourceRoot()
         let sharedFiles = [
             "MediaCarouselPaginationDots.swift",
-            "MediaHeroTopScrollEdgeEffect.swift",
             "NativePageCarousel+Coordinator.swift",
             "NativePageCarousel.swift",
             "NativePageCarouselPage.swift",

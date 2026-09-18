@@ -8,7 +8,7 @@ struct ReadyConsentSnapshot: Equatable {
 }
 
 enum ReadyConsentPresentation {
-    static let title = "One last step"
+    static let title = "Before you scan"
     static let disclosure = ConsentPolicy.geminiDisclosureText
     static let adultStatement = ConsentPolicy.adultConfirmationText
     static let consentStatement = ConsentPolicy.combinedAcceptanceText

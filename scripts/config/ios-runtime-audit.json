@@ -226,6 +226,14 @@
         "Feature Flag Tests"
       ],
       "owner": "apps/ios/MerianTests/Configuration/FeatureFlagsTests.swift"
+    },
+    {
+      "selector": "merianTests/CaptureTerminalAcceptanceTests",
+      "suite_names": [
+        "CaptureTerminalAcceptanceTests",
+        "Capture Terminal Acceptance"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/CaptureTerminalAcceptanceTests.swift"
     }
   ],
   "ui": [
@@ -311,6 +319,9 @@
     },
     {
       "selector": "merianUITests/RuntimePerformanceTests/testRepeatedAudioInsightPresentation",
+      "report_metric_families": [
+        "Hitch"
+      ],
       "suite_names": [
         "RuntimePerformanceTests"
       ]

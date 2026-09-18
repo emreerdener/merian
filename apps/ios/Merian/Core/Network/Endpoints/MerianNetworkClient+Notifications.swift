@@ -8,7 +8,7 @@ extension MerianNetworkClient {
         beforeUpdatedAt: String? = nil,
         beforeNotificationId: String? = nil
     ) async throws -> [ExploreNotification] {
-        var payload: [String: Any] = ["limit": limit]
+        var payload: [String: Any] = ["limit": limit, "supports_post_reactions": true]
         if let beforeUpdatedAt, let beforeNotificationId {
             payload["before_updated_at"] = beforeUpdatedAt
             payload["before_notification_id"] = beforeNotificationId
@@ -21,13 +21,13 @@ extension MerianNetworkClient {
 
     func getUnreadExploreNotificationCount() async throws -> Int {
         try await performAuthenticatedJSONPost(
-            function: "get-explore-unread-notification-count", payload: [:], responseType: ExploreUnreadNotificationCountResponse.self
+            function: "get-explore-unread-notification-count", payload: ["supports_post_reactions": true], responseType: ExploreUnreadNotificationCountResponse.self
         ).unreadCount
     }
 
     func markExploreNotificationsRead() async throws -> Int {
         try await performAuthenticatedJSONPost(
-            function: "mark-explore-notifications-read", payload: [:], responseType: ExploreMarkNotificationsReadResponse.self
+            function: "mark-explore-notifications-read", payload: ["supports_post_reactions": true], responseType: ExploreMarkNotificationsReadResponse.self
         ).markedCount
     }
 
@@ -43,6 +43,7 @@ extension MerianNetworkClient {
             "platform": "ios",
             "environment": environment,
             "explore_enabled": exploreEnabled,
+            "supports_post_reactions": true,
             "comment_mentions_enabled": commentMentionsEnabled,
             "community_identifications_enabled": communityIdentificationsEnabled
         ]

@@ -26,9 +26,8 @@ extension OfflineQueueManager {
 
         // Copy the temp file before the system deletes it at callback return.
         let tempDestination = URL.temporaryDirectory.appendingPathComponent(
-            "\(scanId)_\(taskIdentifier)_inference.json"
+            "\(scanId)_\(taskIdentifier)_\(UUID())_inference.json"
         )
-        try? FileManager.default.removeItem(at: tempDestination)
         do {
             try FileManager.default.copyItem(at: location, to: tempDestination)
         } catch {

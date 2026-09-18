@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DangerZone: View {
+    @Environment(\.showSignOutConfirmation) private var showSignOutConfirmation
     let supabase: SupabaseManager
     @Binding var showDeleteConfirmation: Bool
 
@@ -81,8 +82,9 @@ struct DangerZone: View {
     // MARK: - Actions
 
     private func performSignOut() async {
-        await viewModel.signOut {
-            supabase.isGuestUser
-        }
+        await viewModel.signOut(
+            isAnonymousSession: { supabase.isGuestUser },
+            onSuccess: showSignOutConfirmation
+        )
     }
 }

@@ -222,10 +222,11 @@ extension ExploreMapView {
     }
 
     private func previewCard(
-        for post: ExplorePost,
+        for source: ExplorePost,
         isInteractive: Bool
     ) -> some View {
-        ExploreMapPreviewCard(
+        let post = feedViewModel.post(id: source.id) ?? source
+        return ExploreMapPreviewCard(
             post: post,
             speciesDisplayName: feedViewModel.resolvedSpeciesCommonName(for: post),
             mediaReloadGeneration: feedViewModel.mediaReloadGeneration,
@@ -235,8 +236,11 @@ extension ExploreMapView {
             onShare: { feedViewModel.share(post) },
             onUnshare: { Task { await unshare(post) } },
             onBlock: { Task { await blockAuthor(of: post) } },
-            onReport: { Task { await report(post) } }
+            onReport: { Task { await report(post) } },
+            onReaction: { emoji, selected in Task { await feedViewModel.setPostReaction(for: post, emoji: emoji, selected: selected) } },
+            onLoadMoreReactions: { Task { await feedViewModel.loadMorePostReactions(for: post) } }
         )
+        .task(id: post.id) { if isInteractive { await feedViewModel.hydratePostReactions(for: post) } }
         .allowsHitTesting(isInteractive)
         .accessibilityHidden(!isInteractive)
     }

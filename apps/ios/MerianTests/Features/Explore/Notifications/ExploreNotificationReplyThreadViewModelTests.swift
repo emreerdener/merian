@@ -252,19 +252,62 @@ final class ExploreReplyThreadViewModelTests: XCTestCase {
             dependencies: ExploreNotificationsTestFixtures.replyDependencies(
                 loadReplies: { _, _, _, _ in [target] }
             ),
-            onToggleReaction: { comment, emoji in
+            onToggleReaction: { comment, emoji, _ in
                 forwardedCommentId = comment.id
                 forwardedEmoji = emoji
+                return comment.applyingReactionToggle(emoji: emoji)
             }
         )
         await viewModel.load(route: route)
 
         viewModel.toggleReaction(for: target, emoji: "👍")
 
+        for _ in 0..<20 where forwardedCommentId == nil { await Task.yield() }
         XCTAssertEqual(forwardedCommentId, "target")
         XCTAssertEqual(forwardedEmoji, "👍")
         XCTAssertEqual(viewModel.replies[0].reactions?[0].count, 3)
         XCTAssertEqual(viewModel.replies[0].reactions?[0].viewerHasReacted, true)
+    }
+
+    func testFailedReactionRestoresNotificationCopyAndShowsError() async {
+        let started = expectation(description: "reaction starts")
+        var pending: CheckedContinuation<ExploreComment, Error>?
+        let target = ExploreNotificationsTestFixtures.comment(id: "target", parentCommentId: "parent")
+        let vm = ExploreNotificationReplyThreadViewModel(
+            dependencies: ExploreNotificationsTestFixtures.replyDependencies(loadReplies: { _, _, _, _ in [target] }),
+            onToggleReaction: { _, _, _ in
+                try await withCheckedThrowingContinuation { pending = $0; started.fulfill() }
+            }
+        )
+        await vm.load(route: ExploreNotificationsTestFixtures.replyRoute())
+        vm.setReaction(for: target, emoji: "😂", selected: true)
+        await fulfillment(of: [started], timeout: 1)
+        XCTAssertEqual(vm.replies[0].reactions?.first?.viewerHasReacted, true)
+        pending?.resume(throwing: ExploreNotificationsTestFixtures.StubError.failed)
+        for _ in 0..<100 where vm.reactionError == nil { await Task.yield() }
+        XCTAssertEqual(vm.replies[0].reactions, target.reactions)
+        XCTAssertNotNil(vm.reactionError)
+    }
+
+    func testRefreshIgnoresPendingNotificationReactionResult() async {
+        let started = expectation(description: "reaction starts")
+        var pending: CheckedContinuation<ExploreComment, Error>?
+        let target = ExploreNotificationsTestFixtures.comment(id: "target", parentCommentId: "parent")
+        let vm = ExploreNotificationReplyThreadViewModel(
+            dependencies: ExploreNotificationsTestFixtures.replyDependencies(loadReplies: { _, _, _, _ in [target] }),
+            onToggleReaction: { _, _, _ in
+                try await withCheckedThrowingContinuation { pending = $0; started.fulfill() }
+            }
+        )
+        let route = ExploreNotificationsTestFixtures.replyRoute()
+        await vm.load(route: route)
+        vm.setReaction(for: target, emoji: "😂", selected: true)
+        await fulfillment(of: [started], timeout: 1)
+        await vm.load(route: route)
+        pending?.resume(returning: target.applyingReactionToggle(emoji: "😂"))
+        for _ in 0..<100 { await Task.yield() }
+        XCTAssertEqual(vm.replies[0].reactions, target.reactions)
+        XCTAssertNil(vm.reactionError)
     }
 
     func testLoadFailureUsesInjectedErrorMessage() async {

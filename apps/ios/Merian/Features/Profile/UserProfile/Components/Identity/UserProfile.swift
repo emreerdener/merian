@@ -7,6 +7,7 @@ struct UserProfile: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
     @Environment(RevenueCatManager.self) private var revenueCatManager
     @Environment(HapticManager.self) private var hapticManager
+    @Environment(\.showSignOutConfirmation) private var showSignOutConfirmation
     @Binding var isShowingAvatarPicker: Bool
     @Binding var isShowingDisplayNameEditor: Bool
     @Binding var isShowingUsernameEditor: Bool
@@ -310,13 +311,11 @@ struct UserProfile: View {
 
     private var signInButtons: some View {
         VStack(spacing: 12) {
-            if isPurchaseContinuityPending {
+            if SignOutPresentationPolicy.showsRecovery(
+                isPurchaseContinuityPending: isPurchaseContinuityPending,
+                isAuthTransitionInProgress: profileViewModel.isAuthTransitionInProgress
+            ) {
                 VStack(spacing: 8) {
-                    Text("Finish signing out before changing accounts or making purchases.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-
                     Button {
                         Task { await retryPurchaseContinuity() }
                     } label: {
@@ -411,6 +410,9 @@ struct UserProfile: View {
             .retryPendingSignOutPurchaseHandoff()
         purchaseContinuityRetryFailed = !completed
         isRetryingPurchaseContinuity = false
+        if completed {
+            showSignOutConfirmation()
+        }
     }
 
     private var avatarPicker: some View {

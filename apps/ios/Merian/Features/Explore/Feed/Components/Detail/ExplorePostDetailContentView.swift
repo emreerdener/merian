@@ -5,6 +5,8 @@ struct ExplorePostDetailContentView: View {
     @Bindable var viewModel: ExploreFeedViewModel
     @Bindable var detailViewModel: ExplorePostDetailViewModel
 
+    let reactorsModel: ExplorePostReactorsViewModel
+    let onOpenReactors: () -> Void
     let post: ExplorePost
     let shouldFocusCommentComposer: Bool
     let shouldOpenInsight: Bool
@@ -32,6 +34,8 @@ struct ExplorePostDetailContentView: View {
     let onUnpublish: @MainActor () -> Void
     let onOpenFieldChat: @MainActor () -> Void
     let onDisappear: @MainActor () -> Void
+    var onAddReaction: () -> Void = {}
+    var revealReactionEmoji: String? = nil
 
     @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @FocusState private var isComposerFocused: Bool
@@ -65,6 +69,7 @@ struct ExplorePostDetailContentView: View {
                     authorHeader
                     media
                     actionRow(scrollProxy: scrollProxy)
+                    ExplorePostReactionSummary(model: reactorsModel, onOpen: onOpenReactors)
                     detailSections
                     commentsSection(sticky: false)
                         .padding(.horizontal, 16)
@@ -190,13 +195,15 @@ struct ExplorePostDetailContentView: View {
     }
 
     private func actionRow(scrollProxy: ScrollViewProxy) -> some View {
-        ExplorePostDetailActionRow(
-            viewerHasLiked: post.viewerHasLiked,
-            likeCountText: post.likeCount.formatted(.number.notation(.compactName)),
-            commentCountText: post.commentCount.formatted(.number.notation(.compactName)),
-            onLike: { Task { await viewModel.toggleLike(for: post) } },
+        ExplorePostReactionActions(
+            post: post,
             onComments: { focusComments(using: scrollProxy) },
-            onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) }
+            onLike: { Task { await viewModel.toggleLike(for: post) } },
+            onAddReaction: onAddReaction,
+            onReaction: { emoji, selected in Task { await viewModel.setPostReaction(for: post, emoji: emoji, selected: selected) } },
+            onLoadMore: { Task { await viewModel.loadMorePostReactions(for: post) } },
+            onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) },
+            revealEmoji: revealReactionEmoji
         )
         .padding(.horizontal, 16)
         .padding(.top, 14)

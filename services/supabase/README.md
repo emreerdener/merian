@@ -2871,3 +2871,26 @@ matrix, transactional rollback, receipt replay, publication, and
 table or execute any Field trip/Event `SECURITY DEFINER` RPC; contribution
 payloads must contain no media, coordinates, place labels, notes, or public
 evidence. Older clients omit the preference and remain compatible.
+
+## Explore Unicode emoji reactions
+
+The observation post/comment reaction implementation uses the pinned Unicode
+17.0 catalog, idempotent setters, bounded summary pages, and capability-safe
+activity/push delivery. New native clients use `set-explore-post-reaction`,
+`set-explore-comment-reaction`, and `get-explore-reactions`; the comment-toggle
+route remains for older clients. Reaction storage and notification RPCs are
+service-only behind authenticated handlers.
+
+Read the
+[API and rollout contract](../../docs/backend-and-data/05-api-contracts.md#explore-emoji-reactions-2026-09-18),
+[database contract](../../docs/backend-and-data/04-database-schema.md#explore-unicode-reactions-2026-09-18),
+[catalog maintenance guide](../../resources/emoji/README.md), and
+[verification matrix](../../docs/development-guides/08-testing-strategy.md#explore-emoji-reaction-verification).
+The enum migration precedes the dependent reaction migration; prepare the
+affected Edge bundles before the native app. Local verification is not hosted
+deployment authorization.
+
+Detail reactor identities use `get-explore-post-reactors` and its guarded
+`get_explore_post_reactors` RPC. Native ownership is
+`ExplorePostReactorsViewModel` plus the typed detail sheet; see the
+[people API](../../docs/backend-and-data/05-api-contracts.md#post-reaction-people).

@@ -16,6 +16,65 @@ payload is built. The current exact rule removes all URL variants below
 `inaturalist-open-data.s3.amazonaws.com/photos/605615444/` while preserving the
 relative order of permitted images.
 
+## Reference image rights
+
+The durable worker uses `fetchExternalEnrichmentWithImageRights(...)`. It keeps
+image URLs in the legacy cache and sends verified per-image `license` and
+`attribution` through the existing `replace_species_reference_images` RPC. No
+schema or public response version changes are needed. Interactive identification
+continues using the URL-only enrichment path; the additional Commons request
+runs only in the durable worker, never during web page rendering.
+
+GBIF rights come only from each media item's `license`, `creator`, and
+`rightsHolder`, never the occurrence's license or observer. Wikimedia Commons
+rights come from the exact file's Imageinfo `extmetadata`, with returned
+original URL identity checked against the selected image. Custom attribution
+takes precedence over Artist/Credit; provider HTML becomes bounded plain text.
+The lookup uses a fixed Commons API origin, rejects redirects, and retains the
+shared 2.5-second deadline and 256 KiB response limit. Transport,
+malformed-response, and API failures fail the species job before database writes
+so it can retry.
+
+Automatic ingestion accepts explicit CC BY, CC BY-SA (including the 3.0
+Australia versions), CC0, and public-domain terms. Jurisdiction-specific
+licenses retain their original jurisdiction in the canonical license link.
+Restricted, unknown, non-free, deletion-pending, or incompletely credited
+provider results supply no new rights fields; their availability in iOS does not
+establish web eligibility. The existing RPC preserves previously stored/curated
+credits when incoming rights are absent and gives existing non-null credits
+precedence. This change fills missing metadata; it is not a rights-revocation or
+credit-correction mechanism. Those changes require separately reviewed curation.
+The public web attribution gate remains required for both page media and social
+previews. Captions link the license and either the exact Commons file page or
+GBIF's supplied original media URL.
+
+### Existing-image refresh after an authorized deployment
+
+Existing image URLs can satisfy the enrichment completeness predicate even when
+rights are absent. Deploying this code alone does not guarantee that those rows
+are queued. After separately authorized deployment and data refresh on the named
+project:
+
+1. Review a bounded list of canonical species UUIDs whose external reference
+   images lack license or attribution, including legacy URL-only entries.
+2. Enqueue each reviewed UUID through the existing service-only
+   `enqueue_species_enrichment_jobs` RPC with `target_species_id` set to that
+   UUID, `source_trigger: "reference_image_rights_backfill"`,
+   `priority_value: 80`, and `content_groups: ["gbif_wikipedia_reference"]`. Do
+   not change grants or bulk-reset job state. Running jobs are left alone;
+   failed/exhausted jobs need separate operational review under the existing
+   retry controls.
+3. Let the scheduled worker process the queue, or explicitly authorize a bounded
+   `/refresh-species-content` run with its normal `limit` (25 by default). Keep
+   the full content group so unrelated pending fields are not marked complete by
+   a reference-only run.
+4. Verify stored image-specific credits, the public `species-dictionary`
+   response, and the web gallery/caption/social preview after its five-minute
+   revalidation window. Images still lacking verified credits stay hidden.
+
+This procedure prepares a repair; it does not authorize production writes or
+claim that existing data has already been refreshed.
+
 ## Security
 
 - `verify_jwt = false` in `services/supabase/config.toml` so `pg_net` can invoke

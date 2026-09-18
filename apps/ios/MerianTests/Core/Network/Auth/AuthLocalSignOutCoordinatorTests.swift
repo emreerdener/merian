@@ -2,6 +2,11 @@ import Foundation
 @testable import Merian
 import XCTest
 
+private actor AuthLocalSignOutWorkProbe {
+    private(set) var completed = false
+    func complete() { completed = true }
+}
+
 private actor AuthLocalSignOutTestGate {
     private var continuation: CheckedContinuation<Void, Never>?
 
@@ -29,6 +34,7 @@ private final class AuthLocalSignOutTestHarness {
     var events: [String] = []
     var transitionIsOwned = true
     var quiescenceSucceeds = true
+    var quiescenceOperation: (@MainActor () async -> Bool)?
     var ownsCallCount = 0
     var loseTransitionOnThirdCheck = false
     var sdkError: Error?
@@ -80,6 +86,9 @@ private final class AuthLocalSignOutTestHarness {
                 },
                 awaitAccountWorkQuiescence: { [self] in
                     events.append("quiesce")
+                    if let quiescenceOperation {
+                        return await quiescenceOperation()
+                    }
                     return quiescenceSucceeds
                 },
                 updateForSessionInstallation: { [self] _ in
@@ -117,6 +126,91 @@ private final class AuthLocalSignOutTestHarness {
 
 @MainActor
 final class AuthLocalSignOutCoordinatorTests: XCTestCase {
+    func testSignOutDrainsEveryAccountLeaseBeforeSDKMutation() async throws {
+        let runtime = AuthRuntimeState()
+        let source = AuthTransitionSession(userID: UUID(), isAnonymous: false)
+        let firstLease = runtime.beginAccountWork(session: source)
+        let terminalLease = runtime.beginAccountWork(session: source)
+        let transition = try XCTUnwrap(runtime.beginTransition(kind: .signOut, sourceSession: source))
+        let drainStarted = AuthLocalSignOutWorkProbe()
+        let harness = AuthLocalSignOutTestHarness()
+        let coordinator = AuthLocalSignOutCoordinator()
+        harness.quiescenceOperation = {
+            await drainStarted.complete()
+            guard runtime.ownsTransition(transition) else { return false }
+            await runtime.awaitAccountWorkDrain()
+            return runtime.ownsTransition(transition)
+        }
+        let signOut = Task { @MainActor in
+            await coordinator.signOut(ownedBy: transition, dependencies: harness.dependencies())
+        }
+        while !(await drainStarted.completed) { await Task.yield() }
+        XCTAssertEqual(harness.beginCount, 0)
+        XCTAssertEqual(harness.sdkCount, 0)
+        XCTAssertTrue(runtime.finishAccountWork(firstLease))
+        // Duplicate terminal delivery must not release the remaining owner's lease.
+        XCTAssertFalse(runtime.finishAccountWork(firstLease))
+        XCTAssertTrue(runtime.accountWorkLeaseIsCurrent(
+            terminalLease, publishedSession: source, sdkSession: source
+        ))
+        await Task.yield()
+        XCTAssertEqual(harness.sdkCount, 0)
+        XCTAssertEqual(harness.externalCount, 0)
+        XCTAssertTrue(runtime.finishAccountWork(terminalLease))
+        await signOut.value
+        XCTAssertEqual(harness.events, [
+            "quiesce", "begin", "update", "adopt-signed-out", "await-bootstrap",
+            "sdk-sign-out", "external-sign-out", "diagnose-completed", "finish"
+        ])
+        XCTAssertFalse(coordinator.isRunning)
+        XCTAssertNotNil(runtime.finishTransition(transition))
+    }
+
+    func testSignOutWaitsForActiveInferenceWriteAndRejectsNewWork() async {
+        let engine = InferenceEngine()
+        let writeGate = AuthLocalSignOutTestGate()
+        let drainStarted = AuthLocalSignOutTestGate()
+        let harness = AuthLocalSignOutTestHarness()
+        let coordinator = AuthLocalSignOutCoordinator()
+        let write = AuthLocalSignOutWorkProbe()
+        let lateWrite = AuthLocalSignOutWorkProbe()
+        engine.debugEnqueueTrackedBackgroundTask {
+            await writeGate.wait()
+            await write.complete()
+        }
+        await writeGate.waitUntilSuspended()
+        harness.quiescenceOperation = {
+            engine.beginAuthTransitionWriteFence()
+            await drainStarted.wait()
+            await engine.awaitAuthTransitionWriteQuiescence()
+            return true
+        }
+        let signOut = Task { @MainActor in
+            await coordinator.signOut(ownedBy: Self.transition, dependencies: harness.dependencies())
+        }
+        await drainStarted.waitUntilSuspended()
+        engine.debugEnqueueTrackedBackgroundTask { await lateWrite.complete() }
+        XCTAssertEqual(harness.beginCount, 0)
+        XCTAssertEqual(harness.sdkCount, 0)
+        let completedBeforeRelease = await write.completed
+        let lateCompletedBeforeRelease = await lateWrite.completed
+        XCTAssertFalse(completedBeforeRelease)
+        XCTAssertFalse(lateCompletedBeforeRelease)
+        await drainStarted.release()
+        await writeGate.release()
+        await signOut.value
+        let completedAfterDrain = await write.completed
+        let lateCompletedAfterDrain = await lateWrite.completed
+        XCTAssertTrue(completedAfterDrain)
+        XCTAssertFalse(lateCompletedAfterDrain)
+        XCTAssertEqual(harness.sdkCount, 1)
+        XCTAssertEqual(harness.finishCount, 1)
+        XCTAssertEqual(engine.debugBackgroundWriteState().active, 0)
+        XCTAssertEqual(engine.debugBackgroundWriteState().pending, 0)
+        engine.finishAuthTransitionWriteFence()
+        engine.cancelActiveRequest()
+    }
+
     func testSignOutPreservesStateTransitionAndEffectOrder() async {
         let harness = AuthLocalSignOutTestHarness()
         let coordinator = AuthLocalSignOutCoordinator()

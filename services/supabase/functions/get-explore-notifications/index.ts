@@ -1,3 +1,4 @@
+import { postReactionCapability } from "../_shared/exploreReactions.ts";
 import {
   jsonResponse,
   logStructuredError,
@@ -56,6 +57,7 @@ Deno.serve((req: Request) =>
           beforeNotificationId,
         },
         supabaseAdmin,
+        postReactionCapability(body.supports_post_reactions),
       );
     } catch (error) {
       logStructuredError("explore_notifications_fetch_failed", {

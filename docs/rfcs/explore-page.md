@@ -3,7 +3,11 @@
 Merian Explore began as a manual-share, image-only feed and now supports
 post-owned image, short-video, and standalone-audio media. Users can browse
 posts, like them, and leave comments while Merian preserves its privacy-first
-posture for both authenticated and ghost users.
+posture for both authenticated and ghost users. The
+[September 2026 emoji-reaction contract](#emoji-reactions-update-2026-09-18)
+extends native post/comment interactions and supersedes the earlier V1 action
+row and reaction descriptions below. It describes implemented source; deployment
+and app distribution remain separate release operations.
 
 Field trips, standard Outings, and Events are released for every user. Events
 have no independent iOS feature flag, tester allowlist, simulator bypass, or
@@ -57,7 +61,8 @@ mutation. The current rollout state is documented in
   - General location only, at city or state level
   - Author avatar for authenticated users when a public avatar URL is available
   - Hashtag chips when the post is tagged
-  - Like, comment, and external share actions
+  - Comment, Heart, Add reaction, scrolling emoji chips, and external Share
+    actions
 - The current V1 card layout is:
   - Author row above the image
   - Full-width square image
@@ -69,7 +74,7 @@ mutation. The current rollout state is documented in
 - The current V1 detail layout is:
   - Author row
   - Full-width hero image
-  - Like, comment, and share actions
+  - Comment, Heart, Add reaction, scrolling emoji chips, and Share actions
   - Optional centered wrapping hashtag chips
   - Species section
   - Public species insight cards
@@ -300,10 +305,11 @@ The shipped browse behavior is:
 - feed-card post projections include `hashtags` arrays from a batched post-page
   lookup and render a one-line horizontally scrolling chip row
 - detail payloads include the same tags and render centered wrapping chips
-- tapping a chip opens `ExploreHashtagPostsView`, a paginated image grid backed
-  by `ExploreHashtagPostsViewModel`, `get-explore-hashtag-posts`, and
-  `public.get_explore_hashtag_posts(...)`; refresh invalidates pagination so a
-  stale page cannot merge into the new first page
+- tapping a chip opens `ExploreHashtagPostsView`, a paginated image feed with
+  the shared reaction action row, backed by `ExploreHashtagPostsViewModel`,
+  `get-explore-hashtag-posts`, and `public.get_explore_hashtag_posts(...)`;
+  refresh invalidates pagination so a stale page cannot merge into the new first
+  page
 - hashtag collections apply the same visible-post filters as feed and author
   library reads, then page by `(shared_at DESC, post_id DESC)`
 
@@ -410,7 +416,8 @@ It should contain:
 
 - The same privacy-safe author identity used on the feed
 - A full-width hero image
-- Like, comment, and external share actions
+- Comment, Heart, Add reaction, scrolling emoji chips, and external Share
+  actions
 - Optional public hashtag chips that wrap and route to tagged-post collections
 - Common and scientific names
 - Public species insight cards backed by `species_dictionary`
@@ -1662,3 +1669,129 @@ Client behavior:
 - Unsharing removes the post from the public feed without deleting the scan.
 - Posts disappear from Explore once their backing scan media is no longer
   available.
+
+## Emoji reactions update (2026-09-18)
+
+Observation cards and details use Comment → Heart → Add reaction → emoji chips →
+Share. The four controls stay fixed; chips scroll between Add and Share with
+conditional edge fades. Accessibility text sizes place chips on a second row,
+and the row height scales with Dynamic Type. Share destinations and comment
+navigation stay unchanged.
+
+Posts, comments, and notification reply threads share a categorized, searchable
+Unicode emoji picker. It opens at medium height, expands when searching, and
+supports a large detent. Choosing an emoji adds it and closes the sheet;
+choosing an already-selected emoji is idempotent. Chip taps add/remove the
+viewer's contribution. Multiple distinct reactions are allowed. Post ❤️ uses the
+existing like, while comment ❤️ is an ordinary reaction. Unsupported native
+glyphs show their catalog name in the picker.
+
+Post reaction state belongs to `ExplorePostStore`; mutations use injected
+Services, optimistic updates, authoritative reconciliation, rollback, and
+account/request fencing. Detail reads update that shared state; overlapping
+feed, author, hashtag, and reply reads preserve newer selections. Removing a
+post invalidates its queued reaction work. Overflow pages have an explicit More
+control so failed reads retry only on user action. Notification reply copies
+reconcile through the same interaction owner. API details and capability
+compatibility are canonical in
+[API contracts](../backend-and-data/05-api-contracts.md#explore-emoji-reactions-2026-09-18).
+Reaction activity groups by post and emoji and uses existing opt-in Explore
+pushes. Self-reactions and removals do not push. Field Trip interactions and
+public-web reaction controls remain outside this feature.
+
+### Reaction interaction and failure rules
+
+The shared action row appears on observation feed cards, hashtag feeds, Map
+previews/discovery cards, and post detail. Comment, Heart, Add reaction, and
+Share stay fixed. Emoji scrolling is clipped before Share's hit region; leading
+and trailing fades appear only when content extends beyond that edge. At
+`xxxLarge` and accessibility text sizes the chips move to a second row. Selected
+chips are highlighted, announce their catalog name/count/selection to VoiceOver,
+and disappear when their authoritative count reaches zero.
+
+One viewer may contribute to several distinct emoji groups, once per emoji.
+Selecting an emoji already contributed through the picker keeps it selected;
+tapping its chip removes that viewer's contribution. Other heart emoji remain
+separate from the post's existing ❤️ like. Neither ordinary emoji reactions nor
+comment reactions alter Liked-feed membership or trending scores.
+
+Search uses the bundled Unicode names and CLDR keywords, including skin tones,
+flags, and joined sequences. Picker presentation suspends Explore video through
+the existing overlay lifecycle. Feed comments still open their sheet; detail
+comments focus the inline thread. Share copy and destinations are unchanged.
+
+Mutations serialize per target. The state owner reconciles authoritative counts,
+restores the previous selection on failure, and displays an error. Account,
+request, removal, and mutation revisions reject obsolete results. Map summary
+hydration and post refreshes share the mutation queue. Notification reply sheets
+also restore their local comment copies after failed writes.
+
+The initial projection carries up to 12 emoji groups. More loads the next 32;
+pages merge by canonical emoji identity and retain a selection introduced
+outside the initial page. A newly selected chip is revealed immediately once
+present; later count/page updates do not jump back to that chip. Missing
+optional fields render empty for compatibility with older projections.
+
+### Reaction notifications and delivery order
+
+Non-self post reactions aggregate by recipient, post, and emoji, with copy such
+as “Alex and 2 others reacted 😂 to your post.” Additions update unread
+activity; removals recompute the group without sending a push. Blocked,
+shadowbanned, or unavailable activity is filtered. Taps open post detail. Post
+❤️ continues using existing like notifications; comment ❤️ remains
+comment-reaction activity.
+
+The optional `supports_post_reactions` capability defaults to false on list,
+unread-count, mark-read, and device-registration requests. Legacy requests do
+not list/count/mark the new type. Post-reaction pushes require both the
+capability and the existing Explore opt-in, and badge counts match each device's
+capability.
+
+Prepare the enum migration, then the dependent schema/RPC migration and affected
+Edge bundles before distributing the app that uses them. The exact additive
+[backend contract and rollout order](../backend-and-data/05-api-contracts.md#reaction-rollout-order)
+and
+[reaction verification matrix](../development-guides/08-testing-strategy.md#explore-emoji-reaction-verification)
+own these details. Source implementation and local test results do not establish
+hosted rollout, APNs delivery, or device/accessibility acceptance. Field Trip
+interactions and public-web reaction UI remain outside this change.
+
+### Reaction haptics
+
+Opening a post or comment/reply emoji picker uses the shared sheet spring.
+Choosing an emoji (including an already-selected one), toggling a chip, changing
+categories, or tapping More gives one immediate selection pulse. Tapping the
+active category again is silent unless it clears a search. Successful network
+responses do not repeat the tap feedback, including post ❤️ picker selections;
+direct Heart buttons retain their existing feedback. Failed mutations retain
+error feedback alongside rollback and the visible error.
+
+All reaction feedback routes through `HapticManager`, respecting the global
+haptics preference and expedition-mode suppression. Search typing, scrolling,
+sheet lifecycle updates, pagination results, and background reconciliation do
+not emit haptics. Shared picker/chip components apply this behavior to feed,
+detail, Map, hashtag, comment/reply, and notification reply surfaces.
+
+### Detail reaction people (2026-09-18)
+
+Post detail adds a tappable line directly below the action row, such as “Alex,
+Bea, and 4 others reacted.” Counts represent unique visible people across heart
+likes and all emoji, including the viewer and post owner. One/two-person copy
+uses their public names; zero people hides the line. Feed, Map, and hashtag
+cards keep their existing action row without this extra line.
+
+Tapping gives sheet feedback and opens a medium/large Reactions sheet. Each row
+shows the person's public avatar/name and every emoji they used; likes appear as
+❤️ once. Emoji overflow scrolls within that row. Explicit Load more pages
+through people, and pull-to-refresh updates membership. Loading, empty, and
+retry states are visible. VoiceOver uses emoji catalog names, and text supports
+Dynamic Type. The existing video-overlay lifecycle suspends playback while the
+sheet is presented.
+
+A detail-owned model shares the summary and sheet state, refreshes after local
+post reaction/like completion, and rejects obsolete requests after refresh,
+navigation, or account changes. The server filters target visibility and
+blocked/shadowbanned actors before calculating names, unique counts, and pages.
+This read-only list does not change notification aggregation or
+self-suppression. See the
+[people API](../backend-and-data/05-api-contracts.md#post-reaction-people).

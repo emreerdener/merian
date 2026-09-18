@@ -1,18 +1,5 @@
 import SwiftUI
 
-struct DictionaryTopEdgeModifier: ViewModifier {
-    let isHidden: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.scrollEdgeEffectHidden(isHidden, for: .top)
-        } else {
-            content
-        }
-    }
-}
-
 struct DictionaryHeroContentSheetModifier: ViewModifier {
     private let contentTopSpacing: CGFloat = 24
 

@@ -25,7 +25,6 @@ struct FieldTripTemplateDetailView: View {
     @State private var lifecycleConfirmation: FieldTripLifecycleConfirmation?
     @State private var unavailableFeaturedMediaSourceIdentifiers: Set<String> = []
     @State private var featuredMediaGalleryPresentation: MediaGalleryPresentation?
-    @State private var isFeaturedHeroTopScrollEdgeEffectHidden = true
     @State private var detailLocationLabel: String?
 
     init(
@@ -69,10 +68,7 @@ struct FieldTripTemplateDetailView: View {
                 if viewModel.isLoading && viewModel.template == nil {
                     FieldTripTemplateDetailSkeleton(
                         kind: .outing,
-                        showsFeaturedMediaHero: showsFeaturedMediaLoadingSkeleton,
-                        onFeaturedHeroMaxYChange: { maxY in
-                            updateFeaturedHeroScrollEdgeEffect(maxY: maxY)
-                        }
+                        showsFeaturedMediaHero: showsFeaturedMediaLoadingSkeleton
                     )
                     .padding(.horizontal, showsFeaturedMediaLoadingSkeleton ? 0 : 16)
                     .padding(.vertical, showsFeaturedMediaLoadingSkeleton ? 0 : 16)
@@ -91,22 +87,17 @@ struct FieldTripTemplateDetailView: View {
                 }
             }
             .coordinateSpace(name: FieldTripFeaturedMediaLayout.scrollCoordinateSpace)
-            .modifier(MediaHeroTopScrollEdgeEffectModifier(
-                isHidden: underlapsNavigationBar && isFeaturedHeroTopScrollEdgeEffectHidden
-            ))
             .ignoresSafeArea(
                 .container,
                 edges: underlapsNavigationBar ? .top : []
             )
             .contentMargins(.top, 0, for: .scrollContent)
+            .frame(maxWidth: .infinity)
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { detailToolbar }
-            .toolbarBackground(
-                underlapsNavigationBar ? Visibility.hidden : Visibility.automatic,
-                for: .navigationBar
-            )
+            .toolbarBackground(.hidden, for: .navigationBar)
             .task {
                 await load(force: false)
             }
@@ -132,11 +123,6 @@ struct FieldTripTemplateDetailView: View {
             .onChange(of: offlineQueueManager.isOnline) { _, isOnline in
                 if isOnline {
                     unavailableFeaturedMediaSourceIdentifiers.removeAll()
-                }
-            }
-            .onChange(of: underlapsNavigationBar) { _, isUnderlapping in
-                if isUnderlapping {
-                    isFeaturedHeroTopScrollEdgeEffectHidden = true
                 }
             }
             .sheet(item: $publishingTemplate) { template in
@@ -185,19 +171,6 @@ struct FieldTripTemplateDetailView: View {
                     }
                 )
                 .containerRelativeFrame(.horizontal)
-                .background {
-                    GeometryReader { proxy in
-                        Color.clear
-                            .onChange(
-                                of: proxy.frame(
-                                    in: .named(FieldTripFeaturedMediaLayout.scrollCoordinateSpace)
-                                ).maxY,
-                                initial: true
-                            ) { _, newMaxY in
-                                updateFeaturedHeroScrollEdgeEffect(maxY: newMaxY)
-                            }
-                    }
-                }
                 .ignoresSafeArea(.all, edges: .top)
             }
 
@@ -339,17 +312,6 @@ struct FieldTripTemplateDetailView: View {
             ),
             activeLevelId: FieldTripTemplatePresentation.currentLevel(for: template)?.id
         )
-    }
-
-    private func updateFeaturedHeroScrollEdgeEffect(maxY: CGFloat) {
-        let shouldHide = MediaHeroTopScrollEdgeEffectPolicy.isHidden(
-            heroMaxY: maxY,
-            currentlyHidden: isFeaturedHeroTopScrollEdgeEffectHidden
-        )
-        guard shouldHide != isFeaturedHeroTopScrollEdgeEffectHidden else { return }
-        withAnimation(.easeInOut(duration: 0.18)) {
-            isFeaturedHeroTopScrollEdgeEffectHidden = shouldHide
-        }
     }
 
     private func consumePendingGuideScroll(with scrollProxy: ScrollViewProxy) {

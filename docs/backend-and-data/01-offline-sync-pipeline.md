@@ -37,6 +37,13 @@ delayed status probing, and exact-generation background-task retirement.
 `BackgroundInferenceFinalizationService` shares the stateless Core AI response
 preparation boundary with foreground completion and invokes a fresh database
 actor without hopping through `InferenceProcessingActor` under the scan lock.
+Result and transport-error callbacks acquire one process-local terminal lease
+per URLSession task before suspending; only that owner releases the task's Auth
+work lease. Each callback preserves its response in a unique temporary file. A
+separate scan-generation completion guard prevents a concurrent callback from
+retiring the accepted owner's generation, scheduling a retry, or repeating
+completion effects during persistence. Durable generation checks continue to
+fence replacement work and replay after process restart.
 `Services/BackgroundTransfer` owns terminal tracking, Auth quiescence, owner
 validation/adoption, terminal callback routing, and URLSession delegate routing.
 `Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift` owns
@@ -2220,3 +2227,14 @@ configuration aggregate:
 - Queue mutations now use rollback containment: failed queue saves roll back
   pending SwiftData changes, refund any just-consumed free quota, and keep
   external side effects behind committed local state.
+
+## Composed terminal acceptance
+
+The runtime audit includes staged visual Capture submission through a private
+SQLite queue and production inference terminal routing. A paused decoder proves
+that duplicate callbacks cannot drain the owner's Auth lease or let sign-out
+advance before durable finalization. The same test verifies queue retirement,
+retained media and Insight binding. Scoped terminal dependencies isolate SDK
+session state and publication effects while live defaults retain their existing
+behavior. This is local runtime evidence; it does not emulate an OS-delivered
+URLSession callback, camera hardware, or process termination/relaunch.

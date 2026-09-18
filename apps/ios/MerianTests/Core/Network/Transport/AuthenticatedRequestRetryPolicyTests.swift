@@ -5,6 +5,11 @@ import Testing
 
 @Suite("Authenticated Request Retry Policy")
 struct AuthenticatedRequestRetryPolicyTests {
+    @Test func reactionSummaryPaginationIsReplayableButLegacyTogglesAreNot() throws {
+        let url = try #require(URL(string: "https://example.supabase.co/functions/v1/get-explore-reactions"))
+        #expect(AuthenticatedRequestRetryPolicy.canReplayAfterAmbiguousFailure(url: url, method: "POST", idempotencyKey: nil))
+    }
+
     @Test func authenticatedRetryChainNeverAdoptsReplacementAccount() {
         let sourceUserID = UUID()
         let replacementUserID = UUID()

@@ -1,3 +1,4 @@
+import { postReactionCapability } from "../_shared/exploreReactions.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { upsertPushDeviceRegistration } from "./db.ts";
@@ -74,6 +75,9 @@ Deno.serve((req: Request) =>
       platform: "ios",
       environment: body.environment,
       exploreEnabled: body.explore_enabled,
+      supportsPostReactions: postReactionCapability(
+        body.supports_post_reactions,
+      ),
       commentMentionsEnabled,
       communityIdentificationsEnabled,
     }, supabaseAdmin);

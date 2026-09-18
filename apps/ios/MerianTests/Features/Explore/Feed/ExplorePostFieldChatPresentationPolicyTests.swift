@@ -82,6 +82,8 @@ struct ExplorePostFieldChatPolicyTests {
             ExplorePostDetailPresentation.fieldNotes(postId: "post-1").id,
             ExplorePostDetailPresentation.postComposer(postId: "post-1").id,
             ExplorePostDetailPresentation.fieldChat(postId: "post-1").id,
+            ExplorePostDetailPresentation.emojiPicker(postId: "post-1").id,
+            ExplorePostDetailPresentation.reactors(postId: "post-1").id,
             ExplorePostDetailPresentation.paywall.id
         ]
 

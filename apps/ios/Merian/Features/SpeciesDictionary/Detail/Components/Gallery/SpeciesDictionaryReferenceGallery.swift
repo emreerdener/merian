@@ -10,7 +10,6 @@ struct SpeciesDictionaryReferenceGallery: View {
     let scientificName: String
     let images: [SpeciesDictionaryReferenceImage]
     let onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)?
-    let onHeroBottomChange: ((CGFloat) -> Void)?
     let onImageTap: ((MediaGalleryPresentation) -> Void)?
     let onAuthorTap: ((SpeciesDictionaryReferenceImage) -> Void)?
 
@@ -21,14 +20,12 @@ struct SpeciesDictionaryReferenceGallery: View {
         scientificName: String,
         images: [SpeciesDictionaryReferenceImage],
         onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)? = nil,
-        onHeroBottomChange: ((CGFloat) -> Void)? = nil,
         onImageTap: ((MediaGalleryPresentation) -> Void)? = nil,
         onAuthorTap: ((SpeciesDictionaryReferenceImage) -> Void)? = nil
     ) {
         self.scientificName = scientificName
         self.images = SpeciesDictionaryImageGalleryBuilder.allowedImages(from: images)
         self.onImageLoadFailed = onImageLoadFailed
-        self.onHeroBottomChange = onHeroBottomChange
         self.onImageTap = onImageTap
         self.onAuthorTap = onAuthorTap
     }
@@ -53,9 +50,6 @@ struct SpeciesDictionaryReferenceGallery: View {
                 .overlay(alignment: .bottom) { paginationDots }
                 .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
                 .ignoresSafeArea(.all, edges: .top)
-                .onChange(of: heroFrame.maxY, initial: true) { _, newMaxY in
-                    onHeroBottomChange?(newMaxY)
-                }
         }
         .frame(height: imageSize)
         .ignoresSafeArea(.all, edges: .top)

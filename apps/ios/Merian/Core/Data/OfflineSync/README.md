@@ -85,7 +85,11 @@ The canonical behavioral contract is the
   conformances; the delegate extension owns the nonisolated callbacks. Delegate
   callbacks route immutable snapshots into focused main-actor terminal routing;
   accepted work then enters the existing upload/inference processors. The
-  delegate adapter does not own SwiftData decisions.
+  delegate adapter does not own SwiftData decisions. Inference terminal routes
+  accept a scoped Auth lease boundary and finalization/publication dependencies;
+  defaults use the existing SDK validation and live completion services. Tests
+  can suspend decoding and count publication without replacing queue persistence
+  or installing a process-wide authentication override.
 - `Core/Data/Database/BackgroundDatabaseActor+QueueSelection.swift` remains the
   actor-isolated persistence owner for pending upload selection and empty-media
   quarantine. Media Upload's `UploadSync` is its only production consumer and

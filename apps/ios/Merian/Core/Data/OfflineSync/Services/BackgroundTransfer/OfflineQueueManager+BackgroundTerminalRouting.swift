@@ -3,26 +3,25 @@ import Foundation
 extension OfflineQueueManager {
     private func backgroundTaskOwnerLeaseIsCurrentOrAdopted(
         taskIdentifier: Int,
-        ownerUserID: UUID
+        ownerUserID: UUID,
+        accountWork: BackgroundAccountWorkLeaseBoundary
     ) -> Bool {
         if let lease = backgroundAccountWorkLeases[taskIdentifier] {
             return lease.session.userID == ownerUserID
-                && SupabaseManager.shared
-                    .isAccountBoundWorkLeaseCurrent(lease)
+                && accountWork.isCurrent(lease)
         }
         // Relaunched URLSession tasks do not carry their process-local lease.
         // Reacquire one synchronously on MainActor before the first actor
         // suspension so an Auth transition cannot begin after owner validation
         // and overtake terminal persistence.
-        guard let lease = try? SupabaseManager.shared
-            .beginUnownedAccountBoundWork(expectedUserID: ownerUserID) else {
+        guard let lease = try? accountWork.begin(ownerUserID) else {
             return false
         }
         guard retainBackgroundAccountWork(
             lease,
-            for: taskIdentifier
+            for: taskIdentifier, accountWork: accountWork
         ) else {
-            SupabaseManager.shared.finishAccountBoundWork(lease)
+            accountWork.finish(lease)
             return false
         }
         return true
@@ -33,12 +32,14 @@ extension OfflineQueueManager {
         generation: UUID?,
         ownerUserID: UUID?,
         phase: BackgroundAccountWorkPhase,
-        taskIdentifier: Int
+        taskIdentifier: Int,
+        accountWork: BackgroundAccountWorkLeaseBoundary = .live
     ) async -> BackgroundAccountWorkOwnership? {
         guard let ownerUserID, let generation,
               backgroundTaskOwnerLeaseIsCurrentOrAdopted(
                   taskIdentifier: taskIdentifier,
-                  ownerUserID: ownerUserID
+                  ownerUserID: ownerUserID,
+                  accountWork: accountWork
               ),
               let container = modelContext?.container else {
             return nil
@@ -148,15 +149,27 @@ extension OfflineQueueManager {
         taskIdentifier: Int,
         resultFileURL: URL,
         statusCode: Int?,
-        functionRouteEvidence: EdgeFunctionRouteResponseEvidence?
+        functionRouteEvidence: EdgeFunctionRouteResponseEvidence?,
+        accountWork: BackgroundAccountWorkLeaseBoundary = .live,
+        finalizationService: BackgroundInferenceFinalizationService = .live,
+        publishCompletion: @MainActor (String, OfflineScanProcessingResult, ExtractedScanData) async -> Void
+            = OfflineQueueManager.publishBackgroundInferenceCompletion
     ) async {
-        defer { finishBackgroundAccountWork(for: taskIdentifier) }
+        guard inferenceTerminalTaskIdentifiers.insert(taskIdentifier).inserted else {
+            try? FileManager.default.removeItem(at: resultFileURL)
+            return
+        }
+        defer {
+            inferenceTerminalTaskIdentifiers.remove(taskIdentifier)
+            finishBackgroundAccountWork(for: taskIdentifier, accountWork: accountWork)
+        }
         guard await validateOrAdoptBackgroundAccountWork(
             scanId: scanId,
             generation: generation,
             ownerUserID: ownerUserID,
             phase: .inference,
-            taskIdentifier: taskIdentifier
+            taskIdentifier: taskIdentifier,
+            accountWork: accountWork
         ) != nil else {
             try? FileManager.default.removeItem(at: resultFileURL)
             let didRetire = await Self.awaitDurableBackgroundWorkRetirement(
@@ -186,7 +199,9 @@ extension OfflineQueueManager {
             generation: generation,
             resultFileURL: resultFileURL,
             statusCode: statusCode,
-            functionRouteEvidence: functionRouteEvidence
+            functionRouteEvidence: functionRouteEvidence,
+            finalizationService: finalizationService,
+            publishCompletion: publishCompletion
         )
     }
 
@@ -195,15 +210,21 @@ extension OfflineQueueManager {
         generation: UUID?,
         ownerUserID: UUID?,
         taskIdentifier: Int,
-        error: Error
+        error: Error,
+        accountWork: BackgroundAccountWorkLeaseBoundary = .live
     ) async {
-        defer { finishBackgroundAccountWork(for: taskIdentifier) }
+        guard inferenceTerminalTaskIdentifiers.insert(taskIdentifier).inserted else { return }
+        defer {
+            inferenceTerminalTaskIdentifiers.remove(taskIdentifier)
+            finishBackgroundAccountWork(for: taskIdentifier, accountWork: accountWork)
+        }
         guard await validateOrAdoptBackgroundAccountWork(
             scanId: scanId,
             generation: generation,
             ownerUserID: ownerUserID,
             phase: .inference,
-            taskIdentifier: taskIdentifier
+            taskIdentifier: taskIdentifier,
+            accountWork: accountWork
         ) != nil else {
             let didRetire = await Self.awaitDurableBackgroundWorkRetirement(
                 retire: {

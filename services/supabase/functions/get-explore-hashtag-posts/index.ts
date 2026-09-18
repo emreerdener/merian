@@ -1,3 +1,4 @@
+import { withReactionPreviews } from "../_shared/exploreReactionDb.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import {
   parseJsonBody,
@@ -69,6 +70,14 @@ Deno.serve((req: Request) =>
       supabaseAdmin,
     );
 
-    return jsonResponse({ data }, 200);
+    return jsonResponse({
+      data: await withReactionPreviews(
+        data,
+        user.id,
+        "post",
+        (row) => row.post_id,
+        supabaseAdmin,
+      ),
+    }, 200);
   })
 );

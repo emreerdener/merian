@@ -12,7 +12,7 @@ the onboarding flow.
 - **LocationPermission**: The screen explaining the need for location access to
   provide accurate ecological context. It invokes an injected permission request
   closure and contains no Core Location work.
-- **Ready**: The final **One last step** screen names Google Gemini as the
+- **Ready**: The final **Before you scan** screen names Google Gemini as the
   recipient of observation data for AI-powered identification. Three
   switch-and-label rows share a common leading edge in one continuous stack
   without section titles or a divider. The three labels omit terminal periods.

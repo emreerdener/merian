@@ -599,8 +599,8 @@ make ios-local-build ARGS='simulator -- test -configuration Debug -destination "
 
 | Suite                                   | Evidence supplied                                                                                                                                                                                                                                                                                    |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AppleFoundationVisualCueProviderTests` | Real `GeneratedContent` parsing and schema construction: incomplete cue objects, completed objects inside unfinished arrays, malformed fields, stable indices, three-cue bounds, and downstream identity filtering. Requires Swift 6.4 and iOS 27; does not invoke the model.                        |
-| `LocalVisualAnalysisTests`              | Request-body admission, fallback and exact-attempt publication fences, explicit producer cancellation on early consumer exit or the third accepted cue, and power/thermal notifications cancelling a silent stream without restarting that attempt. Uses injected providers and runtime eligibility. |
+| `AppleFoundationVisualCueProviderTests` | Real `GeneratedContent` parsing and schema construction: incomplete cue objects, completed objects inside unfinished arrays, malformed fields, stable indices, six-cue bounds, and downstream identity filtering. Requires Swift 6.4 and iOS 27; does not invoke the model.                          |
+| `LocalVisualAnalysisTests`              | Request-body admission, fallback and exact-attempt publication fences, explicit producer cancellation on early consumer exit or the sixth accepted cue, and power/thermal notifications cancelling a silent stream without restarting that attempt. Uses injected providers and runtime eligibility. |
 | `FeatureFlagsTests`                     | Production default is on and overrides apply only in Debug.                                                                                                                                                                                                                                          |
 
 Confirm every selected suite appears and executes in the XCResult; a successful
@@ -621,7 +621,7 @@ model text, or personal data in evidence.
 | Device scenario                                                                                               | Required observation                                                                                                                                                             |
 | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Flag disabled, unsupported OS/device, or model unavailable/not ready                                          | Existing generic, Vision, and deterministic visual-trait fallback remains available; no Foundation stream starts.                                                                |
-| Eligible visual scan                                                                                          | Gemini upload precedes model admission; at most three complete, unique, valid cues appear without delaying the final result.                                                     |
+| Eligible visual scan                                                                                          | Gemini upload precedes model admission; at most six complete, unique, valid cues appear without delaying the final result.                                                       |
 | Low Power Mode or serious/critical thermal state, including before the first model snapshot                   | Model work stops or is skipped; fallback remains, and eligibility recovery does not restart the same attempt. Measure actual hardware cancellation and resource cost.            |
 | App deactivation, Insight dismissal, scan replacement, Auth transition, or Gemini completion                  | Local work stops and late output cannot publish to the retired presentation. Durable inference follows its existing lifecycle contract.                                          |
 | Images with embedded instructions, ambiguous traits, or common/scientific names absent from Vision candidates | Cues remain visible-trait wording without identities or invented features. The token filter alone cannot establish this; adversarial model evaluation is required.               |
@@ -2089,7 +2089,7 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `SpeciesCommunitySightingsViewModelTests` owns initial loading, pagination,
   de-duplication, species replacement, and refresh/pagination overlap;
   `SpeciesDictionaryDetailPresentationTests` owns route, share, gallery,
-  attribution, alternate-name, Field Chat, hero-edge, and grid policies;
+  attribution, alternate-name, Field Chat, and grid policies;
   `SpeciesDictionaryDetailServiceTests` owns UUID-first and scientific-name
   endpoint adaptation plus error classification; and
   `SpeciesDictionaryDetailArchitectureTests` enforces Services-only live
@@ -2105,8 +2105,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `SpeciesDictionaryCatalogViewModelTests` owns normalized initial loading,
   duplicate-task suppression, pagination, refresh/search/reverted-selection
   overlap fencing, failed-replacement page suppression, and retained-content
-  failures; `SpeciesDictionaryOverviewViewModelTests` owns normalized loading,
-  retained-content failure, and stale completion;
+  failures; `SpeciesDictionaryOverviewViewModelTests` owns normalized and absent
+  country reuse, the 299/300-second freshness boundary with an injected clock,
+  explicit refresh, retained content during refresh and failure, country
+  replacement, cancellation/re-entry, and stale completion. Model tests do not
+  exercise SwiftUI lifetime: Species/Requests, root-tab, and pushed-page return
+  paths plus Explore dismissal must also satisfy the
+  [manual overview acceptance checks](../features-and-hardware/16-species-dictionary.md#testing).
   `SpeciesDictionaryRegionMapViewModelTests` owns stale completion and
   cancellation cleanup; and `SpeciesCatalogArchitectureTests` enforces
   Services-only live resolution, platform-neutral Models, Core-owned wire DTOs,
@@ -6929,34 +6934,37 @@ deterministic pixel inputs producing distinct palette cues; concrete saturation,
 lighting, contrast, and surface wording; rejection of vague midpoint bucket
 language; the injected clock and monotonic generic → category → local-trait →
 Foundation source handoff; and full-deck exhaustion before a phrase cycle wraps.
-They also cover natural verb-led rendering without `Kind: detail` labels,
-handoff ordering that consumes unseen entries before any prior phrase repeats,
-focus-region crop math, partial snapshot buffering, duplicate and unsafe cue
-rejection, runtime power/thermal/lifecycle eligibility, explicit producer
-cancellation on an early consumer exit or the third accepted cue, power/thermal
-notifications cancelling a silent stream without restarting the attempt,
-provider errors, replacement fences, idempotent consecutive inactive/background
-handling, app-deactivation cancellation without visible-copy regression, phrase
-rotation and Foundation streams, and cancellation of a permanently hung stream
-at simulated Gemini response arrival. The architecture suite separately locks
-the coordinator's private task/image/phrase ownership, aggregate removal, and
-600-line split. `InsightQueuedHandoffTests` and `InsightMediaSuppressionTests`
-separately prove that an exact active-visual live-to-queue handoff carries
-contextual phrases and in-memory carousel media, that save plus offline/online
-changes preserve its cursor, and that the carousel overlay remains active for
-the exact handoff in pending, uploading, staged, and inferencing. The same
-matrix rejects mismatched IDs, failed/external-import/attention states, and
-ordinary queued states before inferencing. Capture Shared's
-`ImageFocusRegionDetectorTests` retain Vision candidate and geometry resolution
-coverage. `InsightMediaFocusPresentationTests` lock the carousel focus geometry,
-time-derived sweep, Reduce Motion midpoint, same-scan animation-session
-continuity, and resets for a different scan or a later analysis after
-completion. Engine tests cover prepared generic handoff, stale-ID rejection,
-audio/Describe isolation, dismissal with a late producer completion, visual-only
-reactivation, and atomic Auth cleanup of both phrase and media state. Separate
-non-cooperative trait-extractor cases prove Gemini completion returns
-immediately, replacement clears task ownership, and either boundary rejects the
-eventual stale cue.
+One-, three-, and six-observation Foundation decks each include five general
+visual phrases before repetition. Late streamed cues interrupt and resume the
+general tail without restarting it, including unseen-observation handoff
+priority; overflow and model-generated generic copy are rejected. They also
+cover natural verb-led rendering without `Kind: detail` labels, handoff ordering
+that consumes unseen entries before any prior phrase repeats, focus-region crop
+math, partial snapshot buffering, duplicate and unsafe cue rejection, runtime
+power/thermal/lifecycle eligibility, explicit producer cancellation on an early
+consumer exit or the sixth accepted cue, power/thermal notifications cancelling
+a silent stream without restarting the attempt, provider errors, replacement
+fences, idempotent consecutive inactive/background handling, app-deactivation
+cancellation without visible-copy regression, phrase rotation and Foundation
+streams, and cancellation of a permanently hung stream at simulated Gemini
+response arrival. The architecture suite separately locks the coordinator's
+private task/image/phrase ownership, aggregate removal, and 600-line split.
+`InsightQueuedHandoffTests` and `InsightMediaSuppressionTests` separately prove
+that an exact active-visual live-to-queue handoff carries contextual phrases and
+in-memory carousel media, that save plus offline/online changes preserve its
+cursor, and that the carousel overlay remains active for the exact handoff in
+pending, uploading, staged, and inferencing. The same matrix rejects mismatched
+IDs, failed/external-import/attention states, and ordinary queued states before
+inferencing. Capture Shared's `ImageFocusRegionDetectorTests` retain Vision
+candidate and geometry resolution coverage. `InsightMediaFocusPresentationTests`
+lock the carousel focus geometry, time-derived sweep, Reduce Motion midpoint,
+same-scan animation-session continuity, and resets for a different scan or a
+later analysis after completion. Engine tests cover prepared generic handoff,
+stale-ID rejection, audio/Describe isolation, dismissal with a late producer
+completion, visual-only reactivation, and atomic Auth cleanup of both phrase and
+media state. Separate non-cooperative trait-extractor cases prove Gemini
+completion returns immediately, replacement clears task ownership, and either
+boundary rejects the eventual stale cue.
 
 Retry presentation tests cover every safe reason category, live countdown,
 elapsed-deadline silence, offline behavior, action eligibility, and a sentinel
@@ -7720,14 +7728,14 @@ integration exercised by Explore.
 loader handoff for the cross-feature image renderer, while the Carousel
 architecture suite prevents that renderer or its live singleton lookup from
 returning to Insights. The same architecture suite requires the native pager,
-page/gallery values, zoom host, pagination dots, hero scroll-edge treatment,
-fullscreen gallery, audio page, and reusable video chrome to remain in
-`Core/UI/Components/MediaCarousel` without feature-owned duplicate files. The
-`InsightMediaGalleryTests` suite proves the Core page defaults to ID-only reuse,
-Insight projects its existing image-origin/source-index/focus identity, and a
-changed reuse key resets the native data-source cache rather than retaining a
-stale neighbor. `InsightMediaAvailabilityTests` keeps selection fallback behind
-the platform-neutral `CarouselSelectionCandidate` contract. The
+page/gallery values, zoom host, pagination dots, fullscreen gallery, audio page,
+and reusable video chrome to remain in `Core/UI/Components/MediaCarousel`
+without feature-owned duplicate files. The `InsightMediaGalleryTests` suite
+proves the Core page defaults to ID-only reuse, Insight projects its existing
+image-origin/source-index/focus identity, and a changed reuse key resets the
+native data-source cache rather than retaining a stale neighbor.
+`InsightMediaAvailabilityTests` keeps selection fallback behind the
+platform-neutral `CarouselSelectionCandidate` contract. The
 `playheadUsesLivePlayerTimeOnlyDuringPlayback` and
 `exploreAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback` tests require live
 player time only when UI intent and the concrete player are both playing, and
@@ -8672,3 +8680,112 @@ raw network addresses with a strong rotating HMAC, and fail closed when
 configuration is missing. Database atomicity and ACL behavior belong in
 `tests/ai_quota_security.sql` and `tests/complimentary_pro_scans_security.sql`,
 not a mocked TypeScript client.
+
+## Explore emoji-reaction verification
+
+The
+[canonical Explore contract](../rfcs/explore-page.md#emoji-reactions-update-2026-09-18)
+owns the interaction rules; the
+[reaction API](../backend-and-data/05-api-contracts.md#explore-emoji-reactions-2026-09-18)
+owns Unicode identity, desired-state mutations, pagination, notification
+capabilities, and backend-before-app rollout. These checks cover observation
+posts and comments/replies; they do not introduce public-web reaction controls
+or change Field Trip interactions.
+
+### Automated coverage
+
+| Boundary                     | Test owners and required assertions                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Catalog and validation       | `scripts/generate-explore-emoji-catalog.py --check`; `_shared/exploreReactions_test.ts` covers ordinary emoji, flags, modifiers, joined sequences, presentation aliases, text/multiple-emoji/oversized rejection, and capability validation.                                                                                                                                                             |
+| Database and authorization   | `_tests/exploreReactionsDb.test.ts` and `tests/explore_emoji_reaction_security.sql` cover catalog parity, idempotent/retried sets, concurrent actors, multiple selections, removals, post ❤️ mapping, pagination, denied callers, visibility/moderation/blocking, and notification aggregation/capabilities.                                                                                             |
+| Native state                 | `ExploreReactionStateTests`, `ExplorePostDetailViewModelTests`, `ExploreReplyLoadingStateTests`, and `ExploreReplyThreadViewModelTests` cover optimistic selection/removal, authoritative merge, rollback, stale refresh/page/account/route responses, shared post state, and notification reply copies.                                                                                                 |
+| Native transport and routing | `ExploreInteractionEndpointTests`, `NotificationEndpointTests`, `NotificationAndPublicProfileEndpointTransportTests`, `AuthenticatedRequestRetryPolicyTests`, `ExploreNotificationNavigationCoordinatorTests`, and `ExploreNotificationRowPresentationTests` cover request/response compatibility, desired-state payloads, conservative write retry, capability flags, and post navigation/presentation. |
+| Push                         | `send-push-notification/db.test.ts` plus the database reaction suite cover device capability, independent opt-ins, unread badge filtering, self-suppression, additions, and push-silent removals.                                                                                                                                                                                                        |
+
+Use the checkout-local iOS build wrapper. Substitute an available simulator's
+UDID; retain result bundles outside `.build` as described in the local storage
+procedure above. A focused state run is:
+
+```bash
+make ios-local-build ARGS='simulator -- test -configuration Debug -destination "platform=iOS Simulator,id=SIMULATOR_UDID" -only-testing:merianTests/ExploreReactionStateTests -only-testing:merianTests/ExplorePostDetailViewModelTests -only-testing:merianTests/ExploreReplyLoadingStateTests -only-testing:merianTests/ExploreReplyThreadViewModelTests'
+python3 scripts/generate-explore-emoji-catalog.py --check
+```
+
+Include the transport, notification, and playback suites for changes to those
+boundaries. New source/resource changes also require `make xcodegen`,
+`make validate-ios-project`, and the appropriate `make ios-local-build` build.
+Do not hand-edit the generated project or create another retained DerivedData
+cache for this feature.
+
+Focused backend verification from the repository root:
+
+```bash
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net --allow-read services/supabase/functions/_shared/exploreReactions_test.ts services/supabase/functions/_tests/exploreReactionsDb.test.ts services/supabase/functions/send-push-notification/db.test.ts
+```
+
+Database assertions require the disposable migrated database and an explicit
+`SUPABASE_DB_TEST_URL`; an unavailable explicitly configured test database must
+fail. A run that skips local DB cases is not database validation. Follow the
+Supabase gate procedure above for migration replay, all catalog/security tests,
+recursive Function type checks, complete Edge and tooling suites, database lint,
+DTO drift, and formatting. Candidate and deployment workflows discover the
+reaction Deno tests through `deno task test` and the pgTAP fixture through
+`test_database_catalogs.sh`; the focused command is not a replacement for those
+complete gates.
+
+### Native interaction matrix
+
+Reaction haptics also require physical-device verification: picker opening uses
+sheet feedback; emoji/chip/category/More taps use one immediate selection pulse;
+network success does not add a second pulse and failed mutations retain error
+feedback. Check both haptics-off and expedition-mode suppression, no pulses
+while typing/scrolling, and post ❤️ picker versus direct Heart behavior.
+`ExploreReactionStateTests` guards response deduplication and failure feedback;
+`HapticFeedbackPolicyTests` guards shared preference admission. Simulator tests
+cannot establish the physical feel of these interactions.
+
+| Surface or state                                         | Manual verification                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Feed, hashtag cards, Map preview, post detail            | Comment → Heart → Add reaction → emoji chips → Share. Feed comments open their sheet; detail comments focus the inline thread. Sharing retains content and destinations. Author/grid navigation opens the same shared post state.                                                                                                                                                               |
+| Picker on posts, comments, replies, notification replies | Starts at medium, expands to large and on search; search names/keywords, categories, flags, skin tones, joined sequences, and unsupported-device name fallback. Selecting adds once and dismisses; reselecting does not remove. Post ❤️ uses Like; comment ❤️ remains a reaction.                                                                                                               |
+| Counts and overflow                                      | Multiple different reactions per viewer; chip taps toggle, highlight viewer selection, remove zero-count chips. Load more groups, retry failures, and reveal a newly selected out-of-page group. Existing count changes and pagination do not jump the strip.                                                                                                                                   |
+| Layout and accessibility                                 | Narrow screens, light/dark mode, VoiceOver names/selected state/counts, and Dynamic Type through accessibility sizes. At `xxxLarge` and accessibility sizes, chips occupy a second scrolling row. Fixed controls remain usable; scrolling clips before Share's hit area and fades only toward hidden content.                                                                                   |
+| Lifecycle and failures                                   | Video suspends while the picker is presented and resumes according to existing playback intent. Exercise dismissals, navigation, refresh, account changes, blocked/unavailable targets, network failure, visible errors, and rollback across feed/detail and notification reply copies.                                                                                                         |
+| Activity and compatibility                               | Another actor's addition groups by post/emoji, updates unread state, and routes to post detail; self-actions are suppressed. Removal recomputes without a push. List/count/read and registered devices with omitted/false capability exclude post reactions; true capability includes only eligible activity. Verify push opt-ins and badges only in an explicitly authorized test environment. |
+
+Realtime is an opaque invalidation signal: the underlying own-row change stream
+is not capability-filtered. Older clients refresh through filtered notification
+endpoints rather than decoding the new row type from that event.
+
+Passing automated tests does not establish device gesture, VoiceOver, visual,
+media-lifecycle, APNs, or deployed-environment verification. Record those
+results separately in candidate evidence; do not mark an unperformed manual
+check passed.
+
+The tooling documentation-link gate also allows read-only access to `resources`
+so links to the versioned emoji catalog maintenance guide are verified.
+
+### Post reaction people verification
+
+`ExplorePostReactorsViewModelTests` covers unique-person summary grammar,
+identity-based page merging, complete emoji arrays, refresh/page races,
+invalidation, account changes, and explicit failure retry.
+`ExploreInteractionEndpointTests` locks the initial/cursor request and typed
+response. Include existing reaction, detail presentation, and shared
+architecture suites when running the local iOS wrapper.
+
+Backend `get-explore-post-reactors/types.test.ts` covers UUID and
+optional-cursor validation. `exploreReactionsDb.test.ts` covers likes plus
+multiple emoji counted once, inclusion of self/owner, blocked and shadowbanned
+actor removal from every projection, stable UUID continuation after cursor-actor
+removal, and denied callers/hidden/unshared/deleted posts. The migration
+contract and `explore_post_reactors_security.sql` pin grants and caller guards.
+Full candidate Deno and pgTAP discovery includes these tests.
+
+Manual device checks: summary appears only below detail actions; zero actors
+hides it; one/two/many copy matches distinct people; tapping opens medium/large
+sheet with feedback and pauses video; all emojis remain readable via horizontal
+overflow; More and retry work; dismiss restores the existing media intent. Check
+long names, large Dynamic Type, VoiceOver names, dark mode, and removal or
+account switching while requests are pending. Automated passes do not establish
+these manual or deployed checks.

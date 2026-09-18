@@ -5,6 +5,24 @@ philosophy, maximizing reuse of Swift components while decoupling heavy data
 operations from the main rendering loop to maintain a continuous 60fps
 framerate.
 
+## Shared Top Toolbar Appearance
+
+`AppTopScrollEdgeEffectModifier` in `App/Presentation/AppRootPresentation.swift`
+hides the top scroll-edge effect on iOS 26 and later. `MerianApp` applies it
+outside the root presentation tree so scrolling screens, sheets, and navigation
+destinations inherit the same treatment. Header images scrolling offscreen do
+not restore the effect. Explicit navigation-bar backgrounds in Scans selection
+and Field-trip detail are also hidden. Individual toolbar controls retain their
+native glass, and bottom toolbar/search treatments remain unchanged. Earlier iOS
+versions skip the unavailable scroll-edge API.
+
+Visual QA should scroll Scans/Collections (including selection), Explore,
+Profile/Settings, Insight, Field-trip detail, and Species Dictionary in light
+and dark appearance, including nested sheets and pushed destinations. Check the
+initial position, scrolled content, and return to the top for a transparent top
+bar with readable controls. Simulator/device visual verification is separate
+from compilation and unit-test evidence.
+
 ## 1. Onboarding & Permission Priming (`OnboardingView`)
 
 To satisfy Apple's privacy guidelines and secure high opt-in rates without
@@ -42,19 +60,19 @@ instances.
   - The shell wraps each advancing callback with its source step, and the view
     model rejects a duplicate or late completion before it can advance the next
     screen.
-- **Final consent surface (`ReadyStepView`)**: Uses the title **One last step**,
-  states, “Naturebook sends observation data to Google Gemini for AI-powered
-  identification,” and presents three initially-off switch-and-label rows on a
-  common leading edge in one continuous stack without visual section titles or a
-  divider. The labels omit terminal periods. The 18+ self-attestation and
-  inline-linked Terms/data-sharing permission are required; usage/diagnostics
-  remains optional and changeable in Settings. Only the required pair enables
-  **Start scanning**. VoiceOver hints preserve the required/optional
-  distinction. PostHog is the documented analytics provider, but its name
-  remains absent from the UI label. Deterministic copy and enablement live in
-  Ready Models, editable projection in its view model, and the repeated row in
-  its component owner; the view retains only reactive manager projection,
-  bindings, layout, and accessibility.
+- **Final consent surface (`ReadyStepView`)**: Uses the title **Before you
+  scan**, states, “Naturebook sends observation data to Google Gemini for
+  AI-powered identification,” and presents three initially-off switch-and-label
+  rows on a common leading edge in one continuous stack without visual section
+  titles or a divider. The labels omit terminal periods. The 18+
+  self-attestation and inline-linked Terms/data-sharing permission are required;
+  usage/diagnostics remains optional and changeable in Settings. Only the
+  required pair enables **Start scanning**. VoiceOver hints preserve the
+  required/optional distinction. PostHog is the documented analytics provider,
+  but its name remains absent from the UI label. Deterministic copy and
+  enablement live in Ready Models, editable projection in its view model, and
+  the repeated row in its component owner; the view retains only reactive
+  manager projection, bindings, layout, and accessibility.
 - **Root View Handoff (`App/Presentation` + `MerianApp`)**:
   `AppRootPresentationPolicy` owns the deterministic combination of the injected
   onboarding flag, `ConsentManager.hasCurrentRequiredConsent`, and
@@ -742,18 +760,24 @@ production Shell and Library file remains below the 600-line review guard.
   counts and `Follow` / `Following` action for non-self profiles. Counts are not
   tappable in v1, and following never grants private scan access or creates
   mutual friend state.
-- **Interactions**: Likes, comments, and follows are optimistic and online-only.
-  Feed comment entry uses a dedicated `ExploreCommentsSheet`, while the detail
-  page keeps its comment thread and composer inline. Comments support
-  interactive emoji reactions (Slack-style pill list) that toggle locally for
-  instant haptic response. Feed media supports double-tap to like with a
-  transient centered heart overlay; audio/video center double taps use the
-  dedicated playback gesture recognizer so the post is liked exactly once. The
-  center playback zone is exposed to VoiceOver as the current Play/Pause action,
-  while the video mute control remains independently tappable. A system share
-  button on each post shares media-aware species copy plus
-  `https://naturebook.earth/explore/post/{postId}` in one string so Messages and
-  social apps can render the public web preview; the page offers
+- **Interactions**: Likes, comments, reactions, and follows are optimistic and
+  online-only. Feed comment entry uses a dedicated `ExploreCommentsSheet`, while
+  the detail page keeps its comment thread and composer inline. Comments support
+  the same searchable Unicode emoji picker as observation posts and notification
+  reply sheets. Chip taps toggle the viewer’s contribution with optimistic
+  feedback, authoritative reconciliation, and rollback on failure. Post actions
+  are Comment → Heart → Add reaction → horizontally scrolling chips → Share;
+  accessibility text sizes move chips to a second row. Post ❤️ remains the
+  existing like. The
+  [reaction contract](../rfcs/explore-page.md#emoji-reactions-update-2026-09-18)
+  owns the full behavior and compatibility rules. Feed media supports double-tap
+  to like with a transient centered heart overlay; audio/video center double
+  taps use the dedicated playback gesture recognizer so the post is liked
+  exactly once. The center playback zone is exposed to VoiceOver as the current
+  Play/Pause action, while the video mute control remains independently
+  tappable. A system share button on each post shares media-aware species copy
+  plus `https://naturebook.earth/explore/post/{postId}` in one string so
+  Messages and social apps can render the public web preview; the page offers
   `naturebook://explore/post/{postId}` as its canonical "Open in Naturebook"
   action while retaining `merian://` as a compatibility alias. Overflow menus
   expose block/report/unshare actions depending on ownership.
@@ -1087,9 +1111,9 @@ an Edge API response or opened offline via the Scans library.
   `ImagesCarousel` instead uses the shared `NativePageCarousel`, which wraps
   `UIPageViewController` directly, eagerly mounts its feature-supplied pages,
   clips its native view, and lets the internal `UIScrollView` arbitrate with the
-  sheet pan. The top-edge underlap is handled by the shared hero scroll-edge
-  modifier; the current implementation does not use a hidden bleed buffer or a
-  `TabView` shim.
+  sheet pan. The hero retains its top-edge underlap while the App presentation
+  root keeps the top scroll-edge effect hidden at every scroll position; the
+  current implementation does not use a `TabView` shim.
 - **Dynamic Contextual Header**: To replace the `ConfidenceBadge` with the
   truncated Common Name during active scrolling, the layout maps an invisible
   `GeometryReader` onto a native `ScrollView` coordinate tracking axis
@@ -1870,38 +1894,41 @@ dependency composition.
   single 2.3-second phrase clock. After Vision completes, a 32×32 sample of the
   same derivative produces five validated, image-specific dominant-color,
   saturation, lighting, light-contrast, and surface-detail cues for subsequent
-  ticks. Source priority prevents generic or category regression. Within the
-  active deck, every available phrase appears before its first phrase becomes
-  eligible again. Trait kinds render as natural verb-led sentences such as
-  **Analyzing gray and green colors**, **Reviewing softly colored areas**, or
-  **Observing light and shadow areas**, never `Kind: detail` fields or numeric
-  bucket labels such as **moderate** and **balanced**. `AppDIContainer` injects
-  the live classifier, deterministic trait extractor, Foundation visual-cue
-  seam, eligibility provider, and light-impact start feedback. Direct/default
-  engine instances use inert start feedback. `AppleFoundationVisualCueProvider`
-  uses the default-on `foundationVisualCues` release flag, with Debug overrides
-  for comparison testing and an inert Xcode 26.6 branch. Eligible iOS 27 devices
-  start it only after the Gemini request body is sent and local Vision
-  completes. Hosted and physical-device validation remain outstanding. Partial
-  or unsafe cue snapshots never reach SwiftUI. Scan ID, presentation-attempt,
-  and durable foreground-generation fences discard stale completions. Result
-  arrival, dismissal, replacement, queue handoff, Auth transition, and failure
-  fence local producers without joining network or persistence work. Consecutive
-  inactive/background callbacks are idempotent: the coordinator stops local work
-  once while retaining the exact visual owner, current phrase, and at most one
-  pending cadence resume. Reactivation resumes only that visual cadence and
-  never restarts Vision, deterministic traits, or Foundation work. An exact
-  active visual queue handoff requires scan-and-attempt ownership and retains
-  validated phrase order and live carousel media. Prepared visual handoff has
-  generic copy without media, while audio and Describe remain nonvisual. Durable
-  save and connectivity changes do not restart the visual cursor. The exact
-  visual handoff also keeps the same selected carousel page, focus state, and
-  time-derived scan sweep through pending, uploading, staged, and inferencing
-  queue states while none requires attention; ordinary queued scans animate only
-  while inferencing. Its queued trash action fades into the existing trailing
-  toolbar slot once durable ownership is bound. The app enforces an automatic
-  multi-capture rapid-capture loop via `ActiveScanToolbar`. This isolated
-  `.ultraThinMaterial` glassmorphic capsule swaps views using
+  ticks. Source priority prevents late category or trait callbacks from
+  replacing a Foundation deck. That deck holds up to six photo observations
+  followed by five general visual phrases before repeating, even when fewer
+  observations qualify. Newly streamed observations take priority without
+  restarting the general tail. Trait kinds render as natural verb-led sentences
+  such as **Analyzing gray and green colors**, **Reviewing softly colored
+  areas**, or **Observing light and shadow areas**, never `Kind: detail` fields
+  or numeric bucket labels such as **moderate** and **balanced**.
+  `AppDIContainer` injects the live classifier, deterministic trait extractor,
+  Foundation visual-cue seam, eligibility provider, and light-impact start
+  feedback. Direct/default engine instances use inert start feedback.
+  `AppleFoundationVisualCueProvider` uses the default-on `foundationVisualCues`
+  release flag, with Debug overrides for comparison testing and an inert Xcode
+  26.6 branch. Eligible iOS 27 devices start it only after the Gemini request
+  body is sent and local Vision completes. Hosted and physical-device validation
+  remain outstanding. Partial or unsafe cue snapshots never reach SwiftUI. Scan
+  ID, presentation-attempt, and durable foreground-generation fences discard
+  stale completions. Result arrival, dismissal, replacement, queue handoff, Auth
+  transition, and failure fence local producers without joining network or
+  persistence work. Consecutive inactive/background callbacks are idempotent:
+  the coordinator stops local work once while retaining the exact visual owner,
+  current phrase, and at most one pending cadence resume. Reactivation resumes
+  only that visual cadence and never restarts Vision, deterministic traits, or
+  Foundation work. An exact active visual queue handoff requires
+  scan-and-attempt ownership and retains validated phrase order and live
+  carousel media. Prepared visual handoff has generic copy without media, while
+  audio and Describe remain nonvisual. Durable save and connectivity changes do
+  not restart the visual cursor. The exact visual handoff also keeps the same
+  selected carousel page, focus state, and time-derived scan sweep through
+  pending, uploading, staged, and inferencing queue states while none requires
+  attention; ordinary queued scans animate only while inferencing. Its queued
+  trash action fades into the existing trailing toolbar slot once durable
+  ownership is bound. The app enforces an automatic multi-capture rapid-capture
+  loop via `ActiveScanToolbar`. This isolated `.ultraThinMaterial` glassmorphic
+  capsule swaps views using
   `.transition(.move(edge: .bottom).combined(with: .opacity))` when thumbnails
   are generated. Video thumbnails carry a play badge and open
   `StagedVideoPreviewModal`, a full-screen `VideoPlayer` preview with top-bar
@@ -1943,22 +1970,25 @@ dependency composition.
   destination consumed after dismissal; `Shell/Views` owns the view-local
   navigation path, root Feed/Map/Field trips router, Identify Species/Requests
   mode, destination registration, sheet and lifecycle timing, and playback
-  state; and `Shell/Components` owns root chrome. Shell views contain no
-  endpoint or singleton lookup. Stack-based request/activity and author-profile
-  coordination retains the profile-to-scan nesting cap so author profiles do not
-  layer a second sheet over active feed/detail video. Field-trip typed routes
-  live in `FieldTrips/Models/FieldTripRoutes.swift`. `AuthorProfile/Models`,
-  `Services`, `ViewModels`, `Views`, and grouped `Components` own
-  route/presentation policy, injected live dependencies,
-  profile/library/follow/report state, and declarative UI. Only the Author
-  Profile `Services` adapter resolves its endpoints. The in-place published-scan
-  library hides the inherited stack back button and supplies one explicit
-  back-to-profile control, library scans open `ExplorePostDetailView` with the
-  current author-profile depth, and further author-profile taps are disabled
-  after one profile hop. Feed owns `ExploreFeedTabContent`, hashtag and
-  post-detail hosts, and the typed values in
-  `Feed/Models/ExploreFeedRoutes.swift`; Shell only appends and resolves those
-  routes. Feed models, live services, observable state owners, views, and
+  state. It also retains the Catalog overview model for the Explore
+  presentation; Catalog owns its five-minute same-country reuse and refresh
+  policy, as defined in the
+  [overview lifecycle contract](./16-species-dictionary.md#ios-catalog-ownership-and-request-lifecycle).
+  `Shell/Components` owns root chrome. Shell views contain no endpoint or
+  singleton lookup. Stack-based request/activity and author-profile coordination
+  retains the profile-to-scan nesting cap so author profiles do not layer a
+  second sheet over active feed/detail video. Field-trip typed routes live in
+  `FieldTrips/Models/FieldTripRoutes.swift`. `AuthorProfile/Models`, `Services`,
+  `ViewModels`, `Views`, and grouped `Components` own route/presentation policy,
+  injected live dependencies, profile/library/follow/report state, and
+  declarative UI. Only the Author Profile `Services` adapter resolves its
+  endpoints. The in-place published-scan library hides the inherited stack back
+  button and supplies one explicit back-to-profile control, library scans open
+  `ExplorePostDetailView` with the current author-profile depth, and further
+  author-profile taps are disabled after one profile hop. Feed owns
+  `ExploreFeedTabContent`, hashtag and post-detail hosts, and the typed values
+  in `Feed/Models/ExploreFeedRoutes.swift`; Shell only appends and resolves
+  those routes. Feed models, live services, observable state owners, views, and
   grouped catalog/comment/composer/detail/card/media components follow the
   feature-local boundary documented in `Feed/README.md`.
   `Feed/Components/Cards/ExplorePostCard.swift` owns card composition, while

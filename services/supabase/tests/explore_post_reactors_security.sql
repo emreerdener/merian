@@ -1,0 +1,16 @@
+BEGIN;
+SELECT extensions.plan(6);
+SELECT extensions.ok(NOT has_function_privilege('anon','public.get_explore_post_reactors(uuid,uuid,uuid)','EXECUTE'), 'anon cannot read reactor identities');
+SELECT extensions.ok(NOT has_function_privilege('authenticated','public.get_explore_post_reactors(uuid,uuid,uuid)','EXECUTE'), 'authenticated cannot supply another viewer');
+SELECT extensions.ok(has_function_privilege('service_role','public.get_explore_post_reactors(uuid,uuid,uuid)','EXECUTE'), 'Edge service can read reactors');
+SET LOCAL ROLE anon;
+SELECT extensions.throws_ok($probe$SELECT public.get_explore_post_reactors(NULL,NULL,NULL)$probe$, '42501', NULL, 'anon RPC denied');
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT extensions.throws_ok($probe$SELECT public.get_explore_post_reactors(NULL,NULL,NULL)$probe$, '42501', NULL, 'authenticated RPC denied');
+RESET ROLE;
+SET LOCAL ROLE service_role;
+SELECT extensions.throws_ok($probe$SELECT public.get_explore_post_reactors(NULL,NULL,NULL)$probe$, '42501', NULL, 'service cannot bypass target visibility');
+RESET ROLE;
+SELECT * FROM extensions.finish();
+ROLLBACK;

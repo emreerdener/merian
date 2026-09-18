@@ -91,6 +91,7 @@ struct ScanningPhraseCoordinator {
         let normalized = cue.pillText.lowercased()
         let normalizedDetail = cue.detail.lowercased()
         guard !shownPhrases.contains(normalized),
+              !Self.genericPhrases.contains(where: { $0.lowercased() == normalized }),
               !acceptedFoundationPhrases.contains(normalized),
               !acceptedFoundationDetails.contains(normalizedDetail),
               acceptedFoundationPhrases.count
@@ -101,10 +102,17 @@ struct ScanningPhraseCoordinator {
         acceptedFoundationDetails.insert(normalizedDetail)
         if specificity != .foundation {
             specificity = .foundation
-            phrases = []
+            phrases = Self.genericPhrases
             nextIndex = 0
         }
-        phrases.append(cue.pillText)
+        // Keep observations ahead of general visual copy. If a cue arrives
+        // during the general tail, preserve its cursor while giving the new
+        // observation priority on the next tick.
+        let insertionIndex = acceptedFoundationPhrases.count - 1
+        phrases.insert(cue.pillText, at: insertionIndex)
+        if insertionIndex < nextIndex {
+            nextIndex += 1
+        }
         return true
     }
 
@@ -132,9 +140,15 @@ struct ScanningPhraseCoordinator {
             return key != currentKey && shownPhrases.contains(key)
         }
 
+        let unseenObservations = unseen.filter {
+            acceptedFoundationPhrases.contains($0.lowercased())
+        }
+        let unseenGeneral = unseen.filter {
+            !acceptedFoundationPhrases.contains($0.lowercased())
+        }
         var result = [currentPhrase]
         var included = Set([currentKey])
-        for phrase in unseen + previouslySeen
+        for phrase in unseenObservations + unseenGeneral + previouslySeen
             where included.insert(phrase.lowercased()).inserted {
             result.append(phrase)
         }
@@ -146,6 +160,18 @@ struct ScanningPhraseCoordinator {
     /// not create a meaningful UI transition.
     private mutating func publishNextPhraseInCycle() -> String? {
         guard !phrases.isEmpty else { return nil }
+        if specificity == .foundation,
+           let unseenIndex = phrases.firstIndex(where: {
+               acceptedFoundationPhrases.contains($0.lowercased())
+                   && !shownPhrases.contains($0.lowercased())
+           }) {
+            // Skip already-shown observations when a late cue arrives during
+            // a repeated round; never visit the new cue twice in that round.
+            if unseenIndex >= nextIndex {
+                nextIndex = unseenIndex + 1
+            }
+            return publish(phrases[unseenIndex])
+        }
         var examinedCount = 0
         while examinedCount < phrases.count {
             if nextIndex >= phrases.count {
@@ -154,12 +180,15 @@ struct ScanningPhraseCoordinator {
             let candidate = phrases[nextIndex]
             nextIndex += 1
             examinedCount += 1
-            let normalized = candidate.lowercased()
             guard candidate != currentPhrase else { continue }
-            shownPhrases.insert(normalized)
-            currentPhrase = candidate
-            return candidate
+            return publish(candidate)
         }
         return nil
+    }
+
+    private mutating func publish(_ phrase: String) -> String {
+        shownPhrases.insert(phrase.lowercased())
+        currentPhrase = phrase
+        return phrase
     }
 }

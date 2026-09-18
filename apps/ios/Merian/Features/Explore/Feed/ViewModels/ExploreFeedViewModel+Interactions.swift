@@ -13,8 +13,28 @@ enum ExploreShareMessageFormatter {
 
 extension ExploreFeedViewModel {
     func toggleLike(for post: ExplorePost) async {
-        upsertPost(post)
-        guard !likeRequestsInFlight.contains(post.id) else { return }
+        await setPostLike(for: post, selected: nil)
+    }
+
+    /// A nil selection is a direct heart-button toggle. Picker selections are idempotent.
+    func setPostLike(for post: ExplorePost, selected: Bool?) async {
+        let key = "post:\(post.id)"
+        let generation = activeFeedRequestId
+        let viewer = dependencies.comments.currentViewer().userID
+        let removalRevision = postRemovalRevisions[post.id, default: 0]
+        await reactionMutationQueue.acquire(key)
+        defer { reactionMutationQueue.release(key) }
+        guard !Task.isCancelled, generation == activeFeedRequestId,
+              viewer == dependencies.comments.currentViewer().userID,
+              removalRevision == postRemovalRevisions[post.id, default: 0] else { return }
+        if self.post(id: post.id) == nil { upsertPost(post) }
+        if let selected, self.post(id: post.id)?.viewerHasLiked == selected { return }
+        reactionRevisions[key, default: 0] &+= 1
+        let revision = reactionRevisions[key]
+        defer {
+            reactionRevisions[key, default: 0] &+= 1
+            postReactorsRevision &+= 1
+        }
 
         guard let optimisticState = store.toggleLikeOptimistically(postId: post.id),
               let optimisticPost = store.post(id: post.id) else {
@@ -31,13 +51,18 @@ extension ExploreFeedViewModel {
                 post.id,
                 optimisticPost.viewerHasLiked
             )
+            guard generation == activeFeedRequestId, viewer == dependencies.comments.currentViewer().userID,
+                  revision == reactionRevisions[key], self.post(id: post.id) != nil else { return }
             applyLikeState(
                 postId: response.postId,
                 likeCount: response.likeCount,
                 viewerHasLiked: response.viewerHasLiked
             )
-            dependencies.feedback.selection()
+            // Picker taps already acknowledge selection in the shared reaction UI.
+            if selected == nil { dependencies.feedback.selection() }
         } catch {
+            guard generation == activeFeedRequestId, viewer == dependencies.comments.currentViewer().userID,
+                  revision == reactionRevisions[key], self.post(id: post.id) != nil else { return }
             applyLikeState(
                 postId: post.id,
                 likeCount: previousLikeCount,
@@ -120,15 +145,33 @@ extension ExploreFeedViewModel {
     }
 
     func refreshPost(postId: String) async {
+        let key = "post:\(postId)"
+        let generation = activeFeedRequestId
+        let viewer = dependencies.comments.currentViewer().userID
+        let removalRevision = postRemovalRevisions[postId, default: 0]
+        await reactionMutationQueue.acquire(key)
+        defer { reactionMutationQueue.release(key) }
+        guard !Task.isCancelled, generation == activeFeedRequestId,
+              viewer == dependencies.comments.currentViewer().userID,
+              removalRevision == postRemovalRevisions[postId, default: 0] else { return }
+        reactionRevisions[key, default: 0] &+= 1
+        let revision = reactionRevisions[key]
+        defer { reactionRevisions[key, default: 0] &+= 1 }
         do {
             let refreshedPost = try await dependencies.interactions.loadPost(postId)
+            guard !Task.isCancelled, generation == activeFeedRequestId,
+                  revision == reactionRevisions[key], viewer == dependencies.comments.currentViewer().userID else { return }
             upsertPost(refreshedPost)
         } catch {
+            guard generation == activeFeedRequestId, revision == reactionRevisions[key],
+                  viewer == dependencies.comments.currentViewer().userID else { return }
             toastMessage = .error(dependencies.errorMessage(error))
         }
     }
 
     func removePost(id: String) {
+        postRemovalRevisions[id, default: 0] &+= 1
+        reactionRevisions["post:\(id)", default: 0] &+= 1
         store.removePost(id: id)
         if activeCommentsPostId == id {
             dismissComments()
@@ -137,6 +180,10 @@ extension ExploreFeedViewModel {
     }
 
     func removePosts(byAuthorUserId authorUserId: String) {
+        for post in store.allPosts where post.authorUserId == authorUserId {
+            postRemovalRevisions[post.id, default: 0] &+= 1
+            reactionRevisions["post:\(post.id)", default: 0] &+= 1
+        }
         store.removePosts(byAuthorUserId: authorUserId)
         if activeCommentsPost?.authorUserId == authorUserId {
             dismissComments()

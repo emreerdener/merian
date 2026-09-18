@@ -29,7 +29,7 @@ struct AppleFoundationVisualCueProvider: FoundationVisualCueProviding {
 enum AppleFoundationVisualCueGeneration {
     static let instructions = """
         Describe only directly visible traits in the attached image, ordered \
-        from broad appearance to finer detail. Return up to three distinct cues, \
+        from broad appearance to finer detail. Return up to \(FoundationVisualCueRequest.maximumCueCount) distinct cues, \
         or an empty list when no clear traits are visible. Each detail must be \
         a short English noun phrase of 2 to 5 words and at most 20 characters. \
         Use plain letters, spaces, and hyphens only. Do not include an action \
@@ -102,7 +102,7 @@ enum AppleFoundationVisualCueGeneration {
                     schema: try schema(),
                     options: GenerationOptions(
                         samplingMode: .greedy,
-                        maximumResponseTokens: 256
+                        maximumResponseTokens: 512
                     )
                 ) {
                     "Describe the visible traits without naming the subject."

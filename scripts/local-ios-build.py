@@ -2,6 +2,7 @@
 """Bound local validation caches without touching archives or legacy artifacts."""
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import platform as host_platform
@@ -168,6 +169,38 @@ class Workspace:
         if status or lockfile.read_bytes() != locked:
             raise RuntimeError('Locked package resolution failed or changed Package.resolved.')
 
+    def hash_files(self, paths):
+        digest = hashlib.sha256()
+        for path in sorted(paths):
+            digest.update(str(path.relative_to(self.root)).encode() + b'\0')
+            # Hash a link's identity without following it outside the checkout.
+            digest.update(os.readlink(path).encode() if path.is_symlink() else path.read_bytes())
+            digest.update(b'\0')
+        return digest.hexdigest()
+
+    def audit_workload_fingerprint(self):
+        paths = [self.root / 'scripts/config/ios-runtime-audit.json', self.root / 'project.yml',
+                 self.root / 'apps/ios/Merian/Configuration/TestExecutionCoordinator.swift']
+        for directory in ('MerianPerformanceTests', 'MerianUITests', 'TestSupport', 'Merian/App/UITesting'):
+            paths.extend(path for path in (self.root / 'apps/ios' / directory).rglob('*')
+                         if path.is_file() or path.is_symlink())
+        return self.hash_files(paths)
+
+    def audit_source_identity(self):
+        def read(command):
+            return subprocess.check_output(command, cwd=self.root, text=True).strip()
+        status = read(['git', 'status', '--porcelain', '--untracked-files=all'])
+        untracked = subprocess.check_output(
+            ['git', 'ls-files', '--others', '--exclude-standard', '-z'], cwd=self.root, text=True)
+        return dict(
+            source_sha=read(['git', 'rev-parse', 'HEAD']),
+            source_fingerprint=read(['bash', 'scripts/ios-release-source-fingerprint.sh']),
+            source_untracked_fingerprint=self.hash_files(
+                [self.root / path for path in untracked.split('\0') if path]),
+            source_status_fingerprint=hashlib.sha256(status.encode()).hexdigest(),
+            source_dirty=bool(status),
+        )
+
     def audit_environment(self, destination, label):
         devices = json.loads(subprocess.check_output(
             ['xcrun', 'simctl', 'list', 'devices', 'available', '-j'], text=True))['devices']
@@ -179,7 +212,8 @@ class Workspace:
                                 xcode=subprocess.check_output(['xcodebuild', '-version'], text=True).strip(),
                                 host=host_platform.platform(),
                                 hardware=subprocess.check_output(['sysctl', '-n', 'hw.model'], text=True).strip(),
-                                configuration='Debug', iterations=3)
+                                configuration='Debug', iterations=3,
+                                workload_fingerprint=self.audit_workload_fingerprint())
         raise RuntimeError('Audit requires an available concrete Simulator id destination.')
 
     def audit(self, destination, environment_label, baseline_path=None):
@@ -204,13 +238,15 @@ class Workspace:
                     if not isinstance(selections, list) or not selections or any(
                             not isinstance(item, dict) or not isinstance(item.get('selector'), str)
                             or not item['selector'] or not isinstance(item.get('suite_names'), list)
-                            or not item['suite_names'] for item in selections):
+                            or not item['suite_names']
+                            or not isinstance(item.get('report_metric_families', []), list)
+                            or any(not isinstance(family, str) or not family.strip()
+                                   for family in item.get('report_metric_families', []))
+                            for item in selections):
                         raise ValueError(f'Invalid runtime audit selector group: {name}')
-                def read(command):
-                    return subprocess.check_output(command, cwd=self.root, text=True).strip()
-                evidence['source_sha'] = read(['git', 'rev-parse', 'HEAD'])
-                evidence['source_fingerprint'] = read(['bash', 'scripts/ios-release-source-fingerprint.sh'])
-                evidence['source_dirty'] = bool(read(['git', 'status', '--porcelain']))
+                source_identity = self.audit_source_identity()
+                evidence['metric_expectations'] = config['performance']
+                evidence.update(source_identity)
                 evidence['destination'] = destination
                 evidence['environment'] = self.audit_environment(destination, environment_label)
                 if baseline_path:
@@ -228,9 +264,17 @@ class Workspace:
                 for name, args in phases:
                     phase = dict(name=name, status='failed', command=args)
                     evidence['phases'].append(phase)
+                    source_changed = True
                     try:
+                        source_changed = self.audit_source_identity() != source_identity
+                        if source_changed:
+                            raise RuntimeError('Source changed during audit; rebuild a stable candidate.')
                         status = self.run_locked('simulator', False, args)
                         phase['bundle'] = str(self.last_report)
+                        source_changed = True
+                        source_changed = self.audit_source_identity() != source_identity
+                        if source_changed:
+                            raise RuntimeError('Source changed during audit; evidence is diagnostic only.')
                         if status:
                             if name != 'build' and self.last_report.exists():
                                 reporter.extract(self.last_report, output / name, config[name])
@@ -243,10 +287,12 @@ class Workspace:
                     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
                         failed = True
                         phase['detail'] = str(error)
-                        if name == 'build':
-                            for blocked in ('acceptance', 'ui', 'performance'):
+                        if name == 'build' or source_changed:
+                            remaining = [item[0] for item in phases]
+                            for blocked in remaining[remaining.index(name) + 1:]:
                                 evidence['phases'].append(dict(name=blocked, status='blocked',
-                                                              detail='Current-source build failed.'))
+                                                              detail='Source identity changed or could not be verified.' if source_changed
+                                                              else 'Current-source build failed.'))
                             break
             except (OSError, RuntimeError, ValueError, ImportError, SyntaxError, subprocess.SubprocessError) as error:
                 failed = True

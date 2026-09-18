@@ -84,3 +84,39 @@ formatter's Foundation-only, effect-free boundary, layered location-sharing
 ownership, and every Explore Shared production file at or below 600 lines. The
 detailed media matrix lives in the
 [Feed README](../Feed/README.md#focused-tests).
+
+## Emoji reactions
+
+`Reactions/` owns the bundled Unicode catalog, searchable picker, reaction
+strip, and shared post action row. These components render injected
+state/callbacks and perform no networking. Feed/Map card hosts and the existing
+detail sheet host retain presentation ownership.
+
+The picker starts at the medium detent, supports large, and expands on search
+focus. It uses native glyphs plus catalog names and the existing video-overlay
+suspension lifecycle. Picker selection adds; chip taps toggle. The strip reveals
+new selections, leaves later page updates in place, and offers More for explicit
+pagination/retry. Its height scales with Dynamic Type, with post chips moving
+below fixed controls at `xxxLarge` and accessibility sizes. Post red-heart
+mapping belongs to Feed state, not this generic comment-capable strip.
+
+See the
+[canonical behavior](../../../../../../docs/rfcs/explore-page.md#emoji-reactions-update-2026-09-18)
+and
+[verification matrix](../../../../../../docs/development-guides/08-testing-strategy.md#explore-emoji-reaction-verification).
+
+### Reaction haptics
+
+Opening a post or comment/reply emoji picker uses the shared sheet spring.
+Choosing an emoji (including an already-selected one), toggling a chip, changing
+categories, or tapping More gives one immediate selection pulse. Tapping the
+active category again is silent unless it clears a search. Successful network
+responses do not repeat the tap feedback, including post ❤️ picker selections;
+direct Heart buttons retain their existing feedback. Failed mutations retain
+error feedback alongside rollback and the visible error.
+
+All reaction feedback routes through `HapticManager`, respecting the global
+haptics preference and expedition-mode suppression. Search typing, scrolling,
+sheet lifecycle updates, pagination results, and background reconciliation do
+not emit haptics. Shared picker/chip components apply this behavior to feed,
+detail, Map, hashtag, comment/reply, and notification reply surfaces.

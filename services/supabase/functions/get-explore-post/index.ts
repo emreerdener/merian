@@ -1,3 +1,4 @@
+import { withReactionPreviews } from "../_shared/exploreReactionDb.ts";
 import {
   jsonResponse,
   logStructuredError,
@@ -54,6 +55,9 @@ Deno.serve((req: Request) =>
       return jsonResponse({ error: "Explore post not found" }, 404);
     }
 
-    return jsonResponse({ data }, 200);
+    return jsonResponse({
+      data: (await withReactionPreviews([data], user.id, "post", (row) =>
+        row.post_id, supabaseAdmin))[0],
+    }, 200);
   })
 );

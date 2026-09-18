@@ -98,6 +98,7 @@ extension ExploreFeedViewModel {
 
         do {
             let request = try makeInitialFeedRequest()
+            let reactionSnapshot = reactionRevisions
             let freshPosts = try await dependencies.feed.loadPosts(
                 feedPageSize,
                 request.filter,
@@ -113,7 +114,7 @@ extension ExploreFeedViewModel {
 
             guard activeFeedRequestId == requestId else { return }
 
-            store.setFeedPosts(freshPosts)
+            store.setFeedPosts(preservingNewerReactions(in: freshPosts, since: reactionSnapshot))
             fieldTripPublications = freshFieldTripPublications
             hasLoadedFeedOnce = true
             hasReachedEndOfFeed = freshPosts.count < feedPageSize
@@ -163,6 +164,7 @@ extension ExploreFeedViewModel {
                 return
             }
 
+            let reactionSnapshot = reactionRevisions
             let nextPage = try await dependencies.feed.loadPosts(
                 feedPageSize,
                 request.filter,
@@ -175,7 +177,7 @@ extension ExploreFeedViewModel {
 
             guard activeFeedRequestId == requestId else { return }
 
-            appendUniquePosts(nextPage)
+            appendUniquePosts(preservingNewerReactions(in: nextPage, since: reactionSnapshot))
             hasReachedEndOfFeed = nextPage.count < feedPageSize
             updateFeedCursor(using: nextPage)
             reconcileActiveCommentsPost()

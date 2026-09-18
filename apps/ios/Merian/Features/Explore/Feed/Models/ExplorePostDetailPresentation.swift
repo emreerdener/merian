@@ -5,6 +5,8 @@ enum ExplorePostDetailPresentation: Identifiable, Equatable {
     case fieldNotes(postId: String)
     case postComposer(postId: String)
     case fieldChat(postId: String)
+    case emojiPicker(postId: String)
+    case reactors(postId: String)
     case paywall
 
     var id: String {
@@ -21,6 +23,10 @@ enum ExplorePostDetailPresentation: Identifiable, Equatable {
             "post-composer-\(postId)"
         case .fieldChat(let postId):
             "field-chat-\(postId)"
+        case .emojiPicker(let postId):
+            "emoji-picker-\(postId)"
+        case .reactors(let postId):
+            "reactors-\(postId)"
         case .paywall:
             "paywall"
         }

@@ -25,21 +25,21 @@ struct NotificationAndPublicProfileEndpointRequestCase: Sendable, CustomTestStri
 
     static let notificationList = Self(
         name: "notification defaults", function: "get-explore-notifications",
-        expectedJSON: #"{"limit":50}"#, responseJSON: NotificationAndPublicProfileEndpointResponses.notifications
+        expectedJSON: #"{"limit":50,"supports_post_reactions":true}"#, responseJSON: NotificationAndPublicProfileEndpointResponses.notifications
     ) { client in
         _ = try await client.getExploreNotifications()
     }
 
     static let unreadCount = Self(
-        name: "unread count sends an empty object", function: "get-explore-unread-notification-count",
-        expectedJSON: "{}", responseJSON: #"{"unread_count":11}"#
+        name: "unread count declares reaction support", function: "get-explore-unread-notification-count",
+        expectedJSON: #"{"supports_post_reactions":true}"#, responseJSON: #"{"unread_count":11}"#
     ) { client in
         _ = try await client.getUnreadExploreNotificationCount()
     }
 
     static let markRead = Self(
-        name: "mark read sends an empty object", function: "mark-explore-notifications-read",
-        expectedJSON: "{}", responseJSON: #"{"success":false,"marked_count":3}"#
+        name: "mark read declares reaction support", function: "mark-explore-notifications-read",
+        expectedJSON: #"{"supports_post_reactions":true}"#, responseJSON: #"{"success":false,"marked_count":3}"#
     ) { client in
         _ = try await client.markExploreNotificationsRead()
     }
@@ -48,7 +48,7 @@ struct NotificationAndPublicProfileEndpointRequestCase: Sendable, CustomTestStri
         name: "push registration", function: "register-push-device",
         expectedJSON: """
         {"device_token":"test-device-token","platform":"ios","environment":"sandbox",
-         "explore_enabled":true,"comment_mentions_enabled":false,"community_identifications_enabled":true}
+         "explore_enabled":true,"comment_mentions_enabled":false,"supports_post_reactions":true,"community_identifications_enabled":true}
         """, responseJSON: ""
     ) { client in
         try await client.registerPushDevice(
@@ -122,7 +122,7 @@ struct NotificationAndPublicProfileEndpointRequestCase: Sendable, CustomTestStri
         return values.map { name, time, identifier, suffix in
             Self(
                 name: "notification cursor: \(name)", function: "get-explore-notifications",
-                expectedJSON: #"{"limit":-1\#(suffix)}"#, responseJSON: #"{"data":[]}"#
+                expectedJSON: #"{"limit":-1,"supports_post_reactions":true\#(suffix)}"#, responseJSON: #"{"data":[]}"#
             ) { client in
                 _ = try await client.getExploreNotifications(
                     limit: -1, beforeUpdatedAt: time, beforeNotificationId: identifier
@@ -140,7 +140,7 @@ struct NotificationAndPublicProfileEndpointRequestCase: Sendable, CustomTestStri
                         expectedJSON: """
                         {"device_token":"test-device-token","platform":"ios","environment":"production",
                          "explore_enabled":\(explore),"comment_mentions_enabled":\(mentions),
-                         "community_identifications_enabled":\(community)}
+                         "supports_post_reactions":true,"community_identifications_enabled":\(community)}
                         """, responseJSON: ""
                     ) { client in
                         try await client.registerPushDevice(
@@ -159,7 +159,7 @@ struct NotificationAndPublicProfileEndpointRequestCase: Sendable, CustomTestStri
             Self(name: "push text is not normalized", function: "register-push-device",
                  expectedJSON: """
                  {"device_token":" TEST TOKEN ","platform":"ios","environment":" Sandbox ",
-                  "explore_enabled":false,"comment_mentions_enabled":true,"community_identifications_enabled":false}
+                  "explore_enabled":false,"comment_mentions_enabled":true,"supports_post_reactions":true,"community_identifications_enabled":false}
                  """, responseJSON: "") { client in
                 try await client.registerPushDevice(
                     deviceToken: " TEST TOKEN ", environment: " Sandbox ",
@@ -169,7 +169,7 @@ struct NotificationAndPublicProfileEndpointRequestCase: Sendable, CustomTestStri
             Self(name: "empty push strings are not omitted", function: "register-push-device",
                  expectedJSON: """
                  {"device_token":"","platform":"ios","environment":"",
-                  "explore_enabled":false,"comment_mentions_enabled":false,"community_identifications_enabled":false}
+                  "explore_enabled":false,"comment_mentions_enabled":false,"supports_post_reactions":true,"community_identifications_enabled":false}
                  """, responseJSON: "") { client in
                 try await client.registerPushDevice(
                     deviceToken: "", environment: "",

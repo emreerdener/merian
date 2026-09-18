@@ -7,6 +7,7 @@ struct ExploreView: View {
 
     @State private var viewModel = ExploreFeedViewModel()
     @State private var mapViewModel = ExploreMapViewModel()
+    @State private var dictionaryOverviewViewModel = SpeciesDictionaryOverviewViewModel()
     @State private var navigationPath = NavigationPath()
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var pendingInsightCommunityRequestId: String?
@@ -92,6 +93,7 @@ struct ExploreView: View {
             activeFieldTripsSection: $activeFieldTripsSection,
             feedViewModel: viewModel,
             mapViewModel: mapViewModel,
+            dictionaryOverviewViewModel: dictionaryOverviewViewModel,
             dictionaryUserRegionIdentifier: dictionaryUserRegionIdentifier,
             allowsInsightPresentation: allowsInsightPresentation,
             onOpenOwnedPostInsight: onOpenOwnedPostInsight,

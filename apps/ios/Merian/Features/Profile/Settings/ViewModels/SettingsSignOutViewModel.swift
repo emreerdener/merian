@@ -19,7 +19,10 @@ final class SettingsSignOutViewModel {
         dependencies.isPurchaseContinuityPending()
     }
 
-    func signOut(isAnonymousSession: @MainActor () -> Bool) async {
+    func signOut(
+        isAnonymousSession: @MainActor () -> Bool,
+        onSuccess: @MainActor () -> Void = {}
+    ) async {
         guard !isSigningOut else { return }
         isSigningOut = true
         defer { isSigningOut = false }
@@ -31,5 +34,6 @@ final class SettingsSignOutViewModel {
             showError = true
             return
         }
+        onSuccess()
     }
 }

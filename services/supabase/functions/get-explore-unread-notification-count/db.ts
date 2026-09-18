@@ -3,9 +3,12 @@ import { SupabaseClient } from "@supabase/supabase-js";
 export async function fetchUnreadExploreNotificationCount(
   userId: string,
   supabaseAdmin: SupabaseClient,
+  supportsPostReactions = false,
 ): Promise<number> {
   const { data, error } = await supabaseAdmin.rpc(
-    "get_unread_explore_notification_count",
+    supportsPostReactions
+      ? "get_unread_explore_notification_count_with_reactions"
+      : "get_unread_explore_notification_count",
     {
       self_id: userId,
     },

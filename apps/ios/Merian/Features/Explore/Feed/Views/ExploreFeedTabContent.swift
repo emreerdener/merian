@@ -119,7 +119,9 @@ struct ExploreFeedTabContent: View {
                         onEditPost: { Task { await openPostEditor(for: post) } },
                         onUnshare: { Task { await viewModel.unshare(post) } },
                         onBlock: { Task { await viewModel.blockAuthor(of: post) } },
-                        onReport: { Task { await viewModel.report(post) } }
+                        onReport: { Task { await viewModel.report(post) } },
+                        onReaction: { emoji, selected in Task { await viewModel.setPostReaction(for: post, emoji: emoji, selected: selected) } },
+                        onLoadMoreReactions: { Task { await viewModel.loadMorePostReactions(for: post) } }
                     )
                     .onAppear {
                         Task { await viewModel.loadMoreIfNeeded(currentPost: post) }

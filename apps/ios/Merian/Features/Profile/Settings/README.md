@@ -431,3 +431,8 @@ shared modifier keeps both visible; same-alignment surfaces remain mutually
 exclusive to prevent Z-plane collisions. Preview taps use the preview
 container's environment-injected route coordinator and cannot enqueue a route in
 the production container.
+
+Successful Settings sign-out invokes the app-root confirmation callback only
+after the complete transition succeeds. The shared **Signed out successfully**
+toast survives replacement of Settings by consent onboarding; failed or
+overlapping attempts do not emit success feedback.

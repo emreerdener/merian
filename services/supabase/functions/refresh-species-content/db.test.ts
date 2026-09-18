@@ -574,3 +574,98 @@ Deno.test("refresh species content - retries when durable provenance cannot be r
     calls.find((call) => call.name === "replace_species_country_occurrences"),
   );
 });
+
+Deno.test("refresh species content - sends exact URL credits to the existing replacement RPC", async () => {
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+  const imageURL = "https://upload.wikimedia.org/monarch.jpg";
+  const supabase = {
+    from() {
+      return {
+        update() {
+          return {
+            eq() {
+              return Promise.resolve({ error: null });
+            },
+          };
+        },
+        upsert() {
+          return Promise.resolve({ error: null });
+        },
+      };
+    },
+    rpc(name: string, args: Record<string, unknown>) {
+      calls.push({ name, args });
+      return Promise.resolve({ error: null });
+    },
+  } as unknown as SupabaseClient;
+  const result = await refreshSpeciesContent(
+    {
+      speciesId: QUEUE_ROW_BASE.species_id,
+      scientificName: QUEUE_ROW_BASE.scientific_name,
+      contentKeys: ["reference_images"],
+      queueRows: [],
+      jobIds: [],
+    },
+    supabase,
+    () =>
+      Promise.resolve({
+        ...EXTERNAL_DATA,
+        referenceImages: [
+          {
+            url: imageURL,
+            source: "wikipedia",
+            license: "https://creativecommons.org/licenses/by-sa/4.0/",
+            attribution: "Example Photographer",
+          },
+          {
+            url: "https://example.org/not-in-cache.jpg",
+            source: "gbif",
+            license: "CC BY 4.0",
+            attribution: "Unrelated",
+          },
+        ],
+      }),
+  );
+  assertEquals(result.status, "refreshed");
+  assertEquals(calls.length, 1);
+  assertEquals(calls[0].name, "replace_species_reference_images");
+  const images = calls[0].args.p_images as Array<Record<string, unknown>>;
+  assertEquals(images.length, 2);
+  assertEquals(
+    images[0].license,
+    "https://creativecommons.org/licenses/by-sa/4.0/",
+  );
+  assertEquals(images[0].attribution, "Example Photographer");
+  assertEquals(images[1].license, undefined);
+  assertEquals(images[1].attribution, undefined);
+});
+
+Deno.test("refresh species content - rights lookup failure writes nothing", async () => {
+  const supabase = {
+    from() {
+      throw new Error("Unexpected database write");
+    },
+    rpc() {
+      throw new Error("Unexpected database write");
+    },
+  } as unknown as SupabaseClient;
+  await assertRejects(
+    () =>
+      refreshSpeciesContent(
+        {
+          speciesId: QUEUE_ROW_BASE.species_id,
+          scientificName: QUEUE_ROW_BASE.scientific_name,
+          contentKeys: ["reference_images"],
+          queueRows: [],
+          jobIds: [],
+        },
+        supabase,
+        () =>
+          Promise.reject(
+            new Error("Reference image rights provider unavailable"),
+          ),
+      ),
+    Error,
+    "Reference image rights provider unavailable",
+  );
+});

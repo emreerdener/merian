@@ -890,3 +890,15 @@ and text-described observations. It uses dynamic routing between the Gemini 2.5
 Flash and Pro APIs via Supabase Edge Functions, with a full offline-first
 architecture backed by SwiftData and Cloudflare R2. Merian is the stable
 technical identity underneath the Naturebook product.
+
+## Explore emoji reactions
+
+The
+[dated Explore product contract](./rfcs/explore-page.md#emoji-reactions-update-2026-09-18)
+owns native post/comment reaction behavior. The
+[API contract](./backend-and-data/05-api-contracts.md#explore-emoji-reactions-2026-09-18)
+defines additive payloads, capability-aware notification reads/pushes, and
+backend-before-app delivery; the
+[verification matrix](./development-guides/08-testing-strategy.md#explore-emoji-reaction-verification)
+separates automated gates from manual device checks. These describe current
+source, not evidence of deployment or app distribution.

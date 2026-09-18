@@ -88,3 +88,13 @@ and
 [interaction matrix](../../../Core/Network/README.md#explore-interaction-verification)
 when changing their respective wire methods; do not move JSON DTO ownership into
 this feature.
+
+## Shared reaction state
+
+Profile/library requests snapshot Feed reaction revisions before loading.
+Registering returned posts preserves a newer selection made while that request
+was in flight. Opening a grid item seeds `ExplorePostStore` only when absent; it
+must not replace a newer shared post with the grid's older value. The public
+library stays a scan grid, and post detail uses the shared reaction row. See
+`ExploreReactionStateTests` and the
+[reaction contract](../../../../../../docs/rfcs/explore-page.md#emoji-reactions-update-2026-09-18).

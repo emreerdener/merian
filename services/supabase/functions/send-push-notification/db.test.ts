@@ -73,3 +73,15 @@ Deno.test("fetchEligiblePushDevices gates Community pushes by Community identifi
     ["community_identifications_enabled", true],
   ]);
 });
+
+Deno.test("post reaction pushes require both Explore preference and compatible device", async () => {
+  const client = new FakeSupabaseClient();
+  await fetchEligiblePushDevices("user-1", "post_reaction", client as never);
+  assertEquals(client.query.filters, [
+    ["user_id", "user-1"],
+    ["platform", "ios"],
+    ["is_active", true],
+    ["explore_enabled", true],
+    ["supports_post_reactions", true],
+  ]);
+});

@@ -3,6 +3,7 @@ import Foundation
 enum ExploreNotificationType: String, Decodable {
     case likeAggregated = "like_aggregated"
     case comment
+    case postReaction = "post_reaction"
     case commentReaction = "comment_reaction"
     case commentReply = "comment_reply"
     case commentMention = "comment_mention"
@@ -23,6 +24,7 @@ enum ExploreNotificationType: String, Decodable {
         case .likeAggregated,
              .comment,
              .commentReaction,
+             .postReaction,
              .commentReply,
              .commentMention,
              .follow,
@@ -42,6 +44,7 @@ enum ExploreNotificationType: String, Decodable {
         case .likeAggregated,
              .comment,
              .commentReaction,
+             .postReaction,
              .commentReply,
              .commentMention,
              .follow,

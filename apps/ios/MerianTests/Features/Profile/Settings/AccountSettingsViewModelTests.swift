@@ -151,6 +151,7 @@ final class AccountSettingsViewModelTests: XCTestCase {
     }
 
     func testSignOutFailureUsesPostTransitionAnonymousState() async {
+        var confirmedSuccess = false
         let viewModel = SettingsSignOutViewModel(
             dependencies: SettingsSignOutDependencies(
                 isPurchaseContinuityPending: { false },
@@ -158,8 +159,12 @@ final class AccountSettingsViewModelTests: XCTestCase {
             )
         )
 
-        await viewModel.signOut(isAnonymousSession: { true })
+        await viewModel.signOut(
+            isAnonymousSession: { true },
+            onSuccess: { confirmedSuccess = true }
+        )
 
+        XCTAssertFalse(confirmedSuccess)
         XCTAssertTrue(viewModel.showError)
         XCTAssertEqual(
             viewModel.errorMessage,
@@ -168,6 +173,37 @@ final class AccountSettingsViewModelTests: XCTestCase {
             )
         )
         XCTAssertFalse(viewModel.isSigningOut)
+    }
+
+    func testSignOutConfirmsSuccessOnlyAfterCompletionAndIgnoresOverlap() async {
+        var pendingSignOut: CheckedContinuation<Bool, Never>?
+        var confirmationCount = 0
+        let viewModel = SettingsSignOutViewModel(
+            dependencies: SettingsSignOutDependencies(
+                isPurchaseContinuityPending: { false },
+                transitionToGhostSession: {
+                    await withCheckedContinuation { pendingSignOut = $0 }
+                }
+            )
+        )
+        let task = Task {
+            await viewModel.signOut(
+                isAnonymousSession: { true },
+                onSuccess: { confirmationCount += 1 }
+            )
+        }
+        while pendingSignOut == nil { await Task.yield() }
+        XCTAssertEqual(confirmationCount, 0)
+        await viewModel.signOut(
+            isAnonymousSession: { true },
+            onSuccess: { confirmationCount += 1 }
+        )
+        XCTAssertEqual(confirmationCount, 0)
+        pendingSignOut?.resume(returning: true)
+        await task.value
+        XCTAssertEqual(confirmationCount, 1)
+        XCTAssertFalse(viewModel.isSigningOut)
+        XCTAssertFalse(viewModel.showError)
     }
 
     private func makeDeletionDependencies(

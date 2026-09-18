@@ -5,6 +5,7 @@ export interface PushDeviceRegistrationInput {
   platform: "ios";
   environment: "sandbox" | "production";
   exploreEnabled: boolean;
+  supportsPostReactions?: boolean;
   commentMentionsEnabled: boolean;
   communityIdentificationsEnabled: boolean;
 }
@@ -22,6 +23,7 @@ export async function upsertPushDeviceRegistration(
       platform: input.platform,
       environment: input.environment,
       explore_enabled: input.exploreEnabled,
+      supports_post_reactions: input.supportsPostReactions ?? false,
       comment_mentions_enabled: input.commentMentionsEnabled,
       community_identifications_enabled: input.communityIdentificationsEnabled,
       is_active: true,

@@ -9,7 +9,7 @@ final class RuntimePerformanceTests: XCTestCase {
     private var options: XCTMeasureOptions {
         let options = XCTMeasureOptions()
         options.iterationCount = 10
-        options.invocationOptions = [.manuallyStart]
+        options.invocationOptions = [.manuallyStart, .manuallyStop]
         return options
     }
 

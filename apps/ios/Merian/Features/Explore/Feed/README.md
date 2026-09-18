@@ -54,7 +54,9 @@ Feed declarations are grouped by responsibility:
 - `Components/Composer/` and `ExplorePostComposerView` own the shared publish
   form, prepared image rendering, and media selection tiles.
 - `Components/Detail/` owns post-detail structure, loading, and the single typed
-  sheet renderer; `Components/DetailCards/` owns public detail cards.
+  sheet renderer and unpublish confirmation renderer. The route host retains the
+  selected post and performs the unshare action; `Components/DetailCards/` owns
+  public detail cards.
 - `Components/Cards/` owns `ExplorePostCard`, its loading skeleton, and preview
   fixtures. Cards consume `ExplorePostCardAuthorPresentation`, send mutations
   through parent callbacks, and do not resolve identity or entitlement services.
@@ -420,29 +422,11 @@ Focused tests mirror their production owners:
   Insight-only preference and availability rules remain in
   `MerianTests/Features/Insights/Media/InsightAudioBoostPolicyTests.swift`.
 
-After building the test bundle, run the focused XCTest suites with the canonical
-simulator destination:
+Run the focused XCTest suites through the local build wrapper, replacing the
+placeholder with an available simulator UDID:
 
 ```bash
-xcodebuild -scheme Merian -project Merian.xcodeproj \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
-  -only-testing:merianTests/ExploreVideoPlaybackOverlayStateTests \
-  -only-testing:merianTests/ExploreVideoPlaybackResumeIntentStateTests \
-  -only-testing:merianTests/ExplorePublicMediaPlaybackStateTests \
-  -only-testing:merianTests/ExploreVideoPlaybackCoordinatorTests \
-  -only-testing:merianTests/ExploreMediaLayoutTests \
-  -only-testing:merianTests/ExplorePostCardAuthorPresentationTests \
-  -only-testing:merianTests/ExploreFeedViewModelTests \
-  -only-testing:merianTests/ExploreHashtagPostsViewModelTests \
-  -only-testing:merianTests/ExplorePostDetailViewModelTests \
-  -only-testing:merianTests/ExploreReplyLoadingStateTests \
-  -only-testing:merianTests/ExploreCommentAuthorPresentationTests \
-  -only-testing:merianTests/ExploreLocationSharingAPIModelsTests \
-  -only-testing:merianTests/ExploreLocationSharingPresentationTests \
-  -only-testing:merianTests/ExploreNetworkModelArchitectureTests \
-  -only-testing:merianTests/ExploreCommentMentionTextTests \
-  -only-testing:merianTests/ExploreHashtagSuggestionTests \
-  -only-testing:merianTests/ExplorePostFieldChatPolicyTests test
+make ios-local-build ARGS='simulator -- test -configuration Debug -destination "platform=iOS Simulator,id=SIMULATOR_UDID" -only-testing:merianTests/ExploreVideoPlaybackOverlayStateTests -only-testing:merianTests/ExploreVideoPlaybackResumeIntentStateTests -only-testing:merianTests/ExplorePublicMediaPlaybackStateTests -only-testing:merianTests/ExploreVideoPlaybackCoordinatorTests -only-testing:merianTests/ExploreMediaLayoutTests -only-testing:merianTests/ExplorePostCardAuthorPresentationTests -only-testing:merianTests/ExploreFeedViewModelTests -only-testing:merianTests/ExploreHashtagPostsViewModelTests -only-testing:merianTests/ExplorePostDetailViewModelTests -only-testing:merianTests/ExploreReplyLoadingStateTests -only-testing:merianTests/ExploreCommentAuthorPresentationTests -only-testing:merianTests/ExploreLocationSharingAPIModelsTests -only-testing:merianTests/ExploreLocationSharingPresentationTests -only-testing:merianTests/ExploreNetworkModelArchitectureTests -only-testing:merianTests/ExploreCommentMentionTextTests -only-testing:merianTests/ExploreHashtagSuggestionTests -only-testing:merianTests/ExplorePostFieldChatPolicyTests'
 ```
 
 Manual parity coverage must exercise image, audio, and video cards in feed and
@@ -453,3 +437,45 @@ light/dark appearance. Because `Explore/Shared/Media` is cross-area, also
 regress Identify request cards/detail, Map markers and previews, Shell-routed
 post previews, Author Profile and Profile grids/Pro badges, and Species
 Dictionary community sightings.
+
+## Emoji reactions
+
+Shared reaction UI and Unicode catalog presentation live in
+`../Shared/Reactions`. Feed Services own the idempotent set/page dependencies;
+`ExplorePostStore` owns post summaries, and comment state reconciles mutations
+with rollback. Post detail adds emoji picking to its existing typed sheet host.
+Map previews hydrate lightweight markers through the single-post endpoint,
+serialized with reaction writes so their initial groups remain visible.
+
+Detail loads reconcile their reaction summary into the shared store. Feed,
+hashtag, author-library, and reply loads preserve reactions changed while a read
+was in flight. Mutation completion advances the same revision fence, and post
+removal invalidates queued work so a late tap cannot restore a removed card.
+Notification reply reaction pages use the same per-target queue as writes.
+Overflow exposes an explicit More control, including retry after failure.
+
+The
+[reaction verification matrix](../../../../../../docs/development-guides/08-testing-strategy.md#explore-emoji-reaction-verification)
+lists state, transport, database, notification, and manual UI coverage. Run
+local iOS checks through `make ios-local-build` from the repository root so they
+reuse the checkout-managed build cache.
+
+## Detail reactor identities
+
+`ExplorePostReactorsViewModel` owns the detail-only unique-person summary and
+paged Reactions sheet. `ExplorePostReactionSummary` sits below detail actions;
+`ExplorePostReactorsSheet` renders public identity and each person's complete
+emoji list, with likes represented as ❤️. Both share one detail-owned model. The
+typed `ExplorePostDetailPresentation.reactors` route retains sheet and media
+overlay ownership. Loading, empty, failed-read retry, and explicit pagination
+are local UI state; views do not resolve a network client.
+
+`ExploreReactionDependencies.loadPeople` is the injected read seam. The Feed
+state increments `postReactorsRevision` after post reactions/likes complete so
+the summary rereads authoritative unique people; it does not sum emoji counts.
+Refresh generations, current viewer checks, and invalidation fence late results.
+The sheet refreshes on opening and supports pull-to-refresh. Feed/Map/hashtag
+cards do not show this line. See the
+[product contract](../../../../../../docs/rfcs/explore-page.md#detail-reaction-people-2026-09-18)
+and
+[verification matrix](../../../../../../docs/development-guides/08-testing-strategy.md#post-reaction-people-verification).

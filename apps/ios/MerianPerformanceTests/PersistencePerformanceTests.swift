@@ -23,7 +23,7 @@ final class PersistencePerformanceTests: XCTestCase {
         let container = try store()
         let media = MediaJSONParser.jsonString(from: [.description(ObservationContext(freeText: "Synthetic observation"))])
         let measurementOptions = options
-        measurementOptions.invocationOptions = [.manuallyStart]
+        measurementOptions.invocationOptions = [.manuallyStart, .manuallyStop]
         measure(metrics: [XCTClockMetric(), XCTCPUMetric(), XCTMemoryMetric()], options: measurementOptions) {
             let context = ModelContext(container)
             let scan = OfflineQueuedScan(capturedMediaJSON: media, scanState: .pending)

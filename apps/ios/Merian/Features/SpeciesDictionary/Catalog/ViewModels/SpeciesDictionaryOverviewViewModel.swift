@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 
 @MainActor
@@ -8,6 +9,7 @@ final class SpeciesDictionaryOverviewViewModel {
             _ userRegion: String?
         ) async throws -> SpeciesDictionaryOverviewResponse
         let errorMessage: @MainActor (any Error) -> String
+        var now: @MainActor () -> Date = { Date() }
     }
 
     private(set) var overview: SpeciesDictionaryOverview?
@@ -16,14 +18,32 @@ final class SpeciesDictionaryOverviewViewModel {
 
     @ObservationIgnored private let dependencies: Dependencies
     @ObservationIgnored private var requestGeneration = 0
+    @ObservationIgnored private var loadedRegion: String?
+    @ObservationIgnored private var loadedAt: Date?
 
     init(dependencies: Dependencies = .live) {
         self.dependencies = dependencies
     }
 
+    /// Navigation reuses recent content; stale content stays visible during refresh.
+    func loadIfNeeded(userRegion: String?) async {
+        let region = Self.normalizedRegion(userRegion)
+        if overview != nil, loadedRegion == region, let loadedAt,
+           dependencies.now().timeIntervalSince(loadedAt) < 5 * 60 {
+            return
+        }
+        await load(userRegion: region)
+    }
+
+    /// Explicit refresh and retry always fetch, independent of the freshness window.
     func load(userRegion: String?) async {
+        let region = Self.normalizedRegion(userRegion)
         requestGeneration += 1
         let generation = requestGeneration
+        if loadedRegion != region {
+            overview = nil
+            loadedAt = nil
+        }
         isLoading = true
         errorMessage = nil
 
@@ -35,7 +55,7 @@ final class SpeciesDictionaryOverviewViewModel {
 
         do {
             let response = try await dependencies.loadOverview(
-                userRegion?.trimmedNonEmptyValue
+                region
             )
             guard !Task.isCancelled,
                   requestGeneration == generation
@@ -43,6 +63,8 @@ final class SpeciesDictionaryOverviewViewModel {
                 return
             }
             overview = response.data
+            loadedRegion = region
+            loadedAt = dependencies.now()
         } catch is CancellationError {
             return
         } catch {
@@ -53,5 +75,9 @@ final class SpeciesDictionaryOverviewViewModel {
             }
             errorMessage = dependencies.errorMessage(error)
         }
+    }
+
+    private static func normalizedRegion(_ region: String?) -> String? {
+        region?.trimmedNonEmptyValue?.uppercased()
     }
 }

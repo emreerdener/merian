@@ -1,3 +1,4 @@
+import { canonicalReactionEmoji } from "../_shared/exploreReactions.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { requireUuid } from "../_shared/explore.ts";
@@ -13,11 +14,7 @@ Deno.serve((req: Request) =>
     if (paramErr) return paramErr;
 
     const commentId = requireUuid(body.comment_id, "comment_id");
-    const emoji = body.emoji;
-
-    if (typeof emoji !== "string" || emoji.trim() === "") {
-      return jsonResponse({ error: "emoji must be a valid string." }, 400);
-    }
+    const emoji = canonicalReactionEmoji(body.emoji);
 
     await toggleExploreCommentReaction(
       commentId,

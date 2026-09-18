@@ -58,11 +58,20 @@ private struct StartupStoreStateKey: EnvironmentKey {
     static let defaultValue: StartupStoreState = .normal
 }
 
+private struct SignOutCompletionFeedbackKey: EnvironmentKey {
+    static let defaultValue: @MainActor @Sendable () -> Void = {}
+}
+
 private struct StartupRecoveryNoticeKey: EnvironmentKey {
     static let defaultValue: StartupRecoveryNotice? = nil
 }
 
 extension EnvironmentValues {
+    var showSignOutConfirmation: @MainActor @Sendable () -> Void {
+        get { self[SignOutCompletionFeedbackKey.self] }
+        set { self[SignOutCompletionFeedbackKey.self] = newValue }
+    }
+
     var startupRecoveryNotice: StartupRecoveryNotice? {
         get { self[StartupRecoveryNoticeKey.self] }
         set { self[StartupRecoveryNoticeKey.self] = newValue }
@@ -119,5 +128,19 @@ struct StartupRecoveryNoticeView: View {
         return Bundle.main.appStoreReceiptURL?.lastPathComponent ==
             "sandboxReceipt"
         #endif
+    }
+}
+
+/// Applied outside the root presentation tree so sheets and navigation routes
+/// inherit the same top-edge treatment. Individual control glass and bottom
+/// scroll-edge effects keep their native appearance.
+struct AppTopScrollEdgeEffectModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            content
+        }
     }
 }

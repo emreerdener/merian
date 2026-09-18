@@ -25,6 +25,8 @@ enum AuthenticatedRequestRetryPolicy {
         "get-explore-notifications",
         "get-explore-post",
         "get-explore-post-detail",
+        "get-explore-reactions",
+        "get-explore-post-reactors",
         "get-explore-species-posts",
         "get-explore-unread-notification-count",
         "get-scan-explore-share-state",

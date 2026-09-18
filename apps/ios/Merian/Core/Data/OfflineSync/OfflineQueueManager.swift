@@ -60,6 +60,9 @@ import SwiftData
     @ObservationIgnored var backgroundAccountWorkLeases:
         [Int: AccountBoundWorkLease] = [:]
 
+    /// One terminal processor owns a task's Auth lease across actor suspension.
+    @ObservationIgnored var inferenceTerminalTaskIdentifiers: Set<Int> = []
+
     /// Terminal delegate processors must finish durable persistence and release
     /// their Auth-work leases before the app tells iOS it may suspend again.
     nonisolated static let backgroundTerminalWorkTracker =

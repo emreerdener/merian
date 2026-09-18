@@ -71,6 +71,58 @@ class RuntimeAuditTests(unittest.TestCase):
         payload[0]['testRuns'].append(other)
         self.assertEqual(len(audit.summarize_metrics(payload)), 2)
 
+    def test_zero_mean_cv_is_undefined_including_all_zero_samples(self):
+        for values in ([-1, 1] * 15, [0] * 30):
+            with self.subTest(values=values):
+                evidence = self.evidence(values)
+                metric = next(iter(evidence['metrics'].values()))
+                self.assertIsNone(metric['cv_percent'])
+                self.assertEqual(metric['samples'], values)
+                evidence['source_sha'] = 'fixture'
+                with tempfile.TemporaryDirectory() as temp:
+                    output = Path(temp)
+                    audit.write_report(output, evidence, self.evidence([1] * 30))
+                    report = (output / 'summary.md').read_text()
+                    self.assertIn('undefined', report)
+                    self.assertIn('UNDEFINED CV', report)
+                    saved = json.loads((output / 'audit.json').read_text())
+                    self.assertIsNone(next(iter(saved['metrics'].values()))['cv_percent'])
+
+    def test_undefined_cv_is_visible_without_baseline_or_matching_metric(self):
+        evidence = self.evidence([-1, 1] * 15)
+        evidence['source_sha'] = 'fixture'
+        baseline = self.evidence([1] * 30)
+        baseline['metrics'] = {'unrelated': next(iter(baseline['metrics'].values()))}
+        self.assertTrue(any('UNDEFINED CV' in item for item in audit.compare(evidence, baseline)))
+        with tempfile.TemporaryDirectory() as temp:
+            audit.write_report(Path(temp), evidence)
+            self.assertIn('UNDEFINED CV', (Path(temp) / 'summary.md').read_text())
+
+    def test_signed_and_near_zero_means_preserve_finite_cv(self):
+        for values in ([-1, -3] * 15, [-1, 1.000001] * 15):
+            metric = next(iter(self.evidence(values)['metrics'].values()))
+            self.assertGreater(metric['cv_percent'], 0)
+
+    def test_legacy_zero_cv_baseline_is_compared_from_raw_statistics(self):
+        baseline = self.evidence([-1, 1] * 15)
+        next(iter(baseline['metrics'].values()))['cv_percent'] = 0
+        audit.validate_baseline(baseline)
+        self.assertTrue(any('UNDEFINED CV' in item for item in audit.compare(baseline, baseline)))
+
+    def test_missing_requested_metric_is_reported_without_claiming_zero(self):
+        evidence = self.evidence([1] * 30)
+        evidence.update(source_sha='fixture', metric_expectations=[
+            dict(selector='target/Example/testFlow', report_metric_families=['Hitch'])])
+        with tempfile.TemporaryDirectory() as temp:
+            audit.write_report(Path(temp), evidence)
+            self.assertIn('UNMEASURED Hitch', (Path(temp) / 'summary.md').read_text())
+        key = next(iter(evidence['metrics']))
+        # A similarly named different workload must not satisfy this workload's expectation.
+        evidence['metrics'][key.replace('testFlow()', 'testOther()').replace('clock', 'XCTMetric_Hitch')] = {}
+        self.assertTrue(audit.metric_coverage_observations(evidence['metrics'], evidence['metric_expectations']))
+        evidence['metrics'][key.replace('clock', 'XCTMetric_Hitch')] = {}
+        self.assertEqual(audit.metric_coverage_observations(evidence['metrics'], evidence['metric_expectations']), [])
+
     def test_missing_nonfinite_and_boolean_measurements_are_rejected(self):
         for values in ([], [float('nan')], [float('inf')], [True], ['12']):
             with self.subTest(values=values), self.assertRaises(ValueError):
@@ -150,6 +202,9 @@ class RuntimeAuditTests(unittest.TestCase):
             selectors = [item['selector'] for item in selections]
             self.assertEqual(len(selectors), len(set(selectors)), phase)
             for item in selections:
+                families = item.get('report_metric_families', [])
+                self.assertIsInstance(families, list)
+                self.assertTrue(all(isinstance(family, str) and family for family in families))
                 target, suite, *case = item['selector'].split('/')
                 directory = {'merianTests': 'MerianTests', 'merianUITests': 'MerianUITests',
                              'merianPerformanceTests': 'MerianPerformanceTests'}[target]

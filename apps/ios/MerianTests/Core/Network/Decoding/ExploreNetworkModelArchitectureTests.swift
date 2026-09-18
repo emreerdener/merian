@@ -107,6 +107,7 @@ struct ExploreNetworkModelArchitectureTests {
         "ExploreMediaIncidentAPIModels.swift",
         "ExploreNotificationAPIModels.swift",
         "ExplorePostDetailAPIModels.swift",
+        "ExploreReactionAPIModels.swift",
         "ExploreSharingAPIModels.swift",
         "PublicProfileAPIModels.swift"
     ]
@@ -130,6 +131,11 @@ struct ExploreNetworkModelArchitectureTests {
         "struct ExploreMapPost: Decodable": "ExploreMapAPIModels.swift",
         "struct ExploreMediaIncident: Decodable": "ExploreMediaIncidentAPIModels.swift",
         "struct ExploreNotificationsResponse: Decodable": "ExploreNotificationAPIModels.swift",
+        "enum ExploreReactionTarget: String": "ExploreReactionAPIModels.swift",
+        "struct ExploreReactionPage: Decodable": "ExploreReactionAPIModels.swift",
+        "struct ExploreReactionResponse: Decodable": "ExploreReactionAPIModels.swift",
+        "struct ExplorePostReactor: Decodable": "ExploreReactionAPIModels.swift",
+        "struct ExplorePostReactorsPage: Decodable": "ExploreReactionAPIModels.swift",
         "struct ExplorePostDetail: Decodable": "ExplorePostDetailAPIModels.swift",
         "struct ExploreReferenceGalleryImage: Identifiable": "ExplorePostDetailAPIModels.swift",
         "struct ExploreShareResponse: Decodable": "ExploreSharingAPIModels.swift",

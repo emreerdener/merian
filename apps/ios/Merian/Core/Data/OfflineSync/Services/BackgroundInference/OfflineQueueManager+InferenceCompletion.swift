@@ -16,7 +16,10 @@ extension OfflineQueueManager {
         generation proposedGeneration: UUID?,
         resultFileURL: URL,
         statusCode: Int?,
-        functionRouteEvidence: EdgeFunctionRouteResponseEvidence? = nil
+        functionRouteEvidence: EdgeFunctionRouteResponseEvidence? = nil,
+        finalizationService: BackgroundInferenceFinalizationService = .live,
+        publishCompletion: @MainActor (String, OfflineScanProcessingResult, ExtractedScanData) async -> Void
+            = OfflineQueueManager.publishBackgroundInferenceCompletion
     ) async {
         defer { try? FileManager.default.removeItem(at: resultFileURL) }
         guard let generation = claimInferenceGeneration(
@@ -28,11 +31,14 @@ extension OfflineQueueManager {
             )
             return
         }
+        // URLSession can deliver another terminal callback while this owner
+        // is suspended in persistence. Only one callback may retire the work.
+        guard inferenceCompletionGenerations[scanId] == nil else { return }
+        inferenceCompletionGenerations[scanId] = generation
         defer {
             finishInferenceGeneration(scanId: scanId, generation: generation)
         }
 
-        inferenceCompletionGenerations[scanId] = generation
         defer {
             if inferenceCompletionGenerations[scanId] == generation {
                 inferenceCompletionGenerations[scanId] = nil
@@ -177,7 +183,7 @@ extension OfflineQueueManager {
         let cleanupActor = BackgroundDatabaseActor(
             modelContainer: extracted.container
         )
-        let processingResult = await BackgroundInferenceFinalizationService.live
+        let processingResult = await finalizationService
             .processAndCleanupOfflineScan(
                 resultData: resultData,
                 originalImagePaths: extracted.localImagePaths,
@@ -250,6 +256,92 @@ extension OfflineQueueManager {
             _ = commitInferenceResponseSettlement(fundingSettlement)
         }
 
+        await publishCompletion(scanId, processingResult, extracted)
+
+        guard isInferenceGenerationCurrent(
+            scanId: scanId,
+            expectedGeneration: generation
+        ) else {
+            MerianLog.data.debug(
+                "processInferenceDownloadResult: skipped stale post-finalization state scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
+        MerianLog.data.debug("⏱️ Background pipeline total: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
+        await MainActor.run {
+            CircuitBreakerManager.shared.recordSuccess()
+        }
+    }
+
+    // MARK: - Inference Task Failure
+
+    /// Handles a background inference download task network-level failure.
+    ///
+    /// Called from `urlSession(_:task:didCompleteWithError:)` when the download task fails
+    /// with a transport error (the server never responded). Resets the scan to `.staged` after
+    /// a persisted backoff window so app relaunches do not lose retry state.
+    ///
+    /// Code=-999 (NSURLErrorCancelled) is special-cased: it means an owner path explicitly
+    /// cancelled the task. Either the parallel live inference path already succeeded, the user
+    /// deleted the queued scan, or the inference watchdog reset the scan to `.staged`.
+    func handleInferenceTaskNetworkFailure(
+        scanId: String,
+        generation proposedGeneration: UUID?,
+        error: Error
+    ) async {
+        guard let generation = claimInferenceGeneration(
+            scanId: scanId,
+            proposedGeneration: proposedGeneration
+        ) else {
+            MerianLog.data.debug(
+                "handleInferenceTaskNetworkFailure: ignored stale failure scanId=\(scanId, privacy: .public)"
+            )
+            return
+        }
+        guard inferenceCompletionGenerations[scanId] == nil else { return }
+        inferenceCompletionGenerations[scanId] = generation
+        defer {
+            if inferenceCompletionGenerations[scanId] == generation {
+                inferenceCompletionGenerations[scanId] = nil
+            }
+            finishInferenceGeneration(scanId: scanId, generation: generation)
+        }
+
+        cancelInferenceStatusProbe(
+            scanId: scanId,
+            generation: generation
+        )
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+            MerianLog.data.debug("Background inference cancelled for \(scanId, privacy: .private) — owner path handled retry or cleanup")
+            return
+        }
+        MerianLog.data.debug("Background inference download failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+        await handleInferenceRetry(
+            scanId: scanId,
+            generation: generation,
+            reason: "network failure"
+        )
+    }
+
+    private func cancelInferenceStatusProbe(
+        scanId: String,
+        generation: UUID
+    ) {
+        inferenceStatusProbeTasks.cancel(
+            scanId,
+            ifOwnedBy: generation
+        )
+        if activeInferenceGenerations[scanId] == generation {
+            inferenceDispatchDates[scanId] = nil
+        }
+        MerianLog.data.debug("cancelInferenceStatusProbe: cancelled scanId=\(scanId, privacy: .public)")
+    }
+    static func publishBackgroundInferenceCompletion(
+        scanId: String,
+        processingResult: OfflineScanProcessingResult,
+        extracted: ExtractedScanData
+    ) async {
         if let speciesName = processingResult.resolvedSpeciesName,
            let dbScanId = processingResult.finalScanId {
             MerianLog.data.debug(
@@ -317,78 +409,5 @@ extension OfflineQueueManager {
             }
         }
 
-        guard isInferenceGenerationCurrent(
-            scanId: scanId,
-            expectedGeneration: generation
-        ) else {
-            MerianLog.data.debug(
-                "processInferenceDownloadResult: skipped stale post-finalization state scanId=\(scanId, privacy: .public)"
-            )
-            return
-        }
-        MerianLog.data.debug("⏱️ Background pipeline total: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
-        await MainActor.run {
-            CircuitBreakerManager.shared.recordSuccess()
-        }
-    }
-
-    // MARK: - Inference Task Failure
-
-    /// Handles a background inference download task network-level failure.
-    ///
-    /// Called from `urlSession(_:task:didCompleteWithError:)` when the download task fails
-    /// with a transport error (the server never responded). Resets the scan to `.staged` after
-    /// a persisted backoff window so app relaunches do not lose retry state.
-    ///
-    /// Code=-999 (NSURLErrorCancelled) is special-cased: it means an owner path explicitly
-    /// cancelled the task. Either the parallel live inference path already succeeded, the user
-    /// deleted the queued scan, or the inference watchdog reset the scan to `.staged`.
-    func handleInferenceTaskNetworkFailure(
-        scanId: String,
-        generation proposedGeneration: UUID?,
-        error: Error
-    ) async {
-        guard let generation = claimInferenceGeneration(
-            scanId: scanId,
-            proposedGeneration: proposedGeneration
-        ) else {
-            MerianLog.data.debug(
-                "handleInferenceTaskNetworkFailure: ignored stale failure scanId=\(scanId, privacy: .public)"
-            )
-            return
-        }
-        defer {
-            finishInferenceGeneration(scanId: scanId, generation: generation)
-        }
-
-        cancelInferenceStatusProbe(
-            scanId: scanId,
-            generation: generation
-        )
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
-            MerianLog.data.debug("Background inference cancelled for \(scanId, privacy: .private) — owner path handled retry or cleanup")
-            return
-        }
-        MerianLog.data.debug("Background inference download failed for \(scanId, privacy: .private): \(error, privacy: .private)")
-        await handleInferenceRetry(
-            scanId: scanId,
-            generation: generation,
-            reason: "network failure"
-        )
-    }
-
-    private func cancelInferenceStatusProbe(
-        scanId: String,
-        generation: UUID
-    ) {
-        inferenceStatusProbeTasks.cancel(
-            scanId,
-            ifOwnedBy: generation
-        )
-        if activeInferenceGenerations[scanId] == generation {
-            inferenceDispatchDates[scanId] = nil
-        }
-        MerianLog.data.debug("cancelInferenceStatusProbe: cancelled scanId=\(scanId, privacy: .public)")
     }
 }

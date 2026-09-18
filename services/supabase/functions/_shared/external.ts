@@ -1,5 +1,11 @@
 import { filterAllowedExternalImageURLs } from "./externalImagePolicy.ts";
 import { fetchWithDeadline, readResponseJsonWithinLimit } from "./outbound.ts";
+import {
+  commonsImageIdentity,
+  type ExternalReferenceImage,
+  imageCreditText,
+  reusableImageLicense,
+} from "./referenceImageRights.ts";
 
 const EXTERNAL_REQUEST_TIMEOUT_MS = 2_500;
 const EXTERNAL_JSON_RESPONSE_LIMIT_BYTES = 256 * 1024;
@@ -86,6 +92,7 @@ export interface ExternalEnrichmentData {
   wikiExtract: string | null;
   gbifKey: number | null;
   referenceImageUrl: string | null;
+  referenceImages?: ExternalReferenceImage[];
   alternativeCommonNames: string[];
   wikiTitle: string | null;
   gbifTaxonomy: ExternalEnrichmentTaxonomy | null;
@@ -216,6 +223,7 @@ async function fetchWikiSummary(
 export async function fetchExternalEnrichment(
   scientificName: string,
   fetcher: typeof fetch = fetch,
+  options: { includeImageRights?: boolean } = {},
 ): Promise<ExternalEnrichmentData> {
   let wikiUrl: string | null = null;
   let wikiExtract: string | null = null;
@@ -225,6 +233,8 @@ export async function fetchExternalEnrichment(
   let alternativeCommonNames: string[] = [];
   let gbifTaxonomy: ExternalEnrichmentTaxonomy | null = null;
   let gbifMatchStatus: "matched" | "unmatched" | "unavailable" = "unavailable";
+  const imageRights = new Map<string, ExternalReferenceImage>();
+  let imageProviderUnavailable = false;
 
   try {
     const fetchedUrls: string[] = [];
@@ -276,7 +286,13 @@ export async function fetchExternalEnrichment(
           const [mediaJson, vernacularJson] = await Promise.all([
             fetchBoundedProviderJson<{
               results?: Array<{
-                media?: Array<{ type?: unknown; identifier?: unknown }>;
+                media?: Array<{
+                  type?: unknown;
+                  identifier?: unknown;
+                  license?: unknown;
+                  creator?: unknown;
+                  rightsHolder?: unknown;
+                }>;
               }>;
             }>(
               `https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&mediaType=StillImage&limit=4`,
@@ -290,16 +306,38 @@ export async function fetchExternalEnrichment(
             ),
           ]);
 
+          if (
+            options.includeImageRights && !Array.isArray(mediaJson?.results)
+          ) {
+            throw new Error("Reference image media provider unavailable");
+          }
           if (mediaJson?.results && mediaJson.results.length > 0) {
             const gbifUrls: string[] = [];
-            for (const result of mediaJson.results) {
+            for (const result of mediaJson.results.slice(0, 4)) {
               if (result.media && result.media.length > 0) {
                 for (const m of result.media) {
                   if (
                     m.type === "StillImage" &&
                     typeof m.identifier === "string"
                   ) {
-                    gbifUrls.push(m.identifier);
+                    const imageURL = m.identifier.trim();
+                    gbifUrls.push(imageURL);
+                    const license = reusableImageLicense(m.license);
+                    const creator = imageCreditText(m.creator);
+                    const holder = imageCreditText(m.rightsHolder);
+                    const attribution = [
+                      ...new Set([creator, holder].filter(Boolean)),
+                    ].join(" · ");
+                    if (
+                      license && attribution && !imageRights.has(imageURL)
+                    ) {
+                      imageRights.set(imageURL, {
+                        url: imageURL,
+                        source: "gbif",
+                        license,
+                        attribution,
+                      });
+                    }
                     break; // take the primary image from each observation
                   }
                 }
@@ -326,6 +364,8 @@ export async function fetchExternalEnrichment(
       alternativeCommonNames = gbifOutcome.value.vernacularNames;
       gbifTaxonomy = gbifOutcome.value.taxonomy;
       gbifMatchStatus = gbifOutcome.value.matchStatus;
+    } else {
+      imageProviderUnavailable = true;
     }
 
     let wikiImg: string | null = null;
@@ -402,16 +442,121 @@ export async function fetchExternalEnrichment(
     );
   }
 
+  // Only the durable refresh worker opts into this extra provider request.
+  // A transient rights lookup failure must retry the job, not mark it fresh.
+  let referenceImages: ExternalReferenceImage[] | undefined;
+  if (options.includeImageRights) {
+    if (imageProviderUnavailable || gbifMatchStatus === "unavailable") {
+      throw new Error("Reference image media provider unavailable");
+    }
+    const urls = combinedImageUrls?.split(",") ?? [];
+    const wikiImages = urls.filter((url) => commonsImageIdentity(url) !== null);
+    for (const rights of await fetchCommonsImageRights(wikiImages, fetcher)) {
+      imageRights.set(rights.url, rights);
+    }
+    referenceImages = urls.flatMap((url) => {
+      const rights = imageRights.get(url);
+      return rights ? [rights] : [];
+    });
+  }
+
   return {
     wikipediaUrl: wikiUrl,
     wikiExtract,
     gbifKey,
     referenceImageUrl: combinedImageUrls,
+    ...(referenceImages ? { referenceImages } : {}),
     alternativeCommonNames,
     wikiTitle,
     gbifTaxonomy,
     gbifMatchStatus,
   };
+}
+
+export function fetchExternalEnrichmentWithImageRights(
+  scientificName: string,
+): Promise<ExternalEnrichmentData> {
+  return fetchExternalEnrichment(scientificName, fetch, {
+    includeImageRights: true,
+  });
+}
+
+async function fetchCommonsImageRights(
+  imageURLs: string[],
+  fetcher: typeof fetch,
+): Promise<ExternalReferenceImage[]> {
+  const identities = imageURLs.slice(0, 5).flatMap((url) => {
+    const identity = commonsImageIdentity(url);
+    return identity ? [{ ...identity, url }] : [];
+  });
+  if (identities.length === 0) return [];
+  const api = new URL("https://commons.wikimedia.org/w/api.php");
+  api.search = new URLSearchParams({
+    action: "query",
+    format: "json",
+    formatversion: "2",
+    prop: "imageinfo",
+    titles: [...new Set(identities.map((identity) => identity.title))].join(
+      "|",
+    ),
+    iiprop: "url|extmetadata",
+    iiextmetadatalanguage: "en",
+    iiextmetadatafilter:
+      "LicenseShortName|LicenseUrl|Artist|Credit|Attribution|NonFree|Restrictions|DeletionReason",
+  }).toString();
+  const data = await fetchBoundedProviderJson<{
+    error?: unknown;
+    query?: {
+      pages?: Array<{
+        imageinfo?: CommonsImageInfo[];
+      }>;
+    };
+  }>(api.href, fetcher, { headers: GBIF_REQUEST_HEADERS, redirect: "error" });
+  if (!data || data.error || !Array.isArray(data.query?.pages)) {
+    throw new Error("Reference image rights provider unavailable");
+  }
+  return data.query.pages.slice(0, 5).flatMap((page) => {
+    const info = page?.imageinfo?.[0];
+    if (!info || typeof info.url !== "string") return [];
+    const originalURL = commonsImageIdentity(info.url)?.originalURL;
+    return identities.filter((identity) => identity.originalURL === originalURL)
+      .flatMap((identity) => {
+        const rights = commonsRightsFromInfo(identity.url, info);
+        return rights ? [rights] : [];
+      });
+  });
+}
+
+interface CommonsImageInfo {
+  url?: string;
+  extmetadata?: Record<string, { value?: unknown }>;
+}
+
+function commonsRightsFromInfo(
+  imageURL: string,
+  info: CommonsImageInfo,
+): ExternalReferenceImage | null {
+  const metadata = info.extmetadata;
+  if (!metadata || typeof metadata !== "object") return null;
+  const field = (key: string) => metadata[key]?.value;
+  if (
+    (field("NonFree") !== undefined && field("NonFree") !== "false") ||
+    stringValue(field("Restrictions")) ||
+    stringValue(field("DeletionReason"))
+  ) return null;
+  const license = reusableImageLicense(
+    stringValue(field("LicenseUrl")) ?? field("LicenseShortName"),
+  );
+  const custom = imageCreditText(field("Attribution"));
+  const artist = imageCreditText(field("Artist"));
+  const credit = imageCreditText(field("Credit"));
+  const attribution = stringValue(field("Attribution"))
+    ? custom
+    : (artist
+      ? [...new Set([artist, credit].filter(Boolean))].join(" · ")
+      : null);
+  if (!license || !attribution || attribution.length > 2048) return null;
+  return { url: imageURL, source: "wikipedia", license, attribution };
 }
 
 function gbifTaxonomyFromMatch(

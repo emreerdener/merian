@@ -99,9 +99,6 @@ struct InsightContentView: View {
                         .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer)
                         .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
                         .ignoresSafeArea(.all, edges: .top) // CRUESCIAL: Kills the 16pt sheet native dragging padding!
-                        .onChange(of: heroFrame.maxY, initial: true) { _, newMaxY in
-                            viewModel.evaluateHeroScrollOffset(maxY: newMaxY)
-                        }
                 }
                 .frame(height: imageSize)
                 .ignoresSafeArea(.all, edges: .top) // Ensure the entire geometry wrapper bypasses top safe area
@@ -123,9 +120,6 @@ struct InsightContentView: View {
             .frame(width: imageSize) // CLAMP: Physically guarantees the content bounds can never expand left/right even if child views attempt to breach safe area X bounds.
         }
         .coordinateSpace(name: "InsightScrollSpace")
-        .modifier(MediaHeroTopScrollEdgeEffectModifier(
-            isHidden: viewModel.state.isTopScrollEdgeEffectHidden
-        ))
         // Forces native underlap of the translucent NavigationBar completely!
         .ignoresSafeArea(.container, edges: .top)
         .contentMargins(.top, 0, for: .scrollContent) // CRITICAL: Eradicates hidden iOS 17 interior scroll canvas offsets!

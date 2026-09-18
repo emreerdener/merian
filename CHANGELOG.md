@@ -6,6 +6,29 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Explore emoji reactions
+
+- Post details show a unique-person reactions summary that opens a paginated
+  sheet of public names, avatars, and each person's emoji, including heart
+  likes.
+
+- React to observation posts, comments, and replies with a searchable emoji
+  picker, including flags and skin tones. Tap existing emoji chips to add or
+  remove your reaction.
+- Keep Comment, Heart, Add reaction, and Share within reach while emoji chips
+  scroll; larger text sizes place chips on a separate row.
+- Group post-reaction activity in notifications while preserving existing heart
+  likes. Backend support must be released before the app update; these notes
+  describe unreleased source work.
+
+### Interface
+
+- Keep the Species directory visible when returning from Requests or another
+  Explore page, with recent content reused and older content refreshed in the
+  background. Pull to refresh still updates immediately.
+- Keep top toolbars transparent while scrolling throughout the app, preserving
+  the glass styling of individual controls.
+
 ### Image Cropping
 
 - Rotate capture images and profile photos left or right in 90-degree steps

@@ -17,6 +17,8 @@ struct ExplorePostCard: View {
     let onUnshare: () -> Void
     let onBlock: () -> Void
     let onReport: () -> Void
+    var onReaction: (String, Bool) -> Void = { _, _ in }
+    var onLoadMoreReactions: () -> Void = {}
 
     @State private var isShowingDoubleTapHeart = false
     @State private var doubleTapHeartScale: CGFloat = 0.7
@@ -209,31 +211,8 @@ struct ExplorePostCard: View {
     }
 
     private var actionRow: some View {
-        HStack(spacing: 20) {
-            ExploreFeedActionButton(
-                systemImage: post.viewerHasLiked ? "heart.fill" : "heart",
-                value: compactCount(post.likeCount),
-                isHighlighted: post.viewerHasLiked,
-                action: onLike
-            )
-
-            ExploreFeedActionButton(
-                systemImage: "bubble.right",
-                value: compactCount(post.commentCount),
-                isHighlighted: false,
-                action: onComments
-            )
-
-            Spacer(minLength: 12)
-
-            Button(action: onShare) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 24, weight: .regular))
-                    .foregroundStyle(.primary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Share post")
-        }
+        ExplorePostReactionBar(post: post, onComments: onComments, onLike: onLike,
+            onReaction: onReaction, onLoadMore: onLoadMoreReactions, onShare: onShare)
     }
 
     @ViewBuilder

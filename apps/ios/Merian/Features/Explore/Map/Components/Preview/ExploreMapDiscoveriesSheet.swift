@@ -17,7 +17,7 @@ struct ExploreMapDiscoveriesSheet: View {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     ForEach(viewModel.visiblePosts) { mapPost in
-                        let post = mapPost.asExplorePost
+                        let post = feedViewModel.post(id: mapPost.id) ?? mapPost.asExplorePost
                         ExploreMapPreviewCard(
                             post: post,
                             speciesDisplayName: feedViewModel.resolvedSpeciesCommonName(for: post),
@@ -28,8 +28,11 @@ struct ExploreMapDiscoveriesSheet: View {
                             onShare: { onShare(post) },
                             onUnshare: { onUnshare(post) },
                             onBlock: { onBlock(post) },
-                            onReport: { onReport(post) }
+                            onReport: { onReport(post) },
+            onReaction: { emoji, selected in Task { await feedViewModel.setPostReaction(for: post, emoji: emoji, selected: selected) } },
+            onLoadMoreReactions: { Task { await feedViewModel.loadMorePostReactions(for: post) } }
                         )
+                        .task(id: post.id) { await feedViewModel.hydratePostReactions(for: post) }
                     }
                 }
                 .padding()

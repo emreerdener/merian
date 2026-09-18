@@ -295,7 +295,7 @@ struct BackgroundTransferArchitectureTests {
             ownerCheck.lowerBound..<validation.lowerBound
         ]
         let relaunchedLease = try #require(ownerCheckBody.range(
-            of: ".beginUnownedAccountBoundWork(expectedUserID: ownerUserID)"
+            of: "accountWork.begin(ownerUserID)"
         ))
         let retainedLease = try #require(ownerCheckBody.range(
             of: "retainBackgroundAccountWork(",
@@ -325,9 +325,24 @@ struct BackgroundTransferArchitectureTests {
         #expect(durableCheck.lowerBound < durableAdoption.lowerBound)
 
         #expect(normalizedTerminalRouting.components(
-            separatedBy:
-            "defer { finishBackgroundAccountWork(for: taskIdentifier) }"
+            separatedBy: "finishBackgroundAccountWork(for: taskIdentifier"
         ).count == 4)
+        for terminal in ["Result", "Failure"] {
+            let entry = try #require(normalizedTerminalRouting.range(
+                of: "func processInferenceTerminal\(terminal)("
+            ))
+            let body = normalizedTerminalRouting[entry.upperBound...]
+            let owner = try #require(body.range(
+                of: "guard inferenceTerminalTaskIdentifiers.insert(taskIdentifier).inserted"
+            ))
+            let cleanup = try #require(body.range(
+                of: "defer { inferenceTerminalTaskIdentifiers.remove(taskIdentifier) "
+                    + "finishBackgroundAccountWork(for: taskIdentifier, accountWork: accountWork) }"
+            ))
+            let suspension = try #require(body.range(of: "await "))
+            #expect(owner.lowerBound < cleanup.lowerBound)
+            #expect(cleanup.lowerBound < suspension.lowerBound)
+        }
 
         let rejectedRetirement = try #require(
             normalizedTerminalRouting.range(

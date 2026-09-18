@@ -88,6 +88,7 @@ struct ExploreFeedDependencies {
     let feed: Feed
     let interactions: Interactions
     let comments: Comments
+    let reactions: ExploreReactionDependencies
     let feedback: Feedback
     let notifications: Notifications
     let errorMessage: @MainActor (Error) -> String
@@ -103,6 +104,7 @@ struct ExploreFeedDependencies {
         feedback: Feedback,
         notifications: Notifications,
         errorMessage: @escaping @MainActor (Error) -> String,
+        reactions: ExploreReactionDependencies = .unavailable,
         loadPreferredSpeciesNames: @escaping @MainActor (
             _ scientificNames: [String],
             _ modelContext: ModelContext
@@ -111,6 +113,7 @@ struct ExploreFeedDependencies {
         self.feed = feed
         self.interactions = interactions
         self.comments = comments
+        self.reactions = reactions
         self.feedback = feedback
         self.notifications = notifications
         self.errorMessage = errorMessage
@@ -245,6 +248,7 @@ extension ExploreFeedDependencies {
                 }
             ),
             errorMessage: ExploreErrorFormatter.message(for:),
+            reactions: .live,
             loadPreferredSpeciesNames: { scientificNames, modelContext in
                 guard let ownerUserID = SupabaseManager.shared.currentUser?.id
                 else {

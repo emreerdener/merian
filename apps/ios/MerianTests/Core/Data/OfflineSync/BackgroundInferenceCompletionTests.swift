@@ -9,6 +9,71 @@ import Testing
 )
 @MainActor
 struct BackgroundInferenceCompletionTests {
+    @Test func duplicateTerminalRoutingPreservesSuspendedOwnersAccountLease() async throws {
+        let manager = OfflineQueueManager.shared
+        let taskIdentifier = -17
+        let originalLease = manager.backgroundAccountWorkLeases[taskIdentifier]
+        let lease = AccountBoundWorkLease(
+            id: UUID(), session: AuthTransitionSession(userID: UUID(), isAnonymous: true)
+        )
+        let resultURL = URL.temporaryDirectory.appendingPathComponent("\(UUID()).json")
+        try Data("{}".utf8).write(to: resultURL)
+        manager.backgroundAccountWorkLeases[taskIdentifier] = lease
+        manager.inferenceTerminalTaskIdentifiers.insert(taskIdentifier)
+        defer {
+            manager.inferenceTerminalTaskIdentifiers.remove(taskIdentifier)
+            manager.backgroundAccountWorkLeases[taskIdentifier] = originalLease
+            try? FileManager.default.removeItem(at: resultURL)
+        }
+        await manager.processInferenceTerminalResult(
+            scanId: UUID().uuidString, generation: UUID(), ownerUserID: lease.session.userID,
+            taskIdentifier: taskIdentifier, resultFileURL: resultURL,
+            statusCode: 200, functionRouteEvidence: nil
+        )
+        #expect(!FileManager.default.fileExists(atPath: resultURL.path))
+        #expect(manager.backgroundAccountWorkLeases[taskIdentifier] == lease)
+        await manager.processInferenceTerminalFailure(
+            scanId: UUID().uuidString, generation: UUID(), ownerUserID: lease.session.userID,
+            taskIdentifier: taskIdentifier, error: URLError(.cancelled)
+        )
+        #expect(manager.backgroundAccountWorkLeases[taskIdentifier] == lease)
+        #expect(manager.inferenceTerminalTaskIdentifiers.contains(taskIdentifier))
+    }
+
+    @Test func duplicateTerminalCallbacksCannotRetireSuspendedResultOwner() async throws {
+        let manager = OfflineQueueManager.shared
+        let scanId = UUID().uuidString.lowercased()
+        let generation = UUID()
+        let resultURL = URL.temporaryDirectory.appendingPathComponent("\(UUID()).json")
+        try Data("{}".utf8).write(to: resultURL)
+        reset(manager, scanId: scanId, generations: [generation])
+        defer {
+            try? FileManager.default.removeItem(at: resultURL)
+            reset(manager, scanId: scanId, generations: [generation])
+        }
+
+        // Exact state while the first terminal result is suspended in persistence.
+        // Neither a duplicate download nor didCompleteWithError may take its lease.
+        manager.activeInferenceGenerations[scanId] = generation
+        manager.inferenceCompletionGenerations[scanId] = generation
+        await manager.processInferenceDownloadResult(
+            scanId: scanId, generation: generation,
+            resultFileURL: resultURL, statusCode: 200
+        )
+        #expect(!FileManager.default.fileExists(atPath: resultURL.path))
+        #expect(manager.activeInferenceGenerations[scanId] == generation)
+        #expect(manager.inferenceCompletionGenerations[scanId] == generation)
+        #expect(!manager.retiredInferenceGenerations.contains(generation))
+
+        await manager.handleInferenceTaskNetworkFailure(
+            scanId: scanId, generation: generation,
+            error: URLError(.cancelled)
+        )
+        #expect(manager.activeInferenceGenerations[scanId] == generation)
+        #expect(manager.inferenceCompletionGenerations[scanId] == generation)
+        #expect(!manager.retiredInferenceGenerations.contains(generation))
+    }
+
     @Test func cancelledTaskRetiresExactGenerationAndProbe() async {
         let manager = OfflineQueueManager.shared
         let scanId = "cancelled-inference-task-\(UUID().uuidString)"

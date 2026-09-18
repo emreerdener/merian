@@ -9,7 +9,7 @@ final class ReadyConsentPresentationTests: XCTestCase {
         let adult = ReadyStepView.adultStatement
         let analytics = ReadyStepView.analyticsStatement
 
-        XCTAssertEqual(ReadyStepView.title, "One last step")
+        XCTAssertEqual(ReadyStepView.title, "Before you scan")
         XCTAssertEqual(disclosure, ConsentPolicy.geminiDisclosureText)
         XCTAssertEqual(consent, ConsentPolicy.combinedAcceptanceText)
         XCTAssertEqual(adult, ConsentPolicy.adultConfirmationText)

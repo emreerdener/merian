@@ -21,6 +21,8 @@ the canonical
   value or typed endpoint.
 - `Views/` contains screen and navigation wrappers. Keep gallery selection,
   focus, scroll-proxy, highlight, and other animation-sensitive UI state here.
+  Template detail fills the available width before applying its page background,
+  including the unavailable state; content padding stays inside that surface.
 - `Components/` contains feature-owned UI grouped by catalog, detail, media,
   publications, profile, and shared use. Views and components do not call the
   network client directly.

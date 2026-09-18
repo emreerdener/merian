@@ -728,6 +728,14 @@ omitted, limits remain raw, and cursor fields remain raw with only nil
 `created_at` omitted. Overview generates one uppercase UUID `cache_buster` per
 call, reused across transport retries.
 
+Overview responses remain `no-store`, and this client has no overview memo.
+Catalog's overview view model independently retains one successful result for
+the Explore presentation and skips navigation fetches while its five-minute
+same-country freshness window is valid. Explicit refresh still reaches this
+endpoint. See the
+[feature-owned overview lifecycle](../../../../../docs/features-and-hardware/16-species-dictionary.md#ios-catalog-ownership-and-request-lifecycle)
+for ownership, cancellation, and dismissal behavior.
+
 [`Decoding/SpeciesDictionaryResponseValidator.swift`](Decoding/SpeciesDictionaryResponseValidator.swift)
 owns typed schema/identity validation after wire decoding. Dictionary schemas
 must be exactly 1; stats accepts schema 2 or newer and requires both the
@@ -3594,3 +3602,38 @@ window. No marker or proof stores an account, provider, job, or request
 identifier. A refreshable `401` renews only the transition's exact expected
 Supabase session; it cannot start nested recovery or relink RevenueCat,
 analytics, profile metadata, or entitlements.
+
+## Explore emoji-reaction endpoints
+
+`Endpoints/MerianNetworkClient+ExploreReactions.swift` adds explicit-state
+`setExploreReaction(target:id:emoji:selected:)` for the post/comment setter
+routes and `getExploreReactions(target:id:afterOrder:)` for continuation pages.
+These are separate from the unchanged legacy toggle method. The summary read
+uses the existing bounded read-replay policy; setters remain conservatively
+excluded from ambiguous transport retries even though the server mutation is
+idempotent. Classified auth-refresh replay follows the common transport policy.
+
+`Models/Explore/ExploreReactionAPIModels.swift` owns response/page values.
+Post/detail/comment summaries and their cursor are optional for older-server
+compatibility; native UI treats missing arrays as empty. Groups merge by
+canonical emoji, and post ❤️ results use existing like semantics. Unicode
+validation and canonicalization remain server-authoritative.
+
+The Notifications adapter sends `supports_post_reactions: true` for list,
+unread-count, mark-read, and device registration. This capability is separate
+from push opt-in and from account-scoped registration coordination metadata.
+
+Wire behavior is covered by `ExploreInteractionEndpointTests`,
+`NotificationEndpointTests`,
+`NotificationAndPublicProfileEndpointTransportTests`, and
+`AuthenticatedRequestRetryPolicyTests`; Feed state owns optimism/rollback. See
+the
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#explore-emoji-reactions-2026-09-18)
+and
+[verification matrix](../../../../../docs/development-guides/08-testing-strategy.md#explore-emoji-reaction-verification).
+
+`getExplorePostReactors(postId:afterUserId:)` adds the replayable authenticated
+read for detail reactor identities. `ExplorePostReactorsPage` contains unique
+count, preview names, public reactor rows, and a nullable UUID cursor. The
+[people contract](../../../../../docs/backend-and-data/05-api-contracts.md#post-reaction-people)
+defines visibility, likes-as-heart, and pagination semantics.

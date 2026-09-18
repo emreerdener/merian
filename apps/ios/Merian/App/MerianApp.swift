@@ -89,6 +89,7 @@ struct MerianApp: App {
     @State private var isShowingManualAppleRevocationNotice =
         ManualAppleRevocationNoticeStore.isPending()
     @State private var isAccountDeletionRecoveryPending: Bool
+    @State private var signOutToast: ToastPayload?
     
     // MARK: - App Dependencies
     let diContainer: AppDIContainer
@@ -224,6 +225,14 @@ struct MerianApp: App {
                         .zIndex(1)
                 }
             }
+            .environment(\.showSignOutConfirmation) {
+                signOutToast = .success("Signed out successfully")
+            }
+            .merianSystemFeedback(
+                toast: $signOutToast,
+                toastAlignment: .top,
+                showsAchievementToasts: false
+            )
             .onAppear {
                 applyTheme(appSettings.themeMode)
                 isShowingManualAppleRevocationNotice =
@@ -319,6 +328,7 @@ struct MerianApp: App {
                 guard let url = activity.webpageURL else { return }
                 _ = handleMerianDeepLink(url)
             }
+            .modifier(AppTopScrollEdgeEffectModifier())
         }
         // MARK: - Scene Phases
         .onChange(of: scenePhase) { oldPhase, newPhase in

@@ -135,7 +135,6 @@ final class InsightSheetViewModel {
     struct UIState: Equatable {
         var showBottomBarTools = false
         var isCommonNameScrolledPast = false
-        var isTopScrollEdgeEffectHidden = true
         var isFieldNotesSheetPresented = false
         var fieldNotesPresentationScanId: String?
         var fieldNotesPresentationGeneration: UInt64?

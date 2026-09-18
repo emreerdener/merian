@@ -1203,10 +1203,12 @@ and direct client table/function privileges are revoked.
 ## The Explore Social Surface
 
 Explore uses a dedicated set of Edge Functions and SQL RPCs rather than sharing
-the identify pipeline. The current shipped surface includes:
+the identify pipeline. The current source surface includes:
 
 - feed + detail reads: `get-explore-feed`, `get-explore-post`,
-  `get-explore-post-detail`, `get-explore-comments`
+  `get-explore-post-detail`, `get-explore-comments`,
+  `get-explore-comment-replies`, `get-explore-reactions`,
+  `get-explore-post-reactors`
 - author profile reads: `get-explore-author-profile`, `get-explore-author-posts`
 - hashtag reads: `get-explore-hashtag-posts`
 - map reads: `get-explore-map-points`
@@ -1215,7 +1217,8 @@ the identify pipeline. The current shipped surface includes:
 - mutations: `share-scan-to-explore`, `unshare-explore-post`,
   `update-explore-field-notes`, `set-explore-post-like`, `set-user-follow`,
   `create-explore-comment`, `delete-explore-comment`,
-  `toggle-explore-comment-reaction`, `report-explore-comment`,
+  `set-explore-post-reaction`, `set-explore-comment-reaction`,
+  `toggle-explore-comment-reaction` (legacy only), `report-explore-comment`,
   `report-explore-post`
 - bell activity reads: `get-explore-notifications`,
   `get-explore-unread-notification-count`, `mark-explore-notifications-read`
@@ -1291,12 +1294,13 @@ updates do not notify other users and never fan out to APNs. Like notifications
 are recomputed from the authoritative `explore_post_likes` table after each
 insert/delete so concurrency cannot drift the aggregate count, comment
 notifications are created and removed via triggers on `explore_post_comments`,
-comment-reaction notifications are recomputed per `(comment, emoji)` from
-`explore_comment_reactions`, follow notifications are created and removed via
-triggers on `user_follows`, Field trip activity is created from Field trip
-publication/comment triggers, self-notifications are suppressed server-side, and
-rows are pruned or hidden when relevant content is removed, a follow is removed,
-or either user blocks the other.
+post-reaction notifications are recomputed per `(recipient, post, emoji)` from
+`explore_post_reactions`, comment-reaction notifications are recomputed per
+`(comment, emoji)` from `explore_comment_reactions`, follow notifications are
+created and removed via triggers on `user_follows`, Field trip activity is
+created from Field trip publication/comment triggers, self-notifications are
+suppressed server-side, and rows are pruned or hidden when relevant content is
+removed, a follow is removed, or either user blocks the other.
 
 Identify Activity is deliberately separate from these bell tables. Migration
 `20260731050009_add_community_identification_activity.sql` projects
@@ -1600,7 +1604,7 @@ hydrate `hashtags` with one batched lookup over each returned post page. The
 detail RPC includes the same tags directly for `ExplorePostDetailView`.
 `get-explore-hashtag-posts` queries `public.get_explore_hashtag_posts(...)` with
 the standard visible-post rules and stable `(shared_at, post_id)` pagination for
-the iOS tagged-post grid. The `(tag, post_id)` edge index is also the intended
+the iOS tagged-post feed. The `(tag, post_id)` edge index is also the intended
 base for future event and BioBlitz submission matching.
 
 `set-user-follow` is the only write path for `public.user_follows`. It validates
@@ -1634,7 +1638,10 @@ feed. The app registers APNs device tokens through `register-push-device`,
 stores them in `public.user_push_devices`, and a Postgres trigger on
 `public.explore_post_notifications` uses `pg_net` to invoke
 `send-push-notification` whenever a visible post-backed notification row is
-inserted or a like/comment-reaction aggregate count increases. Follow
+inserted or a like/post-reaction/comment-reaction aggregate count increases.
+Post-reaction delivery additionally requires the device capability
+`supports_post_reactions` and the existing Explore push opt-in. Removals do not
+send pushes; badge counts use the receiving device capability. Follow
 notifications are postless, informational, and intentionally skipped by the push
 trigger. Field trip activity rows are stored in
 `field_trip_activity_notifications`, which has no push trigger. Seasonal
@@ -2981,3 +2988,20 @@ optional controls are set in the Supabase Edge secret store via the CLI
 - The discovery-feed JS fallback remains strictly secondary to the Postgres RPC
   path and now bounds over-fetch using the current block-list size instead of a
   fixed always-extra query window.
+
+## Explore emoji-reaction boundary
+
+Observation post and comment reactions share the versioned Unicode catalog and
+service-only set/page RPCs. `explore_post_reactions` stores non-❤️ post emoji;
+post ❤️ stays in the existing likes path. The post-row lock serializes mutation
+and notification recomputation. Native read endpoints enrich each target with 12
+groups and a continuation cursor; the shared summary endpoint returns pages
+of 32. Map markers hydrate through get-post when interactive previews need it.
+
+Post activity groups by recipient/post/emoji. Current actor visibility excludes
+blocked and shadowbanned users; self additions and removals do not push.
+Capability-aware list/count/read and device registration default to the legacy
+row set when `supports_post_reactions` is omitted. See the
+[API contract and rollout order](./05-api-contracts.md#explore-emoji-reactions-2026-09-18)
+and
+[storage contract](./04-database-schema.md#explore-unicode-reactions-2026-09-18).

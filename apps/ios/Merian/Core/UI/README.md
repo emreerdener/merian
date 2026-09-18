@@ -111,10 +111,10 @@ surviving a feature-owned source-family change. `NativePageCarousel` and its
 coordinator otherwise own eager mounting and selection synchronization;
 `ZoomPageViewController` owns pinch, pan, and snap-back behavior.
 `MediaGalleryPresentation` and `MediaGalleryItem` provide the normalized
-cross-feature gallery input. The same directory owns shared pagination dots and
-the iOS 26 top scroll-edge treatment. Feature owners remain responsible for
-media ordering, source and attribution policy, availability state, navigation,
-and their reuse-key projection.
+cross-feature gallery input. The same directory owns shared pagination dots. The
+App presentation root owns the app-wide transparent top scroll-edge treatment.
+Feature owners remain responsible for media ordering, source and attribution
+policy, availability state, navigation, and their reuse-key projection.
 
 Audio playback keeps player, pending replacement, boost request, seek, and
 observer state private to its mounted page. `AudioBoostRequestState` gives each

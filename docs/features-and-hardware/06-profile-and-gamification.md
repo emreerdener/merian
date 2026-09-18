@@ -162,7 +162,11 @@ badges use paid status only.
   journal until entitlement readiness and the exact anonymous manager-published
   user, nonexpired SDK session, originating Auth generation, cancellation state,
   and transition context are revalidated. Any incomplete step retains the proof
-  and shows a **Finish sign out** recovery control. Promotional/beta access
+  and shows a **Finish sign out** recovery control only after the active Auth
+  transition ends. The recovery control has no introductory helper text and
+  stays hidden during automatic completion. Successful sign-out or an explicit
+  recovery retry presents **Signed out successfully** through an app-root toast
+  that survives the transition to consent onboarding. Promotional/beta access
   remains on the linked source. The anonymous account offers **Continue with
   Apple** and **Continue with Google**. Account deletion uses low-level
   `signOut()` without replacement or purchase transfer.

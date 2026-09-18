@@ -26,8 +26,13 @@ canonical behavior, API, privacy, and release contract is
   the
   [Core ownership guide](../../Core/Network/README.md#species-dictionary-endpoints-validation-and-caches).
 - Explore Shell owns Identify/Species selection, the shared navigation path, and
-  destination registration. Views keep selection, navigation, presentation,
-  scroll, focus, and lifecycle timing.
+  destination registration. It retains Catalog's overview model for one Explore
+  presentation, so navigation can reuse its last successful same-country result
+  for five minutes. Catalog owns freshness and refresh behavior separately from
+  Core Network's detail/stats memos; see the
+  [overview lifecycle contract](../../../../../docs/features-and-hardware/16-species-dictionary.md#ios-catalog-ownership-and-request-lifecycle).
+  Views keep selection, navigation, presentation, scroll, focus, and lifecycle
+  timing.
 
 Services are the only feature layer that resolves live dependencies. Views and
 components do not call endpoints or resolve concrete service singletons. Catalog

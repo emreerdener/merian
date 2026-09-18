@@ -595,10 +595,10 @@ Its local-path/remote-fallback renderer is the cross-feature
 UI owner that resolves `LocalImageLoader`; the Carousel supplies source values
 and availability callbacks.
 
-The domain-neutral pager, page identity value, zoom host, pagination dots, and
-hero scroll-edge treatment shared with Field Trips live under
-`Core/UI/Components/MediaCarousel`. Insight retains mixed-media assembly and
-projects its feature-owned page identity into that Core UI boundary.
+The domain-neutral pager, page identity value, zoom host, and pagination dots
+shared with Field Trips live under `Core/UI/Components/MediaCarousel`. Insight
+retains mixed-media assembly and projects its feature-owned page identity into
+that Core UI boundary.
 
 `ImagesCarousel` has **no direct `InferenceEngine` dependency**. All data is
 injected as plain parameters, making the component reusable across both the live
@@ -621,11 +621,12 @@ camera pipeline and the offline queued-scan path:
 - **`MediaCarouselPaginationDots`**: The shared bottom material capsule used by
   Insight and Field trips. It hides for a single page, clamps transient index
   changes safely, animates selection, and announces the current page count.
-- **`MediaHeroTopScrollEdgeEffectModifier`**: Shared iOS 26 toolbar-underlay
-  treatment for Insight and the Field-trip Goals hero. Each scroll view removes
-  its top content margin and underlaps a transparent navigation bar while media
-  is present; the modifier hides the native top scroll-edge effect over the
-  image and restores it after the hero clears the toolbar.
+- **Top scroll-edge treatment**: `AppTopScrollEdgeEffectModifier` in
+  `App/Presentation/AppRootPresentation.swift` hides the iOS 26+ top effect
+  throughout the app. Insight and Field-trip heroes retain their top content
+  margins and navigation underlap configuration without restoring a background
+  when their images scroll away. See the
+  [shared toolbar contract](07-feature-modules-and-ui.md#shared-top-toolbar-appearance).
 - **`ZoomPageViewController`**: Each page controller. Embeds its SwiftUI content
   (image, video, audio, description, loading, or terminal state) inside a
   `ZoomScrollView`. Exposes `rootView: AnyView` as a computed property proxying

@@ -178,6 +178,18 @@ integration drift fails closed there. Full Xcode compilation also remains
 limited by the local SwiftPM/CoreSimulator sandbox. Neither limitation, nor
 hosted route/authenticated customer smokes, is counted as passing evidence.
 
+## Emoji reaction inventory addendum (2026-09-18)
+
+The current inventory includes the three emoji reaction routes added after the
+original review. They use the shared authenticated handler, bounded Unicode
+catalog validation, service-only transactional RPCs, and capability-filtered
+notifications. This inventory update does not change the original review or
+supply deployed smoke evidence.
+
+The maintained inventory also includes the September 18 detail-only reactor
+identity read. Its addition does not establish historical or hosted release
+evidence.
+
 ## Reviewed Entrypoints
 
 ```text
@@ -215,6 +227,8 @@ get-explore-mention-suggestions
 get-explore-notifications
 get-explore-post
 get-explore-post-detail
+get-explore-post-reactors
+get-explore-reactions
 get-explore-species-posts
 get-explore-unread-notification-count
 get-filtered-discovery-feed
@@ -255,7 +269,9 @@ safe-delete
 scan-media-health
 search-community-taxa
 send-push-notification
+set-explore-comment-reaction
 set-explore-post-like
+set-explore-post-reaction
 set-user-follow
 share-scan-to-explore
 species-dictionary

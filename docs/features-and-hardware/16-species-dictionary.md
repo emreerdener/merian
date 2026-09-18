@@ -128,8 +128,8 @@ does not reuse `InsightSheetViewModel`.
 
 Detail follows a feature-owned `Models`, `Services`, `ViewModels`, `Views`, and
 grouped `Components/{Community,Content,Gallery,Loading,Shared}` boundary.
-Platform-neutral Models own request, page state, share, presentation, telemetry,
-and hero-edge policy. Services alone resolve the live dictionary and Community
+Platform-neutral Models own request, page state, share, presentation, and
+telemetry policy. Services alone resolve the live dictionary and Community
 endpoints, telemetry, haptics, entitlement state, fallback Explore state, and
 Field Chat state. Views and components contain no direct networking and retain
 navigation, presentation bindings, scrolling, lifecycle tasks, and rendering.
@@ -692,12 +692,32 @@ content.
 
 `apps/ios/Merian/Features/SpeciesDictionary/Catalog/` owns the Explore
 Identify/Species browse experience. Its existing root interfaces remain
-`SpeciesDictionaryOverviewView(userRegion:)`,
+`SpeciesDictionaryOverviewView(userRegion:viewModel:)`,
 `SpeciesDictionaryCatalogView(...)`, and
 `SpeciesDictionaryRegionsView(userRegion:)`; Explore Shell registers the typed
 destinations and owns the shared navigation stack. The feature-local
 [`Catalog` README](../../apps/ios/Merian/Features/SpeciesDictionary/Catalog/README.md)
 is the concise source map for contributors.
+
+`ExploreView` retains the overview model for one Explore presentation and
+injects it through the navigation host. Switching between Species, Requests, and
+other pages therefore preserves the loaded overview. Navigation reuses a
+successful result for five minutes after completion, keyed to the normalized
+country. After expiry, the existing content remains visible while the view task
+refreshes it; failed or cancelled requests do not renew freshness. Explicit
+pull-to-refresh and retry always fetch. Changing country clears incompatible
+content before loading, while request generations reject late completions.
+Skeletons appear only when the current country has no retained content. Closing
+Explore or restarting the app releases this in-memory state. This feature-level
+retention does not change the endpoint's `no-store` response or the network
+client's detail/stats memos. The model retains only one overview, not a cache of
+multiple countries or paginated catalog results. Country keys are trimmed and
+uppercased; blank and absent country values share the no-country selection.
+Reading retained content does not extend its freshness. Expiry is checked when
+the view task runs; there is no periodic timer, scheduled off-screen refresh, or
+background app execution. Cancellation on departure cannot publish a late
+result, and returning can start another load without waiting for the cancelled
+one to end.
 
 Catalog implementation ownership is:
 
@@ -726,14 +746,16 @@ Catalog implementation ownership is:
 The mirrored Catalog test suites cover detail routing, presentation policy,
 request normalization, initial-load de-duplication, pagination,
 refresh/search/reverted-selection overlap, failed-replacement page suppression,
-stale overview/map completion, map cancellation, ownership boundaries, and the
-600-line production-file ceiling. Mirrored Detail suites own page/Community
-state, presentation, endpoint adaptation, and architecture. Core Network's
-`Decoding`, `Endpoints`, and `Caching` suites own wire/schema/identity
-validation, request/transport compatibility, and deterministic memo tests. The
-former mixed aggregate is removed; Catalog route assertions remain feature-owned
-in `SpeciesDictionaryCatalogRouteTests`. The retired taxonomy visualization has
-no iOS source, feature flag, route, Swift transport/DTO, overview card, or Edge
+five-minute overview reuse, explicit refresh, stale-content retention, country
+replacement, cancellation/re-entry, stale overview/map completion, map
+cancellation, ownership boundaries, and the 600-line production-file ceiling.
+Mirrored Detail suites own page/Community state, presentation, endpoint
+adaptation, and architecture. Core Network's `Decoding`, `Endpoints`, and
+`Caching` suites own wire/schema/identity validation, request/transport
+compatibility, and deterministic memo tests. The former mixed aggregate is
+removed; Catalog route assertions remain feature-owned in
+`SpeciesDictionaryCatalogRouteTests`. The retired taxonomy visualization has no
+iOS source, feature flag, route, Swift transport/DTO, overview card, or Edge
 mode. The endpoint rejects `mode: "tree"` with `400`; this explicit rejection is
 covered by the import-safe HTTP handler tests before service-client
 construction. Decode-only handling of the legacy overview category ID `taxonomy`
@@ -784,6 +806,13 @@ Vary: Accept-Encoding
 Overview responses send `Cache-Control: no-store` and `Vary: Accept-Encoding`.
 `400`, `404`, and `500` responses do not opt into public caching, so missing
 rows and transient errors can recover immediately after data is added or fixed.
+
+Separately, the iOS overview model retains its last successful result for the
+current Explore presentation. Its five-minute navigation freshness policy is
+defined in
+[iOS Catalog ownership and request lifecycle](#ios-catalog-ownership-and-request-lifecycle).
+This is feature state, not HTTP caching: an actual overview fetch still sends
+the existing `cache_buster`, and closing Explore discards the retained result.
 
 The iOS client memoizes recently opened dictionary pages in its per-client
 `Core/Network/Caching/SpeciesDictionaryResponseCache` owner. The detail store is
@@ -924,6 +953,17 @@ Exact external-media suppression:
   selected image and never adds a censor overlay or a new API field.
 
 Reference image attribution:
+
+- The durable `refresh-species-content` worker collects verified media-level
+  rights from GBIF and exact-file Wikimedia Commons Imageinfo metadata. It
+  writes canonical reusable-license URLs and plain-text creator credits through
+  the existing reference-image replacement RPC. Interactive identification and
+  page loading perform no additional rights lookup. Provider lookup failures
+  retry the durable job; absent or unsupported rights do not bypass web
+  filtering.
+- Existing URL-only species may need an explicitly authorized queue backfill; a
+  deployment alone does not populate their credits. See the bounded procedure in
+  `services/supabase/functions/refresh-species-content/README.md`.
 
 - `license` and `attribution` come from normalized `species_reference_images`
   rows.
@@ -1111,6 +1151,24 @@ and the complete `merianTests` target. Native cache/validator/architecture
 execution and cached-dependency typechecking do not replace a fresh iOS build,
 Simulator tests, or the manual checks below.
 
+For overview-retention changes, start with
+`SpeciesDictionaryOverviewViewModelTests` and the Explore Shell navigation
+suites through `make ios-local-build`; then run the applicable matrix above and
+the complete unit target. The overview suite uses an injected clock and
+suspended loaders to cover the 299/300-second freshness boundary, normalized and
+absent country reuse, explicit refresh, retained content during refresh and
+failure, country replacement, and cancelled-load re-entry. These model tests do
+not exercise SwiftUI view identity; the navigation checks below remain required.
+
+Local verification for the 2026-09-18 overview-retention change passed Swift
+syntax parsing, XcodeGen/project validation, the iOS privacy, transport,
+versioning and migration source gates, CI-tooling tests, Markdown formatting,
+and whitespace checks. Both focused Simulator test attempts stopped before
+compilation because another Xcode build was active. The new overview tests,
+fresh iOS compilation, and manual navigation acceptance remain unverified by
+those attempts; no release or runtime-validation claim follows from the source
+checks.
+
 For Field Chat changes, also run the
 [Core Network Field Chat matrix](../../apps/ios/Merian/Core/Network/README.md#field-chat-verification)
 and the complete `merianTests` target on fresh candidate products.
@@ -1136,6 +1194,17 @@ Manual acceptance:
   preserves the existing overview layout, Recently Added and organism-group
   order, local region treatment, loading skeletons, empty/error copy, and
   pushed-navigation chrome.
+- After loading Species, switch to Requests or another root tab and return
+  within five minutes: content should appear without overview skeletons or a new
+  overview request. Return after five minutes and confirm existing content
+  remains visible during refresh, including a failed offline refresh. Pull to
+  refresh within the freshness window and confirm a new request. Change the
+  device country and confirm the previous country's overview is replaced.
+- Leave Species during its first load, return before the cancelled request
+  finishes, and confirm it can load normally without a late result replacing
+  current content. Close Explore entirely and reopen Species to confirm a new
+  load; also confirm remaining on the page for five minutes does not start a
+  timed refresh.
 - Search a catalog, clear and re-enter the same query while results are loading,
   pull to refresh while the next page is loading, and retry a failed replacement
   query. Confirm only the current normalized selection publishes, no stale page

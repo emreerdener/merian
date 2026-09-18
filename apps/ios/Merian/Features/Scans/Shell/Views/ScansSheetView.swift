@@ -148,10 +148,7 @@ struct ScansSheetView: View {
                         }
                     )
                 }
-                .toolbarBackground(
-                    searchManager.isSelectionMode ? .visible : .hidden,
-                    for: .navigationBar
-                )
+                .toolbarBackground(.hidden, for: .navigationBar)
                 .toolbarBackground(
                     searchManager.isSelectionMode ? .visible : .hidden,
                     for: .bottomBar

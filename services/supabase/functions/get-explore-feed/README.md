@@ -197,3 +197,18 @@ deno test --config services/supabase/functions/deno.json --allow-env --allow-net
 
 The DB integration tests skip live assertions when the local Supabase Postgres
 instance is not running at `127.0.0.1:54322`.
+
+## Emoji-reaction projection
+
+Each returned post includes additive `reactions` (up to 12 groups in canonical
+catalog order) and nullable `reactions_next_cursor`. A group contains `emoji`,
+`count`, `viewer_has_reacted`, and `order`. Continue with
+`get-explore-reactions` using target kind `post`, this post ID, and the returned
+cursor; pages contain up to 32 groups. The reaction cursor is independent of the
+collection cursor. Older missing fields render empty in native clients. Post ❤️
+stays in the existing like count, not a duplicate emoji chip.
+
+See the
+[canonical API](../../../../docs/backend-and-data/05-api-contracts.md#explore-emoji-reactions-2026-09-18)
+and
+[verification matrix](../../../../docs/development-guides/08-testing-strategy.md#explore-emoji-reaction-verification).

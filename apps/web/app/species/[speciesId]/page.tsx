@@ -37,6 +37,10 @@ import {
   type WebSpeciesDictionaryEntry,
 } from "@/lib/species";
 import type { PublicSpeciesReferenceImage } from "../../../../../services/supabase/functions/_shared/publicSpeciesProjection.ts";
+import {
+  referenceImageCaption,
+  speciesReferenceCredit,
+} from "@/lib/speciesReferenceCredit";
 
 type SpeciesPageProps = {
   params: Promise<{
@@ -272,6 +276,7 @@ function ReferenceImage({
   alt: string;
   hero?: boolean;
 }) {
+  const credit = speciesReferenceCredit(image);
   return (
     <Stack gap={0}>
       <Image
@@ -281,7 +286,15 @@ function ReferenceImage({
         fit="cover"
       />
       <Text size="xs" c="dimmed" p="sm">
-        {referenceImageCaption(image)}
+        {image.attribution} — {credit.licenseURL ? (
+          <Anchor href={credit.licenseURL} target="_blank" rel="noopener noreferrer" inherit>
+            {credit.licenseLabel}
+          </Anchor>
+        ) : credit.licenseLabel} · {credit.sourceURL ? (
+          <Anchor href={credit.sourceURL} target="_blank" rel="noopener noreferrer" inherit>
+            {credit.sourceLabel}
+          </Anchor>
+        ) : credit.sourceLabel}
       </Text>
     </Stack>
   );
@@ -353,15 +366,6 @@ function missingSpeciesMetadata(): Metadata {
     title: "Species not found",
     robots: { index: false, follow: false },
   };
-}
-
-function referenceImageCaption(image: PublicSpeciesReferenceImage): string {
-  const source = image.source === "merian"
-    ? "Naturebook"
-    : image.source === "wikipedia"
-      ? "Wikipedia"
-      : "GBIF";
-  return `${image.attribution} — ${image.license} · ${source}`;
 }
 
 function speciesTaxonomyRows(species: WebSpeciesDictionaryEntry) {

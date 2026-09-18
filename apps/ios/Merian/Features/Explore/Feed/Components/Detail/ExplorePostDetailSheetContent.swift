@@ -6,8 +6,10 @@ struct ExplorePostDetailSheetContent: View {
     @Bindable var chatViewModel: InsightChatViewModel
     @Binding var presentedSheet: ExplorePostDetailPresentation?
 
+    let reactorsModel: ExplorePostReactorsViewModel
     let presentation: ExplorePostDetailPresentation
     let currentPost: ExplorePost?
+    var onSelectReaction: (String) -> Void = { _ in }
     let localFieldNotes: String?
     let onUpdateLocalFieldNotes: @MainActor (String) -> Void
     let onSaveFieldNotes: @MainActor (
@@ -133,6 +135,17 @@ struct ExplorePostDetailSheetContent: View {
                 reason: "explore-post-detail-field-chat-sheet"
             )
 
+        case .emojiPicker:
+            if let post = matchingPost {
+                ExploreEmojiPicker(selectedEmojis: Set((post.reactions ?? []).filter(\.viewerHasReacted).map(\.emoji)).union(post.viewerHasLiked ? ["❤️"] : [])) { emoji in
+                    onSelectReaction(emoji)
+                    Task { await feedViewModel.setPostReaction(for: post, emoji: emoji, selected: true) }
+                }
+            }
+
+        case .reactors:
+            if matchingPost != nil { ExplorePostReactorsSheet(model: reactorsModel) }
+
         case .paywall:
             PaywallView()
                 .exploreVideoPresentedOverlayLifecycle(
@@ -151,7 +164,7 @@ struct ExplorePostDetailSheetContent: View {
 
     private var expectedPostID: String? {
         switch presentation {
-        case .fieldNotes(let postID), .postComposer(let postID), .fieldChat(let postID):
+        case .fieldNotes(let postID), .postComposer(let postID), .fieldChat(let postID), .emojiPicker(let postID), .reactors(let postID):
             postID
         case .insight, .author, .notificationReply, .paywall:
             nil
@@ -191,5 +204,28 @@ struct ExplorePostDetailSheetContent: View {
         return SpeciesCommonNamePresentation.removingFuzzyDuplicates(
             from: candidates
         )
+    }
+}
+
+/// Renders the destructive confirmation while its route host retains selection ownership.
+struct ExplorePostUnpublishConfirmation: ViewModifier {
+    @Binding var post: ExplorePost?
+    let onUnpublish: (ExplorePost) -> Void
+
+    func body(content: Content) -> some View {
+        content.alert(
+            "Unpublish Post?",
+            isPresented: Binding(
+                get: { post != nil },
+                set: { if !$0 { post = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) { }
+            Button("Unpublish", role: .destructive) {
+                if let post { onUnpublish(post) }
+            }
+        } message: {
+            Text("This will remove the post from Explore. Your original scan will remain safely in your library.")
+        }
     }
 }

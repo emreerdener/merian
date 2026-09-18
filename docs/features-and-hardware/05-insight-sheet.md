@@ -186,10 +186,12 @@ lighting, light-contrast, and surface-detail cues from the current deterministic
 local extractor. The category handoff is immediate; later automatic label
 changes use the shared 2.3-second clock. The default-enabled
 `AppleFoundationVisualCueProvider` can replace the deterministic trait deck with
-richer complete cues on eligible iOS 27 devices. Source priority is monotonic,
-so generic or category text never returns after more-specific trait context
-arrives. The pill shows every phrase in its active deck before wrapping to the
-first phrase for a new round.
+up to six richer complete cues on eligible iOS 27 devices. The Foundation deck
+then cycles through five general visual phrases before repeating observations,
+including when fewer than six cues qualify. A full eleven-phrase cycle spans
+25.3 seconds. New streamed observations take the next tick and then resume the
+general tail without restarting it. Source priority stays monotonic: late
+category or deterministic callbacks cannot replace this deck.
 
 Visible trait strings are natural verb-led observations such as **Analyzing gray
 and green colors**, **Reviewing softly colored areas**, and **Observing light
@@ -200,10 +202,10 @@ never says **moderate color levels** or **balanced light and dark**.
 The pill must not claim a species, confidence, candidate match, records lookup,
 range check, or completed cloud result. Deterministic local analysis is limited
 to five complete, unique labels of at most 36 rendered characters; the
-Foundation stream remains limited to three. Partial cue objects and text
-rejected by the validator never reach SwiftUI. The identity filter covers fixed
-forbidden vocabulary and Vision candidate tokens, not every possible subject
-name; follow the
+Foundation stream is limited to six. Partial cue objects and text rejected by
+the validator never reach SwiftUI. The identity filter covers fixed forbidden
+vocabulary and Vision candidate tokens, not every possible subject name; follow
+the
 [Foundation acceptance contract](../system-architecture/04-ai-engineering.md#stable-xcode-27-foundation-models-milestone)
 for outstanding device validation. Gemini remains the only source for the
 completed identification and Insight content.
@@ -1100,11 +1102,11 @@ Source ownership mirrors the runtime pipeline: `Media/Carousel/Models` defines
 deterministic presentation values, `Builders` assembles and filters pages,
 `Services` supplies the narrow live side-effect seam, `Playback` contains
 AVPlayer lifetimes, and mounted UI state stays in `Pages`, `Components`, and the
-two root carousel views. Domain-neutral paging, zoom, pagination, and hero
-scroll-edge presentation shared with Field Trips belongs to
-`Core/UI/Components/MediaCarousel`. The split does not change the mixed-media
-order, copy, accessibility identifiers, animation clock, mute policy, focus
-timing, fallback behavior, or fullscreen routes.
+two root carousel views. Domain-neutral paging, zoom, and pagination shared with
+Field Trips belong to `Core/UI/Components/MediaCarousel`. The App presentation
+root owns transparent top scroll-edge treatment. The split does not change the
+mixed-media order, copy, accessibility identifiers, animation clock, mute
+policy, focus timing, fallback behavior, or fullscreen routes.
 
 1. **Live captures** (`viewModel.activeMedia.liveImageData`) — display-quality
    `Data` for the current session's live frame when analysis is still in flight.
@@ -1286,16 +1288,16 @@ image-origin, still-source, and focus identity into the reuse key, while Field
 Trips uses its stable goal-derived page ID plus the existing reference/user
 source-family boundary. Both surfaces also use `MediaCarouselPaginationDots` for
 the same single-page hiding, selection animation, material capsule, and
-accessibility count treatment. Their top-edge heroes share
-`MediaHeroTopScrollEdgeEffectModifier`, which suppresses the iOS 26 scroll-edge
-treatment while imagery remains beneath transparent navigation chrome and
-restores it after the hero clears the toolbar. `TabView(.page)` was evaluated
-and rejected for two reasons: it lazily instantiates pages (so
-`AsyncLocalImageView.task` only fires when the user swipes to a page, causing
-image loads during the swipe transition), and its gesture recogniser conflicts
-with the sheet's pan gesture. `UIPageViewController` fixes both: the
-`Coordinator` pre-creates all controllers upfront, and its internal
-`UIScrollView` defers to the sheet's pan without manual workarounds.
+accessibility count treatment. Their top-edge heroes inherit
+`AppTopScrollEdgeEffectModifier` from the App presentation root, which keeps the
+iOS 26+ top scroll-edge effect hidden even after the hero clears the toolbar.
+`TabView(.page)` was evaluated and rejected for two reasons: it lazily
+instantiates pages (so `AsyncLocalImageView.task` only fires when the user
+swipes to a page, causing image loads during the swipe transition), and its
+gesture recogniser conflicts with the sheet's pan gesture.
+`UIPageViewController` fixes both: the `Coordinator` pre-creates all controllers
+upfront, and its internal `UIScrollView` defers to the sheet's pan without
+manual workarounds.
 
 The Core page defaults its reuse key to its stable ID. When both values remain
 equal, the coordinator pushes updated SwiftUI content into the mounted

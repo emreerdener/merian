@@ -1,3 +1,8 @@
+export function publicAuthorHandle(username?: string | null) {
+  const trimmedUsername = username?.trim();
+  return trimmedUsername ? `@${trimmedUsername}` : "a Naturebook observer";
+}
+
 export function compactSpeciesTitle(commonName: string, scientificName: string) {
   const trimmedCommon = commonName.trim();
   const trimmedScientific = scientificName.trim();

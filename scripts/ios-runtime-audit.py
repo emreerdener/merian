@@ -66,9 +66,39 @@ def summarize_metrics(payload):
         deviation = statistics.stdev(values) if len(values) > 1 else 0
         result[key] = dict(samples=values, count=len(values), mean=mean,
                            median=statistics.median(values), stdev=deviation,
-                           cv_percent=100 * deviation / abs(mean) if mean else 0,
+                           cv_percent=coefficient_of_variation(mean, deviation),
                            minimum=min(values), maximum=max(values))
     return result
+
+
+def coefficient_of_variation(mean, deviation):
+    # Zero-mean signed deltas (including all-zero samples) have no defined CV.
+    return 100 * deviation / abs(mean) if mean else None
+
+
+def variance_observations(metrics):
+    observations = []
+    for key, metric in metrics.items():
+        # Recompute so historical reports with a numeric zero placeholder remain readable.
+        cv = coefficient_of_variation(metric['mean'], metric['stdev'])
+        if cv is None:
+            observations.append(f'UNDEFINED CV (zero mean; inspect raw samples and SD): {key}')
+        elif cv > 15:
+            observations.append(f'HIGH VARIANCE {cv:.1f}%: {key}')
+    return observations
+
+
+def metric_coverage_observations(metrics, expectations):
+    observations = []
+    for selection in expectations:
+        expected_test = '/'.join(selection['selector'].split('/')[1:])
+        identifiers = [key.split(' | ')[3].lower() for key in metrics
+                       if key.split(' | ')[0].removesuffix('()').split('/')[-2:]
+                       == expected_test.split('/')[-2:]]
+        for family in selection.get('report_metric_families', []):
+            if not any(family.lower() in identifier for identifier in identifiers):
+                observations.append(f'UNMEASURED {family}: {expected_test}; no exported samples, not qualified.')
+    return observations
 
 
 def validate_baseline(baseline):
@@ -109,11 +139,9 @@ def compare(current, baseline):
                               + previous['stdev'] ** 2 / previous['count'])
         if delta > max(abs(previous['mean']) * 0.20, noise):
             observations.append(f'REVIEW increase {delta:.6g} ({key}); report-only')
-        if measured['cv_percent'] > 15:
-            observations.append(f'HIGH VARIANCE {measured["cv_percent"]:.1f}%: {key}')
     for missing in baseline['metrics'].keys() - current['metrics'].keys():
         observations.append(f'MISSING baseline metric: {missing}')
-    return observations
+    return observations + variance_observations(current['metrics'])
 
 
 def extract(bundle, output, selections, performance=False):
@@ -140,7 +168,11 @@ def extract(bundle, output, selections, performance=False):
 def write_report(output, evidence, baseline=None):
     if baseline is not None:
         validate_baseline(baseline)
-    observations = compare(evidence, baseline) if baseline is not None else ['No baseline supplied; baseline pending.']
+    observations = (compare(evidence, baseline) if baseline is not None else
+                    ['No baseline supplied; baseline pending.'] + variance_observations(evidence['metrics']))
+    observations += metric_coverage_observations(evidence['metrics'], evidence.get('metric_expectations', []))
+    for metric in evidence['metrics'].values():
+        metric['cv_percent'] = coefficient_of_variation(metric['mean'], metric['stdev'])
     evidence['observations'] = observations
     (output / 'audit.json').write_text(json.dumps(evidence, indent=2) + '\n')
     lines = ['# iOS runtime audit', '', f'Source commit: `{evidence["source_sha"]}`',
@@ -153,8 +185,9 @@ def write_report(output, evidence, baseline=None):
               '| --- | ---: | ---: | ---: | ---: | ---: | ---: |']
     for key, metric in evidence['metrics'].items():
         label = key.replace('|', '/')
+        cv = 'undefined' if metric['cv_percent'] is None else f'{metric["cv_percent"]:.2f}'
         lines.append(f'| {label} | {metric["count"]} | {metric["mean"]:.6g} | '
-                     f'{metric["stdev"]:.6g} | {metric["cv_percent"]:.2f} | '
+                     f'{metric["stdev"]:.6g} | {cv} | '
                      f'{metric["minimum"]:.6g} | {metric["maximum"]:.6g} |')
     lines += ['', '## Baseline comparison', '', *[f'- {item}' for item in observations], '']
     (output / 'summary.md').write_text('\n'.join(lines))

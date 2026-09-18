@@ -109,6 +109,14 @@ mode returns to the leading segment: Feed for Observations, Outings for Field
 trips, and Species for Identify. Moving between different bottom items preserves
 their remembered root modes.
 
+`ExploreView` also retains the Species overview model for this Explore
+presentation. Returning from Requests, another root tab, or a pushed page reuses
+recent overview content; after five minutes, a returning view refreshes it while
+keeping same-country content visible. Pull-to-refresh always fetches, and
+closing Explore releases the retained overview. Catalog owns the country,
+freshness, and cancellation rules in the
+[Species overview lifecycle contract](./16-species-dictionary.md#ios-catalog-ownership-and-request-lifecycle).
+
 Species deep links and in-app species routes select Identify/Species before
 pushing `SpeciesDictionaryRoute`. Community request deep links and notifications
 select Identify/Requests before pushing `ExploreCommunityRequestRoute`. This

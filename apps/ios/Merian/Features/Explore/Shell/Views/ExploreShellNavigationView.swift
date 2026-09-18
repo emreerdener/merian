@@ -16,6 +16,7 @@ struct ExploreShellNavigationView: View {
 
     let feedViewModel: ExploreFeedViewModel
     let mapViewModel: ExploreMapViewModel
+    let dictionaryOverviewViewModel: SpeciesDictionaryOverviewViewModel
     let dictionaryUserRegionIdentifier: String?
     let allowsInsightPresentation: Bool
     let onOpenOwnedPostInsight: ((String) -> Bool)?
@@ -365,7 +366,10 @@ struct ExploreShellNavigationView: View {
                     onOpenActivityFeed: { navigationPath.append($0) }
                 )
             case .index:
-                SpeciesDictionaryOverviewView(userRegion: dictionaryUserRegionIdentifier)
+                SpeciesDictionaryOverviewView(
+                    userRegion: dictionaryUserRegionIdentifier,
+                    viewModel: dictionaryOverviewViewModel
+                )
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))

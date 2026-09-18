@@ -192,6 +192,7 @@ class AuditBuildTests(unittest.TestCase):
                 return json.dumps(devices)
             return 'fixture'
         with patch.object(build.subprocess, 'check_output', side_effect=read), \
+             patch.object(workspace, 'audit_workload_fingerprint', return_value='workload'), \
              patch.object(build.host_platform, 'platform', return_value='fixture'):
             first = workspace.audit_environment('platform=iOS Simulator,id=one', 'pool')
             second = workspace.audit_environment('platform=iOS Simulator,id=two', 'pool')
@@ -199,7 +200,52 @@ class AuditBuildTests(unittest.TestCase):
         self.assertEqual(first['runtime'], 'iOS-fixture')
         self.assertNotIn('destination', first)
 
-    def exercise(self, fail_at=None, config_text=None):
+    def test_workload_fingerprint_tracks_selectors_and_shared_fixtures(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            workspace = build.Workspace(root)
+            inputs = ['project.yml', 'scripts/config/ios-runtime-audit.json',
+                      'apps/ios/TestSupport/Fixture.swift',
+                      'apps/ios/TestSupport/fixture.wav',
+                      'apps/ios/Merian/App/UITesting/Seed.swift',
+                      'apps/ios/Merian/App/UITesting/fixture.wav',
+                      'apps/ios/Merian/Configuration/TestExecutionCoordinator.swift',
+                      'apps/ios/MerianUITests/Launcher.swift',
+                      'apps/ios/MerianPerformanceTests/Measurement.swift']
+            for name in inputs:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('initial')
+            original = workspace.audit_workload_fingerprint()
+            self.assertEqual(original, workspace.audit_workload_fingerprint())
+            for name in inputs:
+                (root / name).write_text('changed')
+                self.assertNotEqual(original, workspace.audit_workload_fingerprint())
+                (root / name).write_text('initial')
+
+    def test_source_identity_detects_untracked_edits_and_head_changes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            workspace = build.Workspace(root)
+            path = root / 'NewTest.swift'
+            path.write_text('initial')
+            head = 'first'
+            def read(command, **kwargs):
+                if command[1] == 'ls-files':
+                    return 'NewTest.swift\0'
+                if command[1] == 'rev-parse':
+                    return head
+                return 'fixture'
+            with patch.object(build.subprocess, 'check_output', side_effect=read):
+                original = workspace.audit_source_identity()
+                path.write_text('changed')
+                self.assertNotEqual(original, workspace.audit_source_identity())
+                path.write_text('initial')
+                self.assertEqual(original, workspace.audit_source_identity())
+                head = 'second'
+                self.assertNotEqual(original, workspace.audit_source_identity())
+
+    def exercise(self, fail_at=None, config_text=None, source_change_after=None, identity_failure_after=None):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             workspace = build.Workspace(root)
@@ -226,9 +272,14 @@ class AuditBuildTests(unittest.TestCase):
             reporter = SimpleNamespace(extract=Mock(return_value={}),
                                        write_report=lambda output, evidence, baseline=None: reports.append(evidence))
             module_spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda module: None))
+            def source_identity():
+                if identity_failure_after is not None and len(calls) >= identity_failure_after:
+                    raise OSError('Cannot inspect source')
+                changed = source_change_after is not None and len(calls) >= source_change_after
+                return dict(source_sha='fixture', source_fingerprint='changed' if changed else 'fixture', source_dirty=False)
             with patch.object(build.importlib.util, 'spec_from_file_location', return_value=module_spec), \
                  patch.object(build.importlib.util, 'module_from_spec', return_value=reporter), \
-                 patch.object(build.subprocess, 'check_output', return_value='fixture'), \
+                 patch.object(workspace, 'audit_source_identity', side_effect=source_identity), \
                  patch.object(workspace, 'audit_environment', return_value={'runner': 'fixture'}), \
                  patch.object(workspace, 'resolve_audit_packages'), \
                  patch.object(workspace, 'run_locked', side_effect=run):
@@ -254,6 +305,19 @@ class AuditBuildTests(unittest.TestCase):
         self.assertIn('-test-iterations', calls[3])
         self.assertEqual(len(evidence['phases']), 4)
         self.assertEqual(reporter.extract.call_count, 3)
+        self.assertEqual(evidence['metric_expectations'][0]['selector'], 'target/Suite/testCase')
+
+    def test_malformed_metric_expectations_fail_before_build(self):
+        for families in ('Hitch', None, [1], [''], ['  ']):
+            config = {name: [dict(selector='target/Suite/testCase', suite_names=['Suite'])]
+                      for name in ('acceptance', 'ui', 'performance')}
+            config['performance'][0]['report_metric_families'] = families
+            with self.subTest(families=families):
+                status, calls, evidence, reporter = self.exercise(config_text=json.dumps(config))
+                self.assertEqual(status, 1)
+                self.assertEqual(calls, [])
+                self.assertEqual(evidence['phases'][0]['name'], 'preflight')
+                reporter.extract.assert_not_called()
 
     def test_compile_failure_never_runs_stale_products(self):
         status, calls, evidence, reporter = self.exercise(fail_at=1)
@@ -262,6 +326,25 @@ class AuditBuildTests(unittest.TestCase):
         self.assertEqual([phase['status'] for phase in evidence['phases']],
                          ['failed', 'blocked', 'blocked', 'blocked'])
         reporter.extract.assert_not_called()
+
+    def test_source_changes_block_candidate_evidence_and_remaining_phases(self):
+        for phase in range(1, 5):
+            with self.subTest(phase=phase):
+                status, calls, evidence, reporter = self.exercise(source_change_after=phase)
+                self.assertEqual(status, 1)
+                self.assertEqual(len(calls), phase)
+                self.assertEqual(evidence['phases'][phase - 1]['status'], 'failed')
+                self.assertIn('Source changed', evidence['phases'][phase - 1]['detail'])
+                self.assertTrue(all(item['status'] == 'blocked' for item in evidence['phases'][phase:]))
+
+    def test_unreadable_source_identity_blocks_remaining_phases(self):
+        for phase in range(1, 5):
+            with self.subTest(phase=phase):
+                status, calls, evidence, reporter = self.exercise(identity_failure_after=phase)
+                self.assertEqual(status, 1)
+                self.assertEqual(len(calls), phase)
+                self.assertEqual(evidence['phases'][phase - 1]['status'], 'failed')
+                self.assertTrue(all(item['status'] == 'blocked' for item in evidence['phases'][phase:]))
 
     def test_acceptance_failure_is_preserved_while_other_phases_collect_evidence(self):
         status, calls, evidence, reporter = self.exercise(fail_at=2)

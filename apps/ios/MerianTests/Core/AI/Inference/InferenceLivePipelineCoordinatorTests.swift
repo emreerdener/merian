@@ -58,7 +58,11 @@ final class InferenceLivePipelineHarness {
         events = []
     }
 
-    func makeSystem() -> (
+    func makeSystem(
+        queueService: InferenceLiveQueueService? = nil,
+        requestService: InferenceLiveRequestService? = nil,
+        resultService: InferenceLiveResultService? = nil
+    ) -> (
         pipeline: InferenceLivePipelineCoordinator,
         attempt: InferenceLiveAttemptCoordinator
     ) {
@@ -81,7 +85,7 @@ final class InferenceLivePipelineHarness {
             },
             rejectQueuedScan: { _, _, _ in true }
         ))
-        let attempt = InferenceLiveAttemptCoordinator(queueService: queue)
+        let attempt = InferenceLiveAttemptCoordinator(queueService: queueService ?? queue)
         let request = InferenceLiveRequestService(dependencies: .init(
             encodeVisualImages: { [self] _ in
                 events.append(.encode)
@@ -151,8 +155,8 @@ final class InferenceLivePipelineHarness {
         )
         let pipeline = InferenceLivePipelineCoordinator(
             attemptCoordinator: attempt,
-            requestService: request,
-            resultService: result,
+            requestService: requestService ?? request,
+            resultService: resultService ?? result,
             completionCoordinator: completion,
             failureCoordinator: failure,
             dependencies: .init(
