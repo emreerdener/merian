@@ -66,35 +66,20 @@ returned by `supabase secrets list --output json`. Function rollout stops if the
 named secret is missing, duplicated, malformed, or different; neither the key
 nor either digest is logged.
 
-`MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` is a separate GitHub control-plane
-secret, not a Supabase or Edge credential. It exists only in the protected
-GitHub `Production` environment and must never be synchronized into Supabase.
-Before ordinary production credentials are read, the exact-SHA-checked deploy
-job verifies that this short-lived record matches the checked-in hold-manifest
-digest and complete criterion/evidence set. Only its SHA-256, stable criterion
-IDs, artifact IDs, and digests may appear in logs.
+`MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` is a legacy optional audit input, not
+a Supabase credential and not consumed by automatic deployments. Retained
+clearance artifacts and their parser remain available for historical audits;
+never commit populated records or synchronize them to Supabase.
 
-`MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` is the read-only GitHub credential for that
-verification. It must be able to read Actions runs/artifacts, pull-request
-reviews, branch protection, and the `Release Evidence` and `Production`
-environment policies, but it must not have repository, environment, secret, or
-deployment write authority. The verifier proves the candidate is the current
-protected `main` head, requires merged-main PR provenance and explicit
-sole-maintainer `@emreerdener` environment approval, and checks fail-closed
-branch and reviewer environment settings. For every clearance criterion it
-downloads one uniquely assigned exact-SHA `release-evidence.json` artifact,
-recomputes the archive and embedded JSON digests, verifies the successful origin
-and supporting workflow runs, validates the hold/criterion/evidence-type
-bindings, and rejects evidence observed more than 30 days earlier. The same
-30-day limit applies to each supporting run's GitHub `updated_at`, and one
-positive artifact ID may not be reused across criteria. The protected publisher
-must be dispatched from current `main`; manual values enter Bash only through
-step environment variables and must never be interpolated directly from
-`${{ inputs.* }}` into a `run` script. External issuer authenticity and who may
-administer GitHub secrets remain reviewed operational boundaries; a protected
-artifact and digest prove the retained bytes, not an off-platform authority by
-themselves. The complete operator procedure is in the
-[release-evidence guide](../release-evidence/README.md).
+`MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` is read-only and confined to Production. It
+reads branch protection, PR provenance, and environment policies for the
+automatic gate before any Supabase credential is used. Optional evidence audits
+also read Actions runs/artifacts. It must have no repository, deployment,
+environment, or secrets write authority. The gate verifies current protected
+main and protected environment branches with no required reviewers, timers, or
+custom approval gates. Missing access fails closed. The active source hold
+remains a separate blocker; completing it is not implied by removing manual
+reviews. See the [release-evidence guide](../release-evidence/README.md).
 
 ### Edge Functions and Deno tooling
 
@@ -475,14 +460,12 @@ ad-hoc repair SQL merely to turn a monitor green.
 
 Repository tests are necessary but do not prove hosted state. Before calling
 this correction released, require the reusable exact-SHA candidate gate, the
-checked-in source hold gate, merged-main PR provenance, sole-maintainer
-`@emreerdener` approval in protected `Release Evidence` and `Production` jobs,
-and the artifact-backed clearance described in the deployment runbook. The
-production verifier must retrieve every criterion artifact, recompute its
-archive and embedded payload digests, verify exact-SHA successful workflow
-provenance, and accept the live branch/environment controls. The maintainer must
-review the substance and authority of off-platform approvals before publishing
-their redacted evidence statement. Then:
+checked-in source hold gate, merged-main PR provenance, and live branch and
+automatic environment protections described in the deployment runbook. No
+per-deployment review click or fresh manual clearance is required. Hold-exit
+evidence must be real and retained before resolving the hold. Optional artifact
+audits verify retained bytes and provenance; external approvals retain their own
+substantive requirements. Then:
 
 1. Replay all migrations and all discovered pgTAP fixtures against disposable
    PostgreSQL 17.

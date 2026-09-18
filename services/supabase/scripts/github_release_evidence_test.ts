@@ -3,7 +3,6 @@ import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import {
   GitHubReleaseEvidenceVerifier,
   parseAndValidateReleaseEvidenceStatement,
-  RELEASE_MAINTAINER,
 } from "./github_release_evidence.ts";
 
 const candidateSha = "a".repeat(40);
@@ -63,11 +62,7 @@ async function evidenceArchive(): Promise<{
 function protectedEnvironment() {
   return {
     can_admins_bypass: false,
-    protection_rules: [{
-      type: "required_reviewers",
-      prevent_self_review: false,
-      reviewers: [{ type: "User", reviewer: { login: RELEASE_MAINTAINER } }],
-    }],
+    protection_rules: [{ type: "branch_policy" }],
     deployment_branch_policy: {
       protected_branches: true,
       custom_branch_policies: false,
@@ -174,7 +169,7 @@ Deno.test("GitHub release evidence downloads bytes and validates live controls",
     "main_branch_protection",
     "candidate_is_current_main_head",
     "pull_request_17_merged_main_provenance",
-    "sole_maintainer_environment_approval",
+    "automatic_environment_policy",
     "release_evidence_environment_protection",
     "production_environment_protection",
   ]);
@@ -414,7 +409,7 @@ function soloControls(): Record<string, unknown> {
       merged_at: "2026-08-24T10:00:00Z",
       merge_commit_sha: candidateSha,
       base: { ref: "main", repo: { full_name: repository } },
-      user: { login: RELEASE_MAINTAINER, type: "User" },
+      user: { login: "emreerdener", type: "User" },
     }],
     "/environments/Release%20Evidence": protectedEnvironment(),
     "/environments/Production": protectedEnvironment(),
@@ -438,68 +433,37 @@ function verifierForControls(controls: Record<string, unknown>) {
   });
 }
 
-Deno.test("sole maintainer can author the PR and approve both protected environments", async () => {
+Deno.test("automatic environments retain merged PR and protected branch checks", async () => {
   const controls = await verifierForControls(soloControls())
     .verifyRepositoryControls(candidateSha);
-  assertEquals(controls.includes("sole_maintainer_environment_approval"), true);
+  assertEquals(controls.includes("automatic_environment_policy"), true);
 });
 
 for (const environment of ["Release%20Evidence", "Production"]) {
   const valid = protectedEnvironment();
   for (
     const [name, invalid] of Object.entries({
-      "missing reviewer": { ...valid, protection_rules: [] },
       "unknown protection rules": { ...valid, protection_rules: null },
-      "wrong reviewer": {
+      "required reviewer": {
         ...valid,
         protection_rules: [{
-          ...valid.protection_rules[0],
-          reviewers: [{ type: "User", reviewer: { login: "other" } }],
+          type: "required_reviewers",
+          reviewers: [{ type: "User", reviewer: { login: "emreerdener" } }],
         }],
       },
-      "extra reviewer": {
+      "empty reviewer rule": {
         ...valid,
-        protection_rules: [{
-          ...valid.protection_rules[0],
-          reviewers: [...valid.protection_rules[0].reviewers, {
-            type: "User",
-            reviewer: { login: "other" },
-          }],
-        }],
+        protection_rules: [{ type: "required_reviewers", reviewers: [] }],
       },
-      "team reviewer": {
+      "wait timer": {
         ...valid,
-        protection_rules: [{
-          ...valid.protection_rules[0],
-          reviewers: [{
-            type: "Team",
-            reviewer: { login: RELEASE_MAINTAINER },
-          }],
-        }],
+        protection_rules: [{ type: "wait_timer", wait_timer: 30 }],
       },
-      "self-review deadlock": {
+      "custom gate": {
         ...valid,
-        protection_rules: [{
-          ...valid.protection_rules[0],
-          prevent_self_review: true,
-        }],
+        protection_rules: [{ type: "custom_deployment_protection_rule" }],
       },
-      "unknown self-review setting": {
-        ...valid,
-        protection_rules: [{
-          ...valid.protection_rules[0],
-          prevent_self_review: undefined,
-        }],
-      },
-      "duplicate reviewer rule": {
-        ...valid,
-        protection_rules: [
-          ...valid.protection_rules,
-          ...valid.protection_rules,
-        ],
-      },
-      "admin bypass": { ...valid, can_admins_bypass: true },
-      "unknown admin bypass": { ...valid, can_admins_bypass: undefined },
+      "malformed rule": { ...valid, protection_rules: [null] },
       "unrestricted branches": { ...valid, deployment_branch_policy: null },
       "custom branch policy": {
         ...valid,
@@ -510,14 +474,14 @@ for (const environment of ["Release%20Evidence", "Production"]) {
       },
     })
   ) {
-    Deno.test(`sole maintainer rejects ${environment}: ${name}`, async () => {
+    Deno.test(`automatic release rejects ${environment}: ${name}`, async () => {
       const controls = soloControls();
       controls[`/environments/${environment}`] = invalid;
       await assertRejects(
         () =>
           verifierForControls(controls).verifyRepositoryControls(candidateSha),
         Error,
-        "must require only emreerdener",
+        "must allow automatic jobs",
       );
     });
   }
@@ -589,3 +553,19 @@ for (
     );
   });
 }
+
+Deno.test("automatic environments permit empty protection rules with protected branches", async () => {
+  const controls = soloControls();
+  for (const name of ["Release%20Evidence", "Production"]) {
+    controls[`/environments/${name}`] = {
+      ...protectedEnvironment(),
+      protection_rules: [],
+      can_admins_bypass: true,
+    };
+  }
+  assertEquals(
+    (await verifierForControls(controls).verifyRepositoryControls(candidateSha))
+      .includes("automatic_environment_policy"),
+    true,
+  );
+});

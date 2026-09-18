@@ -4533,7 +4533,7 @@ Deno.test("Species Dictionary production hold is machine enforced and documented
       "current protected `main` head",
       "Code Owner review and last-push approval disabled",
       "no more than 30 days old",
-      "sole-maintainer environment approvals",
+      "automatic environment policy",
       "digest proves retained bytes, not the issuing authority",
     ]
   ) {
@@ -4591,9 +4591,8 @@ Deno.test("Species Dictionary production hold is machine enforced and documented
   for (
     const releaseControl of [
       "--mode source-status",
-      "--mode production-clearance",
+      "--mode automatic-release",
       "MERIAN_GITHUB_RELEASE_AUDIT_TOKEN",
-      "MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON",
       "Verify exact clean production candidate",
       "ref: ${{ github.sha }}",
       "finalize_field_chat_function_plan.ts",

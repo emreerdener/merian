@@ -90,27 +90,17 @@ production workflow next runs a non-Production source hold gate that requires
 the exact checkout to be the current `refs/heads/main`/`origin/main` head. A
 valid active hold reports `release_status=held` and `deploy_allowed=false`, so
 the validated workflow remains green while the downstream Production job is
-skipped before environment approval, credentials, or mutation. A missing,
-malformed, duplicate, or required-ID-absent manifest still fails the workflow.
-When the source status is clear, the sole Production job independently pins,
-clean-checks, and current-main-checks the same SHA and, for every reviewed
-inactive hold, requires the protected `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON`
-secret to match the candidate, manifest digest, complete criterion/evidence-type
-set, positive GitHub artifact IDs, nonzero digests, and current approval window
-before ordinary production credentials or mutations are reachable. With the
-read-only `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`, it checks live branch/environment
-protections including sole-maintainer approval in both environments (only
-`@emreerdener`, self-review allowed, admin bypass disabled, protected branches
-only) and merged-main PR provenance, downloads each uniquely assigned artifact,
-recomputes archive and embedded evidence digests, rejects evidence older than 30
-days, and verifies exact-SHA successful supporting runs whose GitHub
-`updated_at` is also within 30 days. One positive artifact ID may satisfy only
-one criterion. Evidence publication must start at the current `main` head, and
-manual workflow inputs must enter Bash through step environment variables, never
-direct `${{ inputs.* }}` interpolation in a `run` script. Artifact integrity
-does not prove an off-platform issuer or independent secret administration;
-those remain reviewed operational boundaries. See the
-[release-evidence operations guide](../../docs/release-evidence/README.md).
+skipped before environment secrets or mutation. A missing, malformed, duplicate,
+or required-ID-absent manifest still fails the workflow. When the source status
+is clear, the Production job pins and clean-checks the current main SHA and runs
+the automated repository-control gate. It requires
+`MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` for live branch/environment checks, but no
+per-commit clearance secret or environment approval. Both environments permit
+protected branches only with no reviewers or waiting gates. Scheduled monitors
+sharing Production run automatically. The existing active hold remains a
+one-time blocker until its evidence is complete and it is resolved in source.
+The [release-evidence operations guide](../../docs/release-evidence/README.md)
+owns optional retained-evidence publication and audit procedures.
 
 Catalog fixtures preserve production signup behavior. An `auth.users` insert
 fires `on_auth_user_created` and can create `public.users` synchronously; a
@@ -2788,15 +2778,12 @@ handler test executes the post-authenticated core, not a hosted real-token HTTP
 request. Supabase production is blocked by the checked-in
 `species_dictionary_chat_production_hold`; Candidate Validation may run, but the
 separate source hold job must pass before the GitHub `Production` environment or
-any mutation-capable deployment step is reached. A source-only inactive hold is
-insufficient: the exact-SHA-checked Production job also requires a protected
-clearance matching the candidate, manifest digest, complete criterion set, and
-retained evidence digests. The verifier checks those bindings but does not stop
-there: it downloads and recomputes each GitHub artifact, validates its
-structured evidence and exact-SHA supporting runs, and checks live protection
-settings. Keep the hold active until non-skipped database and wrapper-auth
-execution, both same-SHA hosted gates, the released-V49 install-over, and every
-external gate in the canonical deployment runbook are retained.
+any mutation-capable deployment step is reached. After the hold is legitimately
+resolved, the exact-SHA Production job verifies live branch/environment controls
+automatically, without a renewed manual clearance record on every commit. Keep
+the hold active until non-skipped database and wrapper-auth execution, both
+same-SHA hosted gates, the released-V49 install-over, and every external gate in
+the canonical deployment runbook are retained.
 
 For the Field trip Scan indicator and starter enrollment, apply the complete
 ordered Field trip chain through

@@ -342,14 +342,10 @@ reviewed 2026-08-24 source now:
    U+FEFF rejection, combining marks, non-BMP scalars, and 64-scalar boundary
    cases; and
 6. requires the named hold ID fail closed, independently pins and clean-checks
-   the mutation SHA, and—after a reviewed inactive change—requires a protected
-   Production clearance that matches the SHA, manifest digest, complete stable
-   criterion set, evidence types, GitHub artifact IDs/digests, and approval
-   window. The verifier downloads and recomputes every artifact, validates its
-   structured payload and exact-SHA workflow runs, requires the current
-   protected `main` head, rejects evidence or supporting runs older than 30
-   days, prevents artifact reuse across criteria, and checks live branch and
-   environment protections.
+   the mutation SHA, and checks current protected main, merged-PR provenance,
+   required checks, branch rules without bypass, and automatic environment
+   policy before mutation. Optional artifact audits preserve retained evidence;
+   ordinary deployments require no review click or per-commit clearance secret.
 
 Production remains blocked until the database-backed cases execute without a
 connection skip on the immutable candidate; the authenticated HTTP wrapper
@@ -358,8 +354,8 @@ every live route's content digest matches the candidate; a genuine released V49
 binary accepts the exact V50 candidate without safe mode/store replacement or
 data loss; and both hosted gates pass on that same SHA. The live verifier must
 accept merged-main PR provenance, protected branch rules without bypass, and
-sole-maintainer `@emreerdener` approval in `Release Evidence` and `Production`
-with self-review allowed and administrator bypass disabled. The canonical
+automatic `Release Evidence` and `Production` environments restricted to
+protected branches with no reviewers or waiting gates. The canonical
 production-consent, App Store privacy/age-rating, paid Gemini billing, DPA, and
 legal evidence must also be approved. Artifact digests establish the retained
 bytes, not the authenticity of an off-platform issuer or independent secret

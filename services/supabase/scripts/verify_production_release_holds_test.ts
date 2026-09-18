@@ -1,6 +1,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { ReleaseEvidenceVerifier } from "./github_release_evidence.ts";
 import {
+  evaluateAutomaticProductionRelease,
   evaluateProductionReleaseClearance,
   evaluateProductionReleaseHolds,
   productionHoldCommandSucceeds,
@@ -290,5 +291,85 @@ Deno.test("clearance blocks when live controls or artifact bytes cannot be verif
     );
     assertEquals(decision.allowed, false);
     assertStringIncludes(decision.summary, "failed closed");
+  }
+});
+
+Deno.test("automatic release accepts a clear source and live controls without clearance", async () => {
+  let checkedSha = "";
+  const result = await evaluateAutomaticProductionRelease(
+    "manifest.json",
+    candidateSha,
+    () => Promise.resolve(manifest(false)),
+    {
+      verifyRepositoryControls: (sha) => {
+        checkedSha = sha;
+        return Promise.resolve(["protected_main"]);
+      },
+    },
+  );
+  assertEquals(result.allowed, true);
+  assertEquals(checkedSha, candidateSha);
+  assertEquals(result.verifiedRepositoryControls, ["protected_main"]);
+  assertEquals(
+    productionHoldCommandSucceeds("automatic-release", result),
+    true,
+  );
+});
+for (
+  const [name, raw] of Object.entries({
+    active: manifest(true),
+    malformed: "{}",
+    missing_required_hold: JSON.stringify({ schema_version: 3, holds: [] }),
+  })
+) {
+  Deno.test(`automatic release rejects ${name} before network verification`, async () => {
+    let called = false;
+    const result = await evaluateAutomaticProductionRelease(
+      "manifest.json",
+      candidateSha,
+      () => Promise.resolve(raw),
+      {
+        verifyRepositoryControls: () => {
+          called = true;
+          return Promise.resolve(["protected_main"]);
+        },
+      },
+    );
+    assertEquals(result.allowed, false);
+    assertEquals(called, false);
+    assertEquals(
+      productionHoldCommandSucceeds("automatic-release", result),
+      false,
+    );
+  });
+}
+Deno.test("automatic release rejects malformed candidate and unavailable verifier", async () => {
+  for (const sha of ["main", candidateSha]) {
+    const result = await evaluateAutomaticProductionRelease(
+      "manifest.json",
+      sha,
+      () => Promise.resolve(manifest(false)),
+    );
+    assertEquals(result.allowed, false);
+  }
+});
+Deno.test("automatic release rejects failed or empty live control verification", async () => {
+  for (
+    const verifier of [
+      {
+        verifyRepositoryControls: () =>
+          Promise.reject(new Error("sensitive external detail")),
+      },
+      { verifyRepositoryControls: () => Promise.resolve([]) },
+    ]
+  ) {
+    const result = await evaluateAutomaticProductionRelease(
+      "manifest.json",
+      candidateSha,
+      () => Promise.resolve(manifest(false)),
+      verifier,
+    );
+    assertEquals(result.allowed, false);
+    assertEquals(result.summary.includes("sensitive external detail"), false);
   }
 });

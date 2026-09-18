@@ -2051,10 +2051,11 @@ real-token authentication remains an evidence gap. The checked-in
 controls execute without database skips, same-SHA hosted gates, the real
 released-binary V49→V50 install-over, and canonical external evidence pass. Its
 source verifier requires the named ID; after a reviewed inactive change, the
-exact-SHA-checked mutation job also requires a protected clearance structurally
-bound to the manifest and criterion artifacts. The verifier downloads and
-recomputes those artifacts, validates exact-SHA runs and payloads, and checks
-live branch/environment protections.
+exact-SHA-checked mutation job verifies current protected main, merged-PR
+provenance, required checks, and automatic environment policy. No reviewer click
+or per-commit clearance is required; the active hold remains until its evidence
+is complete. Optional audit tools download and recompute retained artifact
+digests and verify their exact-SHA runs and payloads.
 
 Data lifecycle, identity, and exports:
 
