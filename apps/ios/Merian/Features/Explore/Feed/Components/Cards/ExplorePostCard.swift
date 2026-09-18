@@ -37,13 +37,14 @@ struct ExplorePostCard: View {
 
             mediaView
 
-            hashtagRow
-                .padding(.top, 10)
+            if post.hashtags?.isEmpty == false {
+                hashtagRow
+                    .padding(.top, 10)
+            }
 
             actionRow
                 .padding(.horizontal, 16)
-                .padding(.top, post.hashtags?.isEmpty == false ? 8 : 12)
-                .padding(.bottom, 12)
+                .padding(.vertical, 6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
@@ -397,9 +398,9 @@ extension ExplorePostCard {
                 mediaView
 
                 actionRow
+                    .frame(minHeight: 44)
                     .padding(.horizontal, 16)
-                    .padding(.top, 14)
-                    .padding(.bottom, 10)
+                    .padding(.vertical, 6)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(uiColor: .secondarySystemGroupedBackground))

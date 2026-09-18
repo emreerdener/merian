@@ -1710,11 +1710,19 @@ and trailing fades appear only when content extends beyond that edge. At
 chips are highlighted, announce their catalog name/count/selection to VoiceOver,
 and disappear when their authoritative count reaches zero.
 
+Post action bars use smaller 20-point symbols and equal 6-point top/bottom
+insets around the default 44-point row on feed, hashtag, and detail surfaces.
+Empty hashtag content adds no gap above the feed controls; large-text reaction
+rows retain their existing expansion.
+
 One viewer may contribute to several distinct emoji groups, once per emoji.
-Selecting an emoji already contributed through the picker keeps it selected;
-tapping its chip removes that viewer's contribution. Other heart emoji remain
-separate from the post's existing ❤️ like. Neither ordinary emoji reactions nor
-comment reactions alter Liked-feed membership or trending scores.
+Added reaction chips are compact, borderless capsules with a subtle selected
+fill and accent-colored count. Their default visible height is 28 points,
+scaling with Dynamic Type, inside a minimum 44-point tap target. Selecting an
+emoji already contributed through the picker keeps it selected; tapping its chip
+removes that viewer's contribution. Other heart emoji remain separate from the
+post's existing ❤️ like. Neither ordinary emoji reactions nor comment reactions
+alter Liked-feed membership or trending scores.
 
 Search uses the bundled Unicode names, category metadata, and CLDR keywords. The
 compact grid offers default skin tones only, including flags and joined

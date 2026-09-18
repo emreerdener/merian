@@ -206,8 +206,7 @@ struct ExplorePostDetailContentView: View {
             revealEmoji: revealReactionEmoji
         )
         .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 12)
+        .padding(.vertical, 6)
     }
 
     private var detailSections: some View {

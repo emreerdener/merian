@@ -112,7 +112,8 @@ struct ExploreHashtagPostsView: View {
                         onReaction: { emoji, selected in Task { await viewModel.setPostReaction(for: post, emoji: emoji, selected: selected) } },
                         onLoadMore: { Task { await viewModel.loadMorePostReactions(for: post) } },
                         onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) })
-                        .padding(12)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                     }
                     .background(Color(uiColor: .secondarySystemGroupedBackground))
                     .onAppear {

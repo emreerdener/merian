@@ -11,7 +11,8 @@ struct ExploreReactionStrip: View {
     let onToggle: (String, Bool) -> Void
     let onLoadMore: () -> Void
     var revealEmoji: String?
-    @ScaledMetric(relativeTo: .title3) private var rowHeight: CGFloat = 48
+    @ScaledMetric(relativeTo: .title3) private var rowHeight: CGFloat = 44
+    @ScaledMetric(relativeTo: .subheadline) private var chipHeight: CGFloat = 28
     @State private var contentFrame = CGRect.zero
     @State private var viewportWidth: CGFloat = 0
     @Namespace private var scrollSpace
@@ -26,17 +27,19 @@ struct ExploreReactionStrip: View {
                             onToggle(reaction.emoji, !reaction.viewerHasReacted)
                         } label: {
                             HStack(spacing: 4) {
-                                Text(reaction.emoji).font(.title3)
+                                Text(reaction.emoji).font(.subheadline)
                                 Text(reaction.count.formatted(.number.notation(.compactName))).font(.caption)
                             }
-                            .padding(.horizontal, 9)
-                            .frame(minHeight: 44)
+                            .foregroundStyle(reaction.viewerHasReacted ? Color.accentColor : Color.primary)
+                            .padding(.horizontal, 6)
+                            .frame(minHeight: chipHeight)
                             .background(
                                 reaction.viewerHasReacted
                                     ? Color.accentColor.opacity(0.15) : Color(uiColor: .tertiarySystemFill),
                                 in: Capsule()
                             )
-                            .overlay(Capsule().stroke(reaction.viewerHasReacted ? Color.accentColor : Color.clear))
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .id(reaction.emoji)
@@ -56,7 +59,6 @@ struct ExploreReactionStrip: View {
                         .accessibilityLabel("Load more reactions")
                     }
                 }
-                .padding(1)
                 .background(
                     GeometryReader { geometry in
                         Color.clear.preference(
@@ -123,16 +125,16 @@ struct ExplorePostReactionActions: View {
                     onAddReaction()
                 } label: {
                     Image(systemName: "face.smiling").overlay(alignment: .bottomTrailing) {
-                        Image(systemName: "plus.circle.fill").font(.system(size: 11)).background(
+                        Image(systemName: "plus.circle.fill").font(.system(size: 9)).background(
                             .background, in: Circle()
-                        ).offset(x: 5, y: 3)
+                        ).offset(x: 4, y: 2)
                     }
-                    .font(.system(size: 23)).frame(minWidth: 44, minHeight: 44)
+                    .font(.system(size: 20)).frame(minWidth: 44, minHeight: 44)
                 }
                 .buttonStyle(.plain).accessibilityLabel("Add reaction")
                 if !usesSecondRow { strip } else { Spacer(minLength: 0) }
                 Button(action: onShare) {
-                    Image(systemName: "square.and.arrow.up").font(.system(size: 23)).frame(minWidth: 44, minHeight: 44)
+                    Image(systemName: "square.and.arrow.up").font(.system(size: 20)).frame(minWidth: 44, minHeight: 44)
                 }
                 .buttonStyle(.plain).accessibilityLabel("Share post")
             }
@@ -151,7 +153,7 @@ struct ExplorePostReactionActions: View {
     ) -> some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                Image(systemName: symbol).font(.system(size: 23)).foregroundStyle(highlighted ? .red : .primary)
+                Image(systemName: symbol).font(.system(size: 20)).foregroundStyle(highlighted ? .red : .primary)
                 if !dynamicType.isAccessibilitySize {
                     Text(count.formatted(.number.notation(.compactName))).font(.caption)
                 }

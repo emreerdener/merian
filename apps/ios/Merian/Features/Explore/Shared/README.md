@@ -106,6 +106,17 @@ Dynamic Type, with post chips moving below fixed controls at `xxxLarge` and
 accessibility sizes. Post red-heart mapping belongs to Feed state, not this
 generic comment-capable strip.
 
+Added reaction chips use a compact 28-point capsule and subheadline emoji, with
+6-point horizontal padding and no outline. Selected chips retain a subtle accent
+fill and accent-colored count. The visible capsule scales with Dynamic Type; its
+separate tap target remains at least 44 by 44 points on posts and comments.
+
+Post action icons use 20-point symbols inside 44-point tap targets. Feed,
+hashtag, and detail bars use symmetric 6-point vertical insets around the
+44-point default row, for a 56-point bar. Empty hashtag rows reserve no space.
+The shared strip still grows for Dynamic Type and moves beneath controls at the
+existing large-text threshold.
+
 `ExploreErrorFormatter.reactionMutationMessage(selected:)` supplies the
 action-specific add/remove failure copy for post, comment, and notification
 reply mutations. A failed reaction never claims that the entire Explore feed is
