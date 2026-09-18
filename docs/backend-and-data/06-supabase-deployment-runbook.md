@@ -7601,19 +7601,21 @@ After deployment:
   and no longer than seven days. Using the read-only
   `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`, the verifier also proves the candidate is
   the current protected `main` head and is bound unambiguously to one merged
-  `main` pull request. Live protection must require Code Owner review, two
-  current author-independent approvals, stale-review dismissal, last-push
-  approval, admin enforcement, and no bypass. Both `Release Evidence` and
-  `Production` must require reviewers, prevent self-review, and accept protected
-  branches only. It downloads each uniquely assigned artifact, recomputes the
-  archive digest, verifies exact candidate/successful workflow provenance,
-  unpacks exactly one `release-evidence.json`, checks required workflow runs,
-  and recomputes every embedded structured-evidence digest. Statement and
-  embedded observation times must be no more than 30 days old. Missing access,
-  changed settings, non-main provenance, expired/tampered bytes, stale runs, or
-  malformed payloads fail closed. The verifier logs only stable controls,
-  criterion IDs, artifact IDs, and digests; never secret or evidence contents.
-  Do not test either gate by dispatching a deployment.
+  `main` pull request. Live protection must require PRs with zero peer
+  approvals, Code Owner review and last-push approval disabled, stale-review
+  dismissal, admin enforcement, and no bypass. Both `Release Evidence` and
+  `Production` must require only `@emreerdener`, allow self-review, disable
+  administrator bypass, and accept protected branches only. These are explicit
+  sole-maintainer environment approvals, not independent peer reviews. It
+  downloads each uniquely assigned artifact, recomputes the archive digest,
+  verifies exact candidate/successful workflow provenance, unpacks exactly one
+  `release-evidence.json`, checks required workflow runs, and recomputes every
+  embedded structured-evidence digest. Statement and embedded observation times
+  must be no more than 30 days old. Missing access, changed settings, non-main
+  provenance, expired/tampered bytes, stale runs, or malformed payloads fail
+  closed. The verifier logs only stable controls, criterion IDs, artifact IDs,
+  and digests; never secret or evidence contents. Do not test either gate by
+  dispatching a deployment.
 
 ### Species Dictionary Field Chat hold-exit criteria
 
@@ -7645,9 +7647,10 @@ test does not satisfy an evidence requirement:
    immutable candidate SHA.
 5. **`release_control_exact_sha_and_clearance`** (`release_control_audit`): The
    required hold ID and exact clean mutation SHA are enforced; live GitHub
-   checks require two author-independent current reviews, protected branches
-   without bypass, and self-review-resistant Release Evidence and Production
-   environments; every clearance artifact is downloaded, digest-recomputed,
+   checks require merged-main pull-request provenance, protected branches
+   without bypass, and sole-maintainer approval by emreerdener in both Release
+   Evidence and Production with self-review allowed and administrator bypass
+   disabled; every clearance artifact is downloaded, digest-recomputed,
    exact-SHA and successful-workflow checked, and its structured evidence
    payload is validated before mutation.
 6. **`swiftdata_v49_v50_install_over`** (`device_install_over`): The V49-to-V50
@@ -7702,18 +7705,20 @@ and the at-most-seven-day window must be exact. The checked-in templates are
 intentionally invalid until populated.
 
 `.github/CODEOWNERS` remains review routing, not separation of duties. The
-production verifier requires the live Code Owner-review rule plus at least two
-current approvals by identities other than the PR author, stale-review
-dismissal, last-push approval, admin enforcement, and no review bypass. The
-checked-in file currently names one account, so an independently owned account
-or team must be added before that account can author a releasable control
-change; do not weaken the verifier to work around this fail-closed state. Both
-`Release Evidence` and `Production` must require a reviewer, prevent
-self-review, and accept protected branches only. Secret administration must also
-remain restricted to trusted operators; the read-only audit token cannot verify
-who can edit GitHub secrets. If any checked setting, independent owner, token
-scope, or secret-administration boundary is unavailable, keep the hold active.
-Retain the PR reviews, both environment approvals, exact workflow URLs,
+sole-maintainer policy uses zero peer approvals on PRs and explicit
+`@emreerdener` approval of each `Release Evidence` and `Production` job. Both
+environments must have only that User reviewer, allow self-review, deny admin
+bypass, and accept protected branches only. Preserve required status checks,
+admin enforcement, stale-review dismissal, no review bypass, and denial of force
+pushes/deletions on `main`. See the exact settings and trust boundary in the
+[release-evidence operations guide](../release-evidence/README.md).
+
+The maintainer reviews the substantive evidence before approving each job;
+merging or dispatching does not approve deployment. Secret administration must
+remain restricted to the maintainer; the read-only audit token cannot verify who
+can edit GitHub secrets. If any checked setting, token scope, or
+secret-administration boundary is unavailable, keep the hold active. Retain the
+merged PR, both environment approvals, exact workflow URLs,
 manifest/clearance/artifact digests, three live bundle identities, and final
 post-activation summary together.
 

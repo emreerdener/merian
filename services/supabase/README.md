@@ -99,15 +99,17 @@ secret to match the candidate, manifest digest, complete criterion/evidence-type
 set, positive GitHub artifact IDs, nonzero digests, and current approval window
 before ordinary production credentials or mutations are reachable. With the
 read-only `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`, it checks live branch/environment
-protections including Code Owner review, downloads each uniquely assigned
-artifact, recomputes archive and embedded evidence digests, rejects evidence
-older than 30 days, and verifies exact-SHA successful supporting runs whose
-GitHub `updated_at` is also within 30 days. One positive artifact ID may satisfy
-only one criterion. Evidence publication must start at the current `main` head,
-and manual workflow inputs must enter Bash through step environment variables,
-never direct `${{ inputs.* }}` interpolation in a `run` script. Artifact
-integrity does not prove an off-platform issuer or independent secret
-administration; those remain reviewed operational boundaries. See the
+protections including sole-maintainer approval in both environments (only
+`@emreerdener`, self-review allowed, admin bypass disabled, protected branches
+only) and merged-main PR provenance, downloads each uniquely assigned artifact,
+recomputes archive and embedded evidence digests, rejects evidence older than 30
+days, and verifies exact-SHA successful supporting runs whose GitHub
+`updated_at` is also within 30 days. One positive artifact ID may satisfy only
+one criterion. Evidence publication must start at the current `main` head, and
+manual workflow inputs must enter Bash through step environment variables, never
+direct `${{ inputs.* }}` interpolation in a `run` script. Artifact integrity
+does not prove an off-platform issuer or independent secret administration;
+those remain reviewed operational boundaries. See the
 [release-evidence operations guide](../../docs/release-evidence/README.md).
 
 Catalog fixtures preserve production signup behavior. An `auth.users` insert

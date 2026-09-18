@@ -719,7 +719,7 @@ a capability that product or paywall copy may promise. Release requires the
 checked-in Ghost merge registry, real three-family daily-admission evidence,
 explicit post-deploy cutover activation, no-write quota denial, automatic
 idempotent Dictionary replay, authenticated-wrapper evidence, exact Swift/Deno
-Unicode-scalar and whitespace parity, independently reviewed hold clearance,
+Unicode-scalar and whitespace parity, maintainer-approved hold clearance,
 immutable live-bundle provenance, a tested ready-state rerun, and every
 same-SHA, released-V49, and external approval gate. The source now implements
 the Ghost/no-orphan controls, closed-until-explicit-activation database state,

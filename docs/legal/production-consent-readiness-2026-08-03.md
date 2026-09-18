@@ -289,11 +289,11 @@ No green hosted evidence for the post-fence candidate is recorded yet. Do not
 copy counts from older or local runs into this table; populate it only from the
 two workflow summaries for the same immutable candidate SHA.
 
-| Gate                              | Required result                                                                                                                                                                                                                                                                                                       | Current result                                                   |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| **iOS Build and Test**            | Complete unit target, all four progressive-analyzing, live-to-queue, queued-retry, and queued-audio-completion UI smokes, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true` and `transport_security: "ats-default"`.                            | Pending a new hosted run.                                        |
-| **Supabase Candidate Validation** | Fail-closed PR scope and stable Candidate readiness check, clean-SHA check, pinned tools, formatting/lint, migration replay, every discovered pgTAP catalog, complete Edge/database-concurrency suite, database lint, and advisors all green.                                                                         | Pending a new hosted validation-only run on the reviewed SHA.    |
-| Production Supabase deployment    | Separate operator action after release authorization; it must require the reusable candidate gate, source hold gate, exact clean mutation SHA, candidate-matched live Function provenance, a tested ready-state rerun, independently reviewed artifacts, and structurally bound protected Production clearance first. | Blocked by the active `species_dictionary_chat_production_hold`. |
+| Gate                              | Required result                                                                                                                                                                                                                                                                                                    | Current result                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| **iOS Build and Test**            | Complete unit target, all four progressive-analyzing, live-to-queue, queued-retry, and queued-audio-completion UI smokes, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true` and `transport_security: "ats-default"`.                         | Pending a new hosted run.                                        |
+| **Supabase Candidate Validation** | Fail-closed PR scope and stable Candidate readiness check, clean-SHA check, pinned tools, formatting/lint, migration replay, every discovered pgTAP catalog, complete Edge/database-concurrency suite, database lint, and advisors all green.                                                                      | Pending a new hosted validation-only run on the reviewed SHA.    |
+| Production Supabase deployment    | Separate operator action after release authorization; it must require the reusable candidate gate, source hold gate, exact clean mutation SHA, candidate-matched live Function provenance, a tested ready-state rerun, maintainer-reviewed artifacts, and structurally bound protected Production clearance first. | Blocked by the active `species_dictionary_chat_production_hold`. |
 
 The candidate workflow has no Production environment, production secrets,
 migration push, Function deployment, or production smoke. Its disposable
@@ -340,13 +340,13 @@ and checks live branch/Release Evidence/Production protections.
    that writes Gemini or analytics events directly.
 5. Use **Deploy Merian to Supabase**. Its production job must first require the
    reusable candidate gate, exact clean mutation SHA, and protected structurally
-   bound clearance backed by independently validated artifacts, then apply the
-   causal consent and provider-head authorization migrations and deploy
-   consent-gated Edge code. Verify authenticated callers cannot insert directly,
-   both compare-and-append RPCs return a monotonic revision and accepted parent,
-   stale grants are rejected, stale revocations are rebased, and the inverse
-   AI/analytics fixtures pass, including prior-disclosure revocations after
-   current-version grants. Keep
+   bound clearance backed by digest-validated and maintainer-reviewed artifacts,
+   then apply the causal consent and provider-head authorization migrations and
+   deploy consent-gated Edge code. Verify authenticated callers cannot insert
+   directly, both compare-and-append RPCs return a monotonic revision and
+   accepted parent, stale grants are rejected, stale revocations are rebased,
+   and the inverse AI/analytics fixtures pass, including prior-disclosure
+   revocations after current-version grants. Keep
    `internal.ai_consent_rollout_config.enforcement_mode` at `legacy_compatible`.
 6. Distribute the processed replacement TestFlight build. Verify all switch
    combinations, inline Terms navigation, VoiceOver, Dynamic Type, smallest

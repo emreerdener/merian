@@ -62,6 +62,9 @@ interface GitHubWorkflowRun {
 
 type Fetcher = typeof fetch;
 
+// Explicit repository policy; never infer release authority from the PR author.
+export const RELEASE_MAINTAINER = "emreerdener";
+
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const DIGEST_PATTERN = /^(?!0{64}$)[0-9a-f]{64}$/;
 const WORKFLOW_PATTERN = /^\.github\/workflows\/[a-zA-Z0-9._-]+\.ya?ml$/;
@@ -264,31 +267,26 @@ export async function parseAndValidateReleaseEvidenceStatement(
   };
 }
 
-function requiredReviewerRule(environment: Record<string, unknown>): {
-  preventSelfReview: boolean;
-  reviewerCount: number;
-} {
+function hasSoleMaintainerApproval(
+  environment: Record<string, unknown>,
+): boolean {
   const rules = environment.protection_rules;
-  if (!Array.isArray(rules)) {
-    throw new Error("environment protection rules are unavailable");
-  }
-  const rule = rules.find((candidate) =>
-    isRecord(candidate) && candidate.type === "required_reviewers"
+  if (!Array.isArray(rules)) return false;
+  const reviewerRules = rules.filter((rule) =>
+    isRecord(rule) && rule.type === "required_reviewers"
   );
+  if (reviewerRules.length !== 1) return false;
+  const rule = reviewerRules[0];
   if (
-    !isRecord(rule) || !Array.isArray(rule.reviewers) ||
-    !rule.reviewers.every((candidate) =>
-      isRecord(candidate) &&
-      (candidate.type === "User" || candidate.type === "Team") &&
-      isRecord(candidate.reviewer)
-    )
-  ) {
-    throw new Error("environment has no required-reviewer rule");
-  }
-  return {
-    preventSelfReview: rule.prevent_self_review === true,
-    reviewerCount: rule.reviewers.length,
-  };
+    !isRecord(rule) || rule.prevent_self_review !== false ||
+    !Array.isArray(rule.reviewers) || rule.reviewers.length !== 1
+  ) return false;
+  const entry = rule.reviewers[0];
+  return isRecord(entry) && entry.type === "User" &&
+    isRecord(entry.reviewer) &&
+    typeof entry.reviewer.login === "string" &&
+    entry.reviewer.login.toLowerCase() === RELEASE_MAINTAINER &&
+    environment.can_admins_bypass === false;
 }
 
 export class GitHubReleaseEvidenceVerifier implements ReleaseEvidenceVerifier {
@@ -401,14 +399,23 @@ export class GitHubReleaseEvidenceVerifier implements ReleaseEvidenceVerifier {
       );
     if (
       !isRecord(reviews) || reviews.dismiss_stale_reviews !== true ||
-      reviews.require_last_push_approval !== true ||
-      reviews.require_code_owner_reviews !== true ||
-      !Number.isSafeInteger(reviews.required_approving_review_count) ||
-      (reviews.required_approving_review_count as number) < 2 ||
+      reviews.require_last_push_approval !== false ||
+      reviews.require_code_owner_reviews !== false ||
+      reviews.required_approving_review_count !== 0 ||
       !isRecord(admins) || admins.enabled !== true || !bypassEmpty
     ) {
       throw new Error(
-        "main protection must enforce Code Owner review, two approvals, stale-review dismissal, last-push approval, admins, and no review bypass",
+        "main protection must require PRs with zero peer approvals, no Code Owner or last-push approval, stale-review dismissal, admins, and no review bypass",
+      );
+    }
+    const checks = protection.required_status_checks;
+    if (
+      !isRecord(checks) || checks.strict !== true ||
+      !Array.isArray(checks.contexts) ||
+      !checks.contexts.includes("Candidate readiness")
+    ) {
+      throw new Error(
+        "main protection must require current-branch Candidate readiness checks",
       );
     }
     for (const field of ["allow_force_pushes", "allow_deletions"] as const) {
@@ -453,45 +460,9 @@ export class GitHubReleaseEvidenceVerifier implements ReleaseEvidenceVerifier {
     ) {
       throw new Error("candidate is not bound to a merged pull request");
     }
-    const reviewValues = await this.#api(
-      `/repos/${this.#repository}/pulls/${pullRequest.number}/reviews?per_page=100`,
-    );
-    if (!Array.isArray(reviewValues)) {
-      throw new Error("candidate pull-request reviews are unavailable");
-    }
-    if (reviewValues.length >= 100) {
-      throw new Error(
-        "candidate pull-request review history exceeds the bounded audit page",
-      );
-    }
-    const latestByReviewer = new Map<string, { id: number; state: string }>();
-    for (const review of reviewValues) {
-      if (
-        isRecord(review) && isRecord(review.user) &&
-        review.user.type === "User" &&
-        nonEmptyText(review.user.login, 80) && nonEmptyText(review.state, 40) &&
-        Number.isSafeInteger(review.id) && (review.id as number) > 0
-      ) {
-        const state = review.state.toUpperCase();
-        if (!["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(state)) {
-          continue;
-        }
-        const login = review.user.login.toLowerCase();
-        const existing = latestByReviewer.get(login);
-        if (!existing || existing.id < (review.id as number)) {
-          latestByReviewer.set(login, { id: review.id as number, state });
-        }
-      }
-    }
-    const author = pullRequest.user.login.toLowerCase();
-    const approvers = [...latestByReviewer.entries()].filter(
-      ([login, review]) => login !== author && review.state === "APPROVED",
-    );
-    if (approvers.length < 2) {
-      throw new Error(
-        "candidate lacks two current approvals independent of its author",
-      );
-    }
+    // GitHub cannot approve one's own PR. The merged PR remains the reviewable
+    // source record; explicit release approval is recorded at each environment
+    // gate by the fixed sole maintainer, even when they authored the PR.
 
     for (const environmentName of ["Release Evidence", "Production"]) {
       const value = await this.#api(
@@ -502,22 +473,22 @@ export class GitHubReleaseEvidenceVerifier implements ReleaseEvidenceVerifier {
       if (!isRecord(value)) {
         throw new Error(`${environmentName} is unavailable`);
       }
-      const reviewerRule = requiredReviewerRule(value);
       const branchPolicy = value.deployment_branch_policy;
       if (
-        !reviewerRule.preventSelfReview || reviewerRule.reviewerCount < 1 ||
+        !hasSoleMaintainerApproval(value) ||
         !isRecord(branchPolicy) || branchPolicy.protected_branches !== true ||
         branchPolicy.custom_branch_policies !== false
       ) {
         throw new Error(
-          `${environmentName} must require a reviewer, prevent self-review, and allow only protected branches`,
+          `${environmentName} must require only ${RELEASE_MAINTAINER}, allow self-review, deny admin bypass, and allow only protected branches`,
         );
       }
     }
     return [
       "main_branch_protection",
       "candidate_is_current_main_head",
-      `pull_request_${pullRequest.number}_independent_reviews`,
+      `pull_request_${pullRequest.number}_merged_main_provenance`,
+      "sole_maintainer_environment_approval",
       "release_evidence_environment_protection",
       "production_environment_protection",
     ];

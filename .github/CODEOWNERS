@@ -1,12 +1,9 @@
-# Production release-control ownership. This single owner routes review but is
-# not separation of duties. These rules become enforcement only when the
-# main-branch ruleset requires an independent Code Owner review, prevents
-# self-approval, and the Production environment uses a separate required
-# approver and restricted secret administrator. The deployment runbook requires
-# operators to verify those external settings before clearance. This file still
-# has one owner, so a second independently controlled owner or team must be added
-# before that owner can author a releasable control change; the release verifier
-# intentionally requires the live Code Owner-review rule and otherwise blocks.
+# Sole-maintainer release ownership. CODEOWNERS routes changes to @emreerdener;
+# it does not require self-approval of a pull request. Protected main requires
+# PRs with zero peer approvals, required checks, admin enforcement and no bypass.
+# Explicit release approval is recorded by @emreerdener as the sole required
+# reviewer of both Release Evidence and Production, with self-review allowed
+# and administrator bypass disabled. See docs/release-evidence/README.md.
 /.github/CODEOWNERS @emreerdener
 /.github/workflows/deploy.yml @emreerdener
 /.github/workflows/release-evidence.yml @emreerdener

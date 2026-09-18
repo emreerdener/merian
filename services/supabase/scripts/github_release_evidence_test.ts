@@ -3,6 +3,7 @@ import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import {
   GitHubReleaseEvidenceVerifier,
   parseAndValidateReleaseEvidenceStatement,
+  RELEASE_MAINTAINER,
 } from "./github_release_evidence.ts";
 
 const candidateSha = "a".repeat(40);
@@ -61,10 +62,11 @@ async function evidenceArchive(): Promise<{
 
 function protectedEnvironment() {
   return {
+    can_admins_bypass: false,
     protection_rules: [{
       type: "required_reviewers",
-      prevent_self_review: true,
-      reviewers: [{ type: "User", reviewer: { login: "reviewer" } }],
+      prevent_self_review: false,
+      reviewers: [{ type: "User", reviewer: { login: RELEASE_MAINTAINER } }],
     }],
     deployment_branch_policy: {
       protected_branches: true,
@@ -88,10 +90,14 @@ Deno.test("GitHub release evidence downloads bytes and validates live controls",
       return Promise.resolve(json({
         required_pull_request_reviews: {
           dismiss_stale_reviews: true,
-          require_last_push_approval: true,
-          require_code_owner_reviews: true,
-          required_approving_review_count: 2,
+          require_last_push_approval: false,
+          require_code_owner_reviews: false,
+          required_approving_review_count: 0,
           bypass_pull_request_allowances: { users: [], teams: [], apps: [] },
+        },
+        required_status_checks: {
+          strict: true,
+          contexts: ["Candidate readiness"],
         },
         enforce_admins: { enabled: true },
         allow_force_pushes: { enabled: false },
@@ -106,25 +112,6 @@ Deno.test("GitHub release evidence downloads bytes and validates live controls",
         base: { ref: "main", repo: { full_name: "Merian/Example" } },
         user: { login: "author", type: "User" },
       }]));
-    }
-    if (url.endsWith("/pulls/17/reviews?per_page=100")) {
-      return Promise.resolve(json([
-        {
-          id: 1,
-          user: { login: "reviewer-one", type: "User" },
-          state: "APPROVED",
-        },
-        {
-          id: 2,
-          user: { login: "reviewer-two", type: "User" },
-          state: "APPROVED",
-        },
-        {
-          id: 3,
-          user: { login: "reviewer-one", type: "User" },
-          state: "COMMENTED",
-        },
-      ]));
     }
     if (
       url.includes("/environments/Release%20Evidence") ||
@@ -186,7 +173,8 @@ Deno.test("GitHub release evidence downloads bytes and validates live controls",
   assertEquals(await verifier.verifyRepositoryControls(candidateSha), [
     "main_branch_protection",
     "candidate_is_current_main_head",
-    "pull_request_17_independent_reviews",
+    "pull_request_17_merged_main_provenance",
+    "sole_maintainer_environment_approval",
     "release_evidence_environment_protection",
     "production_environment_protection",
   ]);
@@ -317,7 +305,7 @@ Deno.test("repository controls reject a candidate that is not current main", asy
   );
 });
 
-Deno.test("repository controls reject missing Code Owner enforcement", async () => {
+Deno.test("repository controls reject disabled admin enforcement", async () => {
   const verifier = new GitHubReleaseEvidenceVerifier({
     token: "test-token",
     repository,
@@ -333,12 +321,12 @@ Deno.test("repository controls reject missing Code Owner enforcement", async () 
       return Promise.resolve(json({
         required_pull_request_reviews: {
           dismiss_stale_reviews: true,
-          require_last_push_approval: true,
+          require_last_push_approval: false,
           require_code_owner_reviews: false,
-          required_approving_review_count: 2,
+          required_approving_review_count: 0,
           bypass_pull_request_allowances: { users: [], teams: [], apps: [] },
         },
-        enforce_admins: { enabled: true },
+        enforce_admins: { enabled: false },
       }));
     },
   });
@@ -346,7 +334,7 @@ Deno.test("repository controls reject missing Code Owner enforcement", async () 
   await assertRejects(
     () => verifier.verifyRepositoryControls(candidateSha),
     Error,
-    "must enforce Code Owner review",
+    "must require PRs with zero peer approvals",
   );
 });
 
@@ -367,10 +355,14 @@ Deno.test("repository controls reject a merged pull request targeting another br
         return Promise.resolve(json({
           required_pull_request_reviews: {
             dismiss_stale_reviews: true,
-            require_last_push_approval: true,
-            require_code_owner_reviews: true,
-            required_approving_review_count: 2,
+            require_last_push_approval: false,
+            require_code_owner_reviews: false,
+            required_approving_review_count: 0,
             bypass_pull_request_allowances: { users: [], teams: [], apps: [] },
+          },
+          required_status_checks: {
+            strict: true,
+            contexts: ["Candidate readiness"],
           },
           enforce_admins: { enabled: true },
           allow_force_pushes: { enabled: false },
@@ -393,3 +385,207 @@ Deno.test("repository controls reject a merged pull request targeting another br
     "one merged main pull request",
   );
 });
+
+function soloControls(): Record<string, unknown> {
+  return {
+    "/branches/main": {
+      name: "main",
+      protected: true,
+      commit: { sha: candidateSha },
+    },
+    "/branches/main/protection": {
+      required_pull_request_reviews: {
+        dismiss_stale_reviews: true,
+        require_last_push_approval: false,
+        require_code_owner_reviews: false,
+        required_approving_review_count: 0,
+        bypass_pull_request_allowances: { users: [], teams: [], apps: [] },
+      },
+      required_status_checks: {
+        strict: true,
+        contexts: ["Candidate readiness"],
+      },
+      enforce_admins: { enabled: true },
+      allow_force_pushes: { enabled: false },
+      allow_deletions: { enabled: false },
+    },
+    [`/commits/${candidateSha}/pulls?per_page=100`]: [{
+      number: 17,
+      merged_at: "2026-08-24T10:00:00Z",
+      merge_commit_sha: candidateSha,
+      base: { ref: "main", repo: { full_name: repository } },
+      user: { login: RELEASE_MAINTAINER, type: "User" },
+    }],
+    "/environments/Release%20Evidence": protectedEnvironment(),
+    "/environments/Production": protectedEnvironment(),
+  };
+}
+
+function verifierForControls(controls: Record<string, unknown>) {
+  return new GitHubReleaseEvidenceVerifier({
+    token: "test-token",
+    repository,
+    fetcher: (input) => {
+      const url = new URL(String(input));
+      const path = url.pathname.replace(`/repos/${repository}`, "") +
+        url.search;
+      return Promise.resolve(
+        path in controls
+          ? json(controls[path])
+          : new Response(null, { status: 404 }),
+      );
+    },
+  });
+}
+
+Deno.test("sole maintainer can author the PR and approve both protected environments", async () => {
+  const controls = await verifierForControls(soloControls())
+    .verifyRepositoryControls(candidateSha);
+  assertEquals(controls.includes("sole_maintainer_environment_approval"), true);
+});
+
+for (const environment of ["Release%20Evidence", "Production"]) {
+  const valid = protectedEnvironment();
+  for (
+    const [name, invalid] of Object.entries({
+      "missing reviewer": { ...valid, protection_rules: [] },
+      "unknown protection rules": { ...valid, protection_rules: null },
+      "wrong reviewer": {
+        ...valid,
+        protection_rules: [{
+          ...valid.protection_rules[0],
+          reviewers: [{ type: "User", reviewer: { login: "other" } }],
+        }],
+      },
+      "extra reviewer": {
+        ...valid,
+        protection_rules: [{
+          ...valid.protection_rules[0],
+          reviewers: [...valid.protection_rules[0].reviewers, {
+            type: "User",
+            reviewer: { login: "other" },
+          }],
+        }],
+      },
+      "team reviewer": {
+        ...valid,
+        protection_rules: [{
+          ...valid.protection_rules[0],
+          reviewers: [{
+            type: "Team",
+            reviewer: { login: RELEASE_MAINTAINER },
+          }],
+        }],
+      },
+      "self-review deadlock": {
+        ...valid,
+        protection_rules: [{
+          ...valid.protection_rules[0],
+          prevent_self_review: true,
+        }],
+      },
+      "unknown self-review setting": {
+        ...valid,
+        protection_rules: [{
+          ...valid.protection_rules[0],
+          prevent_self_review: undefined,
+        }],
+      },
+      "duplicate reviewer rule": {
+        ...valid,
+        protection_rules: [
+          ...valid.protection_rules,
+          ...valid.protection_rules,
+        ],
+      },
+      "admin bypass": { ...valid, can_admins_bypass: true },
+      "unknown admin bypass": { ...valid, can_admins_bypass: undefined },
+      "unrestricted branches": { ...valid, deployment_branch_policy: null },
+      "custom branch policy": {
+        ...valid,
+        deployment_branch_policy: {
+          protected_branches: false,
+          custom_branch_policies: true,
+        },
+      },
+    })
+  ) {
+    Deno.test(`sole maintainer rejects ${environment}: ${name}`, async () => {
+      const controls = soloControls();
+      controls[`/environments/${environment}`] = invalid;
+      await assertRejects(
+        () =>
+          verifierForControls(controls).verifyRepositoryControls(candidateSha),
+        Error,
+        "must require only emreerdener",
+      );
+    });
+  }
+}
+
+for (
+  const [name, override] of Object.entries({
+    "missing PR requirement": { required_pull_request_reviews: null },
+    "missing checks": { required_status_checks: null },
+    "wrong checks": {
+      required_status_checks: { strict: true, contexts: ["unrelated"] },
+    },
+    "outdated branch permitted": {
+      required_status_checks: {
+        strict: false,
+        contexts: ["Candidate readiness"],
+      },
+    },
+    "admin exemption": { enforce_admins: { enabled: false } },
+    "force pushes": { allow_force_pushes: { enabled: true } },
+    "branch deletion": { allow_deletions: { enabled: true } },
+  })
+) {
+  Deno.test(`sole maintainer retains branch protection: ${name}`, async () => {
+    const controls = soloControls();
+    controls["/branches/main/protection"] = {
+      ...(controls["/branches/main/protection"] as Record<string, unknown>),
+      ...override,
+    };
+    await assertRejects(() =>
+      verifierForControls(controls).verifyRepositoryControls(candidateSha)
+    );
+  });
+}
+
+for (
+  const [name, override] of Object.entries({
+    "peer approval deadlock": { required_approving_review_count: 1 },
+    "Code Owner self-approval deadlock": { require_code_owner_reviews: true },
+    "last-push approval deadlock": { require_last_push_approval: true },
+    "stale review retained": { dismiss_stale_reviews: false },
+    "user bypass": {
+      bypass_pull_request_allowances: { users: [{}], teams: [], apps: [] },
+    },
+    "team bypass": {
+      bypass_pull_request_allowances: { users: [], teams: [{}], apps: [] },
+    },
+    "app bypass": {
+      bypass_pull_request_allowances: { users: [], teams: [], apps: [{}] },
+    },
+    "unknown bypass": { bypass_pull_request_allowances: undefined },
+  })
+) {
+  Deno.test(`sole maintainer rejects PR rule: ${name}`, async () => {
+    const controls = soloControls();
+    const protection = controls["/branches/main/protection"] as Record<
+      string,
+      unknown
+    >;
+    protection.required_pull_request_reviews = {
+      ...(protection.required_pull_request_reviews as Record<string, unknown>),
+      ...override,
+    };
+    await assertRejects(
+      () =>
+        verifierForControls(controls).verifyRepositoryControls(candidateSha),
+      Error,
+      "must require PRs with zero peer approvals",
+    );
+  });
+}
