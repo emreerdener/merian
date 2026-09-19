@@ -430,7 +430,7 @@ profile updates, and Explore feed projections.
   `deno.json` that points at the shared frozen `functions/dependencies.lock`.
   Runtime imports use those aliases instead of direct `esm.sh`, `deno.land`,
   npm, or JSR specifiers. The whole fleet uses one exact
-  `@supabase/supabase-js@2.110.8` graph; `_shared/claimsAuth.ts` remains the
+  `@supabase/supabase-js@2.116.0` graph; `_shared/claimsAuth.ts` remains the
   opt-in authentication policy boundary for cached-JWKS claims verification, not
   a second SDK dependency. Generated configs explicitly retain Deno's one-day
   minimum dependency age; reviewed versions already present in the frozen lock
@@ -2336,9 +2336,9 @@ schema. After an intentional media-wire change, run
 `make validate-edge-dto-contract`.
 
 The reviewed maintenance graph pins `@std/encoding` to 1.0.11 and the JSZip
-archive-test dependency to 3.10.2. Supabase JS remains on the separately
-reviewed 2.110.8 contract; JOSE and Gemini major upgrades require their own
-compatibility changes. See the
+archive-test dependency to 3.10.2. Supabase JS is aligned at the reviewed
+2.116.0 version across the Edge fleet, public web, and internal admin; JOSE and
+Gemini major upgrades require their own compatibility changes. See the
 [dependency maintenance policy](../../docs/CONTRIBUTING.md#dependency-maintenance).
 
 After changing a pin in `functions/deno.json`, regenerate the function-local

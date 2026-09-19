@@ -4407,7 +4407,7 @@ the tracked frozen `services/supabase/functions/dependencies.lock`. Supabase
 discovers the function-local config while bundling. Do not pass the retired
 `--import-map` flag. Runtime code imports configured aliases; direct esm.sh,
 deno.land, npm, and JSR specifiers are rejected from production graphs. The
-fleet uses one exact `@supabase/supabase-js@2.110.8` dependency for both
+fleet uses one exact `@supabase/supabase-js@2.116.0` dependency for both
 `getUser` and `getClaims`. `_shared/claimsAuth.ts` remains opt-in to avoid
 silently changing authentication policy for unrelated routes, not to isolate a
 second SDK. `functions/dependencies.lock` is the only lockfile; do not add a

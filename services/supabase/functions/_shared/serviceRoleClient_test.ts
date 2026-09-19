@@ -62,6 +62,26 @@ async function databaseRequestHeaders(
   return requestHeaders;
 }
 
+Deno.test("service-role SDK does not retry a failed mutation RPC", async () => {
+  let requests = 0;
+  const client = createServiceRoleClient(
+    "https://project.supabase.co",
+    CURRENT_SECRET_KEY,
+    (_input, init) => {
+      requests++;
+      assertEquals(init?.method, "POST");
+      return Promise.resolve(Response.json(
+        { code: "synthetic_failure", message: "Unavailable" },
+        { status: 503 },
+      ));
+    },
+  );
+  const { error, status } = await client.rpc("synthetic_mutation", {});
+  assertEquals(status, 503);
+  assertEquals(error?.code, "synthetic_failure");
+  assertEquals(requests, 1);
+});
+
 async function storageRequestHeaders(
   serverApiKey: string,
 ): Promise<Headers> {
