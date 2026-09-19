@@ -2,9 +2,12 @@
 
 ## Owner direction and scope
 
-After the successful backend deployment, the owner explicitly requested Field
-Chat activation now instead of scheduling another deployment after midnight UTC.
-This supersedes only the next-day waiting requirement in the
+After successful backend
+[run 35422590658](https://github.com/emreerdener/merian/actions/runs/35422590658)
+at `49ef89764db7704de70a15fcbbecf30de9274772` left Field Chat pending, the owner
+explicitly requested Field Chat activation now instead of scheduling another
+deployment after midnight UTC. This supersedes only the next-day waiting
+requirement in the
 [September 18 beta decision](./field-chat-beta-release-decision-2026-09-18.md)
 for the pending beta cutover on Supabase project `qlarqavoqhkuwzmevrmf`. The
 scheduled follow-up was paused. This record describes authorization and the

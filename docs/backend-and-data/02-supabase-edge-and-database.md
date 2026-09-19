@@ -1266,6 +1266,16 @@ historical message-less threads, then records the next UTC boundary, blocks
 every novel reservation through that boundary and until explicit activation, and
 permanently reserves conversation insertion for the atomic RPC. It exposes only
 bounded service-only cutover evidence. Exact persisted replays remain available.
+The
+[September 19 beta decision](../release-evidence/field-chat-immediate-beta-activation-2026-09-19.md)
+permits the audited forward migration to advance a still-pending next-day fence
+to database time. It preserves the original boundary, known usage counts, and
+all activation checks, accepting incomplete accounting of deleted pre-migration
+messages for the remaining partial UTC day. This supersedes only the initial
+wait; the
+[September 18 beta policy](../release-evidence/field-chat-beta-release-decision-2026-09-18.md)
+separately defines which full-public-release evidence below remains deferred.
+
 Source fixtures exercise all three real reserve-delete-fresh-reserve paths and
 the complete current-day public-reservation/full-merge race. Database time
 advances the cutover only from `pending` to closed `ready`; a one-way

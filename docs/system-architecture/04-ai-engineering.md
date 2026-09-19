@@ -1267,11 +1267,16 @@ provider dispatch:
   historical message-less threads, blocks every novel reservation through its
   recorded next UTC boundary and until explicit post-bundle activation, and
   permanently reserves conversation insertion for the atomic RPC; exact
-  persisted replays remain available. Token usage and bounded telemetry retain
-  route-specific events without prompt/chat text or dictionary identity. All
-  routes use `_shared/fieldChatResponse.ts` so every empty/populated thread and
-  action success echoes the exact requested scan/post/species as `subject_id`;
-  iOS treats `200` as candidate evidence and validates that echo plus populated
+  persisted replays remain available. The
+  [September 19 immediate-beta exception](../release-evidence/field-chat-immediate-beta-activation-2026-09-19.md)
+  permits a forward migration to advance only a pending fence using audited
+  database time. Known counts remain intact; deleted pre-migration sends may be
+  undercounted for that partial UTC day. Explicit bundle-verified activation is
+  still required. Token usage and bounded telemetry retain route-specific events
+  without prompt/chat text or dictionary identity. All routes use
+  `_shared/fieldChatResponse.ts` so every empty/populated thread and action
+  success echoes the exact requested scan/post/species as `subject_id`; iOS
+  treats `200` as candidate evidence and validates that echo plus populated
   message/conversation identity before applying it. Every send requires a UUID
   request identity; the assistant stores its canonical lowercase form in private
   metadata and projects it as `client_message_id`, allowing duplicate,
