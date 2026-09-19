@@ -975,7 +975,15 @@ HTTP request is dispatched. See the
    focused result must report exactly those four passed cases and zero failed or
    skipped cases. Its structured tree must contain that exact named set under
    `merianUITests`; missing, wrong, duplicated, malformed, empty, or
-   contradictory evidence fails the job.
+   contradictory evidence fails the job. The UI invocation sets
+   `-collect-test-diagnostics never` to disable verbose simulator diagnostics
+   such as sysdiagnose within its 10-minute budget. This is a mitigation for
+   hosted runs that reported all four cases passed and then timed out before
+   Xcode finalized its result bundle; the precise cause of those stalls remains
+   unconfirmed. Console pass lines never substitute for successful Xcode exit
+   and validated structured results. The workflow retains its Xcode log and
+   available result-bundle evidence, but verbose diagnostic collection requires
+   a separate diagnostic rerun with this option removed.
    `scripts/validate-ios-focused-test-results.sh` enforces the hosted evidence,
    and `scripts/test-validate-ios-focused-test-results.sh` provides portable
    positive and adversarial fixtures. The seed writes a valid one-second PCM WAV

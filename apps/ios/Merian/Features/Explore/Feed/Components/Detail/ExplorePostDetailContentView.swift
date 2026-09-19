@@ -205,7 +205,7 @@ struct ExplorePostDetailContentView: View {
             onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) },
             revealEmoji: revealReactionEmoji
         )
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
         .padding(.vertical, 6)
     }
 

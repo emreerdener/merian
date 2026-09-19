@@ -83,8 +83,8 @@ struct ExplorePostComposerView: View {
                         mediaSelectionEditor
                     }
                     fieldNotesEditor
-                    locationSharingEditor
                     hashtagsEditor
+                    locationSharingEditor
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)

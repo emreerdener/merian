@@ -505,6 +505,19 @@ assert_before \
   "- name: Validate and summarize critical scan UI smokes" \
   "- name: Upload unit-test evidence"
 
+# Keep verbose simulator diagnostics out of the bounded UI smoke invocation.
+# A passed console suite is insufficient: Xcode must still finalize its result.
+assert_count 1 "-collect-test-diagnostics never"
+awk '
+  /^      - name:/ { in_ui_step = 0 }
+  /^      - name: Run critical scan UI smokes$/ { in_ui_step = 1 }
+  in_ui_step && /^        timeout-minutes:/ { ui_timeout = $2 }
+  in_ui_step && NF == 3 && $1 == "-collect-test-diagnostics" \
+    && $2 == "never" && $3 == "\\" { diagnostics_disabled += 1 }
+  END { exit !(ui_timeout == 10 && diagnostics_disabled == 1) }
+' "$workflow" \
+  || fail "Critical UI smokes must disable verbose diagnostics within the 10-minute step."
+
 if grep -Eq '^[[:space:]]+paths(-ignore)?:' "$workflow"; then
   fail "The required workflow must use in-workflow scope, not event path filters."
 fi

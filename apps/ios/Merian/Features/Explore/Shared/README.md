@@ -112,10 +112,10 @@ fill and accent-colored count. The visible capsule scales with Dynamic Type; its
 separate tap target remains at least 44 by 44 points on posts and comments.
 
 Post action icons use 20-point symbols inside 44-point tap targets. Feed,
-hashtag, and detail bars use symmetric 6-point vertical insets around the
-44-point default row, for a 56-point bar. Empty hashtag rows reserve no space.
-The shared strip still grows for Dynamic Type and moves beneath controls at the
-existing large-text threshold.
+hashtag, and detail bars use 12-point horizontal insets and symmetric 6-point
+vertical insets around the 44-point default row, for a 56-point bar. Empty
+hashtag rows reserve no space. The shared strip still grows for Dynamic Type and
+moves beneath controls at the existing large-text threshold.
 
 `ExploreErrorFormatter.reactionMutationMessage(selected:)` supplies the
 action-specific add/remove failure copy for post, comment, and notification

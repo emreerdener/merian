@@ -43,7 +43,7 @@ struct ExplorePostCard: View {
             }
 
             actionRow
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -399,7 +399,7 @@ extension ExplorePostCard {
 
                 actionRow
                     .frame(minHeight: 44)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 12)
                     .padding(.vertical, 6)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

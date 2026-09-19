@@ -323,6 +323,7 @@ jobs:
             -derivedDataPath "$XCODE_DERIVED_DATA" \
             -resultBundlePath "$XCODE_UI_RESULT_BUNDLE" \
             -parallel-testing-enabled NO \
+            -collect-test-diagnostics never \
             -only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow \
             -only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue \
             -only-testing:merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy \
