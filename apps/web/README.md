@@ -171,6 +171,18 @@ separate staging Supabase project and Turnstile widget if preview deployments
 need live backend behavior. See the canonical destination matrix in
 [`docs/development-guides/05-keychain-and-secrets.md`](../../docs/development-guides/05-keychain-and-secrets.md#deployment-environment-ownership).
 
+### Supabase client compatibility
+
+Supabase JS is pinned to 2.116.0, aligned with the Edge fleet. Public and
+privileged clients retain their separate credential boundaries; the privileged
+factory stays server-only and removes only the opaque API-key-as-Bearer
+fallback.
+
+See the
+[SDK release notes](https://github.com/supabase/supabase-js/releases/tag/v2.116.0).
+Dependency upgrades must preserve authentication, cookie, and request-transport
+behavior.
+
 ### TypeScript compiler
 
 Both `npm run typecheck` and Next.js builds use the pinned native TypeScript
