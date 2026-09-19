@@ -426,7 +426,7 @@ Deno.serve((req: Request) =>
       finishReason = result.candidates?.[0]?.finishReason;
       responseText = result.text ?? "";
 
-      // Defensive fallback for @google/genai@1.0.0 text getter edge case
+      // Retain the legacy first-part fallback when the SDK text getter is empty.
       if (!responseText) {
         const firstPart = result.candidates?.[0]?.content?.parts?.[0];
         if (
