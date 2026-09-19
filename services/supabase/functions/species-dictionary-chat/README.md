@@ -1,5 +1,15 @@
 # species-dictionary-chat
 
+> **Beta policy update — September 18, 2026:** The owner authorized the existing
+> beta backend rollout under the
+> [Field Chat beta release decision](../../../../docs/release-evidence/field-chat-beta-release-decision-2026-09-18.md).
+> `species_dictionary_chat_production_hold` is inactive by explicit exception,
+> not because every full-release criterion passed. Statements below requiring
+> all external/device/hosted-token evidence before backend rollout describe the
+> full-release policy; that evidence remains open. Exact-SHA backend validation,
+> live repository controls, runtime security/consent, and the UTC cutover fence
+> remain required. This exception does not authorize iOS distribution.
+
 Authenticated private Pro Field Chat for an in-app Species Dictionary subject.
 Each viewer has at most one saved conversation per canonical species UUID. This
 route is separate from the anonymous, cacheable `/species-dictionary` read API;
@@ -152,16 +162,21 @@ Dictionary-specific refusal copy. The source now also includes:
   mutation, with retained-artifact validation available as optional audit
   tooling.
 
-Production nevertheless remains blocked by the checked-in
-`species_dictionary_chat_production_hold` in
-`services/supabase/release-holds.json`. Source implementation is not retained
-release evidence. The complete disposable-database suite did not execute in the
-current review environment because no reachable disposable PostgreSQL service
-was available; its database-backed cases explicitly self-skipped and therefore
-are not passing evidence. The handler suite now executes the real
-`withEdgeHandler` boundary with deterministic accepted and refused
-authenticators, but it does not validate a hosted JWT. The real-token HTTP
-boundary still needs explicit exact-SHA execution evidence.
+The checked-in `species_dictionary_chat_production_hold` in
+`services/supabase/release-holds.json` is inactive under the owner-authorized
+beta decision above. Source implementation is not retained release evidence. The
+historical local review lacked a reachable disposable database and its skipped
+cases were not passing evidence; the dated beta decision records the later
+successful hosted candidate run. Every new release SHA must revalidate. The
+handler suite now executes the real `withEdgeHandler` boundary with
+deterministic accepted and refused authenticators, but it does not validate a
+hosted JWT. The real-token HTTP boundary remains an unfinished full-release
+checklist item, deferred for beta. The staging-only
+[`verify_field_chat_hosted_auth.ts`](../../scripts/verify_field_chat_hosted_auth.ts)
+probe verifies real GoTrue authentication and all three deployed bundle digests
+using deliberately missing subject IDs; see the
+[canonical procedure](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#field-chat-hosted-authentication-probe).
+It does not prove successful thread loading or replace the other release gates.
 
 Candidate Validation remains available and must run on the reviewed immutable
 SHA. The separate pre-production source gate reports a successful `held` status
@@ -170,18 +185,19 @@ Production job is skipped before its environment, database push, secret
 synchronization, Function deployment, or smoke probes can begin. Missing,
 malformed, duplicate, and required-ID-absent manifests still fail. The gate
 requires this hold ID and a clean exact checkout. A green held workflow does not
-mean the backend deployed. If a reviewed manifest later marks the hold inactive,
-the sole Production job independently pins and clean-checks the same SHA, then
-runs automated current-main, merged-PR, branch protection, and environment
-checks with a read-only GitHub audit token before Supabase mutation. Both
-Production and Release Evidence permit protected branches only and require no
-reviewers, timers, or custom approval gates. No per-commit clearance record is
-required. Evidence publication and artifact validation remain available for
-hold-exit records and optional audits that recompute artifact digests and verify
-exact-SHA supporting runs. Keep the hold active until the non-skipped database
-suite, wrapper-auth and iOS retry evidence, genuine released-binary V49→V50
-physical install-over, both hosted gates on one SHA, live external controls, and
-external approvals are complete and retained.
+mean the backend deployed. With the beta source hold inactive, the sole
+Production job independently pins and clean-checks the same SHA, then runs
+automated current-main, merged-PR, branch protection, and environment checks
+with a read-only GitHub audit token before Supabase mutation. Both Production
+and Release Evidence permit protected branches only and require no reviewers,
+timers, or custom approval gates. No per-commit clearance record is required.
+Evidence publication and artifact validation remain available for hold-exit
+records and optional audits that recompute artifact digests and verify exact-SHA
+supporting runs. The non-skipped database suite and live repository controls
+remain enforced. Hosted real-token, iOS retry/device evidence, released V49→V50
+physical install-over, both hosted gates on one SHA, and external approvals
+remain full-release checklist items as qualified by the beta decision; the
+inactive source hold does not enforce their completion.
 
 The canonical release checklist and manual Great Egret matrix live in
 [`docs/backend-and-data/06-supabase-deployment-runbook.md`](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md)

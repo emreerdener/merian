@@ -1,5 +1,15 @@
 # Supabase Deployment Runbook
 
+> **Beta policy update — September 18, 2026:** The owner authorized the existing
+> beta backend rollout under the
+> [Field Chat beta release decision](../release-evidence/field-chat-beta-release-decision-2026-09-18.md).
+> `species_dictionary_chat_production_hold` is inactive by explicit exception,
+> not because every full-release criterion passed. Statements below requiring
+> all external/device/hosted-token evidence before backend rollout describe the
+> full-release policy; that evidence remains open. Exact-SHA backend validation,
+> live repository controls, runtime security/consent, and the UTC cutover fence
+> remain required. This exception does not authorize iOS distribution.
+
 Naturebook's long-term Supabase release path is GitHub Actions, while backend
 function, RPC, migration, and storage identifiers retain their Merian technical
 identity. Local `supabase login` is useful for emergency maintenance, but
@@ -77,8 +87,9 @@ reviewers, wait timers, or custom approval gates. Scheduled monitors sharing
 trigger this path automatically; existing path filters and manual dispatch
 remain unchanged.
 
-The active Field Chat hold remains a one-time release blocker. Its evidence must
-be retained before a reviewed source change clears it. Once resolved, ordinary
+The Field Chat source hold is inactive under the owner-authorized beta decision
+linked above. The unfinished full-release checklist remains an owner obligation;
+it is not a machine-enforced backend hold or an automatic expiry. Ordinary
 subsequent commits require automated validation rather than fresh
 `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` records. Optional audit tooling still
 downloads each uniquely assigned artifact, recomputes the archive digest, and
@@ -6041,11 +6052,12 @@ builds are expired. Do not deploy the causal ACL cutover while a direct-writing
 build remains active. Do not backfill, infer, or fabricate age, Terms, Gemini,
 or analytics events.
 
-### Production release blockers
+### Full-public-launch external readiness
 
-Closing the repository findings does not authorize production. The candidate
-also remains blocked until a release owner has archived evidence for both
-external controls below:
+Closing repository findings does not certify the external controls below. The
+owner-authorized beta exception at the top of this runbook defers their records
+as backend prerequisites; it does not attest they are satisfied. The
+full-public-launch checklist still requires archived evidence for both:
 
 - App Store Connect is configured with the reviewed 18+ age-rating override,
   product pages and campaigns are not directed toward minors, and the archived
@@ -6244,10 +6256,19 @@ Set these in the repository's GitHub Actions secrets:
 - `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` — a fine-grained read-only token available
   only to the protected `Production` environment. Grant the minimum repository
   read permissions needed for Actions artifacts/runs, pull requests, branch
-  protection, and environments. It must not have contents, Actions,
-  administration, deployment, or secrets write access. The automatic release
-  verifier uses it before any Supabase credential or mutation and fails closed
-  if the token cannot inspect the live controls.
+  protection, and environments. Restrict repository access to
+  `emreerdener/merian` and grant **Read-only** for **Actions**,
+  **Administration**, **Contents**, and **Pull requests** (Metadata is
+  implicit). Actions read also permits reading environment configuration. See
+  GitHub's
+  [fine-grained permission reference](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens).
+  Create the token in the owner's GitHub account, then enter it directly as this
+  named environment secret under Settings → Environments → Production; do not
+  paste it into a chat, issue, source file, or log. Use a bounded expiration and
+  renew it before expiry. It must not have contents, Actions, administration,
+  deployment, or secrets write access. The automatic release verifier uses it
+  before any Supabase credential or mutation and fails closed if the token
+  cannot inspect the live controls.
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
 - `APPLE_SIGN_IN_TEAM_ID`, `APPLE_SIGN_IN_KEY_ID`, and
   `APPLE_SIGN_IN_PRIVATE_KEY` — required Apple Developer issuer/key metadata and
@@ -7572,6 +7593,55 @@ After deployment:
   accepts U+2013 EN DASH, collapses U+0085 NEXT LINE to ASCII space, rejects
   U+FEFF BYTE ORDER MARK, counts Unicode scalars, and enumerates the complete
   whitespace and punctuation sets.
+
+### Field Chat hosted authentication probe
+
+`services/supabase/scripts/verify_field_chat_hosted_auth.ts` supplies the
+missing real-token HTTP boundary probe. It is a staging-only diagnostic, not a
+deployment command or a hold-clearance command. Before running it, the release
+owner must identify and authorize a dedicated non-production project, deploy the
+three candidate Field Chat bundles through its reviewed staging path, and obtain
+a short-lived token for a dedicated staging test account. Do not create a
+project, copy production data, or deploy functions merely to run this diagnostic
+without that separate authorization. The known production project is explicitly
+refused; this refusal does not establish that any other arbitrary project is
+staging.
+
+Use a clean checkout of the exact candidate. Supply
+`FIELD_CHAT_AUTH_CANDIDATE_SHA`, `FIELD_CHAT_AUTH_STAGING_REF`,
+`FIELD_CHAT_AUTH_PUBLIC_KEY`, and `FIELD_CHAT_AUTH_USER_TOKEN` through the
+secure process environment. Never put tokens in command arguments, shell
+tracing, checked-in environment files, chat, or retained evidence. Use a
+publishable key or the staging project's legacy anon key; a service-role key is
+rejected.
+
+```bash
+deno run --frozen --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase --allow-run=git \
+  --allow-env=FIELD_CHAT_AUTH_CANDIDATE_SHA,FIELD_CHAT_AUTH_STAGING_REF,FIELD_CHAT_AUTH_PUBLIC_KEY,FIELD_CHAT_AUTH_USER_TOKEN \
+  --allow-net="${FIELD_CHAT_AUTH_STAGING_REF}.supabase.co" \
+  services/supabase/scripts/verify_field_chat_hosted_auth.ts
+```
+
+The probe first verifies the user token with GoTrue. It then calls all three
+routes with missing authorization, a tampered signature, and the verified token.
+Every request uses only `action: "load"` with the required subject UUID absent.
+The first two cases must return handler-owned `401`; the verified token must
+reach subject validation and return `400 invalid_request`. On the reviewed
+candidate, UUID validation precedes subject database access, quota reservation,
+and provider calls. No subject fixtures, Pro entitlement, conversation creation,
+or Gemini invocation are needed. Each response must carry the expected handler
+marker, admission contract, and freshly computed candidate bundle digest.
+
+Retain only the success JSON alongside the exact-SHA iOS and Supabase validation
+run references. Output contains route/status predicates and bundle identities,
+never tokens, user IDs, request IDs, or response bodies. The test does not prove
+successful thread loading, subject ownership, quotas, or provider behavior;
+those remain separate database/client/handler checks. Local tests of the harness
+do not constitute hosted execution evidence. Until an authorized staging
+deployment and real-token execution succeed, keep the wrapper criterion and
+production hold open. Failed runs emit no passing evidence.
+
 - Supabase production is machine-held by
   `species_dictionary_chat_production_hold` in
   `services/supabase/release-holds.json`. The reusable Candidate Validation job
@@ -7665,8 +7735,10 @@ disposable PostgreSQL execution, a hosted real-token HTTP-wrapper smoke, hosted
 same-SHA gates, a genuine released-V49 install-over, external approvals, and the
 actual live GitHub protection configuration remain evidence/state checks. A
 missing or unreachable disposable database is missing evidence, not a passing
-result. Keep the hold active until every criterion has a reviewed retained
-artifact and the live verifier accepts the external controls.
+result. Every criterion still needs retained evidence to close the full-release
+checklist. The owner-authorized beta exception makes the source hold inactive
+without completing that checklist. The live verifier checks repository controls;
+it cannot attest that an external approval exists.
 
 For each criterion, start from
 `docs/release-evidence/release-evidence-statement-template.json`. Schema-v2
@@ -7688,11 +7760,13 @@ reuse an artifact across criteria. Retention does not extend the 30-day
 admission window. Follow the complete redaction, renewal, and failure procedure
 in the [release-evidence operations guide](../release-evidence/README.md).
 
-After the hold's requirements have real retained evidence, resolve the hold in
-source through the protected PR path. Run candidate validation for the resulting
-exact commit. The deployment workflow rechecks source status and live GitHub
-controls automatically. Hold clearance is a deliberate source change, not a
-recurring environment approval. This policy change keeps the hold active.
+The beta decision clears the source hold through the protected PR path and
+requires candidate validation for the resulting exact commit. The deployment
+workflow rechecks source status and live GitHub controls automatically. Future
+hold changes must use that same reviewed path. The inactive hold permits later
+qualifying main pushes automatically and has no audience check or automatic
+expiry. Full-public-launch readiness remains an owner checklist, not an active
+backend gate.
 
 For an optional historical clearance audit, use
 `docs/release-evidence/species-dictionary-field-chat-clearance-template.json`.
@@ -7708,9 +7782,10 @@ protected-branches-only and environment secrets remain. No review click is
 needed for ordinary deployments or scheduled health monitors.
 
 Retain the source PR, exact workflow URLs, migration/function plan, live bundle
-identities, and post-deploy verification with the release record. Missing
-technical evidence still blocks resolving the active hold. Off-platform evidence
-requires judgment; automation cannot attest to an external issuer.
+identities, and post-deploy verification with the release record. Failed
+required backend checks still block deployment. Deferred full-release evidence
+remains open. Off-platform evidence requires judgment; automation cannot attest
+to an external issuer.
 
 - For an admin release, complete the authentication/role, security-header,
   grouped-review, hidden-content projection, feedback/user audit, and AI-ledger

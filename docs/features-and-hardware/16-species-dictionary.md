@@ -1,5 +1,15 @@
 # Species Dictionary Page
 
+> **Beta policy update — September 18, 2026:** The owner authorized the existing
+> beta backend rollout under the
+> [Field Chat beta release decision](../release-evidence/field-chat-beta-release-decision-2026-09-18.md).
+> `species_dictionary_chat_production_hold` is inactive by explicit exception,
+> not because every full-release criterion passed. Statements below requiring
+> all external/device/hosted-token evidence before backend rollout describe the
+> full-release policy; that evidence remains open. Exact-SHA backend validation,
+> live repository controls, runtime security/consent, and the UTC cutover fence
+> remain required. This exception does not authorize iOS distribution.
+
 The Species Dictionary Page is the standalone in-app and public-web reference
 page for a discovered species. Its primary content remains canonical public
 species-level dictionary data and licensed reference imagery. A separate
@@ -300,23 +310,24 @@ not contain species UUIDs or names. The public web route and anonymous
 ### Candidate Release Status
 
 Species Dictionary Field Chat is implemented in the source candidate but is
-release-held. The candidate adds a deletion-resistant admission aggregate,
-automatic exact-UUID iOS replay after ambiguous transport/`5xx`,
-Dictionary-specific refusal copy, a post-authenticated handler-core suite,
-atomic no-orphan conversation admission, a database-clock pending/ready cutover,
-explicit one-way post-bundle activation, and one executable Swift/Deno
-prompt-label policy. The handler suite also executes the actual Edge wrapper
-with deterministic accepted/refused authenticators. Source improvements do not
-substitute for hosted real-token, database, device, and external release
-evidence.
+eligible for the owner-authorized beta rollout described above. This is not
+evidence that production has deployed. The candidate adds a deletion-resistant
+admission aggregate, automatic exact-UUID iOS replay after ambiguous
+transport/`5xx`, Dictionary-specific refusal copy, a post-authenticated
+handler-core suite, atomic no-orphan conversation admission, a database-clock
+pending/ready cutover, explicit one-way post-bundle activation, and one
+executable Swift/Deno prompt-label policy. The handler suite also executes the
+actual Edge wrapper with deterministic accepted/refused authenticators. Source
+improvements do not substitute for hosted real-token, database, device, and
+external release evidence.
 
-The machine-readable `species_dictionary_chat_production_hold` remains active in
-`services/supabase/release-holds.json`. Candidate Validation may run, but the
-separate hold job reports a successful `held` result and the conditional
-Production job is skipped before the GitHub `Production` environment or any
-database, secret, or Function mutation. Malformed or missing hold controls still
-fail. A green held workflow is validation evidence, not deployment evidence; the
-feature must not be described as shipped or added to paywall/App Store copy. The
+The machine-readable `species_dictionary_chat_production_hold` is inactive in
+`services/supabase/release-holds.json` under the beta decision above. The
+production workflow still requires exact-SHA Candidate Validation and live
+repository-control verification. Missing or malformed hold controls still fail.
+The full-release evidence checklist remains open and is not a machine-enforced
+backend hold. Only a completed deployment and activation establish availability;
+this policy decision does not authorize paywall/App Store launch copy. The
 reviewed 2026-08-24 source now:
 
 1. registers `field_chat_daily_admissions` in the effective Ghost handler
@@ -347,8 +358,8 @@ reviewed 2026-08-24 source now:
    policy before mutation. Optional artifact audits preserve retained evidence;
    ordinary deployments require no review click or per-commit clearance secret.
 
-Production remains blocked until the database-backed cases execute without a
-connection skip on the immutable candidate; the authenticated HTTP wrapper
+For full-public-launch readiness, the database-backed cases must execute without
+a connection skip on the immutable candidate; the authenticated HTTP wrapper
 boundary passes; a ready-state rerun always selects all three chat bundles;
 every live route's content digest matches the candidate; a genuine released V49
 binary accepts the exact V50 candidate without safe mode/store replacement or
@@ -367,7 +378,7 @@ Evidence authors must follow the
 [release-evidence operations guide](../release-evidence/README.md).
 
 These are release-evidence requirements, not accepted product limitations.
-Public web remains unchanged regardless of this release hold.
+Public web remains unchanged regardless of the backend beta exception.
 
 ## Title And Alternate Names
 

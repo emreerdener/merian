@@ -1,17 +1,28 @@
 # Production Consent Readiness — 2026-08-03
 
+> **Beta policy update — September 18, 2026:** The owner authorized the existing
+> beta backend rollout under the
+> [Field Chat beta release decision](../release-evidence/field-chat-beta-release-decision-2026-09-18.md).
+> `species_dictionary_chat_production_hold` is inactive by explicit exception,
+> not because every full-release criterion passed. Statements below requiring
+> all external/device/hosted-token evidence before backend rollout describe the
+> full-release policy; that evidence remains open. Exact-SHA backend validation,
+> live repository controls, runtime security/consent, and the UTC cutover fence
+> remain required. This exception does not authorize iOS distribution.
+
 ## Deployment policy update — 2026-09-18
 
 The owner has restored automatic deployment on backend-relevant pushes to main.
 Production and Release Evidence no longer require reviewer clicks. The deploy
 workflow verifies candidate validation, source holds, the exact current-main
 SHA, and live repository protections automatically. Per-commit clearance secrets
-are no longer a runtime requirement. The active hold and the technical/external
-evidence below remain unresolved. Historical descriptions of the August
-clearance design below describe the prior mechanism; the current operational
-contract is [release evidence operations](../release-evidence/README.md).
+are no longer a runtime requirement. The later beta decision makes the source
+hold inactive while the full-release evidence below remains incomplete.
+Historical descriptions of the August clearance design below describe the prior
+mechanism; the current operational contract is
+[release evidence operations](../release-evidence/README.md).
 
-## Status
+## Full-Public-Launch Status
 
 **Blocked.** The repository contains the intended final onboarding surface,
 versioned consent evidence, server-side Gemini admission guard, optional
@@ -27,12 +38,11 @@ first-scan `ai_consent_required` retry loop is also remediated in source: iOS
 now requires a freshly fetched account proof before inference, durably routes an
 exact server rejection back to Ready, preserves queued media, and stops
 automatic redispatch. Hosted exact-SHA execution and the external operator
-controls below must still close before this candidate is nominated for
-production. The checked-in `species_dictionary_chat_production_hold` enforces
-that outcome for Supabase: Candidate Validation may run, but a separate
-fail-closed job blocks entry to the GitHub `Production` environment while this
-record, the same-SHA hosted gates, and the real V49→V50 install-over evidence
-remain incomplete.
+controls below must still close before full-public-launch nomination. For the
+existing beta backend, `species_dictionary_chat_production_hold` is inactive by
+owner decision. Candidate Validation and live repository checks still gate
+Production; this record's remaining iOS/device/external items do not block that
+beta backend workflow. They are not certified complete.
 
 The 2026-08-24 full-candidate review also reopened adjacent source and evidence
 readiness outside the consent lifecycle. The source candidate now registers and
@@ -49,8 +59,10 @@ force-selects all three routes, activation stores the three observed identities,
 and the clearance verifier downloads/recomputes artifact evidence while checking
 live GitHub protections. Non-skipped disposable database, hosted real-token
 wrapper, same-SHA hosted gates, genuine V49→V50 install-over, live external
-control configuration, and external approvals remain pending. Green source or
-consent-focused tests do not override those blockers.
+control configuration, and external approvals formed the historical full-release
+checklist. The beta decision records later backend validation and the still-open
+evidence. Green source or consent-focused tests do not certify external
+approvals.
 
 For internal test builds, the App Store, billing/DPA, and counsel approvals are
 explicitly deferred. That deferral permits continued engineering and internal
@@ -62,11 +74,12 @@ step** title, a required Age → Terms/Gemini group, and a separate optional
 Analytics group. Because the displayed disclosure and action statements did not
 change, existing Gemini and analytics disclosure versions and immutable receipts
 remain valid. Counsel approval of the retained copy and revised hierarchy
-remains an external production requirement.
+remains an external full-public-launch requirement.
 
 This record is the canonical status source for the adult, Terms, Google Gemini,
 and PostHog consent release. Architecture documents describe the required end
-state; they do not override the release hold recorded here.
+state; they do not attest that this checklist is complete. The owner-authorized
+beta decision above separately governs backend deployment eligibility.
 
 ## Adjacent iOS Privacy Manifest Status
 
@@ -296,15 +309,18 @@ issuer/secret-administration trust boundary.
 
 ## Current Exact-SHA Evidence
 
-No green hosted evidence for the post-fence candidate is recorded yet. Do not
-copy counts from older or local runs into this table; populate it only from the
-two workflow summaries for the same immutable candidate SHA.
+No complete paired hosted result is recorded for the final beta-policy commit.
+Supabase Candidate Validation passed for the preceding main SHA
+`e4966a6693c78fc6598b04d9049022fabbdabe40` in
+[run 35418402967](https://github.com/emreerdener/merian/actions/runs/35418402967).
+That is historical backend evidence, not evidence for a later SHA or the iOS
+gate. Final-source validation must run again; do not copy older test counts.
 
-| Gate                              | Required result                                                                                                                                                                                                                                                                            | Current result                                                   |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| **iOS Build and Test**            | Complete unit target, all four progressive-analyzing, live-to-queue, queued-retry, and queued-audio-completion UI smokes, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true` and `transport_security: "ats-default"`. | Pending a new hosted run.                                        |
-| **Supabase Candidate Validation** | Fail-closed PR scope and stable Candidate readiness check, clean-SHA check, pinned tools, formatting/lint, migration replay, every discovered pgTAP catalog, complete Edge/database-concurrency suite, database lint, and advisors all green.                                              | Pending a new hosted validation-only run on the reviewed SHA.    |
-| Production Supabase deployment    | Automatic on backend-relevant main pushes after candidate validation, a clear source hold, exact clean mutation SHA, live repository checks, candidate-matched Function provenance, and a tested ready-state rerun. No environment review or per-commit clearance secret.                  | Blocked by the active `species_dictionary_chat_production_hold`. |
+| Gate                              | Required result                                                                                                                                                                                                                                                                            | Current result                                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| **iOS Build and Test**            | Complete unit target, all four progressive-analyzing, live-to-queue, queued-retry, and queued-audio-completion UI smokes, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true` and `transport_security: "ats-default"`. | Pending a new hosted run.                                                                        |
+| **Supabase Candidate Validation** | Fail-closed PR scope and stable Candidate readiness check, clean-SHA check, pinned tools, formatting/lint, migration replay, every discovered pgTAP catalog, complete Edge/database-concurrency suite, database lint, and advisors all green.                                              | Prior main run passed (above); final beta-policy SHA must revalidate.                            |
+| Production Supabase deployment    | Automatic on backend-relevant main pushes after candidate validation, a clear source hold, exact clean mutation SHA, live repository checks, candidate-matched Function provenance, and a tested ready-state rerun. No environment review or per-commit clearance secret.                  | Eligible under beta exception; audit token setup and final-SHA validation pending; not deployed. |
 
 The candidate workflow has no Production environment, production secrets,
 migration push, Function deployment, or production smoke. Its disposable
@@ -312,7 +328,7 @@ database is release evidence without production mutation. The workflow-reported
 SHA, run URL, test totals, iOS archive fingerprint/version/build, and database
 result become canonical only after both hosted gates pass on the same SHA.
 
-## Required Remediation and Rollout Order
+## Full-Public-Launch Remediation and Rollout Order
 
 Before step 1, close the source/local criteria in the
 [Species Dictionary Field Chat hold](../backend-and-data/06-supabase-deployment-runbook.md#species-dictionary-field-chat-hold-exit-criteria)
@@ -327,12 +343,14 @@ compatibility header is insufficient. The local suite already executes the
 wrapper with deterministic accepted/refused authenticators. Steps 1 and 2 below
 produce the same-SHA hosted gate evidence; the hosted real-token wrapper,
 physical install-over from the genuine released V49 binary, and external
-approvals are separate retained artifacts. Keep the hold active until all eight
-criterion artifacts exist. Publish each redacted statement through the protected
-`Release Evidence` workflow and resolve the hold through a source PR. Before
-mutation, the automated verifier checks live branch/Release Evidence/Production
-protections. Optional audits recompute retained artifact digests and validate
-exact-SHA runs; per-commit manual clearance is no longer required.
+approvals are separate retained artifacts. All eight criterion artifacts remain
+required for the full-public-launch checklist. The beta exception above has
+already made the backend source hold inactive without certifying that checklist.
+Publish each redacted statement through the protected `Release Evidence`
+workflow. Before mutation, the automated verifier checks live branch/Release
+Evidence/Production protections. Optional audits recompute retained artifact
+digests and validate exact-SHA runs; per-commit manual clearance is no longer
+required.
 
 1. Run the complete hosted **iOS Build and Test** workflow on the exact repaired
    candidate SHA. Require a compiled and executed complete `merianTests` target,
@@ -425,6 +443,8 @@ Repository correctness does not close these operator-owned requirements:
   Xcode aggregate privacy report, App Store privacy and ATT answers, operator
   identity, and regional release scope.
 
-Production remains blocked until hosted exact-SHA validation and every external
-production control are closed with exact-version, exact-build evidence. Those
-operator controls remain deferred for internal-only test builds.
+Full-public-launch approval remains unrecorded until hosted exact-SHA validation
+and every external production control have exact-version, exact-build evidence.
+The owner has separately authorized the existing beta backend rollout under the
+decision above. These deferred records are not a machine-enforced backend hold,
+and that exception does not certify legal compliance or internal-only access.
