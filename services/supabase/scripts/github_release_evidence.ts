@@ -378,10 +378,12 @@ export class GitHubReleaseEvidenceVerifier implements ReleaseEvidenceVerifier {
     const bypass = isRecord(reviews)
       ? reviews.bypass_pull_request_allowances
       : undefined;
-    const bypassEmpty = isRecord(bypass) &&
+    // GitHub omits this optional field when no review bypass is configured.
+    // A present field must still explicitly contain three empty actor lists.
+    const bypassEmpty = bypass === undefined || (isRecord(bypass) &&
       ["users", "teams", "apps"].every((key) =>
         Array.isArray(bypass[key]) && (bypass[key] as unknown[]).length === 0
-      );
+      ));
     if (
       !isRecord(reviews) || reviews.dismiss_stale_reviews !== true ||
       reviews.require_last_push_approval !== false ||

@@ -80,12 +80,17 @@ clean-checks the same SHA and runs `--mode automatic-release` before ordinary
 production credentials or mutations. With the read-only
 `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`, the gate verifies the current protected
 `main` head, merged-main PR provenance, required checks, branch rules without
-bypass, and automatic environment policy. Both `Production` and
-`Release Evidence` retain protected-branches-only restrictions with no required
-reviewers, wait timers, or custom approval gates. Scheduled monitors sharing
-`Production` also run without approval clicks. Backend-relevant pushes to `main`
-trigger this path automatically; existing path filters and manual dispatch
-remain unchanged.
+bypass, and automatic environment policy. GitHub's optional
+`bypass_pull_request_allowances` field may be omitted when no review bypass is
+configured; a present field must contain empty `users`, `teams`, and `apps`
+arrays. Null, malformed, incomplete, or nonempty allowances fail verification.
+See
+[GitHub's branch-protection response](https://docs.github.com/en/rest/branches/branch-protection#get-branch-protection).
+Both `Production` and `Release Evidence` retain protected-branches-only
+restrictions with no required reviewers, wait timers, or custom approval gates.
+Scheduled monitors sharing `Production` also run without approval clicks.
+Backend-relevant pushes to `main` trigger this path automatically; existing path
+filters and manual dispatch remain unchanged.
 
 The Field Chat source hold is inactive under the owner-authorized beta decision
 linked above. The unfinished full-release checklist remains an owner obligation;
