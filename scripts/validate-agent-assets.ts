@@ -621,7 +621,7 @@ async function validateWorkflow(): Promise<void> {
     }
   }
   const requiredFragments = [
-    "openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56",
+    "openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e",
     'codex-version: "0.146.0"',
     'model: "gpt-5.6-terra"',
     'effort: "medium"',
@@ -632,6 +632,10 @@ async function validateWorkflow(): Promise<void> {
     "openai-api-key: ${{ secrets.OPENAI_API_KEY }}",
     "name: agent-quality-${{ matrix.suite }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}",
     "continue-on-error: true",
+    "API_KEY_AVAILABLE: ${{ secrets.OPENAI_API_KEY != '' }}",
+    "if: steps.live_credentials.outputs.available == 'true'",
+    "if: steps.codex.outcome == 'success'",
+    "No calibration evidence was produced.",
     "make validate-agent-assets",
   ];
   for (const fragment of requiredFragments) {

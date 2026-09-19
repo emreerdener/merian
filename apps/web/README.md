@@ -171,6 +171,17 @@ separate staging Supabase project and Turnstile widget if preview deployments
 need live backend behavior. See the canonical destination matrix in
 [`docs/development-guides/05-keychain-and-secrets.md`](../../docs/development-guides/05-keychain-and-secrets.md#deployment-environment-ownership).
 
+### Dependency maintenance
+
+All direct Mantine packages are pinned together at 9.5.1. Dependabot groups
+minor and patch updates because Mantine uses exact peer versions. Node types
+remain on the supported Node 24 major. The lockfile also resolves
+`baseline-browser-mapping` to 2.11.25, above the 2.11.0 fix for
+[invalid-input process termination](https://github.com/advisories/GHSA-w5vr-8v7q-w6rv).
+Follow the
+[dependency maintenance policy](../../docs/CONTRIBUTING.md#dependency-maintenance)
+and retain the complete frozen-install, audit, test, type-check, and build gate.
+
 ### Web Security Boundary
 
 The package pins the reviewed Next.js release exactly; do not replace it with a

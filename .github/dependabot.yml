@@ -12,12 +12,28 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      mantine:
+        patterns: ["@mantine/*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # Match the supported Node 24 runtime; review a runtime upgrade together.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/apps/admin"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      mantine:
+        patterns: ["@mantine/*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # Match the supported Node 24 runtime; review a runtime upgrade together.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "deno"
     directory: "/services/supabase/functions"
