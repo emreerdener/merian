@@ -7,8 +7,9 @@
 > not because every full-release criterion passed. Statements below requiring
 > all external/device/hosted-token evidence before backend rollout describe the
 > full-release policy; that evidence remains open. Exact-SHA backend validation,
-> live repository controls, runtime security/consent, and the UTC cutover fence
-> remain required. This exception does not authorize iOS distribution.
+> live repository controls, runtime security/consent, and audited cutover
+> activation remain required. This exception does not authorize iOS
+> distribution.
 
 Naturebook's long-term Supabase release path is GitHub Actions, while backend
 function, RPC, migration, and storage identifiers retain their Merian technical
@@ -7513,6 +7514,20 @@ After deployment:
   leave an empty thread before or after activation. Reads, deletes, feedback,
   and exact replays remain available. A reviewed plan, operator intention,
   runner clock, or partial-day lower-bound seed is not release evidence.
+- The
+  [September 19 immediate beta decision](../release-evidence/field-chat-immediate-beta-activation-2026-09-19.md)
+  supersedes the next-day wait for this pending beta cutover.
+  `20260919125625_authorize_immediate_field_chat_beta_activation.sql` advances
+  only an unactivated pending fence, preserving the original boundary and the
+  database-observed eligibility time in private audit columns. Known usage stays
+  intact; deleted pre-migration usage may be undercounted during this partial
+  UTC day. Already-ready or active installations remain unchanged. The
+  deployment tools require complete, matching audit evidence for a non-midnight
+  boundary. This grants eligibility only: all three live bundle digests and the
+  existing one-way activation remain mandatory. Do not substitute an ad-hoc
+  timestamp update or clear activation evidence. The new fixture replays the
+  migration against pending and active states and proves durable counts and
+  admission routines are unchanged.
 - The cumulative planner force-selects `insight-chat`, `explore-post-chat`, and
   `species-dictionary-chat` whenever the cutover migration enters the change
   range. After `db push`, `verify_field_chat_cutover.ts` reads the service-only

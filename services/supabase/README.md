@@ -7,8 +7,9 @@
 > not because every full-release criterion passed. Statements below requiring
 > all external/device/hosted-token evidence before backend rollout describe the
 > full-release policy; that evidence remains open. Exact-SHA backend validation,
-> live repository controls, runtime security/consent, and the UTC cutover fence
-> remain required. This exception does not authorize iOS distribution.
+> live repository controls, runtime security/consent, and audited cutover
+> activation remain required. This exception does not authorize iOS
+> distribution.
 
 The Supabase backend for Merian. This directory contains the PostgreSQL database
 migrations, Deno Edge Functions, and related configuration.
@@ -1878,6 +1879,15 @@ Deno configuration, and frozen lock. A `ready` rerun force-selects all three
 bundles; activation persists candidate, migration, and all three live digests.
 These source controls still require non-skipped disposable PostgreSQL and hosted
 exact-SHA evidence before the hold may be cleared.
+
+The
+[September 19 immediate-beta decision](../../docs/release-evidence/field-chat-immediate-beta-activation-2026-09-19.md)
+supersedes only the initial next-day wait. Its forward migration advances a
+still-pending fence to database time and preserves the original boundary in
+private audit columns. Recorded daily counts stay intact, with a documented
+partial-day lower-bound exception for deleted pre-migration messages. The
+workflow still requires all three live bundle digests and explicit activation;
+ready and active installations are unchanged.
 
 Executable security fixtures insert test profiles directly instead of running
 the Auth signup trigger. Any such owner-only fixture must first insert the

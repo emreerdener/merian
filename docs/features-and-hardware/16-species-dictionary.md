@@ -7,8 +7,9 @@
 > not because every full-release criterion passed. Statements below requiring
 > all external/device/hosted-token evidence before backend rollout describe the
 > full-release policy; that evidence remains open. Exact-SHA backend validation,
-> live repository controls, runtime security/consent, and the UTC cutover fence
-> remain required. This exception does not authorize iOS distribution.
+> live repository controls, runtime security/consent, and audited cutover
+> activation remain required. This exception does not authorize iOS
+> distribution.
 
 The Species Dictionary Page is the standalone in-app and public-web reference
 page for a discovered species. Its primary content remains canonical public
