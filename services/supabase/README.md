@@ -2335,12 +2335,20 @@ schema. After an intentional media-wire change, run
 `make generate-captured-media-dto-contract`, review the Swift diff, then run
 `make validate-edge-dto-contract`.
 
+The reviewed maintenance graph pins `@std/encoding` to 1.0.11 and the JSZip
+archive-test dependency to 3.10.2. Supabase JS remains on the separately
+reviewed 2.110.8 contract; JOSE and Gemini major upgrades require their own
+compatibility changes. See the
+[dependency maintenance policy](../../docs/CONTRIBUTING.md#dependency-maintenance).
+
 After changing a pin in `functions/deno.json`, regenerate the function-local
 configs with `sync_function_deno_configs.ts`, refresh
-`functions/dependencies.lock`, and commit all three surfaces together. CI
-rejects stale generated configs, unlocked packages, direct runtime specifiers,
-and any missing or stale `config.toml` function entry. When the fleet changes,
-fix the reported name mismatch; never update a numeric expected-function count.
+`functions/dependencies.lock`, then regenerate the Field Chat bundle identities
+with `generate_field_chat_deployment_identity.ts --write`. Commit the manifest,
+lockfile, local configs, and generated identities together. CI rejects stale
+generated configs, unlocked packages, direct runtime specifiers, and any missing
+or stale `config.toml` function entry. When the fleet changes, fix the reported
+name mismatch; never update a numeric expected-function count.
 
 The checked-in `deno task test` is the canonical complete function source and
 unit suite. Its read allowlist includes the function tree plus migrations,

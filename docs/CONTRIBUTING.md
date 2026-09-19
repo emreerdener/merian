@@ -189,6 +189,38 @@ passed.
    the public privacy policy, App Store Connect answers, and the
    [manifest contract](./development-guides/16-ios-privacy-manifest.md).
 
+## Dependency maintenance
+
+Dependabot proposals require the same review and exact-commit checks as other
+changes. A version bump alone is not evidence that a dependency is compatible.
+
+- Keep Node type declarations on the supported Node 24 major. The npm Dependabot
+  entries ignore major updates to `@types/node`; update that rule together with
+  the runtime when intentionally adopting a new Node major.
+- Update all `@mantine/*` packages in each application together. They use exact
+  peer versions, so individual updates can produce an un-installable graph.
+  Dependabot groups minor and patch Mantine updates by application. Keep both
+  application manifests and lockfiles consistent and use the pinned npm version.
+- For Edge dependencies, update the root `functions/deno.json`, regenerate every
+  function-local config with `sync_function_deno_configs.ts`, and refresh the
+  shared frozen `dependencies.lock` and generated Field Chat bundle identities
+  in the same change. Run the complete Supabase candidate gate; never merge a
+  manifest-only bot proposal.
+- Immutable GitHub Action pins can have a matching executable validator. Update
+  the reviewed pin and its validator together without removing the guard.
+- Major TypeScript, Gemini SDK, and JOSE changes need separate compatibility
+  reviews. The centrally pinned Supabase SDK also needs a dedicated review even
+  for a minor update because it serves authentication and database operations
+  throughout the Edge fleet. Deferred proposals stay open and labelled rather
+  than being merged merely to empty the queue. As of September 19, 2026, the
+  deferred queue is TypeScript (#10, #12), Gemini (#36), JOSE (#37), and the
+  Supabase SDK (#38).
+
+For web/admin updates, run the frozen install, blocking dependency audit, tests,
+type check, and production build from each affected package. Preserve security
+floors and transitive overrides. For Edge updates, follow the dependency and
+verification sections in [the Supabase README](../services/supabase/README.md).
+
 ## Testing Protocol
 
 - **Markdown**: Format every changed Markdown file before handoff. Run

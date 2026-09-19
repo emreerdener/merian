@@ -16,8 +16,8 @@
     "audit:dependencies": "npm audit --audit-level=high"
   },
   "dependencies": {
-    "@mantine/core": "9.5.0",
-    "@mantine/hooks": "9.5.0",
+    "@mantine/core": "9.5.1",
+    "@mantine/hooks": "9.5.1",
     "@supabase/ssr": "0.12.4",
     "@supabase/supabase-js": "2.111.0",
     "next": "16.3.5",
@@ -28,14 +28,14 @@
     "@types/node": "24.13.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
-    "postcss": "8.5.25",
+    "postcss": "8.5.26",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
     "typescript": "5.9.3"
   },
   "overrides": {
     "next": {
-      "postcss": "8.5.25",
+      "postcss": "8.5.26",
       "sharp": "0.35.4"
     }
   }
