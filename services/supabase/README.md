@@ -1,5 +1,15 @@
 # Merian Supabase Backend
 
+> **Beta policy update — September 18, 2026:** The owner authorized the existing
+> beta backend rollout under the
+> [Field Chat beta release decision](../../docs/release-evidence/field-chat-beta-release-decision-2026-09-18.md).
+> `species_dictionary_chat_production_hold` is inactive by explicit exception,
+> not because every full-release criterion passed. Statements below requiring
+> all external/device/hosted-token evidence before backend rollout describe the
+> full-release policy; that evidence remains open. Exact-SHA backend validation,
+> live repository controls, runtime security/consent, and the UTC cutover fence
+> remain required. This exception does not authorize iOS distribution.
+
 The Supabase backend for Merian. This directory contains the PostgreSQL database
 migrations, Deno Edge Functions, and related configuration.
 
@@ -109,10 +119,11 @@ the automated repository-control gate. It requires
 `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` for live branch/environment checks, but no
 per-commit clearance secret or environment approval. Both environments permit
 protected branches only with no reviewers or waiting gates. Scheduled monitors
-sharing Production run automatically. The existing active hold remains a
-one-time blocker until its evidence is complete and it is resolved in source.
-The [release-evidence operations guide](../../docs/release-evidence/README.md)
-owns optional retained-evidence publication and audit procedures.
+sharing Production run automatically. The Field Chat hold is inactive under the
+owner-authorized beta decision above; the unfinished full-release checklist is
+not an automatic backend blocker. The
+[release-evidence operations guide](../../docs/release-evidence/README.md) owns
+optional retained-evidence publication and audit procedures.
 
 Catalog fixtures preserve production signup behavior. An `auth.users` insert
 fires `on_auth_user_created` and can create `public.users` synchronously; a
@@ -1739,9 +1750,9 @@ revoked. Static contracts lock the account-row-before-stream lock order, and
 `legalConsentConcurrencyDb.test.ts` releases overlapping grant/revocation
 callers for both providers and requires the final head to remain revoked. Static
 backend contracts pass, and all tracked iOS lifecycle findings are closed in
-source. Internal test builds may continue. Public production remains blocked by
-hosted exact-SHA runtime/rollout evidence, disposable-catalog replay, and
-external release evidence in the
+source. The existing beta backend is eligible for the owner-authorized exception
+above, with exact-SHA backend validation still required. Full-public-launch
+approval still needs the runtime/rollout and external release evidence in the
 [production consent readiness record](../../docs/legal/production-consent-readiness-2026-08-03.md).
 
 Terminal quota reservations ordinarily prune after 30 days.
@@ -2787,15 +2798,14 @@ marker plus each route's candidate-derived bundle digest, and activation stores
 all three live identities. Database `ready` force-selects the full Field Chat
 fleet even after the migration becomes the deployment baseline. The current
 handler test executes the post-authenticated core, not a hosted real-token HTTP
-request. Supabase production is blocked by the checked-in
-`species_dictionary_chat_production_hold`; Candidate Validation may run, but the
-separate source hold job must pass before the GitHub `Production` environment or
-any mutation-capable deployment step is reached. After the hold is legitimately
-resolved, the exact-SHA Production job verifies live branch/environment controls
-automatically, without a renewed manual clearance record on every commit. Keep
-the hold active until non-skipped database and wrapper-auth execution, both
-same-SHA hosted gates, the released-V49 install-over, and every external gate in
-the canonical deployment runbook are retained.
+request. The checked-in `species_dictionary_chat_production_hold` is inactive
+under the owner-authorized beta decision above. Candidate Validation and the
+source-status job still precede the GitHub `Production` environment. The
+exact-SHA Production job verifies live branch/environment controls
+automatically, without a renewed manual clearance record on every commit.
+Non-skipped backend tests remain required. Hosted real-token, complete same-SHA
+iOS, released-V49 install-over, and external approval records remain incomplete
+full-release checklist items, not active backend deployment prerequisites.
 
 For the Field trip Scan indicator and starter enrollment, apply the complete
 ordered Field trip chain through

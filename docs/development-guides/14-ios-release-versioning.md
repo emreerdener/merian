@@ -1,5 +1,15 @@
 # iOS Release Versioning and Xcode Organizer Runbook
 
+> **Beta policy update — September 18, 2026:** The owner authorized the existing
+> beta backend rollout under the
+> [Field Chat beta release decision](../release-evidence/field-chat-beta-release-decision-2026-09-18.md).
+> `species_dictionary_chat_production_hold` is inactive by explicit exception,
+> not because every full-release criterion passed. Statements below requiring
+> all external/device/hosted-token evidence before backend rollout describe the
+> full-release policy; that evidence remains open. Exact-SHA backend validation,
+> live repository controls, runtime security/consent, and the UTC cutover fence
+> remain required. This exception does not authorize iOS distribution.
+
 Last updated: August 24, 2026
 
 ## Active Consent Release Hold

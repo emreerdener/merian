@@ -80,14 +80,15 @@ Deno.test("an active checked-in hold blocks Supabase production", async () => {
   assertStringIncludes(decision.summary, "Candidate evidence is incomplete.");
 });
 
-Deno.test("the repository keeps the Species Dictionary production hold active", async () => {
+Deno.test("the repository records the owner-authorized beta source exception", async () => {
   const decision = await evaluateProductionReleaseHolds(
     new URL("../release-holds.json", import.meta.url),
   );
-  assertEquals(decision.allowed, false);
+  assertEquals(decision.allowed, true);
   assertEquals(decision.manifestValid, true);
-  assertEquals(productionSourceStatus(decision), "held");
-  assertEquals(decision.activeHoldIds, [holdId]);
+  assertEquals(productionSourceStatus(decision), "clear");
+  assertEquals(decision.activeHoldIds, []);
+  assertEquals(decision.inactiveHoldIds, [holdId]);
 });
 
 Deno.test("an inactive source hold still requires protected clearance", async () => {
