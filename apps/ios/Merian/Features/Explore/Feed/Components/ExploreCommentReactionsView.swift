@@ -6,6 +6,7 @@ struct ExploreCommentReactionsView: View {
     let onToggleReaction: (ExploreComment, String, Bool) -> Void
     var onLoadMore: () -> Void = {}
     @State private var revealEmoji: String?
+    @ScaledMetric(relativeTo: .subheadline) private var chipHeight: CGFloat = 28
 
     var body: some View {
         HStack(spacing: 6) {
@@ -13,16 +14,16 @@ struct ExploreCommentReactionsView: View {
                 HapticManager.shared.triggerSheetSpring(source: "explore.reaction.comment.open")
                 reactingCommentId = comment.id
             } label: {
-                HStack(spacing: 2) {
+                HStack(spacing: 4) {
                     Image(systemName: "face.smiling")
                     Image(systemName: "plus")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.caption.weight(.bold))
                 }
-                .font(.system(size: 14))
-                .padding(.horizontal, 10)
-                .frame(height: 28)
+                .font(.subheadline)
+                .padding(.horizontal, 6)
+                .frame(minHeight: chipHeight)
                 .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-                .overlay(Capsule().stroke(Color.primary.opacity(0.06), lineWidth: 1))
+                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06), lineWidth: 1))
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())

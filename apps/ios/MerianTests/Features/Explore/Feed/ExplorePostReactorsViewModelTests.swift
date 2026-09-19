@@ -5,10 +5,34 @@ import XCTest
 @MainActor
 final class ExplorePostReactorsViewModelTests: XCTestCase {
     private func person(_ id: String, emojis: [String] = ["❤️", "😂"]) -> ExplorePostReactor {
-        .init(userId: id, displayName: id, avatarUrl: nil, emojis: emojis)
+        .init(userId: id, displayName: id, username: nil, avatarUrl: nil, emojis: emojis)
     }
     private func page(_ ids: [String], total: Int? = nil, cursor: String? = nil) -> ExplorePostReactorsPage {
         .init(totalCount: total ?? ids.count, previewNames: Array(ids.prefix(2)), reactors: ids.map { person($0) }, nextCursor: cursor)
+    }
+
+    func testReactorDecodesPublicUsernameAndPrefersItForPresentation() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let reactor = try decoder.decode(ExplorePostReactor.self, from: Data(#"""
+        {"user_id":"fixture-user","display_name":"Observer A.","username":"nature_observer","avatar_url":null,"emojis":["😂"]}
+        """#.utf8))
+        XCTAssertEqual(reactor.username, "nature_observer")
+        XCTAssertEqual(ExplorePost.publicAuthorDisplayName(
+            from: reactor.displayName, username: reactor.username, preferUsername: true
+        ), "@nature_observer")
+    }
+
+    func testReactorStillDecodesResponseBeforeUsernameRollout() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let reactor = try decoder.decode(ExplorePostReactor.self, from: Data(#"""
+        {"user_id":"fixture-user","display_name":"Observer","avatar_url":null,"emojis":["😂"]}
+        """#.utf8))
+        XCTAssertNil(reactor.username)
+        XCTAssertEqual(ExplorePost.publicAuthorDisplayName(
+            from: reactor.displayName, username: reactor.username, preferUsername: true
+        ), "Observer")
     }
 
     func testSummaryCountsPeopleRatherThanEmojiAndHandlesGrammar() async {

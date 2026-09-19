@@ -1712,6 +1712,7 @@ and disappear when their authoritative count reaches zero.
 
 Post action bars use smaller 20-point symbols and equal 6-point top/bottom
 insets around the default 44-point row on feed, hashtag, and detail surfaces.
+Comment and heart counts use Dynamic Type body text (17 points by default).
 Empty hashtag content adds no gap above the feed controls; large-text reaction
 rows retain their existing expansion.
 
@@ -1723,6 +1724,11 @@ emoji already contributed through the picker keeps it selected; tapping its chip
 removes that viewer's contribution. Other heart emoji remain separate from the
 post's existing ❤️ like. Neither ordinary emoji reactions nor comment reactions
 alter Liked-feed membership or trending scores.
+
+Comment/reply Add reaction capsules match the reaction chips' 28-point height,
+6-point horizontal padding, 4-point internal spacing, and Dynamic Type scaling,
+with at least 44-point tap targets for both controls. The Add button retains a
+subtle 1-point inset outline within that same height.
 
 Search uses the bundled Unicode names, category metadata, and CLDR keywords. The
 compact grid offers default skin tones only, including flags and joined
@@ -1799,13 +1805,18 @@ also stays hidden without reserving space while its read is loading or fails. It
 appears only after a successful read with people to show; background refreshes
 retain the existing lifecycle triggers.
 
-Tapping gives sheet feedback and opens a medium/large Reactions sheet. Each row
-shows the person's public avatar/name and every emoji they used; likes appear as
-❤️ once. Emoji overflow scrolls within that row. Explicit Load more pages
-through people, and pull-to-refresh updates membership. Loading, empty, and
-retry states are visible inside the opened sheet. VoiceOver uses emoji catalog
-names, and text supports Dynamic Type. The existing video-overlay lifecycle
-suspends playback while the sheet is presented.
+The summary row uses caption-sized text and people icon, a smaller chevron,
+6-point internal spacing, 12-point horizontal insets, and a 32-point minimum
+height. Text and icons scale with Dynamic Type.
+
+Tapping gives sheet feedback and opens a medium/large Reactions sheet. The sheet
+uses swipe-down dismissal without a Done button. Each row shows the person's
+public avatar, `@username`, and every emoji they used; likes appear as ❤️ once.
+Emoji overflow scrolls within that row. Explicit Load more pages through people,
+and pull-to-refresh updates membership. Loading, empty, and retry states are
+visible inside the opened sheet. VoiceOver uses emoji catalog names, and text
+supports Dynamic Type. The existing video-overlay lifecycle suspends playback
+while the sheet is presented.
 
 A detail-owned model shares the summary and sheet state, refreshes after local
 post reaction/like completion, and rejects obsolete requests after refresh,

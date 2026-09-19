@@ -3,6 +3,7 @@ import { requireUuid } from "../_shared/explore.ts";
 export interface ExplorePostReactor {
   user_id: string;
   display_name: string;
+  username: string;
   avatar_url: string | null;
   emojis: string[];
 }

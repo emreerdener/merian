@@ -365,6 +365,10 @@ async function people(
 Deno.test("Explore reactors DB: unique people include likes and owner, identities and visibility agree", async () => {
   await withExploreDbTest("exploreReactorsDb", async (client) => {
     const f = await fixtures(client);
+    await client.queryArray(
+      "UPDATE public.users SET public_username='reaction_fixture_viewer' WHERE id=$1",
+      [f.viewer],
+    );
     await client.queryArray("SET LOCAL ROLE service_role");
     assertEquals((await people(client, f.viewer, f.post)).total_count, 0);
     await set(client, f.owner, "post", f.post, "❤️");
@@ -377,6 +381,7 @@ Deno.test("Explore reactors DB: unique people include likes and owner, identitie
     assertEquals(page.reactors.length, 3);
     const viewer = page.reactors.find((p) => p.user_id === f.viewer)!;
     assertEquals(viewer.display_name, "Reaction Viewer");
+    assertEquals(viewer.username, "reaction_fixture_viewer");
     assertEquals(viewer.avatar_url, null);
     assertEquals([...viewer.emojis].sort(), ["❤️", "😂", "👩🏽‍🔬"].sort());
     assertEquals(

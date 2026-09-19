@@ -1,10 +1,5 @@
 import SwiftUI
 
-private struct ReactionContentFrame: PreferenceKey {
-    static var defaultValue: CGRect { .zero }
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
-}
-
 struct ExploreReactionStrip: View {
     let reactions: [ExploreCommentReaction]
     let hasMore: Bool
@@ -59,22 +54,18 @@ struct ExploreReactionStrip: View {
                         .accessibilityLabel("Load more reactions")
                     }
                 }
-                .background(
-                    GeometryReader { geometry in
-                        Color.clear.preference(
-                            key: ReactionContentFrame.self, value: geometry.frame(in: .named(scrollSpace)))
-                    })
+                .onGeometryChange(for: CGRect.self) { geometry in
+                    geometry.frame(in: .named(scrollSpace))
+                } action: { frame in
+                    contentFrame = frame
+                }
             }
             .contentShape(Rectangle())
             .coordinateSpace(name: scrollSpace)
-            .background(
-                GeometryReader { geometry in
-                    Color.clear.onAppear { viewportWidth = geometry.size.width }
-                        .onChange(of: geometry.size.width) { _, width in viewportWidth = width }
-                }
-            )
-            .onPreferenceChange(ReactionContentFrame.self) { frame in
-                contentFrame = frame
+            .onGeometryChange(for: CGFloat.self) { geometry in
+                geometry.size.width
+            } action: { width in
+                viewportWidth = width
             }
             .mask {
                 HStack(spacing: 0) {
@@ -86,7 +77,7 @@ struct ExploreReactionStrip: View {
                     LinearGradient(
                         colors: [.black, contentFrame.maxX > viewportWidth + 1 ? .clear : .black], startPoint: .leading,
                         endPoint: .trailing
-                    ).frame(width: 14)
+                    ).frame(width: 24)
                 }
             }
             .onChange(of: reactions) { previous, current in
@@ -155,7 +146,7 @@ struct ExplorePostReactionActions: View {
             HStack(spacing: 4) {
                 Image(systemName: symbol).font(.system(size: 20)).foregroundStyle(highlighted ? .red : .primary)
                 if !dynamicType.isAccessibilitySize {
-                    Text(count.formatted(.number.notation(.compactName))).font(.caption)
+                    Text(count.formatted(.number.notation(.compactName))).font(.body)
                 }
             }.frame(minWidth: 44, minHeight: 44)
         }

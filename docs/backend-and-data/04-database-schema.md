@@ -5908,3 +5908,8 @@ maps likes to ❤️, deduplicates by actor/emoji, and applies actor visibility
 before unique-person counts and public-name previews. Pages are bounded to 32
 actors plus one lookahead, ordered by immutable UUID; emoji arrays use catalog
 order. See the [wire contract](./05-api-contracts.md#post-reaction-people).
+
+`20260919203823_add_explore_post_reactor_usernames.sql` adds each reactor's bare
+`username` from `users.public_username` to that RPC's JSON projection. Existing
+display names, preview names, visibility filters, ordering, and service-only
+grants remain unchanged.

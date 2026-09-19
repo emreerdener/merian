@@ -9,12 +9,13 @@ struct ExploreInteractionEndpointTests {
     @Test func testPostReactorsContractAndCursor() async throws {
         try await withResponse(
             function: "get-explore-post-reactors", requestJSON: #"{"post_id":"post","after_user_id":"cursor"}"#,
-            responseJSON: #"{"total_count":6,"preview_names":["Alex","Bea"],"reactors":[{"user_id":"actor","display_name":"Alex","avatar_url":null,"emojis":["❤️","👩🏽‍🔬"]}],"next_cursor":"next"}"#
+            responseJSON: #"{"total_count":6,"preview_names":["Alex","Bea"],"reactors":[{"user_id":"actor","display_name":"Alex","username":"nature_observer","avatar_url":null,"emojis":["❤️","👩🏽‍🔬"]}],"next_cursor":"next"}"#
         ) { client in
             let page = try await client.getExplorePostReactors(postId: "post", afterUserId: "cursor")
             #expect(page.totalCount == 6 && page.previewNames == ["Alex", "Bea"])
             #expect(page.reactors.first?.emojis == ["❤️", "👩🏽‍🔬"])
             #expect(page.reactors.first?.displayName == "Alex" && page.reactors.first?.avatarUrl == nil)
+            #expect(page.reactors.first?.username == "nature_observer")
             #expect(page.nextCursor == "next")
         }
         try await withResponse(

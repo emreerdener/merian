@@ -440,10 +440,12 @@ Dictionary community sightings.
 
 ## Emoji reactions
 
-Comment and reply Add reaction buttons retain the compact 28-point capsule,
-secondary smiley/plus icons, and subtle fill/border, with a minimum 44-point tap
-target. They open the shared full emoji picker and retain its selection
-feedback.
+Comment and reply Add reaction buttons match the reaction chips' 28-point
+capsule, 6-point horizontal padding, 4-point internal spacing, and Dynamic Type
+scaling. Secondary smiley/plus icons use subheadline/caption text sizes, inside
+a minimum 44-point tap target. They open the shared full emoji picker and retain
+its selection feedback. The Add button keeps its subtle 1-point outline, drawn
+inside the capsule so its outer height stays aligned with the reaction chips.
 
 Shared reaction UI and Unicode catalog presentation live in
 `../Shared/Reactions`. Feed Services own the idempotent set/page dependencies;
@@ -469,20 +471,29 @@ reuse the checkout-managed build cache.
 
 `ExplorePostReactorsViewModel` owns the detail-only unique-person summary and
 paged Reactions sheet. `ExplorePostReactionSummary` sits below detail actions;
-`ExplorePostReactorsSheet` renders public identity and each person's complete
-emoji list, with likes represented as ❤️. Both share one detail-owned model. The
-typed `ExplorePostDetailPresentation.reactors` route retains sheet and media
-overlay ownership. The detail summary occupies no space while loading, after a
-failed read, or when no people reacted; only a successfully loaded summary is
-visible. Loading, empty, failed-read retry, and explicit pagination remain local
-UI state inside the opened sheet; views do not resolve a network client.
+`ExplorePostReactorsSheet` renders the public avatar, `@username`, and each
+person's complete emoji list, with likes represented as ❤️. Both share one
+detail-owned model. The typed `ExplorePostDetailPresentation.reactors` route
+retains sheet and media overlay ownership. The detail summary occupies no space
+while loading, after a failed read, or when no people reacted; only a
+successfully loaded summary is visible. Loading, empty, failed-read retry, and
+explicit pagination remain local UI state inside the opened sheet; views do not
+resolve a network client.
+
+Usernames use the feed's shared public-username formatter. Older server
+responses without the additive `username` field fall back to the public display
+name; the detail summary continues to use the response's public preview names.
+The summary uses caption-sized text and people icon, a smaller chevron, 6-point
+internal spacing, 12-point horizontal insets, and a 32-point minimum row height.
+Text and icons continue to scale with Dynamic Type.
 
 `ExploreReactionDependencies.loadPeople` is the injected read seam. The Feed
 state increments `postReactorsRevision` after post reactions/likes complete so
 the summary rereads authoritative unique people; it does not sum emoji counts.
 Refresh generations, current viewer checks, and invalidation fence late results.
-The sheet refreshes on opening and supports pull-to-refresh. Feed/Map/hashtag
-cards do not show this line. See the
+The sheet refreshes on opening, supports pull-to-refresh, and dismisses with a
+downward swipe without a Done button. Feed/Map/hashtag cards do not show this
+line. See the
 [product contract](../../../../../../docs/rfcs/explore-page.md#detail-reaction-people-2026-09-18)
 and
 [verification matrix](../../../../../../docs/development-guides/08-testing-strategy.md#post-reaction-people-verification).

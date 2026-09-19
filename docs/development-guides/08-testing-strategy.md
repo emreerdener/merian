@@ -8789,8 +8789,10 @@ so links to the versioned emoji catalog maintenance guide are verified.
 identity-based page merging, complete emoji arrays, refresh/page races,
 invalidation, account changes, and explicit failure retry.
 `ExploreInteractionEndpointTests` locks the initial/cursor request and typed
-response. Include existing reaction, detail presentation, and shared
-architecture suites when running the local iOS wrapper.
+response, including the reactor's public username. Reactor decoding covers
+username preference and older responses without the additive field. Include
+existing reaction, detail presentation, and shared architecture suites when
+running the local iOS wrapper.
 
 Backend `get-explore-post-reactors/types.test.ts` covers UUID and
 optional-cursor validation. `exploreReactionsDb.test.ts` covers likes plus
@@ -8798,14 +8800,17 @@ multiple emoji counted once, inclusion of self/owner, blocked and shadowbanned
 actor removal from every projection, stable UUID continuation after cursor-actor
 removal, and denied callers/hidden/unshared/deleted posts. The migration
 contract and `explore_post_reactors_security.sql` pin grants and caller guards.
-Full candidate Deno and pgTAP discovery includes these tests.
+The username migration contract and populated database test verify projection
+from `users.public_username` without replacing display or preview names. Full
+candidate Deno and pgTAP discovery includes these tests.
 
 Manual device checks: summary appears only below detail actions; zero actors
 hides it; loading and failed summary reads show no spinner, retry message, or
 reserved space; a successful nonempty read reveals the line. One/two/many copy
 matches distinct people; tapping opens medium/large sheet with feedback and
 pauses video; all emojis remain readable via horizontal overflow; More and retry
-work; dismiss restores the existing media intent. Check long names, large
+work; dismiss restores the existing media intent. Confirm sheet rows use
+`@username` while the summary retains public names. Check long usernames, large
 Dynamic Type, VoiceOver names, dark mode, and removal or account switching while
 requests are pending. Automated passes do not establish these manual or deployed
 checks.

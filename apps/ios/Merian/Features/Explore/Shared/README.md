@@ -110,8 +110,12 @@ Added reaction chips use a compact 28-point capsule and subheadline emoji, with
 6-point horizontal padding and no outline. Selected chips retain a subtle accent
 fill and accent-colored count. The visible capsule scales with Dynamic Type; its
 separate tap target remains at least 44 by 44 points on posts and comments.
+Comment/reply Add reaction capsules use the same height, padding, internal
+spacing, and Dynamic Type scaling, while retaining a subtle 1-point outline
+drawn inside the capsule.
 
-Post action icons use 20-point symbols inside 44-point tap targets. Feed,
+Post action icons use 20-point symbols inside 44-point tap targets. Comment and
+heart counts use Dynamic Type body text (17 points at the default size). Feed,
 hashtag, and detail bars use 12-point horizontal insets and symmetric 6-point
 vertical insets around the 44-point default row, for a 56-point bar. Empty
 hashtag rows reserve no space. The shared strip still grows for Dynamic Type and

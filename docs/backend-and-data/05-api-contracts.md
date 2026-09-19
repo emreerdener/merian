@@ -10949,6 +10949,7 @@ applies. The server derives the viewer from authentication, never from JSON.
     {
       "user_id": "00000000-0000-4000-8000-000000000001",
       "display_name": "Observer A",
+      "username": "observer_a",
       "avatar_url": null,
       "emojis": ["😂", "❤️"]
     }
@@ -10971,6 +10972,14 @@ notification self-suppression is unchanged. Each row carries all its canonical
 emoji in catalog order, bounded by the catalog. Public names/avatars come only
 from `users.public_author_name` and `public_avatar_url`; blank names fall back
 to “Nature lover.” No private Auth metadata is returned.
+
+Each reactor also carries `username`, the bare public handle from
+`users.public_username`. The native Reactions sheet renders it as `@username`.
+Display names and preview names remain unchanged. The additive field requires
+`20260919203823_add_explore_post_reactor_usernames.sql`; the existing Edge route
+passes it through without a handler change. Native clients decode it optionally
+for older-server compatibility and fall back to the public display name until
+that migration is applied.
 
 The service-only RPC applies the existing post visibility guard, then filters
 both directions of viewer/actor blocks and shadowbanned actors before totals,

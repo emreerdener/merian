@@ -1,5 +1,10 @@
 BEGIN;
-SELECT extensions.plan(6);
+SELECT extensions.plan(7);
+SELECT extensions.ok(
+    pg_catalog.pg_get_functiondef('public.get_explore_post_reactors(uuid,uuid,uuid)'::regprocedure)
+        LIKE '%' || quote_literal('username') || ', u.public_username%',
+    'reactors project usernames from the public profile'
+);
 SELECT extensions.ok(NOT has_function_privilege('anon','public.get_explore_post_reactors(uuid,uuid,uuid)','EXECUTE'), 'anon cannot read reactor identities');
 SELECT extensions.ok(NOT has_function_privilege('authenticated','public.get_explore_post_reactors(uuid,uuid,uuid)','EXECUTE'), 'authenticated cannot supply another viewer');
 SELECT extensions.ok(has_function_privilege('service_role','public.get_explore_post_reactors(uuid,uuid,uuid)','EXECUTE'), 'Edge service can read reactors');
