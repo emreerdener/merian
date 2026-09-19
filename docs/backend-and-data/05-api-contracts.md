@@ -7,8 +7,9 @@
 > not because every full-release criterion passed. Statements below requiring
 > all external/device/hosted-token evidence before backend rollout describe the
 > full-release policy; that evidence remains open. Exact-SHA backend validation,
-> live repository controls, runtime security/consent, and the UTC cutover fence
-> remain required. This exception does not authorize iOS distribution.
+> live repository controls, runtime security/consent, and audited cutover
+> activation remain required. This exception does not authorize iOS
+> distribution.
 
 Naturebook operates through a decoupled backend. The iOS application exclusively
 hits Supabase Edge Functions, abstracting its networking away from 3rd-party

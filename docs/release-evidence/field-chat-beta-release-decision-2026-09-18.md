@@ -94,3 +94,12 @@ post-activation recovery is a reviewed forward fix, never an unreviewed database
 reset. Follow the
 [canonical deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md)
 for execution, monitoring, and recovery.
+
+## September 19 superseding decision
+
+The owner subsequently requested immediate beta activation instead of waiting.
+The
+[September 19 decision](./field-chat-immediate-beta-activation-2026-09-19.md)
+supersedes this record's next-UTC-day wait only, with explicit partial-day
+accounting limitations and audited forward migration. This record retains the
+original September 18 decision; other runtime and release controls still apply.

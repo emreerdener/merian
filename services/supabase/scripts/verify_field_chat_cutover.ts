@@ -32,6 +32,8 @@ export interface RawCutoverRow {
   activated_insight_bundle_sha256?: unknown;
   activated_species_dictionary_bundle_sha256?: unknown;
   status?: unknown;
+  beta_early_activation_at?: unknown;
+  beta_original_not_before_utc?: unknown;
 }
 
 function timestamp(
@@ -73,7 +75,24 @@ export function validateFieldChatCutoverRows(
   if (notBefore.epoch <= seededAt.epoch) {
     throw new Error("cutover boundary does not follow the seed");
   }
-  const boundary = new Date(notBefore.epoch);
+  const betaEarly = row.beta_early_activation_at ?? null;
+  const betaOriginal = row.beta_original_not_before_utc ?? null;
+  if ((betaEarly === null) !== (betaOriginal === null)) {
+    throw new Error("beta cutover evidence is incomplete");
+  }
+  let originalBoundary = notBefore;
+  if (betaEarly !== null) {
+    const authorizedAt = timestamp(betaEarly, "beta_early_activation_at");
+    originalBoundary = timestamp(betaOriginal, "beta_original_not_before_utc");
+    if (
+      authorizedAt.epoch !== notBefore.epoch ||
+      authorizedAt.epoch >= originalBoundary.epoch ||
+      authorizedAt.epoch > databaseNow.epoch
+    ) {
+      throw new Error("beta cutover evidence contradicts the eligibility time");
+    }
+  }
+  const boundary = new Date(originalBoundary.epoch);
   if (
     boundary.getUTCHours() !== 0 || boundary.getUTCMinutes() !== 0 ||
     boundary.getUTCSeconds() !== 0 || boundary.getUTCMilliseconds() !== 0
@@ -241,8 +260,11 @@ if (import.meta.main) {
         status_row.activated_explore_bundle_sha256,
         status_row.activated_insight_bundle_sha256,
         status_row.activated_species_dictionary_bundle_sha256,
-        status_row.status
+        status_row.status,
+        cutover.beta_early_activation_at::TEXT AS beta_early_activation_at,
+        cutover.beta_original_not_before_utc::TEXT AS beta_original_not_before_utc
       FROM public.get_field_chat_admission_cutover_status() AS status_row
+      JOIN internal.field_chat_admission_cutover AS cutover ON cutover.singleton
     `;
     const status = validateFieldChatCutoverRows(rows, migrationDigest);
     await append(
