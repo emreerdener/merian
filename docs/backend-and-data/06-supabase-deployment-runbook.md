@@ -7572,6 +7572,55 @@ After deployment:
   accepts U+2013 EN DASH, collapses U+0085 NEXT LINE to ASCII space, rejects
   U+FEFF BYTE ORDER MARK, counts Unicode scalars, and enumerates the complete
   whitespace and punctuation sets.
+
+### Field Chat hosted authentication probe
+
+`services/supabase/scripts/verify_field_chat_hosted_auth.ts` supplies the
+missing real-token HTTP boundary probe. It is a staging-only diagnostic, not a
+deployment command or a hold-clearance command. Before running it, the release
+owner must identify and authorize a dedicated non-production project, deploy the
+three candidate Field Chat bundles through its reviewed staging path, and obtain
+a short-lived token for a dedicated staging test account. Do not create a
+project, copy production data, or deploy functions merely to run this diagnostic
+without that separate authorization. The known production project is explicitly
+refused; this refusal does not establish that any other arbitrary project is
+staging.
+
+Use a clean checkout of the exact candidate. Supply
+`FIELD_CHAT_AUTH_CANDIDATE_SHA`, `FIELD_CHAT_AUTH_STAGING_REF`,
+`FIELD_CHAT_AUTH_PUBLIC_KEY`, and `FIELD_CHAT_AUTH_USER_TOKEN` through the
+secure process environment. Never put tokens in command arguments, shell
+tracing, checked-in environment files, chat, or retained evidence. Use a
+publishable key or the staging project's legacy anon key; a service-role key is
+rejected.
+
+```bash
+deno run --frozen --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase --allow-run=git \
+  --allow-env=FIELD_CHAT_AUTH_CANDIDATE_SHA,FIELD_CHAT_AUTH_STAGING_REF,FIELD_CHAT_AUTH_PUBLIC_KEY,FIELD_CHAT_AUTH_USER_TOKEN \
+  --allow-net="${FIELD_CHAT_AUTH_STAGING_REF}.supabase.co" \
+  services/supabase/scripts/verify_field_chat_hosted_auth.ts
+```
+
+The probe first verifies the user token with GoTrue. It then calls all three
+routes with missing authorization, a tampered signature, and the verified token.
+Every request uses only `action: "load"` with the required subject UUID absent.
+The first two cases must return handler-owned `401`; the verified token must
+reach subject validation and return `400 invalid_request`. On the reviewed
+candidate, UUID validation precedes subject database access, quota reservation,
+and provider calls. No subject fixtures, Pro entitlement, conversation creation,
+or Gemini invocation are needed. Each response must carry the expected handler
+marker, admission contract, and freshly computed candidate bundle digest.
+
+Retain only the success JSON alongside the exact-SHA iOS and Supabase validation
+run references. Output contains route/status predicates and bundle identities,
+never tokens, user IDs, request IDs, or response bodies. The test does not prove
+successful thread loading, subject ownership, quotas, or provider behavior;
+those remain separate database/client/handler checks. Local tests of the harness
+do not constitute hosted execution evidence. Until an authorized staging
+deployment and real-token execution succeed, keep the wrapper criterion and
+production hold open. Failed runs emit no passing evidence.
+
 - Supabase production is machine-held by
   `species_dictionary_chat_production_hold` in
   `services/supabase/release-holds.json`. The reusable Candidate Validation job

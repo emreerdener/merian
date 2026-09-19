@@ -33,6 +33,18 @@ Route-specific READMEs remain authoritative for payload examples; the
 define the cross-route boundary. Repository success never substitutes for an
 exact-SHA fresh-catalog replay and deployed integration smokes.
 
+## Field Chat hosted authentication evidence
+
+The staging-only
+[`verify_field_chat_hosted_auth.ts`](scripts/verify_field_chat_hosted_auth.ts)
+probe checks real GoTrue authentication and the candidate bundle identity for
+all three Field Chat routes, without subject reads, chat writes, or provider
+calls. Its deterministic tests are discovered by `make test-supabase-tooling`.
+Execution requires a separately authorized non-production project and test
+token; it is not part of automatic candidate validation and does not clear a
+hold. Follow the
+[canonical probe procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#field-chat-hosted-authentication-probe).
+
 ## Migration Replay
 
 Every migration must survive a complete fresh-catalog replay, not only an

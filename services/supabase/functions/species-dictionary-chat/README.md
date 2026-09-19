@@ -161,7 +161,12 @@ was available; its database-backed cases explicitly self-skipped and therefore
 are not passing evidence. The handler suite now executes the real
 `withEdgeHandler` boundary with deterministic accepted and refused
 authenticators, but it does not validate a hosted JWT. The real-token HTTP
-boundary still needs explicit exact-SHA execution evidence.
+boundary still needs explicit exact-SHA execution evidence. The staging-only
+[`verify_field_chat_hosted_auth.ts`](../../scripts/verify_field_chat_hosted_auth.ts)
+probe verifies real GoTrue authentication and all three deployed bundle digests
+using deliberately missing subject IDs; see the
+[canonical procedure](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#field-chat-hosted-authentication-probe).
+It does not prove successful thread loading or replace the other release gates.
 
 Candidate Validation remains available and must run on the reviewed immutable
 SHA. The separate pre-production source gate reports a successful `held` status
