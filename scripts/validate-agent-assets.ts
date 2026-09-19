@@ -632,6 +632,10 @@ async function validateWorkflow(): Promise<void> {
     "openai-api-key: ${{ secrets.OPENAI_API_KEY }}",
     "name: agent-quality-${{ matrix.suite }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}",
     "continue-on-error: true",
+    "API_KEY_AVAILABLE: ${{ secrets.OPENAI_API_KEY != '' }}",
+    "if: steps.live_credentials.outputs.available == 'true'",
+    "if: steps.codex.outcome == 'success'",
+    "No calibration evidence was produced.",
     "make validate-agent-assets",
   ];
   for (const fragment of requiredFragments) {

@@ -117,8 +117,20 @@ jobs:
             --suite "${{ matrix.suite }}" \
             --output "agent-quality-input/${{ matrix.suite }}.json"
 
+      - name: Check optional live evaluation credentials
+        id: live_credentials
+        env:
+          API_KEY_AVAILABLE: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: |
+          echo "available=$API_KEY_AVAILABLE" >> "$GITHUB_OUTPUT"
+          if [[ "$API_KEY_AVAILABLE" != "true" ]]; then
+            echo "::notice::Live Agent Quality evaluation not run: OPENAI_API_KEY is unavailable."
+            echo "Live Agent Quality evaluation not run: OPENAI_API_KEY is unavailable. No calibration evidence was produced." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Run read-only Codex evaluation
         id: codex
+        if: steps.live_credentials.outputs.available == 'true'
         uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e # v1.12
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -148,6 +160,7 @@ jobs:
             owns all edits. Validation never authorizes deployment.
 
       - name: Score deterministic expectations
+        if: steps.codex.outcome == 'success'
         run: |
           deno run \
             --allow-read=skills/evals,agent-quality-results \
