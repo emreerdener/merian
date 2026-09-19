@@ -81,7 +81,7 @@ test("the lockfile excludes known-vulnerable PostCSS and Sharp releases", () => 
 test("Next transitive security overrides remain explicit", () => {
   assert.equal(packageManifest.dependencies?.next, "16.3.5");
   assert.deepEqual(packageManifest.overrides?.next, {
-    postcss: "8.5.25",
+    postcss: "8.5.28",
     sharp: "0.35.4",
   });
 });
@@ -142,4 +142,24 @@ test("web quality runs the blocking dependency audit after frozen install", () =
 
   assert.ok(installIndex >= 0, "web quality must use npm ci");
   assert.ok(auditIndex > installIndex, "dependency audit must follow npm ci");
+});
+
+test("React and React DOM resolve to the same exact release", () => {
+  const react = packageManifest.dependencies?.react;
+  assert.match(react ?? "", /^\d+\.\d+\.\d+$/);
+  assert.equal(packageManifest.dependencies?.["react-dom"], react);
+  assert.deepEqual(packageVersions("react"), [react]);
+  assert.deepEqual(packageVersions("react-dom"), [react]);
+});
+
+test("all direct Mantine packages share their exact peer version", () => {
+  const core = packageManifest.dependencies?.["@mantine/core"];
+  assert.match(core ?? "", /^\d+\.\d+\.\d+$/);
+  for (
+    const [name, version] of Object.entries(packageManifest.dependencies ?? {})
+  ) {
+    if (!name.startsWith("@mantine/")) continue;
+    assert.equal(version, core, `${name} must match Mantine core`);
+    assert.deepEqual(packageVersions(name), [core]);
+  }
 });
