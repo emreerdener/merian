@@ -182,13 +182,13 @@ creates a status check; it cannot make itself required or prevent Force
 Promote/direct manual promotion. Record and verify these two external controls
 during initial setup and after changing GitHub or Vercel integration settings.
 
-The checked-in dependency graph, reviewed on 2026-09-12, is:
+The checked-in dependency graph, reviewed on 2026-09-19, is:
 
 - Next.js 16.3.5, pinned exactly above the
   [Windows-hosted RCE](https://github.com/advisories/GHSA-p293-qw3h-jr36) and
   [AVIF image-optimization RCE](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4)
   patched floors;
-- PostCSS 8.5.25, pinned exactly and enforced for Next.js transitively at the
+- PostCSS 8.5.28, pinned exactly and enforced for Next.js transitively at the
   [path-traversal patched floor](https://github.com/advisories/GHSA-r28c-9q8g-f849);
   and
 - Sharp 0.35.4, enforced through the Next.js override, following the

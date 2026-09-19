@@ -193,9 +193,11 @@ provide the legacy JavaScript compiler API. See Microsoft's
 
 ### Dependency maintenance
 
-All direct Mantine packages are pinned together at 9.5.1. Dependabot groups
+All direct Mantine packages are pinned together at 9.6.1. Dependabot groups
 minor and patch updates because Mantine uses exact peer versions. Node types
-remain on the supported Node 24 major. The lockfile also resolves
+remain on the supported Node 24 major. React and React DOM are paired at 19.3.0
+with matching 19.3 type declarations; Dependabot groups those packages and the
+dependency tests reject mismatched runtime versions. The lockfile also resolves
 `baseline-browser-mapping` to 2.11.25, above the 2.11.0 fix for
 [invalid-input process termination](https://github.com/advisories/GHSA-w5vr-8v7q-w6rv).
 Follow the
@@ -214,7 +216,7 @@ edge and retains an exact reviewed Sharp pin. Do not remove security constraints
 merely because image optimization is disabled or CSS inputs are currently
 trusted.
 
-The Next PostCSS 8.5.25 override covers both
+The Next PostCSS 8.5.28 override covers both
 [attacker-controlled source-map file reads](https://github.com/advisories/GHSA-6g55-p6wh-862q)
 and the remaining
 [source-map path traversal](https://github.com/advisories/GHSA-r28c-9q8g-f849).

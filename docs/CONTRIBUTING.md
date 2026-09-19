@@ -201,6 +201,10 @@ changes. A version bump alone is not evidence that a dependency is compatible.
   peer versions, so individual updates can produce an un-installable graph.
   Dependabot groups minor and patch Mantine updates by application. Keep both
   application manifests and lockfiles consistent and use the pinned npm version.
+- Update `react` and `react-dom` together at the same exact version. Their
+  runtime versions must match; update the React type declarations in the same
+  review. Dependabot groups minor and patch React-family proposals by app, and
+  package tests reject mismatched runtime or Mantine peer versions.
 - For Edge dependencies, update the root `functions/deno.json`, regenerate every
   function-local config with `sync_function_deno_configs.ts`, and refresh the
   shared frozen `dependencies.lock` and generated Field Chat bundle identities

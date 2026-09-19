@@ -13,6 +13,9 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+        update-types: ["minor", "patch"]
       mantine:
         patterns: ["@mantine/*"]
         update-types: ["minor", "patch"]
@@ -27,6 +30,9 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+        update-types: ["minor", "patch"]
       mantine:
         patterns: ["@mantine/*"]
         update-types: ["minor", "patch"]
