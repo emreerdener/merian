@@ -57,6 +57,19 @@ validated origin. Callback `next` values must be single-leading-slash paths;
 absolute, protocol-relative, backslash, and encoded-separator forms fall back to
 the fixed local destination.
 
+### TypeScript compiler
+
+Both `npm run typecheck` and Next.js builds use the pinned native TypeScript
+7.0.2 CLI. `experimental.useTypeScriptCli: true` is explicit in
+`next.config.ts`; keep build-time type checking enabled. TypeScript 7 does not
+provide the legacy JavaScript compiler API. See Microsoft's
+[TypeScript 7 migration guidance](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-60).
+
+The source-security tests import `@typescript/typescript6` 6.0.2 solely for AST
+inspection. It is a development dependency, not the build compiler. Keep those
+negative credential/environment tests active; do not replace their syntax
+analysis with string matching to remove the compatibility package.
+
 ## Local commands
 
 ```bash

@@ -3,17 +3,18 @@ import path from "node:path";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  experimental: { useTypeScriptCli: true },
   turbopack: {
-    root: path.resolve(__dirname, "../..")
+    root: path.resolve(__dirname, "../.."),
   },
   async rewrites() {
     return [
       {
         source: "/.well-known/apple-app-site-association",
-        destination: "/apple-app-site-association"
-      }
+        destination: "/apple-app-site-association",
+      },
     ];
-  }
+  },
 };
 
 export default nextConfig;

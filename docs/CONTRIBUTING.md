@@ -206,15 +206,18 @@ changes. A version bump alone is not evidence that a dependency is compatible.
   shared frozen `dependencies.lock` and generated Field Chat bundle identities
   in the same change. Run the complete Supabase candidate gate; never merge a
   manifest-only bot proposal.
+- Web and admin use native TypeScript 7.0.2 for CLI and Next build checks. Keep
+  `experimental.useTypeScriptCli` enabled. The admin's AST-based security tests
+  separately use `@typescript/typescript6` 6.0.2 because the native compiler has
+  no JavaScript API; that compatibility package is test-only.
 - Immutable GitHub Action pins can have a matching executable validator. Update
   the reviewed pin and its validator together without removing the guard.
-- Major TypeScript, Gemini SDK, and JOSE changes need separate compatibility
-  reviews. The centrally pinned Supabase SDK also needs a dedicated review even
-  for a minor update because it serves authentication and database operations
-  throughout the Edge fleet. Deferred proposals stay open and labelled rather
-  than being merged merely to empty the queue. As of September 19, 2026, the
-  deferred queue is TypeScript (#10, #12), Gemini (#36), JOSE (#37), and the
-  Supabase SDK (#38).
+- Major Gemini SDK and JOSE changes need separate compatibility reviews. The
+  centrally pinned Supabase SDK also needs a dedicated review even for a minor
+  update because it serves authentication and database operations throughout the
+  Edge fleet. Deferred proposals stay open and labelled rather than being merged
+  merely to empty the queue. As of September 19, 2026, the deferred backend
+  queue is Gemini (#36), JOSE (#37), and the Supabase SDK (#38).
 
 For web/admin updates, run the frozen install, blocking dependency audit, tests,
 type check, and production build from each affected package. Preserve security

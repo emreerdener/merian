@@ -171,6 +171,14 @@ separate staging Supabase project and Turnstile widget if preview deployments
 need live backend behavior. See the canonical destination matrix in
 [`docs/development-guides/05-keychain-and-secrets.md`](../../docs/development-guides/05-keychain-and-secrets.md#deployment-environment-ownership).
 
+### TypeScript compiler
+
+Both `npm run typecheck` and Next.js builds use the pinned native TypeScript
+7.0.2 CLI. `experimental.useTypeScriptCli: true` is explicit in
+`next.config.ts`; keep build-time type checking enabled. TypeScript 7 does not
+provide the legacy JavaScript compiler API. See Microsoft's
+[TypeScript 7 migration guidance](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-60).
+
 ### Dependency maintenance
 
 All direct Mantine packages are pinned together at 9.5.1. Dependabot groups

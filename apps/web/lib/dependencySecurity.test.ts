@@ -116,9 +116,16 @@ test("the Tiptap family shares one patched peer version", () => {
   }
 });
 
-test("the Next build uses the pinned TypeScript compiler API", () => {
-  assert.equal(packageManifest.devDependencies?.typescript, "6.0.3");
-  assert.deepEqual(packageVersions("typescript"), ["6.0.3"]);
+test("the Next build uses the pinned native TypeScript CLI", () => {
+  assert.equal(packageManifest.devDependencies?.typescript, "7.0.2");
+  assert.deepEqual(packageVersions("typescript"), ["7.0.2"]);
+  const config = readFileSync(
+    new URL("../next.config.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(config, /useTypeScriptCli:\s*true/);
+  assert.doesNotMatch(config, /ignoreBuildErrors:\s*true/);
+
   assert.match(webQualityWorkflow, /run: npm ci --include=dev/);
 });
 

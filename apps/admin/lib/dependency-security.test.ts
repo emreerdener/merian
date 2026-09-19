@@ -110,9 +110,21 @@ test("the admin CSS parser excludes the reviewed recursion vulnerability", () =>
   );
 });
 
-test("the admin build installs its pinned TypeScript compiler API", () => {
-  assert.equal(packageManifest.devDependencies?.typescript, "5.9.3");
-  assert.deepEqual(packageVersions("typescript"), ["5.9.3"]);
+test("the admin build uses the pinned native TypeScript CLI and retains the test parser API", () => {
+  assert.equal(packageManifest.devDependencies?.typescript, "7.0.2");
+  assert.deepEqual(packageVersions("typescript"), ["7.0.2"]);
+  const config = readFileSync(
+    new URL("../next.config.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(config, /useTypeScriptCli:\s*true/);
+  assert.doesNotMatch(config, /ignoreBuildErrors:\s*true/);
+  assert.equal(
+    packageManifest.devDependencies?.["@typescript/typescript6"],
+    "6.0.2",
+  );
+  assert.deepEqual(packageVersions("@typescript/typescript6"), ["6.0.2"]);
+
   assert.match(adminQualityWorkflow, /run: npm ci --include=dev/);
 });
 
