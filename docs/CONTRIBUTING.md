@@ -216,8 +216,9 @@ changes. A version bump alone is not evidence that a dependency is compatible.
   centrally pinned Supabase SDK also needs a dedicated review even for a minor
   update because it serves authentication and database operations throughout the
   Edge fleet. Deferred proposals stay open and labelled rather than being merged
-  merely to empty the queue. As of September 19, 2026, the deferred backend
-  queue is Gemini (#36).
+  merely to empty the queue. The reviewed Gemini 2.22.0 integration uses
+  `models.generateContent`; do not introduce SDK retries or migrate to the
+  Interactions API as part of a version-only update.
 
 For web/admin updates, run the frozen install, blocking dependency audit, tests,
 type check, and production build from each affected package. Preserve security

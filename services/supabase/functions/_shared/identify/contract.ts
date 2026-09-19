@@ -1109,7 +1109,7 @@ export interface PortableProviderSchema {
   readonly enum?: readonly string[];
   readonly minimum?: number;
   readonly maximum?: number;
-  /** @google/genai@1.0.0 represents OpenAPI int64 constraints as strings. */
+  /** The Gemini provider represents OpenAPI int64 constraints as strings. */
   readonly minLength?: string;
   readonly maxLength?: string;
   readonly minItems?: string;

@@ -356,8 +356,12 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   iNaturalist and GBIF media untouched. Keep it aligned with the iOS
   `ExternalReferenceImagePolicy`; use a new cleanup/prevention migration for
   every added outlier.
-- **`gemini.ts`**: Global `GoogleGenAI` client setup plus structured-output and
-  JSON extraction helpers.
+- **`gemini.ts`**: Lazy paid-key `GoogleGenAI` 2.22.0 client plus
+  structured-output and JSON extraction helpers. The 90-second HTTP deadline and
+  single-attempt transport preserve durable quota/retry ownership.
+  `gemini_test.ts` exercises the actual SDK through intercepted HTTP with
+  synthetic data, including schemas, multimodal input, safety, usage, and
+  cancellation; it makes no provider calls.
 - **`biology.ts`**: Shared structured biological generation helpers retained for
   functions that still need text-only ecological generation. Externally
   reachable callers must pass the model selected by the database quota policy;
