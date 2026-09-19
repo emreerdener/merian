@@ -65,6 +65,7 @@ struct SettingsTabView: View {
                     showDeleteConfirmation: $showDeleteConfirmation
                 )
             }
+            .transparentTopToolbar()
             .navigationDestination(isPresented: $notificationSettingsActive) {
                 NotificationSettingsView()
             }

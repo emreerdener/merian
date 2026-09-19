@@ -79,6 +79,7 @@ struct ExplorePostDetailContentView: View {
                         .background(commentsPositionReader)
                 }
             }
+            .transparentTopToolbar()
             .coordinateSpace(name: "ExplorePostDetailScrollSpace")
             .safeAreaInset(edge: .bottom) {
                 if presentedComposerIsSticky {
@@ -206,7 +207,8 @@ struct ExplorePostDetailContentView: View {
             revealEmoji: revealReactionEmoji
         )
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.top, 6)
+        .padding(.bottom, reactorsModel.summary == nil ? 6 : 0)
     }
 
     private var detailSections: some View {

@@ -19,6 +19,7 @@ struct AudioRecordingSettingsView: View {
                 Text("Feedback")
             }
         }
+        .transparentTopToolbar()
         .environment(\.editMode, .constant(.active))
         .navigationTitle("Audio")
         .navigationBarTitleDisplayMode(.inline)

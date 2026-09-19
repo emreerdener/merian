@@ -61,7 +61,8 @@ Feed declarations are grouped by responsibility:
   fixtures. Cards consume `ExplorePostCardAuthorPresentation`, send mutations
   through parent callbacks, and do not resolve identity or entitlement services.
 - `Components/Media/` owns Feed-only square feed/detail hosts and detail zoom.
-- `Components/Shared/` owns the Feed-only hashtag pill.
+- `Components/Shared/` owns the Feed-only hashtag pill and the shared
+  post/detail action-row skeleton.
 - The remaining comment, post-detail action/header, composer, and reference
   gallery components are Feed-owned UI with no direct networking.
 - `../Shared/Media/` owns the Explore-wide public-media renderer, remote hero
@@ -447,6 +448,16 @@ a minimum 44-point tap target. They open the shared full emoji picker and retain
 its selection feedback. The Add button keeps its subtle 1-point outline, drawn
 inside the capsule so its outer height stays aligned with the reaction chips.
 
+Feed and detail loading views share `ExplorePostActionSkeleton`: Comment and
+Heart placeholders with body-sized counts, Add reaction, a clipped row of
+28-point chip placeholders with a trailing fade, and Share. The layout uses the
+live controls' 8-point gaps, 44-point minimum frames, 12-point side insets, and
+6-point vertical insets. At `xxxLarge` and accessibility text sizes, chips move
+to a second row; count placeholders hide at accessibility sizes. Headers and
+detail species spacing mirror the loaded views. Skeletons remain noninteractive
+and hidden from VoiceOver; the optional reactor summary reserves no space until
+its own successful read.
+
 Shared reaction UI and Unicode catalog presentation live in
 `../Shared/Reactions`. Feed Services own the idempotent set/page dependencies;
 `ExplorePostStore` owns post summaries, and comment state reconciles mutations
@@ -483,9 +494,11 @@ resolve a network client.
 Usernames use the feed's shared public-username formatter. Older server
 responses without the additive `username` field fall back to the public display
 name; the detail summary continues to use the response's public preview names.
-The summary uses caption-sized text and people icon, a smaller chevron, 6-point
-internal spacing, 12-point horizontal insets, and a 32-point minimum row height.
-Text and icons continue to scale with Dynamic Type.
+The summary uses caption-sized text and people icon without a trailing chevron,
+6-point internal spacing, and a 32-point minimum row height. Its 16-point side
+insets align with the detail content. When the summary is visible, the action
+bar removes its bottom padding to tighten the gap above the summary. Text and
+icons continue to scale with Dynamic Type.
 
 `ExploreReactionDependencies.loadPeople` is the injected read seam. The Feed
 state increments `postReactorsRevision` after post reactions/likes complete so

@@ -119,6 +119,7 @@ struct InsightContentView: View {
             }
             .frame(width: imageSize) // CLAMP: Physically guarantees the content bounds can never expand left/right even if child views attempt to breach safe area X bounds.
         }
+        .transparentTopToolbar()
         .coordinateSpace(name: "InsightScrollSpace")
         // Forces native underlap of the translucent NavigationBar completely!
         .ignoresSafeArea(.container, edges: .top)

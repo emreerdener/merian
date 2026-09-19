@@ -54,6 +54,7 @@ struct ProfileView: View {
                 }
                 .scrollTargetLayout()
             }
+            .transparentTopToolbar()
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: tabSelectionBinding)
             .navigationBarTitleDisplayMode(.inline)

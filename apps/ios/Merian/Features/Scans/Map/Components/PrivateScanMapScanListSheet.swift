@@ -41,6 +41,7 @@ struct PrivateScanMapScanListSheet: View {
                         }
                         .padding()
                     }
+                    .transparentTopToolbar()
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))

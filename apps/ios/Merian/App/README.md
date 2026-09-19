@@ -21,10 +21,8 @@ reusable infrastructure remains in `Core`.
 - `Presentation/` owns deterministic launch/root selection, startup-store
   environment keys and rendering, and configuration-warning composition. Store
   Recovery supplies the value-only startup state and notice. Presentation
-  performs no networking or persistence. `AppTopScrollEdgeEffectModifier` is
-  applied outside the root presentation tree so all descendant scroll views,
-  including sheets and navigation destinations, hide the iOS 26+ top scroll-edge
-  effect. Individual control glass and bottom scroll-edge effects are unchanged.
+  performs no networking or persistence. Scroll-edge appearance belongs to the
+  shared Core UI modifier applied directly by scrolling surfaces.
 - `Routing/` owns value-only URL classification. `MerianApp` intentionally
   evaluates Google Sign-In first, then handles Naturebook/Merian routes, file
   imports, and finally fallback Supabase authentication. That ordering is a

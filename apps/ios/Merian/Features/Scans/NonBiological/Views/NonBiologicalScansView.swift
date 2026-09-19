@@ -67,6 +67,7 @@ struct NonBiologicalScansView: View {
                     .accessibilityHidden(viewModel.isClearingAll)
                 }
             }
+            .transparentTopToolbar()
         }
         .overlay {
             if viewModel.isClearingAll {

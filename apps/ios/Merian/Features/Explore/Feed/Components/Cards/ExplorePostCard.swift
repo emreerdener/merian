@@ -232,6 +232,7 @@ struct ExplorePostCard: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 2)
             }
+            .transparentTopToolbar()
         }
     }
 
@@ -397,8 +398,7 @@ extension ExplorePostCard {
 
                 mediaView
 
-                actionRow
-                    .frame(minHeight: 44)
+                ExplorePostActionSkeleton(fill: placeholderFill(), secondaryFill: placeholderFill(secondary: true))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
             }
@@ -421,21 +421,22 @@ extension ExplorePostCard {
                     .fill(Color(uiColor: .tertiarySystemFill))
                     .frame(width: 38, height: 38)
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 2) {
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(Color(uiColor: .secondarySystemFill))
-                    .frame(width: 112, height: 16)
+                        .frame(width: 112, height: 17)
 
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(placeholderFill(secondary: true))
-                        .frame(width: 88, height: 12)
+                        .frame(width: 88, height: 14)
                 }
 
                 Spacer(minLength: 12)
 
-                Circle()
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(Color(uiColor: .tertiarySystemFill))
-                    .frame(width: 28, height: 28)
+                    .frame(width: 22, height: 6)
+                    .frame(width: 32, height: 32)
             }
         }
 
@@ -487,31 +488,6 @@ extension ExplorePostCard {
                     )
             )
             .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 4)
-        }
-
-        private var actionRow: some View {
-            HStack(spacing: 20) {
-                actionGroup
-                actionGroup
-
-                Spacer(minLength: 12)
-
-                Circle()
-                    .fill(Color(uiColor: .tertiarySystemFill))
-                    .frame(width: 24, height: 24)
-            }
-        }
-
-        private var actionGroup: some View {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(placeholderFill(secondary: true))
-                    .frame(width: 24, height: 24)
-
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(placeholderFill())
-                    .frame(width: 18, height: 14)
-            }
         }
 
         private var glowOverlay: some View {

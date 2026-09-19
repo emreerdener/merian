@@ -117,7 +117,8 @@ drawn inside the capsule.
 Post action icons use 20-point symbols inside 44-point tap targets. Comment and
 heart counts use Dynamic Type body text (17 points at the default size). Feed,
 hashtag, and detail bars use 12-point horizontal insets and symmetric 6-point
-vertical insets around the 44-point default row, for a 56-point bar. Empty
+vertical insets around the 44-point default row, for a 56-point bar. Detail
+omits the bottom inset when the reaction summary is visible beneath it. Empty
 hashtag rows reserve no space. The shared strip still grows for Dynamic Type and
 moves beneath controls at the existing large-text threshold.
 

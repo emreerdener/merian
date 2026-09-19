@@ -90,6 +90,7 @@ struct ExplorePostComposerView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 28)
             }
+            .transparentTopToolbar()
             .scrollDismissesKeyboard(.interactively)
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(mode.title)
@@ -221,6 +222,7 @@ struct ExplorePostComposerView: View {
                 }
                 .padding(.horizontal, 16)
             }
+            .transparentTopToolbar()
             .padding(.horizontal, -16)
 
             Text("The first selected item is the cover.")
@@ -426,6 +428,7 @@ struct ExplorePostComposerView: View {
                 }
                 .padding(.horizontal, 16)
             }
+            .transparentTopToolbar()
             .padding(.horizontal, -16)
         }
     }

@@ -44,6 +44,7 @@ struct FieldTripChallengeDetailView: View {
                         .padding(.bottom, 32)
                 }
             }
+            .transparentTopToolbar()
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(viewModel.challenge?.title ?? (viewModel.isLoading ? "Loading..." : "Challenge"))
             .navigationBarTitleDisplayMode(.inline)

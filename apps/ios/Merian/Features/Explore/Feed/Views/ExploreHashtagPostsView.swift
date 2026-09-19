@@ -131,6 +131,7 @@ struct ExploreHashtagPostsView: View {
                     .padding(.bottom, 24)
             }
         }
+        .transparentTopToolbar()
         .refreshable {
             await reloadPosts()
         }

@@ -20,6 +20,7 @@ struct ExploreAuthorProfileLoadingView: View {
             .padding(.top, 20)
             .padding(.bottom, 32)
         }
+        .transparentTopToolbar()
         .background(Color(uiColor: .systemGroupedBackground))
         .accessibilityLabel("Loading profile")
     }

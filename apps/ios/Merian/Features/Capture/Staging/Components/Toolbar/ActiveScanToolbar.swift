@@ -68,6 +68,7 @@ struct ActiveScanToolbar: View {
                         ScrollView(.horizontal) {
                             mediaRow
                         }
+                        .transparentTopToolbar()
                         .scrollIndicators(.hidden)
                         .frame(height: 48)
                     }

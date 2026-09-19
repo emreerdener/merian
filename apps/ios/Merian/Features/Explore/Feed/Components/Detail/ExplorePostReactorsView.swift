@@ -15,7 +15,6 @@ struct ExplorePostReactionSummary: View {
                         Image(systemName: "person.2").font(.caption)
                         Text(summary).font(.caption).multilineTextAlignment(.leading)
                         Spacer(minLength: 0)
-                        Image(systemName: "chevron.right").font(.caption2)
                     }
                     .foregroundStyle(.secondary)
                     .frame(minHeight: 32)
@@ -28,7 +27,7 @@ struct ExplorePostReactionSummary: View {
                 .accessibilityIdentifier("explore.reactions.summary")
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 16)
     }
 }
 
@@ -63,6 +62,7 @@ struct ExplorePostReactorsSheet: View {
                                     }
                                 }
                             }
+                            .transparentTopToolbar()
                             .frame(height: emojiRowHeight)
                         }
                     }
@@ -85,6 +85,7 @@ struct ExplorePostReactorsSheet: View {
                     }
                 }
             }
+            .transparentTopToolbar()
             .listStyle(.plain)
             .refreshable { await model.refresh() }
             .navigationTitle("Reactions")

@@ -55,6 +55,7 @@ struct SpeciesDictionaryRegionsView: View {
             }
             .padding(16)
         }
+        .transparentTopToolbar()
         .accessibilityHidden(true)
     }
 
@@ -98,6 +99,7 @@ struct SpeciesDictionaryRegionsView: View {
             }
             .padding(16)
         }
+        .transparentTopToolbar()
         .refreshable {
             await viewModel.load(userRegion: userRegion)
         }

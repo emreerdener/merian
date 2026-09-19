@@ -128,6 +128,7 @@ struct FeedbackSurveyView: View {
             Form {
                 questionSection(index: index)
             }
+            .transparentTopToolbar()
         }
         .background(Color(.systemGroupedBackground))
         .safeAreaInset(edge: .bottom) {

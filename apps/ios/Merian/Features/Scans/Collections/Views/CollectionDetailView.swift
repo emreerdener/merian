@@ -44,6 +44,7 @@ struct CollectionDetailView: View {
                     scansGrid
                 }
             }
+            .transparentTopToolbar()
         }
         .navigationTitle(collection.name)
         .toolbar { trailingToolbar }

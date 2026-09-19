@@ -71,6 +71,7 @@ struct ManagePlanView: View {
                     .padding(.vertical, 8)
             }
         }
+        .transparentTopToolbar()
         .navigationTitle(revenueCatManager.isProActive ? "Plan" : "Upgrade")
         .sheet(isPresented: $showPaywall) {
             PaywallView()

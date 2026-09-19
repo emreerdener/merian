@@ -45,6 +45,7 @@ struct CommunityTaxonomySearchSheet: View {
                     }
                 }
             }
+            .transparentTopToolbar()
             .navigationTitle("Suggest ID")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always))

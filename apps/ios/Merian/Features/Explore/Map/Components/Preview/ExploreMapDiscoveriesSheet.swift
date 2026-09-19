@@ -37,6 +37,7 @@ struct ExploreMapDiscoveriesSheet: View {
                 }
                 .padding()
             }
+            .transparentTopToolbar()
             .navigationTitle(
                 ExploreMapPresentation.discoveriesInViewLabel(
                     count: viewModel.visiblePosts.count

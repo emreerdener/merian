@@ -60,6 +60,7 @@ struct ExploreReactionStrip: View {
                     contentFrame = frame
                 }
             }
+            .transparentTopToolbar()
             .contentShape(Rectangle())
             .coordinateSpace(name: scrollSpace)
             .onGeometryChange(for: CGFloat.self) { geometry in

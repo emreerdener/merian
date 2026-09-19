@@ -104,6 +104,7 @@ struct CommunityIdentificationRequestSheet: View {
                     }
                 }
             }
+            .transparentTopToolbar()
             .disabled(viewModel.isLoading || isSubmitting)
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)

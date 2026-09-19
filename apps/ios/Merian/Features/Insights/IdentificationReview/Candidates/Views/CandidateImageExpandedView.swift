@@ -22,6 +22,7 @@ struct CandidateImageExpandedView: View {
                 }
                 .scrollTargetLayout()
             }
+            .transparentTopToolbar()
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: Binding(
                 get: { selectedImage ?? images.first },

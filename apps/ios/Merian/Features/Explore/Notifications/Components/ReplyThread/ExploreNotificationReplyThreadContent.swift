@@ -23,6 +23,7 @@ struct ExploreNotificationReplyThreadContent: View {
             }
             .padding(16)
         }
+        .transparentTopToolbar()
         .refreshable {
             await viewModel.load(route: route)
         }

@@ -42,6 +42,7 @@ struct ExploreCommunityIdentificationView: View {
                 }
                 .padding(.bottom, 18)
             }
+            .transparentTopToolbar()
             .refreshable {
                 await reloadDashboard(clearExisting: false)
             }

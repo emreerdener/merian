@@ -84,6 +84,7 @@ struct PrivateScanMapFilterSheet: View {
                 }
                 .padding()
             }
+            .transparentTopToolbar()
             .navigationTitle("Map filters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

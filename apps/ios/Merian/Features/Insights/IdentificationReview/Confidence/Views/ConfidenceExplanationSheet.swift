@@ -255,6 +255,7 @@ struct ConfidenceExplanationSheet: View {
             .padding(.top, 32)
             .padding(.bottom, 48)
         }
+        .transparentTopToolbar()
         .sheet(
             isPresented: swipeModalPresentedBinding,
             onDismiss: resumePendingSwipeDismissalRequest

@@ -66,6 +66,7 @@ struct FieldTripScanPreviewStrip: View {
             }
             .padding(.horizontal, FieldTripScanPreviewLayout.horizontalInset)
         }
+        .transparentTopToolbar()
         .frame(height: tileSize)
     }
 

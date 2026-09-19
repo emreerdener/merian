@@ -44,6 +44,7 @@ struct SmartCollectionDetailView: View {
                     )
                 }
             }
+            .transparentTopToolbar()
         }
         .navigationTitle(snapshot.title)
         .toolbar { trailingToolbar }

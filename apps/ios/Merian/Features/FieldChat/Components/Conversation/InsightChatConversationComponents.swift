@@ -221,6 +221,7 @@ private struct InsightChatAnswerControls: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 16)
         }
+        .transparentTopToolbar()
         .padding(.horizontal, -16)
         .task(id: copyConfirmationToken) {
             guard let copyConfirmationToken else { return }

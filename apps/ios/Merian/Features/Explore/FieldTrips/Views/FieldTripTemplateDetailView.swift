@@ -86,6 +86,7 @@ struct FieldTripTemplateDetailView: View {
                         .padding(.bottom, 32)
                 }
             }
+            .transparentTopToolbar()
             .coordinateSpace(name: FieldTripFeaturedMediaLayout.scrollCoordinateSpace)
             .ignoresSafeArea(
                 .container,

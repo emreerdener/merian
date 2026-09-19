@@ -104,6 +104,7 @@ struct NotificationSettingsView: View {
                 }
             }
         }
+        .transparentTopToolbar()
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(

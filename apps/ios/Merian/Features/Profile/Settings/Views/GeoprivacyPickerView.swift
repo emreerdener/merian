@@ -44,6 +44,7 @@ struct GeoprivacyPickerView: View {
                 .padding(.vertical, 4)
             }
         }
+        .transparentTopToolbar()
         .navigationTitle("Geoprivacy")
         .navigationBarTitleDisplayMode(.inline)
     }

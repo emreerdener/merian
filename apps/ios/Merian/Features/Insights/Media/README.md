@@ -45,14 +45,14 @@ video remains a normal carousel page.
 
 The domain-neutral pager, page value, zoom host, pagination dots, fullscreen
 gallery, audio page, and reusable video chrome live in
-`Core/UI/Components/MediaCarousel`. The App presentation root owns the app-wide
-transparent top scroll-edge treatment. Audio-session restoration, the main-actor
-audio delegate, shared playback dependencies, and bounded export processing live
-in `Core/Media`. `CarouselPageItem` remains Insight-owned and projects its
-image-origin, still-source, and focus identity into the Core page reuse key.
-Presentation-only view changes keep the mounted controller; an image-origin,
-source-index, or focus-identity change remounts that page and forces the native
-pager to discard cached neighbors.
+`Core/UI/Components/MediaCarousel`. The Insight content scroll view directly
+applies Core UI’s `transparentTopToolbar()` treatment. Audio-session
+restoration, the main-actor audio delegate, shared playback dependencies, and
+bounded export processing live in `Core/Media`. `CarouselPageItem` remains
+Insight-owned and projects its image-origin, still-source, and focus identity
+into the Core page reuse key. Presentation-only view changes keep the mounted
+controller; an image-origin, source-index, or focus-identity change remounts
+that page and forces the native pager to discard cached neighbors.
 
 The carousel performs no networking. Remote reference images continue through
 the cross-feature `Core/UI/Components/AsyncLocalImageView` boundary, whose live

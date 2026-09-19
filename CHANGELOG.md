@@ -26,8 +26,9 @@ TestFlight, App Store, support, and QA.
 - Keep the Species directory visible when returning from Requests or another
   Explore page, with recent content reused and older content refreshed in the
   background. Pull to refresh still updates immediately.
-- Keep top toolbars transparent while scrolling throughout the app, preserving
-  the glass styling of individual controls.
+- Keep top toolbars transparent while scrolling throughout the app, including
+  pushed pages and nested sheets, preserving the glass styling of individual
+  controls.
 
 ### Image Cropping
 

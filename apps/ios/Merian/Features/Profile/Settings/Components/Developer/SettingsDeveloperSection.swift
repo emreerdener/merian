@@ -291,6 +291,7 @@ private struct FieldTripCommunityCardDeveloperPreview: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
         }
+        .transparentTopToolbar()
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Community Card")
         .navigationBarTitleDisplayMode(.inline)
@@ -367,6 +368,7 @@ private struct ComplimentaryScansDeveloperPreview: View {
             }
             .padding(16)
         }
+        .transparentTopToolbar()
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Pro Scans")
         .navigationBarTitleDisplayMode(.inline)

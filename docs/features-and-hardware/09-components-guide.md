@@ -621,11 +621,12 @@ camera pipeline and the offline queued-scan path:
 - **`MediaCarouselPaginationDots`**: The shared bottom material capsule used by
   Insight and Field trips. It hides for a single page, clamps transient index
   changes safely, animates selection, and announces the current page count.
-- **Top scroll-edge treatment**: `AppTopScrollEdgeEffectModifier` in
-  `App/Presentation/AppRootPresentation.swift` hides the iOS 26+ top effect
-  throughout the app. Insight and Field-trip heroes retain their top content
-  margins and navigation underlap configuration without restoring a background
-  when their images scroll away. See the
+- **Top scroll-edge treatment**: `View.transparentTopToolbar()` in
+  `Core/UI/Modifiers/TopToolbarAppearance.swift` hides the iOS 26+ top effect
+  directly on each scrolling surface, below navigation and sheet boundaries.
+  Insight and Field-trip heroes retain their top content margins and navigation
+  underlap configuration without restoring a background when their images scroll
+  away. See the
   [shared toolbar contract](07-feature-modules-and-ui.md#shared-top-toolbar-appearance).
 - **`ZoomPageViewController`**: Each page controller. Embeds its SwiftUI content
   (image, video, audio, description, loading, or terminal state) inside a

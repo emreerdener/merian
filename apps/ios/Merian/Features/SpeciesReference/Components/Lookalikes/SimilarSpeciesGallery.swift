@@ -54,6 +54,7 @@ struct SimilarSpeciesGallery: View {
                     .padding(.bottom, 8)
                     .padding(.horizontal, 16)
                 }
+                .transparentTopToolbar()
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, -16)
             }
@@ -222,6 +223,7 @@ extension SimilarSpeciesGallery {
                     .padding(.bottom, 12)
                     .padding(.horizontal, 16)
                 }
+                .transparentTopToolbar()
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, -16)
                 .disabled(true)

@@ -328,7 +328,6 @@ struct MerianApp: App {
                 guard let url = activity.webpageURL else { return }
                 _ = handleMerianDeepLink(url)
             }
-            .modifier(AppTopScrollEdgeEffectModifier())
         }
         // MARK: - Scene Phases
         .onChange(of: scenePhase) { oldPhase, newPhase in

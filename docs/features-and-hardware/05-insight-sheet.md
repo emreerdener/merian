@@ -1103,10 +1103,11 @@ deterministic presentation values, `Builders` assembles and filters pages,
 `Services` supplies the narrow live side-effect seam, `Playback` contains
 AVPlayer lifetimes, and mounted UI state stays in `Pages`, `Components`, and the
 two root carousel views. Domain-neutral paging, zoom, and pagination shared with
-Field Trips belong to `Core/UI/Components/MediaCarousel`. The App presentation
-root owns transparent top scroll-edge treatment. The split does not change the
-mixed-media order, copy, accessibility identifiers, animation clock, mute
-policy, focus timing, fallback behavior, or fullscreen routes.
+Field Trips belong to `Core/UI/Components/MediaCarousel`. Core UI owns the
+transparent top-toolbar modifier applied directly to `InsightContentView`’s
+scroll view. The split does not change the mixed-media order, copy,
+accessibility identifiers, animation clock, mute policy, focus timing, fallback
+behavior, or fullscreen routes.
 
 1. **Live captures** (`viewModel.activeMedia.liveImageData`) — display-quality
    `Data` for the current session's live frame when analysis is still in flight.
@@ -1288,16 +1289,15 @@ image-origin, still-source, and focus identity into the reuse key, while Field
 Trips uses its stable goal-derived page ID plus the existing reference/user
 source-family boundary. Both surfaces also use `MediaCarouselPaginationDots` for
 the same single-page hiding, selection animation, material capsule, and
-accessibility count treatment. Their top-edge heroes inherit
-`AppTopScrollEdgeEffectModifier` from the App presentation root, which keeps the
-iOS 26+ top scroll-edge effect hidden even after the hero clears the toolbar.
-`TabView(.page)` was evaluated and rejected for two reasons: it lazily
-instantiates pages (so `AsyncLocalImageView.task` only fires when the user
-swipes to a page, causing image loads during the swipe transition), and its
-gesture recogniser conflicts with the sheet's pan gesture.
-`UIPageViewController` fixes both: the `Coordinator` pre-creates all controllers
-upfront, and its internal `UIScrollView` defers to the sheet's pan without
-manual workarounds.
+accessibility count treatment. Their top-edge hero scroll views directly apply
+Core UI’s `transparentTopToolbar()`, which keeps the iOS 26+ top scroll-edge
+effect hidden even after the hero clears the toolbar. `TabView(.page)` was
+evaluated and rejected for two reasons: it lazily instantiates pages (so
+`AsyncLocalImageView.task` only fires when the user swipes to a page, causing
+image loads during the swipe transition), and its gesture recogniser conflicts
+with the sheet's pan gesture. `UIPageViewController` fixes both: the
+`Coordinator` pre-creates all controllers upfront, and its internal
+`UIScrollView` defers to the sheet's pan without manual workarounds.
 
 The Core page defaults its reuse key to its stable ID. When both values remain
 equal, the coordinator pushes updated SwiftUI content into the mounted

@@ -285,6 +285,7 @@ struct InsightChatSheet: View {
                         }
                     }
                 }
+                .transparentTopToolbar()
                 .scrollDismissesKeyboard(.interactively)
                 .background(
                     ExploreKeyboardDismissTapRecognizer(
@@ -411,6 +412,7 @@ struct InsightChatSheet: View {
             }
             .padding(.horizontal, 16)
         }
+        .transparentTopToolbar()
     }
 
     private var offlineComposerNotice: some View {

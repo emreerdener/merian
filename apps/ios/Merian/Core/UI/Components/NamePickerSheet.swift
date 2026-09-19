@@ -37,6 +37,7 @@ struct NamePickerSheet: View {
                     Text(footerText)
                 }
             }
+            .transparentTopToolbar()
             .navigationTitle(title)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

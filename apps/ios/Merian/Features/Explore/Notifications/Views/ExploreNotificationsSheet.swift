@@ -101,6 +101,7 @@ struct ExploreNotificationsSheet: View {
             .padding(.top, 16)
             .padding(.bottom, 24)
         }
+        .transparentTopToolbar()
         .refreshable {
             await fetchNotifications(force: true)
         }

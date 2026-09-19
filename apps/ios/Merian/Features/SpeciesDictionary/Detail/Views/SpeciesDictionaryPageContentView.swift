@@ -370,6 +370,7 @@ struct SpeciesDictionaryPageContentView: View {
                 .modifier(DictionaryHeroContentSheetModifier())
             }
         }
+        .transparentTopToolbar()
         .background(Color(uiColor: .systemBackground))
         .coordinateSpace(name: "SpeciesDictionaryScrollSpace")
         .ignoresSafeArea(.container, edges: .top)

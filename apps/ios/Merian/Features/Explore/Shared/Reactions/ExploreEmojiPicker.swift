@@ -57,6 +57,7 @@ struct ExploreEmojiPicker: View {
                     }
                 }
             }
+            .transparentTopToolbar()
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)

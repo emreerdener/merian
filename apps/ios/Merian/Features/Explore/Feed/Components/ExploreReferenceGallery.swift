@@ -49,6 +49,7 @@ struct ExploreReferenceGallery: View {
                 }
                 .scrollTargetLayout()
             }
+            .transparentTopToolbar()
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: Binding(
                 get: { currentImageId },

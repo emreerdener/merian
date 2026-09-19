@@ -244,6 +244,7 @@ struct FieldTripCompactLevelSkeleton: View {
                 }
                 .padding(.horizontal, horizontalInset)
             }
+            .transparentTopToolbar()
             .scrollDisabled(true)
             .frame(height: tileSize)
             .padding(.horizontal, -horizontalInset)

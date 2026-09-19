@@ -155,6 +155,7 @@ struct ExploreCommentsSheet: View {
             .padding(.top, 16)
             .padding(.bottom, 12)
         }
+        .transparentTopToolbar()
         .scrollDismissesKeyboard(.interactively)
     }
 

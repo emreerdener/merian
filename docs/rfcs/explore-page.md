@@ -1712,9 +1712,17 @@ and disappear when their authoritative count reaches zero.
 
 Post action bars use smaller 20-point symbols and equal 6-point top/bottom
 insets around the default 44-point row on feed, hashtag, and detail surfaces.
+Detail omits the bottom inset when a reaction summary is visible below it.
 Comment and heart counts use Dynamic Type body text (17 points by default).
 Empty hashtag content adds no gap above the feed controls; large-text reaction
 rows retain their existing expansion.
+
+Feed and detail skeletons mirror Comment, Heart, Add reaction, emoji chips, and
+Share with the same control spacing and compact bar insets. Reaction chips use
+28-point placeholders with a trailing fade and move to a second row at the live
+layout's large-text threshold. Count placeholders follow body-text scaling and
+hide at accessibility text sizes. The optional reactor summary has no
+placeholder row while loading.
 
 One viewer may contribute to several distinct emoji groups, once per emoji.
 Added reaction chips are compact, borderless capsules with a subtle selected
@@ -1805,9 +1813,11 @@ also stays hidden without reserving space while its read is loading or fails. It
 appears only after a successful read with people to show; background refreshes
 retain the existing lifecycle triggers.
 
-The summary row uses caption-sized text and people icon, a smaller chevron,
-6-point internal spacing, 12-point horizontal insets, and a 32-point minimum
-height. Text and icons scale with Dynamic Type.
+The summary row uses caption-sized text and people icon without a trailing
+chevron, 6-point internal spacing, and a 32-point minimum height. Its 16-point
+side insets align with the detail content. The action bar omits its bottom
+padding when the summary is visible to tighten the gap between them. Text and
+icons scale with Dynamic Type.
 
 Tapping gives sheet feedback and opens a medium/large Reactions sheet. The sheet
 uses swipe-down dismissal without a Done button. Each row shows the person's

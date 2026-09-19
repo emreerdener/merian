@@ -289,6 +289,7 @@ struct PrivateScanMapView: View {
             }
             .padding(.horizontal, 16)
         }
+        .transparentTopToolbar()
         .padding(.vertical, 8)
     }
 

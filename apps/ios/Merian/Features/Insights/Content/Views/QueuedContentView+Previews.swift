@@ -68,6 +68,7 @@ private extension QueuedScanContext {
         )
         .padding(.horizontal)
     }
+    .transparentTopToolbar()
     .environment(manager)
 }
 
@@ -82,6 +83,7 @@ private extension QueuedScanContext {
         )
         .padding(.horizontal)
     }
+    .transparentTopToolbar()
     .environment(manager)
 }
 #endif

@@ -87,6 +87,7 @@ struct ExploreFeedTabContent: View {
                 }
             }
         }
+        .transparentTopToolbar()
         .refreshable {
             await refreshFeed()
         }

@@ -190,6 +190,7 @@ struct ScansSheetView: View {
                 }
                 .scrollTargetLayout()
             }
+            .transparentTopToolbar()
             .scrollTargetBehavior(.paging)
             .scrollPosition(
                 id: Binding(
