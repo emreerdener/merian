@@ -2341,8 +2341,14 @@ archive-test dependency to 3.10.2. Supabase JS is aligned at the reviewed
 6.2.12 uses the Deno WebCrypto runtime for Apple RS256 identity verification and
 ES256 Apple client-secret/APNs signing. Real-crypto tests retain fixed
 algorithm, issuer, audience, signature, expiry, and safe-error behavior using
-only generated keys and synthetic JWKS responses. Gemini major upgrades require
-their own compatibility changes. See the
+only generated keys and synthetic JWKS responses. Google Gen AI 2.22.0 retains
+`models.generateContent` with the existing model choices, schemas, thinking
+budgets, 90-second HTTP timeout, and no SDK retry options. The real-SDK tests in
+`_shared/gemini_test.ts` intercept HTTP using synthetic input to check Field
+Chat JSON, image/audio parts, schema constraints, thought exclusion, safety,
+token usage, paid-key denial, single-attempt errors, and timeout cancellation.
+These tests do not make paid provider calls or establish live model quality. See
+the
 [dependency maintenance policy](../../docs/CONTRIBUTING.md#dependency-maintenance).
 
 After changing a pin in `functions/deno.json`, regenerate the function-local
