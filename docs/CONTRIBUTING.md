@@ -217,7 +217,7 @@ changes. A version bump alone is not evidence that a dependency is compatible.
   update because it serves authentication and database operations throughout the
   Edge fleet. Deferred proposals stay open and labelled rather than being merged
   merely to empty the queue. As of September 19, 2026, the deferred backend
-  queue is Gemini (#36) and JOSE (#37).
+  queue is Gemini (#36).
 
 For web/admin updates, run the frozen install, blocking dependency audit, tests,
 type check, and production build from each affected package. Preserve security

@@ -1,5 +1,5 @@
 import { fetchUnreadExploreNotificationCount } from "../get-explore-unread-notification-count/db.ts";
-import { importPKCS8, SignJWT } from "jose";
+import { createApnsBearerToken } from "./token.ts";
 import { mapWithConcurrencyLimit } from "../_shared/concurrency.ts";
 import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
 import { requireUuid } from "../_shared/explore.ts";
@@ -26,10 +26,6 @@ import {
 
 const APNS_DELIVERY_CONCURRENCY = 8;
 let cachedApnsBearerToken: { token: string; expiresAtMs: number } | null = null;
-
-function normalizePrivateKey(rawValue: string): string {
-  return rawValue.replace(/\\n/g, "\n").trim();
-}
 
 function buildLikeTitle(actorNames: string[], actionCount: number): string {
   const safeCount = Math.max(actionCount, actorNames.length);
@@ -213,17 +209,7 @@ async function getApnsBearerToken(): Promise<string | null> {
     return null;
   }
 
-  const importedKey = await importPKCS8(
-    normalizePrivateKey(privateKey),
-    "ES256",
-  );
-  const issuedAtSeconds = Math.floor(now / 1000);
-  const token = await new SignJWT({})
-    .setProtectedHeader({ alg: "ES256", kid: keyId })
-    .setIssuer(teamId)
-    .setIssuedAt(issuedAtSeconds)
-    .setExpirationTime(issuedAtSeconds + 60 * 60)
-    .sign(importedKey);
+  const token = await createApnsBearerToken(teamId, keyId, privateKey, now);
 
   cachedApnsBearerToken = {
     token,

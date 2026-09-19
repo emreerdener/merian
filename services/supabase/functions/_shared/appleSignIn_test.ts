@@ -1,11 +1,19 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import { decodeJwt, decodeProtectedHeader } from "jose";
+import {
+  decodeJwt,
+  decodeProtectedHeader,
+  exportJWK,
+  generateKeyPair,
+  jwtVerify,
+  SignJWT,
+} from "jose";
 import {
   AppleAuthorizationExchangeError,
   type AppleSignInConfiguration,
   createAppleClientSecret,
   exchangeAppleAuthorizationCode,
   revokeAppleRefreshToken,
+  verifyAppleIdentityToken,
 } from "./appleSignIn.ts";
 
 const configuration: AppleSignInConfiguration = {
@@ -19,7 +27,7 @@ const identityToken = "header.payload.signature-that-is-long-enough";
 
 Deno.test("Apple client secret pins the native client and five-minute ES256 claims", async () => {
   const now = new Date("2026-08-06T12:00:00Z");
-  const privateKey = await createP256PrivateKeyPem();
+  const { privateKey, publicKey } = await createP256PrivateKeyPem();
   const token = await createAppleClientSecret(
     { ...configuration, privateKey },
     now,
@@ -35,6 +43,75 @@ Deno.test("Apple client secret pins the native client and five-minute ES256 clai
   assertEquals(claims.aud, "https://appleid.apple.com");
   assertEquals(claims.iat, issuedAt);
   assertEquals(claims.exp, issuedAt + 300);
+  await jwtVerify(token, publicKey, {
+    issuer: configuration.teamId,
+    audience: "https://appleid.apple.com",
+    algorithms: ["ES256"],
+    currentDate: now,
+  });
+});
+
+Deno.test("Apple identity verification checks real RS256 signatures and rejects invalid claims", async () => {
+  const { privateKey, publicKey } = await generateKeyPair("RS256");
+  const other = await generateKeyPair("RS256");
+  const jwk = await exportJWK(publicKey);
+  const now = Math.floor(Date.now() / 1000);
+  const sign = (
+    claims: Record<string, unknown> = {},
+    key = privateKey,
+    kid = "synthetic-apple-key",
+  ) =>
+    new SignJWT({
+      sub: "synthetic-apple-subject",
+      iss: "https://appleid.apple.com",
+      aud: configuration.clientId,
+      iat: now,
+      exp: now + 300,
+      ...claims,
+    }).setProtectedHeader({ alg: "RS256", kid }).sign(key);
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = (input) => {
+    assertEquals(String(input), "https://appleid.apple.com/auth/keys");
+    requests++;
+    return Promise.resolve(Response.json({
+      keys: [{ ...jwk, kid: "synthetic-apple-key", use: "sig", alg: "RS256" }],
+    }));
+  };
+  try {
+    assertEquals(
+      await verifyAppleIdentityToken(await sign(), configuration.clientId),
+      "synthetic-apple-subject",
+    );
+    const invalidTokens = await Promise.all([
+      sign({ iss: "https://issuer.invalid" }),
+      sign({ aud: "different.client" }),
+      sign({ exp: now - 1 }),
+      sign({ nbf: now + 3600 }),
+      sign({ sub: "" }),
+      sign({ sub: "unsafe\nsubject" }),
+      sign({}, other.privateKey),
+      sign({}, privateKey, "unknown-key"),
+      new SignJWT({ sub: "synthetic-apple-subject", exp: now + 300 })
+        .setProtectedHeader({ alg: "HS256" })
+        .sign(crypto.getRandomValues(new Uint8Array(32))),
+    ]);
+    for (const token of invalidTokens) {
+      const error = await assertRejects(
+        () => verifyAppleIdentityToken(token, configuration.clientId),
+        AppleAuthorizationExchangeError,
+      );
+      assertEquals(error.code, "apple_identity_token_invalid");
+      assertEquals(error.retryable, false);
+      assertEquals(
+        error.message,
+        "The Apple authorization credential could not be secured.",
+      );
+    }
+    assertEquals(requests, 1, "A fresh cached JWKS must be reused");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 Deno.test("Apple authorization exchange binds both identity tokens and form-encodes the code", async () => {
@@ -171,7 +248,10 @@ Deno.test("Apple revocation never exposes an upstream response body as an error 
   });
 });
 
-async function createP256PrivateKeyPem(): Promise<string> {
+async function createP256PrivateKeyPem(): Promise<{
+  privateKey: string;
+  publicKey: CryptoKey;
+}> {
   const pair = await crypto.subtle.generateKey(
     { name: "ECDSA", namedCurve: "P-256" },
     true,
@@ -182,7 +262,10 @@ async function createP256PrivateKeyPem(): Promise<string> {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   const lines = btoa(binary).match(/.{1,64}/g) ?? [];
-  return `-----BEGIN PRIVATE KEY-----\n${
-    lines.join("\n")
-  }\n-----END PRIVATE KEY-----`;
+  return {
+    privateKey: `-----BEGIN PRIVATE KEY-----\n${
+      lines.join("\n")
+    }\n-----END PRIVATE KEY-----`,
+    publicKey: pair.publicKey,
+  };
 }

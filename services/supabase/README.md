@@ -2337,8 +2337,12 @@ schema. After an intentional media-wire change, run
 
 The reviewed maintenance graph pins `@std/encoding` to 1.0.11 and the JSZip
 archive-test dependency to 3.10.2. Supabase JS is aligned at the reviewed
-2.116.0 version across the Edge fleet, public web, and internal admin; JOSE and
-Gemini major upgrades require their own compatibility changes. See the
+2.116.0 version across the Edge fleet, public web, and internal admin. JOSE
+6.2.12 uses the Deno WebCrypto runtime for Apple RS256 identity verification and
+ES256 Apple client-secret/APNs signing. Real-crypto tests retain fixed
+algorithm, issuer, audience, signature, expiry, and safe-error behavior using
+only generated keys and synthetic JWKS responses. Gemini major upgrades require
+their own compatibility changes. See the
 [dependency maintenance policy](../../docs/CONTRIBUTING.md#dependency-maintenance).
 
 After changing a pin in `functions/deno.json`, regenerate the function-local
