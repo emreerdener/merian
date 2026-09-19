@@ -7543,6 +7543,12 @@ After deployment:
   leaves the database in `ready` and novel admissions closed. A `ready` state at
   final smoke is a failed deployment, never an open route. Do not sleep a runner
   until midnight or accept a user-supplied timestamp.
+- Both cutover commands grant Deno environment reads only for
+  `MERIAN_DATABASE_URL`, `GITHUB_SHA`, and `PG*`. The pinned postgres.js driver
+  reads PostgreSQL option variables such as `PGSSL` during initialization, even
+  when a database URL is supplied. Keep these grants on both verification and
+  activation; the tooling gate initializes the actual driver with each workflow
+  allowlist and network access denied.
 - Activation is intentionally one-way through the public service boundary. Do
   not clear or rewrite `activated_*` fields to retry a release. A failure before
   activation leaves sends closed and is retried with a fresh exact-SHA workflow;

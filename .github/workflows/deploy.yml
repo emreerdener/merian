@@ -800,7 +800,7 @@ jobs:
           MERIAN_DATABASE_URL: ${{ steps.database-url.outputs.url }}
         run: |
           deno run --frozen --config supabase/functions/deno.json \
-            --allow-env=MERIAN_DATABASE_URL,GITHUB_SHA \
+            --allow-env="MERIAN_DATABASE_URL,GITHUB_SHA,PG*" \
             --allow-net \
             --allow-read=supabase/migrations/20260824210544_preserve_field_chat_daily_usage.sql \
             --allow-write="$GITHUB_OUTPUT,$GITHUB_STEP_SUMMARY" \
@@ -1063,7 +1063,7 @@ jobs:
           MERIAN_DATABASE_URL: ${{ steps.database-url.outputs.url }}
         run: |
           deno run --frozen --config supabase/functions/deno.json \
-            --allow-env=MERIAN_DATABASE_URL,GITHUB_SHA \
+            --allow-env="MERIAN_DATABASE_URL,GITHUB_SHA,PG*" \
             --allow-net \
             --allow-read=supabase,"${{ steps.final-function-plan.outputs.plan_file }}" \
             --allow-write="$GITHUB_STEP_SUMMARY" \
