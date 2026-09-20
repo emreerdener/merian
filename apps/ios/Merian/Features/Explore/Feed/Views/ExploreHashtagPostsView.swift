@@ -10,7 +10,6 @@ struct ExploreHashtagPostsView: View {
     var authorProfileDepth = 0
     var onOpenAuthorProfile: ((ExploreAuthorProfileRoute) -> Void)?
 
-    @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @Environment(\.modelContext) private var modelContext
 
     @State private var postsViewModel: ExploreHashtagPostsViewModel
@@ -111,8 +110,8 @@ struct ExploreHashtagPostsView: View {
                         onLike: { Task { await viewModel.toggleLike(for: post) } },
                         onReaction: { emoji, selected in Task { await viewModel.setPostReaction(for: post, emoji: emoji, selected: selected) } },
                         onLoadMore: { Task { await viewModel.loadMorePostReactions(for: post) } },
-                        onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) })
-                        .padding(.horizontal, 12)
+                        trailingContentPadding: 12)
+                        .padding(.leading, 12)
                         .padding(.vertical, 6)
                     }
                     .background(Color(uiColor: .secondarySystemGroupedBackground))

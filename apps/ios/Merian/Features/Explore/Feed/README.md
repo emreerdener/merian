@@ -173,6 +173,11 @@ out independently.
 
 ## Post-detail presentation ownership
 
+`ExplorePostDetailRefreshPolicy`, colocated with the detail presentation
+services, selects matching post and author-identity invalidations. The detail
+host retains the refresh task and its ordered post/detail reloads, and reuses
+its local Field Notes preservation helper when opening Insight.
+
 The Observation card consumes the optional `map_point` from the public Explore
 detail payload. It renders a noninteractive exact marker or 10 km approximate
 circle only while the saved post location setting is `open`; `obscured`,
@@ -448,9 +453,9 @@ a minimum 44-point tap target. They open the shared full emoji picker and retain
 its selection feedback. The Add button keeps its subtle 1-point outline, drawn
 inside the capsule so its outer height stays aligned with the reaction chips.
 
-Feed cards omit Share from the action row, letting emoji chips extend to the
-right edge while retaining overflow fades. Share remains available in detail's
-top-right toolbar immediately before Options.
+Feed and hashtag cards omit Share from the action row, letting emoji chips
+extend to the right edge while retaining overflow fades. Share remains available
+in detail's top-right toolbar immediately before Options.
 
 Feed and detail loading views share `ExplorePostActionSkeleton`: three
 left-aligned 20-point nodes in a single row. Detail also represents both toolbar

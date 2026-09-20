@@ -204,25 +204,12 @@ struct ExplorePostDetailView: View {
     }
 
     private func handleAppEvent(_ event: AppEvent) {
-        switch event {
-        case .explorePostNeedsRefresh(let changedPostId) where changedPostId == postId:
-            Task {
-                await viewModel.refreshPost(postId: changedPostId)
-                await loadDetail(force: true)
-            }
-        case .publicAuthorIdentityChanged(let previousUserId, let currentUserId):
-            guard let post = currentPost,
-                  ExplorePostDetailAuthorIdentityPolicy.changeAffectsAuthor(
-                    post.authorUserId,
-                    previousUserID: previousUserId,
-                    currentUserID: currentUserId
-                  ) else { return }
-            Task {
-                await viewModel.refreshPost(postId: post.id)
-                await loadDetail(force: true)
-            }
-        default:
-            break
+        guard let refreshPostId = ExplorePostDetailRefreshPolicy.postIDToRefresh(
+            for: event, postID: postId, currentPost: currentPost
+        ) else { return }
+        Task {
+            await viewModel.refreshPost(postId: refreshPostId)
+            await loadDetail(force: true)
         }
     }
 
@@ -550,11 +537,7 @@ struct ExplorePostDetailView: View {
 
         let scanId = post.scanId
         if let fieldNotes = detailViewModel.detail?.trimmedFieldNotes {
-            localFieldNotes = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
-                fieldNotes,
-                for: scanId,
-                modelContext: modelContext
-            )
+            preserveLocalFieldNotes(fieldNotes, for: post)
         }
 
         if let onOpenOwnedPostInsight {

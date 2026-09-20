@@ -233,7 +233,6 @@ extension ExploreMapView {
             onOpen: { openPost(post, focusCommentComposer: false) },
             onComments: { openPost(post, focusCommentComposer: true) },
             onLike: { Task { await toggleLike(for: post) } },
-            onShare: { feedViewModel.share(post) },
             onUnshare: { Task { await unshare(post) } },
             onBlock: { Task { await blockAuthor(of: post) } },
             onReport: { Task { await report(post) } },

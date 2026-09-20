@@ -102,7 +102,6 @@ struct ExplorePostReactionActions: View {
     let onAddReaction: () -> Void
     let onReaction: (String, Bool) -> Void
     let onLoadMore: () -> Void
-    var onShare: (() -> Void)?
     var revealEmoji: String?
     var trailingContentPadding: CGFloat = 0
     @Environment(\.dynamicTypeSize) private var dynamicType
@@ -110,8 +109,10 @@ struct ExplorePostReactionActions: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 8) {
+            HStack(spacing: 0) {
                 action("bubble.right", count: post.commentCount, label: "Comments", action: onComments)
+                    // Keep the first label at the bar inset; its tap target extends into that inset.
+                    .padding(.leading, -12)
                 action(
                     post.viewerHasLiked ? "heart.fill" : "heart", count: post.likeCount,
                     label: post.viewerHasLiked ? "Unlike post" : "Like post", highlighted: post.viewerHasLiked,
@@ -126,16 +127,13 @@ struct ExplorePostReactionActions: View {
                         ).offset(x: 4, y: 2)
                     }
                     .environment(\.symbolVariants, .none)
-                    .font(.system(size: 20)).frame(minWidth: 44, minHeight: 44)
+                    .font(.system(size: 20))
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityLabel("Add reaction")
                 if !usesSecondRow { strip } else { Spacer(minLength: 0) }
-                if let onShare {
-                    Button(action: onShare) {
-                        Image(systemName: "square.and.arrow.up").font(.system(size: 20)).frame(minWidth: 44, minHeight: 44)
-                    }
-                    .buttonStyle(.plain).accessibilityLabel("Share post")
-                }
             }
             if usesSecondRow { strip }
         }
@@ -157,7 +155,10 @@ struct ExplorePostReactionActions: View {
                 if !dynamicType.isAccessibilitySize {
                     Text(count.formatted(.number.notation(.compactName))).font(.body)
                 }
-            }.frame(minWidth: 44, minHeight: 44)
+            }
+            .padding(.horizontal, 12)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain).accessibilityLabel("\(label), \(count)")
     }
@@ -169,7 +170,6 @@ struct ExplorePostReactionBar: View {
     let onLike: () -> Void
     let onReaction: (String, Bool) -> Void
     let onLoadMore: () -> Void
-    var onShare: (() -> Void)?
     var trailingContentPadding: CGFloat = 0
     @State private var picker: PickerRoute?
     @State private var revealEmoji: String?
@@ -179,7 +179,7 @@ struct ExplorePostReactionBar: View {
         ExplorePostReactionActions(
             post: post, onComments: onComments, onLike: onLike,
             onAddReaction: { picker = PickerRoute(id: post.id) }, onReaction: onReaction,
-            onLoadMore: onLoadMore, onShare: onShare, revealEmoji: revealEmoji,
+            onLoadMore: onLoadMore, revealEmoji: revealEmoji,
             trailingContentPadding: trailingContentPadding
         )
         .sheet(item: $picker) { _ in

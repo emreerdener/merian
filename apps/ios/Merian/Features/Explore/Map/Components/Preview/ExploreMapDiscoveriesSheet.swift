@@ -7,7 +7,6 @@ struct ExploreMapDiscoveriesSheet: View {
 
     let onOpen: (ExplorePost, Bool) -> Void
     let onLike: (ExplorePost) -> Void
-    let onShare: (ExplorePost) -> Void
     let onUnshare: (ExplorePost) -> Void
     let onBlock: (ExplorePost) -> Void
     let onReport: (ExplorePost) -> Void
@@ -25,7 +24,6 @@ struct ExploreMapDiscoveriesSheet: View {
                             onOpen: { open(post, focusCommentComposer: false) },
                             onComments: { open(post, focusCommentComposer: true) },
                             onLike: { onLike(post) },
-                            onShare: { onShare(post) },
                             onUnshare: { onUnshare(post) },
                             onBlock: { onBlock(post) },
                             onReport: { onReport(post) },

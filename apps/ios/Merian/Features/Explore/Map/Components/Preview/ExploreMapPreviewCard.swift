@@ -7,7 +7,6 @@ struct ExploreMapPreviewCard: View {
     let onOpen: () -> Void
     let onComments: () -> Void
     let onLike: () -> Void
-    let onShare: () -> Void
     let onUnshare: () -> Void
     let onBlock: () -> Void
     let onReport: () -> Void
@@ -111,7 +110,7 @@ struct ExploreMapPreviewCard: View {
 
     private var actions: some View {
         ExplorePostReactionBar(post: post, onComments: onComments, onLike: onLike,
-            onReaction: onReaction, onLoadMore: onLoadMoreReactions, onShare: onShare)
+            onReaction: onReaction, onLoadMore: onLoadMoreReactions)
     }
 
     private var openButton: some View {

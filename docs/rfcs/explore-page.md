@@ -1635,7 +1635,7 @@ Client behavior:
   native detail may include the same privacy-safe post-owned map point as the
   map, and only for a currently `open` post.
 - Users can like and comment on posts.
-- Users can externally share posts from the feed.
+- Users can externally share posts from the post-detail toolbar.
 - Every selected image, video, and audio item is available in authored order in
   a swipeable carousel on both the feed card and post detail.
 - Tapping a feed post outside an audio/video center playback zone opens a public
@@ -1706,23 +1706,25 @@ public-web reaction controls remain outside this feature.
 
 The shared action row appears on observation feed cards, hashtag feeds, Map
 previews/discovery cards, and post detail. Comment, Heart, and Add reaction stay
-fixed. Hashtag and Map preview rows also keep Share fixed at the trailing edge;
-feed cards omit Share and their trailing inset so chips reach the right edge.
-Their final emoji or More control carries 12 points of trailing scrollable
-space, preserving an end margin when fully scrolled without narrowing the
-viewport. Detail presents Share in its top-right toolbar before Options. Emoji
-scrolling is clipped to the remaining row width and stays outside any Share hit
-region; leading and trailing fades appear only when content extends beyond that
-edge. At `xxxLarge` and accessibility text sizes the chips move to a second row.
-Selected chips are highlighted, announce their catalog name/count/selection to
-VoiceOver, and disappear when their authoritative count reaches zero.
+fixed. All of these action rows omit Share. Feed and hashtag cards omit their
+trailing inset so chips reach the right edge. Their final emoji or More control
+carries 12 points of trailing scrollable space, preserving an end margin when
+fully scrolled without narrowing the viewport. Detail presents Share in its
+top-right toolbar before Options. Emoji scrolling is clipped to the remaining
+row width; leading and trailing fades appear only when content extends beyond
+that edge. At `xxxLarge` and accessibility text sizes the chips move to a second
+row. Selected chips are highlighted, announce their catalog name/count/selection
+to VoiceOver, and disappear when their authoritative count reaches zero.
 
 Post action bars use smaller 20-point symbols and equal 6-point top/bottom
 insets around the default 44-point row on feed, hashtag, and detail surfaces.
 Detail omits the bottom inset when a reaction summary is visible below it.
 Comment and heart counts use Dynamic Type body text (17 points by default).
-Empty hashtag content adds no gap above the feed controls; large-text reaction
-rows retain their existing expansion.
+Comment, Heart, and Add reaction labels have equal 24-point gaps, provided by
+12-point horizontal hit padding on each control. The first label remains at the
+bar's leading inset; invisible hit padding does not add an extra visible gap
+before Add reaction. Empty hashtag content adds no gap above the feed controls;
+large-text reaction rows retain their existing expansion.
 
 Feed and detail skeleton action bars use three left-aligned 20-point placeholder
 nodes, each in a 44-point frame. Detail also represents Share and Options in the

@@ -116,10 +116,10 @@ documentation formatting, or manual MapKit regression on a candidate build.
 ## Observation reactions
 
 Discovery and selected-post previews use the shared Comment → Heart → Add
-reaction → emoji chips → Share row. They resolve the latest `ExplorePostStore`
-entry rather than keeping marker-local reaction state. Map markers stay
-lightweight: Feed hydrates their missing summary through the single-post
-endpoint and serializes that hydration with writes. Geometry, coordinates, and
-map-cache ownership are unchanged. The Map hydration/mutation regression lives
-in `ExploreReactionStateTests`; see the
+reaction → emoji chips row. Share remains in the post-detail toolbar. They
+resolve the latest `ExplorePostStore` entry rather than keeping marker-local
+reaction state. Map markers stay lightweight: Feed hydrates their missing
+summary through the single-post endpoint and serializes that hydration with
+writes. Geometry, coordinates, and map-cache ownership are unchanged. The Map
+hydration/mutation regression lives in `ExploreReactionStateTests`; see the
 [reaction contract](../../../../../../docs/rfcs/explore-page.md#emoji-reactions-update-2026-09-18).
