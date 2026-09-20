@@ -448,15 +448,18 @@ a minimum 44-point tap target. They open the shared full emoji picker and retain
 its selection feedback. The Add button keeps its subtle 1-point outline, drawn
 inside the capsule so its outer height stays aligned with the reaction chips.
 
-Feed and detail loading views share `ExplorePostActionSkeleton`: Comment and
-Heart placeholders with body-sized counts, Add reaction, a clipped row of
-28-point chip placeholders with a trailing fade, and Share. The layout uses the
-live controls' 8-point gaps, 44-point minimum frames, 12-point side insets, and
-6-point vertical insets. At `xxxLarge` and accessibility text sizes, chips move
-to a second row; count placeholders hide at accessibility sizes. Headers and
-detail species spacing mirror the loaded views. Skeletons remain noninteractive
-and hidden from VoiceOver; the optional reactor summary reserves no space until
-its own successful read.
+Feed cards omit Share from the action row, letting emoji chips extend to the
+right edge while retaining overflow fades. Share remains available in detail's
+top-right toolbar immediately before Options.
+
+Feed and detail loading views share `ExplorePostActionSkeleton`: three
+left-aligned 20-point nodes in a single row. Detail also represents both toolbar
+controls while loading. Each node occupies a 44-point frame; the bar uses
+8-point gaps and 6-point vertical insets. Feed uses a 12-point leading inset and
+no trailing inset; detail retains 12-point side insets. Loading does not show
+counts or emoji chip placeholders. Headers and detail species spacing mirror the
+loaded views. Skeletons remain noninteractive and hidden from VoiceOver; the
+optional reactor summary reserves no space until its own successful read.
 
 Shared reaction UI and Unicode catalog presentation live in
 `../Shared/Reactions`. Feed Services own the idempotent set/page dependencies;
@@ -484,21 +487,26 @@ reuse the checkout-managed build cache.
 paged Reactions sheet. `ExplorePostReactionSummary` sits below detail actions;
 `ExplorePostReactorsSheet` renders the public avatar, `@username`, and each
 person's complete emoji list, with likes represented as ❤️. Both share one
-detail-owned model. The typed `ExplorePostDetailPresentation.reactors` route
-retains sheet and media overlay ownership. The detail summary occupies no space
-while loading, after a failed read, or when no people reacted; only a
-successfully loaded summary is visible. Loading, empty, failed-read retry, and
-explicit pagination remain local UI state inside the opened sheet; views do not
-resolve a network client.
+detail-owned model. The list keeps separators between rows and hides the outer
+lines above the first row and below the last row. The typed
+`ExplorePostDetailPresentation.reactors` route retains sheet and media overlay
+ownership. The detail summary occupies no space while loading, after a failed
+read, or when no people reacted; only a successfully loaded summary is visible.
+Loading, empty, failed-read retry, and explicit pagination remain local UI state
+inside the opened sheet; views do not resolve a network client.
 
-Usernames use the feed's shared public-username formatter. Older server
-responses without the additive `username` field fall back to the public display
-name; the detail summary continues to use the response's public preview names.
-The summary uses caption-sized text and people icon without a trailing chevron,
-6-point internal spacing, and a 32-point minimum row height. Its 16-point side
-insets align with the detail content. When the summary is visible, the action
-bar removes its bottom padding to tighten the gap above the summary. Text and
-icons continue to scale with Dynamic Type.
+Usernames use the feed's shared public-username formatter. The detail aggregate
+uses the first two loaded reactors' `@username` values; subsequent pages keep
+those initial actors while updating the total. Missing or blank usernames use
+count-only copy ("1 person reacted" or "N people reacted"), never display names.
+The wire `preview_names` field remains compatible but is not rendered by the
+aggregate. The Reactions sheet retains its public-display-name fallback for
+older server responses without `username`. The summary uses caption-sized text
+and people icon without a trailing chevron, 6-point internal spacing, and a
+32-point minimum row height. Its 16-point side insets align with the detail
+content. When the summary is visible, the action bar removes its bottom padding
+to tighten the gap above the summary. Text and icons continue to scale with
+Dynamic Type.
 
 `ExploreReactionDependencies.loadPeople` is the injected read seam. The Feed
 state increments `postReactorsRevision` after post reactions/likes complete so

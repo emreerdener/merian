@@ -99,7 +99,7 @@ struct ExplorePostReactionActions: View {
     let onAddReaction: () -> Void
     let onReaction: (String, Bool) -> Void
     let onLoadMore: () -> Void
-    let onShare: () -> Void
+    var onShare: (() -> Void)? = nil
     var revealEmoji: String?
     @Environment(\.dynamicTypeSize) private var dynamicType
     private var usesSecondRow: Bool { dynamicType.isAccessibilitySize || dynamicType == .xxxLarge }
@@ -117,18 +117,21 @@ struct ExplorePostReactionActions: View {
                     onAddReaction()
                 } label: {
                     Image(systemName: "face.smiling").overlay(alignment: .bottomTrailing) {
-                        Image(systemName: "plus.circle.fill").font(.system(size: 9)).background(
+                        Image(systemName: "plus.circle").font(.system(size: 9)).background(
                             .background, in: Circle()
                         ).offset(x: 4, y: 2)
                     }
+                    .environment(\.symbolVariants, .none)
                     .font(.system(size: 20)).frame(minWidth: 44, minHeight: 44)
                 }
                 .buttonStyle(.plain).accessibilityLabel("Add reaction")
                 if !usesSecondRow { strip } else { Spacer(minLength: 0) }
-                Button(action: onShare) {
-                    Image(systemName: "square.and.arrow.up").font(.system(size: 20)).frame(minWidth: 44, minHeight: 44)
+                if let onShare {
+                    Button(action: onShare) {
+                        Image(systemName: "square.and.arrow.up").font(.system(size: 20)).frame(minWidth: 44, minHeight: 44)
+                    }
+                    .buttonStyle(.plain).accessibilityLabel("Share post")
                 }
-                .buttonStyle(.plain).accessibilityLabel("Share post")
             }
             if usesSecondRow { strip }
         }
@@ -161,7 +164,7 @@ struct ExplorePostReactionBar: View {
     let onLike: () -> Void
     let onReaction: (String, Bool) -> Void
     let onLoadMore: () -> Void
-    let onShare: () -> Void
+    var onShare: (() -> Void)? = nil
     @State private var picker: PickerRoute?
     @State private var revealEmoji: String?
     private struct PickerRoute: Identifiable { let id: String }

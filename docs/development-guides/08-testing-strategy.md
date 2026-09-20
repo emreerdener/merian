@@ -8810,7 +8810,9 @@ reserved space; a successful nonempty read reveals the line. One/two/many copy
 matches distinct people; tapping opens medium/large sheet with feedback and
 pauses video; all emojis remain readable via horizontal overflow; More and retry
 work; dismiss restores the existing media intent. Confirm sheet rows use
-`@username` while the summary retains public names. Check long usernames, large
-Dynamic Type, VoiceOver names, dark mode, and removal or account switching while
-requests are pending. Automated passes do not establish these manual or deployed
-checks.
+`@username` in both sheet rows and the aggregate summary. Aggregate tests cover
+one/two/many username grammar, count-only fallback for missing/blank usernames,
+retention of initial actors across later pages, and replacement on refresh.
+Check long usernames, large Dynamic Type, VoiceOver names, dark mode, and
+removal or account switching while requests are pending. Automated passes do not
+establish these manual or deployed checks.

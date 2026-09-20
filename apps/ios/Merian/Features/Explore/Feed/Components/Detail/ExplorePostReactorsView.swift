@@ -38,52 +38,55 @@ struct ExplorePostReactorsSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                if model.isLoading {
-                    ProgressView("Loading reactions…")
-                } else if model.hasLoaded && model.reactors.isEmpty {
-                    ContentUnavailableView("No reactions yet", systemImage: "face.smiling")
-                }
-                ForEach(model.reactors) { reactor in
-                    HStack(alignment: .top, spacing: 12) {
-                        ExploreAuthorAvatar(url: reactor.avatarUrl.flatMap(URL.init(string:)), size: 44)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(ExplorePost.publicAuthorDisplayName(
-                                from: reactor.displayName, username: reactor.username, preferUsername: true
-                            ))
-                            .font(.body.weight(.semibold))
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                LazyHStack(spacing: 6) {
-                                    ForEach(reactor.emojis, id: \.self) { emoji in
-                                        Text(emoji).font(.title3)
-                                            .padding(6)
-                                            .background(.quaternary, in: Circle())
-                                            .accessibilityLabel(ExploreEmojiCatalog.name(for: emoji))
+                Section {
+                    if model.isLoading {
+                        ProgressView("Loading reactions…")
+                    } else if model.hasLoaded && model.reactors.isEmpty {
+                        ContentUnavailableView("No reactions yet", systemImage: "face.smiling")
+                    }
+                    ForEach(model.reactors) { reactor in
+                        HStack(alignment: .top, spacing: 12) {
+                            ExploreAuthorAvatar(url: reactor.avatarUrl.flatMap(URL.init(string:)), size: 44)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(ExplorePost.publicAuthorDisplayName(
+                                    from: reactor.displayName, username: reactor.username, preferUsername: true
+                                ))
+                                .font(.body.weight(.semibold))
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    LazyHStack(spacing: 6) {
+                                        ForEach(reactor.emojis, id: \.self) { emoji in
+                                            Text(emoji).font(.title3)
+                                                .padding(6)
+                                                .background(.quaternary, in: Circle())
+                                                .accessibilityLabel(ExploreEmojiCatalog.name(for: emoji))
+                                        }
                                     }
                                 }
+                                .transparentTopToolbar()
+                                .frame(height: emojiRowHeight)
                             }
-                            .transparentTopToolbar()
-                            .frame(height: emojiRowHeight)
+                        }
+                        .padding(.vertical, 6)
+                        .accessibilityElement(children: .contain)
+                    }
+                    if let error = model.errorMessage {
+                        Text(error).font(.footnote).foregroundStyle(.secondary)
+                        Button("Try again") {
+                            Task {
+                                if model.hasLoaded { await model.loadMore() } else { await model.refresh() }
+                            }
+                        }
+                    } else if model.isLoadingMore {
+                        ProgressView()
+                    } else if model.nextCursor != nil {
+                        Button("Load more") {
+                            HapticManager.shared.triggerSelectionPulse(source: "explore.reaction.people.more")
+                            Task { await model.loadMore() }
                         }
                     }
-                    .padding(.vertical, 6)
-                    .accessibilityElement(children: .contain)
                 }
-                if let error = model.errorMessage {
-                    Text(error).font(.footnote).foregroundStyle(.secondary)
-                    Button("Try again") {
-                        Task {
-                            if model.hasLoaded { await model.loadMore() } else { await model.refresh() }
-                        }
-                    }
-                } else if model.isLoadingMore {
-                    ProgressView()
-                } else if model.nextCursor != nil {
-                    Button("Load more") {
-                        HapticManager.shared.triggerSelectionPulse(source: "explore.reaction.people.more")
-                        Task { await model.loadMore() }
-                    }
-                }
+                .listSectionSeparator(.hidden)
             }
             .transparentTopToolbar()
             .listStyle(.plain)

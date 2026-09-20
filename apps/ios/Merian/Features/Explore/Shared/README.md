@@ -114,13 +114,21 @@ Comment/reply Add reaction capsules use the same height, padding, internal
 spacing, and Dynamic Type scaling, while retaining a subtle 1-point outline
 drawn inside the capsule.
 
-Post action icons use 20-point symbols inside 44-point tap targets. Comment and
-heart counts use Dynamic Type body text (17 points at the default size). Feed,
-hashtag, and detail bars use 12-point horizontal insets and symmetric 6-point
-vertical insets around the 44-point default row, for a 56-point bar. Detail
-omits the bottom inset when the reaction summary is visible beneath it. Empty
-hashtag rows reserve no space. The shared strip still grows for Dynamic Type and
-moves beneath controls at the existing large-text threshold.
+Post action icons use 20-point symbols inside 44-point tap targets. Add reaction
+forces outline smiley and plus-circle symbols, independent of inherited symbol
+variants. Comment and heart counts use Dynamic Type body text (17 points at the
+default size). Hashtag and detail bars use 12-point horizontal insets; feed
+cards use only a 12-point leading inset so chips reach the right edge. Bars use
+symmetric 6-point vertical insets around the 44-point default row, for a
+56-point bar. Detail omits the bottom inset when the reaction summary is visible
+beneath it. Empty hashtag rows reserve no space. The shared strip still grows
+for Dynamic Type and moves beneath controls at the existing large-text
+threshold.
+
+Post detail omits Share from the action row and presents it in the top-right
+toolbar immediately before Options. Feed cards also omit Share; their chips fill
+the remaining width through the right edge with overflow fades. Hashtag and Map
+preview rows retain their trailing Share button.
 
 `ExploreErrorFormatter.reactionMutationMessage(selected:)` supplies the
 action-specific add/remove failure copy for post, comment, and notification

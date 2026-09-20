@@ -8,7 +8,6 @@ struct ExplorePostCard: View {
     let authorPresentation: ExplorePostCardAuthorPresentation
     let onLike: () -> Void
     let onComments: () -> Void
-    let onShare: () -> Void
     let onOpenDetail: () -> Void
     let onOpenAuthorProfile: () -> Void
     let onOpenHashtag: ((String) -> Void)?
@@ -43,7 +42,7 @@ struct ExplorePostCard: View {
             }
 
             actionRow
-                .padding(.horizontal, 12)
+                .padding(.leading, 12)
                 .padding(.vertical, 6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -213,7 +212,7 @@ struct ExplorePostCard: View {
 
     private var actionRow: some View {
         ExplorePostReactionBar(post: post, onComments: onComments, onLike: onLike,
-            onReaction: onReaction, onLoadMore: onLoadMoreReactions, onShare: onShare)
+            onReaction: onReaction, onLoadMore: onLoadMoreReactions)
     }
 
     @ViewBuilder
@@ -398,8 +397,8 @@ extension ExplorePostCard {
 
                 mediaView
 
-                ExplorePostActionSkeleton(fill: placeholderFill(), secondaryFill: placeholderFill(secondary: true))
-                    .padding(.horizontal, 12)
+                ExplorePostActionSkeleton(fill: placeholderFill(secondary: true))
+                    .padding(.leading, 12)
                     .padding(.vertical, 6)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

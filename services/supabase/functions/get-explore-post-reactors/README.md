@@ -14,12 +14,15 @@ emoji occurs once, including the viewer and post owner. Notifications retain
 their separate self-suppression rules.
 
 `username` is the bare public handle from `users.public_username`. The native
-Reactions sheet formats it as `@username`; `display_name` and `preview_names`
-retain their existing meaning. The additive field is supplied by
+Reactions sheet and aggregate format it as `@username`; `display_name` and
+`preview_names` retain their existing meaning. The additive field is supplied by
 `20260919203823_add_explore_post_reactor_usernames.sql`. Apply that migration
 before expecting usernames in the sheet; the existing Edge adapter passes the
-RPC payload through. Native decoding tolerates older responses without the field
-and falls back to the public display name.
+RPC payload through. The aggregate uses the first two loaded reactor usernames
+and retains those initial actors across subsequent pages. Native decoding
+tolerates older responses without the field: the sheet falls back to the public
+display name, while the aggregate shows only the count and never displays
+`preview_names` or first/last names.
 
 Pages contain at most 32 people ordered by UUID ascending, with one lookahead
 row. Pass `next_cursor` as `after_user_id`. Immutable actor IDs avoid moving a

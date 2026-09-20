@@ -5,7 +5,6 @@ import UIKit
 struct ExploreFeedTabContent: View {
     @Bindable var viewModel: ExploreFeedViewModel
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
-    @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @Environment(SupabaseManager.self) private var supabase
     @Environment(RevenueCatManager.self) private var revenueCatManager
     @Environment(\.modelContext) private var modelContext
@@ -110,7 +109,6 @@ struct ExploreFeedTabContent: View {
                         onComments: {
                             Task { await viewModel.openCommentsSheet(for: post) }
                         },
-                        onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) },
                         onOpenDetail: { onOpenPostDetail(post) },
                         onOpenAuthorProfile: { onOpenAuthorProfile(post) },
                         onOpenHashtag: onOpenHashtag,

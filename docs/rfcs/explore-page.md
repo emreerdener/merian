@@ -61,8 +61,8 @@ mutation. The current rollout state is documented in
   - General location only, at city or state level
   - Author avatar for authenticated users when a public avatar URL is available
   - Hashtag chips when the post is tagged
-  - Comment, Heart, Add reaction, scrolling emoji chips, and external Share
-    actions
+  - Comment, Heart, Add reaction, and scrolling emoji chips extending to the
+    right edge with overflow fades
 - The current V1 card layout is:
   - Author row above the image
   - Full-width square image
@@ -74,7 +74,8 @@ mutation. The current rollout state is documented in
 - The current V1 detail layout is:
   - Author row
   - Full-width hero image
-  - Comment, Heart, Add reaction, scrolling emoji chips, and Share actions
+  - Comment, Heart, Add reaction, and scrolling emoji chips below the hero
+  - Share in the top-right toolbar immediately before Options
   - Optional centered wrapping hashtag chips
   - Species section
   - Public species insight cards
@@ -416,8 +417,8 @@ It should contain:
 
 - The same privacy-safe author identity used on the feed
 - A full-width hero image
-- Comment, Heart, Add reaction, scrolling emoji chips, and external Share
-  actions
+- Comment, Heart, Add reaction, and scrolling emoji chips below the hero
+- External Share in the top-right toolbar immediately before Options
 - Optional public hashtag chips that wrap and route to tagged-post collections
 - Common and scientific names
 - Public species insight cards backed by `species_dictionary`
@@ -1672,11 +1673,12 @@ Client behavior:
 
 ## Emoji reactions update (2026-09-18)
 
-Observation cards and details use Comment → Heart → Add reaction → emoji chips →
-Share. The four controls stay fixed; chips scroll between Add and Share with
-conditional edge fades. Accessibility text sizes place chips on a second row,
-and the row height scales with Dynamic Type. Share destinations and comment
-navigation stay unchanged.
+Observation feed cards use Comment → Heart → Add reaction → emoji chips. The
+three controls stay fixed; chips scroll through the right edge with conditional
+edge fades. Details put Share in the top-right toolbar immediately before
+Options, leaving the row's remaining width for chips after Add reaction.
+Accessibility text sizes place chips on a second row, and the row height scales
+with Dynamic Type. Share destinations and comment navigation stay unchanged.
 
 Posts, comments, and notification reply threads share a searchable Unicode emoji
 picker without category filters or a Done button in the search field. It opens
@@ -1703,9 +1705,12 @@ public-web reaction controls remain outside this feature.
 ### Reaction interaction and failure rules
 
 The shared action row appears on observation feed cards, hashtag feeds, Map
-previews/discovery cards, and post detail. Comment, Heart, Add reaction, and
-Share stay fixed. Emoji scrolling is clipped before Share's hit region; leading
-and trailing fades appear only when content extends beyond that edge. At
+previews/discovery cards, and post detail. Comment, Heart, and Add reaction stay
+fixed. Hashtag and Map preview rows also keep Share fixed at the trailing edge;
+feed cards omit Share and their trailing inset so chips reach the right edge.
+Detail presents Share in its top-right toolbar before Options. Emoji scrolling
+is clipped to the remaining row width and stays outside any Share hit region;
+leading and trailing fades appear only when content extends beyond that edge. At
 `xxxLarge` and accessibility text sizes the chips move to a second row. Selected
 chips are highlighted, announce their catalog name/count/selection to VoiceOver,
 and disappear when their authoritative count reaches zero.
@@ -1717,12 +1722,11 @@ Comment and heart counts use Dynamic Type body text (17 points by default).
 Empty hashtag content adds no gap above the feed controls; large-text reaction
 rows retain their existing expansion.
 
-Feed and detail skeletons mirror Comment, Heart, Add reaction, emoji chips, and
-Share with the same control spacing and compact bar insets. Reaction chips use
-28-point placeholders with a trailing fade and move to a second row at the live
-layout's large-text threshold. Count placeholders follow body-text scaling and
-hide at accessibility text sizes. The optional reactor summary has no
-placeholder row while loading.
+Feed and detail skeleton action bars use three left-aligned 20-point placeholder
+nodes, each in a 44-point frame. Detail also represents Share and Options in the
+top-right toolbar. The bar stays on one row with compact insets and no count or
+emoji chip placeholders. The optional reactor summary has no placeholder row
+while loading.
 
 One viewer may contribute to several distinct emoji groups, once per emoji.
 Added reaction chips are compact, borderless capsules with a subtle selected
@@ -1804,14 +1808,21 @@ detail, Map, hashtag, comment/reply, and notification reply surfaces.
 
 ### Detail reaction people (2026-09-18)
 
-Post detail adds a tappable line directly below the action row, such as “Alex,
-Bea, and 4 others reacted.” Counts represent unique visible people across heart
-likes and all emoji, including the viewer and post owner. One/two-person copy
-uses their public names; zero people hides the line. Feed, Map, and hashtag
-cards keep their existing action row without this extra line. The detail line
-also stays hidden without reserving space while its read is loading or fails. It
-appears only after a successful read with people to show; background refreshes
-retain the existing lifecycle triggers.
+Post detail adds a tappable line directly below the action row, such as
+“@observer_a, @observer_b, and 4 others reacted.” Counts represent unique
+visible people across heart likes and all emoji, including the viewer and post
+owner. One/two-person copy uses their public usernames; zero people hides the
+line. Feed, Map, and hashtag cards keep their existing action row without this
+extra line. The detail line also stays hidden without reserving space while its
+read is loading or fails. It appears only after a successful read with people to
+show; background refreshes retain the existing lifecycle triggers.
+
+The aggregate formats the first two loaded reactors' usernames, retaining those
+actors across subsequent pages while updating the total. If an expected username
+is missing or blank, it shows only the count ("1 person reacted" or "N people
+reacted"); it never falls back to first/last names or `preview_names`. Refresh
+reconciles membership changes, consistent with the non-snapshot pagination
+contract.
 
 The summary row uses caption-sized text and people icon without a trailing
 chevron, 6-point internal spacing, and a 32-point minimum height. Its 16-point
@@ -1822,11 +1833,12 @@ icons scale with Dynamic Type.
 Tapping gives sheet feedback and opens a medium/large Reactions sheet. The sheet
 uses swipe-down dismissal without a Done button. Each row shows the person's
 public avatar, `@username`, and every emoji they used; likes appear as ❤️ once.
-Emoji overflow scrolls within that row. Explicit Load more pages through people,
-and pull-to-refresh updates membership. Loading, empty, and retry states are
-visible inside the opened sheet. VoiceOver uses emoji catalog names, and text
-supports Dynamic Type. The existing video-overlay lifecycle suspends playback
-while the sheet is presented.
+Separators appear only between rows, with no line above the first or below the
+last row. Emoji overflow scrolls within that row. Explicit Load more pages
+through people, and pull-to-refresh updates membership. Loading, empty, and
+retry states are visible inside the opened sheet. VoiceOver uses emoji catalog
+names, and text supports Dynamic Type. The existing video-overlay lifecycle
+suspends playback while the sheet is presented.
 
 A detail-owned model shares the summary and sheet state, refreshes after local
 post reaction/like completion, and rejects obsolete requests after refresh,

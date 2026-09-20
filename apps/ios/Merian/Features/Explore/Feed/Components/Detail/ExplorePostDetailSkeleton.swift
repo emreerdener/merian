@@ -15,7 +15,7 @@ struct ExplorePostDetailSkeleton: View {
                 mediaView
                     .padding(.horizontal, 16)
 
-                ExplorePostActionSkeleton(fill: placeholderFill(), secondaryFill: placeholderFill(secondary: true))
+                ExplorePostActionSkeleton(fill: placeholderFill(secondary: true))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
 
@@ -33,10 +33,12 @@ struct ExplorePostDetailSkeleton: View {
         .background(Color(uiColor: .systemBackground))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Circle()
-                    .fill(Color(uiColor: .tertiarySystemFill))
-                    .frame(width: 34, height: 34)
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                ForEach(0..<2) { _ in
+                    Circle()
+                        .fill(Color(uiColor: .tertiarySystemFill))
+                        .frame(width: 34, height: 34)
+                }
             }
         }
         .opacity(isGlowing ? 1.0 : 0.6)
